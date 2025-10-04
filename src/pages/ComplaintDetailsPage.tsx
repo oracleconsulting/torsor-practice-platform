@@ -12,7 +12,7 @@ import {
   ExternalLink,
   Download
 } from 'lucide-react';
-import { useHandoverComplaints } from '../../hooks/useHandoverComplaints';
+import { useHandoverComplaints } from '../hooks/useHandoverComplaints';
 import type { HandoverComplaint, Evidence, HandoverIssue } from '../types/accountancy';
 import { toast } from 'sonner';
 

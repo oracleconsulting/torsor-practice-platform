@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { HandoverComplaintForm } from '../components/accountancy/complaints/HandoverComplaintForm';
-import { useHandoverComplaints } from '../../hooks/useHandoverComplaints';
+import { useHandoverComplaints } from '../hooks/useHandoverComplaints';
 import type { HandoverComplaint } from '../types/accountancy';
 import { toast } from 'sonner';
 
