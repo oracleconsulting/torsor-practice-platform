@@ -25,7 +25,7 @@ import {
 import { useAccountancyContext } from '../contexts/AccountancyContext';
 import { oracleMethodService, type ClientProgress } from '../services/oracleMethodIntegration';
 
-// Import all 7 new alignment enhancement components
+// Import all alignment enhancement components
 import { ClientMappingPanel } from '../components/alignment/ClientMappingPanel';
 import { NotificationCenter } from '../components/alignment/NotificationCenter';
 import { AnalyticsDashboard } from '../components/alignment/AnalyticsDashboard';
@@ -33,6 +33,7 @@ import { BulkActionsBar } from '../components/alignment/BulkActionsBar';
 import { ExportMenu } from '../components/alignment/ExportMenu';
 import { CallTranscriptPanel } from '../components/alignment/CallTranscriptPanel';
 import { CalendlyConfigPanel } from '../components/alignment/CalendlyConfigPanel';
+import { VisionWorkflowPanel } from '../components/alignment/VisionWorkflowPanel';
 
 /**
  * 365 ALIGNMENT PROGRAMME - CLIENT ACCESS HUB
@@ -140,7 +141,7 @@ export default function AlignmentProgrammePage() {
   const [loading, setLoading] = useState(true);
   const [roadmapData, setRoadmapData] = useState<ClientRoadmapData | null>(null);
   const [clientProgress, setClientProgress] = useState<ClientProgress | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'vision' | 'shifts' | 'sprints' | 'tasks' | 'assessments' | 'analytics' | 'transcripts' | 'calendly' | 'mapping'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'vision' | 'shifts' | 'sprints' | 'tasks' | 'assessments' | 'workflow' | 'analytics' | 'transcripts' | 'calendly' | 'mapping'>('overview');
   const [refreshing, setRefreshing] = useState(false);
   const [availableClients, setAvailableClients] = useState<Array<{group_id: string, client_email: string, business_name: string}>>([]);
   const [showSetupMode, setShowSetupMode] = useState(false);
@@ -527,6 +528,7 @@ export default function AlignmentProgrammePage() {
         <nav className="-mb-px flex space-x-8 overflow-x-auto">
           {[
             { id: 'overview', label: 'Overview', icon: ChartBarIcon },
+            { id: 'workflow', label: 'Vision Workflow', icon: SparklesIcon },
             { id: 'vision', label: '5-Year Vision', icon: TrophyIcon },
             { id: 'shifts', label: '6-Month Shifts', icon: RocketLaunchIcon },
             { id: 'sprints', label: '3-Month Sprints', icon: CalendarDaysIcon },
@@ -703,6 +705,15 @@ export default function AlignmentProgrammePage() {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* VISION WORKFLOW TAB */}
+        {activeTab === 'workflow' && (
+          <VisionWorkflowPanel
+            practiceId={practice?.id || '00000000-0000-0000-0000-000000000000'}
+            oracleGroupId={selectedClientId}
+            onVisionUpdated={loadClientRoadmap}
+          />
         )}
 
         {/* 5-YEAR VISION TAB */}
