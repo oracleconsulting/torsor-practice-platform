@@ -137,11 +137,11 @@ export default function ClientRescues() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="border-4 border-[#ff6b35] bg-[#1a2b4a] text-white">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-[#f5f1e8]">Total Cases</CardTitle>
+            <CardTitle className="text-sm font-medium text-white">Total Cases</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-[#f5f1e8]">{rescueCases.length}</div>
-            <p className="text-xs text-[#f5f1e8]/80 mt-1">Active rescue operations</p>
+            <div className="text-2xl font-bold text-white">{rescueCases.length}</div>
+            <p className="text-xs text-white/80 mt-1">Active rescue operations</p>
           </CardContent>
         </Card>
 

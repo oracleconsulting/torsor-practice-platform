@@ -274,8 +274,8 @@ const ComplianceCalendarPage: React.FC = () => {
       {/* Page Header */}
       <div className="relative bg-[#1a2b4a] py-16 overflow-hidden border-b-4 border-[#ff6b35]">
         <div className="relative z-10 container mx-auto px-6">
-          <h1 className="text-5xl font-black uppercase text-[#f5f1e8] mb-2">COMPLIANCE CALENDAR</h1>
-          <p className="text-xl text-[#f5f1e8]/80 font-bold uppercase">Track regulatory deadlines and compliance requirements</p>
+          <h1 className="text-5xl font-black uppercase text-white mb-2">COMPLIANCE CALENDAR</h1>
+          <p className="text-xl text-white/80 font-bold uppercase">Track regulatory deadlines and compliance requirements</p>
         </div>
       </div>
       

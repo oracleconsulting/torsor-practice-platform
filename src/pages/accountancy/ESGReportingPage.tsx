@@ -331,8 +331,8 @@ export const ESGReportingPage: React.FC = () => {
                 <Leaf className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-5xl font-black uppercase text-[#f5f1e8] mb-2">ESG LITE REPORTING</h1>
-                <p className="text-xl text-[#f5f1e8]/80 font-bold uppercase">Sustainability reporting for SME clients</p>
+                <h1 className="text-5xl font-black uppercase text-white mb-2">ESG LITE REPORTING</h1>
+                <p className="text-xl text-white/80 font-bold uppercase">Sustainability reporting for SME clients</p>
               </div>
               <Badge variant="outline" className="ml-auto bg-[#ff6b35] text-white border-[#ff6b35] font-black uppercase">
                 {subscriptionTier} Tier

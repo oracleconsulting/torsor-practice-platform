@@ -921,18 +921,18 @@ export const CyberSecurityPage: React.FC<CyberSecurityPageProps> = ({ className 
         <div className="relative z-10 container mx-auto px-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-5xl font-black uppercase text-[#f5f1e8] mb-2 flex items-center gap-3">
+              <h1 className="text-5xl font-black uppercase text-white mb-2 flex items-center gap-3">
                 <Shield className="w-8 h-8 text-[#ff6b35]" />
                 CYBER SECURITY SHIELD
               </h1>
-              <p className="text-xl text-[#f5f1e8]/80 font-bold uppercase">
+              <p className="text-xl text-white/80 font-bold uppercase">
                 Real-time security monitoring, incident response, and partner integration
               </p>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">
-                <div className="text-sm text-[#f5f1e8]/60">Last Updated</div>
-                <div className="text-[#f5f1e8] font-medium">
+                <div className="text-sm text-white/60">Last Updated</div>
+                <div className="text-white font-medium">
                   {data.securityScore.lastUpdated.toLocaleString()}
                 </div>
               </div>
