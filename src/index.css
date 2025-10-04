@@ -45,15 +45,17 @@ html {
   overflow: auto !important;
 }
 
-/* ===== LONDON TWILIGHT THEME ENFORCEMENT ===== */
+/* ===== THEME DISABLED - USING MODERN SAAS THEME INSTEAD ===== */
+/* The dark theme overrides were causing white text on white backgrounds */
+/* Modern SaaS theme (imported above) provides proper light theme with good contrast */
+
+/*
 [data-portal="accountancy"] {
-  /* Force London Twilight theme */
   background-color: #0F172A !important;
   color: #F8FAFC !important;
   min-height: 100vh;
 }
 
-/* Navigation and Header */
 [data-portal="accountancy"] header,
 [data-portal="accountancy"] nav,
 [data-portal="accountancy"] aside {
@@ -67,7 +69,6 @@ html {
   color: #F8FAFC !important;
 }
 
-/* Cards and Panels */
 [data-portal="accountancy"] .card,
 [data-portal="accountancy"] [class*="card"],
 [data-portal="accountancy"] .bg-white,
@@ -96,7 +97,6 @@ html {
   border-color: #475569 !important;
 }
 
-/* Text Colors */
 [data-portal="accountancy"] h1,
 [data-portal="accountancy"] h2,
 [data-portal="accountancy"] h3,
@@ -117,20 +117,17 @@ html {
   color: #F8FAFC !important;
 }
 
-/* Secondary Text */
 [data-portal="accountancy"] .text-muted-foreground,
 [data-portal="accountancy"] .text-gray-400,
 [data-portal="accountancy"] .text-gray-500 {
   color: #CBD5E1 !important;
 }
 
-/* Tertiary Text */
 [data-portal="accountancy"] .text-gray-400,
 [data-portal="accountancy"] .text-gray-500 {
   color: #94A3B8 !important;
 }
 
-/* Buttons */
 [data-portal="accountancy"] button,
 [data-portal="accountancy"] .btn,
 [data-portal="accountancy"] .btn-primary,
@@ -143,7 +140,6 @@ html {
   border-color: #475569 !important;
 }
 
-/* Accent Buttons (Coral) */
 [data-portal="accountancy"] .btn-danger,
 [data-portal="accountancy"] .bg-red-600,
 [data-portal="accountancy"] .bg-red-700,
@@ -152,7 +148,6 @@ html {
   color: #F8FAFC !important;
 }
 
-/* Secondary Buttons (Gold) */
 [data-portal="accountancy"] .btn-secondary,
 [data-portal="accountancy"] .bg-amber-500,
 [data-portal="accountancy"] .bg-amber-600,
@@ -161,7 +156,6 @@ html {
   color: #0F172A !important;
 }
 
-/* Input Fields */
 [data-portal="accountancy"] input,
 [data-portal="accountancy"] select,
 [data-portal="accountancy"] textarea {
@@ -170,7 +164,6 @@ html {
   border-color: #475569 !important;
 }
 
-/* Borders */
 [data-portal="accountancy"] .border,
 [data-portal="accountancy"] .border-gray-300,
 [data-portal="accountancy"] .border-gray-400,
@@ -189,7 +182,6 @@ html {
   border-color: #475569 !important;
 }
 
-/* Focus States */
 [data-portal="accountancy"] input:focus,
 [data-portal="accountancy"] select:focus,
 [data-portal="accountancy"] textarea:focus,
@@ -198,7 +190,6 @@ html {
   outline-offset: 2px !important;
 }
 
-/* Links */
 [data-portal="accountancy"] a {
   color: #3B82F6 !important;
 }
@@ -207,13 +198,15 @@ html {
   color: #60A5FA !important;
 }
 
-/* Active States */
 [data-portal="accountancy"] .active,
 [data-portal="accountancy"] .bg-blue-600,
 [data-portal="accountancy"] .bg-primary {
   background-color: #3B82F6 !important;
   color: #F8FAFC !important;
 }
+*/
+
+/* END OF COMMENTED OUT DARK THEME */
 
 /* ===== ASSESSMENT PAGE SPECIFIC FIXES ===== */
 [class*="assessment"] {
