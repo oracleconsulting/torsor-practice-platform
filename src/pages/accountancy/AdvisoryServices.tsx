@@ -304,6 +304,9 @@ const AdvisoryServices: React.FC = () => {
         <p className="mt-2 text-gray-600">
           Comprehensive business advisory to help clients achieve strategic, financial, and operational goals
         </p>
+        <p className="mt-1 text-sm text-gray-500">
+          Click "Service Catalog" tab to add, edit, or delete services
+        </p>
       </div>
 
       {/* Quick Stats */}
