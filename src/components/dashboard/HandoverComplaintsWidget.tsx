@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, ChevronRight, FileText, Clock, Shield } from 'lucide-react';
-import type { HandoverComplaint } from '../../types/accountancy';
+import type { HandoverComplaint } from '../types/accountancy';
 import { useNavigate } from 'react-router-dom';
 
 interface Props {

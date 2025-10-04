@@ -21,7 +21,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { PortalDocument } from '../../types/clientPortal';
+import { PortalDocument } from '../types/clientPortal';
 
 // Set up PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;

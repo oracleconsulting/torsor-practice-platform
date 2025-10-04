@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Users, Cpu, Brain, Building2, ArrowRight, Zap, Package } from 'lucide-react';
-import type { SixMonthShift, ShiftItem } from '../../types/oracle';
+import type { SixMonthShift, ShiftItem } from '../types/oracle';
 
 interface Props {
   shifts: SixMonthShift;

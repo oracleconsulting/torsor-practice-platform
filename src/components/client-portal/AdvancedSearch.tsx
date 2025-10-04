@@ -22,8 +22,8 @@ import {
   FileSpreadsheet,
   FileArchive
 } from 'lucide-react';
-import { PortalDocument } from '../../types/clientPortal';
-import { clientPortalApi } from '../../services/clientPortalApi';
+import { PortalDocument } from '../types/clientPortal';
+import { clientPortalApi } from '../services/clientPortalApi';
 
 interface SearchResult {
   document: PortalDocument;

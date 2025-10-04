@@ -23,7 +23,7 @@ import {
   Search,
   RefreshCw
 } from 'lucide-react';
-import { clientPortalApi } from '../../services/clientPortalApi';
+import { clientPortalApi } from '../services/clientPortalApi';
 
 interface AuditLog {
   id: string;

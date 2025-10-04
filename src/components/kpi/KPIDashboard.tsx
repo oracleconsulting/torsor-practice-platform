@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { kpiService } from '../../services/accountancy/kpiService';
+import { kpiService } from '../services/accountancy/kpiService';
 import { useAccountancyContext } from '@/contexts/AccountancyContext';
 
 interface KPIData {

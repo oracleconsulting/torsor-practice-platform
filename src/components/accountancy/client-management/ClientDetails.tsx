@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AccountingClient } from '../../types/accountancy';
+import { AccountingClient } from '../types/accountancy';
 import { Eye, Edit, Trash2, Shield, CheckCircle, Clock, AlertTriangle, ExternalLink } from 'lucide-react';
 
 interface ClientDetailsProps {

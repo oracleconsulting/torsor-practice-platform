@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ChartBarIcon, ArrowTrendingUpIcon, CurrencyPoundIcon } from '@heroicons/react/24/outline';
-import { supabase } from '../../lib/supabase/client';
+import { supabase } from '../lib/supabase/client';
 
 interface Props {
   practiceId: string;

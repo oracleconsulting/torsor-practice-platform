@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClientManagementSummary } from '../../types/accountancy';
+import { ClientManagementSummary } from '../types/accountancy';
 import { Users, CheckCircle, AlertTriangle, FileText, Shield } from 'lucide-react';
 
 interface ClientStatsProps {

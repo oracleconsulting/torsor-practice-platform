@@ -25,8 +25,8 @@ import {
   AccountingClient, 
   ClientManagementSummary,
   ClientPortalStats 
-} from '../../types/accountancy';
-import { clientManagementService } from '../../services/accountancy/clientManagementService';
+} from '../types/accountancy';
+import { clientManagementService } from '../services/accountancy/clientManagementService';
 import { Header } from '../Header';
 import { ClientList } from './ClientList';
 import { ClientDetails } from './ClientDetails';

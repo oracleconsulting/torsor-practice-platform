@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { WidgetContainer } from '../../shared/WidgetContainer';
-import { Button } from '../../ui/button';
-import { Badge } from '../../ui/badge';
-import { Progress } from '../../ui/progress';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { Progress } from '../ui/progress';
 import { 
   Heart, 
   CheckCircle, 

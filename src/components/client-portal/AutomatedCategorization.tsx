@@ -19,8 +19,8 @@ import {
   Target,
   BarChart3
 } from 'lucide-react';
-import { PortalDocument, DocumentCategory } from '../../types/clientPortal';
-import { clientPortalApi } from '../../services/clientPortalApi';
+import { PortalDocument, DocumentCategory } from '../types/clientPortal';
+import { clientPortalApi } from '../services/clientPortalApi';
 
 interface CategorizationResult {
   documentId: string;

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, Download, Eye, Settings } from 'lucide-react';
-import { ESGClient, ESGData, ESGReport } from '../../types/accountancy';
+import { ESGClient, ESGData, ESGReport } from '../types/accountancy';
 import { ClientScopingGrid } from './esg/ClientScopingGrid';
 import { DataCollectionPortal } from './esg/DataCollectionPortal';
 import { ReportBuilder } from './esg/ReportBuilder';

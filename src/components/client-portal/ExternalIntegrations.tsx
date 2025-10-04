@@ -22,7 +22,7 @@ import {
   Plus,
   MapPin
 } from 'lucide-react';
-import { clientPortalApi } from '../../services/clientPortalApi';
+import { clientPortalApi } from '../services/clientPortalApi';
 
 interface Integration {
   id: string;

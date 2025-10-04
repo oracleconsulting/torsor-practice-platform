@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAccountancyContext } from '../../contexts/AccountancyContext';
+import { useAccountancyContext } from '../contexts/AccountancyContext';
 import { widgetRegistry, WidgetConfig, getWidgetById } from '../../../config/widgetRegistry';
-import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
-import { Button } from '../../ui/button';
-import { Badge } from '../../ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
 import { 
   Grid3X3, 
   Settings, 

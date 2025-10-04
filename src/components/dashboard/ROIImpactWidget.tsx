@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, DollarSign, Target, Info } from 'lucide-react';
-import type { ROIImpact } from '../../types/oracle';
+import type { ROIImpact } from '../types/oracle';
 
 interface Props {
   roi: ROIImpact;

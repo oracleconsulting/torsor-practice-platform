@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Check, CheckCheck } from 'lucide-react';
-import { ChatMessage } from '../../types/chat';
+import { ChatMessage } from '../types/chat';
 
 interface MessageBubbleProps {
   message: ChatMessage;

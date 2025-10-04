@@ -8,7 +8,7 @@ import {
   CheckCircle,
   Clock
 } from 'lucide-react';
-import { DocumentCategory, PortalDocument } from '../../types/clientPortal';
+import { DocumentCategory, PortalDocument } from '../types/clientPortal';
 
 interface ClientPortalSidebarProps {
   activeTab: 'documents' | 'categories' | 'activity' | 'settings';

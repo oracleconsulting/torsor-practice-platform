@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Plus, X, Upload, Shield } from 'lucide-react';
-import type { HandoverComplaint, HandoverIssue, Evidence } from '../../types/accountancy';
+import type { HandoverComplaint, HandoverIssue, Evidence } from '../types/accountancy';
 
 interface Props {
   onSubmit: (complaint: Omit<HandoverComplaint, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;

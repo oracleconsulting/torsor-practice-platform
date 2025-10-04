@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle, Circle, Clock, FileText } from 'lucide-react';
-import type { SprintWeek, SprintTask } from '../../types/oracle';
+import type { SprintWeek, SprintTask } from '../types/oracle';
 
 interface Props {
   week: SprintWeek;

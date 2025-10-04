@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Leaf, TrendingUp, Users, Calendar } from 'lucide-react';
 import { useAccountancy } from '../../../hooks/useAccountancy';
-import { ESGSummary } from '../../types/accountancy';
+import { ESGSummary } from '../types/accountancy';
 import { ESGDashboard } from './ESGDashboard';
 
 interface ESGLiteWidgetProps {

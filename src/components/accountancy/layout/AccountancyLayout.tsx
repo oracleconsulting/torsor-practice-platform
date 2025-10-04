@@ -4,8 +4,8 @@ import {
   Home, Users, AlertTriangle, FileText, TrendingUp, Shield, BarChart3, Leaf, Heart, Crown, Menu, Bell, Search, LogOut, Mail
 } from 'lucide-react';
 import { ChevronDownIcon, BeakerIcon, ArchiveBoxIcon, CogIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
-import { useAccountancyContext } from '../../contexts/AccountancyContext';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAccountancyContext } from '../contexts/AccountancyContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { practice, subscriptionTier } = useAccountancyContext();

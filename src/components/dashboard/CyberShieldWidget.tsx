@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Shield, AlertTriangle, CheckCircle, XCircle, Users, Database, Package, Bug } from 'lucide-react';
 import { useCyberSecurity } from '../../../hooks/useCyberSecurity';
-import { SecurityData, SecurityAlerts } from '../../types/accountancy';
+import { SecurityData, SecurityAlerts } from '../types/accountancy';
 import { CyberSecurityDashboard } from './CyberSecurityDashboard';
 
 interface CyberShieldWidgetProps {
