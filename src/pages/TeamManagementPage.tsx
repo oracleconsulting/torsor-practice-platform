@@ -93,10 +93,10 @@ const TeamManagementPage: React.FC = () => {
       </div>
       
       {/* Page Content */}
-      <div className="relative z-10 container mx-auto px-6 py-12">
+      <div className="relative z-10 container mx-auto px-6 py-12 max-w-7xl">
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid grid-cols-4 gap-4 bg-[#1a2b4a] p-1 h-auto border-2 border-[#ff6b35]">
+          <TabsList className="grid grid-cols-4 gap-4 bg-[#1a2b4a] p-1 h-auto border-2 border-[#ff6b35] overflow-hidden">
             {tabs.map((tab) => (
               <TabsTrigger
                 key={tab.value}

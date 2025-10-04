@@ -151,16 +151,16 @@ export default function SystemsAuditPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8 max-w-7xl">
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-2">
-              <CogIcon className="h-8 w-8 text-blue-400" />
-              Systems Audit
+            <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+              <CogIcon className="h-8 w-8 text-blue-600" />
+              Client IT Systems Audit
             </h1>
-            <p className="text-gray-400">
-              IT systems and security audit for {auditData?.clientName}
+            <p className="text-gray-600">
+              Comprehensive IT systems and security audit for your client: {auditData?.clientName}
             </p>
           </div>
           <Badge className="bg-orange-500">NEW</Badge>
@@ -172,8 +172,8 @@ export default function SystemsAuditPage() {
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-white mb-2">Overall Security Score</h3>
-              <p className="text-gray-400 text-sm">Last audited: {auditData?.auditDate}</p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Overall Security Score</h3>
+              <p className="text-gray-600 text-sm">Last audited: {auditData?.auditDate}</p>
             </div>
             <div className={`text-6xl font-bold ${getScoreColor(auditData?.overallScore || 0)}`}>
               {auditData?.overallScore}
@@ -193,7 +193,7 @@ export default function SystemsAuditPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-white">
+            <div className="text-3xl font-bold text-gray-900">
               {auditData?.summary.passed}
             </div>
           </CardContent>
@@ -207,7 +207,7 @@ export default function SystemsAuditPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-white">
+            <div className="text-3xl font-bold text-gray-900">
               {auditData?.summary.warnings}
             </div>
           </CardContent>
@@ -221,7 +221,7 @@ export default function SystemsAuditPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-white">
+            <div className="text-3xl font-bold text-gray-900">
               {auditData?.summary.failed}
             </div>
           </CardContent>
@@ -235,7 +235,7 @@ export default function SystemsAuditPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-white">
+            <div className="text-3xl font-bold text-gray-900">
               {auditData?.summary.pending}
             </div>
           </CardContent>
@@ -299,7 +299,7 @@ export default function SystemsAuditPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         {getStatusIcon(item.status)}
-                        <h4 className="font-semibold text-white">{item.system}</h4>
+                        <h4 className="font-semibold text-gray-900">{item.system}</h4>
                         <Badge variant="outline" className="ml-2">{item.category}</Badge>
                         <Badge 
                           variant={
