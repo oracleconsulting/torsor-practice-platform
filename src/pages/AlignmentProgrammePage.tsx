@@ -132,7 +132,7 @@ interface ClientRoadmapData {
 export default function AlignmentProgrammePage() {
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
-  const { subscriptionTier } = useAccountancyContext();
+  const { subscriptionTier, practice } = useAccountancyContext();
   
   const [loading, setLoading] = useState(true);
   const [roadmapData, setRoadmapData] = useState<ClientRoadmapData | null>(null);
@@ -383,7 +383,7 @@ export default function AlignmentProgrammePage() {
             ← Back to Client Selection
           </Button>
         </div>
-        <ClientMappingPanel practiceId="demo-practice" />
+        <ClientMappingPanel practiceId={practice?.id || '00000000-0000-0000-0000-000000000000'} />
       </div>
     );
   }
