@@ -157,7 +157,7 @@ const AdvisoryServices: React.FC = () => {
   const practiceId = practice?.id;
   const [activeTab, setActiveTab] = useState<'overview' | 'clients' | 'services' | 'metrics'>('services');
   const [advisoryStats, setAdvisoryStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [services, setServices] = useState<AdvisoryService[]>(defaultServices);
   
   // Modal state
@@ -404,7 +404,14 @@ const AdvisoryServices: React.FC = () => {
 
       {/* Tab Content */}
       {activeTab === 'overview' && (
-        <AdvisoryDashboard practiceId={practiceId} />
+        <div className="space-y-6">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-blue-900 font-medium">
+              👉 To add, edit, or delete advisory services, click the <strong>"Service Catalog"</strong> tab above.
+            </p>
+          </div>
+          <AdvisoryDashboard practiceId={practiceId} />
+        </div>
       )}
 
       {activeTab === 'services' && (
