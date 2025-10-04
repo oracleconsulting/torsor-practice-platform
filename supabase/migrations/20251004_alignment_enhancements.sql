@@ -292,59 +292,80 @@ CREATE TRIGGER update_calendly_config_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- Function to create notification on milestone completion
-CREATE OR REPLACE FUNCTION create_milestone_notification()
-RETURNS TRIGGER AS $$
-DECLARE
-    client_mapping RECORD;
-    week_tasks_total INTEGER;
-    week_tasks_completed INTEGER;
+-- NOTE: This trigger will be created ONLY if sprint_progress table exists
+-- The sprint_progress table should be created by the Oracle Method Portal migrations
+DO $$
 BEGIN
-    -- Check if this completion triggers a milestone
-    IF NEW.completed = TRUE AND (OLD.completed IS NULL OR OLD.completed = FALSE) THEN
-        
-        -- Get client mapping
-        SELECT * INTO client_mapping 
-        FROM oracle_client_mapping 
-        WHERE oracle_group_id = NEW.group_id::text::uuid 
-        LIMIT 1;
-        
-        IF client_mapping IS NOT NULL THEN
-            -- Check if week is complete
-            SELECT 
-                COUNT(*) as total,
-                COUNT(*) FILTER (WHERE completed = TRUE) as completed
-            INTO week_tasks_total, week_tasks_completed
-            FROM sprint_progress 
-            WHERE group_id = NEW.group_id 
-            AND week_number = NEW.week_number;
-            
-            -- If week just completed
-            IF week_tasks_completed = week_tasks_total THEN
-                INSERT INTO alignment_notifications (
-                    practice_id, oracle_group_id, notification_type,
-                    title, message, priority, related_entity_type, related_entity_id
-                ) VALUES (
-                    client_mapping.practice_id,
-                    client_mapping.oracle_group_id,
-                    'week_completed',
-                    'Week ' || NEW.week_number || ' Completed! 🎉',
-                    'Your client has completed all tasks for Week ' || NEW.week_number || '. Great progress!',
-                    'normal',
-                    'week',
-                    NEW.week_number::text
-                );
+    -- Check if sprint_progress table exists before creating trigger
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'sprint_progress'
+    ) THEN
+        -- Create the function
+        CREATE OR REPLACE FUNCTION create_milestone_notification()
+        RETURNS TRIGGER AS $func$
+        DECLARE
+            client_mapping RECORD;
+            week_tasks_total INTEGER;
+            week_tasks_completed INTEGER;
+        BEGIN
+            -- Check if this completion triggers a milestone
+            IF NEW.completed = TRUE AND (OLD.completed IS NULL OR OLD.completed = FALSE) THEN
+                
+                -- Get client mapping
+                SELECT * INTO client_mapping 
+                FROM oracle_client_mapping 
+                WHERE oracle_group_id = NEW.group_id::text::uuid 
+                LIMIT 1;
+                
+                IF client_mapping IS NOT NULL THEN
+                    -- Check if week is complete
+                    SELECT 
+                        COUNT(*) as total,
+                        COUNT(*) FILTER (WHERE completed = TRUE) as completed
+                    INTO week_tasks_total, week_tasks_completed
+                    FROM sprint_progress 
+                    WHERE group_id = NEW.group_id 
+                    AND week_number = NEW.week_number;
+                    
+                    -- If week just completed
+                    IF week_tasks_completed = week_tasks_total THEN
+                        INSERT INTO alignment_notifications (
+                            practice_id, oracle_group_id, notification_type,
+                            title, message, priority, related_entity_type, related_entity_id
+                        ) VALUES (
+                            client_mapping.practice_id,
+                            client_mapping.oracle_group_id,
+                            'week_completed',
+                            'Week ' || NEW.week_number || ' Completed! 🎉',
+                            'Your client has completed all tasks for Week ' || NEW.week_number || '. Great progress!',
+                            'normal',
+                            'week',
+                            NEW.week_number::text
+                        );
+                    END IF;
+                END IF;
             END IF;
-        END IF;
-    END IF;
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+            
+            RETURN NEW;
+        END;
+        $func$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trigger_milestone_notification
-    AFTER INSERT OR UPDATE ON sprint_progress
-    FOR EACH ROW
-    EXECUTE FUNCTION create_milestone_notification();
+        -- Drop existing trigger if it exists
+        DROP TRIGGER IF EXISTS trigger_milestone_notification ON sprint_progress;
+        
+        -- Create the trigger
+        CREATE TRIGGER trigger_milestone_notification
+            AFTER INSERT OR UPDATE ON sprint_progress
+            FOR EACH ROW
+            EXECUTE FUNCTION create_milestone_notification();
+            
+        RAISE NOTICE 'Milestone notification trigger created successfully';
+    ELSE
+        RAISE NOTICE 'sprint_progress table does not exist yet - skipping trigger creation. Run this migration after Oracle Method Portal setup.';
+    END IF;
+END $$;
 
 -- ============================================================================
 -- 9. ROW LEVEL SECURITY (RLS) POLICIES
