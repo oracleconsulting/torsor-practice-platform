@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Target, Lightbulb, BarChart3, Award } from 'lucide-react';
-import { Benchmark } from '../../../types/accountancy';
+import { Benchmark } from '../../../../types/accountancy';
 
 export const InsightsPanel: React.FC = () => {
   const [selectedIndustry, setSelectedIndustry] = useState('technology');

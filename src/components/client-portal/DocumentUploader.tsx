@@ -11,7 +11,7 @@ import {
   AlertCircle,
   Loader2
 } from 'lucide-react';
-import { DocumentCategory } from '../types/clientPortal';
+import { DocumentCategory } from '../../types/clientPortal';
 
 interface DocumentUploaderProps {
   onClose: () => void;

@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Filter, Calendar, X } from 'lucide-react';
 import debounce from 'lodash/debounce';
-import { DocumentCategory } from '../types/clientPortal';
+import { DocumentCategory } from '../../types/clientPortal';
 
 interface DocumentSearchProps {
   onSearch: (params: SearchParams) => void;

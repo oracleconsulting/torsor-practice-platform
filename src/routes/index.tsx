@@ -1,13 +1,13 @@
 import React from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '../components/ProtectedRoutes';
-import AccountancyLayout from '../components/layout/AccountancyLayout';
+import AccountancyLayout from '../components/accountancy/layout/AccountancyLayout';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccountancyContext } from '../contexts/AccountancyContext';
 
 // Import all page components
 import AccountancyDashboard from '../pages/AccountancyDashboard';
-import { ClientManagementPage } from '../components/client-management/ClientManagementPage';
+import { ClientManagementPage } from '../components/accountancy/client-management/ClientManagementPage';
 import TeamManagementPage from '../pages/TeamManagementPage';
 import { AlternateAuditorPage } from '../pages/AlternateAuditorPage';
 import { MTDCapacityPage } from '../pages/MTDCapacityPage';
@@ -24,16 +24,16 @@ import KPIDashboardPage from '../pages/KPIDashboardPage';
 import SettingsPage from '../pages/SettingsPage';
 
 // Outreach pages
-import { OutreachDashboard } from '../components/outreach/OutreachDashboard';
-import { CampaignPage } from '../components/outreach/campaigns/CampaignPage';
-import { ContactPage } from '../components/outreach/contacts/ContactPage';
-import { SchedulePage } from '../components/outreach/schedule/SchedulePage';
-import ProspectList from '../components/outreach/prospects/ProspectList';
-import ProspectDetail from '../pages/outreach/ProspectDetail';
-import PEMonitor from '../components/outreach/pe/PEMonitor';
-import PEAcquisitionDetail from '../pages/outreach/PEAcquisitionDetail';
-import Research from '../pages/outreach/Research';
-import Analytics from '../pages/outreach/Analytics';
+import { OutreachDashboard } from '../components/accountancy/outreach/OutreachDashboard';
+import { CampaignPage } from '../components/accountancy/outreach/campaigns/CampaignPage';
+import { ContactPage } from '../components/accountancy/outreach/contacts/ContactPage';
+import { SchedulePage } from '../components/accountancy/outreach/schedule/SchedulePage';
+import ProspectList from '../components/accountancy/outreach/prospects/ProspectList';
+import ProspectDetail from '../pages/accountancy/outreach/ProspectDetail';
+import PEMonitor from '../components/accountancy/outreach/pe/PEMonitor';
+import PEAcquisitionDetail from '../pages/accountancy/outreach/PEAcquisitionDetail';
+import Research from '../pages/accountancy/outreach/Research';
+import Analytics from '../pages/accountancy/outreach/Analytics';
 
 // Import new page components
 import ClientRescues from '../pages/ClientRescues';

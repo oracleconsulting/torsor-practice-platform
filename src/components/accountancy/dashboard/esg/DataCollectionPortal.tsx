@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Save, Calculator, Upload, CheckCircle, AlertCircle } from 'lucide-react';
-import { ESGClient, ESGData, CarbonResults } from '../../../types/accountancy';
-import { esgAPI } from '../../../services/accountancy/accountancyApiService';
+import { ESGClient, ESGData, CarbonResults } from '../../../../types/accountancy';
+import { esgAPI } from '../../../../services/accountancy/accountancyApiService';
 
 interface DataCollectionPortalProps {
   selectedClient: ESGClient | null;

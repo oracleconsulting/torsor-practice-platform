@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAlternateAuditor } from '../../../hooks/useAlternateAuditor';
 import { WidgetContainer } from '../../shared/WidgetContainer';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { Progress } from '../ui/progress';
+import { Button } from '../../ui/button';
+import { Badge } from '../../ui/badge';
+import { Progress } from '../../ui/progress';
 import { 
   Shield, 
   AlertTriangle, 

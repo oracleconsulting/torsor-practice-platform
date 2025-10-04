@@ -1,5 +1,5 @@
 import React from 'react';
-import { AccountingClient, ClientPortalStats } from '../types/accountancy';
+import { AccountingClient, ClientPortalStats } from '../../../types/accountancy';
 import { ArrowLeft, FileText, Shield, Users, Activity, CheckCircle, AlertTriangle } from 'lucide-react';
 
 interface ClientPortalViewProps {

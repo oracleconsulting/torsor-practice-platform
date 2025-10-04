@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Briefcase, TrendingUp, TrendingDown, AlertTriangle, Shield } from 'lucide-react';
 import { useAccountancy } from '../../../hooks/useAccountancy';
-import { ContinuitySummary } from '../types/accountancy';
+import { ContinuitySummary } from '../../../types/accountancy';
 import { ContinuityDashboard } from './ContinuityDashboard';
 
 interface ContinuityScorecardWidgetProps {

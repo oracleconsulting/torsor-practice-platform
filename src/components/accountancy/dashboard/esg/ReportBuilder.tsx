@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Download, Eye, FileText, TrendingUp, BarChart3 } from 'lucide-react';
-import { ESGClient, ESGReport } from '../../../types/accountancy';
-import { esgAPI } from '../../../services/accountancy/accountancyApiService';
+import { ESGClient, ESGReport } from '../../../../types/accountancy';
+import { esgAPI } from '../../../../services/accountancy/accountancyApiService';
 
 interface ReportBuilderProps {
   clients: ESGClient[];

@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles, Target, Trophy, Rocket, Flag } from 'lucide-react';
-import type { FiveYearVision } from '../types/oracle';
+import type { FiveYearVision } from '../../types/oracle';
 
 interface Props {
   vision: FiveYearVision;

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { MagnifyingGlassIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
-import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
-import { Button } from '../ui/button';
-import { supabase } from '../lib/supabase/client';
+import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
+import { Button } from '../../ui/button';
+import { supabase } from '../../../lib/supabase/client';
 
 interface Client {
   id: string;

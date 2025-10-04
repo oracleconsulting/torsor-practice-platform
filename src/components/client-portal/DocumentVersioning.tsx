@@ -16,8 +16,8 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
-import { PortalDocument } from '../types/clientPortal';
-import { clientPortalApi } from '../services/clientPortalApi';
+import { PortalDocument } from '../../types/clientPortal';
+import { clientPortalApi } from '../../services/clientPortalApi';
 
 interface DocumentVersioningProps {
   portalId: string;

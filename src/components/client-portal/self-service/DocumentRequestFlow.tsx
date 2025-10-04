@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FileText, Calendar, Clock, Send, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { DocumentRequestTemplate } from '../types/clientPortal';
+import { DocumentRequestTemplate } from '../../../types/clientPortal';
 
 interface DocumentRequestFlowProps {
   templates: DocumentRequestTemplate[];

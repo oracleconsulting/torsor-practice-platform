@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Calculator, TrendingUp, DollarSign } from 'lucide-react';
-import { PracticeValuation } from '../../../types/accountancy';
-import { continuityAPI } from '../../../services/accountancy/accountancyApiService';
+import { PracticeValuation } from '../../../../types/accountancy';
+import { continuityAPI } from '../../../../services/accountancy/accountancyApiService';
 
 export const ValuationPanel: React.FC = () => {
   const [methodology, setMethodology] = useState<'GRF' | 'EBITDA' | 'HYBRID'>('GRF');

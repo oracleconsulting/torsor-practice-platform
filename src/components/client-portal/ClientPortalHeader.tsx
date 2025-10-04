@@ -9,7 +9,7 @@ import {
   Shield,
   CheckCircle
 } from 'lucide-react';
-import { ClientPortal, PortalNotification } from '../types/clientPortal';
+import { ClientPortal, PortalNotification } from '../../types/clientPortal';
 
 interface ClientPortalHeaderProps {
   client: ClientPortal | null;

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Paperclip, Smile, MoreVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWebSocket } from '../../../hooks/useWebSocket';
-import { ChatMessage, ChatThread } from '../types/chat';
+import { ChatMessage, ChatThread } from '../../../types/chat';
 import { EmojiPicker } from './EmojiPicker';
 import { FileAttachment } from './FileAttachment';
 import { TypingIndicator } from './TypingIndicator';

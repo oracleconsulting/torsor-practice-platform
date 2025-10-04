@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase/client';
+import { supabase } from '../../../lib/supabase/client';
 import { UserGroupIcon, BriefcaseIcon } from '@heroicons/react/24/outline';
 
 interface Props {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle, AlertCircle, Clock, DollarSign, Target } from 'lucide-react';
-import { ESGClient, ESGScope } from '../../../types/accountancy';
+import { ESGClient, ESGScope } from '../../../../types/accountancy';
 
 interface ClientScopingGridProps {
   clients: ESGClient[];

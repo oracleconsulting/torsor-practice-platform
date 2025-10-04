@@ -1,6 +1,6 @@
 import React from 'react';
 import { Users, Eye, Trash2, Shield, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
-import { AccountingClient } from '../types/accountancy';
+import { AccountingClient } from '../../../types/accountancy';
 
 interface ClientListProps {
   clients: AccountingClient[];

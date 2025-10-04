@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../ui/card';
-import { Button } from '../ui/button';
-import { useAccountancyContext } from '../contexts/AccountancyContext';
-import { outreachService } from '../services/accountancy/outreachService';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../../ui/card';
+import { Button } from '../../ui/button';
+import { useAccountancyContext } from '../../../contexts/AccountancyContext';
+import { outreachService } from '../../../services/accountancy/outreachService';
 import JamesStoryBanner from './JamesStoryBanner';
 import PEMonitor from './pe/PEMonitor';
 import ProspectCard from './prospects/ProspectCard';
 import { Mail, Users, Calendar, TrendingUp, ArrowUp, ArrowDown, Loader2, AlertCircle } from 'lucide-react';
-import { Badge } from '../ui/badge';
+import { Badge } from '../../ui/badge';
 import { Plus, Filter, ArrowRight } from 'lucide-react';
-import { toast } from '../ui/use-toast';
+import { toast } from '../../ui/use-toast';
 
 export const OutreachDashboard: React.FC = () => {
   const navigate = useNavigate();

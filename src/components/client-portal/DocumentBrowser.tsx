@@ -15,7 +15,7 @@ import {
   FileSpreadsheet,
   FileArchive
 } from 'lucide-react';
-import { PortalDocument } from '../types/clientPortal';
+import { PortalDocument } from '../../types/clientPortal';
 
 interface DocumentBrowserProps {
   documents: PortalDocument[];

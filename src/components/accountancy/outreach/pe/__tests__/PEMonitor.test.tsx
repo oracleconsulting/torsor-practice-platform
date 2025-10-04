@@ -1,8 +1,8 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { useNavigate } from 'react-router-dom';
-import { useAccountancyContext } from '../../../../contexts/AccountancyContext';
-import { outreachService } from '../../../../services/accountancy/outreachService';
+import { useAccountancyContext } from '../../../../../contexts/AccountancyContext';
+import { outreachService } from '../../../../../services/accountancy/outreachService';
 import PEMonitor from '../PEMonitor';
 
 // Mock dependencies

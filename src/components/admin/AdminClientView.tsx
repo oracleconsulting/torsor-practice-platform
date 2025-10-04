@@ -22,11 +22,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useOracleData } from '../../hooks/useOracleData';
 import { useAuth } from '../../hooks/useAuth';
 import { toast } from 'sonner';
-import AdminService from '../services/adminService';
+import AdminService from '../../services/adminService';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { supabase } from '../lib/supabase/client';
+import { supabase } from '../../lib/supabase/client';
 
 interface AdminClientViewProps {
   clientEmail: string;

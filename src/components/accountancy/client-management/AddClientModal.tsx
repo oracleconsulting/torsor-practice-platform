@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Plus } from 'lucide-react';
-import { AccountingClient } from '../types/accountancy';
+import { AccountingClient } from '../../../types/accountancy';
 
 interface AddClientModalProps {
   onClose: () => void;
