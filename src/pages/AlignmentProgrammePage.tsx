@@ -141,6 +141,7 @@ export default function AlignmentProgrammePage() {
   const [selectedClientId] = useState(clientId || '');
   const [refreshing, setRefreshing] = useState(false);
   const [availableClients, setAvailableClients] = useState<Array<{group_id: string, client_email: string, business_name: string}>>([]);
+  const [showSetupMode, setShowSetupMode] = useState(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
   // Check subscription tier
@@ -150,21 +151,32 @@ export default function AlignmentProgrammePage() {
   useEffect(() => {
     const fetchClients = async () => {
       try {
+        console.log('[365 Alignment] Fetching clients from oracle_client_mapping...');
         const { supabase } = await import('../lib/supabase/client');
         const { data, error } = await supabase
           .from('oracle_client_mapping')
-          .select('oracle_group_id, client_email, business_name')
+          .select('*')
           .eq('mapping_status', 'active');
         
-        if (!error && data) {
-          setAvailableClients(data.map((d: any) => ({
+        console.log('[365 Alignment] Query result:', { data, error, count: data?.length });
+        
+        if (error) {
+          console.error('[365 Alignment] Error fetching clients:', error);
+        }
+        
+        if (!error && data && data.length > 0) {
+          const clients = data.map((d: any) => ({
             group_id: d.oracle_group_id,
             client_email: d.client_email,
             business_name: d.business_name
-          })));
+          }));
+          console.log('[365 Alignment] Mapped clients:', clients);
+          setAvailableClients(clients);
+        } else {
+          console.log('[365 Alignment] No clients found or error occurred');
         }
       } catch (error) {
-        console.error('Error fetching clients:', error);
+        console.error('[365 Alignment] Exception fetching clients:', error);
       }
     };
     fetchClients();
@@ -362,6 +374,20 @@ export default function AlignmentProgrammePage() {
     );
   }
 
+  // Show setup mode if no clients and user wants to configure
+  if (!selectedClientId && showSetupMode) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-6">
+          <Button onClick={() => setShowSetupMode(false)} variant="outline" size="sm">
+            ← Back to Client Selection
+          </Button>
+        </div>
+        <ClientMappingPanel practiceId="demo-practice" />
+      </div>
+    );
+  }
+
   if (!selectedClientId || !roadmapData) {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -394,7 +420,7 @@ export default function AlignmentProgrammePage() {
             ) : (
               <div>
                 <p className="text-sm text-gray-500 mb-4">No clients found. Create client mappings first.</p>
-                <Button onClick={() => setActiveTab('mapping')} variant="outline">
+                <Button onClick={() => setShowSetupMode(true)} variant="outline">
                   Configure Client Mapping
                 </Button>
               </div>
