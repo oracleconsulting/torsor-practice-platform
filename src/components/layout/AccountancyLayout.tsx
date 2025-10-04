@@ -4,8 +4,8 @@ import {
   Home, Users, AlertTriangle, FileText, TrendingUp, Shield, BarChart3, Leaf, Heart, Crown, Menu, Bell, Search, LogOut, Mail
 } from 'lucide-react';
 import { ChevronDownIcon, BeakerIcon, ArchiveBoxIcon, CogIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
-import { useAccountancyContext } from '../../../contexts/AccountancyContext';
-import { useAuth } from '../../../contexts/AuthContext';
+import { useAccountancyContext } from '../../contexts/AccountancyContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { practice, subscriptionTier } = useAccountancyContext();
@@ -27,22 +27,22 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
   }, []);
 
   const menuItems = [
-    { label: 'Dashboard', icon: Home, href: '/dashboard', available: true },
-    { label: 'Client Management', icon: Users, href: '/client-management', available: true },
-    { label: 'Health Score', icon: FileText, href: '/health', available: true },
-    { label: 'Team Management', icon: Users, href: '/team', available: subscriptionTier !== 'free', badge: 'NEW' },
-    { label: 'Client Rescues', icon: AlertTriangle, href: '/client-rescues', available: subscriptionTier !== 'free', badge: 'PRO' },
-    { label: 'Advisory Services', icon: TrendingUp, href: '/advisory-services', available: true },
-    { label: 'Client Outreach', icon: Mail, href: '/outreach', available: true },
-    { label: 'Client Vault', icon: ArchiveBoxIcon, href: '/client-vault', available: isProfessionalPlus, badge: 'NEW' },
-    { label: 'Systems Audit', icon: CogIcon, href: '/systems-audit', available: isProfessionalPlus, badge: 'NEW' },
-    { label: '365 Alignment', icon: CalendarDaysIcon, href: '/365-alignment', available: isProfessionalPlus, badge: 'PRO' },
-    { label: 'Manage Subscription', icon: Crown, href: '/manage-subscription', available: true },
+    { label: 'Dashboard', icon: Home, href: '/accountancy/dashboard', available: true },
+    { label: 'Client Management', icon: Users, href: '/accountancy/client-management', available: true },
+    { label: 'Health Score', icon: FileText, href: '/accountancy/health', available: true },
+    { label: 'Team Management', icon: Users, href: '/accountancy/team', available: subscriptionTier !== 'free', badge: 'NEW' },
+    { label: 'Client Rescues', icon: AlertTriangle, href: '/accountancy/client-rescues', available: subscriptionTier !== 'free', badge: 'PRO' },
+    { label: 'Advisory Services', icon: TrendingUp, href: '/accountancy/advisory-services', available: true },
+    { label: 'Client Outreach', icon: Mail, href: '/accountancy/outreach', available: true },
+    { label: 'Client Vault', icon: ArchiveBoxIcon, href: '/accountancy/portal/client-vault', available: isProfessionalPlus, badge: 'NEW' },
+    { label: 'Systems Audit', icon: CogIcon, href: '/accountancy/portal/systems-audit', available: isProfessionalPlus, badge: 'NEW' },
+    { label: '365 Alignment', icon: CalendarDaysIcon, href: '/accountancy/portal/365-alignment', available: isProfessionalPlus, badge: 'PRO' },
+    { label: 'Manage Subscription', icon: Crown, href: '/accountancy/manage-subscription', available: true },
   ];
 
   const handleSignOut = async () => {
     await signOut();
-    navigate('/auth');
+    navigate('/accountancy/auth');
   };
 
   const toggleSidebar = () => {
@@ -76,8 +76,8 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
             </div>
             {!sidebarCollapsed && (
               <div>
-                <h1 className="text-lg font-semibold text-primary">TORSOR</h1>
-                <p className="text-xs text-secondary">Practice Platform</p>
+                <h1 className="text-lg font-semibold text-primary">ORACLE</h1>
+                <p className="text-xs text-secondary">ACCOUNTANCY</p>
               </div>
             )}
           </div>
@@ -181,9 +181,9 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
             {inDevelopmentOpen && !sidebarCollapsed && (
               <div className="ml-4 mt-2 space-y-1 animate-fadeIn">
                 <Link
-                  to="/client-rescues"
+                  to="/accountancy/client-rescues"
                   className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    location.pathname === '/client-rescues'
+                    location.pathname === '/accountancy/client-rescues'
                       ? 'bg-gray-800 text-white'
                       : 'text-gray-400 hover:text-white hover:bg-gray-800'
                   }`}
@@ -194,9 +194,9 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
                 </Link>
                 
                 <Link
-                  to="/compliance"
+                  to="/accountancy/compliance"
                   className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    location.pathname === '/compliance'
+                    location.pathname === '/accountancy/compliance'
                       ? 'bg-gray-800 text-white'
                       : 'text-gray-400 hover:text-white hover:bg-gray-800'
                   }`}
@@ -207,9 +207,9 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
                 </Link>
 
                 <Link
-                  to="/alternate-auditor"
+                  to="/accountancy/alternate-auditor"
                   className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    location.pathname === '/alternate-auditor'
+                    location.pathname === '/accountancy/alternate-auditor'
                       ? 'bg-gray-800 text-white'
                       : 'text-gray-400 hover:text-white hover:bg-gray-800'
                   }`}
@@ -220,9 +220,9 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
                 </Link>
 
                 <Link
-                  to="/mtd-capacity"
+                  to="/accountancy/mtd-capacity"
                   className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    location.pathname === '/mtd-capacity'
+                    location.pathname === '/accountancy/mtd-capacity'
                       ? 'bg-gray-800 text-white'
                       : 'text-gray-400 hover:text-white hover:bg-gray-800'
                   }`}
@@ -233,9 +233,9 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
                 </Link>
 
                 <Link
-                  to="/esg-reporting"
+                  to="/accountancy/esg-reporting"
                   className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    location.pathname === '/esg-reporting'
+                    location.pathname === '/accountancy/esg-reporting'
                       ? 'bg-gray-800 text-white'
                       : 'text-gray-400 hover:text-white hover:bg-gray-800'
                   }`}
@@ -246,9 +246,9 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
                 </Link>
 
                 <Link
-                  to="/team-wellness"
+                  to="/accountancy/team-wellness"
                   className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    location.pathname === '/team-wellness'
+                    location.pathname === '/accountancy/team-wellness'
                       ? 'bg-gray-800 text-white'
                       : 'text-gray-400 hover:text-white hover:bg-gray-800'
                   }`}
@@ -259,9 +259,9 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
                 </Link>
 
                 <Link
-                  to="/cyber-security"
+                  to="/accountancy/cyber-security"
                   className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    location.pathname === '/cyber-security'
+                    location.pathname === '/accountancy/cyber-security'
                       ? 'bg-gray-800 text-white'
                       : 'text-gray-400 hover:text-white hover:bg-gray-800'
                   }`}
@@ -321,7 +321,7 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
             </button>
             <div>
               <h1 className="header-title">Welcome back, {user?.user_metadata?.name || 'James'}</h1>
-              <p className="header-subtitle">{practice?.name || 'IVC Accounting'} • {subscriptionTier.charAt(0).toUpperCase() + subscriptionTier.slice(1)} Tier</p>
+              <p className="header-subtitle">{practice?.name || ''} • {subscriptionTier.charAt(0).toUpperCase() + subscriptionTier.slice(1)} Tier</p>
             </div>
           </div>
           <div className="header-actions">
