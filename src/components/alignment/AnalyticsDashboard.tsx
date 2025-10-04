@@ -4,8 +4,8 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import {
   ChartBarIcon,
-  TrendingUpIcon,
-  TrendingDownIcon,
+  ArrowTrendingUpIcon,
+  ArrowTrendingDownIcon,
   ClockIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
@@ -154,7 +154,7 @@ export function AnalyticsDashboard({ practiceId, oracleGroupId }: AnalyticsDashb
         <MetricCard
           title="Weekly Velocity"
           value={analytics.weekly_velocity?.toFixed(1) || '0'}
-          icon={<TrendingUpIcon className="w-6 h-6" />}
+          icon={<ArrowTrendingUpIcon className="w-6 h-6" />}
           color="purple"
           subtitle="tasks per week"
           trend={analytics.momentum_score}
@@ -357,9 +357,9 @@ function MetricCard({ title, value, icon, color, subtitle, trend }: MetricCardPr
               {trend !== undefined && trend !== null && (
                 <span className={`flex items-center text-sm ${trend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {trend >= 0 ? (
-                    <TrendingUpIcon className="w-4 h-4 mr-1" />
+                    <ArrowTrendingUpIcon className="w-4 h-4 mr-1" />
                   ) : (
-                    <TrendingDownIcon className="w-4 h-4 mr-1" />
+                    <ArrowTrendingDownIcon className="w-4 h-4 mr-1" />
                   )}
                   {Math.abs(trend).toFixed(1)}%
                 </span>
