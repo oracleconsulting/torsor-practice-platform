@@ -18,10 +18,21 @@ import {
   FireIcon,
   ArrowPathIcon,
   PencilIcon,
-  TrashIcon
+  TrashIcon,
+  PhoneIcon,
+  LinkIcon
 } from '@heroicons/react/24/outline';
 import { useAccountancyContext } from '../contexts/AccountancyContext';
 import { oracleMethodService, type ClientProgress } from '../services/oracleMethodIntegration';
+
+// Import all 7 new alignment enhancement components
+import { ClientMappingPanel } from '../components/alignment/ClientMappingPanel';
+import { NotificationCenter } from '../components/alignment/NotificationCenter';
+import { AnalyticsDashboard } from '../components/alignment/AnalyticsDashboard';
+import { BulkActionsBar } from '../components/alignment/BulkActionsBar';
+import { ExportMenu } from '../components/alignment/ExportMenu';
+import { CallTranscriptPanel } from '../components/alignment/CallTranscriptPanel';
+import { CalendlyConfigPanel } from '../components/alignment/CalendlyConfigPanel';
 
 /**
  * 365 ALIGNMENT PROGRAMME - CLIENT ACCESS HUB
@@ -126,7 +137,7 @@ export default function AlignmentProgrammePage() {
   const [loading, setLoading] = useState(true);
   const [roadmapData, setRoadmapData] = useState<ClientRoadmapData | null>(null);
   const [clientProgress, setClientProgress] = useState<ClientProgress | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'vision' | 'shifts' | 'sprints' | 'tasks' | 'assessments'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'vision' | 'shifts' | 'sprints' | 'tasks' | 'assessments' | 'analytics' | 'transcripts' | 'calendly' | 'mapping'>('overview');
   const [selectedClientId] = useState(clientId || '');
   const [refreshing, setRefreshing] = useState(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
@@ -390,6 +401,12 @@ export default function AlignmentProgrammePage() {
             </p>
           </div>
           <div className="flex items-center space-x-3">
+            {/* Notification Center - NEW */}
+            <NotificationCenter 
+              practiceId="f47ac10b-58cc-4372-a567-0e02b2c3d479"
+              userId={selectedClientId}
+            />
+            
             <Button 
               variant="outline" 
               size="sm"
@@ -433,14 +450,18 @@ export default function AlignmentProgrammePage() {
 
       {/* Tab Navigation */}
       <div className="border-b border-gray-200 mb-8">
-        <nav className="-mb-px flex space-x-8">
+        <nav className="-mb-px flex space-x-8 overflow-x-auto">
           {[
             { id: 'overview', label: 'Overview', icon: ChartBarIcon },
             { id: 'vision', label: '5-Year Vision', icon: TrophyIcon },
             { id: 'shifts', label: '6-Month Shifts', icon: RocketLaunchIcon },
             { id: 'sprints', label: '3-Month Sprints', icon: CalendarDaysIcon },
             { id: 'tasks', label: 'Task Management', icon: CheckCircleIcon },
-            { id: 'assessments', label: 'Assessments', icon: DocumentTextIcon }
+            { id: 'assessments', label: 'Assessments', icon: DocumentTextIcon },
+            { id: 'analytics', label: 'Analytics', icon: ChartBarIcon },
+            { id: 'transcripts', label: 'Call Transcripts', icon: PhoneIcon },
+            { id: 'calendly', label: 'Booking', icon: LinkIcon },
+            { id: 'mapping', label: 'Client Mapping', icon: UsersIcon }
           ].map((tab) => {
             const Icon = tab.icon;
             return (
@@ -847,6 +868,15 @@ export default function AlignmentProgrammePage() {
         {/* TASK MANAGEMENT TAB */}
         {activeTab === 'tasks' && clientProgress && (
           <div className="space-y-6">
+            {/* Bulk Actions Bar - NEW */}
+            <BulkActionsBar 
+              practiceId="f47ac10b-58cc-4372-a567-0e02b2c3d479"
+              oracleGroupId={selectedClientId}
+              selectedTaskIds={[]}
+              onClearSelection={() => {}}
+              onActionComplete={handleRefresh}
+            />
+            
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
@@ -1030,6 +1060,91 @@ export default function AlignmentProgrammePage() {
                 </CardContent>
               </Card>
             ))}
+          </div>
+        )}
+
+        {/* ANALYTICS TAB - NEW */}
+        {activeTab === 'analytics' && clientProgress && (
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <ChartBarIcon className="w-6 h-6 mr-2 text-blue-500" />
+                    Client Progress Analytics
+                  </div>
+                  <ExportMenu 
+                    practiceId="f47ac10b-58cc-4372-a567-0e02b2c3d479" 
+                    oracleGroupId={selectedClientId}
+                    userId={selectedClientId}
+                  />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AnalyticsDashboard 
+                  practiceId="f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                  oracleGroupId={selectedClientId}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* CALL TRANSCRIPTS TAB - NEW */}
+        {activeTab === 'transcripts' && (
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <PhoneIcon className="w-6 h-6 mr-2 text-purple-500" />
+                  Call Transcripts & Notes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CallTranscriptPanel 
+                  practiceId="f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                  oracleGroupId={selectedClientId}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* CALENDLY BOOKING TAB - NEW */}
+        {activeTab === 'calendly' && (
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <LinkIcon className="w-6 h-6 mr-2 text-green-500" />
+                  Meeting Scheduler
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CalendlyConfigPanel 
+                  practiceId="f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                  oracleGroupId={selectedClientId}
+                  userId={selectedClientId}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* CLIENT MAPPING TAB - NEW */}
+        {activeTab === 'mapping' && (
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <UsersIcon className="w-6 h-6 mr-2 text-orange-500" />
+                  Client Mapping Configuration
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ClientMappingPanel practiceId="f47ac10b-58cc-4372-a567-0e02b2c3d479" />
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>
