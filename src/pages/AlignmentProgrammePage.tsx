@@ -134,11 +134,13 @@ export default function AlignmentProgrammePage() {
   const navigate = useNavigate();
   const { subscriptionTier, practice } = useAccountancyContext();
   
+  // Use clientId directly from URL params instead of storing in state
+  const selectedClientId = clientId || '';
+  
   const [loading, setLoading] = useState(true);
   const [roadmapData, setRoadmapData] = useState<ClientRoadmapData | null>(null);
   const [clientProgress, setClientProgress] = useState<ClientProgress | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'vision' | 'shifts' | 'sprints' | 'tasks' | 'assessments' | 'analytics' | 'transcripts' | 'calendly' | 'mapping'>('overview');
-  const [selectedClientId] = useState(clientId || '');
   const [refreshing, setRefreshing] = useState(false);
   const [availableClients, setAvailableClients] = useState<Array<{group_id: string, client_email: string, business_name: string}>>([]);
   const [showSetupMode, setShowSetupMode] = useState(false);
