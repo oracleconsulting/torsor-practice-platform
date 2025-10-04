@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -6,7 +6,6 @@ import { Badge } from '../components/ui/badge';
 import { 
   CalendarDaysIcon, 
   CheckCircleIcon, 
-  ClockIcon, 
   TrophyIcon, 
   LockClosedIcon,
   ChartBarIcon,
@@ -16,9 +15,13 @@ import {
   DocumentTextIcon,
   UsersIcon,
   SparklesIcon,
-  FireIcon
+  FireIcon,
+  ArrowPathIcon,
+  PencilIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import { useAccountancyContext } from '../contexts/AccountancyContext';
+import { oracleMethodService, type ClientProgress } from '../services/oracleMethodIntegration';
 
 /**
  * 365 ALIGNMENT PROGRAMME - CLIENT ACCESS HUB
@@ -118,12 +121,15 @@ interface ClientRoadmapData {
 export default function AlignmentProgrammePage() {
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
-  const { practice, subscriptionTier } = useAccountancyContext();
+  const { subscriptionTier } = useAccountancyContext();
   
   const [loading, setLoading] = useState(true);
   const [roadmapData, setRoadmapData] = useState<ClientRoadmapData | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'vision' | 'shifts' | 'sprints' | 'assessments'>('overview');
-  const [selectedClientId, setSelectedClientId] = useState(clientId || '');
+  const [clientProgress, setClientProgress] = useState<ClientProgress | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'vision' | 'shifts' | 'sprints' | 'tasks' | 'assessments'>('overview');
+  const [selectedClientId] = useState(clientId || '');
+  const [refreshing, setRefreshing] = useState(false);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
   // Check subscription tier
   const isProfessionalPlus = subscriptionTier === 'professional' || subscriptionTier === 'enterprise';
@@ -131,199 +137,158 @@ export default function AlignmentProgrammePage() {
   useEffect(() => {
     if (selectedClientId && isProfessionalPlus) {
       loadClientRoadmap();
+      
+      // Subscribe to real-time updates
+      unsubscribeRef.current = oracleMethodService.subscribeToClientProgress(
+        selectedClientId,
+        handleRealtimeUpdate
+      );
     } else {
       setLoading(false);
     }
+
+    // Cleanup subscription on unmount
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+    };
   }, [selectedClientId, isProfessionalPlus]);
+
+  const handleRealtimeUpdate = (payload: any) => {
+    console.log('Real-time update received:', payload);
+    // Reload data when changes occur
+    loadClientRoadmap();
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadClientRoadmap();
+    setRefreshing(false);
+  };
 
   const loadClientRoadmap = async () => {
     try {
       setLoading(true);
       
-      // TODO: Replace with actual API call
-      // Simulated data for demonstration
-      const mockData: ClientRoadmapData = {
+      // Fetch real data from Oracle Method Portal
+      const progress = await oracleMethodService.getClientProgress(selectedClientId);
+      
+      if (!progress || !progress.roadmap) {
+        setClientProgress(null);
+        setRoadmapData(null);
+        setLoading(false);
+        return;
+      }
+
+      setClientProgress(progress);
+
+      // Transform Oracle Method data to ClientRoadmapData format
+      const transformedData: ClientRoadmapData = {
         clientId: selectedClientId,
-        clientName: 'Example Client Ltd',
-        hasOracleMethodAssessment: true,
-        assessmentDate: '2024-09-15',
-        fiveYearVision: {
-          id: 'v1',
-          title: 'Become the Regional Market Leader',
-          description: 'Transform from a £2M turnover firm to a £5M regional powerhouse with a team of 30 professionals.',
-          targetRevenue: 5000000,
-          targetTeamSize: 30,
-          strategicPillars: [
-            'Advisory Services Expansion',
-            'Technology Integration',
-            'Team Development & Culture',
-            'Client Portfolio Optimization'
-          ],
-          createdAt: '2024-09-20',
+        clientName: progress.business_name || progress.email,
+        hasOracleMethodAssessment: progress.roadmap.roadmap_generated,
+        assessmentDate: progress.roadmap.roadmap_generated_at || new Date().toISOString(),
+        fiveYearVision: progress.roadmap.five_year_vision ? {
+          id: selectedClientId,
+          title: progress.roadmap.five_year_vision.title,
+          description: progress.roadmap.five_year_vision.description,
+          targetRevenue: progress.roadmap.five_year_vision.target_revenue || 0,
+          targetTeamSize: progress.roadmap.five_year_vision.target_team_size || 0,
+          strategicPillars: progress.roadmap.five_year_vision.strategic_pillars || [],
+          createdAt: progress.roadmap.roadmap_generated_at || new Date().toISOString(),
           status: 'active'
-        },
-        shifts: [
+        } : null,
+        shifts: progress.roadmap.six_month_shift ? [
           {
-            id: 's1',
-            visionId: 'v1',
+            id: `${selectedClientId}-shift-1`,
+            visionId: selectedClientId,
             shiftNumber: 1,
-            title: 'Foundation & Systems (Jan-Jun 2025)',
-            description: 'Establish core systems, processes, and team structure to support growth.',
-            startDate: '2025-01-01',
-            endDate: '2025-06-30',
-            keyObjectives: [
-              'Implement practice management system',
-              'Hire and onboard 3 new team members',
-              'Launch advisory services pilot',
-              'Standardize client onboarding process'
-            ],
+            title: 'Current 6-Month Shift',
+            description: progress.roadmap.six_month_shift.vision_statement,
+            startDate: new Date().toISOString(),
+            endDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
+            keyObjectives: progress.roadmap.six_month_shift.major_milestones || [],
             status: 'in-progress',
-            progress: 65
-          },
-          {
-            id: 's2',
-            visionId: 'v1',
-            shiftNumber: 2,
-            title: 'Growth & Optimization (Jul-Dec 2025)',
-            description: 'Scale operations and optimize for profitability.',
-            startDate: '2025-07-01',
-            endDate: '2025-12-31',
-            keyObjectives: [
-              'Achieve £500K advisory revenue',
-              'Optimize pricing and service mix',
-              'Develop management team',
-              'Launch client referral programme'
-            ],
-            status: 'not-started',
-            progress: 0
+            progress: progress.stats.completion_percentage
           }
-        ],
-        sprints: [
-          {
-            id: 'sp1',
-            shiftId: 's1',
-            sprintNumber: 1,
-            title: 'Q1 2025: Systems Setup',
-            description: 'Complete core system implementations and initial team hires.',
-            startDate: '2025-01-01',
-            endDate: '2025-03-31',
-            status: 'completed',
-            progress: 100,
-            goals: [
-              {
-                id: 'g1',
-                title: 'Implement TORSOR Practice Management',
-                description: 'Full setup and team training',
-                category: 'operational',
-                priority: 'critical',
-                status: 'completed',
-                progress: 100,
-                assignedTo: 'Practice Manager',
-                dueDate: '2025-02-15'
-              },
-              {
-                id: 'g2',
-                title: 'Hire Senior Accountant',
-                description: 'Recruit experienced senior to lead compliance team',
-                category: 'people',
-                priority: 'high',
-                status: 'completed',
-                progress: 100,
-                assignedTo: 'Managing Partner',
-                dueDate: '2025-03-01'
-              }
-            ]
-          },
-          {
-            id: 'sp2',
-            shiftId: 's1',
-            sprintNumber: 2,
-            title: 'Q2 2025: Advisory Launch',
-            description: 'Launch advisory services and onboard first advisory clients.',
-            startDate: '2025-04-01',
-            endDate: '2025-06-30',
-            status: 'in-progress',
-            progress: 45,
-            goals: [
-              {
-                id: 'g3',
-                title: 'Complete Advisory Services Setup',
-                description: 'Service packages, pricing, and marketing materials',
-                category: 'strategic',
-                priority: 'critical',
-                status: 'in-progress',
-                progress: 70,
-                assignedTo: 'Managing Partner',
-                dueDate: '2025-04-30'
-              },
-              {
-                id: 'g4',
-                title: 'Onboard 5 Advisory Clients',
-                description: 'Convert existing clients to advisory services',
-                category: 'financial',
-                priority: 'high',
-                status: 'in-progress',
-                progress: 40,
-                assignedTo: 'Senior Accountant',
-                dueDate: '2025-06-15'
-              },
-              {
-                id: 'g5',
-                title: 'Develop Forecasting Templates',
-                description: 'Create standardized forecasting and budgeting templates',
-                category: 'operational',
-                priority: 'medium',
-                status: 'not-started',
-                progress: 0,
-                assignedTo: 'Advisory Team',
-                dueDate: '2025-05-31'
-              }
-            ]
-          }
-        ],
+        ] : [],
+        sprints: progress.roadmap.three_month_sprint ? [{
+          id: `${selectedClientId}-sprint-${progress.roadmap.sprint_iteration}`,
+          shiftId: `${selectedClientId}-shift-1`,
+          sprintNumber: progress.roadmap.sprint_iteration,
+          title: progress.roadmap.three_month_sprint.sprint_theme || `Sprint ${progress.roadmap.sprint_iteration}`,
+          description: progress.roadmap.three_month_sprint.sprint_goals?.join(', ') || '90-day transformation sprint',
+          startDate: new Date().toISOString(),
+          endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+          status: progress.stats.completion_percentage > 90 ? 'completed' : 
+                  progress.stats.completion_percentage > 0 ? 'in-progress' : 'not-started',
+          progress: progress.stats.completion_percentage,
+          goals: progress.tasks.map(task => ({
+            id: task.task_id,
+            title: task.task_title,
+            description: task.task_description || '',
+            category: 'operational' as const,
+            priority: 'medium' as const,
+            status: task.completed ? 'completed' as const : 'in-progress' as const,
+            progress: task.completed ? 100 : 0,
+            assignedTo: 'Client',
+            dueDate: new Date().toISOString()
+          }))
+        }] : [],
         assessments: [
           {
-            id: 'a1',
-            type: 'oracle-method',
-            completedDate: '2024-09-15',
-            score: 72,
-            reportUrl: '/assessments/oracle-method-report.pdf',
-            areas: [
-              {
-                name: 'Strategic Clarity',
-                score: 85,
-                recommendations: ['Define 5-year vision', 'Set quarterly milestones']
-              },
-              {
-                name: 'Operational Excellence',
-                score: 68,
-                recommendations: ['Implement practice management system', 'Standardize processes']
-              },
-              {
-                name: 'Financial Health',
-                score: 75,
-                recommendations: ['Improve pricing strategy', 'Increase advisory revenue']
-              },
-              {
-                name: 'Team & Culture',
-                score: 62,
-                recommendations: ['Develop leadership team', 'Implement CPD tracking']
-              }
-            ]
+            id: selectedClientId,
+            type: 'oracle-method' as const,
+            completedDate: progress.roadmap.roadmap_generated_at || new Date().toISOString(),
+            score: progress.stats.completion_percentage,
+            areas: []
           }
         ],
-        currentPhase: {
-          type: 'sprint',
-          id: 'sp2',
-          name: 'Q2 2025: Advisory Launch'
-        }
+        currentPhase: progress.roadmap.current_week > 0 ? {
+          type: 'sprint' as const,
+          id: `${selectedClientId}-sprint-${progress.roadmap.sprint_iteration}`,
+          name: `Week ${progress.roadmap.current_week} of Sprint ${progress.roadmap.sprint_iteration}`
+        } : null
       };
 
-      setRoadmapData(mockData);
+      setRoadmapData(transformedData);
     } catch (error) {
       console.error('Error loading client roadmap:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleTask = async (taskId: string, completed: boolean) => {
+    try {
+      await oracleMethodService.updateTaskStatus(taskId, completed);
+      await loadClientRoadmap(); // Reload to get updated data
+    } catch (error) {
+      console.error('Error toggling task:', error);
+      alert('Failed to update task status');
+    }
+  };
+
+  const handleAddTaskNote = async (taskId: string, notes: string) => {
+    try {
+      await oracleMethodService.updateTaskStatus(taskId, true, notes);
+      await loadClientRoadmap();
+    } catch (error) {
+      console.error('Error adding task note:', error);
+      alert('Failed to add note');
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm('Are you sure you want to delete this task?')) return;
+    
+    try {
+      await oracleMethodService.deleteTask(taskId);
+      await loadClientRoadmap();
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      alert('Failed to delete task');
     }
   };
 
@@ -425,6 +390,15 @@ export default function AlignmentProgrammePage() {
             </p>
           </div>
           <div className="flex items-center space-x-3">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing}
+            >
+              <ArrowPathIcon className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
             <Button variant="outline" onClick={() => navigate('/client-management')}>
               Change Client
             </Button>
@@ -432,6 +406,12 @@ export default function AlignmentProgrammePage() {
               <Badge variant="default" className="bg-purple-600">
                 <SparklesIcon className="w-4 h-4 mr-1" />
                 Oracle Method Assessed
+              </Badge>
+            )}
+            {clientProgress && (
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                <FireIcon className="w-4 h-4 mr-1" />
+                Week {clientProgress.roadmap.current_week}/{clientProgress.roadmap.three_month_sprint?.total_weeks || 12}
               </Badge>
             )}
           </div>
@@ -459,6 +439,7 @@ export default function AlignmentProgrammePage() {
             { id: 'vision', label: '5-Year Vision', icon: TrophyIcon },
             { id: 'shifts', label: '6-Month Shifts', icon: RocketLaunchIcon },
             { id: 'sprints', label: '3-Month Sprints', icon: CalendarDaysIcon },
+            { id: 'tasks', label: 'Task Management', icon: CheckCircleIcon },
             { id: 'assessments', label: 'Assessments', icon: DocumentTextIcon }
           ].map((tab) => {
             const Icon = tab.icon;
@@ -860,6 +841,125 @@ export default function AlignmentProgrammePage() {
                 </CardContent>
               </Card>
             ))}
+          </div>
+        )}
+
+        {/* TASK MANAGEMENT TAB */}
+        {activeTab === 'tasks' && clientProgress && (
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <CheckCircleIcon className="w-6 h-6 mr-2 text-blue-500" />
+                    Live Task Tracking
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="outline" className="bg-blue-50">
+                      {clientProgress.stats.tasks_completed}/{clientProgress.stats.total_tasks} Completed
+                    </Badge>
+                    <Badge variant="outline" className="bg-green-50">
+                      {clientProgress.stats.completion_percentage}% Progress
+                    </Badge>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-900">
+                    <strong>Real-time sync:</strong> These tasks are synced live from the Oracle Method Portal. 
+                    When the client updates their progress, you'll see it here instantly. You can also manage tasks on their behalf.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {clientProgress.roadmap.three_month_sprint?.weeks.map((week, weekIdx) => (
+                    <Card key={weekIdx} className="border-l-4 border-l-blue-500">
+                      <CardHeader>
+                        <CardTitle className="text-lg">
+                          Week {week.week_number}: {week.title}
+                        </CardTitle>
+                        <p className="text-sm text-gray-600">{week.focus}</p>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {week.actions.map((action, actionIdx) => {
+                            const taskKey = `${week.week_number}-${actionIdx}`;
+                            const matchingTask = clientProgress.tasks.find(
+                              t => t.task_title === action || t.week_number === week.week_number
+                            );
+                            const isCompleted = matchingTask?.completed || false;
+                            const taskId = matchingTask?.task_id || taskKey;
+
+                            return (
+                              <div
+                                key={actionIdx}
+                                className={`flex items-start justify-between p-4 rounded-lg border transition-colors ${
+                                  isCompleted
+                                    ? 'bg-green-50 border-green-200'
+                                    : 'bg-white border-gray-200 hover:border-blue-300'
+                                }`}
+                              >
+                                <div className="flex items-start flex-1">
+                                  <button
+                                    onClick={() => handleToggleTask(taskId, !isCompleted)}
+                                    className={`mt-1 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                      isCompleted
+                                        ? 'bg-green-500 border-green-500'
+                                        : 'border-gray-300 hover:border-blue-500'
+                                    }`}
+                                  >
+                                    {isCompleted && (
+                                      <CheckCircleIcon className="w-4 h-4 text-white" />
+                                    )}
+                                  </button>
+                                  <div className="ml-3 flex-1">
+                                    <p className={`font-medium ${isCompleted ? 'text-gray-600 line-through' : 'text-gray-900'}`}>
+                                      {action}
+                                    </p>
+                                    {matchingTask?.notes && (
+                                      <p className="text-sm text-gray-600 mt-1">
+                                        📝 {matchingTask.notes}
+                                      </p>
+                                    )}
+                                    {matchingTask?.completed_date && (
+                                      <p className="text-xs text-green-600 mt-1">
+                                        ✓ Completed {new Date(matchingTask.completed_date).toLocaleDateString()}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                {matchingTask && (
+                                  <div className="flex items-center space-x-2 ml-4">
+                                    <button
+                                      onClick={() => {
+                                        const notes = prompt('Add a note for this task:', matchingTask.notes || '');
+                                        if (notes !== null) handleAddTaskNote(taskId, notes);
+                                      }}
+                                      className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                                      title="Add/Edit Note"
+                                    >
+                                      <PencilIcon className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteTask(taskId)}
+                                      className="p-2 text-red-600 hover:bg-red-50 rounded"
+                                      title="Delete Task"
+                                    >
+                                      <TrashIcon className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 
