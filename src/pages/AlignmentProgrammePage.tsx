@@ -140,10 +140,35 @@ export default function AlignmentProgrammePage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'vision' | 'shifts' | 'sprints' | 'tasks' | 'assessments' | 'analytics' | 'transcripts' | 'calendly' | 'mapping'>('overview');
   const [selectedClientId] = useState(clientId || '');
   const [refreshing, setRefreshing] = useState(false);
+  const [availableClients, setAvailableClients] = useState<Array<{group_id: string, client_email: string, business_name: string}>>([]);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
   // Check subscription tier
   const isProfessionalPlus = subscriptionTier === 'professional' || subscriptionTier === 'enterprise';
+
+  // Fetch available clients from oracle_client_mapping
+  useEffect(() => {
+    const fetchClients = async () => {
+      try {
+        const { supabase } = await import('../lib/supabase/client');
+        const { data, error } = await supabase
+          .from('oracle_client_mapping')
+          .select('oracle_group_id, client_email, business_name')
+          .eq('mapping_status', 'active');
+        
+        if (!error && data) {
+          setAvailableClients(data.map((d: any) => ({
+            group_id: d.oracle_group_id,
+            client_email: d.client_email,
+            business_name: d.business_name
+          })));
+        }
+      } catch (error) {
+        console.error('Error fetching clients:', error);
+      }
+    };
+    fetchClients();
+  }, []);
 
   useEffect(() => {
     if (selectedClientId && isProfessionalPlus) {
@@ -350,9 +375,30 @@ export default function AlignmentProgrammePage() {
               Choose a client to view their Oracle Method roadmap and track their progress
               through their 5-year vision, 6-month shifts, and 3-month sprints.
             </p>
-            <Button onClick={() => navigate('/client-management')}>
-              Select Client
-            </Button>
+            {availableClients.length > 0 ? (
+              <div className="max-w-md mx-auto space-y-3">
+                {availableClients.map(client => (
+                  <Button
+                    key={client.group_id}
+                    onClick={() => navigate(`/365-alignment/${client.group_id}`)}
+                    variant="outline"
+                    className="w-full justify-start text-left p-4 h-auto"
+                  >
+                    <div>
+                      <div className="font-semibold">{client.business_name}</div>
+                      <div className="text-sm text-gray-500">{client.client_email}</div>
+                    </div>
+                  </Button>
+                ))}
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm text-gray-500 mb-4">No clients found. Create client mappings first.</p>
+                <Button onClick={() => setActiveTab('mapping')} variant="outline">
+                  Configure Client Mapping
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
