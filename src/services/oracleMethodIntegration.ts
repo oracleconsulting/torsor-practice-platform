@@ -152,18 +152,7 @@ export class OracleMethodIntegrationService {
     try {
       const { data, error } = await supabase
         .from('client_config')
-        .select(`
-          group_id,
-          email,
-          five_year_vision,
-          six_month_shift,
-          three_month_sprint,
-          current_week,
-          sprint_iteration,
-          roadmap_generated,
-          roadmap_generated_at,
-          next_sprint_review
-        `)
+        .select('group_id, roadmap')
         .eq('group_id', groupId)
         .single();
 
@@ -172,7 +161,28 @@ export class OracleMethodIntegrationService {
         throw error;
       }
 
-      return data;
+      const configData = data as any;
+      
+      if (!configData || !configData.roadmap) {
+        console.error('No roadmap data found for group_id:', groupId);
+        return null;
+      }
+
+      // Extract data from the roadmap JSONB column
+      const roadmapData = configData.roadmap as any;
+      
+      return {
+        group_id: configData.group_id,
+        email: roadmapData.email || '',
+        five_year_vision: roadmapData.five_year_vision || null,
+        six_month_shift: roadmapData.six_month_shift || null,
+        three_month_sprint: roadmapData.three_month_sprint || null,
+        current_week: roadmapData.current_week || 0,
+        sprint_iteration: roadmapData.sprint_iteration || 1,
+        roadmap_generated: roadmapData.roadmap_generated || true,
+        roadmap_generated_at: roadmapData.roadmap_generated_at || new Date().toISOString(),
+        next_sprint_review: roadmapData.next_sprint_review || null
+      };
     } catch (error) {
       console.error('Error in getClientRoadmap:', error);
       return null;
@@ -243,6 +253,13 @@ export class OracleMethodIntegrationService {
    */
   async getClientProgress(groupId: string): Promise<ClientProgress | null> {
     try {
+      // Fetch client intake for email and business name
+      const { data: intakeData } = await supabase
+        .from('client_intake')
+        .select('email, responses')
+        .eq('group_id', groupId)
+        .single();
+
       const [roadmap, tasks] = await Promise.all([
         this.getClientRoadmap(groupId),
         this.getSprintTasks(groupId)
@@ -254,10 +271,21 @@ export class OracleMethodIntegrationService {
 
       const stats = await this.getSprintStats(groupId);
 
+      // Extract business name and email from intake data (if available)
+      let businessName = 'Unknown Business';
+      let clientEmail = roadmap.email || '';
+      
+      if (intakeData) {
+        const intake = intakeData as any;
+        const responses = intake.responses || {};
+        businessName = responses.company_name || intake.email || 'Unknown Business';
+        clientEmail = intake.email || roadmap.email || '';
+      }
+
       return {
         group_id: groupId,
-        business_name: roadmap.email || 'Unknown Business', // TODO: Get from client_intake
-        email: roadmap.email,
+        business_name: businessName,
+        email: clientEmail,
         roadmap,
         tasks,
         stats: stats || {

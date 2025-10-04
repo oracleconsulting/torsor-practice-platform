@@ -43,18 +43,34 @@ CREATE POLICY "Allow public read bulk actions" ON alignment_bulk_actions FOR SEL
 DROP POLICY IF EXISTS "Users can view export history" ON alignment_export_history;
 CREATE POLICY "Allow public read export history" ON alignment_export_history FOR SELECT USING (true);
 
+-- Also allow public access to client_intake and client_config (needed for Oracle Method integration)
+ALTER TABLE client_intake ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow public read client_intake" ON client_intake;
+CREATE POLICY "Allow public read client_intake" ON client_intake FOR SELECT USING (true);
+
+ALTER TABLE client_config ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow public read client_config" ON client_config;
+CREATE POLICY "Allow public read client_config" ON client_config FOR SELECT USING (true);
+
 -- Verify the oracle_client_mapping data is there
 DO $$
 DECLARE
   mapping_count INTEGER;
+  intake_count INTEGER;
+  config_count INTEGER;
 BEGIN
   SELECT COUNT(*) INTO mapping_count FROM oracle_client_mapping;
-  RAISE NOTICE 'Total client mappings in table: %', mapping_count;
+  SELECT COUNT(*) INTO intake_count FROM client_intake;
+  SELECT COUNT(*) INTO config_count FROM client_config;
   
-  IF mapping_count > 0 THEN
-    RAISE NOTICE '✅ Client mappings exist! They should now be visible.';
+  RAISE NOTICE 'Total client mappings: %', mapping_count;
+  RAISE NOTICE 'Total client intakes: %', intake_count;
+  RAISE NOTICE 'Total client configs: %', config_count;
+  
+  IF mapping_count > 0 AND intake_count > 0 AND config_count > 0 THEN
+    RAISE NOTICE '✅ All data exists! Tom & Zaneta should be visible.';
   ELSE
-    RAISE NOTICE '⚠️ No client mappings found. Run COMPLETE_WITH_TABLES.sql if needed.';
+    RAISE NOTICE '⚠️ Some data missing. Run COMPLETE_WITH_TABLES.sql if needed.';
   END IF;
 END $$;
 
