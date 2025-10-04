@@ -1,0 +1,65 @@
+/* Import Modern SaaS Theme */
+@import '../../styles/modern-saas-theme.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Modern SaaS Theme - CSS Variables */
+    --background: 225 100% 97%; /* #F8F9FC - Light gray background */
+    --foreground: 215 25% 27%; /* #1E293B - Dark primary text */
+    --card: 0 0% 100%; /* #FFFFFF - White card background */
+    --card-foreground: 215 25% 27%; /* #1E293B - Dark text on cards */
+    --popover: 0 0% 100%; /* #FFFFFF - White popover background */
+    --popover-foreground: 215 25% 27%; /* #1E293B - Dark text in popovers */
+    --primary: 213 94% 68%; /* #3B82F6 - Primary Blue */
+    --primary-foreground: 0 0% 100%; /* #FFFFFF - White text on blue */
+    --secondary: 214 32% 91%; /* #F1F5F9 - Hover background */
+    --secondary-foreground: 215 25% 27%; /* #1E293B - Dark text on secondary */
+    --muted: 214 32% 91%; /* #F1F5F9 - Muted background */
+    --muted-foreground: 215 16% 47%; /* #64748B - Secondary text */
+    --accent: 215 16% 47%; /* #64748B - Accent color */
+    --accent-foreground: 215 25% 27%; /* #1E293B - Dark text on accent */
+    --destructive: 0 84% 60%; /* #EF4444 - Red for destructive */
+    --destructive-foreground: 0 0% 100%; /* #FFFFFF - White text on red */
+    --border: 214 32% 91%; /* #E2E8F0 - Light borders */
+    --input: 214 32% 91%; /* #E2E8F0 - Input borders */
+    --ring: 213 94% 68%; /* #3B82F6 - Primary Blue focus rings */
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* Keep light theme for now - modern SaaS aesthetic */
+    --background: 225 100% 97%; /* #F8F9FC - Light gray background */
+    --foreground: 215 25% 27%; /* #1E293B - Dark primary text */
+    --card: 0 0% 100%; /* #FFFFFF - White card background */
+    --card-foreground: 215 25% 27%; /* #1E293B - Dark text on cards */
+    --popover: 0 0% 100%; /* #FFFFFF - White popover background */
+    --popover-foreground: 215 25% 27%; /* #1E293B - Dark text in popovers */
+    --primary: 213 94% 68%; /* #3B82F6 - Primary Blue */
+    --primary-foreground: 0 0% 100%; /* #FFFFFF - White text on blue */
+    --secondary: 214 32% 91%; /* #F1F5F9 - Hover background */
+    --secondary-foreground: 215 25% 27%; /* #1E293B - Dark text on secondary */
+    --muted: 214 32% 91%; /* #F1F5F9 - Muted background */
+    --muted-foreground: 215 16% 47%; /* #64748B - Secondary text */
+    --accent: 215 16% 47%; /* #64748B - Accent color */
+    --accent-foreground: 215 25% 27%; /* #1E293B - Dark text on accent */
+    --destructive: 0 84% 60%; /* #EF4444 - Red for destructive */
+    --destructive-foreground: 0 0% 100%; /* #FFFFFF - White text on red */
+    --border: 214 32% 91%; /* #E2E8F0 - Light borders */
+    --input: 214 32% 91%; /* #E2E8F0 - Input borders */
+    --ring: 213 94% 68%; /* #3B82F6 - Primary Blue focus rings */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}

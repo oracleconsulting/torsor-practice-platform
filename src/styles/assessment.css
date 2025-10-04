@@ -1,0 +1,158 @@
+/* Assessment Container Styles */
+.assessment-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Fixed header styles */
+.assessment-header {
+  flex-shrink: 0;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 1rem 1.5rem;
+  z-index: 10;
+}
+
+/* Scrollable content area */
+.assessment-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1.5rem;
+  background: #f9fafb;
+  scroll-behavior: smooth;
+}
+
+/* Fixed footer styles */
+.assessment-footer {
+  flex-shrink: 0;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  padding: 1rem 1.5rem;
+  z-index: 10;
+}
+
+/* Progress container */
+#progress-indicator-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Ensure form sections don't cause horizontal scroll */
+.assessment-content > * {
+  max-width: 100%;
+}
+
+/* Custom scrollbar for better UX */
+.assessment-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.assessment-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.assessment-content::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.assessment-content::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Question container */
+.question-container {
+  max-width: 4xl;
+  margin: 0 auto;
+  padding: 1rem;
+  padding-bottom: 2rem; /* Add some breathing room */
+}
+
+/* Progress bar container - stays at top */
+.progress-container {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: #FFF8F0;
+  padding: 1rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(8px);
+}
+
+/* Navigation buttons container - stays at bottom */
+.nav-buttons-container {
+  position: fixed; /* Change to fixed to prevent scroll issues */
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20; /* Higher z-index to stay on top */
+  background-color: rgba(255, 248, 240, 0.95);
+  padding: 1rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(8px);
+  height: var(--nav-height, 80px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Ensure all text inputs have proper contrast */
+.assessment-container input,
+.assessment-container textarea,
+.assessment-container select {
+  background-color: white;
+  color: #1a1a1a;
+  border-color: #e5e7eb;
+}
+
+/* Ensure cards have light backgrounds */
+.assessment-container .card,
+.assessment-container [class*="Card"] {
+  background-color: white;
+  color: #1a1a1a;
+  margin-bottom: 1rem;
+}
+
+/* Override any dark mode that might be inherited */
+.assessment-container * {
+  color: inherit;
+}
+
+/* Specific overrides for question text */
+.assessment-container h1,
+.assessment-container h2,
+.assessment-container h3,
+.assessment-container h4,
+.assessment-container h5,
+.assessment-container h6,
+.assessment-container p,
+.assessment-container label,
+.assessment-container span {
+  color: #1a1a1a !important;
+}
+
+/* Ensure placeholder text is visible */
+.assessment-container input::placeholder,
+.assessment-container textarea::placeholder {
+  color: #9ca3af;
+}
+
+/* Fix for iOS momentum scrolling */
+@supports (-webkit-overflow-scrolling: touch) {
+  .assessment-content {
+    height: -webkit-fill-available;
+    padding-bottom: calc(2rem + var(--nav-height, 80px));
+  }
+}
+
+/* Fix for sticky elements on iOS */
+@supports (-webkit-touch-callout: none) {
+  .progress-container {
+    position: -webkit-sticky;
+  }
+} 

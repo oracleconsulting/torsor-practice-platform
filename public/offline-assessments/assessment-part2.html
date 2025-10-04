@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oracle Method Assessment - Part 2: Business Deep Dive (Offline)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; margin: 0; padding: 24px; color: #0f172a; background: #f8fafc; }
+    .container { max-width: 1024px; margin: 0 auto; background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    p.lead { margin: 0 0 20px; color: #334155; }
+    h2 { margin: 22px 0 10px; font-size: 18px; }
+    .section { padding: 16px; border: 1px solid #e2e8f0; border-radius: 10px; margin: 14px 0; }
+    .q { padding: 12px 10px; border: 1px dashed #e2e8f0; border-radius: 10px; margin: 10px 0; }
+    .q h3 { margin: 0 0 6px; font-size: 15px; }
+    .q small { color: #475569; display: block; margin-bottom: 8px; }
+    textarea, input[type="text"], input[type="number"], input[type="range"] { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
+    textarea { min-height: 100px; }
+    .options { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 6px 16px; margin-top: 6px; }
+    .opt { display: flex; align-items: center; gap: 8px; }
+    .inline { display: flex; align-items: center; gap: 10px; }
+    .matrix { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    .matrix th, .matrix td { border: 1px solid #e2e8f0; padding: 6px 8px; font-size: 13px; }
+    .actions { display: flex; gap: 12px; margin-top: 20px; }
+    button { background: #0f172a; color: #fff; border: 0; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+    button.secondary { background: #334155; }
+    .note { font-size: 13px; color: #475569; }
+    .required::after { content: " *"; color: #dc2626; }
+    .subq { margin-left: 8px; padding-left: 8px; border-left: 3px solid #e2e8f0; }
+  </style>
+  <script>
+    function getCheckedValues(nodeList) { return Array.from(nodeList).filter(x => x.checked).map(x => x.value); }
+    function saveFile(filename, text, type) { const blob = new Blob([text], { type }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+    function saveJsonFile(filename, data) { saveFile(filename, JSON.stringify(data, null, 2), 'application/json'); }
+    function saveTxtFile(filename, data) { saveFile(filename, data, 'text/plain'); }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h1>Part 2: Business Deep Dive (Offline Form)</h1>
+    <p class="lead">Complete offline, then use Save JSON/TXT or Print to PDF and email back.</p>
+
+    <form id="form">
+      <div class="section">
+        <h2>Leadership & Vision Reality</h2>
+        <div class="q"><h3 class="required">What's your trading name?</h3><input type="text" name="trading_name" required></div>
+        <div class="q"><h3>Companies House number (if you have one)</h3><input type="text" name="companies_house_number"></div>
+        <div class="q"><h3 class="required">Years Trading</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="years_trading" value="Less than 1" required> Less than 1</label>
+            <label class="opt"><input type="radio" name="years_trading" value="1-2"> 1-2</label>
+            <label class="opt"><input type="radio" name="years_trading" value="3-5"> 3-5</label>
+            <label class="opt"><input type="radio" name="years_trading" value="6-10"> 6-10</label>
+            <label class="opt"><input type="radio" name="years_trading" value="10+"> 10+</label>
+          </div>
+        </div>
+        <div class="q"><h3 class="required">In 10 years, we'll be known for...</h3><small>What's your long-term vision?</small><textarea name="ten_year_vision" required></textarea></div>
+        <div class="q"><h3>What external forces could derail your plans?</h3>
+          <div class="options">
+            <label class="opt"><input type="checkbox" name="external_forces" value="New regulations"> New regulations</label>
+            <label class="opt"><input type="checkbox" name="external_forces" value="Market shifts"> Market shifts</label>
+            <label class="opt"><input type="checkbox" name="external_forces" value="Tech disruptions"> Tech disruptions</label>
+            <label class="opt"><input type="checkbox" name="external_forces" value="Economic downturn"> Economic downturn</label>
+            <label class="opt"><input type="checkbox" name="external_forces" value="Climate/sustainability"> Climate/sustainability</label>
+            <label class="opt"><input type="checkbox" name="external_forces" value="Other"> Other</label>
+          </div>
+        </div>
+        <div class="q"><h3 class="required">Annual turnover band</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="annual_turnover" value="Under £100k" required> Under £100k</label>
+            <label class="opt"><input type="radio" name="annual_turnover" value="£100k-£250k"> £100k-£250k</label>
+            <label class="opt"><input type="radio" name="annual_turnover" value="£250k-£500k"> £250k-£500k</label>
+            <label class="opt"><input type="radio" name="annual_turnover" value="£500k-£1m"> £500k-£1m</label>
+            <label class="opt"><input type="radio" name="annual_turnover" value="£1m-£5m"> £1m-£5m</label>
+            <label class="opt"><input type="radio" name="annual_turnover" value="Over £5m"> Over £5m</label>
+            <label class="opt"><input type="radio" name="annual_turnover" value="Prefer not to say"> Prefer not to say</label>
+          </div>
+        </div>
+        <div class="q"><h3 class="required">Primary income stream (one sentence)</h3><small>e.g. 'Sales of compostable packaging'</small><input type="text" name="primary_revenue_stream" required></div>
+        <div class="q"><h3>Where are most customers based?</h3>
+          <div class="options">
+            <label class="opt"><input type="checkbox" name="customer_locations" value="England"> England</label>
+            <label class="opt"><input type="checkbox" name="customer_locations" value="Scotland"> Scotland</label>
+            <label class="opt"><input type="checkbox" name="customer_locations" value="Wales"> Wales</label>
+            <label class="opt"><input type="checkbox" name="customer_locations" value="Republic of Ireland"> Republic of Ireland</label>
+            <label class="opt"><input type="checkbox" name="customer_locations" value="Northern Ireland"> Northern Ireland</label>
+            <label class="opt"><input type="checkbox" name="customer_locations" value="EU"> EU</label>
+            <label class="opt"><input type="checkbox" name="customer_locations" value="US & Canada"> US & Canada</label>
+            <label class="opt"><input type="checkbox" name="customer_locations" value="Asia"> Asia</label>
+            <label class="opt"><input type="checkbox" name="customer_locations" value="Other"> Other</label>
+          </div>
+        </div>
+        <div class="q"><h3>Environmental/Social Impact</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="environmental_impact" value="We're carbon neutral"> We're carbon neutral</label>
+            <label class="opt"><input type="radio" name="environmental_impact" value="Working on a plan"> Working on a plan</label>
+            <label class="opt"><input type="radio" name="environmental_impact" value="Know we should care but don't"> Know we should care but don't</label>
+            <label class="opt"><input type="radio" name="environmental_impact" value="Not relevant"> Not relevant</label>
+            <label class="opt"><input type="radio" name="environmental_impact" value="Becoming a customer demand"> Becoming a customer demand</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>The Money Truth</h2>
+        <div class="q"><h3 class="required">In one sentence, what does "winning" look like by 2030?</h3><textarea name="winning_2030" required></textarea></div>
+        <div class="q"><h3 class="required">What three shifts must happen in the next 6 months?</h3><textarea name="six_month_shifts" required></textarea></div>
+        <div class="q"><h3>Financial Visibility</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="financial_visibility" value="Real-time dashboards"> Real-time dashboards</label>
+            <label class="opt"><input type="radio" name="financial_visibility" value="Monthly reports"> Monthly reports</label>
+            <label class="opt"><input type="radio" name="financial_visibility" value="Quarterly accounts"> Quarterly accounts</label>
+            <label class="opt"><input type="radio" name="financial_visibility" value="Annual accounts only"> Annual accounts only</label>
+            <label class="opt"><input type="radio" name="financial_visibility" value="Flying blind"> Flying blind</label>
+          </div>
+        </div>
+        <div class="q"><h3>What's Eating Profits?</h3>
+          <div class="options">
+            <label class="opt"><input type="checkbox" name="profit_eaters" value="Don't know"> Don't know</label>
+            <label class="opt"><input type="checkbox" name="profit_eaters" value="Supplier/material costs"> Supplier/material costs</label>
+            <label class="opt"><input type="checkbox" name="profit_eaters" value="Staff costs"> Staff costs</label>
+            <label class="opt"><input type="checkbox" name="profit_eaters" value="Overheads"> Overheads</label>
+            <label class="opt"><input type="checkbox" name="profit_eaters" value="CAC (customer acquisition costs)"> CAC (customer acquisition costs)</label>
+            <label class="opt"><input type="checkbox" name="profit_eaters" value="Everything's healthy"> Everything's healthy</label>
+          </div>
+        </div>
+        <div class="q"><h3>How Data-Driven Are You?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="data_driven_level" value="Gut feel"> Gut feel</label>
+            <label class="opt"><input type="radio" name="data_driven_level" value="Basic reports"> Basic reports</label>
+            <label class="opt"><input type="radio" name="data_driven_level" value="Some dashboards"> Some dashboards</label>
+            <label class="opt"><input type="radio" name="data_driven_level" value="Advanced analytics"> Advanced analytics</label>
+            <label class="opt"><input type="radio" name="data_driven_level" value="Drowning in data"> Drowning in data</label>
+          </div>
+        </div>
+        <div class="q"><h3>Top three priorities for the next 90 days</h3>
+          <div class="options">
+            <label class="opt"><input type="checkbox" name="ninety_day_priorities" value="Fix cashflow or margins"> Fix cashflow or margins</label>
+            <label class="opt"><input type="checkbox" name="ninety_day_priorities" value="Increase revenue"> Increase revenue</label>
+            <label class="opt"><input type="checkbox" name="ninety_day_priorities" value="Reduce costs"> Reduce costs</label>
+            <label class="opt"><input type="checkbox" name="ninety_day_priorities" value="Improve team communication"> Improve team communication</label>
+            <label class="opt"><input type="checkbox" name="ninety_day_priorities" value="Implement new software"> Implement new software</label>
+            <label class="opt"><input type="checkbox" name="ninety_day_priorities" value="Hire key roles"> Hire key roles</label>
+            <label class="opt"><input type="checkbox" name="ninety_day_priorities" value="Streamline Operations"> Streamline Operations</label>
+            <label class="opt"><input type="checkbox" name="ninety_day_priorities" value="Launch a new product or service"> Launch a new product or service</label>
+            <label class="opt"><input type="checkbox" name="ninety_day_priorities" value="Get out of the day to day"> Get out of the day to day</label>
+            <label class="opt"><input type="checkbox" name="ninety_day_priorities" value="Improve marketing"> Improve marketing</label>
+            <label class="opt"><input type="checkbox" name="ninety_day_priorities" value="Other"> Other</label>
+          </div>
+        </div>
+        <div class="q"><h3>How confident are you that you'll hit those priorities?</h3>
+          <div class="inline"><input type="range" name="priority_confidence" min="0" max="10" value="0" oninput="this.nextElementSibling.value = this.value"><output>0</output>/10</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Customer & Market Reality</h2>
+        <div class="q"><h3>Customer Experience Rating</h3><div class="inline"><input type="range" name="customer_experience_rating" min="0" max="10" value="0" oninput="this.nextElementSibling.value = this.value"><output>0</output>/10</div></div>
+        <div class="q"><h3>How Do You Win Business?</h3>
+          <div class="options">
+            <label class="opt"><input type="checkbox" name="win_business_methods" value="Word of mouth"> Word of mouth</label>
+            <label class="opt"><input type="checkbox" name="win_business_methods" value="Digital marketing"> Digital marketing</label>
+            <label class="opt"><input type="checkbox" name="win_business_methods" value="Sales Hustle"> Sales Hustle</label>
+            <label class="opt"><input type="checkbox" name="win_business_methods" value="Partner channels"> Partner channels</label>
+            <label class="opt"><input type="checkbox" name="win_business_methods" value="Inbound leads"> Inbound leads</label>
+            <label class="opt"><input type="checkbox" name="win_business_methods" value="Struggling here"> Struggling here</label>
+          </div>
+        </div>
+        <div class="q"><h3>Who usually has the final say on day-to-day calls?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="decision_maker" value="Founder"> Founder</label>
+            <label class="opt"><input type="radio" name="decision_maker" value="Senior Team"> Senior Team</label>
+            <label class="opt"><input type="radio" name="decision_maker" value="Whoever shouts loudest"> Whoever shouts loudest</label>
+            <label class="opt"><input type="radio" name="decision_maker" value="Board/Advisors"> Board/Advisors</label>
+            <label class="opt"><input type="radio" name="decision_maker" value="No one really"> No one really</label>
+            <label class="opt"><input type="radio" name="decision_maker" value="Other"> Other</label>
+          </div>
+        </div>
+        <div class="q"><h3 class="required">What would you say is your single greatest growth bottleneck?</h3><textarea name="growth_bottleneck" required></textarea></div>
+        <div class="q"><h3>Customer Profitability Insight</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="customer_profitability" value="Know Exactly"> Know Exactly</label>
+            <label class="opt"><input type="radio" name="customer_profitability" value="Rough idea"> Rough idea</label>
+            <label class="opt"><input type="radio" name="customer_profitability" value="All rev is good rev"> All rev is good rev</label>
+            <label class="opt"><input type="radio" name="customer_profitability" value="Never analysed"> Never analysed</label>
+            <label class="opt"><input type="radio" name="customer_profitability" value="Other"> Other</label>
+          </div>
+        </div>
+        <div class="q"><h3>How quickly can key decisions be made when data is unclear?</h3><div class="inline"><input type="range" name="decision_speed" min="0" max="10" value="0" oninput="this.nextElementSibling.value = this.value"><output>0</output>/10</div></div>
+      </div>
+
+      <div class="section">
+        <h2>Execution Engine</h2>
+        <div class="q"><h3>What is your operational maturity?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="operational_maturity" value="Chaos - reinvent wheel daily"> Chaos - reinvent wheel daily</label>
+            <label class="opt"><input type="radio" name="operational_maturity" value="Some processes, lots of exceptions"> Some processes, lots of exceptions</label>
+            <label class="opt"><input type="radio" name="operational_maturity" value="Documented but not followed"> Documented but not followed</label>
+            <label class="opt"><input type="radio" name="operational_maturity" value="Smooth but not scalable"> Smooth but not scalable</label>
+            <label class="opt"><input type="radio" name="operational_maturity" value="Automated and efficient"> Automated and efficient</label>
+          </div>
+        </div>
+        <div class="q"><h3>How's your tech infrastructure?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="tech_infrastructure" value="Spreadsheets and prayers"> Spreadsheets and prayers</label>
+            <label class="opt"><input type="radio" name="tech_infrastructure" value="Mix of tools barely connected"> Mix of tools barely connected</label>
+            <label class="opt"><input type="radio" name="tech_infrastructure" value="Decent systems, poor integration"> Decent systems, poor integration</label>
+            <label class="opt"><input type="radio" name="tech_infrastructure" value="Modern stack, some legacy"> Modern stack, some legacy</label>
+            <label class="opt"><input type="radio" name="tech_infrastructure" value="Cutting edge throughout"> Cutting edge throughout</label>
+          </div>
+        </div>
+        <div class="q"><h3>We review cashflow and budgets at least monthly.</h3><div class="inline"><input type="range" name="cashflow_review_frequency" min="0" max="10" value="0" oninput="this.nextElementSibling.value = this.value"><output>0</output>/10</div></div>
+        <div class="q"><h3>How do new ideas turn into things people can buy?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="innovation_process" value="No bandwidth to innovate"> No bandwidth to innovate</label>
+            <label class="opt"><input type="radio" name="innovation_process" value="Ideas but no execution"> Ideas but no execution</label>
+            <label class="opt"><input type="radio" name="innovation_process" value="Small experiments running"> Small experiments running</label>
+            <label class="opt"><input type="radio" name="innovation_process" value="Active R&D program"> Active R&D program</label>
+            <label class="opt"><input type="radio" name="innovation_process" value="Innovation is our edge"> Innovation is our edge</label>
+          </div>
+        </div>
+        <div class="q"><h3>How up-to-date is your bookkeeping right now?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="bookkeeping_status" value="This week"> This week</label>
+            <label class="opt"><input type="radio" name="bookkeeping_status" value="Last Month"> Last Month</label>
+            <label class="opt"><input type="radio" name="bookkeeping_status" value="Last Quarter"> Last Quarter</label>
+            <label class="opt"><input type="radio" name="bookkeeping_status" value="Older than that"> Older than that</label>
+          </div>
+        </div>
+        <div class="q"><h3>How often do critical systems fail?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="system_reliability" value="Daily fires"> Daily fires</label>
+            <label class="opt"><input type="radio" name="system_reliability" value="Weekly issues"> Weekly issues</label>
+            <label class="opt"><input type="radio" name="system_reliability" value="Monthly hiccups"> Monthly hiccups</label>
+            <label class="opt"><input type="radio" name="system_reliability" value="Rare problems"> Rare problems</label>
+            <label class="opt"><input type="radio" name="system_reliability" value="Rock solid"> Rock solid</label>
+          </div>
+        </div>
+        <div class="q"><h3>How confident are you that your numbers are accurate?</h3><div class="inline"><input type="range" name="numbers_confidence" min="0" max="10" value="0" oninput="this.nextElementSibling.value = this.value"><output>0</output>/10</div></div>
+        <div class="q"><h3 class="required">What's your biggest money worry right now?</h3><textarea name="money_worry" required></textarea></div>
+      </div>
+
+      <div class="section">
+        <h2>People & Culture</h2>
+        <div class="q"><h3>What's your team reality?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="team_size" value="Just me"> Just me</label>
+            <label class="opt"><input type="radio" name="team_size" value="2-5 people"> 2-5 people</label>
+            <label class="opt"><input type="radio" name="team_size" value="6-25"> 6-25</label>
+            <label class="opt"><input type="radio" name="team_size" value="16-50"> 16-50</label>
+            <label class="opt"><input type="radio" name="team_size" value="50+"> 50+</label>
+          </div>
+        </div>
+        <div class="q"><h3>Your company culture in one word?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="culture_word" value="Chaotic"> Chaotic</label>
+            <label class="opt"><input type="radio" name="culture_word" value="Stressful"> Stressful</label>
+            <label class="opt"><input type="radio" name="culture_word" value="Improving"> Improving</label>
+            <label class="opt"><input type="radio" name="culture_word" value="Collaborative"> Collaborative</label>
+            <label class="opt"><input type="radio" name="culture_word" value="Thriving"> Thriving</label>
+            <label class="opt"><input type="radio" name="culture_word" value="Other..."> Other...</label>
+          </div>
+        </div>
+        <div class="q"><h3>Biggest people challenge?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="people_challenge" value="Finding talent"> Finding talent</label>
+            <label class="opt"><input type="radio" name="people_challenge" value="Keeping talent"> Keeping talent</label>
+            <label class="opt"><input type="radio" name="people_challenge" value="Performance issues"> Performance issues</label>
+            <label class="opt"><input type="radio" name="people_challenge" value="Leadership gaps"> Leadership gaps</label>
+            <label class="opt"><input type="radio" name="people_challenge" value="Culture/morale"> Culture/morale</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Tech & Data</h2>
+        <div class="q"><h3>Core systems in play</h3>
+          <div class="options">
+            <label class="opt"><input type="checkbox" name="core_systems" value="Accounting"> Accounting</label>
+            <label class="opt"><input type="checkbox" name="core_systems" value="CRM"> CRM</label>
+            <label class="opt"><input type="checkbox" name="core_systems" value="Project / Job Management"> Project / Job Management</label>
+            <label class="opt"><input type="checkbox" name="core_systems" value="Inventory / Stock Control"> Inventory / Stock Control</label>
+            <label class="opt"><input type="checkbox" name="core_systems" value="Helpdesk or Live Chat"> Helpdesk or Live Chat</label>
+            <label class="opt"><input type="checkbox" name="core_systems" value="Website CMS"> Website CMS</label>
+            <label class="opt"><input type="checkbox" name="core_systems" value="Custom Software / Internal Tools"> Custom Software / Internal Tools</label>
+            <label class="opt"><input type="checkbox" name="core_systems" value="AI Tools or Automation"> AI Tools or Automation</label>
+            <label class="opt"><input type="checkbox" name="core_systems" value="Other"> Other</label>
+          </div>
+        </div>
+        <div class="q"><h3>How often do systems 'talk' via live integrations?</h3><div class="inline"><input type="range" name="system_integration_level" min="0" max="10" value="0" oninput="this.nextElementSibling.value = this.value"><output>0</output>/10</div></div>
+        <div class="q"><h3>Are there any clunky systems or messy code that trip you up?</h3><textarea name="clunky_systems"></textarea></div>
+        <div class="q"><h3>Typical monthly downtime across customer-facing services</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="monthly_downtime_hours" value="All fine"> All fine</label>
+            <label class="opt"><input type="radio" name="monthly_downtime_hours" value="0-5 hours"> 0-5 hours</label>
+            <label class="opt"><input type="radio" name="monthly_downtime_hours" value="5-10 hours"> 5-10 hours</label>
+            <label class="opt"><input type="radio" name="monthly_downtime_hours" value="10-15 hours"> 10-15 hours</label>
+            <label class="opt"><input type="radio" name="monthly_downtime_hours" value="15-20 hours"> 15-20 hours</label>
+            <label class="opt"><input type="radio" name="monthly_downtime_hours" value="20+ hours"> 20+ hours</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Product & Customer Value</h2>
+        <div class="q"><h3>How do you know what customers want?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="customer_insight_method" value="They tell us when happy"> They tell us when happy</label>
+            <label class="opt"><input type="radio" name="customer_insight_method" value="Feedback surveys"> Feedback surveys</label>
+            <label class="opt"><input type="radio" name="customer_insight_method" value="Usage data"> Usage data</label>
+            <label class="opt"><input type="radio" name="customer_insight_method" value="Formal research program"> Formal research program</label>
+            <label class="opt"><input type="radio" name="customer_insight_method" value="We guess"> We guess</label>
+          </div>
+        </div>
+        <div class="q"><h3>Product development approach?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="product_dev_approach" value="Build what we think is best"> Build what we think is best</label>
+            <label class="opt"><input type="radio" name="product_dev_approach" value="Copy competitors"> Copy competitors</label>
+            <label class="opt"><input type="radio" name="product_dev_approach" value="Customer requests drive it"> Customer requests drive it</label>
+            <label class="opt"><input type="radio" name="product_dev_approach" value="Data-driven roadmap"> Data-driven roadmap</label>
+            <label class="opt"><input type="radio" name="product_dev_approach" value="No bandwidth for new products"> No bandwidth for new products</label>
+          </div>
+        </div>
+        <div class="q"><h3>Main customer segment</h3><textarea name="main_customer_segment"></textarea></div>
+        <div class="q"><h3>Out of 10, how would customers rate you today?</h3><div class="inline"><input type="range" name="customer_rating" min="0" max="10" value="0" oninput="this.nextElementSibling.value = this.value"><output>0</output>/10</div></div>
+        <div class="q"><h3>Biggest shift you need from the market in the next year</h3><textarea name="market_shift_needed"></textarea></div>
+        <div class="q"><h3>What do customers praise you for most?</h3><textarea name="customer_praise"></textarea></div>
+      </div>
+
+      <div class="section">
+        <h2>Risk & Compliance</h2>
+        <div class="q"><h3>Legal/compliance confidence?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="legal_compliance_confidence" value="Probably non-compliant"> 😱 Probably non-compliant</label>
+            <label class="opt"><input type="radio" name="legal_compliance_confidence" value="Doing minimum"> 😰 Doing minimum</label>
+            <label class="opt"><input type="radio" name="legal_compliance_confidence" value="Think we're okay"> 😐 Think we're okay</label>
+            <label class="opt"><input type="radio" name="legal_compliance_confidence" value="Well covered"> 🙂 Well covered</label>
+            <label class="opt"><input type="radio" name="legal_compliance_confidence" value="Bulletproof"> 😎 Bulletproof</label>
+          </div>
+        </div>
+        <div class="q"><h3>Data protection (GDPR) status?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="gdpr_status" value="What's GDPR"> What's GDPR</label>
+            <label class="opt"><input type="radio" name="gdpr_status" value="Should probably look at this"> Should probably look at this</label>
+            <label class="opt"><input type="radio" name="gdpr_status" value="Basic measures in place"> Basic measures in place</label>
+            <label class="opt"><input type="radio" name="gdpr_status" value="Fully compliant"> Fully compliant</label>
+            <label class="opt"><input type="radio" name="gdpr_status" value="Privacy by design"> Privacy by design</label>
+          </div>
+        </div>
+        <div class="q"><h3>Cybersecurity readiness?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="cybersecurity_readiness" value="No idea"> No idea</label>
+            <label class="opt"><input type="radio" name="cybersecurity_readiness" value="Basic antivirus"> Basic antivirus</label>
+            <label class="opt"><input type="radio" name="cybersecurity_readiness" value="Some security measures"> Some security measures</label>
+            <label class="opt"><input type="radio" name="cybersecurity_readiness" value="Comprehensive program"> Comprehensive program</label>
+            <label class="opt"><input type="radio" name="cybersecurity_readiness" value="Bank level security"> Bank level security</label>
+          </div>
+        </div>
+        <div class="q"><h3>How do you handle contracts?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="contract_handling" value="Handshake deals"> Handshake deals</label>
+            <label class="opt"><input type="radio" name="contract_handling" value="Basic templates"> Basic templates</label>
+            <label class="opt"><input type="radio" name="contract_handling" value="Lawyer reviews being done"> Lawyer reviews being done</label>
+            <label class="opt"><input type="radio" name="contract_handling" value="Proper review process"> Proper review process</label>
+            <label class="opt"><input type="radio" name="contract_handling" value="Full contract management"> Full contract management</label>
+          </div>
+        </div>
+        <div class="q"><h3>Ethics/compliance training</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="ethics_training" value="Never done it"> Never done it</label>
+            <label class="opt"><input type="radio" name="ethics_training" value="Ad-hoc when issues arise"> Ad-hoc when issues arise</label>
+            <label class="opt"><input type="radio" name="ethics_training" value="Annual tick-box"> Annual tick-box</label>
+            <label class="opt"><input type="radio" name="ethics_training" value="Regular and engaging"> Regular and engaging</label>
+            <label class="opt"><input type="radio" name="ethics_training" value="Embedded in culture"> Embedded in culture</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>External Support & Advisory Network</h2>
+        <div class="q"><h3>Which external advisers do you currently lean on?</h3>
+          <div class="options">
+            <label class="opt"><input type="checkbox" name="external_advisers" value="Accountant"> Accountant</label>
+            <label class="opt"><input type="checkbox" name="external_advisers" value="Bookkeeper"> Bookkeeper</label>
+            <label class="opt"><input type="checkbox" name="external_advisers" value="Independent Financial Adviser"> Independent Financial Adviser</label>
+            <label class="opt"><input type="checkbox" name="external_advisers" value="Solicitor"> Solicitor</label>
+            <label class="opt"><input type="checkbox" name="external_advisers" value="HR Consultant"> HR Consultant</label>
+            <label class="opt"><input type="checkbox" name="external_advisers" value="Marketing Agency"> Marketing Agency</label>
+            <label class="opt"><input type="checkbox" name="external_advisers" value="IT/Managed Service Provider"> IT/Managed Service Provider</label>
+            <label class="opt"><input type="checkbox" name="external_advisers" value="Other"> Other</label>
+          </div>
+        </div>
+        <div class="q"><h3>Roughly how many hours per month do they spend with you in total?</h3><input type="text" name="adviser_hours_per_month"></div>
+        <div class="q"><h3>On a scale of 1-10, how well do they 'get' your long-term goals?</h3><div class="inline"><input type="range" name="adviser_understanding" min="0" max="10" value="0" oninput="this.nextElementSibling.value = this.value"><output>0</output>/10</div></div>
+
+        <div class="q"><h3>Do you have any Non-Executive Directors on the board?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="has_neds" value="Yes"> Yes</label>
+            <label class="opt"><input type="radio" name="has_neds" value="No"> No</label>
+          </div>
+          <div id="neds_group" class="subq" style="display:none;">
+            <div class="q"><h3>How Many?</h3><input type="number" name="ned_count" min="0"></div>
+            <div class="q"><h3>Meeting Frequency?</h3>
+              <div class="options">
+                <label class="opt"><input type="radio" name="ned_meeting_frequency" value="Monthly"> Monthly</label>
+                <label class="opt"><input type="radio" name="ned_meeting_frequency" value="Quarterly"> Quarterly</label>
+                <label class="opt"><input type="radio" name="ned_meeting_frequency" value="Ad-hoc"> Ad-hoc</label>
+              </div>
+            </div>
+            <div class="q"><h3>How valuable are your NEDs in shaping strategy?</h3><div class="inline"><input type="range" name="ned_value" min="0" max="10" value="0" oninput="this.nextElementSibling.value = this.value"><output>0</output>/10</div></div>
+          </div>
+        </div>
+
+        <div class="q"><h3>Do you currently employ any fractional/part-time C-suite execs?</h3>
+          <div class="options">
+            <label class="opt"><input type="radio" name="has_fractional_execs" value="Yes"> Yes</label>
+            <label class="opt"><input type="radio" name="has_fractional_execs" value="No"> No</label>
+          </div>
+          <div id="fractional_group" class="subq" style="display:none;">
+            <div class="q"><h3>Which Roles</h3>
+              <div class="options">
+                <label class="opt"><input type="checkbox" name="fractional_roles" value="CEO"> CEO</label>
+                <label class="opt"><input type="checkbox" name="fractional_roles" value="COO"> COO</label>
+                <label class="opt"><input type="checkbox" name="fractional_roles" value="CFO"> CFO</label>
+                <label class="opt"><input type="checkbox" name="fractional_roles" value="CTO/CIO"> CTO/CIO</label>
+                <label class="opt"><input type="checkbox" name="fractional_roles" value="CMO"> CMO</label>
+                <label class="opt"><input type="checkbox" name="fractional_roles" value="CHRO"> CHRO</label>
+                <label class="opt"><input type="checkbox" name="fractional_roles" value="CRO"> CRO</label>
+                <label class="opt"><input type="checkbox" name="fractional_roles" value="Other"> Other</label>
+              </div>
+            </div>
+            <div class="q"><h3>Approx. days per month each fractional exec works?</h3><input type="text" name="fractional_days_per_month"></div>
+          </div>
+        </div>
+        <div class="q"><h3>Overall confidence your current adviser network can get you to your 5-year target</h3><div class="inline"><input type="range" name="adviser_network_confidence" min="0" max="10" value="0" oninput="this.nextElementSibling.value = this.value"><output>0</output>/10</div></div>
+        <div class="q"><h3>What extra expertise would make the biggest difference right now?</h3><textarea name="expertise_needed"></textarea></div>
+      </div>
+
+      <div class="actions">
+        <button type="button" id="saveJson">Save Responses (JSON)</button>
+        <button type="button" class="secondary" id="saveTxt">Save Responses (TXT)</button>
+        <button type="button" class="secondary" onclick="window.print()">Print to PDF</button>
+      </div>
+      <p class="note">Data stays on this file only. Email the JSON/TXT or the PDF.</p>
+    </form>
+  </div>
+
+  <script>
+    function collect(name) {
+      const form = document.getElementById('form');
+      const out = {};
+      function val(q) { return (q && q.value) ? q.value : ''; }
+      function checked(name) { return Array.from(form.querySelectorAll(`input[name="${name}"]`)).find(x => x.checked)?.value; }
+      function checks(name) { return Array.from(form.querySelectorAll(`input[name="${name}"]`)).filter(x => x.checked).map(x => x.value); }
+
+      out.trading_name = val(form.trading_name);
+      out.companies_house_number = val(form.companies_house_number);
+      out.years_trading = checked('years_trading');
+      out.ten_year_vision = val(form.ten_year_vision);
+      out.external_forces = checks('external_forces');
+      out.annual_turnover = checked('annual_turnover');
+      out.primary_revenue_stream = val(form.primary_revenue_stream);
+      out.customer_locations = checks('customer_locations');
+      out.environmental_impact = checked('environmental_impact');
+
+      out.winning_2030 = val(form.winning_2030);
+      out.six_month_shifts = val(form.six_month_shifts);
+      out.financial_visibility = checked('financial_visibility');
+      out.profit_eaters = checks('profit_eaters');
+      out.data_driven_level = checked('data_driven_level');
+      out.ninety_day_priorities = checks('ninety_day_priorities');
+      out.priority_confidence = form.priority_confidence?.value || '';
+
+      out.customer_experience_rating = form.customer_experience_rating?.value || '';
+      out.win_business_methods = checks('win_business_methods');
+      out.decision_maker = checked('decision_maker');
+      out.growth_bottleneck = val(form.growth_bottleneck);
+      out.customer_profitability = checked('customer_profitability');
+      out.decision_speed = form.decision_speed?.value || '';
+
+      out.operational_maturity = checked('operational_maturity');
+      out.tech_infrastructure = checked('tech_infrastructure');
+      out.cashflow_review_frequency = form.cashflow_review_frequency?.value || '';
+      out.innovation_process = checked('innovation_process');
+      out.bookkeeping_status = checked('bookkeeping_status');
+      out.system_reliability = checked('system_reliability');
+      out.numbers_confidence = form.numbers_confidence?.value || '';
+      out.money_worry = val(form.money_worry);
+
+      out.team_size = checked('team_size');
+      out.culture_word = checked('culture_word');
+      out.people_challenge = checked('people_challenge');
+
+      out.core_systems = checks('core_systems');
+      out.system_integration_level = form.system_integration_level?.value || '';
+      out.clunky_systems = val(form.clunky_systems);
+      out.monthly_downtime_hours = checked('monthly_downtime_hours');
+
+      out.customer_insight_method = checked('customer_insight_method');
+      out.product_dev_approach = checked('product_dev_approach');
+      out.main_customer_segment = val(form.main_customer_segment);
+      out.customer_rating = form.customer_rating?.value || '';
+      out.market_shift_needed = val(form.market_shift_needed);
+      out.customer_praise = val(form.customer_praise);
+
+      out.legal_compliance_confidence = checked('legal_compliance_confidence');
+      out.gdpr_status = checked('gdpr_status');
+      out.cybersecurity_readiness = checked('cybersecurity_readiness');
+      out.contract_handling = checked('contract_handling');
+      out.ethics_training = checked('ethics_training');
+
+      out.external_advisers = checks('external_advisers');
+      out.adviser_hours_per_month = val(form.adviser_hours_per_month);
+      out.adviser_understanding = form.adviser_understanding?.value || '';
+      out.has_neds = checked('has_neds');
+      if (out.has_neds === 'Yes') {
+        out.ned_count = form.ned_count?.value || '';
+        out.ned_meeting_frequency = checked('ned_meeting_frequency');
+        out.ned_value = form.ned_value?.value || '';
+      }
+      out.has_fractional_execs = checked('has_fractional_execs');
+      if (out.has_fractional_execs === 'Yes') {
+        out.fractional_roles = checks('fractional_roles');
+        out.fractional_days_per_month = val(form.fractional_days_per_month);
+      }
+      out.adviser_network_confidence = form.adviser_network_confidence?.value || '';
+      out.expertise_needed = val(form.expertise_needed);
+
+      return out;
+    }
+
+    document.getElementsByName('has_neds').forEach(r => r.addEventListener('change', () => {
+      const group = document.getElementById('neds_group');
+      group.style.display = (r.value === 'Yes' && r.checked) ? 'block' : 'none';
+    }));
+    document.getElementsByName('has_fractional_execs').forEach(r => r.addEventListener('change', () => {
+      const group = document.getElementById('fractional_group');
+      group.style.display = (r.value === 'Yes' && r.checked) ? 'block' : 'none';
+    }));
+
+    document.getElementById('saveJson').addEventListener('click', () => {
+      const responses = collect();
+      const payload = { assessment: 'Part 2: Business Deep Dive', version: 'offline-1.0', generated_at: new Date().toISOString(), responses };
+      saveJsonFile('assessment-part2-responses.json', payload);
+    });
+    document.getElementById('saveTxt').addEventListener('click', () => {
+      const r = collect();
+      const lines = ['Oracle Method - Part 2 (Offline)',''];
+      Object.keys(r).forEach(k => { lines.push(`${k}: ${Array.isArray(r[k]) ? r[k].join(', ') : (r[k] ?? '')}`); });
+      saveTxtFile('assessment-part2-responses.txt', lines.join('\n'));
+    });
+  </script>
+</body>
+</html>
+
+
+
+

@@ -1,0 +1,179 @@
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { ThemeProvider } from "@/components/layout/DynamicHeader";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import RealDashboard from "@/pages/RealDashboard";
+import AssessmentPart1 from "@/pages/AssessmentPart1";
+import AssessmentPart2 from "@/pages/AssessmentPart2";
+import { EmailCollectionForm } from "@/components/assessment/EmailCollectionForm";
+import AccountancyAuth from "./pages/AccountancyAuth";
+import AccountancyHealth from "./pages/AccountancyHealth";
+import AccountancyAdminDashboard from "./pages/AccountancyAdminDashboard";
+import { IntakeConfirmation } from "@/components/assessment/IntakeConfirmation";
+
+// Import all pages
+import Home from "./pages/Home";
+import Auth from "./pages/Auth";
+import Dashboard from "./pages/Dashboard";
+import SuperAdminDashboard from "./pages/SuperAdminDashboard";
+import Community from "./pages/Community";
+
+// Import solution pages
+import ExhaustedFounders from "./pages/solutions/ExhaustedFounders";
+import GrowingTeams from "./pages/solutions/GrowingTeams";
+import SideHustlers from "./pages/solutions/SideHustlers";
+import AccountancySolutionsPage from "./pages/solutions/AccountancyDashboard";
+
+// Import other missing pages
+import HowItWorks from "./pages/HowItWorks";
+import MeetTheBoard from "./pages/MeetTheBoard";
+import Method365 from "./pages/Method365";
+import Pricing from "./pages/Pricing";
+import AccountancyPortal from "./pages/AccountancyPortal";
+import HealthyPracticePortal from "./pages/HealthyPracticePortal";
+
+// Import the actual practice management dashboard
+import AccountancyPracticeDashboard from "./pages/AccountancyDashboard";
+
+// Import the AccountancyProvider
+import { AccountancyProvider } from "@/contexts/AccountancyContext";
+
+import "./App.css";
+
+const queryClient = new QueryClient();
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <ThemeProvider>
+          <Router>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/auth" element={<Auth />} />
+              
+              {/* Platform Pages */}
+              <Route path="/how-it-works" element={<HowItWorks />} />
+              <Route path="/meet-the-board" element={<MeetTheBoard />} />
+              <Route path="/365-method" element={<Method365 />} />
+              <Route path="/pricing" element={<Pricing />} />
+              
+              {/* Solution Pages */}
+              <Route path="/solutions/founders" element={<ExhaustedFounders />} />
+              <Route path="/solutions/teams" element={<GrowingTeams />} />
+              <Route path="/solutions/side-hustlers" element={<SideHustlers />} />
+              
+              {/* Portal Pages */}
+              <Route path="/portal/accountancy" element={<AccountancyPortal />} />
+              <Route path="/portal/healthcare" element={<HealthyPracticePortal />} />
+              <Route path="/solutions/accountancy" element={<AccountancySolutionsPage />} />
+              
+              {/* Accountancy Portal Routes - wrapped with AccountancyProvider */}
+              <Route path="/accountancy" element={<AccountancyPortal />} />
+              <Route path="/accountancy/auth" element={<AccountancyAuth />} />
+              <Route path="/accountancy/dashboard" element={
+                <AccountancyProvider>
+                  <AccountancyPracticeDashboard />
+                </AccountancyProvider>
+              } />
+              <Route path="/accountancy/health" element={<AccountancyHealth />} />
+              <Route path="/accountancy/coach" element={
+                <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black flex items-center justify-center">
+                  <div className="text-white text-center">
+                    <h1 className="text-4xl font-bold mb-4">AI Coach</h1>
+                    <p className="text-gray-400">Coming soon - Your advisory transformation coach</p>
+                  </div>
+                </div>
+              } />
+              <Route path="/accountancy/rescue" element={
+                <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black flex items-center justify-center">
+                  <div className="text-white text-center">
+                    <h1 className="text-4xl font-bold mb-4">Client Rescues</h1>
+                    <p className="text-gray-400">Coming soon - Manage client rescue projects</p>
+                  </div>
+                </div>
+              } />
+              <Route path="/accountancy/templates" element={
+                <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black flex items-center justify-center">
+                  <div className="text-white text-center">
+                    <h1 className="text-4xl font-bold mb-4">Templates</h1>
+                    <p className="text-gray-400">Coming soon - Advisory service templates</p>
+                  </div>
+                </div>
+              } />
+              <Route path="/accountancy/cpd" element={
+                <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black flex items-center justify-center">
+                  <div className="text-white text-center">
+                    <h1 className="text-4xl font-bold mb-4">CPD Tracker</h1>
+                    <p className="text-gray-400">Coming soon - Team CPD management</p>
+                  </div>
+                </div>
+              } />
+              <Route path="/accountancy/analytics" element={
+                <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black flex items-center justify-center">
+                  <div className="text-white text-center">
+                    <h1 className="text-4xl font-bold mb-4">Analytics</h1>
+                    <p className="text-gray-400">Coming soon - Practice analytics dashboard</p>
+                  </div>
+                </div>
+              } />
+              <Route path="/accountancy/settings" element={
+                <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black flex items-center justify-center">
+                  <div className="text-white text-center">
+                    <h1 className="text-4xl font-bold mb-4">Settings</h1>
+                    <p className="text-gray-400">Coming soon - Practice settings</p>
+                  </div>
+                </div>
+              } />
+              <Route path="/accountancy/admin" element={<AccountancyAdminDashboard />} />
+              
+              {/* Protected Routes */}
+              <Route path="/dashboard" element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/:groupId" element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } />
+              
+              {/* Admin Routes */}
+              <Route path="/admin" element={
+                <ProtectedRoute>
+                  <SuperAdminDashboard />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/realdashboard" element={<RealDashboard />} />
+              <Route path="/assessment/part1" element={<AssessmentPart1 />} />
+              <Route path="/assessment/part2" element={<AssessmentPart2 />} />
+              <Route path="/email-collection" element={<EmailCollectionForm onEmailSent={() => {}} onEmailChange={() => {}} email="" />} />
+              
+              {/* Add the new intake confirmation route */}
+              <Route path="/assessment/confirm" element={
+                <ProtectedRoute>
+                  <IntakeConfirmation />
+                </ProtectedRoute>
+              } />
+              
+              {/* Community Route */}
+              <Route path="/community" element={<Community />} />
+              
+              {/* Redirect old roadmap routes to dashboard */}
+              <Route path="/roadmap/full/:groupId" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/roadmap/:groupId" element={<Navigate to="/dashboard" replace />} />
+              
+              {/* Catch all route */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Router>
+        </ThemeProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;

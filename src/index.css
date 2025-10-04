@@ -1,0 +1,305 @@
+/* Import Modern SaaS Theme */
+@import './styles/modern-saas-theme.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Professional Financial Services Theme - Global Styles */
+
+/* ===== ESSENTIAL VISIBILITY FIXES ===== */
+body, html, #root {
+  overflow: auto !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+body {
+  position: static !important;
+  inset: auto !important;
+}
+
+html {
+  overflow-y: auto !important;
+  height: auto !important;
+}
+
+/* Force main content area visibility */
+.ml-80,
+.flex-1,
+[class*="min-h-screen"],
+[class*="bg-gradient"] {
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: revert !important;
+  background-color: hsl(var(--background)) !important;
+  overflow: auto !important;
+}
+
+/* Fix scrolling for assessment pages */
+.overflow-y-auto,
+[class*="overflow"] {
+  overflow: auto !important;
+}
+
+/* ===== LONDON TWILIGHT THEME ENFORCEMENT ===== */
+[data-portal="accountancy"] {
+  /* Force London Twilight theme */
+  background-color: #0F172A !important;
+  color: #F8FAFC !important;
+  min-height: 100vh;
+}
+
+/* Navigation and Header */
+[data-portal="accountancy"] header,
+[data-portal="accountancy"] nav,
+[data-portal="accountancy"] aside {
+  background-color: #0F172A !important;
+  border-color: #475569 !important;
+}
+
+[data-portal="accountancy"] header *,
+[data-portal="accountancy"] nav *,
+[data-portal="accountancy"] aside * {
+  color: #F8FAFC !important;
+}
+
+/* Cards and Panels */
+[data-portal="accountancy"] .card,
+[data-portal="accountancy"] [class*="card"],
+[data-portal="accountancy"] .bg-white,
+[data-portal="accountancy"] .bg-gray-50,
+[data-portal="accountancy"] .bg-gray-100,
+[data-portal="accountancy"] .bg-gray-200,
+[data-portal="accountancy"] .bg-gray-300,
+[data-portal="accountancy"] .bg-gray-400,
+[data-portal="accountancy"] .bg-gray-500,
+[data-portal="accountancy"] .bg-gray-600,
+[data-portal="accountancy"] .bg-gray-700,
+[data-portal="accountancy"] .bg-gray-800,
+[data-portal="accountancy"] .bg-gray-900,
+[data-portal="accountancy"] .bg-slate-50,
+[data-portal="accountancy"] .bg-slate-100,
+[data-portal="accountancy"] .bg-slate-200,
+[data-portal="accountancy"] .bg-slate-300,
+[data-portal="accountancy"] .bg-slate-400,
+[data-portal="accountancy"] .bg-slate-500,
+[data-portal="accountancy"] .bg-slate-600,
+[data-portal="accountancy"] .bg-slate-700,
+[data-portal="accountancy"] .bg-slate-800,
+[data-portal="accountancy"] .bg-slate-900 {
+  background-color: #1E293B !important;
+  color: #F8FAFC !important;
+  border-color: #475569 !important;
+}
+
+/* Text Colors */
+[data-portal="accountancy"] h1,
+[data-portal="accountancy"] h2,
+[data-portal="accountancy"] h3,
+[data-portal="accountancy"] h4,
+[data-portal="accountancy"] h5,
+[data-portal="accountancy"] h6,
+[data-portal="accountancy"] p,
+[data-portal="accountancy"] span,
+[data-portal="accountancy"] div,
+[data-portal="accountancy"] .text-gray-600,
+[data-portal="accountancy"] .text-gray-500,
+[data-portal="accountancy"] .text-gray-400,
+[data-portal="accountancy"] .text-gray-300,
+[data-portal="accountancy"] .text-gray-200,
+[data-portal="accountancy"] .text-gray-100,
+[data-portal="accountancy"] .text-white,
+[data-portal="accountancy"] .text-black {
+  color: #F8FAFC !important;
+}
+
+/* Secondary Text */
+[data-portal="accountancy"] .text-muted-foreground,
+[data-portal="accountancy"] .text-gray-400,
+[data-portal="accountancy"] .text-gray-500 {
+  color: #CBD5E1 !important;
+}
+
+/* Tertiary Text */
+[data-portal="accountancy"] .text-gray-400,
+[data-portal="accountancy"] .text-gray-500 {
+  color: #94A3B8 !important;
+}
+
+/* Buttons */
+[data-portal="accountancy"] button,
+[data-portal="accountancy"] .btn,
+[data-portal="accountancy"] .btn-primary,
+[data-portal="accountancy"] .bg-blue-600,
+[data-portal="accountancy"] .bg-blue-700,
+[data-portal="accountancy"] .bg-orange-500,
+[data-portal="accountancy"] .bg-orange-600 {
+  background-color: #3B82F6 !important;
+  color: #F8FAFC !important;
+  border-color: #475569 !important;
+}
+
+/* Accent Buttons (Coral) */
+[data-portal="accountancy"] .btn-danger,
+[data-portal="accountancy"] .bg-red-600,
+[data-portal="accountancy"] .bg-red-700,
+[data-portal="accountancy"] .destructive {
+  background-color: #EF4444 !important;
+  color: #F8FAFC !important;
+}
+
+/* Secondary Buttons (Gold) */
+[data-portal="accountancy"] .btn-secondary,
+[data-portal="accountancy"] .bg-amber-500,
+[data-portal="accountancy"] .bg-amber-600,
+[data-portal="accountancy"] .bg-yellow-500 {
+  background-color: #F59E0B !important;
+  color: #0F172A !important;
+}
+
+/* Input Fields */
+[data-portal="accountancy"] input,
+[data-portal="accountancy"] select,
+[data-portal="accountancy"] textarea {
+  background-color: #334155 !important;
+  color: #F8FAFC !important;
+  border-color: #475569 !important;
+}
+
+/* Borders */
+[data-portal="accountancy"] .border,
+[data-portal="accountancy"] .border-gray-300,
+[data-portal="accountancy"] .border-gray-400,
+[data-portal="accountancy"] .border-gray-500,
+[data-portal="accountancy"] .border-gray-600,
+[data-portal="accountancy"] .border-gray-700,
+[data-portal="accountancy"] .border-gray-800,
+[data-portal="accountancy"] .border-gray-900,
+[data-portal="accountancy"] .border-slate-300,
+[data-portal="accountancy"] .border-slate-400,
+[data-portal="accountancy"] .border-slate-500,
+[data-portal="accountancy"] .border-slate-600,
+[data-portal="accountancy"] .border-slate-700,
+[data-portal="accountancy"] .border-slate-800,
+[data-portal="accountancy"] .border-slate-900 {
+  border-color: #475569 !important;
+}
+
+/* Focus States */
+[data-portal="accountancy"] input:focus,
+[data-portal="accountancy"] select:focus,
+[data-portal="accountancy"] textarea:focus,
+[data-portal="accountancy"] button:focus {
+  outline: 2px solid #3B82F6 !important;
+  outline-offset: 2px !important;
+}
+
+/* Links */
+[data-portal="accountancy"] a {
+  color: #3B82F6 !important;
+}
+
+[data-portal="accountancy"] a:hover {
+  color: #60A5FA !important;
+}
+
+/* Active States */
+[data-portal="accountancy"] .active,
+[data-portal="accountancy"] .bg-blue-600,
+[data-portal="accountancy"] .bg-primary {
+  background-color: #3B82F6 !important;
+  color: #F8FAFC !important;
+}
+
+/* ===== ASSESSMENT PAGE SPECIFIC FIXES ===== */
+[class*="assessment"] {
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: block !important;
+  min-height: 100vh !important;
+  overflow: auto !important;
+  background-color: #0F172A !important;
+  color: #F8FAFC !important;
+}
+
+.Part2AssessmentForm {
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: block !important;
+  min-height: 100vh !important;
+  overflow: auto !important;
+  background-color: #0F172A !important;
+  color: #F8FAFC !important;
+}
+
+.AssessmentPart2Container {
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 100vh !important;
+  overflow: auto !important;
+  background-color: #0F172A !important;
+  color: #F8FAFC !important;
+}
+
+/* ===== RESPONSIVE FIXES ===== */
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .button-group {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+
+/* ===== UTILITY CLASSES ===== */
+.oracle-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.button {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.content-section {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.button-container {
+  overflow: visible;
+  min-height: 48px;
+}
+
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(-10px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out;
+}

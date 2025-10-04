@@ -1,0 +1,5 @@
+/*    /index.html   200
+/auth    /index.html   200
+/dashboard    /index.html   200
+/admin    /index.html   200
+/api/*    https://oracle-api-server-production.up.railway.app/:splat    200 

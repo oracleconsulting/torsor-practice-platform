@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oracle Method Assessment - Part 1: Life Design (Offline)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; margin: 0; padding: 24px; color: #0f172a; background: #f8fafc; }
+    .container { max-width: 960px; margin: 0 auto; background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    p.lead { margin: 0 0 20px; color: #334155; }
+    .q { padding: 18px 16px; border: 1px solid #e2e8f0; border-radius: 10px; margin: 14px 0; }
+    .q h3 { margin: 0 0 6px; font-size: 16px; }
+    .q small { color: #475569; display: block; margin-bottom: 10px; }
+    textarea, input[type="text"], input[type="email"], input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
+    textarea { min-height: 120px; }
+    .options { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 16px; margin-top: 6px; }
+    .opt { display: flex; align-items: center; gap: 8px; }
+    .actions { display: flex; gap: 12px; margin-top: 20px; }
+    button { background: #0f172a; color: #fff; border: 0; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+    button.secondary { background: #334155; }
+    .note { font-size: 13px; color: #475569; }
+    .required::after { content: " *"; color: #dc2626; }
+    .group { display: grid; gap: 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Part 1: Life Design (Offline Form)</h1>
+    <p class="lead">Complete this offline and click "Save Responses (JSON)" to download your answers. You can also Print to PDF and email back.</p>
+
+    <form id="form">
+      <!-- The Tuesday Test -->
+      <div class="q" data-id="tuesday_test">
+        <h3 class="required">The Tuesday Test</h3>
+        <small>Picture a random Tuesday 5 years from now. Walk me through your ideal day from waking up to going to bed. Be specific - what time do you wake up? What do you NOT do anymore?</small>
+        <textarea name="tuesday_test" required></textarea>
+      </div>
+
+      <!-- The Money Truth (multi-part) -->
+      <div class="q" data-id="money_truth">
+        <h3 class="required">The Money Truth</h3>
+        <small>Two parts about your personal income (not business turnover):</small>
+        <div class="group">
+          <label>A) What is your current personal take-home salary/pay per month?
+            <input type="text" name="current_income" required>
+          </label>
+          <label>B) What personal monthly income would make you feel genuinely secure and free?
+            <input type="text" name="desired_income" required>
+          </label>
+        </div>
+      </div>
+
+      <!-- The Business Reality (multi-part) -->
+      <div class="q" data-id="business_turnover">
+        <h3 class="required">The Business Reality</h3>
+        <small>Now about your business financials (separate from your personal salary):</small>
+        <div class="group">
+          <label>A) What is your current annual business turnover/revenue?
+            <input type="text" name="current_turnover" required>
+          </label>
+          <label>B) What annual turnover do you think would enable you to live the life you want?
+            <input type="text" name="target_turnover" required>
+          </label>
+        </div>
+      </div>
+
+      <!-- The Emergency Log -->
+      <div class="q" data-id="emergency_log">
+        <h3 class="required">The Emergency Log</h3>
+        <small>Think about the last month. List the 'emergencies' that pulled you away from important work (the 2am calls, the 'only you can fix this' moments)</small>
+        <textarea name="emergency_log" required></textarea>
+      </div>
+
+      <!-- The Relationship Mirror -->
+      <div class="q" data-id="relationship_mirror">
+        <h3 class="required">The Relationship Mirror</h3>
+        <small>Complete this sentence: 'My business relationship feels like...' (a bad marriage I can't leave? a needy child? a puzzle I'm solving? something else?)</small>
+        <textarea name="relationship_mirror" required></textarea>
+      </div>
+
+      <!-- The Sacrifice List (checkbox + other) -->
+      <div class="q" data-id="sacrifices">
+        <h3 class="required">The Sacrifice List</h3>
+        <small>What have you given up or put on hold because of your business? (Check all that apply)</small>
+        <div class="options">
+          <label class="opt"><input type="checkbox" name="sacrifices" value="Starting/growing a family"> Starting/growing a family</label>
+          <label class="opt"><input type="checkbox" name="sacrifices" value="Hobbies I used to love"> Hobbies I used to love</label>
+          <label class="opt"><input type="checkbox" name="sacrifices" value="Fitness and health"> Fitness and health</label>
+          <label class="opt"><input type="checkbox" name="sacrifices" value="Friendships"> Friendships</label>
+          <label class="opt"><input type="checkbox" name="sacrifices" value="Travel and adventure"> Travel and adventure</label>
+          <label class="opt"><input type="checkbox" name="sacrifices" value="Sleep and rest"> Sleep and rest</label>
+          <label class="opt"><input type="checkbox" name="sacrifices" value="Relationship with partner"> Relationship with partner</label>
+          <label class="opt"><input type="checkbox" name="sacrifices" value="Other..." id="sacrifices_other_chk"> Other...</label>
+        </div>
+        <div class="group" id="sacrifices_other_group" style="display:none; margin-top:8px;">
+          <label>If other, please break it down...
+            <input type="text" name="sacrifices_other">
+          </label>
+        </div>
+      </div>
+
+      <!-- The Skills Confession -->
+      <div class="q" data-id="skills_confession">
+        <h3 class="required">The Skills Confession</h3>
+        <small>If you had to hire someone tomorrow to handle the part of your business you're WORST at, what would their job title be?</small>
+        <input type="text" name="skills_confession" required>
+      </div>
+
+      <!-- The 90-Day Fantasy -->
+      <div class="q" data-id="ninety_day_fantasy">
+        <h3 class="required">The 90-Day Fantasy</h3>
+        <small>If I guaranteed your business wouldn't collapse, what would you do with the next 90 days?</small>
+        <textarea name="ninety_day_fantasy" required></textarea>
+      </div>
+
+      <!-- The Danger Zone (radio + other) -->
+      <div class="q" data-id="danger_zone">
+        <h3 class="required">The Danger Zone</h3>
+        <small>What's the one thing that if it broke tomorrow would sink your business?</small>
+        <div class="options">
+          <label class="opt"><input type="radio" name="danger_zone" value="Cash running out" required> Cash running out</label>
+          <label class="opt"><input type="radio" name="danger_zone" value="Key person leaving"> Key person leaving</label>
+          <label class="opt"><input type="radio" name="danger_zone" value="Major client walking"> Major client walking</label>
+          <label class="opt"><input type="radio" name="danger_zone" value="System/tech failure"> System/tech failure</label>
+          <label class="opt"><input type="radio" name="danger_zone" value="Legal/compliance issue"> Legal/compliance issue</label>
+          <label class="opt"><input type="radio" name="danger_zone" value="Quality/reputation crisis"> Quality/reputation crisis</label>
+          <label class="opt"><input type="radio" name="danger_zone" value="Other..." id="danger_zone_other_radio"> Other...</label>
+        </div>
+        <div class="group" id="danger_zone_other_group" style="display:none; margin-top:8px;">
+          <label>If other, please break it down...
+            <input type="text" name="danger_zone_other">
+          </label>
+        </div>
+      </div>
+
+      <!-- The Growth Trap (checkbox + other) -->
+      <div class="q" data-id="growth_trap">
+        <h3 class="required">The Growth Trap</h3>
+        <small>Finish this thought: 'I'd grow faster if only...'</small>
+        <div class="options">
+          <label class="opt"><input type="checkbox" name="growth_trap" value="I could trust someone else with quality"> I could trust someone else with quality</label>
+          <label class="opt"><input type="checkbox" name="growth_trap" value="I understood my numbers better"> I understood my numbers better</label>
+          <label class="opt"><input type="checkbox" name="growth_trap" value="I had more hours in the day"> I had more hours in the day</label>
+          <label class="opt"><input type="checkbox" name="growth_trap" value="I knew which customers to target"> I knew which customers to target</label>
+          <label class="opt"><input type="checkbox" name="growth_trap" value="I had better systems and processes"> I had better systems and processes</label>
+          <label class="opt"><input type="checkbox" name="growth_trap" value="I could afford the right people"> I could afford the right people</label>
+          <label class="opt"><input type="checkbox" name="growth_trap" value="Other..." id="growth_trap_other_chk"> Other...</label>
+        </div>
+        <div class="group" id="growth_trap_other_group" style="display:none; margin-top:8px;">
+          <label>If other, please break it down...
+            <input type="text" name="growth_trap_other">
+          </label>
+        </div>
+      </div>
+
+      <!-- The Commitment Question (radio) -->
+      <div class="q" data-id="commitment_hours">
+        <h3 class="required">The Commitment Question</h3>
+        <small>How many hours per week could you realistically dedicate to building a business that runs without you? (Be honest - we'll build a plan that actually fits your life)</small>
+        <div class="options">
+          <label class="opt"><input type="radio" name="commitment_hours" value="Less than 5 hours" required> Less than 5 hours</label>
+          <label class="opt"><input type="radio" name="commitment_hours" value="5-10 hours"> 5-10 hours</label>
+          <label class="opt"><input type="radio" name="commitment_hours" value="10-15 hours"> 10-15 hours</label>
+          <label class="opt"><input type="radio" name="commitment_hours" value="15 hours +"> 15 hours +</label>
+        </div>
+      </div>
+
+      <!-- Full Name -->
+      <div class="q" data-id="full_name">
+        <h3 class="required">Full Name</h3>
+        <small>How should we address you in your personalised results?</small>
+        <input type="text" name="full_name" required>
+      </div>
+
+      <!-- Company Name -->
+      <div class="q" data-id="company_name">
+        <h3 class="required">Company Name</h3>
+        <small>What's the name of your business?</small>
+        <input type="text" name="company_name" required>
+      </div>
+
+      <!-- Partners? (conditional) -->
+      <div class="q" data-id="has_partners">
+        <h3 class="required">Do you have any business partners you'd like to invite?</h3>
+        <small>If yes, we can send them a separate assessment to get their perspective too.</small>
+        <div class="options">
+          <label class="opt"><input type="radio" name="has_partners" value="Yes" required> Yes</label>
+          <label class="opt"><input type="radio" name="has_partners" value="No"> No</label>
+        </div>
+      </div>
+
+      <div class="q" data-id="partner_emails" id="partner_emails_group" style="display:none;">
+        <h3>Partner Emails</h3>
+        <small>Please enter their email(s) below - (supports comma-separated emails)</small>
+        <input type="text" name="partner_emails" placeholder="name1@example.com, name2@example.com">
+      </div>
+
+      <div class="actions">
+        <button type="button" id="saveJson">Save Responses (JSON)</button>
+        <button type="button" class="secondary" id="saveTxt">Save Responses (TXT)</button>
+        <button type="button" class="secondary" onclick="window.print()">Print to PDF</button>
+      </div>
+      <p class="note">Your data never leaves this file. The JSON download is what you can email back.</p>
+    </form>
+  </div>
+
+  <script>
+    function getCheckedValues(nodeList) {
+      return Array.from(nodeList).filter(x => x.checked).map(x => x.value);
+    }
+
+    function saveJsonFile(filename, data) {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function collectResponses() {
+      const form = document.getElementById('form');
+      const responses = {};
+
+      // Simple text/textarea
+      const textFields = ['tuesday_test','emergency_log','relationship_mirror','skills_confession','ninety_day_fantasy','full_name','company_name','partner_emails'];
+      textFields.forEach(name => {
+        const el = form.querySelector(`[name="${name}"]`);
+        if (el) responses[name] = el.value || '';
+      });
+
+      // Multi-part fields
+      responses['current_income'] = (form.querySelector('[name="current_income"]').value || '').trim();
+      responses['desired_income'] = (form.querySelector('[name="desired_income"]').value || '').trim();
+      responses['current_turnover'] = (form.querySelector('[name="current_turnover"]').value || '').trim();
+      responses['target_turnover'] = (form.querySelector('[name="target_turnover"]').value || '').trim();
+
+      // Checkboxes
+      responses['sacrifices'] = getCheckedValues(form.querySelectorAll('input[name="sacrifices"]'));
+      const sacrificesOther = form.querySelector('[name="sacrifices_other"]').value;
+      if (sacrificesOther) responses['sacrifices_other'] = sacrificesOther;
+
+      responses['growth_trap'] = getCheckedValues(form.querySelectorAll('input[name="growth_trap"]'));
+      const growthOther = form.querySelector('[name="growth_trap_other"]').value;
+      if (growthOther) responses['growth_trap_other'] = growthOther;
+
+      // Radios
+      const dz = form.querySelector('input[name="danger_zone"]:checked');
+      if (dz) responses['danger_zone'] = dz.value;
+      const dzOther = form.querySelector('[name="danger_zone_other"]').value;
+      if (dzOther) responses['danger_zone_other'] = dzOther;
+
+      const ch = form.querySelector('input[name="commitment_hours"]:checked');
+      if (ch) responses['commitment_hours'] = ch.value;
+
+      const hp = form.querySelector('input[name="has_partners"]:checked');
+      if (hp) responses['has_partners'] = hp.value;
+
+      return responses;
+    }
+
+    // Show/hide logic for "Other" and partner emails
+    const sacrificesOtherChk = document.getElementById('sacrifices_other_chk');
+    const sacrificesOtherGroup = document.getElementById('sacrifices_other_group');
+    if (sacrificesOtherChk) {
+      sacrificesOtherChk.addEventListener('change', () => {
+        sacrificesOtherGroup.style.display = sacrificesOtherChk.checked ? 'block' : 'none';
+      });
+    }
+
+    const growthOtherChk = document.getElementById('growth_trap_other_chk');
+    const growthOtherGroup = document.getElementById('growth_trap_other_group');
+    if (growthOtherChk) {
+      growthOtherChk.addEventListener('change', () => {
+        growthOtherGroup.style.display = growthOtherChk.checked ? 'block' : 'none';
+      });
+    }
+
+    const dzOtherRadio = document.getElementById('danger_zone_other_radio');
+    const dzOtherGroup = document.getElementById('danger_zone_other_group');
+    if (dzOtherRadio) {
+      dzOtherRadio.addEventListener('change', () => {
+        dzOtherGroup.style.display = dzOtherRadio.checked ? 'block' : 'none';
+      });
+    }
+
+    const partnerEmailsGroup = document.getElementById('partner_emails_group');
+    document.querySelectorAll('input[name="has_partners"]').forEach(r => {
+      r.addEventListener('change', () => {
+        partnerEmailsGroup.style.display = (r.value === 'Yes' && r.checked) ? 'block' : 'none';
+      });
+    });
+
+    document.getElementById('saveJson').addEventListener('click', () => {
+      const responses = collectResponses();
+      const payload = {
+        assessment: 'Part 1: Life Design',
+        version: 'offline-1.0',
+        generated_at: new Date().toISOString(),
+        responses
+      };
+      saveJsonFile('assessment-part1-responses.json', payload);
+    });
+    function saveTxtFile(filename, dataObj) {
+      const lines = ['Oracle Method - Part 1 (Offline)',''];
+      Object.keys(dataObj.responses).forEach(k => {
+        const v = dataObj.responses[k];
+        lines.push(`${k}: ${Array.isArray(v) ? v.join(', ') : (v ?? '')}`);
+      });
+      const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    }
+    document.getElementById('saveTxt').addEventListener('click', () => {
+      const responses = collectResponses();
+      const payload = { assessment: 'Part 1: Life Design', version: 'offline-1.0', generated_at: new Date().toISOString(), responses };
+      saveTxtFile('assessment-part1-responses.txt', payload);
+    });
+  </script>
+</body>
+</html>
+
+

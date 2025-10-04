@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Client Portal Invitation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 2rem;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 100%;
+        }
+        button {
+            background-color: #7c3aed;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 1rem;
+        }
+        button:hover {
+            background-color: #6b2ec7;
+        }
+        .error {
+            color: #ff6b6b;
+            margin-top: 1rem;
+        }
+        .success {
+            color: #51cf66;
+            margin-top: 1rem;
+        }
+        pre {
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test Client Portal Invitation</h1>
+        <p>This page tests the invitation validation directly without React Router.</p>
+        
+        <div id="status">Loading...</div>
+        <div id="result"></div>
+        
+        <button onclick="testValidation()">Test Validation Again</button>
+        <button onclick="window.location.href='/client-portal/accept-invite?token=' + getToken()">Try React Route</button>
+    </div>
+
+    <script>
+        function getToken() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('token') || 'manual-test-token-12345';
+        }
+
+        async function testValidation() {
+            const token = getToken();
+            const statusEl = document.getElementById('status');
+            const resultEl = document.getElementById('result');
+            
+            statusEl.innerHTML = `<p>Testing token: ${token}</p>`;
+            
+            try {
+                const response = await fetch(`https://oracle-api-server-production.up.railway.app/api/accountancy/clients/invitation/validate/${token}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusEl.innerHTML = '<p class="success">✓ Validation successful!</p>';
+                    resultEl.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    
+                    // Store the client info for later use
+                    sessionStorage.setItem('clientInviteData', JSON.stringify(data));
+                    sessionStorage.setItem('clientInviteToken', token);
+                } else {
+                    statusEl.innerHTML = '<p class="error">✗ Validation failed</p>';
+                    resultEl.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                }
+            } catch (error) {
+                statusEl.innerHTML = '<p class="error">✗ Network error</p>';
+                resultEl.innerHTML = `<pre>${error.message}</pre>`;
+            }
+        }
+
+        // Test on page load
+        testValidation();
+    </script>
+</body>
+</html> 

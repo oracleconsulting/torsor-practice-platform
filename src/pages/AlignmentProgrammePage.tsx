@@ -1,0 +1,938 @@
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { 
+  CalendarDaysIcon, 
+  CheckCircleIcon, 
+  ClockIcon, 
+  TrophyIcon, 
+  LockClosedIcon,
+  ChartBarIcon,
+  RocketLaunchIcon,
+  ArrowRightIcon,
+  PlusIcon,
+  DocumentTextIcon,
+  UsersIcon,
+  SparklesIcon,
+  FireIcon
+} from '@heroicons/react/24/outline';
+import { useAccountancyContext } from '../contexts/AccountancyContext';
+
+/**
+ * 365 ALIGNMENT PROGRAMME - CLIENT ACCESS HUB
+ * 
+ * This page serves as the central hub for clients who have completed 
+ * the Oracle Method assessment and are working through their tailored roadmap:
+ * 
+ * - 5-Year Vision: Their long-term strategic destination
+ * - 6-Month Shifts: Two strategic shifts per year (key transformations)
+ * - 3-Month Sprints: Two sprints per shift (tactical execution)
+ * 
+ * Clients access their live roadmap, track progress, and collaborate
+ * with their accountant on achieving strategic goals.
+ */
+
+// Types for 365 Alignment Programme
+interface FiveYearVision {
+  id: string;
+  title: string;
+  description: string;
+  targetRevenue: number;
+  targetTeamSize: number;
+  strategicPillars: string[];
+  createdAt: string;
+  status: 'draft' | 'active' | 'completed';
+}
+
+interface SixMonthShift {
+  id: string;
+  visionId: string;
+  shiftNumber: number;
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  keyObjectives: string[];
+  status: 'not-started' | 'in-progress' | 'completed';
+  progress: number;
+}
+
+interface ThreeMonthSprint {
+  id: string;
+  shiftId: string;
+  sprintNumber: number;
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  goals: SprintGoal[];
+  status: 'not-started' | 'in-progress' | 'completed';
+  progress: number;
+}
+
+interface SprintGoal {
+  id: string;
+  title: string;
+  description: string;
+  category: 'financial' | 'operational' | 'strategic' | 'people';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  status: 'not-started' | 'in-progress' | 'completed' | 'blocked';
+  progress: number;
+  assignedTo?: string;
+  dueDate: string;
+}
+
+interface Assessment {
+  id: string;
+  type: 'oracle-method' | 'quarterly-review' | 'annual-review';
+  completedDate: string;
+  score: number;
+  reportUrl?: string;
+  areas: AssessmentArea[];
+}
+
+interface AssessmentArea {
+  name: string;
+  score: number;
+  recommendations: string[];
+}
+
+interface ClientRoadmapData {
+  clientId: string;
+  clientName: string;
+  hasOracleMethodAssessment: boolean;
+  assessmentDate?: string;
+  fiveYearVision: FiveYearVision | null;
+  shifts: SixMonthShift[];
+  sprints: ThreeMonthSprint[];
+  assessments: Assessment[];
+  currentPhase: {
+    type: 'vision' | 'shift' | 'sprint';
+    id: string;
+    name: string;
+  } | null;
+}
+
+export default function AlignmentProgrammePage() {
+  const { clientId } = useParams<{ clientId: string }>();
+  const navigate = useNavigate();
+  const { practice, subscriptionTier } = useAccountancyContext();
+  
+  const [loading, setLoading] = useState(true);
+  const [roadmapData, setRoadmapData] = useState<ClientRoadmapData | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'vision' | 'shifts' | 'sprints' | 'assessments'>('overview');
+  const [selectedClientId, setSelectedClientId] = useState(clientId || '');
+
+  // Check subscription tier
+  const isProfessionalPlus = subscriptionTier === 'professional' || subscriptionTier === 'enterprise';
+
+  useEffect(() => {
+    if (selectedClientId && isProfessionalPlus) {
+      loadClientRoadmap();
+    } else {
+      setLoading(false);
+    }
+  }, [selectedClientId, isProfessionalPlus]);
+
+  const loadClientRoadmap = async () => {
+    try {
+      setLoading(true);
+      
+      // TODO: Replace with actual API call
+      // Simulated data for demonstration
+      const mockData: ClientRoadmapData = {
+        clientId: selectedClientId,
+        clientName: 'Example Client Ltd',
+        hasOracleMethodAssessment: true,
+        assessmentDate: '2024-09-15',
+        fiveYearVision: {
+          id: 'v1',
+          title: 'Become the Regional Market Leader',
+          description: 'Transform from a £2M turnover firm to a £5M regional powerhouse with a team of 30 professionals.',
+          targetRevenue: 5000000,
+          targetTeamSize: 30,
+          strategicPillars: [
+            'Advisory Services Expansion',
+            'Technology Integration',
+            'Team Development & Culture',
+            'Client Portfolio Optimization'
+          ],
+          createdAt: '2024-09-20',
+          status: 'active'
+        },
+        shifts: [
+          {
+            id: 's1',
+            visionId: 'v1',
+            shiftNumber: 1,
+            title: 'Foundation & Systems (Jan-Jun 2025)',
+            description: 'Establish core systems, processes, and team structure to support growth.',
+            startDate: '2025-01-01',
+            endDate: '2025-06-30',
+            keyObjectives: [
+              'Implement practice management system',
+              'Hire and onboard 3 new team members',
+              'Launch advisory services pilot',
+              'Standardize client onboarding process'
+            ],
+            status: 'in-progress',
+            progress: 65
+          },
+          {
+            id: 's2',
+            visionId: 'v1',
+            shiftNumber: 2,
+            title: 'Growth & Optimization (Jul-Dec 2025)',
+            description: 'Scale operations and optimize for profitability.',
+            startDate: '2025-07-01',
+            endDate: '2025-12-31',
+            keyObjectives: [
+              'Achieve £500K advisory revenue',
+              'Optimize pricing and service mix',
+              'Develop management team',
+              'Launch client referral programme'
+            ],
+            status: 'not-started',
+            progress: 0
+          }
+        ],
+        sprints: [
+          {
+            id: 'sp1',
+            shiftId: 's1',
+            sprintNumber: 1,
+            title: 'Q1 2025: Systems Setup',
+            description: 'Complete core system implementations and initial team hires.',
+            startDate: '2025-01-01',
+            endDate: '2025-03-31',
+            status: 'completed',
+            progress: 100,
+            goals: [
+              {
+                id: 'g1',
+                title: 'Implement TORSOR Practice Management',
+                description: 'Full setup and team training',
+                category: 'operational',
+                priority: 'critical',
+                status: 'completed',
+                progress: 100,
+                assignedTo: 'Practice Manager',
+                dueDate: '2025-02-15'
+              },
+              {
+                id: 'g2',
+                title: 'Hire Senior Accountant',
+                description: 'Recruit experienced senior to lead compliance team',
+                category: 'people',
+                priority: 'high',
+                status: 'completed',
+                progress: 100,
+                assignedTo: 'Managing Partner',
+                dueDate: '2025-03-01'
+              }
+            ]
+          },
+          {
+            id: 'sp2',
+            shiftId: 's1',
+            sprintNumber: 2,
+            title: 'Q2 2025: Advisory Launch',
+            description: 'Launch advisory services and onboard first advisory clients.',
+            startDate: '2025-04-01',
+            endDate: '2025-06-30',
+            status: 'in-progress',
+            progress: 45,
+            goals: [
+              {
+                id: 'g3',
+                title: 'Complete Advisory Services Setup',
+                description: 'Service packages, pricing, and marketing materials',
+                category: 'strategic',
+                priority: 'critical',
+                status: 'in-progress',
+                progress: 70,
+                assignedTo: 'Managing Partner',
+                dueDate: '2025-04-30'
+              },
+              {
+                id: 'g4',
+                title: 'Onboard 5 Advisory Clients',
+                description: 'Convert existing clients to advisory services',
+                category: 'financial',
+                priority: 'high',
+                status: 'in-progress',
+                progress: 40,
+                assignedTo: 'Senior Accountant',
+                dueDate: '2025-06-15'
+              },
+              {
+                id: 'g5',
+                title: 'Develop Forecasting Templates',
+                description: 'Create standardized forecasting and budgeting templates',
+                category: 'operational',
+                priority: 'medium',
+                status: 'not-started',
+                progress: 0,
+                assignedTo: 'Advisory Team',
+                dueDate: '2025-05-31'
+              }
+            ]
+          }
+        ],
+        assessments: [
+          {
+            id: 'a1',
+            type: 'oracle-method',
+            completedDate: '2024-09-15',
+            score: 72,
+            reportUrl: '/assessments/oracle-method-report.pdf',
+            areas: [
+              {
+                name: 'Strategic Clarity',
+                score: 85,
+                recommendations: ['Define 5-year vision', 'Set quarterly milestones']
+              },
+              {
+                name: 'Operational Excellence',
+                score: 68,
+                recommendations: ['Implement practice management system', 'Standardize processes']
+              },
+              {
+                name: 'Financial Health',
+                score: 75,
+                recommendations: ['Improve pricing strategy', 'Increase advisory revenue']
+              },
+              {
+                name: 'Team & Culture',
+                score: 62,
+                recommendations: ['Develop leadership team', 'Implement CPD tracking']
+              }
+            ]
+          }
+        ],
+        currentPhase: {
+          type: 'sprint',
+          id: 'sp2',
+          name: 'Q2 2025: Advisory Launch'
+        }
+      };
+
+      setRoadmapData(mockData);
+    } catch (error) {
+      console.error('Error loading client roadmap:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading client roadmap...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isProfessionalPlus) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <Card>
+          <CardContent className="p-12 text-center">
+            <LockClosedIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              365 Alignment Programme
+            </h2>
+            <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+              The 365 Alignment Programme is available on Professional and Enterprise plans.
+              Help your clients achieve their strategic goals with structured roadmaps based
+              on the Oracle Method assessment.
+            </p>
+            <Button onClick={() => navigate('/manage-subscription')}>
+              Upgrade to Access
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!selectedClientId || !roadmapData) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <Card>
+          <CardContent className="p-12 text-center">
+            <UsersIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              Select a Client
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Choose a client to view their Oracle Method roadmap and track their progress
+              through their 5-year vision, 6-month shifts, and 3-month sprints.
+            </p>
+            <Button onClick={() => navigate('/client-management')}>
+              Select Client
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'in-progress':
+        return 'bg-blue-100 text-blue-800';
+      case 'not-started':
+        return 'bg-gray-100 text-gray-800';
+      case 'blocked':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'critical':
+        return 'bg-red-100 text-red-800';
+      case 'high':
+        return 'bg-orange-100 text-orange-800';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'low':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">365 Alignment Programme</h1>
+            <p className="mt-2 text-gray-600">
+              Oracle Method Roadmap for <strong>{roadmapData.clientName}</strong>
+            </p>
+          </div>
+          <div className="flex items-center space-x-3">
+            <Button variant="outline" onClick={() => navigate('/client-management')}>
+              Change Client
+            </Button>
+            {roadmapData.hasOracleMethodAssessment && (
+              <Badge variant="default" className="bg-purple-600">
+                <SparklesIcon className="w-4 h-4 mr-1" />
+                Oracle Method Assessed
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        {/* Current Phase Banner */}
+        {roadmapData.currentPhase && (
+          <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium opacity-90">CURRENTLY IN</p>
+                <h3 className="text-2xl font-bold mt-1">{roadmapData.currentPhase.name}</h3>
+              </div>
+              <FireIcon className="w-12 h-12 opacity-80" />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200 mb-8">
+        <nav className="-mb-px flex space-x-8">
+          {[
+            { id: 'overview', label: 'Overview', icon: ChartBarIcon },
+            { id: 'vision', label: '5-Year Vision', icon: TrophyIcon },
+            { id: 'shifts', label: '6-Month Shifts', icon: RocketLaunchIcon },
+            { id: 'sprints', label: '3-Month Sprints', icon: CalendarDaysIcon },
+            { id: 'assessments', label: 'Assessments', icon: DocumentTextIcon }
+          ].map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Icon className="w-5 h-5 mr-2" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      <div className="space-y-6">
+        {/* OVERVIEW TAB */}
+        {activeTab === 'overview' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 5-Year Vision Summary */}
+            {roadmapData.fiveYearVision && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <TrophyIcon className="w-6 h-6 mr-2 text-yellow-500" />
+                    5-Year Vision
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <h3 className="font-semibold text-lg text-gray-900 mb-2">
+                    {roadmapData.fiveYearVision.title}
+                  </h3>
+                  <p className="text-gray-600 text-sm mb-4">
+                    {roadmapData.fiveYearVision.description}
+                  </p>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <p className="text-xs text-gray-600">Target Revenue</p>
+                      <p className="text-lg font-bold text-gray-900">
+                        £{(roadmapData.fiveYearVision.targetRevenue / 1000000).toFixed(1)}M
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <p className="text-xs text-gray-600">Target Team Size</p>
+                      <p className="text-lg font-bold text-gray-900">
+                        {roadmapData.fiveYearVision.targetTeamSize} people
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-700 mb-2">Strategic Pillars:</p>
+                    <div className="space-y-1">
+                      {roadmapData.fiveYearVision.strategicPillars.map((pillar, idx) => (
+                        <div key={idx} className="flex items-center text-sm text-gray-600">
+                          <CheckCircleIcon className="w-4 h-4 text-green-500 mr-2" />
+                          {pillar}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Current Progress */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <ChartBarIcon className="w-6 h-6 mr-2 text-blue-500" />
+                  Current Progress
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {roadmapData.shifts.map((shift) => (
+                    <div key={shift.id}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-900">
+                          {shift.title}
+                        </span>
+                        <Badge className={getStatusColor(shift.status)}>
+                          {shift.status.replace('-', ' ')}
+                        </Badge>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-blue-600 h-2 rounded-full transition-all"
+                          style={{ width: `${shift.progress}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {shift.progress}% complete
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Latest Assessment */}
+            {roadmapData.assessments.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <DocumentTextIcon className="w-6 h-6 mr-2 text-purple-500" />
+                    Latest Assessment
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    const latest = roadmapData.assessments[0];
+                    return (
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <p className="font-semibold text-gray-900">
+                              {latest.type === 'oracle-method' ? 'Oracle Method Assessment' : latest.type}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {new Date(latest.completedDate).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-3xl font-bold text-blue-600">{latest.score}</p>
+                            <p className="text-xs text-gray-500">Overall Score</p>
+                          </div>
+                        </div>
+                        {latest.reportUrl && (
+                          <Button variant="outline" className="w-full" size="sm">
+                            <DocumentTextIcon className="w-4 h-4 mr-2" />
+                            View Full Report
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Quick Actions */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button variant="outline" className="w-full justify-start">
+                  <PlusIcon className="w-4 h-4 mr-2" />
+                  Add Sprint Goal
+                </Button>
+                <Button variant="outline" className="w-full justify-start">
+                  <CalendarDaysIcon className="w-4 h-4 mr-2" />
+                  Schedule Review Meeting
+                </Button>
+                <Button variant="outline" className="w-full justify-start">
+                  <DocumentTextIcon className="w-4 h-4 mr-2" />
+                  Request Progress Update
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* 5-YEAR VISION TAB */}
+        {activeTab === 'vision' && roadmapData.fiveYearVision && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <TrophyIcon className="w-6 h-6 mr-2 text-yellow-500" />
+                  5-Year Vision
+                </div>
+                <Badge className={getStatusColor(roadmapData.fiveYearVision.status)}>
+                  {roadmapData.fiveYearVision.status}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                    {roadmapData.fiveYearVision.title}
+                  </h3>
+                  <p className="text-gray-700 leading-relaxed">
+                    {roadmapData.fiveYearVision.description}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Target Revenue</p>
+                    <p className="text-2xl font-bold text-blue-600">
+                      £{(roadmapData.fiveYearVision.targetRevenue / 1000000).toFixed(1)}M
+                    </p>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Target Team Size</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      {roadmapData.fiveYearVision.targetTeamSize} people
+                    </p>
+                  </div>
+                  <div className="bg-purple-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Created</p>
+                    <p className="text-2xl font-bold text-purple-600">
+                      {new Date(roadmapData.fiveYearVision.createdAt).getFullYear()}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Strategic Pillars</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {roadmapData.fiveYearVision.strategicPillars.map((pillar, idx) => (
+                      <div key={idx} className="flex items-start p-3 bg-gray-50 rounded-lg">
+                        <CheckCircleIcon className="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
+                        <span className="text-gray-900">{pillar}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 6-MONTH SHIFTS TAB */}
+        {activeTab === 'shifts' && (
+          <div className="space-y-6">
+            {roadmapData.shifts.map((shift) => (
+              <Card key={shift.id}>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <RocketLaunchIcon className="w-6 h-6 mr-2 text-blue-500" />
+                      Shift {shift.shiftNumber}: {shift.title}
+                    </div>
+                    <Badge className={getStatusColor(shift.status)}>
+                      {shift.status.replace('-', ' ')}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-700 mb-4">{shift.description}</p>
+                  
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <p className="text-xs text-gray-600">Start Date</p>
+                      <p className="font-semibold text-gray-900">
+                        {new Date(shift.startDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <p className="text-xs text-gray-600">End Date</p>
+                      <p className="font-semibold text-gray-900">
+                        {new Date(shift.endDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-700">Progress</span>
+                      <span className="text-sm font-semibold text-gray-900">{shift.progress}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div
+                        className="bg-blue-600 h-3 rounded-full transition-all"
+                        style={{ width: `${shift.progress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-2">Key Objectives:</p>
+                    <div className="space-y-2">
+                      {shift.keyObjectives.map((objective, idx) => (
+                        <div key={idx} className="flex items-start">
+                          <ArrowRightIcon className="w-4 h-4 text-blue-500 mr-2 mt-0.5 flex-shrink-0" />
+                          <span className="text-gray-700">{objective}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* 3-MONTH SPRINTS TAB */}
+        {activeTab === 'sprints' && (
+          <div className="space-y-6">
+            {roadmapData.sprints.map((sprint) => (
+              <Card key={sprint.id}>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <CalendarDaysIcon className="w-6 h-6 mr-2 text-green-500" />
+                      {sprint.title}
+                    </div>
+                    <Badge className={getStatusColor(sprint.status)}>
+                      {sprint.status.replace('-', ' ')}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-700 mb-4">{sprint.description}</p>
+                  
+                  <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <p className="text-xs text-gray-600">Start</p>
+                      <p className="font-semibold text-gray-900 text-sm">
+                        {new Date(sprint.startDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <p className="text-xs text-gray-600">End</p>
+                      <p className="font-semibold text-gray-900 text-sm">
+                        {new Date(sprint.endDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <p className="text-xs text-gray-600">Progress</p>
+                      <p className="font-semibold text-gray-900 text-sm">
+                        {sprint.progress}%
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="w-full bg-gray-200 rounded-full h-2 mb-6">
+                    <div
+                      className="bg-green-600 h-2 rounded-full transition-all"
+                      style={{ width: `${sprint.progress}%` }}
+                    />
+                  </div>
+
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-3">Sprint Goals</h4>
+                    <div className="space-y-3">
+                      {sprint.goals.map((goal) => (
+                        <div key={goal.id} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1">
+                              <h5 className="font-medium text-gray-900">{goal.title}</h5>
+                              <p className="text-sm text-gray-600 mt-1">{goal.description}</p>
+                            </div>
+                            <div className="flex items-center space-x-2 ml-4">
+                              <Badge className={getPriorityColor(goal.priority)} variant="outline">
+                                {goal.priority}
+                              </Badge>
+                              <Badge className={getStatusColor(goal.status)}>
+                                {goal.status.replace('-', ' ')}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-3 mt-3">
+                            <div>
+                              <p className="text-xs text-gray-500">Category</p>
+                              <p className="text-sm font-medium text-gray-900 capitalize">{goal.category}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500">Assigned To</p>
+                              <p className="text-sm font-medium text-gray-900">{goal.assignedTo || 'Unassigned'}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500">Due Date</p>
+                              <p className="text-sm font-medium text-gray-900">
+                                {new Date(goal.dueDate).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs text-gray-600">Progress</span>
+                              <span className="text-xs font-semibold text-gray-900">{goal.progress}%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-1.5">
+                              <div
+                                className={`h-1.5 rounded-full transition-all ${
+                                  goal.status === 'completed' ? 'bg-green-600' :
+                                  goal.status === 'in-progress' ? 'bg-blue-600' :
+                                  goal.status === 'blocked' ? 'bg-red-600' : 'bg-gray-400'
+                                }`}
+                                style={{ width: `${goal.progress}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* ASSESSMENTS TAB */}
+        {activeTab === 'assessments' && (
+          <div className="space-y-6">
+            {roadmapData.assessments.map((assessment) => (
+              <Card key={assessment.id}>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <DocumentTextIcon className="w-6 h-6 mr-2 text-purple-500" />
+                      {assessment.type === 'oracle-method' ? 'Oracle Method Assessment' : 
+                       assessment.type === 'quarterly-review' ? 'Quarterly Review' : 
+                       'Annual Review'}
+                    </div>
+                    <Badge variant="outline">
+                      {new Date(assessment.completedDate).toLocaleDateString()}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <p className="text-sm text-gray-600">Overall Score</p>
+                      <p className="text-4xl font-bold text-blue-600">{assessment.score}</p>
+                    </div>
+                    {assessment.reportUrl && (
+                      <Button variant="outline">
+                        <DocumentTextIcon className="w-4 h-4 mr-2" />
+                        View Full Report
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="font-semibold text-gray-900">Assessment Areas</h4>
+                    {assessment.areas.map((area, idx) => (
+                      <div key={idx} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h5 className="font-medium text-gray-900">{area.name}</h5>
+                          <span className="text-2xl font-bold text-blue-600">{area.score}</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                          <div
+                            className={`h-2 rounded-full ${
+                              area.score >= 80 ? 'bg-green-600' :
+                              area.score >= 60 ? 'bg-blue-600' :
+                              area.score >= 40 ? 'bg-yellow-600' : 'bg-red-600'
+                            }`}
+                            style={{ width: `${area.score}%` }}
+                          />
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-700 mb-2">Recommendations:</p>
+                          <ul className="space-y-1">
+                            {area.recommendations.map((rec, recIdx) => (
+                              <li key={recIdx} className="text-sm text-gray-600 flex items-start">
+                                <span className="text-blue-500 mr-2">•</span>
+                                {rec}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
