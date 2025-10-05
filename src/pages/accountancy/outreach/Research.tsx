@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Search, Building2, Network, Target, RefreshCw, Download, Zap } from 'lucide-react';
 import { outreachService } from '@/services/accountancy/outreachService';
 import { toast } from 'sonner';
+import { EnhancedOutreachSearch } from '@/components/accountancy/outreach/search/EnhancedOutreachSearch';
 import EnhancedCompaniesHouseSearch from '@/components/accountancy/outreach/search/EnhancedCompaniesHouseSearch';
 
 const Research = () => {
@@ -102,17 +103,22 @@ const Research = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="enhanced" className="flex items-center gap-2">
             <Zap className="w-4 h-4" />
-            Enhanced Search
+            Advanced Tools
           </TabsTrigger>
+          <TabsTrigger value="companies-house">Companies House</TabsTrigger>
           <TabsTrigger value="basic">Basic Search</TabsTrigger>
           <TabsTrigger value="advanced">Advanced Search</TabsTrigger>
           <TabsTrigger value="network">Network Analysis</TabsTrigger>
         </TabsList>
 
         <TabsContent value="enhanced">
+          <EnhancedOutreachSearch />
+        </TabsContent>
+
+        <TabsContent value="companies-house">
           <EnhancedCompaniesHouseSearch />
         </TabsContent>
 
