@@ -8,20 +8,20 @@ import { useAccountancyContext } from '../contexts/AccountancyContext';
 // Import all page components
 import AccountancyDashboard from '../pages/AccountancyDashboard';
 import { ClientManagementPage } from '../components/accountancy/client-management/ClientManagementPage';
-import TeamManagementPage from '../pages/TeamManagementPage';
-import { AlternateAuditorPage } from '../pages/AlternateAuditorPage';
-import { MTDCapacityPage } from '../pages/MTDCapacityPage';
-import { ESGReportingPage } from '../pages/ESGReportingPage';
-import { ContinuityPlanningPage } from '../pages/ContinuityPlanningPage';
-import CyberSecurityPage from '../pages/CyberSecurityPage';
-import TeamWellnessPage from '../pages/TeamWellnessPage';
-import ManageSubscriptionPage from '../pages/ManageSubscriptionPage';
-import ComplianceCalendarPage from '../pages/ComplianceCalendarPage';
-import { HandoverComplaintsPage } from '../pages/HandoverComplaintsPage';
-import { NewComplaintPage } from '../pages/NewComplaintPage';
-import { ComplaintDetailsPage } from '../pages/ComplaintDetailsPage';
-import KPIDashboardPage from '../pages/KPIDashboardPage';
-import SettingsPage from '../pages/SettingsPage';
+import TeamManagementPage from '../pages/accountancy/TeamManagementPage';
+import { AlternateAuditorPage } from '../pages/accountancy/AlternateAuditorPage';
+import { MTDCapacityPage } from '../pages/accountancy/MTDCapacityPage';
+import { ESGReportingPage } from '../pages/accountancy/ESGReportingPage';
+import { ContinuityPlanningPage } from '../pages/accountancy/ContinuityPlanningPage';
+import CyberSecurityPage from '../pages/accountancy/CyberSecurityPage';
+import TeamWellnessPage from '../pages/accountancy/TeamWellnessPage';
+import ManageSubscriptionPage from '../pages/accountancy/ManageSubscriptionPage';
+import ComplianceCalendarPage from '../pages/accountancy/ComplianceCalendarPage';
+import { HandoverComplaintsPage } from '../pages/accountancy/HandoverComplaintsPage';
+import { NewComplaintPage } from '../pages/accountancy/NewComplaintPage';
+import { ComplaintDetailsPage } from '../pages/accountancy/ComplaintDetailsPage';
+import KPIDashboardPage from '../pages/accountancy/KPIDashboardPage';
+import SettingsPage from '../pages/accountancy/SettingsPage';
 
 // Outreach pages
 import { OutreachDashboard } from '../components/accountancy/outreach/OutreachDashboard';
@@ -36,17 +36,17 @@ import Research from '../pages/accountancy/outreach/Research';
 import Analytics from '../pages/accountancy/outreach/Analytics';
 
 // Import new page components
-import ClientRescues from '../pages/ClientRescues';
-import AdvisoryServices from '../pages/AdvisoryServices';
+import ClientRescues from '../pages/accountancy/ClientRescues';
+import AdvisoryServices from '../pages/accountancy/AdvisoryServices';
 import ServiceDetailPage from '../pages/ServiceDetailPage';
-import PracticeHealth from '../pages/PracticeHealth';
-import ClientVaultPage from '../pages/ClientVaultPage';
+import PracticeHealth from '../pages/accountancy/PracticeHealth';
+import ClientVaultPage from '../pages/accountancy/ClientVaultPage';
 import SystemsAuditPage from '../pages/accountancy/SystemsAuditPage';
-import AlignmentProgrammePage from '../pages/AlignmentProgrammePage';
+import AlignmentProgrammePage from '../pages/accountancy/AlignmentProgrammePage';
 
 // Advisory sub-pages
-import ForecastingPage from '../pages/advisory/ForecastingPage';
-import ValuationPage from '../pages/advisory/ValuationPage';
+import ForecastingPage from '../pages/accountancy/advisory/ForecastingPage';
+import ValuationPage from '../pages/accountancy/advisory/ValuationPage';
 
 // Add this component for practice selection
 const PracticeSelection = () => {
