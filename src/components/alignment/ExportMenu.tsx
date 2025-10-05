@@ -469,31 +469,115 @@ export function ExportMenu({ practiceId, oracleGroupId, userId }: ExportMenuProp
                   <>
                     <div>
                       <h2 className="text-2xl font-bold text-gray-900 mb-4">🎯 5-Year Vision</h2>
-                      <div className="bg-blue-50 border-l-4 border-blue-500 p-6 rounded-r-lg">
-                        <h3 className="font-bold text-lg mb-2">{previewData.roadmap?.five_year_vision?.title || 'Vision Title'}</h3>
-                        <p className="text-gray-700 leading-relaxed whitespace-pre-line">
-                          {previewData.roadmap?.five_year_vision?.description || previewData.roadmap?.five_year_vision?.vision_narrative || 'Vision description will appear here'}
-                        </p>
-                        
-                        {/* Year Milestones */}
-                        {previewData.roadmap?.five_year_vision?.year_1 && (
-                          <div className="mt-6 space-y-4">
-                            <div className="bg-white p-4 rounded-lg">
-                              <h4 className="font-bold text-gray-900">Year 1</h4>
-                              <p className="text-sm text-gray-600 mt-1">{previewData.roadmap.five_year_vision.year_1.headline}</p>
+                      <div className="bg-blue-50 border-l-4 border-blue-500 p-6 rounded-r-lg space-y-6">
+                        <div>
+                          <h3 className="font-bold text-xl mb-2">{previewData.roadmap?.five_year_vision?.title || 'Vision Title'}</h3>
+                          {previewData.roadmap?.five_year_vision?.description && (
+                            <p className="text-gray-700 italic mb-4">{previewData.roadmap.five_year_vision.description}</p>
+                          )}
+                        </div>
+
+                        {/* Vision Narrative (Full transformation story) */}
+                        {previewData.roadmap?.five_year_vision?.vision_narrative && (
+                          <div className="bg-white p-4 rounded-lg">
+                            <h4 className="font-semibold text-gray-900 mb-3">Transformation Story</h4>
+                            <div className="text-gray-700 leading-relaxed whitespace-pre-line text-sm">
+                              {previewData.roadmap.five_year_vision.vision_narrative}
                             </div>
+                          </div>
+                        )}
+
+                        {/* North Star & Archetype */}
+                        {(previewData.roadmap?.five_year_vision?.north_star || previewData.roadmap?.five_year_vision?.archetype) && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {previewData.roadmap.five_year_vision.north_star && (
+                              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                                <h4 className="font-semibold text-gray-900 mb-2">⭐ North Star</h4>
+                                <p className="text-sm text-gray-700">{previewData.roadmap.five_year_vision.north_star}</p>
+                              </div>
+                            )}
+                            {previewData.roadmap.five_year_vision.archetype && (
+                              <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                                <h4 className="font-semibold text-gray-900 mb-2">🎭 Archetype</h4>
+                                <p className="text-sm text-gray-700">{previewData.roadmap.five_year_vision.archetype}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Emotional Core */}
+                        {previewData.roadmap?.five_year_vision?.emotional_core && (
+                          <div className="bg-pink-50 p-4 rounded-lg border border-pink-200">
+                            <h4 className="font-semibold text-gray-900 mb-2">💖 Emotional Core</h4>
+                            <p className="text-sm text-gray-700">{previewData.roadmap.five_year_vision.emotional_core}</p>
+                          </div>
+                        )}
+                        
+                        {/* Year Milestones - FULL DETAIL */}
+                        {previewData.roadmap?.five_year_vision?.year_1 && (
+                          <div className="mt-6 space-y-6">
+                            <h4 className="font-bold text-lg text-gray-900">Milestone Journey</h4>
+                            
+                            {/* Year 1 */}
+                            <div className="bg-white p-5 rounded-lg border-l-4 border-blue-400">
+                              <h5 className="font-bold text-gray-900 text-lg mb-2">Year 1: {previewData.roadmap.five_year_vision.year_1.headline}</h5>
+                              {previewData.roadmap.five_year_vision.year_1.story && (
+                                <p className="text-gray-700 mb-3 leading-relaxed">{previewData.roadmap.five_year_vision.year_1.story}</p>
+                              )}
+                              {previewData.roadmap.five_year_vision.year_1.measurable && (
+                                <div className="bg-gray-50 p-3 rounded border border-gray-200">
+                                  <p className="text-xs font-semibold text-gray-600 uppercase mb-1">Measurables</p>
+                                  <p className="text-sm text-gray-800">{previewData.roadmap.five_year_vision.year_1.measurable}</p>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Year 3 */}
                             {previewData.roadmap.five_year_vision.year_3 && (
-                              <div className="bg-white p-4 rounded-lg">
-                                <h4 className="font-bold text-gray-900">Year 3</h4>
-                                <p className="text-sm text-gray-600 mt-1">{previewData.roadmap.five_year_vision.year_3.headline}</p>
+                              <div className="bg-white p-5 rounded-lg border-l-4 border-green-400">
+                                <h5 className="font-bold text-gray-900 text-lg mb-2">Year 3: {previewData.roadmap.five_year_vision.year_3.headline}</h5>
+                                {previewData.roadmap.five_year_vision.year_3.story && (
+                                  <p className="text-gray-700 mb-3 leading-relaxed">{previewData.roadmap.five_year_vision.year_3.story}</p>
+                                )}
+                                {previewData.roadmap.five_year_vision.year_3.measurable && (
+                                  <div className="bg-gray-50 p-3 rounded border border-gray-200">
+                                    <p className="text-xs font-semibold text-gray-600 uppercase mb-1">Measurables</p>
+                                    <p className="text-sm text-gray-800">{previewData.roadmap.five_year_vision.year_3.measurable}</p>
+                                  </div>
+                                )}
                               </div>
                             )}
+
+                            {/* Year 5 */}
                             {previewData.roadmap.five_year_vision.year_5 && (
-                              <div className="bg-white p-4 rounded-lg">
-                                <h4 className="font-bold text-gray-900">Year 5</h4>
-                                <p className="text-sm text-gray-600 mt-1">{previewData.roadmap.five_year_vision.year_5.headline}</p>
+                              <div className="bg-white p-5 rounded-lg border-l-4 border-purple-400">
+                                <h5 className="font-bold text-gray-900 text-lg mb-2">Year 5: {previewData.roadmap.five_year_vision.year_5.headline}</h5>
+                                {previewData.roadmap.five_year_vision.year_5.story && (
+                                  <p className="text-gray-700 mb-3 leading-relaxed">{previewData.roadmap.five_year_vision.year_5.story}</p>
+                                )}
+                                {previewData.roadmap.five_year_vision.year_5.measurable && (
+                                  <div className="bg-gray-50 p-3 rounded border border-gray-200">
+                                    <p className="text-xs font-semibold text-gray-600 uppercase mb-1">Measurables</p>
+                                    <p className="text-sm text-gray-800">{previewData.roadmap.five_year_vision.year_5.measurable}</p>
+                                  </div>
+                                )}
                               </div>
                             )}
+                          </div>
+                        )}
+
+                        {/* Strategic Pillars */}
+                        {previewData.roadmap?.five_year_vision?.strategic_pillars && previewData.roadmap.five_year_vision.strategic_pillars.length > 0 && (
+                          <div className="bg-white p-4 rounded-lg">
+                            <h4 className="font-semibold text-gray-900 mb-3">🎯 Strategic Pillars</h4>
+                            <ul className="space-y-2">
+                              {previewData.roadmap.five_year_vision.strategic_pillars.map((pillar: string, idx: number) => (
+                                <li key={idx} className="flex items-start">
+                                  <span className="text-blue-600 mr-2">▸</span>
+                                  <span className="text-sm text-gray-700">{pillar}</span>
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         )}
                       </div>
