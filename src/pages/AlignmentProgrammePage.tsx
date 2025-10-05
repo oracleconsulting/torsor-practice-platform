@@ -293,7 +293,15 @@ export default function AlignmentProgrammePage() {
             type: 'oracle-method' as const,
             completedDate: progress.roadmap.roadmap_generated_at || new Date().toISOString(),
             score: progress.stats.completion_percentage,
-            areas: []
+            areas: progress.assessment_responses ? Object.entries(progress.assessment_responses)
+              .filter(([key]) => !['company_name', 'email', 'user_id', 'group_id'].includes(key))
+              .slice(0, 10) // Show first 10 questions
+              .map(([key, value], idx) => ({
+                name: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                score: typeof value === 'number' ? value : 100,
+                strengths: [String(value)],
+                improvements: []
+              })) : []
           }
         ],
         currentPhase: progress.roadmap.current_week > 0 ? {

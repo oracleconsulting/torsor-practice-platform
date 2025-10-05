@@ -105,6 +105,7 @@ export interface ClientProgress {
   tasks: SprintTask[];
   stats: SprintStats;
   last_updated: string;
+  assessment_responses?: Record<string, any>;
 }
 
 export class OracleMethodIntegrationService {
@@ -274,10 +275,12 @@ export class OracleMethodIntegrationService {
       // Extract business name and email from intake data (if available)
       let businessName = 'Unknown Business';
       let clientEmail = roadmap.email || '';
+      let assessmentResponses = {};
       
       if (intakeData) {
         const intake = intakeData as any;
         const responses = intake.responses || {};
+        assessmentResponses = responses; // Store for assessment display
         businessName = responses.company_name || intake.email || 'Unknown Business';
         clientEmail = intake.email || roadmap.email || '';
       }
@@ -296,7 +299,8 @@ export class OracleMethodIntegrationService {
           completion_percentage: 0,
           weeks_remaining: 12
         },
-        last_updated: new Date().toISOString()
+        last_updated: new Date().toISOString(),
+        assessment_responses: assessmentResponses
       };
     } catch (error) {
       console.error('Error getting client progress:', error);
