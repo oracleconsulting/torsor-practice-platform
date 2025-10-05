@@ -228,30 +228,30 @@ export default function SystemsAuditPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8 bg-gray-900 min-h-screen">
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-2">
+            <h1 className="text-3xl font-bold text-gray-100 mb-2 flex items-center gap-2">
               <CogIcon className="h-8 w-8 text-blue-400" />
               Business Systems Audit
             </h1>
-            <p className="text-gray-400">
+            <p className="text-gray-300">
               Operational systems efficiency analysis for {auditData?.clientName}
             </p>
           </div>
-          <Badge className="bg-orange-500">NEW</Badge>
+          <Badge className="bg-orange-500 text-white font-semibold">NEW</Badge>
         </div>
       </div>
 
       {/* Overall Score & Potential Savings */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <Card>
+        <Card className="bg-gray-800 border-gray-700">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-white mb-2">Efficiency Score</h3>
-                <p className="text-gray-400 text-sm">Last audited: {auditData?.auditDate}</p>
+                <h3 className="text-lg font-semibold text-gray-100 mb-2">Efficiency Score</h3>
+                <p className="text-gray-300 text-sm">Last audited: {auditData?.auditDate}</p>
               </div>
               <div className={`text-6xl font-bold ${getScoreColor(auditData?.overallScore || 0)}`}>
                 {auditData?.overallScore}
@@ -261,20 +261,20 @@ export default function SystemsAuditPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-900 to-green-800">
+        <Card className="bg-gradient-to-br from-green-700 to-green-800 border-green-600">
           <CardContent className="pt-6">
             <h3 className="text-lg font-semibold text-white mb-4">Potential Savings</h3>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-gray-200">Time Saved:</span>
+                <span className="text-green-100 font-medium">Time Saved:</span>
                 <span className="text-2xl font-bold text-white">{auditData?.potentialSavings.timeHoursPerMonth}h/month</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-200">Cost Reduction:</span>
+                <span className="text-green-100 font-medium">Cost Reduction:</span>
                 <span className="text-2xl font-bold text-white">£{auditData?.potentialSavings.costPerMonth.toLocaleString()}/month</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-200">Cashflow Gain:</span>
+                <span className="text-green-100 font-medium">Cashflow Gain:</span>
                 <span className="text-2xl font-bold text-white">£{auditData?.potentialSavings.cashflowImprovement.toLocaleString()}</span>
               </div>
             </div>
@@ -284,57 +284,57 @@ export default function SystemsAuditPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <Card>
+        <Card className="bg-gray-800 border-gray-700 hover:border-green-500 transition-colors">
           <CardHeader>
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <CheckCircleIcon className="h-5 w-5 text-green-500" />
+            <CardTitle className="text-sm font-medium flex items-center gap-2 text-gray-100">
+              <CheckCircleIcon className="h-5 w-5 text-green-400" />
               Optimized
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-white">
+            <div className="text-3xl font-bold text-gray-100">
               {auditData?.summary.optimized}
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-gray-800 border-gray-700 hover:border-amber-500 transition-colors">
           <CardHeader>
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <ExclamationTriangleIcon className="h-5 w-5 text-amber-500" />
+            <CardTitle className="text-sm font-medium flex items-center gap-2 text-gray-100">
+              <ExclamationTriangleIcon className="h-5 w-5 text-amber-400" />
               Needs Attention
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-white">
+            <div className="text-3xl font-bold text-gray-100">
               {auditData?.summary.needsAttention}
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-gray-800 border-gray-700 hover:border-red-500 transition-colors">
           <CardHeader>
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <XCircleIcon className="h-5 w-5 text-red-500" />
+            <CardTitle className="text-sm font-medium flex items-center gap-2 text-gray-100">
+              <XCircleIcon className="h-5 w-5 text-red-400" />
               Inefficient
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-white">
+            <div className="text-3xl font-bold text-gray-100">
               {auditData?.summary.inefficient}
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-gray-800 border-gray-700 hover:border-gray-500 transition-colors">
           <CardHeader>
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <CogIcon className="h-5 w-5 text-gray-500" />
+            <CardTitle className="text-sm font-medium flex items-center gap-2 text-gray-100">
+              <CogIcon className="h-5 w-5 text-gray-400" />
               Pending Review
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-white">
+            <div className="text-3xl font-bold text-gray-100">
               {auditData?.summary.pending}
             </div>
           </CardContent>
@@ -402,11 +402,11 @@ export default function SystemsAuditPage() {
       </div>
 
       {/* Audit Items */}
-      <Card>
+      <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Audit Findings</CardTitle>
-            <Button>Run New Audit</Button>
+            <CardTitle className="text-gray-100">Audit Findings</CardTitle>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white">Run New Audit</Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -416,52 +416,53 @@ export default function SystemsAuditPage() {
               .map(item => (
                 <div
                   key={item.id}
-                  className="p-4 bg-gray-800 rounded-lg border-l-4"
+                  className="p-4 bg-gray-850 rounded-lg border-l-4 hover:bg-gray-800 transition-colors"
                   style={{
                     borderLeftColor: 
                       item.status === 'optimized' ? '#10b981' :
                       item.status === 'needs_attention' ? '#f59e0b' :
-                      item.status === 'inefficient' ? '#ef4444' : '#6b7280'
+                      item.status === 'inefficient' ? '#ef4444' : '#6b7280',
+                    backgroundColor: '#1f2937'
                   }}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
                         {getStatusIcon(item.status)}
-                        <h4 className="font-semibold text-white">{item.system}</h4>
-                        <Badge variant="outline" className="ml-2">{item.category}</Badge>
+                        <h4 className="font-semibold text-gray-100">{item.system}</h4>
+                        <Badge variant="outline" className="ml-2 border-gray-600 text-gray-200 bg-gray-700">{item.category}</Badge>
                         <Badge 
-                          variant={
-                            item.priority === 'critical' ? 'destructive' :
-                            item.priority === 'high' ? 'destructive' :
-                            'secondary'
+                          className={
+                            item.priority === 'critical' ? 'bg-red-600 text-white' :
+                            item.priority === 'high' ? 'bg-orange-600 text-white' :
+                            'bg-gray-600 text-gray-200'
                           }
                         >
                           {item.priority}
                         </Badge>
                       </div>
-                      <p className="text-gray-400 text-sm mb-2">{item.description}</p>
+                      <p className="text-gray-300 text-sm mb-2">{item.description}</p>
                       {item.potentialSavings && (
-                        <div className="flex gap-4 mt-2">
-                          <Badge variant="outline" className="bg-green-900 text-green-200 border-green-700">
+                        <div className="flex gap-4 mt-2 flex-wrap">
+                          <Badge variant="outline" className="bg-green-700 text-green-100 border-green-600 font-medium">
                             💰 {item.potentialSavings}
                           </Badge>
                           {item.efficiencyGain && (
-                            <Badge variant="outline" className="bg-blue-900 text-blue-200 border-blue-700">
+                            <Badge variant="outline" className="bg-blue-700 text-blue-100 border-blue-600 font-medium">
                               ⚡ {item.efficiencyGain}
                             </Badge>
                           )}
                         </div>
                       )}
                       {item.recommendation && (
-                        <div className="mt-2 p-3 bg-gray-900 rounded border border-gray-700">
-                          <p className="text-xs text-gray-300">
-                            <strong className="text-white">Recommendation:</strong> {item.recommendation}
+                        <div className="mt-3 p-3 bg-gray-800 rounded border border-gray-600">
+                          <p className="text-sm text-gray-200">
+                            <strong className="text-gray-100">Recommendation:</strong> {item.recommendation}
                           </p>
                         </div>
                       )}
                     </div>
-                    <Button variant="outline" size="sm">View Details</Button>
+                    <Button variant="outline" size="sm" className="bg-gray-700 text-gray-100 border-gray-600 hover:bg-gray-600">View Details</Button>
                   </div>
                 </div>
               ))}
@@ -469,9 +470,9 @@ export default function SystemsAuditPage() {
 
           {(!auditData?.items || auditData.items.length === 0) && (
             <div className="text-center py-12">
-              <CogIcon className="h-16 w-16 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400">No audit items found</p>
-              <Button className="mt-4">Run First Audit</Button>
+              <CogIcon className="h-16 w-16 text-gray-500 mx-auto mb-4" />
+              <p className="text-gray-300">No audit items found</p>
+              <Button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white">Run First Audit</Button>
             </div>
           )}
         </CardContent>
