@@ -347,54 +347,63 @@ export default function SystemsAuditPage() {
           <Button
             variant={selectedCategory === 'all' ? 'default' : 'outline'}
             onClick={() => setSelectedCategory('all')}
+            className={selectedCategory === 'all' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
           >
             All Systems
           </Button>
           <Button
             variant={selectedCategory === 'Invoicing' ? 'default' : 'outline'}
             onClick={() => setSelectedCategory('Invoicing')}
+            className={selectedCategory === 'Invoicing' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
           >
             Invoicing
           </Button>
           <Button
             variant={selectedCategory === 'Payments' ? 'default' : 'outline'}
             onClick={() => setSelectedCategory('Payments')}
+            className={selectedCategory === 'Payments' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
           >
             Payments
           </Button>
           <Button
             variant={selectedCategory === 'Expense Management' ? 'default' : 'outline'}
             onClick={() => setSelectedCategory('Expense Management')}
+            className={selectedCategory === 'Expense Management' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
           >
             Expenses
           </Button>
           <Button
             variant={selectedCategory === 'Payroll' ? 'default' : 'outline'}
             onClick={() => setSelectedCategory('Payroll')}
+            className={selectedCategory === 'Payroll' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
           >
             Payroll
           </Button>
           <Button
             variant={selectedCategory === 'Inventory Management' ? 'default' : 'outline'}
             onClick={() => setSelectedCategory('Inventory Management')}
+            className={selectedCategory === 'Inventory Management' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
           >
             Inventory
           </Button>
           <Button
             variant={selectedCategory === 'Procurement' ? 'default' : 'outline'}
             onClick={() => setSelectedCategory('Procurement')}
+            className={selectedCategory === 'Procurement' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
           >
             Procurement
           </Button>
           <Button
             variant={selectedCategory === 'Banking' ? 'default' : 'outline'}
             onClick={() => setSelectedCategory('Banking')}
+            className={selectedCategory === 'Banking' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
           >
             Banking
           </Button>
           <Button
             variant={selectedCategory === 'Reporting' ? 'default' : 'outline'}
             onClick={() => setSelectedCategory('Reporting')}
+            className={selectedCategory === 'Reporting' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
           >
             Reporting
           </Button>
@@ -462,7 +471,7 @@ export default function SystemsAuditPage() {
                         </div>
                       )}
                     </div>
-                    <Button variant="outline" size="sm" className="bg-gray-700 text-gray-100 border-gray-600 hover:bg-gray-600">View Details</Button>
+                    <Button variant="outline" size="sm" className="bg-gray-700 text-white border-gray-600 hover:bg-gray-600 hover:text-white">View Details</Button>
                   </div>
                 </div>
               ))}
