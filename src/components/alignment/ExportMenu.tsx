@@ -8,12 +8,15 @@ import {
   TableCellsIcon,
   DocumentTextIcon,
   ClockIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  EyeIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 import {
   exportService,
   type ExportHistory
 } from '../../services/alignmentEnhancementsService';
+import { oracleMethodService } from '../../services/oracleMethodIntegration';
 
 interface ExportMenuProps {
   practiceId: string;
@@ -27,6 +30,9 @@ export function ExportMenu({ practiceId, oracleGroupId, userId }: ExportMenuProp
   const [exporting, setExporting] = useState(false);
   const [exportHistory, setExportHistory] = useState<ExportHistory[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   useEffect(() => {
     loadExportHistory();
@@ -35,6 +41,21 @@ export function ExportMenu({ practiceId, oracleGroupId, userId }: ExportMenuProp
   const loadExportHistory = async () => {
     const history = await exportService.getExportHistory(practiceId, oracleGroupId);
     setExportHistory(history);
+  };
+
+  const handlePreview = async () => {
+    setLoadingPreview(true);
+    try {
+      // Fetch real client data for preview
+      const clientProgress = await oracleMethodService.getClientProgress(oracleGroupId);
+      setPreviewData(clientProgress);
+      setShowPreview(true);
+    } catch (error) {
+      console.error('Error loading preview:', error);
+      alert('Error loading preview data');
+    } finally {
+      setLoadingPreview(false);
+    }
   };
 
   const handleExport = async () => {
@@ -223,8 +244,28 @@ export function ExportMenu({ practiceId, oracleGroupId, userId }: ExportMenuProp
               </div>
             </div>
 
-            {/* Export Button */}
-            <div className="pt-4 border-t border-gray-200">
+            {/* Preview & Export Buttons */}
+            <div className="pt-4 border-t border-gray-200 space-y-3">
+              <Button
+                onClick={handlePreview}
+                disabled={loadingPreview}
+                variant="outline"
+                className="w-full border-2 border-blue-500 text-blue-600 hover:bg-blue-50"
+                size="lg"
+              >
+                {loadingPreview ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-2"></div>
+                    Loading Preview...
+                  </>
+                ) : (
+                  <>
+                    <EyeIcon className="w-5 h-5 mr-2" />
+                    Preview Report
+                  </>
+                )}
+              </Button>
+              
               <Button
                 onClick={handleExport}
                 disabled={exporting}
@@ -384,6 +425,173 @@ export function ExportMenu({ practiceId, oracleGroupId, userId }: ExportMenuProp
           </div>
         </CardContent>
       </Card>
+
+      {/* Preview Modal */}
+      {showPreview && previewData && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Report Preview</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  {reportType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} - {exportType.toUpperCase()}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowPreview(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <XMarkIcon className="w-6 h-6 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="max-w-3xl mx-auto space-y-8">
+                {/* Client Header */}
+                <div className="text-center border-b border-gray-200 pb-6">
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                    {previewData.business_name || 'Client Progress Report'}
+                  </h1>
+                  <p className="text-gray-600">{previewData.email}</p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Generated: {new Date().toLocaleDateString('en-GB', { 
+                      day: 'numeric', 
+                      month: 'long', 
+                      year: 'numeric' 
+                    })}
+                  </p>
+                </div>
+
+                {/* 5-Year Vision */}
+                {reportType === 'full_roadmap' || reportType === 'progress_report' ? (
+                  <>
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900 mb-4">🎯 5-Year Vision</h2>
+                      <div className="bg-blue-50 border-l-4 border-blue-500 p-6 rounded-r-lg">
+                        <h3 className="font-bold text-lg mb-2">{previewData.roadmap?.five_year_vision?.title || 'Vision Title'}</h3>
+                        <p className="text-gray-700 leading-relaxed whitespace-pre-line">
+                          {previewData.roadmap?.five_year_vision?.description || previewData.roadmap?.five_year_vision?.vision_narrative || 'Vision description will appear here'}
+                        </p>
+                        
+                        {/* Year Milestones */}
+                        {previewData.roadmap?.five_year_vision?.year_1 && (
+                          <div className="mt-6 space-y-4">
+                            <div className="bg-white p-4 rounded-lg">
+                              <h4 className="font-bold text-gray-900">Year 1</h4>
+                              <p className="text-sm text-gray-600 mt-1">{previewData.roadmap.five_year_vision.year_1.headline}</p>
+                            </div>
+                            {previewData.roadmap.five_year_vision.year_3 && (
+                              <div className="bg-white p-4 rounded-lg">
+                                <h4 className="font-bold text-gray-900">Year 3</h4>
+                                <p className="text-sm text-gray-600 mt-1">{previewData.roadmap.five_year_vision.year_3.headline}</p>
+                              </div>
+                            )}
+                            {previewData.roadmap.five_year_vision.year_5 && (
+                              <div className="bg-white p-4 rounded-lg">
+                                <h4 className="font-bold text-gray-900">Year 5</h4>
+                                <p className="text-sm text-gray-600 mt-1">{previewData.roadmap.five_year_vision.year_5.headline}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 6-Month Shift */}
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900 mb-4">🎯 6-Month Shift</h2>
+                      <div className="bg-green-50 border-l-4 border-green-500 p-6 rounded-r-lg">
+                        <h3 className="font-bold text-lg mb-2">{previewData.roadmap?.six_month_shift?.title || 'Current Focus'}</h3>
+                        <p className="text-gray-700">{previewData.roadmap?.six_month_shift?.description || 'Description will appear here'}</p>
+                      </div>
+                    </div>
+
+                    {/* 3-Month Sprint */}
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900 mb-4">⚡ 3-Month Sprint</h2>
+                      <div className="bg-purple-50 border-l-4 border-purple-500 p-6 rounded-r-lg">
+                        <h3 className="font-bold text-lg mb-2">Sprint {previewData.roadmap?.three_month_sprint?.sprint_number || 1}</h3>
+                        <p className="text-gray-700 mb-4">{previewData.roadmap?.three_month_sprint?.theme || 'Sprint theme'}</p>
+                        {previewData.tasks && previewData.tasks.length > 0 && (
+                          <div className="mt-4">
+                            <h4 className="font-semibold text-gray-900 mb-2">Active Tasks:</h4>
+                            <ul className="space-y-2">
+                              {previewData.tasks.slice(0, 5).map((task: any, idx: number) => (
+                                <li key={idx} className="flex items-center text-sm">
+                                  <span className={`w-4 h-4 rounded mr-2 ${task.completed ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                                  {task.task_name}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+
+                {/* Task List Preview */}
+                {reportType === 'task_list' && previewData.tasks && (
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-4">📋 Task List</h2>
+                    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                      <table className="w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Task</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Week</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {previewData.tasks.slice(0, 10).map((task: any, idx: number) => (
+                            <tr key={idx}>
+                              <td className="px-4 py-3 text-sm text-gray-900">{task.task_name}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600">Week {task.week_number}</td>
+                              <td className="px-4 py-3">
+                                <Badge className={task.completed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
+                                  {task.completed ? 'Complete' : 'Pending'}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
+              <p className="text-sm text-gray-600">
+                This is a preview. Click "Generate & Download" to create the actual file.
+              </p>
+              <div className="flex space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowPreview(false)}
+                >
+                  Close Preview
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowPreview(false);
+                    handleExport();
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
+                  Download Now
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
