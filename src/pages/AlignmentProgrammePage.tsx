@@ -1122,8 +1122,9 @@ export default function AlignmentProgrammePage() {
         {/* ASSESSMENTS TAB */}
         {activeTab === 'assessments' && (
           <div className="space-y-6">
-            {roadmapData.assessments.map((assessment) => (
-              <Card key={assessment.id}>
+            {roadmapData.assessments && roadmapData.assessments.length > 0 ? (
+              roadmapData.assessments.map((assessment) => (
+                <Card key={assessment.id}>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     <div className="flex items-center">
@@ -1153,7 +1154,8 @@ export default function AlignmentProgrammePage() {
 
                   <div className="space-y-4">
                     <h4 className="font-semibold text-gray-900">Assessment Areas</h4>
-                    {assessment.areas.map((area, idx) => (
+                    {assessment.areas && assessment.areas.length > 0 ? (
+                      assessment.areas.map((area, idx) => (
                       <div key={idx} className="border border-gray-200 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
                           <h5 className="font-medium text-gray-900">{area.name}</h5>
@@ -1181,11 +1183,24 @@ export default function AlignmentProgrammePage() {
                           </ul>
                         </div>
                       </div>
-                    ))}
+                    ))
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <DocumentTextIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                        <p>No assessment areas found</p>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
-            ))}
+            ))
+            ) : (
+              <div className="text-center py-12">
+                <DocumentTextIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Assessments Yet</h3>
+                <p className="text-gray-600">Assessment data will appear here once the client completes their Oracle Method Assessment.</p>
+              </div>
+            )}
           </div>
         )}
 
