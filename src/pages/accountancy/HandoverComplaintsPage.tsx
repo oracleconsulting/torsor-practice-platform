@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Plus, Filter, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { HandoverComplaintsWidget } from '../components/accountancy/dashboard/HandoverComplaintsWidget';
-import { useHandoverComplaints } from '../hooks/useHandoverComplaints';
-import type { HandoverComplaint } from '../types/accountancy';
+import { HandoverComplaintsWidget } from '../../components/accountancy/dashboard/HandoverComplaintsWidget';
+import { useHandoverComplaints } from '../../hooks/useHandoverComplaints';
+import type { HandoverComplaint } from '../../types/accountancy';
 
 export const HandoverComplaintsPage: React.FC = () => {
   const navigate = useNavigate();
