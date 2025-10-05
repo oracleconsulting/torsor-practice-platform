@@ -344,69 +344,96 @@ export default function SystemsAuditPage() {
       {/* Category Filter */}
       <div className="mb-6">
         <div className="flex gap-2 flex-wrap">
-          <Button
-            variant={selectedCategory === 'all' ? 'default' : 'outline'}
+          <button
             onClick={() => setSelectedCategory('all')}
-            className={selectedCategory === 'all' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
+            className={`px-4 py-2 rounded-md font-medium transition-colors ${
+              selectedCategory === 'all' 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md' 
+                : 'bg-gray-700 border border-gray-600 text-gray-100 hover:bg-gray-600'
+            }`}
           >
             All Systems
-          </Button>
-          <Button
-            variant={selectedCategory === 'Invoicing' ? 'default' : 'outline'}
+          </button>
+          <button
             onClick={() => setSelectedCategory('Invoicing')}
-            className={selectedCategory === 'Invoicing' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
+            className={`px-4 py-2 rounded-md font-medium transition-colors ${
+              selectedCategory === 'Invoicing' 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md' 
+                : 'bg-gray-700 border border-gray-600 text-gray-100 hover:bg-gray-600'
+            }`}
           >
             Invoicing
-          </Button>
-          <Button
-            variant={selectedCategory === 'Payments' ? 'default' : 'outline'}
+          </button>
+          <button
             onClick={() => setSelectedCategory('Payments')}
-            className={selectedCategory === 'Payments' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
+            className={`px-4 py-2 rounded-md font-medium transition-colors ${
+              selectedCategory === 'Payments' 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md' 
+                : 'bg-gray-700 border border-gray-600 text-gray-100 hover:bg-gray-600'
+            }`}
           >
             Payments
-          </Button>
-          <Button
-            variant={selectedCategory === 'Expense Management' ? 'default' : 'outline'}
+          </button>
+          <button
             onClick={() => setSelectedCategory('Expense Management')}
-            className={selectedCategory === 'Expense Management' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
+            className={`px-4 py-2 rounded-md font-medium transition-colors ${
+              selectedCategory === 'Expense Management' 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md' 
+                : 'bg-gray-700 border border-gray-600 text-gray-100 hover:bg-gray-600'
+            }`}
           >
             Expenses
-          </Button>
-          <Button
-            variant={selectedCategory === 'Payroll' ? 'default' : 'outline'}
+          </button>
+          <button
             onClick={() => setSelectedCategory('Payroll')}
-            className={selectedCategory === 'Payroll' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
+            className={`px-4 py-2 rounded-md font-medium transition-colors ${
+              selectedCategory === 'Payroll' 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md' 
+                : 'bg-gray-700 border border-gray-600 text-gray-100 hover:bg-gray-600'
+            }`}
           >
             Payroll
-          </Button>
-          <Button
-            variant={selectedCategory === 'Inventory Management' ? 'default' : 'outline'}
+          </button>
+          <button
             onClick={() => setSelectedCategory('Inventory Management')}
-            className={selectedCategory === 'Inventory Management' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
+            className={`px-4 py-2 rounded-md font-medium transition-colors ${
+              selectedCategory === 'Inventory Management' 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md' 
+                : 'bg-gray-700 border border-gray-600 text-gray-100 hover:bg-gray-600'
+            }`}
           >
             Inventory
-          </Button>
-          <Button
-            variant={selectedCategory === 'Procurement' ? 'default' : 'outline'}
+          </button>
+          <button
             onClick={() => setSelectedCategory('Procurement')}
-            className={selectedCategory === 'Procurement' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
+            className={`px-4 py-2 rounded-md font-medium transition-colors ${
+              selectedCategory === 'Procurement' 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md' 
+                : 'bg-gray-700 border border-gray-600 text-gray-100 hover:bg-gray-600'
+            }`}
           >
             Procurement
-          </Button>
-          <Button
-            variant={selectedCategory === 'Banking' ? 'default' : 'outline'}
+          </button>
+          <button
             onClick={() => setSelectedCategory('Banking')}
-            className={selectedCategory === 'Banking' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
+            className={`px-4 py-2 rounded-md font-medium transition-colors ${
+              selectedCategory === 'Banking' 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md' 
+                : 'bg-gray-700 border border-gray-600 text-gray-100 hover:bg-gray-600'
+            }`}
           >
             Banking
-          </Button>
-          <Button
-            variant={selectedCategory === 'Reporting' ? 'default' : 'outline'}
+          </button>
+          <button
             onClick={() => setSelectedCategory('Reporting')}
-            className={selectedCategory === 'Reporting' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700'}
+            className={`px-4 py-2 rounded-md font-medium transition-colors ${
+              selectedCategory === 'Reporting' 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md' 
+                : 'bg-gray-700 border border-gray-600 text-gray-100 hover:bg-gray-600'
+            }`}
           >
             Reporting
-          </Button>
+          </button>
         </div>
       </div>
 
@@ -415,7 +442,9 @@ export default function SystemsAuditPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-gray-100">Audit Findings</CardTitle>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white">Run New Audit</Button>
+            <button className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors">
+              Run New Audit
+            </button>
           </div>
         </CardHeader>
         <CardContent>
@@ -471,7 +500,9 @@ export default function SystemsAuditPage() {
                         </div>
                       )}
                     </div>
-                    <Button variant="outline" size="sm" className="bg-gray-700 text-white border-gray-600 hover:bg-gray-600 hover:text-white">View Details</Button>
+                    <button className="px-3 py-1.5 text-sm rounded-md bg-gray-700 text-white border border-gray-600 hover:bg-gray-600 font-medium transition-colors">
+                      View Details
+                    </button>
                   </div>
                 </div>
               ))}
@@ -481,7 +512,9 @@ export default function SystemsAuditPage() {
             <div className="text-center py-12">
               <CogIcon className="h-16 w-16 text-gray-500 mx-auto mb-4" />
               <p className="text-gray-300">No audit items found</p>
-              <Button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white">Run First Audit</Button>
+              <button className="mt-4 px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors">
+                Run First Audit
+              </button>
             </div>
           )}
         </CardContent>
