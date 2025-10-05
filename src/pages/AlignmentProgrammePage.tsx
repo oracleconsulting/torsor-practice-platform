@@ -988,7 +988,8 @@ export default function AlignmentProgrammePage() {
                 </div>
 
                 <div className="space-y-4">
-                  {clientProgress.roadmap.three_month_sprint?.weeks.map((week, weekIdx) => (
+                  {clientProgress.roadmap.three_month_sprint?.weeks && clientProgress.roadmap.three_month_sprint.weeks.length > 0 ? (
+                    clientProgress.roadmap.three_month_sprint.weeks.map((week, weekIdx) => (
                     <Card key={weekIdx} className="border-l-4 border-l-blue-500">
                       <CardHeader>
                         <CardTitle className="text-lg">
@@ -1071,7 +1072,39 @@ export default function AlignmentProgrammePage() {
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
+                    ))
+                  ) : (
+                    <Card className="bg-yellow-50 border-yellow-200">
+                      <CardContent className="p-6 text-center">
+                        <p className="text-yellow-800">
+                          No weekly tasks found in the roadmap. Tasks may need to be generated through the Vision Workflow.
+                        </p>
+                        {clientProgress.tasks && clientProgress.tasks.length > 0 && (
+                          <div className="mt-4">
+                            <p className="text-sm text-gray-600 mb-3">But we found {clientProgress.tasks.length} tasks in the database:</p>
+                            <div className="space-y-2">
+                              {clientProgress.tasks.map((task) => (
+                                <div key={task.task_id} className="flex items-center justify-between p-3 bg-white rounded border">
+                                  <div className="flex items-center gap-3">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={task.completed}
+                                      onChange={() => handleToggleTask(task.task_id, !task.completed)}
+                                      className="w-4 h-4"
+                                    />
+                                    <span className={task.completed ? 'line-through text-gray-500' : 'text-gray-900'}>
+                                      {task.task_title}
+                                    </span>
+                                  </div>
+                                  <span className="text-sm text-gray-500">Week {task.week_number || '?'}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               </CardContent>
             </Card>
