@@ -1,3 +1,8 @@
+/**
+ * Systems Audit Page - Business Operations Focus
+ * Last Updated: 2025-01-20 19:30 UTC
+ * Build Version: 2.0.1 - CONTRAST FIX
+ */
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
@@ -237,7 +242,7 @@ export default function SystemsAuditPage() {
               Business Systems Audit
             </h1>
             <p className="text-gray-300">
-              Operational systems efficiency analysis for {auditData?.clientName}
+              Operational systems efficiency analysis for {auditData?.clientName} • v2.0.1
             </p>
           </div>
           <Badge className="bg-orange-500 text-white font-semibold">NEW</Badge>
