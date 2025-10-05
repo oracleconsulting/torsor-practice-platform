@@ -1416,5 +1416,183 @@ export const outreachService = {
 
     const data = await response.json();
     return data.export_data;
+  },
+
+  // DATE RANGE COMPARISON FEATURES
+  async searchByAddressWithDateRange(
+    address: string,
+    startDate: string,
+    endDate: string,
+    similarityThreshold: number = 80,
+    maxResults: number = 1000
+  ): Promise<CompanySearchResult[]> {
+    const response = await makeAuthenticatedRequest(`${API_BASE_URL}/api/outreach/enhanced-search/address-date-range`, {
+      method: 'POST',
+      body: JSON.stringify({ 
+        address, 
+        start_date: startDate,
+        end_date: endDate,
+        similarity_threshold: similarityThreshold, 
+        max_results: maxResults
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Date range search failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.companies || [];
+  },
+
+  async compareDateRanges(
+    address: string,
+    dateRange1: { start: string; end: string },
+    dateRange2: { start: string; end: string },
+    similarityThreshold: number = 80
+  ): Promise<{
+    range1_only: CompanySearchResult[];
+    range2_only: CompanySearchResult[];
+    in_both: CompanySearchResult[];
+    left_firms: CompanySearchResult[];
+    new_firms: CompanySearchResult[];
+  }> {
+    const response = await makeAuthenticatedRequest(`${API_BASE_URL}/api/outreach/enhanced-search/compare-date-ranges`, {
+      method: 'POST',
+      body: JSON.stringify({ 
+        address,
+        date_range_1: dateRange1,
+        date_range_2: dateRange2,
+        similarity_threshold: similarityThreshold
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Date range comparison failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  },
+
+  // SEARCH HISTORY FEATURES
+  async saveSearchHistory(searchData: {
+    search_type: 'address_match' | 'date_range' | 'date_comparison';
+    address?: string;
+    date_range?: { start: string; end: string };
+    date_ranges?: { range1: { start: string; end: string }; range2: { start: string; end: string } };
+    results_count: number;
+    filters?: any;
+  }): Promise<{ id: string; saved_at: string }> {
+    const { data, error } = await supabase
+      .from('outreach_search_history')
+      .insert([searchData])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getSearchHistory(practiceId: string, limit: number = 50): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('outreach_search_history')
+      .select('*')
+      .eq('practice_id', practiceId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async deleteSearchHistory(historyId: string): Promise<void> {
+    const { error } = await supabase
+      .from('outreach_search_history')
+      .delete()
+      .eq('id', historyId);
+
+    if (error) throw error;
+  },
+
+  async loadSearchFromHistory(historyId: string): Promise<any> {
+    const { data, error } = await supabase
+      .from('outreach_search_history')
+      .select('*')
+      .eq('id', historyId)
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // LLM ADDRESS VERIFICATION
+  async verifyAddressWithLLM(companyData: {
+    company_name: string;
+    company_number: string;
+    registered_office_address: any;
+  }): Promise<{
+    trading_address: string | null;
+    contact_address: string | null;
+    confidence_score: number;
+    sources: string[];
+    notes: string;
+    verified_at: string;
+  }> {
+    const response = await makeAuthenticatedRequest(`${API_BASE_URL}/api/outreach/llm-verify-address`, {
+      method: 'POST',
+      body: JSON.stringify({ company_data: companyData }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`LLM address verification failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.verification;
+  },
+
+  async batchVerifyAddresses(companies: Array<{
+    company_name: string;
+    company_number: string;
+    registered_office_address: any;
+  }>): Promise<Array<{
+    company_number: string;
+    trading_address: string | null;
+    contact_address: string | null;
+    confidence_score: number;
+  }>> {
+    const response = await makeAuthenticatedRequest(`${API_BASE_URL}/api/outreach/llm-verify-addresses-batch`, {
+      method: 'POST',
+      body: JSON.stringify({ companies }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Batch address verification failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.verifications || [];
+  },
+
+  // ENHANCED COMPREHENSIVE EXPORT WITH ALL FIELDS
+  async comprehensiveExportWithAllFields(
+    address: string,
+    includeLLMVerification: boolean = false
+  ): Promise<Blob> {
+    const response = await makeAuthenticatedRequest(`${API_BASE_URL}/api/outreach/enhanced-search/export-all-fields`, {
+      method: 'POST',
+      body: JSON.stringify({ 
+        address,
+        include_llm_verification: includeLLMVerification
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Enhanced export failed: ${response.statusText}`);
+    }
+
+    // Return the blob for download
+    return await response.blob();
   }
 };
