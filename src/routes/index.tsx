@@ -41,7 +41,7 @@ import AdvisoryServices from '../pages/AdvisoryServices';
 import ServiceDetailPage from '../pages/ServiceDetailPage';
 import PracticeHealth from '../pages/PracticeHealth';
 import ClientVaultPage from '../pages/ClientVaultPage';
-import SystemsAuditPage from '../pages/SystemsAuditPage';
+import SystemsAuditPage from '../pages/accountancy/SystemsAuditPage';
 import AlignmentProgrammePage from '../pages/AlignmentProgrammePage';
 
 // Advisory sub-pages
