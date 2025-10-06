@@ -19,6 +19,7 @@ import { Badge } from '../../ui/badge';
 import { Checkbox } from '../../ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 import { savedProspectsService, SavedProspect } from '../../../services/accountancy/savedProspectsService';
+import { ProspectDetailsModal } from './ProspectDetailsModal';
 import { toast } from 'sonner';
 
 export default function SavedProspectsPage() {
@@ -26,6 +27,7 @@ export default function SavedProspectsPage() {
   const [prospects, setProspects] = useState<SavedProspect[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedProspects, setSelectedProspects] = useState<Set<string>>(new Set());
+  const [selectedProspectForDetails, setSelectedProspectForDetails] = useState<SavedProspect | null>(null);
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -128,7 +130,7 @@ export default function SavedProspectsPage() {
   };
 
   const handleViewDetails = async (prospect: SavedProspect) => {
-    navigate(`/outreach/prospects/${prospect.id}`);
+    setSelectedProspectForDetails(prospect);
   };
 
   const getStatusBadge = (status: string) => {
@@ -381,6 +383,18 @@ export default function SavedProspectsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Prospect Details Modal */}
+      {selectedProspectForDetails && (
+        <ProspectDetailsModal
+          prospectId={selectedProspectForDetails.id}
+          companyData={selectedProspectForDetails}
+          onClose={() => setSelectedProspectForDetails(null)}
+          onResearchComplete={() => {
+            loadProspects(); // Refresh list after research
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { outreachService } from '@/services/accountancy/outreachService';
 import { savedProspectsService } from '@/services/accountancy/savedProspectsService';
+import { ProspectDetailsModal } from '../ProspectDetailsModal';
 import { toast } from 'sonner';
 
 interface CompanySearchResult {
@@ -66,6 +67,7 @@ const EnhancedCompaniesHouseSearch: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<CompanySearchResult[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<CompanySearchResult | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   
   // Company Number Search
   const [companyNumber, setCompanyNumber] = useState('');
@@ -1190,6 +1192,7 @@ const EnhancedCompaniesHouseSearch: React.FC = () => {
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedCompany(company);
+                          setShowDetailsModal(true);
                         }}
                       >
                         <Eye className="w-4 h-4 mr-1" />
@@ -1384,6 +1387,22 @@ const EnhancedCompaniesHouseSearch: React.FC = () => {
             </Tabs>
           </CardContent>
         </Card>
+      )}
+
+      {/* Prospect Details Modal */}
+      {showDetailsModal && selectedCompany && (
+        <ProspectDetailsModal
+          prospectId={null}
+          companyData={selectedCompany}
+          onClose={() => {
+            setShowDetailsModal(false);
+            setSelectedCompany(null);
+          }}
+          onResearchComplete={(results) => {
+            console.log('Research completed:', results);
+            // Optionally refresh the results
+          }}
+        />
       )}
     </div>
   );
