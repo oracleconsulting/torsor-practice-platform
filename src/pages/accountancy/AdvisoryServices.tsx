@@ -617,6 +617,29 @@ const AdvisoryServices: React.FC = () => {
               </div>
             </div>
 
+            <div>
+              <Label htmlFor="deliveredBy">Delivered By</Label>
+              <Input
+                id="deliveredBy"
+                value={formData.deliveredBy || ''}
+                onChange={(e) => setFormData({ ...formData, deliveredBy: e.target.value })}
+                placeholder="e.g., Senior Advisory Team, Partner-Led, James Howard"
+              />
+              <p className="text-xs text-gray-500 mt-1">Who will deliver this service to clients</p>
+            </div>
+
+            <div>
+              <Label htmlFor="aims">Service Aims</Label>
+              <Textarea
+                id="aims"
+                value={formData.aims || ''}
+                onChange={(e) => setFormData({ ...formData, aims: e.target.value })}
+                placeholder="What does this service aim to achieve for clients?"
+                rows={3}
+              />
+              <p className="text-xs text-gray-500 mt-1">The goals and outcomes this service delivers</p>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="tier">Subscription Tier</Label>
