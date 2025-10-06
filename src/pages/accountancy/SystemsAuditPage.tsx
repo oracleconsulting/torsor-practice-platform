@@ -244,7 +244,7 @@ export default function SystemsAuditPage() {
               Business Systems Audit
             </h1>
             <p style={{ color: '#d1d5db' }}>
-              Operational systems efficiency analysis for {auditData?.clientName} • v2.3.0
+              Operational systems efficiency analysis for {auditData?.clientName} • v2.4.0
             </p>
           </div>
           <Badge className="bg-orange-500 text-white font-semibold">NEW</Badge>
