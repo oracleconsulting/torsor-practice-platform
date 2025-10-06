@@ -161,6 +161,49 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
     }
   };
 
+  // Helper functions for dynamic intelligence
+  const getTimingRecommendation = (prospect: any, companyData: any) => {
+    const companyAge = (prospect?.date_of_creation || companyData?.date_of_creation)
+      ? Math.floor((new Date().getTime() - new Date(prospect?.date_of_creation || companyData?.date_of_creation).getTime()) / (1000 * 60 * 60 * 24 * 365))
+      : 0;
+    
+    if (companyAge < 2) {
+      return 'Recently formed - ideal for setting up advisory relationships from the start';
+    } else if (companyAge < 5) {
+      return 'Growth phase company - best approached during Q4 for year-end planning';
+    } else {
+      return 'Established company - reach out during Q4 for tax planning or after filing deadlines';
+    }
+  };
+
+  const getPainPoints = (prospect: any, companyData: any) => {
+    const companyType = (prospect?.company_type || companyData?.company_type || '').toLowerCase();
+    const status = (prospect?.company_status || companyData?.company_status || '').toLowerCase();
+    
+    if (companyType.includes('ltd')) {
+      return 'Limited companies need efficient compliance + growth advisory services';
+    } else if (companyType.includes('plc')) {
+      return 'PLCs require comprehensive corporate governance and reporting advisory';
+    } else if (status === 'active') {
+      return 'Active companies need proactive tax planning and business advisory';
+    }
+    return 'Likely needs advisory services for growth strategy and compliance optimization';
+  };
+
+  const getApproach = (prospect: any, companyData: any) => {
+    const sicCodes = prospect?.sic_codes || companyData?.sic_codes || [];
+    const companyType = (prospect?.company_type || companyData?.company_type || '').toLowerCase();
+    
+    if (sicCodes.some((sic: string) => sic.startsWith('62') || sic.startsWith('63'))) {
+      return 'Tech/IT company - lead with R&D tax credits and innovation advisory';
+    } else if (sicCodes.some((sic: string) => sic.startsWith('41') || sic.startsWith('42') || sic.startsWith('43'))) {
+      return 'Construction - lead with CIS compliance and subcontractor management';
+    } else if (companyType.includes('ltd')) {
+      return 'Lead with compliance efficiency, transition to strategic advisory';
+    }
+    return 'Lead with compliance, transition to advisory and growth services';
+  };
+
   if (!prospect && !loading) {
     return null;
   }
