@@ -36,7 +36,7 @@ interface ProspectDetailsModalProps {
 }
 
 export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
-  prospectId,
+  prospectId: initialProspectId,
   companyData,
   onClose,
   onResearchComplete
@@ -48,13 +48,45 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
   const [officeHistory, setOfficeHistory] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('overview');
   const [showCompaniesHousePreview, setShowCompaniesHousePreview] = useState(false);
+  const [iframeError, setIframeError] = useState(false);
+  const [prospectId, setProspectId] = useState(initialProspectId);
+
+  // Auto-save prospect if opened from search results (no prospectId yet)
+  useEffect(() => {
+    if (!prospectId && companyData) {
+      autoSaveProspect();
+    } else if (prospectId && !companyData) {
+      fetchProspectDetails();
+    }
+  }, [prospectId, companyData]);
+
+  const autoSaveProspect = async () => {
+    try {
+      console.log('Auto-saving prospect for research/history access...');
+      const result = await savedProspectsService.saveCompany(companyData);
+      if (result.prospect_id) {
+        setProspectId(result.prospect_id);
+        toast.success('✅ Company saved - research features enabled');
+      }
+    } catch (error: any) {
+      if (error.message.includes('already exists')) {
+        console.log('Company already saved');
+        // Could fetch the existing prospect ID here
+      } else {
+        console.error('Auto-save failed:', error);
+        // Don't show error toast - user didn't explicitly try to save
+      }
+    }
+  };
+
+  const loadProspect = fetchProspectDetails; // Alias for backward compatibility
 
   useEffect(() => {
-    if (prospectId && !companyData) {
+    if (initialProspectId && !companyData) {
       // Load prospect from backend
-      loadProspect();
+      fetchProspectDetails();
     }
-  }, [prospectId]);
+  }, [initialProspectId]);
 
   const loadProspect = async () => {
     if (!prospectId) return;
