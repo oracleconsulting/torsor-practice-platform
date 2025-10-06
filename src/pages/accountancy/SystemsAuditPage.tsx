@@ -244,7 +244,7 @@ export default function SystemsAuditPage() {
               Business Systems Audit
             </h1>
             <p style={{ color: '#d1d5db' }}>
-              Operational systems efficiency analysis for {auditData?.clientName} • v2.2.1
+              Operational systems efficiency analysis for {auditData?.clientName} • v2.3.0
             </p>
           </div>
           <Badge className="bg-orange-500 text-white font-semibold">NEW</Badge>
@@ -291,57 +291,57 @@ export default function SystemsAuditPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <Card className="bg-gray-800 border-gray-700 hover:border-green-500 transition-colors">
+        <Card style={{ backgroundColor: '#1f2937', borderColor: '#374151' }} className="hover:border-green-500 transition-colors">
           <CardHeader>
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-gray-100">
+            <CardTitle className="text-sm font-medium flex items-center gap-2" style={{ color: '#f3f4f6' }}>
               <CheckCircleIcon className="h-5 w-5 text-green-400" />
               Optimized
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-gray-100">
+            <div className="text-3xl font-bold" style={{ color: '#f3f4f6' }}>
               {auditData?.summary.optimized}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gray-800 border-gray-700 hover:border-amber-500 transition-colors">
+        <Card style={{ backgroundColor: '#1f2937', borderColor: '#374151' }} className="hover:border-amber-500 transition-colors">
           <CardHeader>
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-gray-100">
+            <CardTitle className="text-sm font-medium flex items-center gap-2" style={{ color: '#f3f4f6' }}>
               <ExclamationTriangleIcon className="h-5 w-5 text-amber-400" />
               Needs Attention
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-gray-100">
+            <div className="text-3xl font-bold" style={{ color: '#f3f4f6' }}>
               {auditData?.summary.needsAttention}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gray-800 border-gray-700 hover:border-red-500 transition-colors">
+        <Card style={{ backgroundColor: '#1f2937', borderColor: '#374151' }} className="hover:border-red-500 transition-colors">
           <CardHeader>
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-gray-100">
+            <CardTitle className="text-sm font-medium flex items-center gap-2" style={{ color: '#f3f4f6' }}>
               <XCircleIcon className="h-5 w-5 text-red-400" />
               Inefficient
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-gray-100">
+            <div className="text-3xl font-bold" style={{ color: '#f3f4f6' }}>
               {auditData?.summary.inefficient}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gray-800 border-gray-700 hover:border-gray-500 transition-colors">
+        <Card style={{ backgroundColor: '#1f2937', borderColor: '#374151' }} className="hover:border-gray-500 transition-colors">
           <CardHeader>
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-gray-100">
+            <CardTitle className="text-sm font-medium flex items-center gap-2" style={{ color: '#f3f4f6' }}>
               <CogIcon className="h-5 w-5 text-gray-400" />
               Pending Review
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-gray-100">
+            <div className="text-3xl font-bold" style={{ color: '#f3f4f6' }}>
               {auditData?.summary.pending}
             </div>
           </CardContent>
@@ -445,10 +445,10 @@ export default function SystemsAuditPage() {
       </div>
 
       {/* Audit Items */}
-      <Card className="bg-gray-800 border-gray-700">
+      <Card style={{ backgroundColor: '#1f2937', borderColor: '#374151' }}>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-gray-100">Audit Findings</CardTitle>
+            <CardTitle style={{ color: '#f3f4f6' }}>Audit Findings</CardTitle>
             <button className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors">
               Run New Audit
             </button>
@@ -461,21 +461,21 @@ export default function SystemsAuditPage() {
               .map(item => (
                 <div
                   key={item.id}
-                  className="p-4 bg-gray-850 rounded-lg border-l-4 hover:bg-gray-800 transition-colors"
+                  className="p-4 rounded-lg border-l-4 transition-colors"
                   style={{
                     borderLeftColor: 
                       item.status === 'optimized' ? '#10b981' :
                       item.status === 'needs_attention' ? '#f59e0b' :
                       item.status === 'inefficient' ? '#ef4444' : '#6b7280',
-                    backgroundColor: '#1f2937'
+                    backgroundColor: '#1a2332'
                   }}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         {getStatusIcon(item.status)}
-                        <h4 className="font-semibold text-gray-100">{item.system}</h4>
-                        <Badge variant="outline" className="ml-2 border-gray-600 text-gray-200 bg-gray-700">{item.category}</Badge>
+                        <h4 className="font-semibold" style={{ color: '#f3f4f6' }}>{item.system}</h4>
+                        <Badge variant="outline" className="ml-2 border-gray-600 bg-gray-700" style={{ color: '#e5e7eb' }}>{item.category}</Badge>
                         <Badge 
                           className={
                             item.priority === 'critical' ? 'bg-red-600 text-white' :
@@ -486,7 +486,7 @@ export default function SystemsAuditPage() {
                           {item.priority}
                         </Badge>
                       </div>
-                      <p className="text-gray-300 text-sm mb-2">{item.description}</p>
+                      <p className="text-sm mb-2" style={{ color: '#d1d5db' }}>{item.description}</p>
                       {item.potentialSavings && (
                         <div className="flex gap-4 mt-2 flex-wrap">
                           <Badge variant="outline" className="bg-green-700 text-green-100 border-green-600 font-medium">
@@ -500,9 +500,9 @@ export default function SystemsAuditPage() {
                         </div>
                       )}
                       {item.recommendation && (
-                        <div className="mt-3 p-3 bg-gray-800 rounded border border-gray-600">
-                          <p className="text-sm text-gray-200">
-                            <strong className="text-gray-100">Recommendation:</strong> {item.recommendation}
+                        <div className="mt-3 p-3 rounded border" style={{ backgroundColor: '#1f2937', borderColor: '#4b5563' }}>
+                          <p className="text-sm" style={{ color: '#e5e7eb' }}>
+                            <strong style={{ color: '#f3f4f6' }}>Recommendation:</strong> {item.recommendation}
                           </p>
                         </div>
                       )}
