@@ -14,7 +14,7 @@ import {
   ArrowRightIcon,
   PlusIcon
 } from '@heroicons/react/24/outline';
-import { useAccountancyContext } from '../contexts/AccountancyContext';
+import { useAccountancyContext } from '../../contexts/AccountancyContext';
 
 // Types for 365 Alignment Programme
 interface FiveYearVision {

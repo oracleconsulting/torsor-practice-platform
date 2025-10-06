@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ca
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { AlertTriangle, Users, Clock, CheckCircle, XCircle, Plus } from 'lucide-react';
-import { useAccountancyContext } from '../contexts/AccountancyContext';
+import { useAccountancyContext } from '../../contexts/AccountancyContext';
 
 interface RescueCase {
   id: string;

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAlternateAuditor } from '../../hooks/useAlternateAuditor';
-import { useAccountancyContext } from '../contexts/AccountancyContext';
+import { useAccountancyContext } from '../../contexts/AccountancyContext';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';

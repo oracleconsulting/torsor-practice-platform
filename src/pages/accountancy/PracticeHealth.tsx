@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Progress } from '../../components/ui/progress';
 import { Activity, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
-import { useAccountancyContext } from '../contexts/AccountancyContext';
+import { useAccountancyContext } from '../../contexts/AccountancyContext';
 
 interface HealthMetric {
   id: string;

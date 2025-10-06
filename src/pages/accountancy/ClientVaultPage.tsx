@@ -9,7 +9,7 @@ import {
   CurrencyPoundIcon,
   ArrowLeftIcon
 } from '@heroicons/react/24/outline';
-import { useAccountancyContext } from '../contexts/AccountancyContext';
+import { useAccountancyContext } from '../../contexts/AccountancyContext';
 import { supabase } from '../../lib/supabase/client';
 import ClientVaultDashboard from '../../components/accountancy/vault/ClientVaultDashboard';
 import ComplianceCalendarWidget from '../../components/accountancy/vault/ComplianceCalendarWidget';
