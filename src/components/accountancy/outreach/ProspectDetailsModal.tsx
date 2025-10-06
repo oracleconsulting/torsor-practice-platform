@@ -415,23 +415,6 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                 </Card>
               ) : (
                 <>
-                  {/* COMPLETE RESEARCH DATA DUMP */}
-                  <Card className="mb-4">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <CheckCircle className="w-5 h-5 text-green-600" />
-                        Research Complete - Full Data
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-4">
-                        <h4 className="font-semibold mb-2 text-sm">Complete Research Object (JSON)</h4>
-                        <pre className="text-xs bg-white p-3 rounded overflow-auto max-h-96 whitespace-pre-wrap">
-                          {JSON.stringify(researchResults || prospect?.research_data, null, 2)}
-                        </pre>
-                      </div>
-                    </CardContent>
-                  </Card>
 
                   <Card>
                     <CardHeader>
