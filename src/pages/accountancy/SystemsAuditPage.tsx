@@ -232,6 +232,8 @@ export default function SystemsAuditPage() {
     return 'text-red-500';
   };
 
+  console.log('SystemsAuditPage rendering', { clientId, auditData: auditData ? 'loaded' : 'null' });
+
   return (
     <div className="container mx-auto px-4 py-8 bg-gray-900 min-h-screen">
       <div className="mb-6">
@@ -242,7 +244,7 @@ export default function SystemsAuditPage() {
               Business Systems Audit
             </h1>
             <p className="text-gray-300">
-              Operational systems efficiency analysis for {auditData?.clientName} • v2.0.3
+              Operational systems efficiency analysis for {auditData?.clientName} • v2.0.4
             </p>
           </div>
           <Badge className="bg-orange-500 text-white font-semibold">NEW</Badge>

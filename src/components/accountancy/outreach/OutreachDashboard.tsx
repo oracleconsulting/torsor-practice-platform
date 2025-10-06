@@ -334,7 +334,10 @@ export const OutreachDashboard: React.FC = () => {
               Create Campaign
             </Button>
             <Button
-              onClick={() => navigate('/accountancy/outreach/research')}
+              onClick={() => {
+                console.log('Navigating to research page...');
+                navigate('/accountancy/outreach/research');
+              }}
               variant="outline"
             >
               Research Firms

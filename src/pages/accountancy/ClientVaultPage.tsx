@@ -85,6 +85,7 @@ const ClientVaultPage = () => {
   const [selectedClientId, setSelectedClientId] = useState(clientId || '');
 
   useEffect(() => {
+    console.log('ClientVaultPage mounted', { clientId, selectedClientId, practiceId: practice?.id });
     if (selectedClientId) {
       fetchVaultData();
     } else {

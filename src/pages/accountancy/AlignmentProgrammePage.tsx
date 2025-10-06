@@ -103,6 +103,7 @@ export default function AlignmentProgrammePage() {
   const [activeView, setActiveView] = useState<'overview' | 'vision' | 'shifts' | 'sprints' | 'assessments'>('overview');
 
   useEffect(() => {
+    console.log('AlignmentProgrammePage mounted', { clientId, subscriptionTier, practiceId: practice?.id });
     loadPortalData();
   }, [clientId, practice?.id]);
 
