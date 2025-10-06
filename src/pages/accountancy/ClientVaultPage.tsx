@@ -10,13 +10,13 @@ import {
   ArrowLeftIcon
 } from '@heroicons/react/24/outline';
 import { useAccountancyContext } from '../contexts/AccountancyContext';
-import { supabase } from '../lib/supabase/client';
-import ClientVaultDashboard from '../components/accountancy/vault/ClientVaultDashboard';
-import ComplianceCalendarWidget from '../components/accountancy/vault/ComplianceCalendarWidget';
-import PaymentScheduleTracker from '../components/accountancy/vault/PaymentScheduleTracker';
-import FilingDeadlineManager from '../components/accountancy/vault/FilingDeadlineManager';
-import DocumentVersionControl from '../components/accountancy/vault/DocumentVersionControl';
-import ClientSelector from '../components/accountancy/vault/ClientSelector';
+import { supabase } from '../../lib/supabase/client';
+import ClientVaultDashboard from '../../components/accountancy/vault/ClientVaultDashboard';
+import ComplianceCalendarWidget from '../../components/accountancy/vault/ComplianceCalendarWidget';
+import PaymentScheduleTracker from '../../components/accountancy/vault/PaymentScheduleTracker';
+import FilingDeadlineManager from '../../components/accountancy/vault/FilingDeadlineManager';
+import DocumentVersionControl from '../../components/accountancy/vault/DocumentVersionControl';
+import ClientSelector from '../../components/accountancy/vault/ClientSelector';
 
 interface VaultData {
   clientId: string;

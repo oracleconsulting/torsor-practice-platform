@@ -27,17 +27,17 @@ import {
   Mail,
   Globe
 } from 'lucide-react';
-import { Progress } from '../components/ui/progress';
-import { Badge } from '../components/ui/badge';
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Progress } from '../../components/ui/progress';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import type { 
   TeamWellnessData, 
   StaffWellbeing, 
   PulseResponse, 
   WellbeingAlert,
   Intervention 
-} from '../types/wellness';
+} from '../../types/wellness';
 
 // Comprehensive mock data
 const mockStaff: StaffWellbeing[] = [

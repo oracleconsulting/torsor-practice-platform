@@ -27,7 +27,7 @@ import {
   StopCircle,
   ClipboardCheck
 } from 'lucide-react';
-import { CyberSecurityData, SecurityIncident, Vulnerability, Alert } from '../types/accountancy';
+import { CyberSecurityData, SecurityIncident, Vulnerability, Alert } from '../../types/accountancy';
 
 interface CyberSecurityPageProps {
   className?: string;

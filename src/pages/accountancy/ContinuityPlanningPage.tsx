@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
-import { Progress } from '../components/ui/progress';
-import { Badge } from '../components/ui/badge';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/tabs';
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
+import { Progress } from '../../components/ui/progress';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
 import { Briefcase, TrendingUp, TrendingDown, Shield, Edit, Copy, FileText, Users, BookOpen, Lock, Download } from 'lucide-react';
-import { ContinuityPlan, EncryptedCredential, VaultDocument } from '../types/accountancy';
+import { ContinuityPlan, EncryptedCredential, VaultDocument } from '../../types/accountancy';
 
 const mockPlan: ContinuityPlan = {
   id: 'plan1',

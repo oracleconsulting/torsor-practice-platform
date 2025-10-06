@@ -1,21 +1,21 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAlternateAuditor } from '../hooks/useAlternateAuditor';
+import { useAlternateAuditor } from '../../hooks/useAlternateAuditor';
 import { useAccountancyContext } from '../contexts/AccountancyContext';
-import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Progress } from '../components/ui/progress';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { StatusIndicator } from '../components/accountancy/ui/StatusIndicator';
-import { CountdownTimer } from '../components/accountancy/ui/CountdownTimer';
-import { DocumentUploader } from '../components/accountancy/ui/DocumentUploader';
-import { WizardStepper } from '../components/accountancy/ui/WizardStepper';
-import { ComplianceCalendar } from '../components/accountancy/ui/ComplianceCalendar';
-import { NotificationSettings } from '../components/accountancy/ui/NotificationSettings';
+import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { Progress } from '../../components/ui/progress';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { StatusIndicator } from '../../components/accountancy/ui/StatusIndicator';
+import { CountdownTimer } from '../../components/accountancy/ui/CountdownTimer';
+import { DocumentUploader } from '../../components/accountancy/ui/DocumentUploader';
+import { WizardStepper } from '../../components/accountancy/ui/WizardStepper';
+import { ComplianceCalendar } from '../../components/accountancy/ui/ComplianceCalendar';
+import { NotificationSettings } from '../../components/accountancy/ui/NotificationSettings';
 import { 
   Shield, 
   AlertTriangle, 

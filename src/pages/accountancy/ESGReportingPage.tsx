@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { useAccountancyContext } from '../contexts/AccountancyContext';
-import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Progress } from '../components/ui/progress';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
+import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { Progress } from '../../components/ui/progress';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
 import { 
   Leaf, 
   Users, 
@@ -25,7 +25,7 @@ import {
   Lightbulb,
   BookOpen
 } from 'lucide-react';
-import { ESGClient, ESGData, ESGReport, ESGSummary, CarbonResults } from '../types/accountancy';
+import { ESGClient, ESGData, ESGReport, ESGSummary, CarbonResults } from '../../types/accountancy';
 
 export const ESGReportingPage: React.FC = () => {
   const { subscriptionTier } = useAccountancyContext();
