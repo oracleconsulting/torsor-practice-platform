@@ -178,7 +178,13 @@ export default function AlignmentProgrammePage() {
       setLoading(true);
       
       // Get client name from selected client
-      const client = availableClients.find(c => c.id === selectedClient) || DEMO_CLIENTS[0];
+      const client = availableClients.find(c => c.id === selectedClient);
+      
+      if (!client) {
+        console.log('No client selected or found');
+        setLoading(false);
+        return;
+      }
       
       // Mock data - replace with actual API call
       const mockData: ClientPortalData = {
