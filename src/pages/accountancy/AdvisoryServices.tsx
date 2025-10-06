@@ -43,7 +43,7 @@ const iconMap: Record<string, any> = {
   'UserGroupIcon': UserGroupIcon,
   'ChartBarIcon': ChartBarIcon,
   'BriefcaseIcon': BriefcaseIcon,
-  'CurrencyPoundIcon': CurrencyPoundIcon,
+  'CurrencyPoundIcon': CurrencyPoundIcon
 };
 
 const defaultServices: AdvisoryService[] = [
@@ -431,17 +431,27 @@ const AdvisoryServices: React.FC = () => {
             {services.map((service) => {
               const Icon = iconMap[service.iconName] || BriefcaseIcon;
               return (
-                <Card key={service.id} className="relative hover:shadow-lg transition-shadow">
+                <Card 
+                  key={service.id} 
+                  className="relative hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => navigate(`/advisory-services/${service.id}`)}
+                >
                   {service.isCustom && (
-                    <div className="absolute top-4 right-4 flex gap-2">
+                    <div className="absolute top-4 right-4 flex gap-2 z-10">
                       <button
-                        onClick={() => handleEditService(service)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditService(service);
+                        }}
                         className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
                       >
                         <PencilIcon className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDeleteService(service.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteService(service.id);
+                        }}
                         className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
                       >
                         <TrashIcon className="w-4 h-4" />
