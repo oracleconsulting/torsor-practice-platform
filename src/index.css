@@ -1,5 +1,6 @@
-/* Import Modern SaaS Theme */
-@import './styles/modern-saas-theme.css';
+/* DISABLED: Modern SaaS Theme was causing contrast issues by forcing light theme colors */
+/* The file has been renamed to modern-saas-theme.css.disabled for reference */
+/* @import './styles/modern-saas-theme.css'; */
 
 @tailwind base;
 @tailwind components;
