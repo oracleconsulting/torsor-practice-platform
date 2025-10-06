@@ -634,13 +634,17 @@ const EnhancedCompaniesHouseSearch: React.FC = () => {
                   
                   <div>
                     <Label htmlFor="exactMatch">Match Type</Label>
-                    <Select value={exactMatch.toString()} onValueChange={(v) => setExactMatch(v === 'true')}>
+                    <Select 
+                      value={exactMatch.toString()} 
+                      defaultValue="true"
+                      onValueChange={(v) => setExactMatch(v === 'true')}
+                    >
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Exact Address Only" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="true">✓ Exact Address Only (Recommended)</SelectItem>
                         <SelectItem value="false">Similar Addresses (More Results)</SelectItem>
-                        <SelectItem value="true">Exact Address Only</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
