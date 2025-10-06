@@ -73,73 +73,59 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
   };
 
   const handleConductResearch = async () => {
-    if (!prospect?.company_number && !companyData?.company_number) {
-      toast.error('Cannot conduct research without company data');
+    if (!prospectId) {
+      toast.error('Cannot conduct research: Prospect must be saved first. Click "Save" to create a prospect record.');
       return;
     }
 
     try {
       setResearching(true);
-      toast.info('Conducting AI-powered research... This may take 30-60 seconds.');
+      toast.info('🔍 Conducting AI-powered research with Perplexity... This may take 30-60 seconds.');
 
-      // Mock research results for now (backend not fully integrated)
-      setTimeout(() => {
-        const mockResearch = {
-          trading_address_confirmation: {
-            trading_address: prospect?.registered_office_address || companyData?.address || 'Address verification in progress',
-            confidence: 85
-          },
-          company_history: `${prospect?.company_name || companyData?.company_name} was incorporated on ${prospect?.date_of_creation || companyData?.date_of_creation || 'unknown date'}. The company is currently ${prospect?.company_status || companyData?.company_status || 'active'}.`,
-          website_analysis: 'Website analysis: Company online presence being researched...',
-          key_personnel: 'Key personnel information being gathered from Companies House records...',
-          latest_news: 'Latest news and developments being researched...'
-        };
+      // REAL API CALL to backend with Perplexity integration
+      const results = await savedProspectsService.conductResearch(prospectId);
 
-        setResearchResults(mockResearch);
-        setProspect({ ...prospect, research_completed: true, research_data: mockResearch });
-        toast.success('Research completed!');
-        setResearching(false);
-
-        if (onResearchComplete) {
-          onResearchComplete({ research_results: mockResearch });
-        }
-      }, 2000);
+      setResearchResults(results.research);
+      setProspect({ ...prospect, research_completed: true, research_data: results.research });
+      
+      toast.success('✅ Research completed! Trading address verified, company intel gathered.');
+      
+      if (onResearchComplete) {
+        onResearchComplete(results);
+      }
     } catch (error: any) {
       console.error('Research failed:', error);
-      toast.error(error.message || 'Failed to conduct research');
+      toast.error(error.message || 'Failed to conduct research. Ensure prospect is saved first.');
+    } finally {
       setResearching(false);
     }
   };
 
   const handleLoadOfficeHistory = async () => {
-    const companyNumber = prospect?.company_number || companyData?.company_number;
-    
-    if (!companyNumber) {
-      toast.error('Cannot load office history without company number');
+    if (!prospectId) {
+      toast.error('Cannot load office history: Prospect must be saved first. Click "Save" to create a prospect record.');
       return;
     }
 
     try {
       setLoading(true);
-      toast.info('Loading office history from Companies House...');
+      toast.info('📋 Loading registered office history from Companies House...');
       
-      // Mock office history for now
-      setTimeout(() => {
-        const mockHistory = [
-          {
-            date: prospect?.date_of_creation || companyData?.date_of_creation || '2010-01-01',
-            description: 'Company incorporated at this address',
-            address: prospect?.registered_office_address || companyData?.address
-          }
-        ];
-        
-        setOfficeHistory(mockHistory);
-        toast.success(`Found ${mockHistory.length} address registration`);
-        setLoading(false);
-      }, 1000);
+      // REAL API CALL to backend - fetches filing history (AD01 forms)
+      const historyData = await savedProspectsService.getOfficeHistory(prospectId);
+      
+      setOfficeHistory(historyData.address_history || []);
+      
+      const changeCount = historyData.total_changes || 0;
+      if (changeCount === 0) {
+        toast.info('✅ No address changes found - company has been at same registered office');
+      } else {
+        toast.success(`✅ Found ${changeCount} registered office change${changeCount > 1 ? 's' : ''} - potential accountant switches!`);
+      }
     } catch (error: any) {
       console.error('Failed to load office history:', error);
-      toast.error('Failed to load office history');
+      toast.error(error.message || 'Failed to load office history. Ensure prospect is saved first.');
+    } finally {
       setLoading(false);
     }
   };
