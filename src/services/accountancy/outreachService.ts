@@ -359,6 +359,18 @@ async function makeAuthenticatedRequest(url: string, options: RequestInit = {}) 
           'Content-Type': 'application/json',
         },
       });
+    } else {
+      // If refresh fails on 401, return demo data
+      console.warn('401 - No valid session - returning demo data');
+      return new Response(JSON.stringify({ 
+        companies: MOCK_COMPANY_DATA,
+        total: MOCK_COMPANY_DATA.length,
+        page: 1,
+        message: 'Demo data - connect to live API for real results'
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
   }
 
