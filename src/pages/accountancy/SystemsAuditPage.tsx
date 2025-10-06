@@ -235,16 +235,16 @@ export default function SystemsAuditPage() {
   console.log('SystemsAuditPage rendering', { clientId, auditData: auditData ? 'loaded' : 'null' });
 
   return (
-    <div className="container mx-auto px-4 py-8 bg-gray-900 min-h-screen">
+    <div className="container mx-auto px-4 py-8 min-h-screen" style={{ backgroundColor: '#111827' }}>
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-100 mb-2 flex items-center gap-2">
+            <h1 className="text-3xl font-bold mb-2 flex items-center gap-2" style={{ color: '#f3f4f6' }}>
               <CogIcon className="h-8 w-8 text-blue-400" />
               Business Systems Audit
             </h1>
-            <p className="text-gray-300">
-              Operational systems efficiency analysis for {auditData?.clientName} • v2.2.0 STABLE
+            <p style={{ color: '#d1d5db' }}>
+              Operational systems efficiency analysis for {auditData?.clientName} • v2.2.1
             </p>
           </div>
           <Badge className="bg-orange-500 text-white font-semibold">NEW</Badge>
@@ -253,12 +253,12 @@ export default function SystemsAuditPage() {
 
       {/* Overall Score & Potential Savings */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <Card className="bg-gray-800 border-gray-700">
+        <Card style={{ backgroundColor: '#1f2937', borderColor: '#374151' }}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-gray-100 mb-2">Efficiency Score</h3>
-                <p className="text-gray-300 text-sm">Last audited: {auditData?.auditDate}</p>
+                <h3 className="text-lg font-semibold mb-2" style={{ color: '#f3f4f6' }}>Efficiency Score</h3>
+                <p className="text-sm" style={{ color: '#d1d5db' }}>Last audited: {auditData?.auditDate}</p>
               </div>
               <div className={`text-6xl font-bold ${getScoreColor(auditData?.overallScore || 0)}`}>
                 {auditData?.overallScore}

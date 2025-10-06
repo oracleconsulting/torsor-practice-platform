@@ -83,10 +83,10 @@ const TeamManagementPage: React.FC = () => {
         <DotPattern />
         <GeometricShape />
         <div className="relative z-10 container mx-auto px-6">
-          <h1 className="text-5xl font-black uppercase text-white mb-2 drop-shadow-lg">
+          <h1 className="text-5xl font-black uppercase mb-2 drop-shadow-lg" style={{ color: '#ffffff' }}>
             TEAM DEVELOPMENT HUB
           </h1>
-          <p className="text-xl text-white font-bold uppercase drop-shadow-md">
+          <p className="text-xl font-bold uppercase drop-shadow-md" style={{ color: '#ffffff' }}>
             BUILD ADVISORY CONFIDENCE AND CAPABILITY ACROSS YOUR TEAM
           </p>
         </div>
