@@ -6,56 +6,9 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ===== CRITICAL OVERRIDES FOR DARK THEME PAGES ===== */
-/* Override modern-saas-theme.css completely for dark-themed pages */
-
-/* Force dark backgrounds to work */
-[data-portal="accountancy"] .bg-gray-900 { background-color: #111827 !important; }
-[data-portal="accountancy"] .bg-gray-800 { background-color: #1f2937 !important; }
-[data-portal="accountancy"] .bg-gray-850 { background-color: #1a2332 !important; }
-[data-portal="accountancy"] .bg-gray-700 { background-color: #374151 !important; }
-[data-portal="accountancy"] .bg-gray-600 { background-color: #4b5563 !important; }
-
-/* Force light text colors to work on dark backgrounds */
-[data-portal="accountancy"] .text-white { color: #ffffff !important; }
-[data-portal="accountancy"] .text-gray-100 { color: #f3f4f6 !important; }
-[data-portal="accountancy"] .text-gray-200 { color: #e5e7eb !important; }
-[data-portal="accountancy"] .text-gray-300 { color: #d1d5db !important; }
-
-/* Force green/blue badge text colors */
-[data-portal="accountancy"] .text-green-100 { color: #d1fae5 !important; }
-[data-portal="accountancy"] .text-green-50 { color: #f0fdf4 !important; }
-[data-portal="accountancy"] .text-blue-100 { color: #dbeafe !important; }
-
-/* Force border colors */
-[data-portal="accountancy"] .border-gray-700 { border-color: #374151 !important; }
-[data-portal="accountancy"] .border-gray-600 { border-color: #4b5563 !important; }
-[data-portal="accountancy"] .border-gray-800 { border-color: #1f2937 !important; }
-
-/* Override card components specifically */
-[data-portal="accountancy"] .bg-gray-800.rounded-lg,
-[data-portal="accountancy"] .bg-gray-900.rounded-lg,
-[data-portal="accountancy"] div[class*="bg-gray-8"],
-[data-portal="accountancy"] div[class*="bg-gray-9"] {
-  background-color: inherit !important;
-}
-
-/* Ensure green cards have proper text contrast */
-[data-portal="accountancy"] .from-green-700 { color: #ffffff !important; }
-[data-portal="accountancy"] .from-green-600 { color: #ffffff !important; }
-[data-portal="accountancy"] .bg-green-700,
-[data-portal="accountancy"] .bg-green-800,
-[data-portal="accountancy"] .bg-green-600 {
-  color: #ffffff !important;
-}
-
-/* Force Team Development Hub header to use white text */
-[data-portal="accountancy"] .bg-\[\#1a2b4a\] h1,
-[data-portal="accountancy"] .bg-\[\#1a2b4a\] p,
-[data-portal="accountancy"] div[class*="bg-"][class*="1a2b4a"] h1,
-[data-portal="accountancy"] div[class*="bg-"][class*="1a2b4a"] p {
-  color: #ffffff !important;
-}
+/* ===== REMOVED ALL ACCOUNTANCY PORTAL CSS OVERRIDES ===== */
+/* These were causing invisible content - v2.0.7 */
+/* Let Tailwind classes work naturally without forced overrides */
 
 /* Professional Financial Services Theme - Global Styles */
 
