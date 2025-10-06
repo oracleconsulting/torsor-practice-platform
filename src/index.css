@@ -1,11 +1,19 @@
+/* Modern SaaS Theme - Re-enabled for v2.2.0 */
+@import './styles/modern-saas-theme.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* v2.0.8 - NUCLEAR RESET: Absolutely minimal CSS */
-/* Removed ALL custom overrides to debug production issue */
-
+/* Minimal essential fixes only */
 body, html, #root {
   margin: 0;
   padding: 0;
+  min-height: 100vh;
+}
+
+/* Ensure scrolling works */
+body {
+  overflow-y: auto;
+  overflow-x: hidden;
 }

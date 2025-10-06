@@ -244,7 +244,7 @@ export default function SystemsAuditPage() {
               Business Systems Audit
             </h1>
             <p className="text-gray-300">
-              Operational systems efficiency analysis for {auditData?.clientName} • v2.0.8 - NUCLEAR RESET
+              Operational systems efficiency analysis for {auditData?.clientName} • v2.2.0 STABLE
             </p>
           </div>
           <Badge className="bg-orange-500 text-white font-semibold">NEW</Badge>
