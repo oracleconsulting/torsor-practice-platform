@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
+import { supabase } from '../../lib/supabase/client';
 import { 
   CalendarDaysIcon, 
   CheckCircleIcon, 
@@ -102,13 +103,75 @@ export default function AlignmentProgrammePage() {
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState<'overview' | 'vision' | 'shifts' | 'sprints' | 'assessments'>('overview');
 
-  useEffect(() => {
-    console.log('AlignmentProgrammePage mounted', { clientId, subscriptionTier, practiceId: practice?.id });
-    loadPortalData();
-  }, [clientId, practice?.id]);
-
   const [availableClients, setAvailableClients] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState(clientId || '');
+
+  useEffect(() => {
+    console.log('AlignmentProgrammePage mounted', { clientId, subscriptionTier, practiceId: practice?.id });
+    if (practice?.id) {
+      fetchClients();
+    }
+  }, [practice?.id]);
+
+  useEffect(() => {
+    if (selectedClient) {
+      loadPortalData();
+    }
+  }, [selectedClient]);
+
+  const fetchClients = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        console.log('No session - showing empty client list');
+        setAvailableClients([]);
+        return;
+      }
+
+      // Fetch clients from oracle_client_mapping
+      const { data: clientMappings, error } = await supabase
+        .from('oracle_client_mapping')
+        .select(`
+          id,
+          oracle_client_id,
+          practice_id,
+          client_config (
+            client_name,
+            contact_email
+          )
+        `)
+        .eq('practice_id', practice?.id);
+
+      if (error) {
+        console.error('Error fetching clients:', error);
+        setAvailableClients([]);
+        return;
+      }
+
+      if (clientMappings && clientMappings.length > 0) {
+        const clients = clientMappings.map((mapping: any) => ({
+          id: mapping.oracle_client_id,
+          name: mapping.client_config?.client_name || 'Unnamed Client',
+          email: mapping.client_config?.contact_email || ''
+        }));
+        
+        console.log('Loaded clients from Supabase:', clients);
+        setAvailableClients(clients);
+        
+        // Set first client as default if no clientId provided
+        if (!selectedClient && clients.length > 0) {
+          setSelectedClient(clients[0].id);
+        }
+      } else {
+        console.log('No clients found for practice');
+        setAvailableClients([]);
+      }
+    } catch (error) {
+      console.error('Error in fetchClients:', error);
+      setAvailableClients([]);
+    }
+  };
 
   const loadPortalData = async () => {
     try {
