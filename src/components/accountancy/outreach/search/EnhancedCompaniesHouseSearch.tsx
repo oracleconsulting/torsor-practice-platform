@@ -644,6 +644,19 @@ const EnhancedCompaniesHouseSearch: React.FC = () => {
                   </div>
                 </div>
 
+                <div className="border-t pt-3 mt-3">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="excludeDissolved"
+                      checked={excludeDissolved}
+                      onCheckedChange={(checked) => setExcludeDissolved(checked as boolean)}
+                    />
+                    <Label htmlFor="excludeDissolved" className="text-sm cursor-pointer">
+                      Exclude dissolved/inactive companies
+                    </Label>
+                  </div>
+                </div>
+
                 <div className="flex gap-2">
                   <Button 
                     onClick={handleRegisteredOfficeSearch} 
