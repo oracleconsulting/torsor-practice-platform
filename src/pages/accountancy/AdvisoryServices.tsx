@@ -32,9 +32,12 @@ interface AdvisoryService {
   iconName: string;
   basePrice: string;
   deliveryTime: string;
+  deliveredBy?: string; // Who delivers this service
+  aims?: string; // What this service aims to achieve
   tier: 'all' | 'professional' | 'enterprise';
   features: string[];
   isCustom?: boolean;
+  isEdited?: boolean; // Track if default service has been edited
 }
 
 const iconMap: Record<string, any> = {
@@ -169,6 +172,8 @@ const AdvisoryServices: React.FC = () => {
     iconName: 'BriefcaseIcon',
     basePrice: '',
     deliveryTime: '',
+    deliveredBy: '',
+    aims: '',
     tier: 'all',
     features: ['']
   });
@@ -196,17 +201,53 @@ const AdvisoryServices: React.FC = () => {
   };
 
   const loadCustomServices = () => {
-    // Load from localStorage for now (could be Supabase later)
-    const saved = localStorage.getItem(`custom-services-${practiceId}`);
-    if (saved) {
-      const customServices = JSON.parse(saved);
-      setServices([...defaultServices, ...customServices]);
+    // Load custom services AND edited default services from localStorage
+    const customSaved = localStorage.getItem(`custom-services-${practiceId}`);
+    const editedSaved = localStorage.getItem(`edited-services-${practiceId}`);
+    
+    let allServices = [...defaultServices];
+    
+    // Apply edits to default services
+    if (editedSaved) {
+      const editedServices = JSON.parse(editedSaved);
+      allServices = allServices.map(service => {
+        const edited = editedServices.find((e: any) => e.id === service.id);
+        return edited ? { ...service, ...edited, isEdited: true } : service;
+      });
     }
+    
+    // Add custom services
+    if (customSaved) {
+      const customServices = JSON.parse(customSaved);
+      allServices = [...allServices, ...customServices];
+    }
+    
+    setServices(allServices);
   };
 
   const saveCustomServices = (updatedServices: AdvisoryService[]) => {
+    // Save custom services
     const customOnly = updatedServices.filter(s => s.isCustom);
     localStorage.setItem(`custom-services-${practiceId}`, JSON.stringify(customOnly));
+    
+    // Save edited default services (only the changed fields)
+    const editedDefaults = updatedServices
+      .filter(s => !s.isCustom && s.isEdited)
+      .map(s => ({
+        id: s.id,
+        basePrice: s.basePrice,
+        deliveryTime: s.deliveryTime,
+        deliveredBy: s.deliveredBy,
+        aims: s.aims,
+        features: s.features,
+        description: s.description,
+        tier: s.tier,
+        isEdited: true
+      }));
+    
+    if (editedDefaults.length > 0) {
+      localStorage.setItem(`edited-services-${practiceId}`, JSON.stringify(editedDefaults));
+    }
   };
 
   const handleAddService = () => {
@@ -231,6 +272,8 @@ const AdvisoryServices: React.FC = () => {
       iconName: service.iconName,
       basePrice: service.basePrice,
       deliveryTime: service.deliveryTime,
+      deliveredBy: service.deliveredBy || '',
+      aims: service.aims || '',
       tier: service.tier,
       features: [...service.features]
     });
@@ -436,28 +479,36 @@ const AdvisoryServices: React.FC = () => {
                   className="relative hover:shadow-lg transition-shadow cursor-pointer"
                   onClick={() => navigate(`/advisory-services/${service.id}`)}
                 >
-                  {service.isCustom && (
-                    <div className="absolute top-4 right-4 flex gap-2 z-10">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditService(service);
-                        }}
-                        className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
-                      >
-                        <PencilIcon className="w-4 h-4" />
-                      </button>
+                  {/* Edit button for ALL services, delete only for custom */}
+                  <div className="absolute top-4 right-4 flex gap-2 z-10">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditService(service);
+                      }}
+                      className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
+                      title="Edit service details"
+                    >
+                      <PencilIcon className="w-4 h-4" />
+                    </button>
+                    {service.isCustom && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDeleteService(service.id);
                         }}
                         className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                        title="Delete custom service"
                       >
                         <TrashIcon className="w-4 h-4" />
                       </button>
-                    </div>
-                  )}
+                    )}
+                    {service.isEdited && (
+                      <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded">
+                        Edited
+                      </span>
+                    )}
+                  </div>
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <Icon className="w-10 h-10 text-blue-600" />
