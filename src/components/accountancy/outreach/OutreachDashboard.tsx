@@ -328,7 +328,7 @@ export const OutreachDashboard: React.FC = () => {
               Add Prospect
             </Button>
             <Button
-              onClick={() => navigate('/accountancy/outreach/campaigns/new')}
+              onClick={() => navigate('/outreach/campaigns/new')}
               variant="outline"
             >
               Create Campaign
@@ -336,14 +336,14 @@ export const OutreachDashboard: React.FC = () => {
             <Button
               onClick={() => {
                 console.log('Navigating to research page...');
-                navigate('/accountancy/outreach/research');
+                navigate('/outreach/research');
               }}
               variant="outline"
             >
               Research Firms
             </Button>
             <Button
-              onClick={() => navigate('/accountancy/outreach/analytics')}
+              onClick={() => navigate('/outreach/analytics')}
               variant="outline"
             >
               View Analytics
