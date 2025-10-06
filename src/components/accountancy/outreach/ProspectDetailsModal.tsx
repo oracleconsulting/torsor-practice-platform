@@ -415,6 +415,24 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                 </Card>
               ) : (
                 <>
+                  {/* COMPLETE RESEARCH DATA DUMP */}
+                  <Card className="mb-4">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                        Research Complete - Full Data
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-4">
+                        <h4 className="font-semibold mb-2 text-sm">Complete Research Object (JSON)</h4>
+                        <pre className="text-xs bg-white p-3 rounded overflow-auto max-h-96 whitespace-pre-wrap">
+                          {JSON.stringify(researchResults || prospect?.research_data, null, 2)}
+                        </pre>
+                      </div>
+                    </CardContent>
+                  </Card>
+
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -423,19 +441,47 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-2">
+                      <div className="space-y-3">
+                        {/* Try multiple possible field structures */}
                         <div>
                           <label className="text-sm font-medium text-gray-500">Verified Address</label>
-                          <p className="text-sm">
-                            {researchResults?.trading_address_confirmation?.trading_address || 
-                             prospect?.research_data?.trading_address_confirmation?.trading_address ||
-                             'Not verified'}
-                          </p>
+                          <div className="bg-gray-50 p-3 rounded mt-1">
+                            <p className="text-sm">
+                              {researchResults?.trading_address_confirmation?.trading_address ||
+                               researchResults?.trading_address_confirmation?.address_line_1 ||
+                               prospect?.research_data?.trading_address_confirmation?.trading_address ||
+                               prospect?.research_data?.trading_address_confirmation?.address_line_1 ||
+                               'Not found in response'}
+                            </p>
+                            {(researchResults?.trading_address_confirmation?.address_line_2 || 
+                              prospect?.research_data?.trading_address_confirmation?.address_line_2) && (
+                              <p className="text-sm mt-1">
+                                {researchResults?.trading_address_confirmation?.address_line_2 || 
+                                 prospect?.research_data?.trading_address_confirmation?.address_line_2}
+                              </p>
+                            )}
+                            {(researchResults?.trading_address_confirmation?.locality || 
+                              prospect?.research_data?.trading_address_confirmation?.locality) && (
+                              <p className="text-sm mt-1">
+                                {researchResults?.trading_address_confirmation?.locality || 
+                                 prospect?.research_data?.trading_address_confirmation?.locality}
+                              </p>
+                            )}
+                            {(researchResults?.trading_address_confirmation?.postal_code || 
+                              prospect?.research_data?.trading_address_confirmation?.postal_code) && (
+                              <p className="text-sm font-medium mt-1">
+                                {researchResults?.trading_address_confirmation?.postal_code || 
+                                 prospect?.research_data?.trading_address_confirmation?.postal_code}
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-gray-500">Confidence</label>
-                          <Badge>
-                            {researchResults?.trading_address_confirmation?.confidence || 
+                          <Badge className="ml-2">
+                            {researchResults?.confidence || 
+                             researchResults?.trading_address_confirmation?.confidence || 
+                             prospect?.research_data?.confidence ||
                              prospect?.research_data?.trading_address_confirmation?.confidence || 0}%
                           </Badge>
                         </div>
