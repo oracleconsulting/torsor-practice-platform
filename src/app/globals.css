@@ -1,5 +1,5 @@
-/* Import Modern SaaS Theme */
-@import '../../styles/modern-saas-theme.css';
+/* DISABLED: Modern SaaS Theme - causing conflicts */
+/* @import '../../styles/modern-saas-theme.css'; */
 
 @tailwind base;
 @tailwind components;
