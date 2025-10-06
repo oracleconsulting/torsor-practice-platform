@@ -81,6 +81,7 @@ const EnhancedCompaniesHouseSearch: React.FC = () => {
   const [similarityThreshold, setSimilarityThreshold] = useState(0.8);
   const [maxResults, setMaxResults] = useState(1000);
   const [exactMatch, setExactMatch] = useState(false); // Default to non-exact for more results
+  const [excludeDissolved, setExcludeDissolved] = useState(true); // Default to excluding dissolved companies
   
   // Advanced Filter Search
   const [advancedFilters, setAdvancedFilters] = useState({
