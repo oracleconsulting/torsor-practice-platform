@@ -216,11 +216,13 @@ const EnhancedCompaniesHouseSearch: React.FC = () => {
       console.log('Max results setting:', maxResults);
       console.log('Similarity threshold:', similarityThreshold);
       console.log('Exact match setting:', exactMatch);
+      console.log('Exclude dissolved setting:', excludeDissolved);
       const results = await outreachService.searchByRegisteredOffice(
         targetAddress,
         similarityThreshold,
         maxResults,
-        exactMatch
+        exactMatch,
+        excludeDissolved
       );
       console.log('Address matching results:', results);
       setResults(results);

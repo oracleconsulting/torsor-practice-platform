@@ -1417,14 +1417,15 @@ export const outreachService = {
   },
 
   // Address matching method with exact matching
-  async searchByRegisteredOffice(address: string, similarityThreshold: number = 80, maxResults: number = 50, exactMatch: boolean = true): Promise<CompanySearchResult[]> {
+  async searchByRegisteredOffice(address: string, similarityThreshold: number = 80, maxResults: number = 50, exactMatch: boolean = true, excludeDissolved: boolean = true): Promise<CompanySearchResult[]> {
     const response = await makeAuthenticatedRequest(`${API_BASE_URL}/api/outreach/enhanced-search/registered-office-matching`, {
       method: 'POST',
       body: JSON.stringify({ 
         address, 
         similarity_threshold: similarityThreshold, 
         max_results: maxResults,
-        exact_match: exactMatch
+        exact_match: exactMatch,
+        exclude_dissolved: excludeDissolved
       }),
     });
 
