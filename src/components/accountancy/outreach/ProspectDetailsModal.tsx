@@ -74,8 +74,12 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
 
   const handleConductResearch = async () => {
     if (!prospectId) {
-      toast.error('Cannot conduct research: Prospect must be saved first. Click "Save" to create a prospect record.');
-      return;
+      toast.error('Saving company first...');
+      await autoSaveProspect();
+      if (!prospectId) {
+        toast.error('Failed to save company. Please try the Save button manually.');
+        return;
+      }
     }
 
     try {
@@ -95,7 +99,7 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
       }
     } catch (error: any) {
       console.error('Research failed:', error);
-      toast.error(error.message || 'Failed to conduct research. Ensure prospect is saved first.');
+      toast.error(error.message || 'AI research failed. This feature requires valid API keys.');
     } finally {
       setResearching(false);
     }
@@ -103,8 +107,12 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
 
   const handleLoadOfficeHistory = async () => {
     if (!prospectId) {
-      toast.error('Cannot load office history: Prospect must be saved first. Click "Save" to create a prospect record.');
-      return;
+      toast.error('Saving company first...');
+      await autoSaveProspect();
+      if (!prospectId) {
+        toast.error('Failed to save company. Please try the Save button manually.');
+        return;
+      }
     }
 
     try {
@@ -124,7 +132,7 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
       }
     } catch (error: any) {
       console.error('Failed to load office history:', error);
-      toast.error(error.message || 'Failed to load office history. Ensure prospect is saved first.');
+      toast.error(error.message || 'Failed to load office history from Companies House API.');
     } finally {
       setLoading(false);
     }
@@ -510,8 +518,8 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                       <div>
                         <span className="text-gray-500">Company Age:</span>
                         <p className="font-medium">
-                          {prospect?.date_of_creation 
-                            ? `${Math.floor((new Date().getTime() - new Date(prospect.date_of_creation).getTime()) / (1000 * 60 * 60 * 24 * 365))} years`
+                          {(prospect?.date_of_creation || companyData?.date_of_creation)
+                            ? `${Math.floor((new Date().getTime() - new Date(prospect?.date_of_creation || companyData?.date_of_creation).getTime()) / (1000 * 60 * 60 * 24 * 365))} years`
                             : 'Unknown'}
                         </p>
                       </div>
@@ -525,7 +533,7 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                       </div>
                       <div>
                         <span className="text-gray-500">Jurisdiction:</span>
-                        <p className="font-medium">{prospect?.jurisdiction || 'England & Wales'}</p>
+                        <p className="font-medium">{prospect?.jurisdiction || companyData?.jurisdiction || 'England & Wales'}</p>
                       </div>
                     </div>
                   </div>
@@ -535,15 +543,15 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                     <ul className="space-y-2 text-sm">
                       <li className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 text-green-500 mt-0.5" />
-                        <span><strong>Timing:</strong> Best to reach out during Q4 for tax planning opportunities</span>
+                        <span><strong>Timing:</strong> {getTimingRecommendation(prospect, companyData)}</span>
                       </li>
                       <li className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 text-green-500 mt-0.5" />
-                        <span><strong>Pain Points:</strong> Likely needs advisory services for growth strategy</span>
+                        <span><strong>Pain Points:</strong> {getPainPoints(prospect, companyData)}</span>
                       </li>
                       <li className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 text-green-500 mt-0.5" />
-                        <span><strong>Approach:</strong> Lead with compliance, transition to advisory</span>
+                        <span><strong>Approach:</strong> {getApproach(prospect, companyData)}</span>
                       </li>
                     </ul>
                   </div>
@@ -551,17 +559,24 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                   <div className="border-t pt-4">
                     <h4 className="font-semibold mb-2">Risk Indicators</h4>
                     <div className="grid grid-cols-2 gap-2">
-                      {prospect?.has_charges && (
+                      {(prospect?.has_charges || companyData?.has_charges) && (
                         <Badge variant="outline" className="border-orange-500 text-orange-700">
                           ⚠️ Has Charges
                         </Badge>
                       )}
-                      {prospect?.has_insolvency_history && (
+                      {(prospect?.has_insolvency_history || companyData?.has_insolvency_history) && (
                         <Badge variant="outline" className="border-red-500 text-red-700">
                           🚨 Insolvency History
                         </Badge>
                       )}
-                      {!prospect?.has_charges && !prospect?.has_insolvency_history && (
+                      {(prospect?.has_been_liquidated || companyData?.has_been_liquidated) && (
+                        <Badge variant="outline" className="border-red-600 text-red-800">
+                          ⛔ Liquidation History
+                        </Badge>
+                      )}
+                      {!(prospect?.has_charges || companyData?.has_charges) && 
+                       !(prospect?.has_insolvency_history || companyData?.has_insolvency_history) &&
+                       !(prospect?.has_been_liquidated || companyData?.has_been_liquidated) && (
                         <Badge variant="outline" className="border-green-500 text-green-700">
                           ✓ No Red Flags
                         </Badge>
@@ -570,12 +585,26 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                   </div>
 
                   <div className="border-t pt-4">
+                    <h4 className="font-semibold mb-2">SIC Codes & Industry</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {((prospect?.sic_codes || companyData?.sic_codes) || []).map((sic: string, idx: number) => (
+                        <Badge key={idx} variant="secondary">
+                          {sic}
+                        </Badge>
+                      ))}
+                      {!(prospect?.sic_codes || companyData?.sic_codes || []).length && (
+                        <span className="text-sm text-gray-500">No SIC codes listed</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4">
                     <h4 className="font-semibold mb-2">Next Steps</h4>
                     <ol className="space-y-2 text-sm list-decimal list-inside">
                       <li>Verify trading address via AI research (use AI Research tab)</li>
-                      <li>Check registered office history for accountant changes</li>
+                      <li>Check registered office history for accountant changes (use Office History tab)</li>
                       <li>Research company website and online presence</li>
-                      <li>Prepare personalized outreach message</li>
+                      <li>Prepare personalized outreach based on {(prospect?.company_type || companyData?.company_type) || 'company type'}</li>
                       <li>Add to targeted campaign</li>
                     </ol>
                   </div>
@@ -590,16 +619,71 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
             Close
           </Button>
           <Button
-            onClick={() => window.open(
-              `https://find-and-update.company-information.service.gov.uk/company/${prospect?.company_number || companyData?.company_number}`,
-              '_blank'
-            )}
+            onClick={() => setShowCompaniesHousePreview(true)}
           >
             <ExternalLink className="w-4 h-4 mr-2" />
             View on Companies House
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Companies House Preview Modal */}
+      {showCompaniesHousePreview && (
+        <Dialog open={showCompaniesHousePreview} onOpenChange={setShowCompaniesHousePreview}>
+          <DialogContent className="max-w-6xl max-h-[90vh]">
+            <DialogHeader>
+              <DialogTitle>Companies House - {prospect?.company_name || companyData?.company_name}</DialogTitle>
+            </DialogHeader>
+            {!iframeError ? (
+              <div className="w-full h-[70vh] relative">
+                <iframe
+                  src={`https://find-and-update.company-information.service.gov.uk/company/${prospect?.company_number || companyData?.company_number}`}
+                  className="w-full h-full border-0"
+                  title="Companies House Preview"
+                  onError={() => setIframeError(true)}
+                  sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                />
+              </div>
+            ) : (
+              <div className="w-full h-[70vh] flex items-center justify-center bg-gray-50">
+                <div className="text-center p-8">
+                  <AlertCircle className="w-16 h-16 text-orange-500 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Preview Blocked</h3>
+                  <p className="text-gray-600 mb-4">
+                    Companies House blocks embedded previews for security.
+                  </p>
+                  <Button
+                    onClick={() => window.open(
+                      `https://find-and-update.company-information.service.gov.uk/company/${prospect?.company_number || companyData?.company_number}`,
+                      '_blank'
+                    )}
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Open in New Tab Instead
+                  </Button>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setShowCompaniesHousePreview(false);
+                setIframeError(false);
+              }}>
+                Close Preview
+              </Button>
+              <Button
+                onClick={() => window.open(
+                  `https://find-and-update.company-information.service.gov.uk/company/${prospect?.company_number || companyData?.company_number}`,
+                  '_blank'
+                )}
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open in New Tab
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </Dialog>
   );
 };
