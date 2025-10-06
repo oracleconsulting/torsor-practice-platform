@@ -549,7 +549,6 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
           </DialogContent>
         </Dialog>
       )}
-      </DialogContent>
     </Dialog>
   );
 };
