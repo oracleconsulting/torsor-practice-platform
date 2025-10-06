@@ -5,6 +5,35 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===== CRITICAL OVERRIDES FOR DARK THEME PAGES ===== */
+/* Override modern-saas-theme.css for pages that need dark backgrounds */
+[data-portal="accountancy"] .bg-gray-900,
+[data-portal="accountancy"] .bg-gray-800,
+[data-portal="accountancy"] .bg-gray-850,
+[data-portal="accountancy"] [class*="bg-gray-9"],
+[data-portal="accountancy"] [class*="bg-gray-8"] {
+  background-color: revert !important;
+}
+
+[data-portal="accountancy"] .text-gray-100,
+[data-portal="accountancy"] .text-gray-200,
+[data-portal="accountancy"] .text-gray-300,
+[data-portal="accountancy"] .text-white,
+[data-portal="accountancy"] [class*="text-gray-1"],
+[data-portal="accountancy"] [class*="text-gray-2"],
+[data-portal="accountancy"] [class*="text-gray-3"] {
+  color: revert !important;
+}
+
+[data-portal="accountancy"] .border-gray-600,
+[data-portal="accountancy"] .border-gray-700,
+[data-portal="accountancy"] .border-gray-800,
+[data-portal="accountancy"] [class*="border-gray-6"],
+[data-portal="accountancy"] [class*="border-gray-7"],
+[data-portal="accountancy"] [class*="border-gray-8"] {
+  border-color: revert !important;
+}
+
 /* Professional Financial Services Theme - Global Styles */
 
 /* ===== ESSENTIAL VISIBILITY FIXES ===== */
