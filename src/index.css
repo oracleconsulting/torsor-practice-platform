@@ -71,6 +71,27 @@ body, html, #root {
   max-width: 100vw !important;
 }
 
+/* ===== PRODUCTION SAFETY: Prevent icon-only rendering ===== */
+/* Ensure all content containers are visible */
+[data-portal="accountancy"] .container,
+[data-portal="accountancy"] .max-w-7xl,
+[data-portal="accountancy"] .mx-auto,
+[data-portal="accountancy"] main,
+[data-portal="accountancy"] article,
+[data-portal="accountancy"] section {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Prevent icons from becoming fullscreen */
+svg, [class*="Icon"] {
+  max-width: 100% !important;
+  max-height: 100% !important;
+  width: auto !important;
+  height: auto !important;
+}
+
 body {
   position: static !important;
   inset: auto !important;
