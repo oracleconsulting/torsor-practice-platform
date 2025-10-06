@@ -79,16 +79,7 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
     }
   };
 
-  const loadProspect = fetchProspectDetails; // Alias for backward compatibility
-
-  useEffect(() => {
-    if (initialProspectId && !companyData) {
-      // Load prospect from backend
-      fetchProspectDetails();
-    }
-  }, [initialProspectId]);
-
-  const loadProspect = async () => {
+  const fetchProspectDetails = async () => {
     if (!prospectId) return;
     
     try {
