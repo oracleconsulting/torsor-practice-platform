@@ -107,15 +107,8 @@ export default function AlignmentProgrammePage() {
     loadPortalData();
   }, [clientId, practice?.id]);
 
-  // Mock clients for demo mode
-  const DEMO_CLIENTS = [
-    { id: 'client-tom-zaneta', name: 'Tom & Zaneta Ltd', email: 'tom@example.com' },
-    { id: 'client-ivc', name: 'IVC Accounting', email: 'james@ivcaccounting.co.uk' },
-    { id: 'client-sample', name: 'Sample Business Ltd', email: 'contact@sample.com' }
-  ];
-
-  const [availableClients, setAvailableClients] = useState(DEMO_CLIENTS);
-  const [selectedClient, setSelectedClient] = useState(clientId || DEMO_CLIENTS[0].id);
+  const [availableClients, setAvailableClients] = useState<any[]>([]);
+  const [selectedClient, setSelectedClient] = useState(clientId || '');
 
   const loadPortalData = async () => {
     try {
