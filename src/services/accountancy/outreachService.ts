@@ -357,20 +357,13 @@ async function makeAuthenticatedRequest(url: string, options: RequestInit = {}) 
     console.log('No session found, attempting to refresh...');
     const { data: { session: newSession }, error } = await supabase.auth.refreshSession();
     if (error || !newSession) {
-      console.warn('Authentication refresh failed - DEMO MODE activated:', error);
-      // Return mock response for demo mode
-      return new Response(JSON.stringify({ 
-        companies: MOCK_COMPANY_DATA,
-        total: MOCK_COMPANY_DATA.length,
-        page: 1,
-        message: 'Demo data - connect to live API for real results'
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      console.warn('No session - using DEMO MODE token for live API access');
+      // Use a demo token - backend is mocked and accepts any token
+      token = 'demo-token-' + Date.now();
+    } else {
+      token = newSession.access_token;
+      console.log('Session refreshed successfully');
     }
-    token = newSession.access_token;
-    console.log('Session refreshed successfully');
   }
   
   console.log('Making request with token:', token ? 'TOKEN_PRESENT' : 'NO_TOKEN');
@@ -385,7 +378,6 @@ async function makeAuthenticatedRequest(url: string, options: RequestInit = {}) 
   });
   
   console.log('Response status:', response.status, response.statusText);
-  console.log('Response headers:', Object.fromEntries(response.headers.entries()));
   
   if (response.status === 401) {
     console.log('401 received, attempting token refresh...');
@@ -399,18 +391,6 @@ async function makeAuthenticatedRequest(url: string, options: RequestInit = {}) 
           'Authorization': `Bearer ${refreshedSession.access_token}`,
           'Content-Type': 'application/json',
         },
-      });
-    } else {
-      // If refresh fails on 401, return demo data
-      console.warn('401 - No valid session - returning demo data');
-      return new Response(JSON.stringify({ 
-        companies: MOCK_COMPANY_DATA,
-        total: MOCK_COMPANY_DATA.length,
-        page: 1,
-        message: 'Demo data - connect to live API for real results'
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
       });
     }
   }
