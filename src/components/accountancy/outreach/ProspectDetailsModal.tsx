@@ -112,17 +112,28 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
       // REAL API CALL to backend with Perplexity integration
       const results = await savedProspectsService.conductResearch(prospectId);
 
-      setResearchResults(results.research);
-      setProspect({ ...prospect, research_completed: true, research_data: results.research });
+      console.log('RESEARCH RESULTS RECEIVED:', results);
+      console.log('Research data structure:', JSON.stringify(results, null, 2));
+
+      // Store the ENTIRE results object, not just results.research
+      setResearchResults(results.research || results);
+      setProspect({ 
+        ...prospect, 
+        research_completed: true, 
+        research_data: results.research || results 
+      });
       
-      toast.success('✅ Research completed! Trading address verified, company intel gathered.');
+      toast.success('✅ Research completed! Check AI Research tab for results.');
+      
+      // Switch to AI Research tab to show results
+      setActiveTab('research');
       
       if (onResearchComplete) {
         onResearchComplete(results);
       }
     } catch (error: any) {
       console.error('Research failed:', error);
-      toast.error(error.message || 'AI research failed. This feature requires valid API keys.');
+      toast.error(error.message || 'AI research failed. Check console for details.');
     } finally {
       setResearching(false);
     }
