@@ -685,7 +685,11 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
             Close
           </Button>
           <Button
-            onClick={() => setShowCompaniesHousePreview(true)}
+            onClick={() => window.open(
+              `https://find-and-update.company-information.service.gov.uk/company/${prospect?.company_number || companyData?.company_number}`,
+              '_blank',
+              'noopener,noreferrer'
+            )}
           >
             <ExternalLink className="w-4 h-4 mr-2" />
             View on Companies House
@@ -693,63 +697,6 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
         </DialogFooter>
       </DialogContent>
 
-      {/* Companies House Preview Modal */}
-      {showCompaniesHousePreview && (
-        <Dialog open={showCompaniesHousePreview} onOpenChange={setShowCompaniesHousePreview}>
-          <DialogContent className="max-w-6xl max-h-[90vh]">
-            <DialogHeader>
-              <DialogTitle>Companies House - {prospect?.company_name || companyData?.company_name}</DialogTitle>
-            </DialogHeader>
-            {!iframeError ? (
-              <div className="w-full h-[70vh] relative">
-                <iframe
-                  src={`https://find-and-update.company-information.service.gov.uk/company/${prospect?.company_number || companyData?.company_number}`}
-                  className="w-full h-full border-0"
-                  title="Companies House Preview"
-                  onError={() => setIframeError(true)}
-                  sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                />
-              </div>
-            ) : (
-              <div className="w-full h-[70vh] flex items-center justify-center bg-gray-50">
-                <div className="text-center p-8">
-                  <AlertCircle className="w-16 h-16 text-orange-500 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Preview Blocked</h3>
-                  <p className="text-gray-600 mb-4">
-                    Companies House blocks embedded previews for security.
-                  </p>
-                  <Button
-                    onClick={() => window.open(
-                      `https://find-and-update.company-information.service.gov.uk/company/${prospect?.company_number || companyData?.company_number}`,
-                      '_blank'
-                    )}
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Open in New Tab Instead
-                  </Button>
-                </div>
-              </div>
-            )}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => {
-                setShowCompaniesHousePreview(false);
-                setIframeError(false);
-              }}>
-                Close Preview
-              </Button>
-              <Button
-                onClick={() => window.open(
-                  `https://find-and-update.company-information.service.gov.uk/company/${prospect?.company_number || companyData?.company_number}`,
-                  '_blank'
-                )}
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Open in New Tab
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
     </Dialog>
   );
 };
