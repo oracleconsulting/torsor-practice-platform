@@ -34,6 +34,7 @@ import PEMonitor from '../components/accountancy/outreach/pe/PEMonitor';
 import PEAcquisitionDetail from '../pages/accountancy/outreach/PEAcquisitionDetail';
 import Research from '../pages/accountancy/outreach/Research';
 import Analytics from '../pages/accountancy/outreach/Analytics';
+import SavedProspectsPage from '../components/accountancy/outreach/SavedProspectsPage';
 
 // Import new page components
 import ClientRescues from '../pages/accountancy/ClientRescues';
@@ -147,6 +148,7 @@ const AccountancyRoutesWrapper: React.FC = () => {
         <Route path="schedule/:id" element={<SchedulePage />} />
         <Route path="prospects" element={<ProspectList />} />
         <Route path="prospects/:id" element={<ProspectDetail />} />
+        <Route path="saved-prospects" element={<SavedProspectsPage />} />
         <Route path="pe" element={<PEMonitor />} />
         <Route path="pe/:id" element={<PEAcquisitionDetail />} />
         <Route path="research" element={<Research />} />

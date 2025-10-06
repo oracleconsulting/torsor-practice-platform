@@ -25,9 +25,11 @@ import {
   Target,
   Zap,
   Eye,
-  Shield
+  Shield,
+  Save
 } from 'lucide-react';
 import { outreachService } from '@/services/accountancy/outreachService';
+import { savedProspectsService } from '@/services/accountancy/savedProspectsService';
 import { toast } from 'sonner';
 
 interface CompanySearchResult {
@@ -1162,6 +1164,26 @@ const EnhancedCompaniesHouseSearch: React.FC = () => {
                     </div>
                     
                     <div className="flex flex-col gap-2">
+                      <Button
+                        size="sm"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await savedProspectsService.saveProspect(company);
+                            toast.success(`Saved ${company.company_name}`);
+                          } catch (error: any) {
+                            if (error.message.includes('already exists')) {
+                              toast.info('Company already saved');
+                            } else {
+                              console.error(error);
+                              toast.error('Failed to save company');
+                            }
+                          }
+                        }}
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        Save
+                      </Button>
                       <Button 
                         size="sm" 
                         variant="outline"
