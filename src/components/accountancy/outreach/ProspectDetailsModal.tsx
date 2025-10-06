@@ -43,10 +43,11 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [researching, setResearching] = useState(false);
-  const [prospect, setProspect] = useState<any>(companyData || null);
+  const [prospect, setProspect] = useState<any>(companyData || null); // Start with companyData immediately
   const [researchResults, setResearchResults] = useState<any>(null);
   const [officeHistory, setOfficeHistory] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('overview');
+  const [showCompaniesHousePreview, setShowCompaniesHousePreview] = useState(false);
 
   useEffect(() => {
     if (prospectId && !companyData) {
@@ -141,12 +142,12 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
   };
 
   return (
-    <Dialog open={!!prospect} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={!!prospect || !!companyData} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Building2 className="w-6 h-6 text-blue-600" />
-            {prospect?.company_name || 'Loading...'}
+            {prospect?.company_name || companyData?.company_name || 'Loading...'}
           </DialogTitle>
           <div className="flex items-center gap-2 mt-2">
             <Badge variant="outline">{prospect?.company_number}</Badge>
@@ -221,12 +222,20 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm">{formatAddress(prospect?.registered_office_address)}</p>
-                  {prospect?.registered_office_is_in_dispute && (
-                    <div className="mt-2 flex items-center gap-2 text-orange-600">
-                      <AlertCircle className="w-4 h-4" />
-                      <span className="text-sm">Address is in dispute</span>
-                    </div>
+                  {prospect?.registered_office_address ? (
+                    <>
+                      <p className="text-sm">{formatAddress(prospect.registered_office_address)}</p>
+                      {prospect?.registered_office_is_in_dispute && (
+                        <div className="mt-2 flex items-center gap-2 text-orange-600">
+                          <AlertCircle className="w-4 h-4" />
+                          <span className="text-sm">Address is in dispute</span>
+                        </div>
+                      )}
+                    </>
+                  ) : prospect?.address ? (
+                    <p className="text-sm">{formatAddress(prospect.address)}</p>
+                  ) : (
+                    <p className="text-sm text-gray-500">Address not available</p>
                   )}
                 </CardContent>
               </Card>
@@ -501,15 +510,45 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
             Close
           </Button>
           <Button
-            onClick={() => window.open(
-              `https://find-and-update.company-information.service.gov.uk/company/${prospect?.company_number}`,
-              '_blank'
-            )}
+            onClick={() => setShowCompaniesHousePreview(true)}
           >
             <ExternalLink className="w-4 h-4 mr-2" />
             View on Companies House
           </Button>
         </DialogFooter>
+      </DialogContent>
+
+      {/* Companies House Preview Modal */}
+      {showCompaniesHousePreview && (
+        <Dialog open={showCompaniesHousePreview} onOpenChange={setShowCompaniesHousePreview}>
+          <DialogContent className="max-w-6xl max-h-[90vh]">
+            <DialogHeader>
+              <DialogTitle>Companies House - {prospect?.company_name}</DialogTitle>
+            </DialogHeader>
+            <div className="w-full h-[70vh]">
+              <iframe
+                src={`https://find-and-update.company-information.service.gov.uk/company/${prospect?.company_number}`}
+                className="w-full h-full border-0"
+                title="Companies House Preview"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCompaniesHousePreview(false)}>
+                Close Preview
+              </Button>
+              <Button
+                onClick={() => window.open(
+                  `https://find-and-update.company-information.service.gov.uk/company/${prospect?.company_number}`,
+                  '_blank'
+                )}
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open in New Tab
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       </DialogContent>
     </Dialog>
   );
