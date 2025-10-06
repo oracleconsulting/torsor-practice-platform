@@ -189,11 +189,12 @@ export const AccountancyProvider: React.FC<{ children: ReactNode }> = ({ childre
       // Create mock practice as fallback even on error
       const mockPractice: Practice = {
         id: '6d0a4f47-1a98-4bba-be4e-26c439b1358d',
-        name: '',
+        name: 'IVC Accounting - Demo',
         email: 'james@ivcaccounting.co.uk',
         contactName: 'James Howard',
         teamSize: 5,
-        subscription: 'professional',
+        subscription: 'enterprise',
+        subscription_tier: 'enterprise',
         createdAt: new Date(),
         updatedAt: new Date()
       };
