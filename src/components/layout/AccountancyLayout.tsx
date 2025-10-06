@@ -34,9 +34,9 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
     { label: 'Client Rescues', icon: AlertTriangle, href: '/accountancy/client-rescues', available: subscriptionTier !== 'free', badge: 'PRO' },
     { label: 'Advisory Services', icon: TrendingUp, href: '/accountancy/advisory-services', available: true },
     { label: 'Client Outreach', icon: Mail, href: '/accountancy/outreach', available: true },
-    { label: 'Client Vault', icon: ArchiveBoxIcon, href: '/accountancy/portal/client-vault', available: isProfessionalPlus, badge: 'NEW' },
-    { label: 'Systems Audit', icon: CogIcon, href: '/accountancy/portal/systems-audit', available: isProfessionalPlus, badge: 'NEW' },
-    { label: '365 Alignment', icon: CalendarDaysIcon, href: '/accountancy/portal/365-alignment', available: isProfessionalPlus, badge: 'PRO' },
+    { label: 'Client Vault', icon: ArchiveBoxIcon, href: '/accountancy/client-vault', available: isProfessionalPlus, badge: 'NEW' },
+    { label: 'Systems Audit', icon: CogIcon, href: '/accountancy/systems-audit', available: isProfessionalPlus, badge: 'NEW' },
+    { label: '365 Alignment', icon: CalendarDaysIcon, href: '/accountancy/365-alignment', available: isProfessionalPlus, badge: 'PRO' },
     { label: 'Manage Subscription', icon: Crown, href: '/accountancy/manage-subscription', available: true },
   ];
 
