@@ -1,7 +1,7 @@
 /**
  * Systems Audit Page - Business Operations Focus
- * Last Updated: 2025-01-20 20:00 UTC
- * Build Version: 2.0.2 - CSS OVERRIDE FIX
+ * Last Updated: 2025-01-20 20:15 UTC
+ * Build Version: 2.0.3 - EXPLICIT COLOR VALUES
  */
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -242,7 +242,7 @@ export default function SystemsAuditPage() {
               Business Systems Audit
             </h1>
             <p className="text-gray-300">
-              Operational systems efficiency analysis for {auditData?.clientName} • v2.0.2
+              Operational systems efficiency analysis for {auditData?.clientName} • v2.0.3
             </p>
           </div>
           <Badge className="bg-orange-500 text-white font-semibold">NEW</Badge>
@@ -266,21 +266,21 @@ export default function SystemsAuditPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-700 to-green-800 border-green-600">
+        <Card className="bg-gradient-to-br from-green-600 to-green-700 border-green-500">
           <CardContent className="pt-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Potential Savings</h3>
+            <h3 className="text-lg font-semibold text-white mb-4 drop-shadow-md">Potential Savings</h3>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-green-100 font-medium">Time Saved:</span>
-                <span className="text-2xl font-bold text-white">{auditData?.potentialSavings.timeHoursPerMonth}h/month</span>
+                <span className="text-white font-medium drop-shadow-sm">Time Saved:</span>
+                <span className="text-2xl font-bold text-white drop-shadow-md">{auditData?.potentialSavings.timeHoursPerMonth}h/month</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-green-100 font-medium">Cost Reduction:</span>
-                <span className="text-2xl font-bold text-white">£{auditData?.potentialSavings.costPerMonth.toLocaleString()}/month</span>
+                <span className="text-white font-medium drop-shadow-sm">Cost Reduction:</span>
+                <span className="text-2xl font-bold text-white drop-shadow-md">£{auditData?.potentialSavings.costPerMonth.toLocaleString()}/month</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-green-100 font-medium">Cashflow Gain:</span>
-                <span className="text-2xl font-bold text-white">£{auditData?.potentialSavings.cashflowImprovement.toLocaleString()}</span>
+                <span className="text-white font-medium drop-shadow-sm">Cashflow Gain:</span>
+                <span className="text-2xl font-bold text-white drop-shadow-md">£{auditData?.potentialSavings.cashflowImprovement.toLocaleString()}</span>
               </div>
             </div>
           </CardContent>
