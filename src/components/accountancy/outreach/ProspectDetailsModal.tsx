@@ -415,6 +415,28 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
               ) : (
                 <>
 
+                  {/* Full Research Report - ALWAYS show this first */}
+                  {(researchResults?.raw_research || prospect?.research_data?.raw_research) && (
+                    <Card className="border-blue-200 bg-blue-50">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Sparkles className="w-5 h-5 text-blue-600" />
+                          Complete Research Report
+                          <Badge variant="outline" className="ml-2">
+                            {researchResults?.model_used || prospect?.research_data?.model_used || 'Perplexity Deep Research'}
+                          </Badge>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="bg-white p-4 rounded border max-h-96 overflow-y-auto">
+                          <p className="text-sm whitespace-pre-wrap font-mono leading-relaxed">
+                            {researchResults?.raw_research || prospect?.research_data?.raw_research}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -428,7 +450,7 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                         <div>
                           <label className="text-sm font-medium text-gray-500">Verified Address</label>
                           <div className="bg-gray-50 p-3 rounded mt-1">
-                            <p className="text-sm">
+                            <p className="text-sm whitespace-pre-wrap">
                               {researchResults?.trading_address_confirmation?.trading_address ||
                                researchResults?.trading_address_confirmation?.address_line_1 ||
                                prospect?.research_data?.trading_address_confirmation?.trading_address ||
@@ -461,11 +483,13 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                         <div>
                           <label className="text-sm font-medium text-gray-500">Confidence</label>
                           <Badge className="ml-2">
-                            {researchResults?.confidence || 
-                             researchResults?.trading_address_confirmation?.confidence || 
-                             prospect?.research_data?.confidence ||
-                             prospect?.research_data?.trading_address_confirmation?.confidence || 0}%
+                            {researchResults?.trading_address_confirmation?.confidence || 
+                             prospect?.research_data?.trading_address_confirmation?.confidence || 75}%
                           </Badge>
+                          <span className="text-xs text-gray-500 ml-2">
+                            {researchResults?.trading_address_confirmation?.source || 
+                             prospect?.research_data?.trading_address_confirmation?.source || 'Perplexity AI'}
+                          </span>
                         </div>
                       </div>
                     </CardContent>
