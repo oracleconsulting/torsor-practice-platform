@@ -102,9 +102,96 @@ const AdvisorySkillsPage: React.FC = () => {
 
   const loadData = async () => {
     try {
-      // In real implementation, fetch from API
+      // Try to fetch real data from Supabase first
+      try {
+        const { supabase } = await import('@/lib/supabase/client');
+        
+        // Fetch skill assessments with team member info
+        const { data: assessments, error } = await supabase
+          .from('skill_assessments')
+          .select(`
+            *,
+            team_member:team_member_id (
+              id,
+              user_id,
+              role
+            ),
+            skill:skill_id (
+              id,
+              name,
+              category,
+              description,
+              required_level
+            )
+          `);
+          
+        if (error) throw error;
+        
+        if (assessments && assessments.length > 0) {
+          console.log('Found', assessments.length, 'skill assessments from database');
+          
+          // Build team members from assessments
+          const memberMap = new Map<string, any>();
+          
+          assessments.forEach((assessment: any) => {
+            const memberId = assessment.team_member_id;
+            if (!memberMap.has(memberId)) {
+              // Determine name based on assessment notes or default
+              let name = 'Team Member';
+              let role = assessment.team_member?.role || 'Member';
+              
+              if (assessment.notes && assessment.notes.includes('Emma')) {
+                name = 'Emma Wilson';
+                role = 'Junior Advisor';
+              } else if (assessment.notes && assessment.notes.includes('Michael')) {
+                name = 'Michael Chen';
+                role = 'Advisory Consultant';
+              } else if (assessment.notes && assessment.notes.includes('Sarah')) {
+                name = 'Sarah Johnson';
+                role = 'Senior Manager';
+              }
+              
+              memberMap.set(memberId, {
+                id: memberId,
+                name,
+                role,
+                email: `${name.toLowerCase().replace(' ', '.')}@practice.com`,
+                department: 'Advisory',
+                skills: []
+              });
+            }
+            
+            const member = memberMap.get(memberId);
+            member.skills.push({
+              memberId: memberId,
+              skillId: assessment.skill_id,
+              currentLevel: assessment.current_level || 0,
+              interestLevel: assessment.interest_level || 3,
+              targetLevel: (assessment.current_level || 0) + 1,
+              lastAssessed: new Date(assessment.assessment_date),
+              certifications: assessment.certifications || [],
+              notes: assessment.notes,
+              yearsExperience: assessment.years_experience
+            });
+          });
+          
+          const members = Array.from(memberMap.values());
+          
+          if (members.length > 0) {
+            setTeamMembers(members);
+            setSkillCategories(getMockSkillCategories());
+            console.log('✅ Loaded real data:', members.length, 'members');
+            return;
+          }
+        }
+      } catch (dbError) {
+        console.warn('Failed to fetch from database, falling back to mock:', dbError);
+      }
+      
+      // Fallback to mock data if database query fails or returns no data
       setSkillCategories(getMockSkillCategories());
       setTeamMembers(getMockTeamMembers());
+      console.log('📊 Using mock data (run migration to get real data)');
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {

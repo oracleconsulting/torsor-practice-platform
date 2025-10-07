@@ -278,12 +278,12 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
               </Button>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto relative">
+              <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b border-gray-700">
-                    <th className="sticky left-0 z-20 bg-gray-800 text-left p-2 text-muted-foreground shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Member</th>
+                    <th className="sticky left-0 z-20 bg-gray-800 text-left p-4 text-muted-foreground shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] min-w-[200px]">Member</th>
                     {uniqueSkills.map(skill => (
                       <th key={skill.id} className="text-center p-2 text-muted-foreground min-w-[100px]">
                         <div className="truncate" title={`${skill.description} (Required: ${skill.requiredLevel}/5)`}>
@@ -296,10 +296,10 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
                 <tbody>
                   {sortedMembers.map(member => (
                     <tr key={member.id} className="border-b border-gray-700 hover:bg-gray-700/50">
-                      <td className="sticky left-0 z-10 bg-gray-800 p-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">
-                        <div className="flex items-center gap-2">
-                          <Avatar className="w-6 h-6">
-                            <AvatarFallback className="text-xs">
+                      <td className="sticky left-0 z-10 bg-gray-800 p-4 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] min-w-[200px]">
+                        <div className="flex items-center gap-2 whitespace-nowrap">
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback className="text-sm">
                               {member.name.split(' ').map(n => n[0]).join('')}
                             </AvatarFallback>
                           </Avatar>
