@@ -617,29 +617,29 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                                  prospect?.research_data?.trading_address_confirmation?.address_line_1 ||
                                  'Not found in response'}
                               </p>
-                            {(researchResults?.trading_address_confirmation?.address_line_2 || 
-                              prospect?.research_data?.trading_address_confirmation?.address_line_2) && (
-                              <p className="text-sm mt-1">
-                                {researchResults?.trading_address_confirmation?.address_line_2 || 
-                                 prospect?.research_data?.trading_address_confirmation?.address_line_2}
-                              </p>
-                            )}
-                            {(researchResults?.trading_address_confirmation?.locality || 
-                              prospect?.research_data?.trading_address_confirmation?.locality) && (
-                              <p className="text-sm mt-1">
-                                {researchResults?.trading_address_confirmation?.locality || 
-                                 prospect?.research_data?.trading_address_confirmation?.locality}
-                              </p>
-                            )}
-                            {(researchResults?.trading_address_confirmation?.postal_code || 
-                              prospect?.research_data?.trading_address_confirmation?.postal_code) && (
-                              <p className="text-sm font-medium mt-1">
-                                {researchResults?.trading_address_confirmation?.postal_code || 
-                                 prospect?.research_data?.trading_address_confirmation?.postal_code}
-                              </p>
-                            )}
+                              {(researchResults?.trading_address_confirmation?.address_line_2 || 
+                                prospect?.research_data?.trading_address_confirmation?.address_line_2) && (
+                                <p className="text-sm mt-1">
+                                  {researchResults?.trading_address_confirmation?.address_line_2 || 
+                                   prospect?.research_data?.trading_address_confirmation?.address_line_2}
+                                </p>
+                              )}
+                              {(researchResults?.trading_address_confirmation?.locality || 
+                                prospect?.research_data?.trading_address_confirmation?.locality) && (
+                                <p className="text-sm mt-1">
+                                  {researchResults?.trading_address_confirmation?.locality || 
+                                   prospect?.research_data?.trading_address_confirmation?.locality}
+                                </p>
+                              )}
+                              {(researchResults?.trading_address_confirmation?.postal_code || 
+                                prospect?.research_data?.trading_address_confirmation?.postal_code) && (
+                                <p className="text-sm font-medium mt-1">
+                                  {researchResults?.trading_address_confirmation?.postal_code || 
+                                   prospect?.research_data?.trading_address_confirmation?.postal_code}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                        </div>
                         <div>
                           <label className="text-sm font-medium text-gray-500">Confidence</label>
                           <Badge className="ml-2">
