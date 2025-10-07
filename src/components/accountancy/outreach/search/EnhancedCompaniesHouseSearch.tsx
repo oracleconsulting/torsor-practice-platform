@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { outreachService } from '@/services/accountancy/outreachService';
 import { savedProspectsService } from '@/services/accountancy/savedProspectsService';
+import { bulkResearchService } from '@/services/accountancy/bulkResearchService';
 import { ProspectDetailsModal } from '../ProspectDetailsModal';
 import { toast } from 'sonner';
 
@@ -68,6 +69,7 @@ const EnhancedCompaniesHouseSearch: React.FC = () => {
   const [results, setResults] = useState<CompanySearchResult[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<CompanySearchResult | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [creatingBulkResearch, setCreatingBulkResearch] = useState(false);
   
   // Company Number Search
   const [companyNumber, setCompanyNumber] = useState('');
@@ -360,6 +362,61 @@ const EnhancedCompaniesHouseSearch: React.FC = () => {
       toast.error('Export failed. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Bulk Research Handler
+  const handleBulkResearch = async () => {
+    if (results.length === 0) {
+      toast.error('No companies to research');
+      return;
+    }
+
+    const confirmMessage = `Research all ${results.length} companies with AI? This may take ${Math.ceil(results.length * 1.5 / 60)} - ${Math.ceil(results.length * 2 / 60)} hours.`;
+    
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    setCreatingBulkResearch(true);
+    
+    try {
+      // Generate batch name based on search context
+      let batchName = `Search Results - ${results.length} companies`;
+      if (targetAddress) {
+        batchName = `${targetAddress} - ${results.length} companies`;
+      } else if (basicSearchQuery) {
+        batchName = `${basicSearchQuery} - ${results.length} companies`;
+      }
+
+      const response = await bulkResearchService.createBatch(
+        batchName,
+        results,
+        {
+          search_type: activeTab,
+          address: targetAddress,
+          query: basicSearchQuery,
+          filters: advancedFilters
+        }
+      );
+
+      toast.success(
+        `✅ Bulk research started! ${response.queued_companies} companies queued.`,
+        {
+          description: `Batch ID: ${response.batch_id}\nEstimated completion: ${new Date(response.estimated_completion).toLocaleString()}`,
+          duration: 10000
+        }
+      );
+
+      // Navigate to batch tracking page (we'll create this)
+      // For now, just show the batch ID
+      console.log('Batch created:', response);
+      
+    } catch (error: any) {
+      console.error('Failed to create bulk research batch:', error);
+      toast.error(`Failed to start bulk research: ${error.message || 'Unknown error'}`);
+    } finally {
+      setCreatingBulkResearch(false);
     }
   };
 
@@ -1112,10 +1169,31 @@ const EnhancedCompaniesHouseSearch: React.FC = () => {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>Search Results ({results.length})</span>
-              <Button variant="outline" size="sm">
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  variant="default" 
+                  size="sm"
+                  onClick={handleBulkResearch}
+                  disabled={creatingBulkResearch || results.length === 0}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {creatingBulkResearch ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Starting...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 mr-2" />
+                      Research All {results.length}
+                    </>
+                  )}
+                </Button>
+                <Button variant="outline" size="sm">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
