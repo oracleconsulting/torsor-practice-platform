@@ -464,18 +464,33 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                                             <p className="text-gray-700 mt-1">{data.incorporation}</p>
                                           </div>
                                         )}
-                                        {data.trading_address && (
+                                        {(data.contact_address || data.trading_address) && (
                                           <div className="col-span-2 bg-green-50 p-3 rounded border border-green-200">
-                                            <span className="font-medium text-green-700">✓ Trading/Correspondence Address:</span>
-                                            <p className="text-gray-900 mt-1 font-medium">{data.trading_address}</p>
-                                            <p className="text-xs text-green-600 mt-1">Use this address for outreach</p>
+                                            <span className="font-medium text-green-700">
+                                              ✓ Contact Address
+                                              {data.contact_address_type && (
+                                                <span className="text-xs ml-2 text-green-600">
+                                                  ({data.contact_address_type})
+                                                </span>
+                                              )}
+                                              :
+                                            </span>
+                                            <p className="text-gray-900 mt-1 font-medium">
+                                              {data.contact_address || data.trading_address}
+                                            </p>
+                                            <p className="text-xs text-green-600 mt-1">
+                                              ✓ Safe to use for outreach (different from registered office)
+                                            </p>
                                           </div>
                                         )}
-                                        {!data.trading_address && (
+                                        {!(data.contact_address || data.trading_address) && (
                                           <div className="col-span-2 bg-amber-50 p-3 rounded border border-amber-200">
-                                            <span className="font-medium text-amber-700">⚠ No Trading Address Found</span>
+                                            <span className="font-medium text-amber-700">⚠ No Contact Address Found</span>
                                             <p className="text-sm text-amber-600 mt-1">
                                               Only registered office available (often accountant's address - not suitable for direct outreach)
+                                            </p>
+                                            <p className="text-xs text-amber-500 mt-2">
+                                              Consider: website contact form, LinkedIn, or further research
                                             </p>
                                           </div>
                                         )}
