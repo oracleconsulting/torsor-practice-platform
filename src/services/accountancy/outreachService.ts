@@ -345,7 +345,7 @@ const MOCK_COMPANY_DATA = [
 ];
 
 // Helper function for authenticated API requests
-async function makeAuthenticatedRequest(url: string, options: RequestInit = {}) {
+export async function makeAuthenticatedRequest(url: string, options: RequestInit = {}) {
   console.log('Making authenticated request to:', url);
   console.log('Request options:', { ...options, body: options.body ? 'BODY_PRESENT' : 'NO_BODY' });
   
