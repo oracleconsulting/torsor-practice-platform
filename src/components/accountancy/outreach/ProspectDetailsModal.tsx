@@ -597,127 +597,128 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
 
                   {/* Only show old sections if Claude summary is NOT available */}
                   {!(researchResults?.executive_summary || prospect?.research_data?.executive_summary) && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <CheckCircle className="w-5 h-5 text-green-600" />
-                          Trading Address Verification
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-3">
-                          {/* Try multiple possible field structures */}
-                          <div>
-                            <label className="text-sm font-medium text-gray-500">Verified Address</label>
-                            <div className="bg-gray-50 p-3 rounded mt-1">
-                              <p className="text-sm whitespace-pre-wrap">
-                                {researchResults?.trading_address_confirmation?.trading_address ||
-                                 researchResults?.trading_address_confirmation?.address_line_1 ||
-                                 prospect?.research_data?.trading_address_confirmation?.trading_address ||
-                                 prospect?.research_data?.trading_address_confirmation?.address_line_1 ||
-                                 'Not found in response'}
-                              </p>
-                              {(researchResults?.trading_address_confirmation?.address_line_2 || 
-                                prospect?.research_data?.trading_address_confirmation?.address_line_2) && (
-                                <p className="text-sm mt-1">
-                                  {researchResults?.trading_address_confirmation?.address_line_2 || 
-                                   prospect?.research_data?.trading_address_confirmation?.address_line_2}
+                    <>
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                            Trading Address Verification
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            {/* Try multiple possible field structures */}
+                            <div>
+                              <label className="text-sm font-medium text-gray-500">Verified Address</label>
+                              <div className="bg-gray-50 p-3 rounded mt-1">
+                                <p className="text-sm whitespace-pre-wrap">
+                                  {researchResults?.trading_address_confirmation?.trading_address ||
+                                   researchResults?.trading_address_confirmation?.address_line_1 ||
+                                   prospect?.research_data?.trading_address_confirmation?.trading_address ||
+                                   prospect?.research_data?.trading_address_confirmation?.address_line_1 ||
+                                   'Not found in response'}
                                 </p>
-                              )}
-                              {(researchResults?.trading_address_confirmation?.locality || 
-                                prospect?.research_data?.trading_address_confirmation?.locality) && (
-                                <p className="text-sm mt-1">
-                                  {researchResults?.trading_address_confirmation?.locality || 
-                                   prospect?.research_data?.trading_address_confirmation?.locality}
-                                </p>
-                              )}
-                              {(researchResults?.trading_address_confirmation?.postal_code || 
-                                prospect?.research_data?.trading_address_confirmation?.postal_code) && (
-                                <p className="text-sm font-medium mt-1">
-                                  {researchResults?.trading_address_confirmation?.postal_code || 
-                                   prospect?.research_data?.trading_address_confirmation?.postal_code}
-                                </p>
-                              )}
+                                {(researchResults?.trading_address_confirmation?.address_line_2 || 
+                                  prospect?.research_data?.trading_address_confirmation?.address_line_2) && (
+                                  <p className="text-sm mt-1">
+                                    {researchResults?.trading_address_confirmation?.address_line_2 || 
+                                     prospect?.research_data?.trading_address_confirmation?.address_line_2}
+                                  </p>
+                                )}
+                                {(researchResults?.trading_address_confirmation?.locality || 
+                                  prospect?.research_data?.trading_address_confirmation?.locality) && (
+                                  <p className="text-sm mt-1">
+                                    {researchResults?.trading_address_confirmation?.locality || 
+                                     prospect?.research_data?.trading_address_confirmation?.locality}
+                                  </p>
+                                )}
+                                {(researchResults?.trading_address_confirmation?.postal_code || 
+                                  prospect?.research_data?.trading_address_confirmation?.postal_code) && (
+                                  <p className="text-sm font-medium mt-1">
+                                    {researchResults?.trading_address_confirmation?.postal_code || 
+                                     prospect?.research_data?.trading_address_confirmation?.postal_code}
+                                  </p>
+                                )}
+                              </div>
                             </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-500">Confidence</label>
+                            <Badge className="ml-2">
+                              {researchResults?.trading_address_confirmation?.confidence || 
+                               prospect?.research_data?.trading_address_confirmation?.confidence || 75}%
+                            </Badge>
+                            <span className="text-xs text-gray-500 ml-2">
+                              {researchResults?.trading_address_confirmation?.source || 
+                               prospect?.research_data?.trading_address_confirmation?.source || 'Perplexity AI'}
+                            </span>
                           </div>
-                        <div>
-                          <label className="text-sm font-medium text-gray-500">Confidence</label>
-                          <Badge className="ml-2">
-                            {researchResults?.trading_address_confirmation?.confidence || 
-                             prospect?.research_data?.trading_address_confirmation?.confidence || 75}%
-                          </Badge>
-                          <span className="text-xs text-gray-500 ml-2">
-                            {researchResults?.trading_address_confirmation?.source || 
-                             prospect?.research_data?.trading_address_confirmation?.source || 'Perplexity AI'}
-                          </span>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {(researchResults?.company_history || prospect?.research_data?.company_history) && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <History className="w-5 h-5" />
-                          Company History
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm whitespace-pre-wrap">
-                          {researchResults?.company_history || prospect?.research_data?.company_history}
-                        </p>
                       </CardContent>
                     </Card>
-                  )}
 
-                  {(researchResults?.website_analysis || prospect?.research_data?.website_analysis) && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Globe className="w-5 h-5" />
-                          Website Analysis
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm whitespace-pre-wrap">
-                          {researchResults?.website_analysis || prospect?.research_data?.website_analysis}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )}
+                    {(researchResults?.company_history || prospect?.research_data?.company_history) && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <History className="w-5 h-5" />
+                            Company History
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm whitespace-pre-wrap">
+                            {researchResults?.company_history || prospect?.research_data?.company_history}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
 
-                  {(researchResults?.key_personnel || prospect?.research_data?.key_personnel) && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Users className="w-5 h-5" />
-                          Key Personnel
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm whitespace-pre-wrap">
-                          {researchResults?.key_personnel || prospect?.research_data?.key_personnel}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )}
+                    {(researchResults?.website_analysis || prospect?.research_data?.website_analysis) && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Globe className="w-5 h-5" />
+                            Website Analysis
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm whitespace-pre-wrap">
+                            {researchResults?.website_analysis || prospect?.research_data?.website_analysis}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
 
-                  {(researchResults?.latest_news || prospect?.research_data?.latest_news) && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <TrendingUp className="w-5 h-5" />
-                          Latest News
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm whitespace-pre-wrap">
-                          {researchResults?.latest_news || prospect?.research_data?.latest_news}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )}
+                    {(researchResults?.key_personnel || prospect?.research_data?.key_personnel) && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Users className="w-5 h-5" />
+                            Key Personnel
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm whitespace-pre-wrap">
+                            {researchResults?.key_personnel || prospect?.research_data?.key_personnel}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {(researchResults?.latest_news || prospect?.research_data?.latest_news) && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <TrendingUp className="w-5 h-5" />
+                            Latest News
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm whitespace-pre-wrap">
+                            {researchResults?.latest_news || prospect?.research_data?.latest_news}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
 
                     <Button
                       onClick={handleConductResearch}
@@ -728,7 +729,7 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                       <Sparkles className="w-4 h-4 mr-2" />
                       Re-run Research
                     </Button>
-                  </>
+                    </>
                   )}
                 </>
               )}
