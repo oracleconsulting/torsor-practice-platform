@@ -464,10 +464,26 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                                             <p className="text-gray-700 mt-1">{data.incorporation}</p>
                                           </div>
                                         )}
+                                        {data.trading_address && (
+                                          <div className="col-span-2 bg-green-50 p-3 rounded border border-green-200">
+                                            <span className="font-medium text-green-700">✓ Trading/Correspondence Address:</span>
+                                            <p className="text-gray-900 mt-1 font-medium">{data.trading_address}</p>
+                                            <p className="text-xs text-green-600 mt-1">Use this address for outreach</p>
+                                          </div>
+                                        )}
+                                        {!data.trading_address && (
+                                          <div className="col-span-2 bg-amber-50 p-3 rounded border border-amber-200">
+                                            <span className="font-medium text-amber-700">⚠ No Trading Address Found</span>
+                                            <p className="text-sm text-amber-600 mt-1">
+                                              Only registered office available (often accountant's address - not suitable for direct outreach)
+                                            </p>
+                                          </div>
+                                        )}
                                         {data.registered_office && (
                                           <div className="col-span-2">
                                             <span className="font-medium text-gray-500">Registered Office:</span>
                                             <p className="text-gray-700 mt-1">{data.registered_office}</p>
+                                            <p className="text-xs text-gray-500 mt-1">Reference only - may be accountant's address</p>
                                           </div>
                                         )}
                                         {data.sic_codes && (
