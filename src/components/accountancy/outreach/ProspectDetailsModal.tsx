@@ -433,19 +433,92 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                             {researchResults?.executive_summary || prospect?.research_data?.executive_summary}
                           </p>
 
-                          {/* Key Data Points */}
+                          {/* Key Data Points - Formatted Display */}
                           {(researchResults?.key_data_points || prospect?.research_data?.key_data_points) && (
-                            <div className="grid grid-cols-2 gap-4 mt-4">
-                              <div className="bg-white p-3 rounded border">
-                                <h4 className="font-semibold text-sm mb-2">Directors</h4>
-                                <div className="text-sm text-gray-700">
-                                  {JSON.stringify((researchResults?.key_data_points || prospect?.research_data?.key_data_points).directors, null, 2)}
-                                </div>
-                              </div>
-                              <div className="bg-white p-3 rounded border">
-                                <h4 className="font-semibold text-sm mb-2">Financial Highlights</h4>
-                                <div className="text-sm text-gray-700">
-                                  {JSON.stringify((researchResults?.key_data_points || prospect?.research_data?.key_data_points).financials, null, 2)}
+                            <div className="space-y-4 mt-4">
+                              <div className="bg-white p-4 rounded border">
+                                <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                                  <Users className="w-4 h-4" />
+                                  Key Information
+                                </h4>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  {(() => {
+                                    const data = researchResults?.key_data_points || prospect?.research_data?.key_data_points;
+                                    return (
+                                      <>
+                                        {data.directors && (
+                                          <div>
+                                            <span className="font-medium text-gray-500">Directors:</span>
+                                            <p className="text-gray-700 mt-1">
+                                              {Array.isArray(data.directors) 
+                                                ? data.directors.map((d: any) => typeof d === 'string' ? d : d.name || JSON.stringify(d)).join(', ')
+                                                : typeof data.directors === 'string' 
+                                                  ? data.directors 
+                                                  : JSON.stringify(data.directors)}
+                                            </p>
+                                          </div>
+                                        )}
+                                        {data.incorporation && (
+                                          <div>
+                                            <span className="font-medium text-gray-500">Incorporation:</span>
+                                            <p className="text-gray-700 mt-1">{data.incorporation}</p>
+                                          </div>
+                                        )}
+                                        {data.registered_office && (
+                                          <div className="col-span-2">
+                                            <span className="font-medium text-gray-500">Registered Office:</span>
+                                            <p className="text-gray-700 mt-1">{data.registered_office}</p>
+                                          </div>
+                                        )}
+                                        {data.sic_codes && (
+                                          <div className="col-span-2">
+                                            <span className="font-medium text-gray-500">Industry (SIC Codes):</span>
+                                            <p className="text-gray-700 mt-1">
+                                              {Array.isArray(data.sic_codes) 
+                                                ? data.sic_codes.join(', ') 
+                                                : data.sic_codes}
+                                            </p>
+                                          </div>
+                                        )}
+                                        {data.website && (
+                                          <div>
+                                            <span className="font-medium text-gray-500">Website:</span>
+                                            <p className="text-gray-700 mt-1">
+                                              <a href={data.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                                {data.website}
+                                              </a>
+                                            </p>
+                                          </div>
+                                        )}
+                                        {data.filing_status && (
+                                          <div>
+                                            <span className="font-medium text-gray-500">Filing Status:</span>
+                                            <p className="text-gray-700 mt-1">{data.filing_status}</p>
+                                          </div>
+                                        )}
+                                        {data.financials && (
+                                          <div className="col-span-2">
+                                            <span className="font-medium text-gray-500">Financial Highlights:</span>
+                                            <p className="text-gray-700 mt-1">
+                                              {typeof data.financials === 'string' 
+                                                ? data.financials 
+                                                : Object.entries(data.financials).map(([key, val]) => `${key}: ${val}`).join(' | ')}
+                                            </p>
+                                          </div>
+                                        )}
+                                        {data.address_changes && data.address_changes.length > 0 && (
+                                          <div className="col-span-2">
+                                            <span className="font-medium text-gray-500">Address Changes:</span>
+                                            <p className="text-gray-700 mt-1">
+                                              {Array.isArray(data.address_changes) 
+                                                ? data.address_changes.join('; ') 
+                                                : data.address_changes}
+                                            </p>
+                                          </div>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
                                 </div>
                               </div>
                             </div>
@@ -522,26 +595,28 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                     </>
                   )}
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <CheckCircle className="w-5 h-5 text-green-600" />
-                        Trading Address Verification
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {/* Try multiple possible field structures */}
-                        <div>
-                          <label className="text-sm font-medium text-gray-500">Verified Address</label>
-                          <div className="bg-gray-50 p-3 rounded mt-1">
-                            <p className="text-sm whitespace-pre-wrap">
-                              {researchResults?.trading_address_confirmation?.trading_address ||
-                               researchResults?.trading_address_confirmation?.address_line_1 ||
-                               prospect?.research_data?.trading_address_confirmation?.trading_address ||
-                               prospect?.research_data?.trading_address_confirmation?.address_line_1 ||
-                               'Not found in response'}
-                            </p>
+                  {/* Only show old sections if Claude summary is NOT available */}
+                  {!(researchResults?.executive_summary || prospect?.research_data?.executive_summary) && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                          Trading Address Verification
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {/* Try multiple possible field structures */}
+                          <div>
+                            <label className="text-sm font-medium text-gray-500">Verified Address</label>
+                            <div className="bg-gray-50 p-3 rounded mt-1">
+                              <p className="text-sm whitespace-pre-wrap">
+                                {researchResults?.trading_address_confirmation?.trading_address ||
+                                 researchResults?.trading_address_confirmation?.address_line_1 ||
+                                 prospect?.research_data?.trading_address_confirmation?.trading_address ||
+                                 prospect?.research_data?.trading_address_confirmation?.address_line_1 ||
+                                 'Not found in response'}
+                              </p>
                             {(researchResults?.trading_address_confirmation?.address_line_2 || 
                               prospect?.research_data?.trading_address_confirmation?.address_line_2) && (
                               <p className="text-sm mt-1">
@@ -644,15 +719,17 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
                     </Card>
                   )}
 
-                  <Button
-                    onClick={handleConductResearch}
-                    variant="outline"
-                    size="sm"
-                    disabled={researching}
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Re-run Research
-                  </Button>
+                    <Button
+                      onClick={handleConductResearch}
+                      variant="outline"
+                      size="sm"
+                      disabled={researching}
+                    >
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Re-run Research
+                    </Button>
+                  </>
+                  )}
                 </>
               )}
             </TabsContent>
