@@ -415,26 +415,111 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
               ) : (
                 <>
 
-                  {/* Full Research Report - ALWAYS show this first */}
-                  {(researchResults?.raw_research || prospect?.research_data?.raw_research) && (
-                    <Card className="border-blue-200 bg-blue-50">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Sparkles className="w-5 h-5 text-blue-600" />
-                          Complete Research Report
-                          <Badge variant="outline" className="ml-2">
-                            {researchResults?.model_used || prospect?.research_data?.model_used || 'Perplexity Deep Research'}
-                          </Badge>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="bg-white p-4 rounded border max-h-96 overflow-y-auto">
-                          <p className="text-sm whitespace-pre-wrap font-mono leading-relaxed">
-                            {researchResults?.raw_research || prospect?.research_data?.raw_research}
+                  {/* Claude Opus Summary - Show first if available */}
+                  {(researchResults?.executive_summary || prospect?.research_data?.executive_summary) && (
+                    <>
+                      <Card className="border-green-200 bg-gradient-to-br from-green-50 to-blue-50">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Sparkles className="w-5 h-5 text-green-600" />
+                            Executive Summary
+                            <Badge variant="outline" className="ml-2 bg-white">
+                              AI-Powered Analysis
+                            </Badge>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <p className="text-base leading-relaxed">
+                            {researchResults?.executive_summary || prospect?.research_data?.executive_summary}
                           </p>
-                        </div>
-                      </CardContent>
-                    </Card>
+
+                          {/* Key Data Points */}
+                          {(researchResults?.key_data_points || prospect?.research_data?.key_data_points) && (
+                            <div className="grid grid-cols-2 gap-4 mt-4">
+                              <div className="bg-white p-3 rounded border">
+                                <h4 className="font-semibold text-sm mb-2">Directors</h4>
+                                <div className="text-sm text-gray-700">
+                                  {JSON.stringify((researchResults?.key_data_points || prospect?.research_data?.key_data_points).directors, null, 2)}
+                                </div>
+                              </div>
+                              <div className="bg-white p-3 rounded border">
+                                <h4 className="font-semibold text-sm mb-2">Financial Highlights</h4>
+                                <div className="text-sm text-gray-700">
+                                  {JSON.stringify((researchResults?.key_data_points || prospect?.research_data?.key_data_points).financials, null, 2)}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Actionable Insights */}
+                          {(researchResults?.actionable_insights || prospect?.research_data?.actionable_insights) && (
+                            <div className="bg-blue-50 p-4 rounded border border-blue-200 mt-4">
+                              <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                                <TrendingUp className="w-4 h-4" />
+                                Actionable Insights
+                              </h4>
+                              <ul className="list-disc list-inside text-sm space-y-1">
+                                {(researchResults?.actionable_insights || prospect?.research_data?.actionable_insights).map((insight: string, idx: number) => (
+                                  <li key={idx}>{insight}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Red Flags */}
+                          {(researchResults?.red_flags || prospect?.research_data?.red_flags)?.length > 0 && (
+                            <div className="bg-red-50 p-4 rounded border border-red-200 mt-4">
+                              <h4 className="font-semibold text-sm mb-2 flex items-center gap-2 text-red-700">
+                                <AlertCircle className="w-4 h-4" />
+                                Red Flags
+                              </h4>
+                              <ul className="list-disc list-inside text-sm space-y-1 text-red-700">
+                                {(researchResults?.red_flags || prospect?.research_data?.red_flags).map((flag: string, idx: number) => (
+                                  <li key={idx}>{flag}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Opportunities */}
+                          {(researchResults?.opportunities || prospect?.research_data?.opportunities)?.length > 0 && (
+                            <div className="bg-green-50 p-4 rounded border border-green-200 mt-4">
+                              <h4 className="font-semibold text-sm mb-2 flex items-center gap-2 text-green-700">
+                                <CheckCircle className="w-4 h-4" />
+                                Opportunities
+                              </h4>
+                              <ul className="list-disc list-inside text-sm space-y-1 text-green-700">
+                                {(researchResults?.opportunities || prospect?.research_data?.opportunities).map((opp: string, idx: number) => (
+                                  <li key={idx}>{opp}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {/* Full Research Report - Collapsible */}
+                      {(researchResults?.raw_research || prospect?.research_data?.raw_research) && (
+                        <details className="group">
+                          <summary className="cursor-pointer bg-gray-100 hover:bg-gray-200 p-4 rounded border flex items-center gap-2">
+                            <FileText className="w-5 h-5" />
+                            <span className="font-semibold">Full Research Report (Perplexity Deep Research)</span>
+                            <Badge variant="outline" className="ml-2">
+                              {researchResults?.model_used || prospect?.research_data?.model_used || 'perplexity/sonar-deep-research'}
+                            </Badge>
+                          </summary>
+                          <Card className="mt-2 border-blue-200 bg-blue-50">
+                            <CardContent className="p-4">
+                              <div className="bg-white p-4 rounded border max-h-96 overflow-y-auto">
+                                <p className="text-sm whitespace-pre-wrap font-mono leading-relaxed">
+                                  {researchResults?.raw_research || prospect?.research_data?.raw_research}
+                                </p>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </details>
+                      )}
+                    </>
                   )}
 
                   <Card>
