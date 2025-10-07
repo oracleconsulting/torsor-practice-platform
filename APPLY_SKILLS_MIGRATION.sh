@@ -17,7 +17,7 @@ SUPABASE_USER="postgres.nwmzegonnmqzflamcxfd"
 
 # Apply the migration
 export PGPASSWORD="$SUPABASE_PASSWORD"
-psql -h $SUPABASE_HOST -p $SUPABASE_PORT -U $SUPABASE_USER -d $SUPABASE_DB -f supabase/migrations/20251007_create_team_and_skills.sql
+psql -h $SUPABASE_HOST -p $SUPABASE_PORT -U $SUPABASE_USER -d $SUPABASE_DB -f supabase/migrations/20251007_simple_skills_population.sql
 
 if [ $? -eq 0 ]; then
     echo ""
@@ -28,7 +28,7 @@ else
     echo ""
     echo "❌ Migration failed. Check the error message above."
     echo ""
-    echo "Alternative: Copy the SQL from supabase/migrations/20251007_create_team_and_skills.sql"
+    echo "Alternative: Copy the SQL from supabase/migrations/20251007_simple_skills_population.sql"
     echo "and run it in the Supabase SQL Editor at:"
     echo "https://supabase.com/dashboard/project/nwmzegonnmqzflamcxfd/sql"
 fi
