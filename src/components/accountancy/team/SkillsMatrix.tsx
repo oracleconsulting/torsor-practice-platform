@@ -283,7 +283,7 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-700">
-                    <th className="text-left p-2 text-muted-foreground">Member</th>
+                    <th className="sticky left-0 z-20 bg-gray-800 text-left p-2 text-muted-foreground shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Member</th>
                     {uniqueSkills.map(skill => (
                       <th key={skill.id} className="text-center p-2 text-muted-foreground min-w-[100px]">
                         <div className="truncate" title={`${skill.description} (Required: ${skill.requiredLevel}/5)`}>
@@ -296,7 +296,7 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
                 <tbody>
                   {sortedMembers.map(member => (
                     <tr key={member.id} className="border-b border-gray-700 hover:bg-gray-700/50">
-                      <td className="p-2">
+                      <td className="sticky left-0 z-10 bg-gray-800 p-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">
                         <div className="flex items-center gap-2">
                           <Avatar className="w-6 h-6">
                             <AvatarFallback className="text-xs">
