@@ -152,7 +152,47 @@ export const savedProspectsService = {
   },
   
   /**
-   * Conduct AI-powered research on a prospect
+   * 🚀 NEW: Conduct AI-powered research WITHOUT saving to database first!
+   * Perfect for quick exploratory research before deciding to save
+   */
+  async conductLiveResearch(companyData: {
+    company_number: string;
+    company_name: string;
+    company_type?: string;
+    company_status?: string;
+    registered_office_address?: any;
+    sic_codes?: string[];
+    vat_number?: string;
+  }): Promise<{ success: boolean; research: any }> {
+    const queryParams = new URLSearchParams({
+      company_number: companyData.company_number,
+      company_name: companyData.company_name,
+      ...(companyData.company_type && { company_type: companyData.company_type }),
+      ...(companyData.company_status && { company_status: companyData.company_status }),
+      ...(companyData.vat_number && { vat_number: companyData.vat_number })
+    });
+    
+    // For complex objects like address and arrays, we'll send them in the body
+    const response = await makeAuthenticatedRequest(
+      `${API_BASE_URL}/api/outreach/saved-prospects/research/live?${queryParams}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          registered_office_address: companyData.registered_office_address,
+          sic_codes: companyData.sic_codes
+        })
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error('Failed to conduct live research');
+    }
+    
+    return await response.json();
+  },
+  
+  /**
+   * Conduct AI-powered research on a prospect (requires saved prospect)
    */
   async conductResearch(prospectId: string): Promise<{ success: boolean; research: any }> {
     const response = await makeAuthenticatedRequest(

@@ -96,21 +96,20 @@ export const ProspectDetailsModal: React.FC<ProspectDetailsModalProps> = ({
   };
 
   const handleConductResearch = async () => {
-    if (!prospectId) {
-      toast.error('Saving company first...');
-      await autoSaveProspect();
-      if (!prospectId) {
-        toast.error('Failed to save company. Please try the Save button manually.');
-        return;
-      }
-    }
-
     try {
       setResearching(true);
       toast.info('🔍 Conducting AI-powered research with Perplexity... This may take 30-60 seconds.');
 
-      // REAL API CALL to backend with Perplexity integration
-      const results = await savedProspectsService.conductResearch(prospectId);
+      // 🚀 NEW: Use LIVE research endpoint - NO saving required!
+      const companyDataForResearch = prospect || companyData;
+      const results = await savedProspectsService.conductLiveResearch({
+        company_number: companyDataForResearch.company_number,
+        company_name: companyDataForResearch.company_name || companyDataForResearch.title,
+        company_type: companyDataForResearch.company_type,
+        company_status: companyDataForResearch.company_status,
+        registered_office_address: companyDataForResearch.address || companyDataForResearch.registered_office_address,
+        sic_codes: companyDataForResearch.sic_codes
+      });
 
       console.log('RESEARCH RESULTS RECEIVED:', results);
       console.log('Research data structure:', JSON.stringify(results, null, 2));
