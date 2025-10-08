@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { Users, Award, BookOpen, TrendingUp, BarChart2 } from 'lucide-react';
+import { Users, Award, BookOpen, TrendingUp, BarChart2, Mail, LayoutDashboard } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import CPDTrackerPage from './team/CPDTrackerPage';
 import AdvisorySkillsPage from './team/AdvisorySkillsPage';
 import KPIManagementPage from './team/KPIManagementPage';
 import KnowledgeBasePage from './team/KnowledgeBasePage';
+import InvitationsPage from './team/InvitationsPage';
+import AdminDashboardPage from './team/AdminDashboardPage';
 
 // Visual Pattern Components
 const DiagonalPattern = () => (
@@ -45,20 +48,34 @@ const GeometricShape = () => (
 );
 
 const TeamManagementPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('cpd');
+  const [activeTab, setActiveTab] = useState('invitations');
 
   const tabs = [
     {
-      value: 'cpd',
-      label: 'CPD TRACKER',
-      icon: Award,
-      component: CPDTrackerPage,
+      value: 'invitations',
+      label: 'TEAM INVITATIONS',
+      icon: Mail,
+      component: InvitationsPage,
+      badge: 'NEW',
+    },
+    {
+      value: 'dashboard',
+      label: 'ADMIN DASHBOARD',
+      icon: LayoutDashboard,
+      component: AdminDashboardPage,
+      badge: 'NEW',
     },
     {
       value: 'advisory',
       label: 'ADVISORY SKILLS',
       icon: TrendingUp,
       component: AdvisorySkillsPage,
+    },
+    {
+      value: 'cpd',
+      label: 'CPD TRACKER',
+      icon: Award,
+      component: CPDTrackerPage,
     },
     {
       value: 'kpi',
@@ -96,13 +113,18 @@ const TeamManagementPage: React.FC = () => {
       <div className="relative z-10 container mx-auto px-6 py-12">
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid grid-cols-4 gap-4 bg-[#1a2b4a] p-1 h-auto border-2 border-[#ff6b35]">
+          <TabsList className="grid grid-cols-6 gap-4 bg-[#1a2b4a] p-1 h-auto border-2 border-[#ff6b35]">
             {tabs.map((tab) => (
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className="flex flex-col items-center justify-center p-4 h-auto space-y-2 data-[state=active]:bg-[#ff6b35] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#1a2b4a] font-black uppercase transition-all duration-300"
+                className="flex flex-col items-center justify-center p-4 h-auto space-y-2 data-[state=active]:bg-[#ff6b35] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#1a2b4a] font-black uppercase transition-all duration-300 relative"
               >
+                {tab.badge && (
+                  <Badge className="absolute -top-1 -right-1 bg-green-500 text-white text-xs px-2">
+                    {tab.badge}
+                  </Badge>
+                )}
                 <tab.icon className="w-5 h-5" />
                 <span className="text-sm font-black uppercase">{tab.label}</span>
               </TabsTrigger>
