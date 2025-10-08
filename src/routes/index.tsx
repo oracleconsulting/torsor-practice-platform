@@ -1,9 +1,15 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '../components/ProtectedRoutes';
 import AccountancyLayout from '../components/accountancy/layout/AccountancyLayout';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccountancyContext } from '../contexts/AccountancyContext';
+
+// Lazy load team portal pages
+const TeamPortalLogin = lazy(() => import('../pages/team-portal/LoginPage'));
+const TeamPortalLayout = lazy(() => import('../pages/team-portal/PortalLayout'));
+const TeamPortalDashboard = lazy(() => import('../pages/team-portal/DashboardPage'));
+const TeamPortalAssessment = lazy(() => import('../pages/team-portal/AssessmentPage'));
 
 // Import all page components
 import AccountancyDashboard from '../pages/AccountancyDashboard';
@@ -181,9 +187,32 @@ const TorsorRoutes: React.FC = () => {
 
   return (
     <Routes>
+      {/* Public routes - No authentication required */}
       <Route path="/auth" element={
         user ? <Navigate to="/dashboard" replace /> : <Navigate to="/auth?portal=torsor" replace />
       } />
+      
+      {/* Team Portal - Public login, then protected routes */}
+      <Route path="/team-portal/login" element={
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-gray-900"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div></div>}>
+          <TeamPortalLogin />
+        </Suspense>
+      } />
+      
+      {/* Team Portal - Protected routes */}
+      <Route path="/team-portal/*" element={
+        <ProtectedRoute>
+          <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-gray-900"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div></div>}>
+            <Routes>
+              <Route path="dashboard" element={<TeamPortalDashboard />} />
+              <Route path="assessment" element={<TeamPortalAssessment />} />
+              <Route path="*" element={<Navigate to="/team-portal/dashboard" replace />} />
+            </Routes>
+          </Suspense>
+        </ProtectedRoute>
+      } />
+      
+      {/* Accountancy Portal - Protected routes */}
       <Route path="/*" element={
         <ProtectedRoute>
           <AccountancyLayout>
