@@ -137,17 +137,48 @@ const LoginPage: React.FC<LoginPageProps> = () => {
         console.log('[LoginPage] Account created successfully!');
       }
 
-      // 2. Accept invitation
-      console.log('[LoginPage] Accepting invitation...');
-      await InvitationsAPI.acceptInvitation(inviteCode!);
+          // 2. Get current user
+          console.log('[LoginPage] Getting current user...');
+          const { data: userData } = await supabase.auth.getUser();
+          if (!userData.user) throw new Error('User not found after signup');
 
-      // 3. Track event
-      console.log('[LoginPage] Tracking acceptance event...');
-      await InvitationsAPI.trackInvitationEvent(invitation.id, 'accepted');
+          // 3. Create practice_members record
+          console.log('[LoginPage] Creating practice member record...');
+          const { data: practiceMember, error: memberError } = await supabase
+            .from('practice_members')
+            .upsert({
+              user_id: userData.user.id,
+              practice_id: invitation.practice_id,
+              name: invitation.name || 'Team Member',
+              email: invitation.email,
+              role: invitation.role || 'team_member',
+              is_active: true,
+              joined_at: new Date().toISOString(),
+            }, {
+              onConflict: 'user_id,practice_id',
+              ignoreDuplicates: false,
+            })
+            .select()
+            .single();
 
-      // 4. Redirect to assessment
-      console.log('[LoginPage] Redirecting to assessment...');
-      navigate('/team-portal/assessment');
+          if (memberError) {
+            console.error('[LoginPage] Failed to create practice member:', memberError);
+            throw memberError;
+          }
+
+          console.log('[LoginPage] Practice member created:', practiceMember);
+
+          // 4. Accept invitation
+          console.log('[LoginPage] Accepting invitation...');
+          await InvitationsAPI.acceptInvitation(inviteCode!);
+
+          // 5. Track event
+          console.log('[LoginPage] Tracking acceptance event...');
+          await InvitationsAPI.trackInvitationEvent(invitation.id, 'accepted');
+
+          // 6. Redirect to assessment
+          console.log('[LoginPage] Redirecting to assessment...');
+          navigate('/team-portal/assessment');
     } catch (err: any) {
       console.error('[LoginPage] Invitation acceptance error:', err);
       setError(err.message || 'Failed to accept invitation. Please try again or contact your team lead.');
