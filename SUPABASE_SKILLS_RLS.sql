@@ -86,7 +86,7 @@ FOR SELECT
 USING (
   EXISTS (
     SELECT 1 FROM practice_members
-    WHERE practice_members.id = survey_sessions.team_member_id
+    WHERE practice_members.id = survey_sessions.practice_member_id
     AND practice_members.user_id = auth.uid()
   )
 );
@@ -98,7 +98,7 @@ FOR INSERT
 WITH CHECK (
   EXISTS (
     SELECT 1 FROM practice_members
-    WHERE practice_members.id = survey_sessions.team_member_id
+    WHERE practice_members.id = survey_sessions.practice_member_id
     AND practice_members.user_id = auth.uid()
   )
 );
@@ -110,14 +110,14 @@ FOR UPDATE
 USING (
   EXISTS (
     SELECT 1 FROM practice_members
-    WHERE practice_members.id = survey_sessions.team_member_id
+    WHERE practice_members.id = survey_sessions.practice_member_id
     AND practice_members.user_id = auth.uid()
   )
 )
 WITH CHECK (
   EXISTS (
     SELECT 1 FROM practice_members
-    WHERE practice_members.id = survey_sessions.team_member_id
+    WHERE practice_members.id = survey_sessions.practice_member_id
     AND practice_members.user_id = auth.uid()
   )
 );
@@ -140,7 +140,7 @@ FOR SELECT
 USING (
   EXISTS (
     SELECT 1 FROM practice_members
-    WHERE practice_members.id = development_goals.team_member_id
+    WHERE practice_members.id = development_goals.practice_member_id
     AND practice_members.user_id = auth.uid()
   )
 );
@@ -152,7 +152,7 @@ FOR INSERT
 WITH CHECK (
   EXISTS (
     SELECT 1 FROM practice_members
-    WHERE practice_members.id = development_goals.team_member_id
+    WHERE practice_members.id = development_goals.practice_member_id
     AND practice_members.user_id = auth.uid()
   )
 );
@@ -164,14 +164,14 @@ FOR UPDATE
 USING (
   EXISTS (
     SELECT 1 FROM practice_members
-    WHERE practice_members.id = development_goals.team_member_id
+    WHERE practice_members.id = development_goals.practice_member_id
     AND practice_members.user_id = auth.uid()
   )
 )
 WITH CHECK (
   EXISTS (
     SELECT 1 FROM practice_members
-    WHERE practice_members.id = development_goals.team_member_id
+    WHERE practice_members.id = development_goals.practice_member_id
     AND practice_members.user_id = auth.uid()
   )
 );
@@ -183,7 +183,7 @@ FOR DELETE
 USING (
   EXISTS (
     SELECT 1 FROM practice_members
-    WHERE practice_members.id = development_goals.team_member_id
+    WHERE practice_members.id = development_goals.practice_member_id
     AND practice_members.user_id = auth.uid()
   )
 );

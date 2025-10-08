@@ -238,7 +238,7 @@ export async function getSurveySession(memberId: string): Promise<SurveySession 
   const { data, error } = await supabase
     .from('survey_sessions')
     .select('*')
-    .eq('team_member_id', memberId)
+    .eq('practice_member_id', memberId)
     .is('completed_at', null)
     .order('started_at', { ascending: false })
     .limit(1)
@@ -252,7 +252,8 @@ export async function createSurveySession(memberId: string): Promise<SurveySessi
   const { data, error } = await supabase
     .from('survey_sessions')
     .insert({
-      team_member_id: memberId,
+      practice_member_id: memberId,
+      email: (await supabase.auth.getUser()).data.user?.email || '',
       started_at: new Date().toISOString(),
       progress_percentage: 0,
     })
@@ -296,7 +297,7 @@ export async function getMyGoals(memberId: string): Promise<DevelopmentGoal[]> {
       *,
       skill:skills(*)
     `)
-    .eq('team_member_id', memberId)
+    .eq('practice_member_id', memberId)
     .order('created_at', { ascending: false });
     
   if (error) throw error;
@@ -307,7 +308,7 @@ export async function createGoal(memberId: string, goal: Omit<DevelopmentGoal, '
   const { data, error } = await supabase
     .from('development_goals')
     .insert({
-      team_member_id: memberId,
+      practice_member_id: memberId,
       ...goal,
     })
     .select()
