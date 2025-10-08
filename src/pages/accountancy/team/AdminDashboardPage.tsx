@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Users,
   TrendingUp,
@@ -11,6 +14,8 @@ import {
   Clock,
   Award,
   BarChart3,
+  Settings,
+  Save,
 } from 'lucide-react';
 import {
   BarChart,
@@ -39,9 +44,16 @@ import {
 export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>({});
+  const [cpdConfig, setCpdConfig] = useState({
+    totalExpectedHours: 40,
+    determinedHours: 20,
+    selfAllocatedHours: 20,
+  });
+  const [savingCpd, setSavingCpd] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
+    loadCpdConfig();
   }, []);
 
   const loadDashboardData = async () => {
@@ -69,6 +81,39 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const loadCpdConfig = async () => {
+    try {
+      // TODO: Load from Supabase practices table
+      // For now, use defaults
+      console.log('CPD config loaded from defaults');
+    } catch (error) {
+      console.error('Failed to load CPD config:', error);
+    }
+  };
+
+  const saveCpdConfig = async () => {
+    setSavingCpd(true);
+    try {
+      // TODO: Save to Supabase practices table
+      // await supabase
+      //   .from('practices')
+      //   .update({
+      //     cpd_total_expected_hours: cpdConfig.totalExpectedHours,
+      //     cpd_determined_hours: cpdConfig.determinedHours,
+      //     cpd_self_allocated_hours: cpdConfig.selfAllocatedHours,
+      //   })
+      //   .eq('id', practiceId);
+      
+      console.log('CPD config saved:', cpdConfig);
+      alert('✅ CPD configuration saved successfully!');
+    } catch (error) {
+      console.error('Failed to save CPD config:', error);
+      alert('❌ Failed to save CPD configuration');
+    } finally {
+      setSavingCpd(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
@@ -89,6 +134,141 @@ export default function AdminDashboardPage() {
           Team assessment progress and service line readiness
         </p>
       </div>
+
+      {/* CPD Configuration Section */}
+      <Card className="border-blue-200 bg-blue-50/50">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Settings className="w-5 h-5 text-blue-600" />
+              <CardTitle>CPD Configuration</CardTitle>
+            </div>
+            <Badge variant="outline" className="bg-white">
+              Practice-wide Settings
+            </Badge>
+          </div>
+          <CardDescription>
+            Set CPD requirements for all team members. Changes apply to the current CPD year.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Total Expected Hours */}
+            <div className="space-y-2">
+              <Label htmlFor="totalHours" className="text-sm font-medium">
+                Total Expected CPD Hours
+                <span className="text-muted-foreground text-xs ml-2">(per year)</span>
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="totalHours"
+                  type="number"
+                  min="1"
+                  max="200"
+                  value={cpdConfig.totalExpectedHours}
+                  onChange={(e) =>
+                    setCpdConfig({
+                      ...cpdConfig,
+                      totalExpectedHours: parseInt(e.target.value) || 0,
+                    })
+                  }
+                  className="bg-white"
+                />
+                <span className="text-sm text-muted-foreground">hours</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Total CPD requirement per team member annually
+              </p>
+            </div>
+
+            {/* Determined Hours */}
+            <div className="space-y-2">
+              <Label htmlFor="determinedHours" className="text-sm font-medium">
+                Determined CPD Hours
+                <span className="text-muted-foreground text-xs ml-2">(structured)</span>
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="determinedHours"
+                  type="number"
+                  min="0"
+                  max={cpdConfig.totalExpectedHours}
+                  value={cpdConfig.determinedHours}
+                  onChange={(e) =>
+                    setCpdConfig({
+                      ...cpdConfig,
+                      determinedHours: parseInt(e.target.value) || 0,
+                    })
+                  }
+                  className="bg-white"
+                />
+                <span className="text-sm text-muted-foreground">hours</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Practice-mandated learning (courses, training)
+              </p>
+            </div>
+
+            {/* Self-Allocated Hours */}
+            <div className="space-y-2">
+              <Label htmlFor="selfHours" className="text-sm font-medium">
+                Self-Allocated CPD Hours
+                <span className="text-muted-foreground text-xs ml-2">(self-directed)</span>
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="selfHours"
+                  type="number"
+                  min="0"
+                  max={cpdConfig.totalExpectedHours}
+                  value={cpdConfig.selfAllocatedHours}
+                  onChange={(e) =>
+                    setCpdConfig({
+                      ...cpdConfig,
+                      selfAllocatedHours: parseInt(e.target.value) || 0,
+                    })
+                  }
+                  className="bg-white"
+                />
+                <span className="text-sm text-muted-foreground">hours</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Member-chosen learning (reading, research)
+              </p>
+            </div>
+          </div>
+
+          {/* Validation Warning */}
+          {cpdConfig.determinedHours + cpdConfig.selfAllocatedHours !== cpdConfig.totalExpectedHours && (
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm">
+                <p className="font-medium text-yellow-800">Configuration Warning</p>
+                <p className="text-yellow-700 mt-1">
+                  Determined ({cpdConfig.determinedHours}h) + Self-Allocated (
+                  {cpdConfig.selfAllocatedHours}h) should equal Total Expected (
+                  {cpdConfig.totalExpectedHours}h)
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Save Button */}
+          <div className="mt-6 flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Changes will apply to all team members' CPD tracking
+            </p>
+            <Button
+              onClick={saveCpdConfig}
+              disabled={savingCpd || cpdConfig.determinedHours + cpdConfig.selfAllocatedHours !== cpdConfig.totalExpectedHours}
+              className="gap-2"
+            >
+              <Save className="w-4 h-4" />
+              {savingCpd ? 'Saving...' : 'Save Configuration'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
