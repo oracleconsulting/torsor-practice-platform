@@ -1,16 +1,98 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase/client';
-import { Mail, Lock, ArrowRight, Shield, CheckCircle } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Shield, CheckCircle, UserPlus } from 'lucide-react';
+import * as InvitationsAPI from '@/lib/api/invitations';
 
 interface LoginPageProps {}
 
 const LoginPage: React.FC<LoginPageProps> = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const inviteCode = searchParams.get('invite');
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [useMagicLink, setUseMagicLink] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [invitation, setInvitation] = useState<any>(null);
+  const [loadingInvite, setLoadingInvite] = useState(!!inviteCode);
+
+  // Load invitation details if invite code present
+  useEffect(() => {
+    if (inviteCode) {
+      loadInvitation();
+    }
+  }, [inviteCode]);
+
+  const loadInvitation = async () => {
+    try {
+      const invite = await InvitationsAPI.getInvitationByCode(inviteCode!);
+      
+      // Check if invitation is valid
+      if (invite.status !== 'pending') {
+        setError(`This invitation has been ${invite.status}`);
+        setLoadingInvite(false);
+        return;
+      }
+      
+      // Check if expired
+      if (new Date(invite.expires_at) < new Date()) {
+        setError('This invitation has expired. Please contact your team lead for a new invitation.');
+        setLoadingInvite(false);
+        return;
+      }
+      
+      setInvitation(invite);
+      setEmail(invite.email);
+      setName(invite.name || '');
+      setLoadingInvite(false);
+    } catch (err: any) {
+      console.error('Error loading invitation:', err);
+      setError('Invalid invitation link. Please check your email for the correct link.');
+      setLoadingInvite(false);
+    }
+  };
+
+  const handleInvitationSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      // 1. Create account
+      const { data: authData, error: signupError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
+            is_team_member: true,
+            practice_id: invitation.practice_id,
+          },
+        },
+      });
+
+      if (signupError) throw signupError;
+
+      // 2. Accept invitation
+      await InvitationsAPI.acceptInvitation(inviteCode!);
+
+      // 3. Track event
+      await InvitationsAPI.trackInvitationEvent(invitation.id, 'accepted');
+
+      // 4. Redirect to assessment
+      navigate('/team-portal/assessment');
+    } catch (err: any) {
+      console.error('Signup error:', err);
+      setError(err.message || 'Failed to create account. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,8 +107,14 @@ const LoginPage: React.FC<LoginPageProps> = () => {
 
       if (error) throw error;
 
-      // Redirect to dashboard
-      window.location.href = '/team-portal/dashboard';
+      // If has invitation, accept it
+      if (inviteCode && invitation) {
+        await InvitationsAPI.acceptInvitation(inviteCode);
+        await InvitationsAPI.trackInvitationEvent(invitation.id, 'accepted');
+        navigate('/team-portal/assessment');
+      } else {
+        window.location.href = '/team-portal/dashboard';
+      }
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
@@ -57,6 +145,18 @@ const LoginPage: React.FC<LoginPageProps> = () => {
     }
   };
 
+  // Show loading while checking invitation
+  if (loadingInvite) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-300">Loading invitation...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (magicLinkSent) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
@@ -86,6 +186,128 @@ const LoginPage: React.FC<LoginPageProps> = () => {
           >
             Try a different email
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show invitation signup form if invite code present
+  if (invitation) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-500/20 rounded-2xl mb-4">
+              <UserPlus className="w-8 h-8 text-blue-400" />
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-2">Welcome to TORSOR!</h1>
+            <p className="text-gray-400">Complete your registration to access the skills portal</p>
+          </div>
+
+          {/* Signup Card */}
+          <div className="bg-gray-800 rounded-2xl shadow-2xl p-8">
+            {/* Invitation Info */}
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
+              <p className="text-sm text-blue-300">
+                You've been invited to join <strong>{invitation.practice_id ? 'RPGCC BSG Skills Portal' : 'the team'}</strong>
+              </p>
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                <p className="text-sm text-red-300">{error}</p>
+              </div>
+            )}
+
+            {/* Signup Form */}
+            <form onSubmit={handleInvitationSignup}>
+              {/* Name Field */}
+              <div className="mb-4">
+                <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-2">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="John Smith"
+                  required
+                />
+              </div>
+
+              {/* Email Field (readonly) */}
+              <div className="mb-4">
+                <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="email"
+                    id="email"
+                    value={email}
+                    readOnly
+                    className="w-full pl-11 pr-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-400 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+
+              {/* Password Field */}
+              <div className="mb-6">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                  Create Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="password"
+                    id="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-11 pr-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="••••••••"
+                    minLength={8}
+                    required
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Minimum 8 characters</p>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Creating account...
+                  </>
+                ) : (
+                  <>
+                    Create Account & Start Assessment
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Footer */}
+            <p className="mt-6 text-center text-sm text-gray-500">
+              Already have an account?{' '}
+              <button
+                onClick={() => setInvitation(null)}
+                className="text-blue-400 hover:text-blue-300"
+              >
+                Sign in instead
+              </button>
+            </p>
+          </div>
         </div>
       </div>
     );
