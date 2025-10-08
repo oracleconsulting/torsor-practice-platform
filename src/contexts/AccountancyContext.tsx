@@ -155,31 +155,43 @@ export const AccountancyProvider: React.FC<{ children: ReactNode }> = ({ childre
 
       console.log('[AccountancyContext] Loading practice for user:', user.id);
 
-      // For demo purposes, always create mock practice immediately
-      console.log('[AccountancyContext] Creating mock practice for demo');
-      
-      const mockPractice: Practice = {
-        id: '6d0a4f47-1a98-4bba-be4e-26c439b1358d',
-        name: 'IVC Accounting - Demo',
-        email: 'james@ivcaccounting.co.uk',
-        contactName: 'James Howard',
-        teamSize: 5,
-        subscription: 'enterprise',
-        subscription_tier: 'enterprise',
-        subscription_status: 'active',
-        createdAt: new Date(),
-        updatedAt: new Date()
+      // Load real practice from database
+      const { data: practiceMember, error: memberError } = await supabase
+        .from('practice_members')
+        .select('practice_id, role, practices(*)')
+        .eq('user_id', user.id)
+        .single();
+
+      if (memberError || !practiceMember) {
+        console.error('[AccountancyContext] Failed to load practice:', memberError);
+        setError('No practice found for user');
+        setLoading(false);
+        return;
+      }
+
+      const practiceData = practiceMember.practices as any;
+      const realPractice: Practice = {
+        id: practiceData.id,
+        name: practiceData.name,
+        email: practiceData.email,
+        contactName: practiceData.contact_name,
+        teamSize: practiceData.team_size || 16,
+        subscription: practiceData.subscription_tier,
+        subscription_tier: practiceData.subscription_tier,
+        subscription_status: practiceData.subscription_status,
+        createdAt: new Date(practiceData.created_at),
+        updatedAt: new Date(practiceData.updated_at || practiceData.created_at)
       };
       
-      setPractice(mockPractice);
-      setPracticeId(mockPractice.id);
-      setMemberRole('owner');
+      setPractice(realPractice);
+      setPracticeId(realPractice.id);
+      setMemberRole(practiceMember.role || 'member');
       setLoading(false);
       
       // Store in cache for persistence
-      AccountancyStorage.savePractice(mockPractice);
+      AccountancyStorage.savePractice(realPractice);
       
-      console.log('[AccountancyContext] Mock practice created and set:', mockPractice);
+      console.log('[AccountancyContext] Real practice loaded:', realPractice);
       return;
 
     } catch (error: any) {

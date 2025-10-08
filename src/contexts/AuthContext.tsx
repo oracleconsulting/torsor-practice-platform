@@ -149,27 +149,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const profile = await loadUserProfile(authUser.id);
           if (mounted) setProfile(profile);
         } else {
-          console.log('[Auth] No valid session found');
-          // Create demo session for accountancy portal
-          console.log('[Auth] Creating demo session for accountancy portal');
-          const demoUser = {
-            id: 'fe05560d-63d7-429d-88dc-1415b61eed2c',
-            email: 'james@ivcaccounting.co.uk',
-            user_metadata: {
-              name: 'James Howard',
-              portal_type: 'oracle',
-              is_client_only: false
-            }
-          };
-          const demoProfile = {
-            id: 'fe05560d-63d7-429d-88dc-1415b61eed2c',
-            portal_access: ['oracle', 'accountancy'],
-            is_admin: true,
-            subscription_tier: 'professional'
-          };
+          console.log('[Auth] No valid session found - redirecting to login');
+          // No demo mode - require real authentication
           if (mounted) {
-            setUser(demoUser as any);
-            setProfile(demoProfile);
+            setUser(null);
+            setProfile(null);
           }
         }
         setInitialized(true);
