@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase/client';
-import { Mail, Lock, ArrowRight, Shield, CheckCircle, UserPlus } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Shield, CheckCircle, UserPlus, XCircle } from 'lucide-react';
 import * as InvitationsAPI from '@/lib/api/invitations';
 
 interface LoginPageProps {}
@@ -57,26 +57,45 @@ const LoginPage: React.FC<LoginPageProps> = () => {
     }
   };
 
-  const handleInvitationSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleInvitationAccept = async () => {
     setLoading(true);
     setError('');
 
     try {
-      // 1. Create account
+      // Generate temporary password
+      const tempPassword = `Temp${Math.random().toString(36).slice(-8)}!`;
+      
+      // 1. Create account with temporary password
       const { data: authData, error: signupError } = await supabase.auth.signUp({
-        email,
-        password,
+        email: invitation.email,
+        password: tempPassword,
         options: {
           data: {
-            full_name: name,
+            full_name: invitation.name || 'Team Member',
             is_team_member: true,
             practice_id: invitation.practice_id,
+            invite_code: inviteCode,
           },
+          emailRedirectTo: `${window.location.origin}/team-portal/assessment`,
         },
       });
 
-      if (signupError) throw signupError;
+      if (signupError) {
+        // If user already exists, try to sign them in
+        if (signupError.message.includes('already registered')) {
+          const { error: loginError } = await supabase.auth.signInWithPassword({
+            email: invitation.email,
+            password: tempPassword,
+          });
+          
+          if (loginError) {
+            setError('Account already exists. Please contact your team lead for assistance.');
+            return;
+          }
+        } else {
+          throw signupError;
+        }
+      }
 
       // 2. Accept invitation
       await InvitationsAPI.acceptInvitation(inviteCode!);
@@ -87,12 +106,19 @@ const LoginPage: React.FC<LoginPageProps> = () => {
       // 4. Redirect to assessment
       navigate('/team-portal/assessment');
     } catch (err: any) {
-      console.error('Signup error:', err);
-      setError(err.message || 'Failed to create account. Please try again.');
+      console.error('Invitation acceptance error:', err);
+      setError(err.message || 'Failed to accept invitation. Please try again or contact your team lead.');
     } finally {
       setLoading(false);
     }
   };
+
+  // Auto-accept invitation when it loads
+  useEffect(() => {
+    if (invitation && !loading && !error) {
+      handleInvitationAccept();
+    }
+  }, [invitation]);
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,123 +217,55 @@ const LoginPage: React.FC<LoginPageProps> = () => {
     );
   }
 
-  // Show invitation signup form if invite code present
+  // Show processing screen while accepting invitation
   if (invitation) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-500/20 rounded-2xl mb-4">
-              <UserPlus className="w-8 h-8 text-blue-400" />
-            </div>
-            <h1 className="text-3xl font-bold text-white mb-2">Welcome to TORSOR!</h1>
-            <p className="text-gray-400">Complete your registration to access the skills portal</p>
-          </div>
-
-          {/* Signup Card */}
-          <div className="bg-gray-800 rounded-2xl shadow-2xl p-8">
-            {/* Invitation Info */}
-            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
-              <p className="text-sm text-blue-300">
-                You've been invited to join <strong>{invitation.practice_id ? 'RPGCC BSG Skills Portal' : 'the team'}</strong>
-              </p>
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+        <div className="max-w-md w-full text-center">
+          {error ? (
+            <div className="bg-gray-800 rounded-2xl shadow-2xl p-8">
+              <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <XCircle className="w-10 h-10 text-red-400" />
+              </div>
+              
+              <h2 className="text-2xl font-bold text-white mb-4">Unable to Accept Invitation</h2>
+              
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6">
                 <p className="text-sm text-red-300">{error}</p>
               </div>
-            )}
-
-            {/* Signup Form */}
-            <form onSubmit={handleInvitationSignup}>
-              {/* Name Field */}
-              <div className="mb-4">
-                <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-2">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="John Smith"
-                  required
-                />
+              
+              <p className="text-gray-400 mb-6">
+                Please contact your team lead for assistance or request a new invitation link.
+              </p>
+              
+              <button
+                onClick={() => window.location.href = 'mailto:hr@rpgcc.co.uk?subject=Skills Portal Access Issue'}
+                className="text-blue-400 hover:text-blue-300 text-sm underline"
+              >
+                Contact Support
+              </button>
+            </div>
+          ) : (
+            <div className="bg-gray-800 rounded-2xl shadow-2xl p-8">
+              <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <UserPlus className="w-10 h-10 text-blue-400 animate-pulse" />
               </div>
-
-              {/* Email Field (readonly) */}
-              <div className="mb-4">
-                <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="email"
-                    id="email"
-                    value={email}
-                    readOnly
-                    className="w-full pl-11 pr-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-400 cursor-not-allowed"
-                  />
-                </div>
-              </div>
-
-              {/* Password Field */}
+              
+              <h2 className="text-2xl font-bold text-white mb-4">Setting Up Your Access...</h2>
+              
               <div className="mb-6">
-                <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-                  Create Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="password"
-                    id="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-11 pr-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="••••••••"
-                    minLength={8}
-                    required
-                  />
-                </div>
-                <p className="text-xs text-gray-400 mt-1">Minimum 8 characters</p>
+                <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
               </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Creating account...
-                  </>
-                ) : (
-                  <>
-                    Create Account & Start Assessment
-                    <ArrowRight className="w-5 h-5" />
-                  </>
-                )}
-              </button>
-            </form>
-
-            {/* Footer */}
-            <p className="mt-6 text-center text-sm text-gray-500">
-              Already have an account?{' '}
-              <button
-                onClick={() => setInvitation(null)}
-                className="text-blue-400 hover:text-blue-300"
-              >
-                Sign in instead
-              </button>
-            </p>
-          </div>
+              
+              <p className="text-gray-400 mb-2">
+                Welcome, <strong className="text-white">{invitation.name || invitation.email}</strong>
+              </p>
+              
+              <p className="text-sm text-gray-500">
+                We're preparing your skills assessment. This will only take a moment...
+              </p>
+            </div>
+          )}
         </div>
       </div>
     );
