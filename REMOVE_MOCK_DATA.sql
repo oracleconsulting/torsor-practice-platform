@@ -41,6 +41,12 @@ BEGIN
     
     RAISE NOTICE '=== Cleanup Complete! ===';
     RAISE NOTICE 'Database is now ready for your real team members';
+    RAISE NOTICE '';
+    RAISE NOTICE '🎉 Ready for your real team!';
+    RAISE NOTICE 'Next steps:';
+    RAISE NOTICE '1. Go to Team Management → Team Invitations';
+    RAISE NOTICE '2. Click "New Invitation"';
+    RAISE NOTICE '3. Add your first real team member';
 END $$;
 
 -- Verify cleanup
@@ -71,11 +77,4 @@ SELECT
     '✅ Skills table (should be 85)' as status,
     COUNT(*) as skill_count
 FROM skills;
-
-RAISE NOTICE '';
-RAISE NOTICE '🎉 Ready for your real team!';
-RAISE NOTICE 'Next steps:';
-RAISE NOTICE '1. Go to Team Management → Team Invitations';
-RAISE NOTICE '2. Click "New Invitation"';
-RAISE NOTICE '3. Add your first real team member';
 
