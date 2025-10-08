@@ -29,11 +29,23 @@ const LoginPage: React.FC<LoginPageProps> = () => {
   }, [inviteCode]);
 
   const loadInvitation = async () => {
+    console.log('[LoginPage] Loading invitation with code:', inviteCode);
+    
+    if (!inviteCode) {
+      console.error('[LoginPage] No invite code provided');
+      setError('No invitation code provided in URL');
+      setLoadingInvite(false);
+      return;
+    }
+    
     try {
-      const invite = await InvitationsAPI.getInvitationByCode(inviteCode!);
+      console.log('[LoginPage] Fetching invitation from database...');
+      const invite = await InvitationsAPI.getInvitationByCode(inviteCode);
+      console.log('[LoginPage] Invitation loaded:', invite);
       
       // Check if invitation is valid
       if (invite.status !== 'pending') {
+        console.warn('[LoginPage] Invitation status is:', invite.status);
         setError(`This invitation has been ${invite.status}`);
         setLoadingInvite(false);
         return;
@@ -41,18 +53,21 @@ const LoginPage: React.FC<LoginPageProps> = () => {
       
       // Check if expired
       if (new Date(invite.expires_at) < new Date()) {
+        console.warn('[LoginPage] Invitation expired at:', invite.expires_at);
         setError('This invitation has expired. Please contact your team lead for a new invitation.');
         setLoadingInvite(false);
         return;
       }
       
+      console.log('[LoginPage] Invitation is valid, setting state...');
       setInvitation(invite);
       setEmail(invite.email);
       setName(invite.name || '');
       setLoadingInvite(false);
     } catch (err: any) {
-      console.error('Error loading invitation:', err);
-      setError('Invalid invitation link. Please check your email for the correct link.');
+      console.error('[LoginPage] Error loading invitation:', err);
+      console.error('[LoginPage] Error details:', err.message, err.code);
+      setError(`Unable to load invitation: ${err.message || 'Please check your email for the correct link.'}`);
       setLoadingInvite(false);
     }
   };
