@@ -3,6 +3,21 @@
 -- 85 Skills Aligned to RPGCC Business Services Group
 -- =====================================================
 
+-- Add service_line column if it doesn't exist (MUST BE BEFORE INSERT)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'skills' AND column_name = 'service_line'
+    ) THEN
+        ALTER TABLE skills ADD COLUMN service_line TEXT;
+        CREATE INDEX idx_skills_service_line ON skills(service_line);
+        RAISE NOTICE 'Added service_line column to skills table';
+    ELSE
+        RAISE NOTICE 'service_line column already exists';
+    END IF;
+END $$;
+
 -- Clear existing skills
 TRUNCATE skills CASCADE;
 
@@ -117,18 +132,6 @@ INSERT INTO skills (id, name, category, description, required_level, service_lin
 (gen_random_uuid(), 'Efficiency Analysis', 'Process & Efficiency', 'Identifying bottlenecks and waste', 3, 'Systems Audit'),
 (gen_random_uuid(), 'Tech Stack Optimization', 'Process & Efficiency', 'Recommending software improvements', 3, 'Systems Audit'),
 (gen_random_uuid(), 'Compliance Calendar Management', 'Process & Efficiency', 'Deadline tracking and automation', 3, 'Compliance');
-
--- Add service_line column if it doesn't exist
-DO $$ 
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'skills' AND column_name = 'service_line'
-    ) THEN
-        ALTER TABLE skills ADD COLUMN service_line TEXT;
-        CREATE INDEX idx_skills_service_line ON skills(service_line);
-    END IF;
-END $$;
 
 -- Summary
 SELECT 
