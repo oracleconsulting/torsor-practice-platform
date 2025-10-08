@@ -1,555 +1,355 @@
-import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase/client';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Save, 
-  CheckCircle,
-  AlertCircle,
-  Star,
-  Calendar,
-  FileText,
-  Award
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
+import { Star, CheckCircle, Save, ArrowRight, Info } from 'lucide-react';
+import * as PortalAPI from '@/lib/api/team-portal';
 
-interface Skill {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
-  requiredLevel: number;
-}
-
-interface SkillAssessment {
-  skillId: string;
-  currentLevel: number;
-  interestLevel: number;
-  yearsExperience: number;
-  lastUsed: string;
-  notes: string;
-}
-
-interface CategoryProgress {
-  [category: string]: {
-    total: number;
-    assessed: number;
-  };
-}
-
-const AssessmentPage: React.FC = () => {
+/**
+ * Mobile-Optimized Skills Assessment Page
+ * 
+ * Features:
+ * - Category-by-category flow
+ * - Large touch targets (mobile-first)
+ * - Auto-save progress
+ * - Service line context
+ * - Visual progress tracking
+ */
+export default function AssessmentPage() {
+  const { toast } = useToast();
+  
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [skills, setSkills] = useState<Skill[]>([]);
+  const [member, setMember] = useState<any>(null);
+  const [skills, setSkills] = useState<PortalAPI.Skill[]>([]);
+  const [assessments, setAssessments] = useState<Map<string, any>>(new Map());
   const [categories, setCategories] = useState<string[]>([]);
   const [currentCategory, setCurrentCategory] = useState(0);
-  const [currentSkillIndex, setCurrentSkillIndex] = useState(0);
-  const [assessments, setAssessments] = useState<Record<string, SkillAssessment>>({});
-  const [categoryProgress, setCategoryProgress] = useState<CategoryProgress>({});
-  const [memberId, setMemberId] = useState<string | null>(null);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [session, setSession] = useState<PortalAPI.SurveySession | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
 
-  useEffect(() => {
-    // Auto-save every 30 seconds
-    const interval = setInterval(() => {
-      if (Object.keys(assessments).length > 0) {
-        saveProgress();
-      }
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [assessments]);
-
   const loadData = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      const user = await PortalAPI.getCurrentUser();
+      const memberData = await PortalAPI.getPracticeMember(user.id);
+      setMember(memberData);
 
-      // Get practice member
-      const { data: member } = await supabase
-        .from('practice_members')
-        .select('id')
-        .eq('user_id', session.user.id)
-        .single();
+      const skillsData = await PortalAPI.getAllSkills();
+      setSkills(skillsData);
 
-      if (!member) return;
-      setMemberId(member.id);
-
-      // Get all skills
-      const { data: skillsData } = await supabase
-        .from('skills')
-        .select('*')
-        .order('category', { ascending: true })
-        .order('name', { ascending: true });
-
-      if (skillsData) {
-        setSkills(skillsData);
-        
-        // Extract unique categories
-        const uniqueCategories = Array.from(new Set(skillsData.map(s => s.category)));
-        setCategories(uniqueCategories);
-
-        // Calculate progress per category
-        const progress: CategoryProgress = {};
-        uniqueCategories.forEach(cat => {
-          progress[cat] = {
-            total: skillsData.filter(s => s.category === cat).length,
-            assessed: 0
-          };
-        });
-        setCategoryProgress(progress);
-      }
+      // Get unique categories
+      const cats = Array.from(new Set(skillsData.map(s => s.category))).sort();
+      setCategories(cats);
 
       // Load existing assessments
-      const { data: existingAssessments } = await supabase
-        .from('skill_assessments')
-        .select('*')
-        .eq('team_member_id', member.id);
+      const existingAssessments = await PortalAPI.getMyAssessments(memberData.id);
+      const assessmentMap = new Map();
+      existingAssessments.forEach(a => {
+        assessmentMap.set(a.skill_id, a);
+      });
+      setAssessments(assessmentMap);
 
-      if (existingAssessments) {
-        const assessmentMap: Record<string, SkillAssessment> = {};
-        existingAssessments.forEach(a => {
-          assessmentMap[a.skill_id] = {
-            skillId: a.skill_id,
-            currentLevel: a.current_level || 0,
-            interestLevel: a.interest_level || 3,
-            yearsExperience: a.years_experience || 0,
-            lastUsed: a.last_used_date || new Date().toISOString().split('T')[0],
-            notes: a.notes || ''
-          };
-        });
-        setAssessments(assessmentMap);
-
-        // Update progress
-        uniqueCategories.forEach(cat => {
-          const categorySkills = skillsData.filter(s => s.category === cat);
-          const assessed = categorySkills.filter(s => assessmentMap[s.id]).length;
-          if (progress[cat]) {
-            progress[cat].assessed = assessed;
-          }
-        });
-        setCategoryProgress(progress);
+      // Load or create survey session
+      let sessionData = await PortalAPI.getSurveySession(memberData.id);
+      if (!sessionData) {
+        sessionData = await PortalAPI.createSurveySession(memberData.id);
       }
+      setSession(sessionData);
 
+      // Resume from last category
+      if (sessionData.last_category) {
+        const categoryIndex = cats.indexOf(sessionData.last_category);
+        if (categoryIndex >= 0) {
+          setCurrentCategory(categoryIndex);
+        }
+      }
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('Failed to load data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load assessment data',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const saveProgress = async () => {
-    if (!memberId) return;
-    
+  const currentCategorySkills = skills.filter(s => s.category === categories[currentCategory]);
+  const totalAssessed = skills.filter(s => assessments.has(s.id) && assessments.get(s.id).current_level > 0).length;
+  const overallProgress = Math.round((totalAssessed / skills.length) * 100);
+
+  const updateAssessment = (skillId: string, field: string, value: any) => {
+    const updated = new Map(assessments);
+    const current = updated.get(skillId) || { skill_id: skillId };
+    current[field] = value;
+    updated.set(skillId, current);
+    setAssessments(updated);
+  };
+
+  const autoSave = async () => {
+    if (!member || !session) return;
+
     setSaving(true);
     try {
-      // Save all assessments
-      const updates = Object.values(assessments).map(assessment => ({
-        team_member_id: memberId,
-        skill_id: assessment.skillId,
-        current_level: assessment.currentLevel,
-        interest_level: assessment.interestLevel,
-        years_experience: assessment.yearsExperience,
-        last_used_date: assessment.lastUsed,
-        notes: assessment.notes,
-        assessment_type: 'self',
-        assessment_date: new Date().toISOString()
-      }));
+      // Save all assessments for current category
+      const toSave = currentCategorySkills
+        .filter(skill => assessments.has(skill.id))
+        .map(skill => ({
+          skillId: skill.id,
+          assessment: assessments.get(skill.id),
+        }));
 
-      // Upsert assessments
-      for (const update of updates) {
-        await supabase
-          .from('skill_assessments')
-          .upsert(update, {
-            onConflict: 'team_member_id,skill_id,assessment_date'
-          });
+      if (toSave.length > 0) {
+        await PortalAPI.batchSaveAssessments(member.id, toSave);
       }
 
-      setLastSaved(new Date());
+      // Update session progress
+      await PortalAPI.updateSurveySession(session.id, {
+        last_category: categories[currentCategory],
+        progress_percentage: overallProgress,
+      });
+
+      toast({
+        title: 'Saved',
+        description: `${toSave.length} assessments saved automatically`,
+      });
     } catch (error) {
-      console.error('Error saving progress:', error);
+      console.error('Auto-save failed:', error);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleAssessmentChange = (skillId: string, field: keyof SkillAssessment, value: any) => {
-    setAssessments(prev => ({
-      ...prev,
-      [skillId]: {
-        ...prev[skillId],
-        skillId,
-        [field]: value
-      }
-    }));
-
-    // Update progress
-    const skill = skills.find(s => s.id === skillId);
-    if (skill && categoryProgress[skill.category]) {
-      const categorySkills = skills.filter(s => s.category === skill.category);
-      const newAssessments = { ...assessments, [skillId]: { ...assessments[skillId], [field]: value } };
-      const assessed = categorySkills.filter(s => newAssessments[s.id] && newAssessments[s.id].currentLevel > 0).length;
-      
-      setCategoryProgress(prev => ({
-        ...prev,
-        [skill.category]: {
-          ...prev[skill.category],
-          assessed
-        }
-      }));
-    }
-  };
-
-  const getCurrentCategorySkills = () => {
-    if (categories.length === 0) return [];
-    return skills.filter(s => s.category === categories[currentCategory]);
-  };
-
-  const goToNextSkill = () => {
-    const categorySkills = getCurrentCategorySkills();
-    if (currentSkillIndex < categorySkills.length - 1) {
-      setCurrentSkillIndex(currentSkillIndex + 1);
-    } else if (currentCategory < categories.length - 1) {
+  const nextCategory = async () => {
+    await autoSave();
+    
+    if (currentCategory < categories.length - 1) {
       setCurrentCategory(currentCategory + 1);
-      setCurrentSkillIndex(0);
+    } else {
+      // Complete survey
+      if (session) {
+        await PortalAPI.completeSurveySession(session.id);
+        toast({
+          title: 'Survey Complete!',
+          description: 'Thank you for completing your skills assessment.',
+        });
+      }
     }
   };
 
-  const goToPreviousSkill = () => {
-    if (currentSkillIndex > 0) {
-      setCurrentSkillIndex(currentSkillIndex - 1);
-    } else if (currentCategory > 0) {
-      const prevCategorySkills = skills.filter(s => s.category === categories[currentCategory - 1]);
-      setCurrentCategory(currentCategory - 1);
-      setCurrentSkillIndex(prevCategorySkills.length - 1);
-    }
-  };
-
-  const handleSubmit = async () => {
-    await saveProgress();
-    setShowSuccess(true);
-    setTimeout(() => {
-      window.location.href = '/team-portal/profile';
-    }, 2000);
-  };
-
-  const getOverallProgress = () => {
-    const total = Object.values(categoryProgress).reduce((sum, p) => sum + p.total, 0);
-    const assessed = Object.values(categoryProgress).reduce((sum, p) => sum + p.assessed, 0);
-    return { total, assessed, percentage: total > 0 ? Math.round((assessed / total) * 100) : 0 };
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-400">Loading assessment...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (showSuccess) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="w-10 h-10 text-green-400" />
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-4">Assessment Saved!</h2>
-          <p className="text-gray-400">Redirecting to your profile...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const categorySkills = getCurrentCategorySkills();
-  const currentSkill = categorySkills[currentSkillIndex];
-  const assessment = currentSkill ? assessments[currentSkill.id] || { 
-    skillId: currentSkill.id,
-    currentLevel: 0,
-    interestLevel: 3,
-    yearsExperience: 0,
-    lastUsed: new Date().toISOString().split('T')[0],
-    notes: ''
-  } : null;
-
-  const progress = getOverallProgress();
-
-  return (
-    <div className="max-w-4xl mx-auto">
-      {/* Header with Progress */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Skills Assessment</h1>
-            <p className="text-gray-400 text-sm">
-              {categories[currentCategory]} • Skill {currentSkillIndex + 1} of {categorySkills.length}
-            </p>
-          </div>
+  const LevelSelector = ({ skill, value, onChange }: any) => (
+    <div className="space-y-2">
+      <label className="text-sm font-medium">Current Skill Level</label>
+      <div className="grid grid-cols-5 gap-2">
+        {[1, 2, 3, 4, 5].map(level => (
           <button
-            onClick={saveProgress}
-            disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors disabled:opacity-50"
+            key={level}
+            onClick={() => onChange(skill.id, 'current_level', level)}
+            className={`
+              p-4 rounded-lg border-2 transition-all text-center
+              ${value === level
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
+                : 'border-gray-300 dark:border-gray-700 hover:border-gray-400'
+              }
+            `}
           >
-            <Save className="w-4 h-4" />
-            {saving ? 'Saving...' : 'Save Progress'}
+            <div className="text-2xl font-bold">{level}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {['Aware', 'Working', 'Proficient', 'Advanced', 'Master'][level - 1]}
+            </div>
           </button>
-        </div>
-
-        {/* Overall Progress Bar */}
-        <div className="bg-gray-800 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-400">Overall Progress</span>
-            <span className="text-sm font-medium text-white">
-              {progress.assessed} / {progress.total} ({progress.percentage}%)
-            </span>
-          </div>
-          <div className="w-full bg-gray-700 rounded-full h-3">
-            <div 
-              className="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full transition-all duration-300"
-              style={{ width: `${progress.percentage}%` }}
-            />
-          </div>
-
-          {lastSaved && (
-            <p className="text-xs text-gray-500 mt-2">
-              Last saved: {lastSaved.toLocaleTimeString()}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Category Navigation */}
-      <div className="mb-6 overflow-x-auto">
-        <div className="flex gap-2">
-          {categories.map((cat, idx) => {
-            const catProgress = categoryProgress[cat];
-            const percentage = catProgress ? Math.round((catProgress.assessed / catProgress.total) * 100) : 0;
-            
-            return (
-              <button
-                key={cat}
-                onClick={() => {
-                  setCurrentCategory(idx);
-                  setCurrentSkillIndex(0);
-                }}
-                className={`
-                  flex-shrink-0 px-4 py-2 rounded-lg transition-all
-                  ${idx === currentCategory 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                  }
-                `}
-              >
-                <div className="text-sm font-medium whitespace-nowrap">{cat}</div>
-                <div className="text-xs mt-1">{percentage}%</div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Skill Assessment Card */}
-      {currentSkill && assessment && (
-        <div className="bg-gray-800 rounded-2xl border border-gray-700 p-6 md:p-8 mb-6">
-          {/* Skill Info */}
-          <div className="mb-8">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex-1">
-                <h2 className="text-2xl font-bold text-white mb-2">{currentSkill.name}</h2>
-                <p className="text-gray-400">{currentSkill.description}</p>
-              </div>
-              <Award className="w-8 h-8 text-blue-400 flex-shrink-0 ml-4" />
-            </div>
-            
-            {currentSkill.requiredLevel > 0 && (
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-                <p className="text-sm text-blue-300">
-                  Required Level: {currentSkill.requiredLevel}/5
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Current Level */}
-          <div className="mb-8">
-            <label className="block text-white font-medium mb-4">
-              📈 Your Current Skill Level
-            </label>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              {[0, 1, 2, 3, 4, 5].map(level => (
-                <button
-                  key={level}
-                  onClick={() => handleAssessmentChange(currentSkill.id, 'currentLevel', level)}
-                  className={`
-                    p-4 rounded-xl border-2 transition-all
-                    ${assessment.currentLevel === level
-                      ? 'border-blue-500 bg-blue-500/20 scale-105'
-                      : 'border-gray-600 bg-gray-700 hover:border-gray-500'
-                    }
-                  `}
-                >
-                  <div className={`text-2xl font-bold mb-1 ${
-                    assessment.currentLevel === level ? 'text-blue-400' : 'text-gray-300'
-                  }`}>
-                    {level}
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    {['N/A', 'Aware', 'Working', 'Proficient', 'Advanced', 'Master'][level]}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Interest Level */}
-          <div className="mb-8">
-            <label className="block text-white font-medium mb-4">
-              ❤️ Your Interest Level
-            </label>
-            <div className="flex items-center gap-2">
-              {[1, 2, 3, 4, 5].map(level => (
-                <button
-                  key={level}
-                  onClick={() => handleAssessmentChange(currentSkill.id, 'interestLevel', level)}
-                  className="flex-1"
-                >
-                  <Star 
-                    className={`w-10 h-10 mx-auto transition-all ${
-                      assessment.interestLevel >= level
-                        ? 'text-yellow-400 fill-yellow-400'
-                        : 'text-gray-600'
-                    }`}
-                  />
-                </button>
-              ))}
-            </div>
-            <div className="flex justify-between text-xs text-gray-500 mt-2 px-2">
-              <span>Low</span>
-              <span>High</span>
-            </div>
-          </div>
-
-          {/* Additional Info (Collapsed on Mobile) */}
-          <details className="mb-6">
-            <summary className="text-white font-medium cursor-pointer hover:text-blue-400 transition-colors">
-              📝 Additional Details (Optional)
-            </summary>
-            
-            <div className="mt-4 space-y-4">
-              {/* Last Used */}
-              <div>
-                <label className="block text-gray-300 text-sm mb-2">
-                  <Calendar className="w-4 h-4 inline mr-1" />
-                  Last Used
-                </label>
-                <input
-                  type="date"
-                  value={assessment.lastUsed}
-                  onChange={(e) => handleAssessmentChange(currentSkill.id, 'lastUsed', e.target.value)}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Notes */}
-              <div>
-                <label className="block text-gray-300 text-sm mb-2">
-                  <FileText className="w-4 h-4 inline mr-1" />
-                  Notes (certifications, projects, etc.)
-                </label>
-                <textarea
-                  value={assessment.notes}
-                  onChange={(e) => handleAssessmentChange(currentSkill.id, 'notes', e.target.value)}
-                  placeholder="e.g., Completed ACA module, Used in Project X..."
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 h-24 resize-none"
-                />
-              </div>
-            </div>
-          </details>
-
-          {/* Skip Option */}
-          {assessment.currentLevel === 0 && (
-            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-6">
-              <div className="flex items-center gap-2 text-yellow-400">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">
-                  Not familiar with this skill? That's okay! Select "0 - N/A" to skip.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Navigation */}
-          <div className="flex items-center justify-between pt-6 border-t border-gray-700">
-            <button
-              onClick={goToPreviousSkill}
-              disabled={currentCategory === 0 && currentSkillIndex === 0}
-              className="flex items-center gap-2 px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft className="w-5 h-5" />
-              <span className="hidden sm:inline">Previous</span>
-            </button>
-
-            {currentCategory === categories.length - 1 && 
-             currentSkillIndex === categorySkills.length - 1 ? (
-              <button
-                onClick={handleSubmit}
-                className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-medium rounded-lg transition-all shadow-lg"
-              >
-                <CheckCircle className="w-5 h-5" />
-                Complete Assessment
-              </button>
-            ) : (
-              <button
-                onClick={goToNextSkill}
-                className="flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-              >
-                <span className="hidden sm:inline">Next</span>
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Category Quick Jump */}
-      <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <h3 className="text-white font-bold mb-4">Quick Jump</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {categories.map((cat, idx) => {
-            const catProgress = categoryProgress[cat];
-            const catSkills = skills.filter(s => s.category === cat);
-            
-            return (
-              <button
-                key={cat}
-                onClick={() => {
-                  setCurrentCategory(idx);
-                  setCurrentSkillIndex(0);
-                }}
-                className="flex items-center justify-between p-4 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-left"
-              >
-                <div>
-                  <p className="text-white font-medium">{cat}</p>
-                  <p className="text-sm text-gray-400">
-                    {catProgress?.assessed || 0} / {catSkills.length} assessed
-                  </p>
-                </div>
-                <ChevronRight className="w-5 h-5 text-gray-400" />
-              </button>
-            );
-          })}
-        </div>
+        ))}
       </div>
     </div>
   );
-};
 
-export default AssessmentPage;
+  const InterestSelector = ({ skill, value, onChange }: any) => (
+    <div className="space-y-2">
+      <label className="text-sm font-medium">Interest Level</label>
+      <div className="flex gap-2 justify-center">
+        {[1, 2, 3, 4, 5].map(level => (
+          <button
+            key={level}
+            onClick={() => onChange(skill.id, 'interest_level', level)}
+            className={`
+              p-3 rounded-full transition-all
+              ${value >= level
+                ? 'text-yellow-500'
+                : 'text-gray-300 dark:text-gray-700'
+              }
+            `}
+          >
+            <Star className="w-8 h-8" fill={value >= level ? 'currentColor' : 'none'} />
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-center text-muted-foreground">
+        {value === 1 && 'No Interest'}
+        {value === 2 && 'Low Interest'}
+        {value === 3 && 'Moderate Interest'}
+        {value === 4 && 'High Interest'}
+        {value === 5 && 'Passionate'}
+      </p>
+    </div>
+  );
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading assessment...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container max-w-4xl mx-auto p-4 space-y-6">
+      {/* Header with Progress */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <CardTitle>Skills Assessment</CardTitle>
+              <CardDescription>
+                Category {currentCategory + 1} of {categories.length}: {categories[currentCategory]}
+              </CardDescription>
+            </div>
+            {saving && (
+              <Badge variant="secondary">
+                <Save className="w-3 h-3 mr-1 animate-pulse" />
+                Saving...
+              </Badge>
+            )}
+          </div>
+          <Progress value={overallProgress} className="h-2" />
+          <p className="text-sm text-muted-foreground mt-2">
+            {totalAssessed} of {skills.length} skills assessed ({overallProgress}%)
+          </p>
+        </CardHeader>
+      </Card>
+
+      {/* Service Line Context */}
+      {currentCategorySkills.some(s => s.service_line) && (
+        <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+          <CardContent className="pt-4">
+            <div className="flex items-start gap-2">
+              <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  Service Lines in this Category
+                </p>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {Array.from(new Set(currentCategorySkills.map(s => s.service_line).filter(Boolean))).map(sl => (
+                    <Badge key={sl} variant="outline" className="bg-white dark:bg-gray-900">
+                      {sl}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Skill Cards */}
+      <div className="space-y-4">
+        {currentCategorySkills.map(skill => {
+          const assessment = assessments.get(skill.id) || {};
+          const isComplete = assessment.current_level && assessment.interest_level;
+
+          return (
+            <Card key={skill.id} className={isComplete ? 'border-green-500' : ''}>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <CardTitle className="text-lg">{skill.name}</CardTitle>
+                    <CardDescription className="mt-1">{skill.description}</CardDescription>
+                    <div className="flex gap-2 mt-2">
+                      <Badge variant="outline">Required: Level {skill.required_level}</Badge>
+                      {skill.service_line && (
+                        <Badge variant="secondary">{skill.service_line}</Badge>
+                      )}
+                    </div>
+                  </div>
+                  {isComplete && (
+                    <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0 ml-2" />
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <LevelSelector
+                  skill={skill}
+                  value={assessment.current_level}
+                  onChange={updateAssessment}
+                />
+                
+                <InterestSelector
+                  skill={skill}
+                  value={assessment.interest_level}
+                  onChange={updateAssessment}
+                />
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Notes (Optional)</label>
+                  <Textarea
+                    placeholder="Any additional context, certifications, or experience..."
+                    value={assessment.notes || ''}
+                    onChange={(e) => updateAssessment(skill.id, 'notes', e.target.value)}
+                    rows={2}
+                    className="resize-none"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Navigation */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex gap-4">
+            <Button
+              onClick={autoSave}
+              variant="outline"
+              className="flex-1"
+              disabled={saving}
+            >
+              <Save className="w-4 h-4 mr-2" />
+              Save Progress
+            </Button>
+            <Button
+              onClick={nextCategory}
+              className="flex-1"
+              disabled={saving}
+            >
+              {currentCategory < categories.length - 1 ? (
+                <>
+                  Next Category
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </>
+              ) : (
+                <>
+                  Complete Survey
+                  <CheckCircle className="w-4 h-4 ml-2" />
+                </>
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-center text-muted-foreground mt-4">
+            Your progress is automatically saved. You can continue later from where you left off.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
