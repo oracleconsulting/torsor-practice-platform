@@ -21,15 +21,15 @@ BEGIN
     GET DIAGNOSTICS deleted_assessments = ROW_COUNT;
     RAISE NOTICE 'Deleted % skill assessments', deleted_assessments;
     
-    -- 2. Delete development goals
+    -- 2. Delete development goals (uses practice_member_id)
     DELETE FROM development_goals 
-    WHERE team_member_id IN (SELECT id FROM practice_members);
+    WHERE practice_member_id IN (SELECT id FROM practice_members);
     GET DIAGNOSTICS deleted_goals = ROW_COUNT;
     RAISE NOTICE 'Deleted % development goals', deleted_goals;
     
-    -- 3. Delete survey sessions
+    -- 3. Delete survey sessions (uses practice_member_id)
     DELETE FROM survey_sessions 
-    WHERE team_member_id IN (SELECT id FROM practice_members);
+    WHERE practice_member_id IN (SELECT id FROM practice_members);
     GET DIAGNOSTICS deleted_sessions = ROW_COUNT;
     RAISE NOTICE 'Deleted % survey sessions', deleted_sessions;
     
