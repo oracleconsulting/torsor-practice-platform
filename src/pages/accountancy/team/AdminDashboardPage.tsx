@@ -46,48 +46,21 @@ export default function AdminDashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      // TODO: Replace with actual API calls
-      // const stats = await PortalAPI.getAdminStats();
-      // setData(stats);
-      
-      // Mock data for now
+      // TODO: Implement actual admin stats API
+      // For now, show empty/zero state
       setData({
-        teamSize: 16,
-        assessmentsComplete: 3,
-        assessmentsPending: 13,
-        averageCompletion: 18.75,
+        teamSize: 16, // Your target team size
+        assessmentsComplete: 0,
+        assessmentsPending: 16,
+        averageCompletion: 0,
         totalSkills: 85,
-        avgTeamLevel: 3.2,
-        activeGoals: 12,
-        criticalGaps: 5,
-        serviceLines: [
-          { name: 'Automation', coverage: 85, avgLevel: 3.5, teamCount: 8, status: 'good' },
-          { name: 'Management Accounts', coverage: 72, avgLevel: 3.8, teamCount: 6, status: 'good' },
-          { name: 'Advisory/Forecasting', coverage: 45, avgLevel: 2.9, teamCount: 4, status: 'needs-attention' },
-          { name: '365 Alignment', coverage: 30, avgLevel: 2.4, teamCount: 2, status: 'critical' },
-          { name: 'Systems Audit', coverage: 60, avgLevel: 3.1, teamCount: 5, status: 'needs-attention' },
-          { name: 'Client Vault', coverage: 78, avgLevel: 3.4, teamCount: 7, status: 'good' },
-        ],
-        categoryBreakdown: [
-          { category: 'Cloud Accounting', avgLevel: 3.5, coverage: 85 },
-          { category: 'Management Reporting', avgLevel: 3.8, coverage: 72 },
-          { category: 'Advisory', avgLevel: 2.9, coverage: 45 },
-          { category: 'Digital & AI', avgLevel: 3.2, coverage: 65 },
-          { category: 'Tax & Compliance', avgLevel: 3.6, coverage: 80 },
-          { category: 'Client Management', avgLevel: 3.7, coverage: 75 },
-        ],
-        topGaps: [
-          { skill: 'AI for Accounting Applications', currentAvg: 1.8, required: 3, gap: -1.2, interest: 4.2 },
-          { skill: 'Power BI Fundamentals', currentAvg: 1.5, required: 2, gap: -0.5, interest: 3.8 },
-          { skill: '365 Alignment Methodology', currentAvg: 2.0, required: 3, gap: -1.0, interest: 3.5 },
-          { skill: 'Scenario Modelling', currentAvg: 2.3, required: 3, gap: -0.7, interest: 3.9 },
-          { skill: 'Process Automation (RPA)', currentAvg: 1.6, required: 2, gap: -0.4, interest: 3.3 },
-        ],
-        recentActivity: [
-          { member: 'Emma Wilson', action: 'Completed full assessment', timestamp: '2 hours ago' },
-          { member: 'Michael Chen', action: 'Started assessment (40% complete)', timestamp: '5 hours ago' },
-          { member: 'Sarah Johnson', action: 'Updated 12 skills', timestamp: '1 day ago' },
-        ],
+        avgTeamLevel: 0,
+        activeGoals: 0,
+        criticalGaps: 0,
+        serviceLines: [],
+        categoryBreakdown: [],
+        topGaps: [],
+        recentActivity: [],
       });
     } catch (error) {
       console.error('Failed to load dashboard data:', error);

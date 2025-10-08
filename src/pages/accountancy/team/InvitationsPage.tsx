@@ -48,30 +48,11 @@ export default function InvitationsPage() {
 
   const loadInvitations = async () => {
     try {
-      // TODO: Replace with actual API call
-      // const data = await PortalAPI.getInvitations();
-      // setInvitations(data);
+      // TODO: Implement actual invitations table/API
+      // For now, show empty state (no mock data)
+      setInvitations([]);
       
-      // Mock data for now
-      setInvitations([
-        {
-          id: '1',
-          email: 'emma.wilson@rpgcc.com',
-          name: 'Emma Wilson',
-          role: 'Junior Advisor',
-          status: 'accepted',
-          sent_at: new Date('2025-10-05').toISOString(),
-          accepted_at: new Date('2025-10-06').toISOString(),
-        },
-        {
-          id: '2',
-          email: 'michael.chen@rpgcc.com',
-          name: 'Michael Chen',
-          role: 'Advisory Consultant',
-          status: 'pending',
-          sent_at: new Date('2025-10-07').toISOString(),
-        },
-      ]);
+      console.log('📧 Invitations system ready (email integration pending)');
     } catch (error) {
       console.error('Failed to load invitations:', error);
       toast({
@@ -98,22 +79,27 @@ export default function InvitationsPage() {
       setSending(true);
 
       try {
-        // TODO: Replace with actual API call
-        // await PortalAPI.createInvitation(formData);
+        // TODO: Implement actual invitation creation + email sending
+        // For now, just generate an invite link
+        const inviteLink = `${window.location.origin}/team-portal/login?email=${encodeURIComponent(formData.email)}`;
+        
+        // Copy to clipboard automatically
+        await navigator.clipboard.writeText(inviteLink);
         
         toast({
-          title: 'Invitation Sent',
-          description: `Invitation sent to ${formData.email}`,
+          title: 'Invitation Link Created',
+          description: `Link copied to clipboard! Share with ${formData.email}`,
         });
 
         setShowNewInvite(false);
         setFormData({ email: '', name: '', role: 'Team Member', personalMessage: '' });
-        loadInvitations();
+        
+        // Note: Until we implement invitation tracking, this just closes the modal
       } catch (error) {
-        console.error('Failed to send invitation:', error);
+        console.error('Failed to create invitation:', error);
         toast({
           title: 'Error',
-          description: 'Failed to send invitation',
+          description: 'Failed to create invitation link',
           variant: 'destructive',
         });
       } finally {
