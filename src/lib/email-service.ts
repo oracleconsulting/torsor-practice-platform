@@ -1,16 +1,16 @@
 /**
  * Email Service
- * Handles all outgoing emails via SendGrid
+ * Handles all outgoing emails via Resend
  */
 
 // =====================================================
 // Configuration
 // =====================================================
 
-const SENDGRID_API_KEY = import.meta.env.VITE_SENDGRID_API_KEY || process.env.SENDGRID_API_KEY;
+const RESEND_API_KEY = import.meta.env.VITE_RESEND_API_KEY || import.meta.env.RESEND_API_KEY || process.env.RESEND_API_KEY;
 const FROM_EMAIL = import.meta.env.VITE_FROM_EMAIL || 'noreply@rpgcc.com';
 const FROM_NAME = import.meta.env.VITE_FROM_NAME || 'RPGCC Team Portal';
-const SENDGRID_API_URL = 'https://api.sendgrid.com/v3/mail/send';
+const RESEND_API_URL = 'https://api.resend.com/emails';
 
 // =====================================================
 // Types
@@ -35,62 +35,45 @@ export interface EmailResult {
 // =====================================================
 
 export async function sendEmail(params: EmailParams): Promise<EmailResult> {
-  // Check if SendGrid is configured
-  if (!SENDGRID_API_KEY || SENDGRID_API_KEY === 'your-sendgrid-api-key-here') {
-    console.warn('⚠️ SendGrid not configured, email not sent:', params.to);
+  // Check if Resend is configured
+  if (!RESEND_API_KEY || RESEND_API_KEY === 'your-resend-api-key-here') {
+    console.warn('⚠️ Resend not configured, email not sent:', params.to);
     return {
       success: false,
-      error: 'SendGrid API key not configured',
+      error: 'Resend API key not configured',
     };
   }
 
   try {
-    const response = await fetch(SENDGRID_API_URL, {
+    const response = await fetch(RESEND_API_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${SENDGRID_API_KEY}`,
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        personalizations: [
-          {
-            to: [{ email: params.to }],
-            subject: params.subject,
-          },
-        ],
-        from: {
-          email: FROM_EMAIL,
-          name: FROM_NAME,
-        },
-        reply_to: params.replyTo ? {
-          email: params.replyTo,
-        } : undefined,
-        content: [
-          {
-            type: 'text/html',
-            value: params.html,
-          },
-          ...(params.text ? [{
-            type: 'text/plain',
-            value: params.text,
-          }] : []),
-        ],
+        from: `${FROM_NAME} <${FROM_EMAIL}>`,
+        to: [params.to],
+        subject: params.subject,
+        html: params.html,
+        text: params.text,
+        reply_to: params.replyTo,
       }),
     });
 
     if (response.ok) {
-      const messageId = response.headers.get('x-message-id');
-      console.log('✅ Email sent to:', params.to, 'Message ID:', messageId);
+      const data = await response.json();
+      console.log('✅ Email sent to:', params.to, 'Message ID:', data.id);
       return {
         success: true,
-        messageId: messageId || undefined,
+        messageId: data.id,
       };
     } else {
-      const errorText = await response.text();
-      console.error('❌ SendGrid error:', response.status, errorText);
+      const errorData = await response.json().catch(() => ({}));
+      console.error('❌ Resend error:', response.status, errorData);
       return {
         success: false,
-        error: `SendGrid error: ${response.status}`,
+        error: `Resend error: ${response.status} - ${errorData.message || 'Unknown error'}`,
       };
     }
   } catch (error) {
@@ -349,7 +332,7 @@ export async function sendWelcomeEmail(
 // =====================================================
 
 export function isEmailConfigured(): boolean {
-  return !!(SENDGRID_API_KEY && SENDGRID_API_KEY !== 'your-sendgrid-api-key-here');
+  return !!(RESEND_API_KEY && RESEND_API_KEY !== 'your-resend-api-key-here');
 }
 
 export function getEmailConfig() {
@@ -357,6 +340,7 @@ export function getEmailConfig() {
     configured: isEmailConfigured(),
     fromEmail: FROM_EMAIL,
     fromName: FROM_NAME,
+    provider: 'Resend',
   };
 }
 

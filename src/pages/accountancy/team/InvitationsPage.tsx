@@ -223,7 +223,7 @@ export default function InvitationsPage() {
               <div className="text-sm">
                 <p className="font-medium text-yellow-900 dark:text-yellow-100">Email not configured</p>
                 <p className="text-yellow-700 dark:text-yellow-300 mt-1">
-                  Invitation link will be copied to clipboard. Set VITE_SENDGRID_API_KEY to enable automatic emails.
+                  Invitation link will be copied to clipboard. Set VITE_RESEND_API_KEY or RESEND_API_KEY to enable automatic emails.
                 </p>
               </div>
             </div>
