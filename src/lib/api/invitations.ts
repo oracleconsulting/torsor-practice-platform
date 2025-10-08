@@ -182,13 +182,20 @@ export async function deleteInvitation(invitationId: string): Promise<void> {
 export async function acceptInvitation(inviteCode: string): Promise<string> {
   const { data: user } = await supabase.auth.getUser();
   
-  const { data, error } = await supabase.rpc('accept_invitation', {
-    p_invite_code: inviteCode,
-    p_user_id: user.user?.id,
-  });
+  // Update invitation status directly instead of using RPC
+  const { data, error } = await supabase
+    .from('invitations')
+    .update({
+      status: 'accepted',
+      accepted_at: new Date().toISOString(),
+      accepted_by: user.user?.id,
+    })
+    .eq('invite_code', inviteCode)
+    .select('practice_id')
+    .single();
 
   if (error) throw error;
-  return data;
+  return data?.practice_id || '';
 }
 
 // =====================================================
