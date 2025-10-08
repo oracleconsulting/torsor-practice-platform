@@ -163,8 +163,9 @@ export const AccountancyProvider: React.FC<{ children: ReactNode }> = ({ childre
         .single();
 
       if (memberError || !practiceMember) {
-        console.error('[AccountancyContext] Failed to load practice:', memberError);
-        setError('No practice found for user');
+        // This is OK - user might be a team member, not a practice admin
+        console.log('[AccountancyContext] No practice found - user may be team member only');
+        setError(null); // Don't set error - this is a valid state
         setLoading(false);
         return;
       }
