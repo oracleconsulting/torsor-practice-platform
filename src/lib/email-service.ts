@@ -45,35 +45,34 @@ export async function sendEmail(params: EmailParams): Promise<EmailResult> {
   }
 
   try {
-    const response = await fetch(RESEND_API_URL, {
+    // Call our backend API endpoint instead of Resend directly (fixes CORS)
+    const response = await fetch('/api/send-email', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         from: `${FROM_NAME} <${FROM_EMAIL}>`,
-        to: [params.to],
+        to: params.to,
         subject: params.subject,
         html: params.html,
         text: params.text,
-        reply_to: params.replyTo,
       }),
     });
 
     if (response.ok) {
       const data = await response.json();
-      console.log('✅ Email sent to:', params.to, 'Message ID:', data.id);
+      console.log('✅ Email sent to:', params.to, 'Message ID:', data.messageId);
       return {
         success: true,
-        messageId: data.id,
+        messageId: data.messageId,
       };
     } else {
       const errorData = await response.json().catch(() => ({}));
-      console.error('❌ Resend error:', response.status, errorData);
+      console.error('❌ Email API error:', response.status, errorData);
       return {
         success: false,
-        error: `Resend error: ${response.status} - ${errorData.message || 'Unknown error'}`,
+        error: `Email API error: ${response.status} - ${errorData.error || 'Unknown error'}`,
       };
     }
   } catch (error) {

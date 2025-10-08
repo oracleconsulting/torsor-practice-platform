@@ -8,6 +8,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Parse JSON request bodies
+app.use(express.json());
+
 // Cache control middleware
 app.use((req, res, next) => {
   // Disable caching for HTML files and auth routes
@@ -20,6 +23,62 @@ app.use((req, res, next) => {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
   }
   next();
+});
+
+// Email sending endpoint
+app.post('/api/send-email', async (req, res) => {
+  try {
+    const { to, subject, html, text, from } = req.body;
+    
+    // Get Resend API key from environment
+    const RESEND_API_KEY = process.env.VITE_RESEND_API_KEY || process.env.RESEND_API_KEY;
+    
+    if (!RESEND_API_KEY || RESEND_API_KEY === 'your-resend-api-key-here') {
+      console.error('❌ Resend API key not configured on server');
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Email service not configured' 
+      });
+    }
+    
+    // Call Resend API
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: Array.isArray(to) ? to : [to],
+        subject,
+        html,
+        text,
+      }),
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('✅ Email sent successfully:', data.id);
+      return res.json({
+        success: true,
+        messageId: data.id,
+      });
+    } else {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('❌ Resend API error:', response.status, errorData);
+      return res.status(response.status).json({
+        success: false,
+        error: errorData.message || 'Failed to send email',
+      });
+    }
+  } catch (error) {
+    console.error('❌ Email endpoint error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error',
+    });
+  }
 });
 
 // Serve static files from the dist directory
