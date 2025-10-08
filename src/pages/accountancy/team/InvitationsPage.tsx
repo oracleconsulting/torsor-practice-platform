@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useAccountancyContext } from '@/contexts/AccountancyContext';
 import {
   Mail,
   Send,
@@ -14,6 +15,9 @@ import {
   RefreshCw,
   Plus,
   Trash2,
+  Upload,
+  Download,
+  AlertCircle,
 } from 'lucide-react';
 import {
   Dialog,
@@ -25,34 +29,40 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import * as InvitationsAPI from '@/lib/api/invitations';
+import * as EmailService from '@/lib/email-service';
 
 /**
- * Team Portal Invitation Management
- * 
- * Admin interface for:
- * - Creating team member accounts
- * - Sending email invitations
- * - Tracking invitation status
- * - Resending/revoking invitations
+ * Full Invitation Management System
+ * - Create individual invitations
+ * - Bulk CSV import
+ * - Track status (pending/accepted/expired)
+ * - Resend/revoke functionality
+ * - Email integration with SendGrid
  */
 export default function InvitationsPage() {
   const { toast } = useToast();
+  const { practice } = useAccountancyContext();
   
-  const [invitations, setInvitations] = useState<any[]>([]);
+  const [invitations, setInvitations] = useState<InvitationsAPI.Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewInvite, setShowNewInvite] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
-    loadInvitations();
-  }, []);
+    if (practice?.id) {
+      loadInvitations();
+      loadStats();
+    }
+  }, [practice?.id]);
 
   const loadInvitations = async () => {
+    if (!practice?.id) return;
+    
     try {
-      // TODO: Implement actual invitations table/API
-      // For now, show empty state (no mock data)
-      setInvitations([]);
-      
-      console.log('📧 Invitations system ready (email integration pending)');
+      const data = await InvitationsAPI.getInvitations(practice.id);
+      setInvitations(data);
     } catch (error) {
       console.error('Failed to load invitations:', error);
       toast({
@@ -62,6 +72,17 @@ export default function InvitationsPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadStats = async () => {
+    if (!practice?.id) return;
+    
+    try {
+      const data = await InvitationsAPI.getInvitationStats(practice.id);
+      setStats(data);
+    } catch (error) {
+      console.error('Failed to load stats:', error);
     }
   };
 
@@ -76,30 +97,70 @@ export default function InvitationsPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
+      if (!practice?.id) return;
+      
       setSending(true);
 
       try {
-        // TODO: Implement actual invitation creation + email sending
-        // For now, just generate an invite link
-        const inviteLink = `${window.location.origin}/team-portal/login?email=${encodeURIComponent(formData.email)}`;
-        
-        // Copy to clipboard automatically
-        await navigator.clipboard.writeText(inviteLink);
-        
-        toast({
-          title: 'Invitation Link Created',
-          description: `Link copied to clipboard! Share with ${formData.email}`,
+        // Create invitation in database
+        const invitation = await InvitationsAPI.createInvitation(practice.id, {
+          email: formData.email,
+          name: formData.name,
+          role: formData.role,
+          personalMessage: formData.personalMessage,
         });
+
+        // Generate invite link
+        const inviteLink = InvitationsAPI.generateInviteLink(invitation.invite_code);
+
+        // Try to send email (falls back to clipboard if not configured)
+        const emailConfig = EmailService.getEmailConfig();
+        
+        if (emailConfig.configured) {
+          const result = await EmailService.sendInvitationEmail(
+            formData.email,
+            formData.name,
+            inviteLink,
+            formData.personalMessage
+          );
+
+          if (result.success) {
+            // Mark email as sent
+            await InvitationsAPI.trackInvitationEvent(invitation.id, 'sent', {
+              messageId: result.messageId,
+            });
+            
+            toast({
+              title: 'Invitation Sent',
+              description: `Email sent to ${formData.email}`,
+            });
+          } else {
+            // Email failed, copy link instead
+            await navigator.clipboard.writeText(inviteLink);
+            toast({
+              title: 'Link Copied',
+              description: `Email failed. Link copied to clipboard for ${formData.email}`,
+              variant: 'default',
+            });
+          }
+        } else {
+          // SendGrid not configured, copy link
+          await navigator.clipboard.writeText(inviteLink);
+          toast({
+            title: 'Invitation Created',
+            description: `Link copied! Share with ${formData.email}`,
+          });
+        }
 
         setShowNewInvite(false);
         setFormData({ email: '', name: '', role: 'Team Member', personalMessage: '' });
-        
-        // Note: Until we implement invitation tracking, this just closes the modal
-      } catch (error) {
+        loadInvitations();
+        loadStats();
+      } catch (error: any) {
         console.error('Failed to create invitation:', error);
         toast({
           title: 'Error',
-          description: 'Failed to create invitation link',
+          description: error.message || 'Failed to create invitation',
           variant: 'destructive',
         });
       } finally {
@@ -155,10 +216,24 @@ export default function InvitationsPage() {
           />
         </div>
 
+        {!EmailService.isEmailConfigured() && (
+          <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+              <div className="text-sm">
+                <p className="font-medium text-yellow-900 dark:text-yellow-100">Email not configured</p>
+                <p className="text-yellow-700 dark:text-yellow-300 mt-1">
+                  Invitation link will be copied to clipboard. Set VITE_SENDGRID_API_KEY to enable automatic emails.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-2 pt-4">
           <Button type="submit" disabled={sending} className="flex-1">
             <Send className="w-4 h-4 mr-2" />
-            {sending ? 'Sending...' : 'Send Invitation'}
+            {sending ? 'Creating...' : 'Create Invitation'}
           </Button>
           <Button
             type="button"
@@ -172,12 +247,133 @@ export default function InvitationsPage() {
     );
   };
 
-  const InvitationCard = ({ invitation }: { invitation: any }) => {
-    const [copying, setCopying] = useState(false);
+  const BulkImportDialog = () => {
+    const [file, setFile] = useState<File | null>(null);
+    const [importing, setImporting] = useState(false);
 
-    const copyInviteLink = () => {
-      const link = `${window.location.origin}/team-portal/login?invite=${invitation.id}`;
-      navigator.clipboard.writeText(link);
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+        setFile(e.target.files[0]);
+      }
+    };
+
+    const handleImport = async () => {
+      if (!file || !practice?.id) return;
+
+      setImporting(true);
+      try {
+        const text = await file.text();
+        const lines = text.split('\n').filter(line => line.trim());
+        
+        // Parse CSV (simple parser - assumes email,name,role format)
+        const invitations: InvitationsAPI.BulkInviteRow[] = [];
+        
+        for (let i = 1; i < lines.length; i++) { // Skip header
+          const [email, name, role] = lines[i].split(',').map(s => s.trim());
+          if (email) {
+            invitations.push({ email, name, role });
+          }
+        }
+
+        if (invitations.length === 0) {
+          throw new Error('No valid invitations found in CSV');
+        }
+
+        // Create batch
+        await InvitationsAPI.createBulkInvitationBatch(
+          practice.id,
+          `Bulk Import - ${new Date().toLocaleDateString()}`,
+          invitations
+        );
+
+        toast({
+          title: 'Import Successful',
+          description: `${invitations.length} invitations created`,
+        });
+
+        setShowBulkImport(false);
+        setFile(null);
+        loadInvitations();
+        loadStats();
+      } catch (error: any) {
+        console.error('Import failed:', error);
+        toast({
+          title: 'Import Failed',
+          description: error.message || 'Failed to import invitations',
+          variant: 'destructive',
+        });
+      } finally {
+        setImporting(false);
+      }
+    };
+
+    const downloadTemplate = () => {
+      const csv = 'email,name,role\nmember1@rpgcc.com,John Smith,Senior Accountant\nmember2@rpgcc.com,Jane Doe,Advisor';
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'invitation-template.csv';
+      a.click();
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label>CSV Template</Label>
+          <Button variant="outline" onClick={downloadTemplate} className="w-full">
+            <Download className="w-4 h-4 mr-2" />
+            Download Template
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            Format: email,name,role (one per line)
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="csv-file">Upload CSV File</Label>
+          <Input
+            id="csv-file"
+            type="file"
+            accept=".csv"
+            onChange={handleFileChange}
+          />
+        </div>
+
+        {file && (
+          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+            <p className="text-sm text-blue-900 dark:text-blue-100">
+              File selected: <strong>{file.name}</strong>
+            </p>
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-4">
+          <Button onClick={handleImport} disabled={!file || importing} className="flex-1">
+            <Upload className="w-4 h-4 mr-2" />
+            {importing ? 'Importing...' : 'Import Invitations'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowBulkImport(false);
+              setFile(null);
+            }}
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  const InvitationCard = ({ invitation }: { invitation: InvitationsAPI.Invitation }) => {
+    const [copying, setCopying] = useState(false);
+    const [acting, setActing] = useState(false);
+
+    const copyInviteLink = async () => {
+      const link = InvitationsAPI.generateInviteLink(invitation.invite_code);
+      await navigator.clipboard.writeText(link);
       setCopying(true);
       setTimeout(() => setCopying(false), 2000);
       toast({
@@ -187,49 +383,69 @@ export default function InvitationsPage() {
     };
 
     const resendInvitation = async () => {
+      setActing(true);
       try {
-        // TODO: Replace with actual API call
-        // await PortalAPI.resendInvitation(invitation.id);
+        await InvitationsAPI.resendInvitation(invitation.id);
+        
+        // Try to send email
+        if (EmailService.isEmailConfigured()) {
+          const link = InvitationsAPI.generateInviteLink(invitation.invite_code);
+          await EmailService.sendInvitationEmail(
+            invitation.email,
+            invitation.name || 'Team Member',
+            link,
+            invitation.personal_message
+          );
+        }
+        
         toast({
           title: 'Invitation Resent',
           description: `Invitation resent to ${invitation.email}`,
         });
+        loadInvitations();
       } catch (error) {
         toast({
           title: 'Error',
           description: 'Failed to resend invitation',
           variant: 'destructive',
         });
+      } finally {
+        setActing(false);
       }
     };
 
     const revokeInvitation = async () => {
+      setActing(true);
       try {
-        // TODO: Replace with actual API call
-        // await PortalAPI.revokeInvitation(invitation.id);
+        await InvitationsAPI.revokeInvitation(invitation.id);
         toast({
           title: 'Invitation Revoked',
           description: `Invitation for ${invitation.email} has been revoked`,
         });
         loadInvitations();
+        loadStats();
       } catch (error) {
         toast({
           title: 'Error',
           description: 'Failed to revoke invitation',
           variant: 'destructive',
         });
+      } finally {
+        setActing(false);
       }
     };
 
     const statusConfig = {
-      pending: { icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-100 dark:bg-yellow-950' },
-      accepted: { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-950' },
-      expired: { icon: XCircle, color: 'text-red-600', bg: 'bg-red-100 dark:bg-red-950' },
-      revoked: { icon: XCircle, color: 'text-gray-600', bg: 'bg-gray-100 dark:bg-gray-950' },
+      pending: { icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-100 dark:bg-yellow-950', label: 'Pending' },
+      accepted: { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-950', label: 'Accepted' },
+      expired: { icon: XCircle, color: 'text-red-600', bg: 'bg-red-100 dark:bg-red-950', label: 'Expired' },
+      revoked: { icon: XCircle, color: 'text-gray-600', bg: 'bg-gray-100 dark:bg-gray-950', label: 'Revoked' },
     };
 
-    const config = statusConfig[invitation.status as keyof typeof statusConfig];
+    const config = statusConfig[invitation.status];
     const StatusIcon = config.icon;
+
+    const expiresIn = Math.ceil((new Date(invitation.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 
     return (
       <Card>
@@ -241,11 +457,13 @@ export default function InvitationsPage() {
                   <StatusIcon className={`w-5 h-5 ${config.color}`} />
                 </div>
                 <div>
-                  <h3 className="font-semibold">{invitation.name}</h3>
+                  <h3 className="font-semibold">{invitation.name || 'Unnamed'}</h3>
                   <p className="text-sm text-muted-foreground">{invitation.email}</p>
-                  <Badge variant="outline" className="mt-1">
-                    {invitation.role}
-                  </Badge>
+                  {invitation.role && (
+                    <Badge variant="outline" className="mt-1">
+                      {invitation.role}
+                    </Badge>
+                  )}
                 </div>
               </div>
 
@@ -253,9 +471,17 @@ export default function InvitationsPage() {
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Mail className="w-4 h-4" />
                   <span>
-                    Sent {new Date(invitation.sent_at).toLocaleDateString()}
+                    Sent {new Date(invitation.sent_at || invitation.created_at).toLocaleDateString()}
                   </span>
                 </div>
+                {invitation.status === 'pending' && expiresIn >= 0 && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Clock className="w-4 h-4" />
+                    <span>
+                      Expires in {expiresIn} {expiresIn === 1 ? 'day' : 'days'}
+                    </span>
+                  </div>
+                )}
                 {invitation.accepted_at && (
                   <div className="flex items-center gap-2 text-green-600">
                     <CheckCircle className="w-4 h-4" />
@@ -274,7 +500,7 @@ export default function InvitationsPage() {
                     size="sm"
                     variant="outline"
                     onClick={copyInviteLink}
-                    disabled={copying}
+                    disabled={copying || acting}
                   >
                     {copying ? (
                       <CheckCircle className="w-4 h-4 mr-2" />
@@ -287,6 +513,7 @@ export default function InvitationsPage() {
                     size="sm"
                     variant="outline"
                     onClick={resendInvitation}
+                    disabled={acting}
                   >
                     <RefreshCw className="w-4 h-4 mr-2" />
                     Resend
@@ -295,6 +522,7 @@ export default function InvitationsPage() {
                     size="sm"
                     variant="destructive"
                     onClick={revokeInvitation}
+                    disabled={acting}
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
                     Revoke
@@ -319,13 +547,6 @@ export default function InvitationsPage() {
     );
   }
 
-  const stats = {
-    total: invitations.length,
-    pending: invitations.filter(i => i.status === 'pending').length,
-    accepted: invitations.filter(i => i.status === 'accepted').length,
-    expired: invitations.filter(i => i.status === 'expired').length,
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -336,81 +557,74 @@ export default function InvitationsPage() {
             Manage team member access to the skills portal
           </p>
         </div>
-        <Dialog open={showNewInvite} onOpenChange={setShowNewInvite}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              New Invitation
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Invite Team Member</DialogTitle>
-              <DialogDescription>
-                Send an email invitation to join the skills portal
-              </DialogDescription>
-            </DialogHeader>
-            <NewInvitationForm />
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          <Dialog open={showBulkImport} onOpenChange={setShowBulkImport}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Upload className="w-4 h-4 mr-2" />
+                Bulk Import
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Bulk Import Invitations</DialogTitle>
+                <DialogDescription>
+                  Upload a CSV file to create multiple invitations at once
+                </DialogDescription>
+              </DialogHeader>
+              <BulkImportDialog />
+            </DialogContent>
+          </Dialog>
+          
+          <Dialog open={showNewInvite} onOpenChange={setShowNewInvite}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                New Invitation
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Invite Team Member</DialogTitle>
+                <DialogDescription>
+                  Send an invitation to join the skills portal
+                </DialogDescription>
+              </DialogHeader>
+              <NewInvitationForm />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Total Invitations</CardDescription>
-            <CardTitle className="text-3xl">{stats.total}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Pending</CardDescription>
-            <CardTitle className="text-3xl text-yellow-600">{stats.pending}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Accepted</CardDescription>
-            <CardTitle className="text-3xl text-green-600">{stats.accepted}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Expired</CardDescription>
-            <CardTitle className="text-3xl text-red-600">{stats.expired}</CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
-
-      {/* Email Template Preview */}
-      <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
-        <CardHeader>
-          <CardTitle className="text-lg">Email Template Preview</CardTitle>
-          <CardDescription>This is what team members will receive</CardDescription>
-        </CardHeader>
-        <CardContent className="bg-white dark:bg-gray-900 rounded-lg p-6">
-          <div className="prose dark:prose-invert max-w-none">
-            <h2>You're Invited to Join Our Skills Portal</h2>
-            <p>Hi [Name],</p>
-            <p>
-              You've been invited to join the RPGCC BSG Skills Portal. This is where you can:
-            </p>
-            <ul>
-              <li>Complete your skills self-assessment (60-90 minutes)</li>
-              <li>View your skills profile and development opportunities</li>
-              <li>Set and track personal development goals</li>
-              <li>See anonymized team insights and benchmarks</li>
-            </ul>
-            <div className="my-6">
-              <Button>Access the Portal →</Button>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              This invitation link is valid for 7 days. If you have any questions, please contact your team lead.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription>Total Invitations</CardDescription>
+              <CardTitle className="text-3xl">{stats.total}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription>Pending</CardDescription>
+              <CardTitle className="text-3xl text-yellow-600">{stats.pending}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription>Accepted</CardDescription>
+              <CardTitle className="text-3xl text-green-600">{stats.accepted}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription>Expired</CardDescription>
+              <CardTitle className="text-3xl text-red-600">{stats.expired}</CardTitle>
+            </CardHeader>
+          </Card>
+        </div>
+      )}
 
       {/* Invitations List */}
       <div className="space-y-4">
@@ -438,4 +652,3 @@ export default function InvitationsPage() {
     </div>
   );
 }
-
