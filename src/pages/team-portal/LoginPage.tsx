@@ -77,10 +77,15 @@ const LoginPage: React.FC<LoginPageProps> = () => {
     setError('');
 
     try {
-      // Generate temporary password
-      const tempPassword = `Temp${Math.random().toString(36).slice(-8)}!`;
+      console.log('[LoginPage] Starting invitation acceptance...');
       
-      // 1. Create account with temporary password
+      // Use a consistent temp password based on email for this invitation
+      // This ensures if account was already created, we can still login
+      const tempPassword = `Temp${invitation.email.split('@')[0]}2025!`;
+      
+      console.log('[LoginPage] Attempting to create account...');
+      
+      // 1. Try to create account
       const { data: authData, error: signupError } = await supabase.auth.signUp({
         email: invitation.email,
         password: tempPassword,
@@ -96,32 +101,55 @@ const LoginPage: React.FC<LoginPageProps> = () => {
       });
 
       if (signupError) {
-        // If user already exists, try to sign them in
-        if (signupError.message.includes('already registered')) {
-          const { error: loginError } = await supabase.auth.signInWithPassword({
+        console.log('[LoginPage] Signup error:', signupError.message);
+        
+        // If user already exists, try signing them in with the consistent password
+        if (signupError.message.includes('already registered') || signupError.message.includes('User already registered')) {
+          console.log('[LoginPage] Account exists, attempting login...');
+          
+          const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
             email: invitation.email,
             password: tempPassword,
           });
           
           if (loginError) {
-            setError('Account already exists. Please contact your team lead for assistance.');
+            console.error('[LoginPage] Login failed:', loginError);
+            // Password doesn't match - send magic link instead
+            console.log('[LoginPage] Sending magic link...');
+            const { error: magicError } = await supabase.auth.signInWithOtp({
+              email: invitation.email,
+              options: {
+                emailRedirectTo: `${window.location.origin}/team-portal/assessment?invite=${inviteCode}`,
+              },
+            });
+            
+            if (magicError) throw magicError;
+            
+            setError('Account exists. We\'ve sent a magic link to your email to access the assessment.');
             return;
           }
+          
+          console.log('[LoginPage] Login successful!');
         } else {
           throw signupError;
         }
+      } else {
+        console.log('[LoginPage] Account created successfully!');
       }
 
       // 2. Accept invitation
+      console.log('[LoginPage] Accepting invitation...');
       await InvitationsAPI.acceptInvitation(inviteCode!);
 
       // 3. Track event
+      console.log('[LoginPage] Tracking acceptance event...');
       await InvitationsAPI.trackInvitationEvent(invitation.id, 'accepted');
 
       // 4. Redirect to assessment
+      console.log('[LoginPage] Redirecting to assessment...');
       navigate('/team-portal/assessment');
     } catch (err: any) {
-      console.error('Invitation acceptance error:', err);
+      console.error('[LoginPage] Invitation acceptance error:', err);
       setError(err.message || 'Failed to accept invitation. Please try again or contact your team lead.');
     } finally {
       setLoading(false);
