@@ -131,33 +131,31 @@ ALTER TABLE invitation_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invitation_batches ENABLE ROW LEVEL SECURITY;
 
 -- Practice admins can manage invitations
-CREATE POLICY "Practice admins can view invitations"
+-- For now, any practice member can manage invitations (can add permission checks later)
+CREATE POLICY "Practice members can view invitations"
 ON invitations FOR SELECT
 USING (
   practice_id IN (
     SELECT practice_id FROM practice_members 
-    WHERE user_id = auth.uid() 
-    AND permissions->>'can_manage_team' = 'true'
+    WHERE user_id = auth.uid()
   )
 );
 
-CREATE POLICY "Practice admins can create invitations"
+CREATE POLICY "Practice members can create invitations"
 ON invitations FOR INSERT
 WITH CHECK (
   practice_id IN (
     SELECT practice_id FROM practice_members 
-    WHERE user_id = auth.uid() 
-    AND permissions->>'can_manage_team' = 'true'
+    WHERE user_id = auth.uid()
   )
 );
 
-CREATE POLICY "Practice admins can update invitations"
+CREATE POLICY "Practice members can update invitations"
 ON invitations FOR UPDATE
 USING (
   practice_id IN (
     SELECT practice_id FROM practice_members 
-    WHERE user_id = auth.uid() 
-    AND permissions->>'can_manage_team' = 'true'
+    WHERE user_id = auth.uid()
   )
 );
 
@@ -171,28 +169,39 @@ USING (
   )
 );
 
--- Events are viewable by practice admins
-CREATE POLICY "Practice admins can view invitation events"
+-- Events are viewable by practice members
+CREATE POLICY "Practice members can view invitation events"
 ON invitation_events FOR SELECT
 USING (
   invitation_id IN (
     SELECT id FROM invitations 
     WHERE practice_id IN (
       SELECT practice_id FROM practice_members 
-      WHERE user_id = auth.uid() 
-      AND permissions->>'can_manage_team' = 'true'
+      WHERE user_id = auth.uid()
     )
   )
 );
 
--- Batches are viewable by practice admins
-CREATE POLICY "Practice admins can view batches"
+CREATE POLICY "System can create invitation events"
+ON invitation_events FOR INSERT
+WITH CHECK (true); -- Allow system to log events
+
+-- Batches are viewable by practice members
+CREATE POLICY "Practice members can view batches"
 ON invitation_batches FOR SELECT
 USING (
   practice_id IN (
     SELECT practice_id FROM practice_members 
-    WHERE user_id = auth.uid() 
-    AND permissions->>'can_manage_team' = 'true'
+    WHERE user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Practice members can create batches"
+ON invitation_batches FOR INSERT
+WITH CHECK (
+  practice_id IN (
+    SELECT practice_id FROM practice_members 
+    WHERE user_id = auth.uid()
   )
 );
 
