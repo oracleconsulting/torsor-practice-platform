@@ -136,20 +136,9 @@ const AdvisorySkillsPage: React.FC = () => {
           assessments.forEach((assessment: any) => {
             const memberId = assessment.team_member_id;
             if (!memberMap.has(memberId)) {
-              // Determine name based on assessment notes or default
-              let name = 'Team Member';
-              let role = assessment.team_member?.role || 'Member';
-              
-              if (assessment.notes && assessment.notes.includes('Emma')) {
-                name = 'Emma Wilson';
-                role = 'Junior Advisor';
-              } else if (assessment.notes && assessment.notes.includes('Michael')) {
-                name = 'Michael Chen';
-                role = 'Advisory Consultant';
-              } else if (assessment.notes && assessment.notes.includes('Sarah')) {
-                name = 'Sarah Johnson';
-                role = 'Senior Manager';
-              }
+              // Get real member data from the database
+              const name = assessment.team_member?.name || 'Team Member';
+              const role = assessment.team_member?.role || 'Member';
               
               memberMap.set(memberId, {
                 id: memberId,
@@ -185,13 +174,14 @@ const AdvisorySkillsPage: React.FC = () => {
           }
         }
       } catch (dbError) {
-        console.warn('Failed to fetch from database, falling back to mock:', dbError);
+        console.error('Failed to fetch from database:', dbError);
       }
       
-      // Fallback to mock data if database query fails or returns no data
-      setSkillCategories(getMockSkillCategories());
-      setTeamMembers(getMockTeamMembers());
-      console.log('📊 Using mock data (run migration to get real data)');
+      // If no data, show empty state (no mock fallback)
+      if (teamMembers.length === 0) {
+        setSkillCategories(getMockSkillCategories());
+        console.log('📭 No team members found - use Team Invitations to add your team');
+      }
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -336,52 +326,7 @@ const AdvisorySkillsPage: React.FC = () => {
     ];
   };
 
-  const getMockTeamMembers = (): TeamMember[] => {
-    return [
-      {
-        id: '1',
-        name: 'Sarah Johnson',
-        role: 'Senior Manager',
-        email: 'sarah.johnson@praxis.com',
-        department: 'Advisory',
-        skills: [
-          { memberId: '1', skillId: 's1', currentLevel: 5, targetLevel: 5, lastAssessed: new Date('2024-01-15'), certifications: ['CPA', 'CFA'] },
-          { memberId: '1', skillId: 's4', currentLevel: 4, targetLevel: 5, lastAssessed: new Date('2024-01-15') },
-          { memberId: '1', skillId: 's7', currentLevel: 5, targetLevel: 5, lastAssessed: new Date('2024-01-15') },
-          { memberId: '1', skillId: 's10', currentLevel: 4, targetLevel: 5, lastAssessed: new Date('2024-01-15'), certifications: ['CTA'] }
-        ],
-        overallScore: 88
-      },
-      {
-        id: '2',
-        name: 'Michael Chen',
-        role: 'Advisory Consultant',
-        email: 'michael.chen@praxis.com',
-        department: 'Advisory',
-        skills: [
-          { memberId: '2', skillId: 's1', currentLevel: 3, targetLevel: 4, lastAssessed: new Date('2024-01-10') },
-          { memberId: '2', skillId: 's2', currentLevel: 4, targetLevel: 5, lastAssessed: new Date('2024-01-10') },
-          { memberId: '2', skillId: 's5', currentLevel: 3, targetLevel: 4, lastAssessed: new Date('2024-01-10') },
-          { memberId: '2', skillId: 's8', currentLevel: 4, targetLevel: 4, lastAssessed: new Date('2024-01-10') }
-        ],
-        overallScore: 72
-      },
-      {
-        id: '3',
-        name: 'Emma Wilson',
-        role: 'Junior Advisor',
-        email: 'emma.wilson@praxis.com',
-        department: 'Advisory',
-        skills: [
-          { memberId: '3', skillId: 's1', currentLevel: 2, targetLevel: 3, lastAssessed: new Date('2024-01-05') },
-          { memberId: '3', skillId: 's3', currentLevel: 2, targetLevel: 4, lastAssessed: new Date('2024-01-05') },
-          { memberId: '3', skillId: 's7', currentLevel: 3, targetLevel: 4, lastAssessed: new Date('2024-01-05') },
-          { memberId: '3', skillId: 's11', currentLevel: 2, targetLevel: 3, lastAssessed: new Date('2024-01-05') }
-        ],
-        overallScore: 45
-      }
-    ];
-  };
+  // Mock team members removed - now only shows real database data
 
   // const getSkillGaps = (member: TeamMember): number => {
   //   const gaps = member.skills.filter(s => s.currentLevel < s.targetLevel).length;
