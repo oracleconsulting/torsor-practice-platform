@@ -98,6 +98,12 @@ export default defineConfig({
     'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(process.env.VITE_SUPABASE_URL || ''),
     'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY || ''),
     'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || ''),
+    
+    // Resend email configuration
+    'import.meta.env.VITE_RESEND_API_KEY': JSON.stringify(process.env.VITE_RESEND_API_KEY || ''),
+    'import.meta.env.VITE_FROM_EMAIL': JSON.stringify(process.env.VITE_FROM_EMAIL || ''),
+    'import.meta.env.VITE_FROM_NAME': JSON.stringify(process.env.VITE_FROM_NAME || ''),
+    
     'import.meta.env.PROD': process.env.NODE_ENV === 'production',
     'import.meta.env.DEV': process.env.NODE_ENV !== 'production',
   }
