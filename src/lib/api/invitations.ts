@@ -148,10 +148,33 @@ export async function resendInvitation(invitationId: string): Promise<void> {
 export async function revokeInvitation(invitationId: string): Promise<void> {
   const { data: user } = await supabase.auth.getUser();
   
+  // Try RPC first (graceful revoke)
   const { error } = await supabase.rpc('revoke_invitation', {
     p_invitation_id: invitationId,
     p_user_id: user.user?.id,
   });
+
+  // If RPC fails (function doesn't exist), just update status directly
+  if (error) {
+    console.warn('RPC revoke failed, using direct update:', error);
+    const { error: updateError } = await supabase
+      .from('invitations')
+      .update({ status: 'revoked' })
+      .eq('id', invitationId);
+    
+    if (updateError) throw updateError;
+  }
+}
+
+/**
+ * NUCLEAR DELETE - Permanently removes invitation
+ * Use this when revoke doesn't work or you need to completely remove duplicates
+ */
+export async function deleteInvitation(invitationId: string): Promise<void> {
+  const { error } = await supabase
+    .from('invitations')
+    .delete()
+    .eq('id', invitationId);
 
   if (error) throw error;
 }

@@ -435,6 +435,31 @@ export default function InvitationsPage() {
       }
     };
 
+    const deleteInvitation = async () => {
+      if (!window.confirm(`⚠️ PERMANENTLY DELETE invitation for ${invitation.email}?\n\nThis CANNOT be undone!`)) {
+        return;
+      }
+      
+      setActing(true);
+      try {
+        await InvitationsAPI.deleteInvitation(invitation.id);
+        toast({
+          title: 'Invitation Deleted',
+          description: `Invitation for ${invitation.email} permanently removed`,
+        });
+        loadInvitations();
+        loadStats();
+      } catch (error: any) {
+        toast({
+          title: 'Delete Failed',
+          description: error.message || 'Failed to delete invitation',
+          variant: 'destructive',
+        });
+      } finally {
+        setActing(false);
+      }
+    };
+
     const statusConfig = {
       pending: { icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-100 dark:bg-yellow-950', label: 'Pending' },
       accepted: { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-950', label: 'Accepted' },
@@ -523,11 +548,36 @@ export default function InvitationsPage() {
                     variant="destructive"
                     onClick={revokeInvitation}
                     disabled={acting}
+                    title="Mark as revoked (keeps in database)"
                   >
-                    <Trash2 className="w-4 h-4 mr-2" />
+                    <XCircle className="w-4 h-4 mr-2" />
                     Revoke
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={deleteInvitation}
+                    disabled={acting}
+                    className="bg-red-600 hover:bg-red-700"
+                    title="PERMANENTLY DELETE (nuclear option)"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </Button>
                 </>
+              )}
+              {/* Show delete for non-pending too */}
+              {invitation.status !== 'pending' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={deleteInvitation}
+                  disabled={acting}
+                  className="border-red-200 text-red-600 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </Button>
               )}
             </div>
           </div>
