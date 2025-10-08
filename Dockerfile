@@ -30,13 +30,19 @@ COPY . .
 # Accept build arguments for environment variables
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
+ARG VITE_RESEND_API_KEY
+ARG VITE_FROM_EMAIL
+ARG VITE_FROM_NAME
 
 # Create .env file from build arguments
 RUN echo "Creating .env file for build..." && \
     echo "VITE_SUPABASE_URL=${VITE_SUPABASE_URL}" > .env && \
     echo "VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}" >> .env && \
+    echo "VITE_RESEND_API_KEY=${VITE_RESEND_API_KEY}" >> .env && \
+    echo "VITE_FROM_EMAIL=${VITE_FROM_EMAIL}" >> .env && \
+    echo "VITE_FROM_NAME=${VITE_FROM_NAME}" >> .env && \
     echo "Environment variables set:" && \
-    cat .env | sed 's/\(VITE_SUPABASE_ANON_KEY=\).*/\1***hidden***/'
+    cat .env | sed 's/\(VITE_SUPABASE_ANON_KEY=\).*/\1***hidden***/' | sed 's/\(VITE_RESEND_API_KEY=\).*/\1***hidden***/'
 
 # Build the application
 RUN npm run build
