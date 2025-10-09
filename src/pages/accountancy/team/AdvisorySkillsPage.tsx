@@ -33,6 +33,13 @@ import GapAnalysis from '@/components/accountancy/team/GapAnalysis';
 import DevelopmentPlanning from '@/components/accountancy/team/DevelopmentPlanning';
 import TeamMetrics from '@/components/accountancy/team/TeamMetrics';
 
+// DEBUG: Verify Dialog is imported correctly
+console.log('🔍 Dialog component check:', { 
+  Dialog: typeof Dialog, 
+  DialogContent: typeof DialogContent,
+  isDialogDefined: typeof Dialog !== 'undefined'
+});
+
 ChartJS.register(
   RadialLinearScale,
   PointElement,
