@@ -313,52 +313,66 @@ CREATE TRIGGER update_cpd_requirements_updated_at
 -- =====================================================
 
 -- Insert sample CPD requirements for common roles
-INSERT INTO public.cpd_requirements (practice_id, role, annual_hours_required, verifiable_hours_minimum, description)
-SELECT 
-    p.id,
-    role,
-    hours_required,
-    verifiable_minimum,
-    description
-FROM public.practices p
-CROSS JOIN (VALUES
-    ('owner', 40, 21, 'ACCA requirement for practicing certificate holders'),
-    ('manager', 40, 21, 'ACCA requirement for practicing certificate holders'),
-    ('senior', 40, 21, 'ACCA CPD requirement'),
-    ('accountant', 40, 21, 'ACCA CPD requirement'),
-    ('junior', 40, 0, 'Recommended CPD for professional development'),
-    ('trainee', 20, 0, 'Foundation CPD for students')
-) AS roles(role, hours_required, verifiable_minimum, description)
-ON CONFLICT (practice_id, role) DO NOTHING;
-
--- Insert sample external CPD resources
-INSERT INTO public.cpd_external_resources (
-    practice_id,
-    title,
-    provider,
-    url,
-    description,
-    type,
-    duration,
-    skill_categories,
-    recommended_for,
-    cpd_hours,
-    is_active
-)
-SELECT 
-    p.id,
-    'ACCA Technical Webinars',
-    'ACCA',
-    'https://www.accaglobal.com/gb/en/member/cpd/resources.html',
-    'Free technical webinars covering latest accounting standards and regulations',
-    'webinar_series',
-    'Various (1-2 hours each)',
-    ARRAY['technical-accounting-audit', 'regulatory-compliance'],
-    ARRAY['accountant', 'senior', 'manager'],
-    1.5,
-    true
-FROM public.practices p
-ON CONFLICT DO NOTHING;
+-- Only if practices exist
+DO $$
+BEGIN
+    -- Check if practices table exists and has data
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'practices')
+       AND EXISTS (SELECT 1 FROM public.practices LIMIT 1) THEN
+        
+        -- Insert CPD requirements for each practice
+        INSERT INTO public.cpd_requirements (practice_id, role, annual_hours_required, verifiable_hours_minimum, description)
+        SELECT 
+            p.id,
+            role,
+            hours_required,
+            verifiable_minimum,
+            description
+        FROM public.practices p
+        CROSS JOIN (VALUES
+            ('owner', 40, 21, 'ACCA requirement for practicing certificate holders'),
+            ('manager', 40, 21, 'ACCA requirement for practicing certificate holders'),
+            ('senior', 40, 21, 'ACCA CPD requirement'),
+            ('accountant', 40, 21, 'ACCA CPD requirement'),
+            ('junior', 40, 0, 'Recommended CPD for professional development'),
+            ('trainee', 20, 0, 'Foundation CPD for students')
+        ) AS roles(role, hours_required, verifiable_minimum, description)
+        ON CONFLICT (practice_id, role) DO NOTHING;
+        
+        -- Insert sample external CPD resources
+        INSERT INTO public.cpd_external_resources (
+            practice_id,
+            title,
+            provider,
+            url,
+            description,
+            type,
+            duration,
+            skill_categories,
+            recommended_for,
+            cpd_hours,
+            is_active
+        )
+        SELECT 
+            p.id,
+            'ACCA Technical Webinars',
+            'ACCA',
+            'https://www.accaglobal.com/gb/en/member/cpd/resources.html',
+            'Free technical webinars covering latest accounting standards and regulations',
+            'webinar_series',
+            'Various (1-2 hours each)',
+            ARRAY['technical-accounting-audit', 'regulatory-compliance'],
+            ARRAY['accountant', 'senior', 'manager'],
+            1.5,
+            true
+        FROM public.practices p
+        ON CONFLICT DO NOTHING;
+        
+        RAISE NOTICE 'Sample CPD data inserted for existing practices';
+    ELSE
+        RAISE NOTICE 'No practices found - sample data skipped. Add manually after creating practices.';
+    END IF;
+END $$;
 
 -- =====================================================
 -- 9. GRANT PERMISSIONS
