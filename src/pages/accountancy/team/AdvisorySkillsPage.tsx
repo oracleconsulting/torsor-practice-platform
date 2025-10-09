@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Radar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -87,7 +87,6 @@ const AdvisorySkillsPage: React.FC = () => {
   const [skillCategories, setSkillCategories] = useState<SkillCategory[]>([]);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [selectedCategory] = useState<string>('all');
-  const [showSkillDialog, setShowSkillDialog] = useState(false);
   const [filterRole] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   
@@ -562,7 +561,7 @@ const AdvisorySkillsPage: React.FC = () => {
             <Download className="w-4 h-4 mr-2" />
             Export Matrix
           </Button>
-          <Button variant="outline" onClick={() => setShowSkillDialog(true)}>
+          <Button variant="outline">
             <Settings className="w-4 h-4 mr-2" />
             Settings
           </Button>
