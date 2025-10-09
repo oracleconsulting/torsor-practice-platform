@@ -920,7 +920,6 @@ const AdvisorySkillsPage: React.FC = () => {
             teamMembers={teamMembers}
             skillCategories={skillCategories}
             showBenchmarks={true}
-            comparePeriods={true}
           />
         </TabsContent>
       </Tabs>
