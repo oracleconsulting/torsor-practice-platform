@@ -363,6 +363,19 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
                 }}
               />
             </div>
+            {/* Chart Legend */}
+            <div className="mt-4 flex flex-wrap gap-4 justify-center text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-blue-500"></div>
+                <span className="text-gray-300">Current Team Capability (0-100%)</span>
+              </div>
+              {showBenchmarks && (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded border-2 border-dashed border-red-500"></div>
+                  <span className="text-gray-300">Industry Benchmark (75%)</span>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -450,6 +463,17 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
                   }
                 }}
               />
+            </div>
+            {/* Chart Legend */}
+            <div className="mt-4 flex flex-wrap gap-4 justify-center text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-blue-500"></div>
+                <span className="text-gray-300">Skills Assessed (Total Count)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-16 h-1 bg-gradient-to-r from-blue-500 to-blue-400"></div>
+                <span className="text-gray-300">Upward Trend = Improving Capability</span>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -604,6 +604,7 @@ const AdvisorySkillsPage: React.FC = () => {
           <TabsTrigger value="assessment">Assessment</TabsTrigger>
           <TabsTrigger value="gaps">Gap Analysis</TabsTrigger>
           <TabsTrigger value="planning">Development Planning</TabsTrigger>
+          <TabsTrigger value="skills-analysis">Skills Analysis</TabsTrigger>
           <TabsTrigger value="metrics">Team Metrics</TabsTrigger>
         </TabsList>
 
@@ -641,6 +642,145 @@ const AdvisorySkillsPage: React.FC = () => {
             skillCategories={skillCategories}
             autoRecommendations={true}
           />
+        </TabsContent>
+
+        <TabsContent value="skills-analysis" className="space-y-6">
+          {/* Skills Analysis for Internal Mentoring */}
+          <Card className="bg-white border border-gray-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-orange-500" />
+                Skills Analysis - Internal CPD & Mentoring
+              </CardTitle>
+              <p className="text-sm text-gray-600 mt-2">
+                Identify experts and learners for each skill to facilitate internal knowledge sharing and mentoring. 
+                Top performers can mentor those with high interest to develop skills in smaller, focused groups.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {skillCategories.map(category => (
+                  <div key={category.id} className="space-y-4">
+                    <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
+                      <category.icon className="w-5 h-5 text-orange-500" />
+                      <h3 className="text-lg font-semibold text-gray-900">{category.name}</h3>
+                      <Badge variant="outline">{category.skills.length} skills</Badge>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {category.skills.map(skill => {
+                        // Get all team members who have this skill assessed
+                        const membersWithSkill = teamMembers
+                          .map(member => {
+                            const skillData = member.skills.find(s => s.skillId === skill.id);
+                            return skillData ? { 
+                              ...member, 
+                              currentLevel: skillData.currentLevel,
+                              interestLevel: skillData.interestLevel 
+                            } : null;
+                          })
+                          .filter(Boolean);
+
+                        // Top 5 performers (highest skill level)
+                        const topPerformers = membersWithSkill
+                          .filter((m: any) => m.currentLevel >= 3) // Only include competent or better
+                          .sort((a: any, b: any) => b.currentLevel - a.currentLevel)
+                          .slice(0, 5);
+
+                        // Bottom 5 with highest interest (low skill but eager to learn)
+                        const highInterestLearners = membersWithSkill
+                          .filter((m: any) => m.currentLevel <= 2 && m.interestLevel >= 4) // Low skill, high interest
+                          .sort((a: any, b: any) => b.interestLevel - a.interestLevel)
+                          .slice(0, 5);
+
+                        // Skip skills with no data
+                        if (membersWithSkill.length === 0) return null;
+
+                        return (
+                          <div key={skill.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                            <div className="mb-3">
+                              <h4 className="font-medium text-gray-900">{skill.name}</h4>
+                              <p className="text-xs text-gray-600 mt-1">{skill.description}</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Top Performers */}
+                              <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Award className="w-4 h-4 text-green-500" />
+                                  <span className="text-sm font-semibold text-gray-700">
+                                    Top Performers ({topPerformers.length})
+                                  </span>
+                                </div>
+                                {topPerformers.length > 0 ? (
+                                  <div className="space-y-1">
+                                    {topPerformers.map((member: any) => (
+                                      <div key={member.id} className="flex items-center justify-between text-xs bg-white rounded px-2 py-1 border border-gray-200">
+                                        <span className="text-gray-900">{member.name}</span>
+                                        <div className="flex items-center gap-2">
+                                          <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-300">
+                                            Level {member.currentLevel}
+                                          </Badge>
+                                          <span className="text-gray-500">{member.role}</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-gray-500 italic">No experts identified yet</p>
+                                )}
+                              </div>
+
+                              {/* High Interest Learners */}
+                              <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Brain className="w-4 h-4 text-blue-500" />
+                                  <span className="text-sm font-semibold text-gray-700">
+                                    High Interest Learners ({highInterestLearners.length})
+                                  </span>
+                                </div>
+                                {highInterestLearners.length > 0 ? (
+                                  <div className="space-y-1">
+                                    {highInterestLearners.map((member: any) => (
+                                      <div key={member.id} className="flex items-center justify-between text-xs bg-white rounded px-2 py-1 border border-gray-200">
+                                        <span className="text-gray-900">{member.name}</span>
+                                        <div className="flex items-center gap-2">
+                                          <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-300">
+                                            Level {member.currentLevel}
+                                          </Badge>
+                                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-300">
+                                            Interest {member.interestLevel}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-gray-500 italic">No high-interest learners</p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Mentoring Opportunity Badge */}
+                            {topPerformers.length > 0 && highInterestLearners.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <Alert className="bg-green-50 border-green-200">
+                                  <AlertCircle className="h-4 w-4 text-green-600" />
+                                  <AlertDescription className="text-xs text-green-800">
+                                    <strong>Mentoring Opportunity:</strong> {topPerformers.length} expert(s) can mentor {highInterestLearners.length} eager learner(s) in small groups
+                                  </AlertDescription>
+                                </Alert>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="metrics" className="space-y-6">
