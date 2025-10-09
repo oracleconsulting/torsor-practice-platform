@@ -283,12 +283,13 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b border-gray-700">
-                    <th className="sticky left-0 z-20 bg-gray-800 text-left p-4 text-muted-foreground shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] min-w-[200px]">Member</th>
+                    <th className="sticky left-0 z-20 bg-gray-800 text-left p-4 text-muted-foreground shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] min-w-[220px]">Member</th>
                     {uniqueSkills.map(skill => (
-                      <th key={skill.id} className="text-center p-2 text-muted-foreground min-w-[100px]">
-                        <div className="truncate" title={`${skill.description} (Required: ${skill.requiredLevel}/5)`}>
-                          {skill.name}
+                      <th key={skill.id} className="text-center p-3 text-muted-foreground min-w-[140px]">
+                        <div className="text-xs font-medium leading-tight h-12 flex items-center justify-center px-2" title={`${skill.description} (Required: ${skill.requiredLevel}/5)`}>
+                          <span className="line-clamp-2">{skill.name}</span>
                         </div>
+                        <div className="text-xs text-muted-foreground/70 mt-1">Req: {skill.requiredLevel}</div>
                       </th>
                     ))}
                   </tr>
@@ -314,12 +315,14 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
                         if (!cell) return <td key={`${member.id}-${skill.id}`} className="p-2" />;
 
                         return (
-                      <td key={`${member.id}-${skill.id}`} className="p-2">
-                        <div 
-                          className={`w-8 h-8 rounded flex items-center justify-center text-card-foreground text-sm font-medium ${getSkillLevelColor(cell.assessment?.currentLevel || 0)} ${getInterestIndicator(cell.interestLevel)}`}
-                          title={`${skill.name} - Current: ${cell.assessment?.currentLevel || 0}/5, Required: ${skill.requiredLevel}/5, Gap: ${cell.gap}${showInterestLevels ? `, Interest: ${cell.interestLevel}/5` : ''}`}
-                        >
-                          {cell.assessment?.currentLevel || 0}
+                      <td key={`${member.id}-${skill.id}`} className="p-3">
+                        <div className="flex justify-center">
+                          <div 
+                            className={`w-12 h-12 rounded-lg flex items-center justify-center text-white text-base font-bold shadow-md transition-transform hover:scale-110 ${getSkillLevelColor(cell.assessment?.currentLevel || 0)} ${getInterestIndicator(cell.interestLevel)}`}
+                            title={`${skill.name}\nCurrent: ${cell.assessment?.currentLevel || 0}/5\nRequired: ${skill.requiredLevel}/5\nGap: ${cell.gap}${showInterestLevels ? `\nInterest: ${cell.interestLevel}/5` : ''}`}
+                          >
+                            {cell.assessment?.currentLevel || 0}
+                          </div>
                         </div>
                       </td>
                         );
@@ -426,21 +429,21 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
             </div>
           </CardTitle>
           <CardDescription>
-            Color indicates skill level (1-5), border indicates interest level
+            Color indicates skill level (1-5), border indicates interest level. Hover over cells for details.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <div className="min-w-[800px]">
+            <div className="min-w-full">
               {/* Skill headers */}
-              <div className="grid grid-cols-1 gap-2 mb-4" style={{ gridTemplateColumns: `200px repeat(${uniqueSkills.length}, 80px)` }}>
-                <div className="font-medium text-muted-foreground">Team Member</div>
+              <div className="grid grid-cols-1 gap-3 mb-6" style={{ gridTemplateColumns: `minmax(200px, 250px) repeat(${uniqueSkills.length}, minmax(120px, 1fr))` }}>
+                <div className="font-medium text-muted-foreground sticky left-0 bg-card z-10">Team Member</div>
                 {uniqueSkills.map(skill => (
                   <div key={skill.id} className="text-center">
-                    <div className="text-xs text-muted-foreground truncate" title={`${skill.description} - Required: ${skill.requiredLevel}`}>
-                      {skill.name}
+                    <div className="text-xs text-muted-foreground font-medium mb-1 h-12 flex items-center justify-center px-1" title={`${skill.description} - Required: ${skill.requiredLevel}/5`}>
+                      <span className="line-clamp-2">{skill.name}</span>
                     </div>
-                    <div className="text-xs text-muted-foreground/70">Req: {skill.requiredLevel}</div>
+                    <div className="text-xs text-muted-foreground/70 font-semibold">Req: {skill.requiredLevel}</div>
                   </div>
                 ))}
               </div>
@@ -449,8 +452,8 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
               {sortedMembers.map(member => (
                 <div 
                   key={member.id} 
-                  className="grid grid-cols-1 gap-2 mb-2 hover:bg-gray-700/30 rounded p-2 cursor-pointer"
-                  style={{ gridTemplateColumns: `200px repeat(${uniqueSkills.length}, 80px)` }}
+                  className="grid grid-cols-1 gap-3 mb-3 hover:bg-gray-700/30 rounded-lg p-3 cursor-pointer transition-colors"
+                  style={{ gridTemplateColumns: `minmax(200px, 250px) repeat(${uniqueSkills.length}, minmax(120px, 1fr))` }}
                   onClick={() => onSelectMember(member)}
                 >
                   <div className="flex items-center gap-2">
