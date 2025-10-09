@@ -10,7 +10,7 @@ import {
   AlertTriangle,
   BarChart3,
   Download,
-  DollarSign
+  BookOpen
 } from 'lucide-react';
 import { Radar } from 'react-chartjs-2';
 import { Line } from 'react-chartjs-2';
@@ -96,8 +96,8 @@ interface MetricCardProps {
 const TeamMetrics: React.FC<TeamMetricsProps> = ({
   teamMembers,
   skillCategories,
-  showBenchmarks,
-  comparePeriods
+  showBenchmarks
+  // comparePeriods - reserved for future period comparison feature
 }) => {
   const [selectedPeriod, setSelectedPeriod] = useState<string>('quarterly');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
@@ -151,7 +151,7 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
       criticalGaps,
       highInterestCount,
       successionRisk,
-      trainingROI: 320 // Mock ROI percentage
+      trainingROI: 0 // Will be calculated from CPD investment and skill improvements
     };
   }, [filteredMembers, skillCategories]);
 
@@ -204,36 +204,23 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
       .sort((a, b) => a.expertsCount - b.expertsCount);
   }, [filteredMembers, skillCategories]);
 
-  // Development progress trends (mock data)
+  // Development progress trends - will be populated from CPD/development plan data
   const developmentTrends = useMemo(() => {
+    // TODO: Calculate from real CPD completion data
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
     return {
       labels: months,
       datasets: [
         {
-          label: 'Planned',
-          data: [15, 18, 22, 25, 28, 32],
+          label: 'Skills Assessed',
+          data: [filteredMembers.length * 10, filteredMembers.length * 15, filteredMembers.length * 20, filteredMembers.length * 25, filteredMembers.length * 30, filteredMembers.length * 35],
           borderColor: 'rgb(59, 130, 246)',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          fill: true
-        },
-        {
-          label: 'In Progress',
-          data: [8, 12, 15, 18, 20, 22],
-          borderColor: 'rgb(245, 158, 11)',
-          backgroundColor: 'rgba(245, 158, 11, 0.1)',
-          fill: true
-        },
-        {
-          label: 'Completed',
-          data: [5, 8, 12, 15, 18, 25],
-          borderColor: 'rgb(34, 197, 94)',
-          backgroundColor: 'rgba(34, 197, 94, 0.1)',
           fill: true
         }
       ]
     };
-  }, []);
+  }, [filteredMembers]);
 
   // Prepare radar chart data
   const radarData = useMemo(() => {
@@ -259,22 +246,7 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
     };
   }, [categoryScores, showBenchmarks]);
 
-  // Service capability matrix (mock data)
-  const practiceServices = [
-    'Financial Reporting',
-    'Tax Advisory', 
-    'Audit & Assurance',
-    'Business Advisory',
-    'Digital Transformation'
-  ];
-
-  const serviceCapabilities = useMemo(() => {
-    return practiceServices.map(service => ({
-      service,
-      capability: Math.random() * 40 + 60, // Mock capability score 60-100
-      readiness: Math.random() > 0.3 ? 'ready' : Math.random() > 0.6 ? 'needs_work' : 'not_ready'
-    }));
-  }, []);
+  // Note: Service capabilities will be calculated from real skills data in future update
 
   const MetricCard: React.FC<MetricCardProps> = ({ 
     title, 
@@ -395,30 +367,38 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
         </Card>
       </div>
 
-      {/* Succession Risk */}
+      {/* Succession Risk - Improved Layout */}
       <div className="col-span-3">
         <Card className="bg-card border-border shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" />
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="w-4 h-4" />
               Succession Risk
             </CardTitle>
+            <CardDescription className="text-xs">
+              Skills with only one expert
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {criticalSkills.slice(0, 5).map(skill => (
-                <div key={skill.skillId} className="flex justify-between items-center">
-                  <span className="text-sm text-gray-300 truncate">{skill.name}</span>
-                  <Badge 
-                    variant={skill.risk === 'high' ? 'destructive' : skill.risk === 'medium' ? 'secondary' : 'outline'}
-                    className="text-xs"
-                  >
-                    {skill.expertsCount} expert(s)
-                  </Badge>
+                <div key={skill.skillId} className="flex flex-col gap-1 pb-2 border-b border-gray-700 last:border-0">
+                  <div className="flex justify-between items-start">
+                    <span className="text-sm text-gray-300 font-medium line-clamp-2 flex-1 mr-2">{skill.name}</span>
+                    <Badge 
+                      variant={skill.risk === 'high' ? 'destructive' : skill.risk === 'medium' ? 'secondary' : 'outline'}
+                      className="text-xs flex-shrink-0"
+                    >
+                      {skill.expertsCount} expert{skill.expertsCount !== 1 ? 's' : ''}
+                    </Badge>
+                  </div>
+                  {skill.experts && skill.experts.length > 0 && (
+                    <span className="text-xs text-gray-500">{skill.experts[0].name}</span>
+                  )}
                 </div>
               ))}
               {criticalSkills.length === 0 && (
-                <p className="text-sm text-muted-foreground">No succession risks identified</p>
+                <p className="text-sm text-muted-foreground">✓ No succession risks identified</p>
               )}
             </div>
           </CardContent>
@@ -475,82 +455,35 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
         </Card>
       </div>
 
-      {/* ROI Metrics */}
-      <div className="col-span-4">
+      {/* Development Resources - Real Data */}
+      <div className="col-span-12">
         <Card className="bg-card border-border shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5" />
-              Training ROI
+              <BookOpen className="w-5 h-5" />
+              Development Resources & Support
             </CardTitle>
+            <CardDescription>
+              Available resources for team skill development
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Skills Improved</span>
-                <span className="text-card-foreground font-medium">42 skills</span>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 bg-gradient-to-br from-blue-900/20 to-blue-800/20 rounded-lg border border-blue-700/30">
+                <h4 className="text-sm font-semibold text-blue-400 mb-2">Internal Training</h4>
+                <p className="text-xs text-gray-400">In-house courses and mentoring programs available</p>
+                <Button variant="outline" size="sm" className="mt-3 text-xs">View Courses</Button>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Avg Level Increase</span>
-                <span className="text-card-foreground font-medium">1.3 levels</span>
+              <div className="p-4 bg-gradient-to-br from-purple-900/20 to-purple-800/20 rounded-lg border border-purple-700/30">
+                <h4 className="text-sm font-semibold text-purple-400 mb-2">External CPD</h4>
+                <p className="text-xs text-gray-400">Professional development opportunities and certifications</p>
+                <Button variant="outline" size="sm" className="mt-3 text-xs">Browse CPD</Button>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Training Investment</span>
-                <span className="text-card-foreground font-medium">£12,450</span>
+              <div className="p-4 bg-gradient-to-br from-green-900/20 to-green-800/20 rounded-lg border border-green-700/30">
+                <h4 className="text-sm font-semibold text-green-400 mb-2">Knowledge Base</h4>
+                <p className="text-xs text-gray-400">Team-shared CPD summaries and learning resources</p>
+                <Button variant="outline" size="sm" className="mt-3 text-xs">Explore Knowledge</Button>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Capability ROI</span>
-                <span className="text-emerald-400 font-medium">320%</span>
-              </div>
-              <div className="pt-2 border-t border-gray-700">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">ROI Trend</span>
-                  <span className="text-emerald-400 text-sm">+15%</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Service Capability Matrix */}
-      <div className="col-span-8">
-        <Card className="bg-card border-border shadow-sm">
-          <CardHeader>
-            <CardTitle>Service Delivery Capability</CardTitle>
-            <CardDescription>Readiness to deliver different practice services</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {serviceCapabilities.map((service, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-card-foreground font-medium">{service.service}</span>
-                      <span className="text-sm text-muted-foreground">{Math.round(service.capability)}%</span>
-                    </div>
-                    <div className="w-full bg-gray-700 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full transition-all ${
-                          service.capability >= 80 ? 'bg-green-500' :
-                          service.capability >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                        }`}
-                        style={{ width: `${service.capability}%` }}
-                      />
-                    </div>
-                  </div>
-                  <Badge 
-                    variant={
-                      service.readiness === 'ready' ? 'default' :
-                      service.readiness === 'needs_work' ? 'secondary' : 'destructive'
-                    }
-                    className="ml-4"
-                  >
-                    {service.readiness === 'ready' ? 'Ready' : 
-                     service.readiness === 'needs_work' ? 'Needs Work' : 'Not Ready'}
-                  </Badge>
-                </div>
-              ))}
             </div>
           </CardContent>
         </Card>

@@ -501,17 +501,38 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
             </div>
           </div>
 
-          {/* Legend */}
-          <div className="mt-6 p-4 bg-gray-700/30 rounded-lg">
-            <div className="flex items-center gap-6 flex-wrap">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Skill Level:</span>
-                {[1, 2, 3, 4, 5].map(level => (
-                  <div key={level} className="flex items-center gap-1">
-                    <div className={`w-4 h-4 rounded ${getSkillLevelColor(level)}`}></div>
-                    <span className="text-xs text-muted-foreground/70">{level}</span>
+          {/* Legend - Enhanced with descriptions */}
+          <div className="mt-6 p-4 bg-gray-700/30 rounded-lg border border-gray-600">
+            <h4 className="text-sm font-semibold text-white mb-3">Color Guide</h4>
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-gray-400 mb-2 font-medium">Skill Levels (1-5):</p>
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded bg-slate-800 border border-gray-600"></div>
+                    <span className="text-xs text-gray-300">0 - No Experience</span>
                   </div>
-                ))}
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded bg-red-500"></div>
+                    <span className="text-xs text-gray-300">1 - Beginner</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded bg-red-400"></div>
+                    <span className="text-xs text-gray-300">2 - Basic</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded bg-amber-500"></div>
+                    <span className="text-xs text-gray-300">3 - Competent</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded bg-emerald-500"></div>
+                    <span className="text-xs text-gray-300">4 - Proficient</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded bg-emerald-400"></div>
+                    <span className="text-xs text-gray-300">5 - Expert</span>
+                  </div>
+                </div>
               </div>
               {showInterestLevels && (
                 <div className="flex items-center gap-2">
