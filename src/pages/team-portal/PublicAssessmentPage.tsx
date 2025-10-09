@@ -6,8 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { Star, CheckCircle, Save, ArrowRight, Info } from 'lucide-react';
-import { supabase } from '@/lib/supabase/client';
+import { Star, CheckCircle, ArrowRight } from 'lucide-react';
 
 /**
  * Public Skills Assessment Page (No Authentication Required)
@@ -74,7 +73,11 @@ export default function PublicAssessmentPage() {
       setSkills(skillsData || []);
 
       // Get unique categories
-      const cats = Array.from(new Set(skillsData?.map((s: any) => s.category) || [])).sort();
+      const uniqueCategories = new Set<string>();
+      skillsData?.forEach((s: any) => {
+        if (s.category) uniqueCategories.add(s.category);
+      });
+      const cats = Array.from(uniqueCategories).sort();
       setCategories(cats);
       
       console.log('[PublicAssessment] Loaded', skillsData?.length, 'skills in', cats.length, 'categories');
@@ -157,7 +160,7 @@ export default function PublicAssessmentPage() {
 
   const LevelSelector = ({ skill, value, onChange }: any) => (
     <div className="space-y-2">
-      <label className="text-sm font-medium">Current Skill Level</label>
+      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Current Skill Level</label>
       <div className="grid grid-cols-5 gap-2">
         {[1, 2, 3, 4, 5].map(level => (
           <button
@@ -166,13 +169,13 @@ export default function PublicAssessmentPage() {
             className={`
               p-4 rounded-lg border-2 transition-all text-center
               ${value === level
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
-                : 'border-gray-300 dark:border-gray-700 hover:border-gray-400'
+                ? 'border-blue-600 bg-blue-500 text-white shadow-lg scale-105'
+                : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:border-blue-400 hover:shadow'
               }
             `}
           >
             <div className="text-2xl font-bold">{level}</div>
-            <div className="text-xs text-muted-foreground mt-1">
+            <div className={`text-xs mt-1 ${value === level ? 'text-blue-100' : 'text-gray-600 dark:text-gray-400'}`}>
               {['Aware', 'Working', 'Proficient', 'Advanced', 'Master'][level - 1]}
             </div>
           </button>
@@ -183,17 +186,17 @@ export default function PublicAssessmentPage() {
 
   const InterestSelector = ({ skill, value, onChange }: any) => (
     <div className="space-y-2">
-      <label className="text-sm font-medium">Interest Level</label>
+      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Interest Level</label>
       <div className="flex gap-2 justify-center">
         {[1, 2, 3, 4, 5].map(level => (
           <button
             key={level}
             onClick={() => onChange(skill.id, 'interest_level', level)}
             className={`
-              p-3 rounded-full transition-all
+              p-3 rounded-full transition-all hover:scale-110
               ${value >= level
-                ? 'text-yellow-500'
-                : 'text-gray-300 dark:text-gray-700'
+                ? 'text-yellow-500 dark:text-yellow-400'
+                : 'text-gray-300 dark:text-gray-600 hover:text-gray-400'
               }
             `}
           >
@@ -201,7 +204,8 @@ export default function PublicAssessmentPage() {
           </button>
         ))}
       </div>
-      <p className="text-xs text-center text-muted-foreground">
+      <p className="text-xs text-center text-gray-600 dark:text-gray-400 font-medium">
+        {value === 0 && 'Rate your interest'}
         {value === 1 && 'No Interest'}
         {value === 2 && 'Low Interest'}
         {value === 3 && 'Moderate Interest'}
@@ -213,10 +217,10 @@ export default function PublicAssessmentPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-300">Loading assessment...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-700 dark:text-gray-300 font-medium">Loading assessment...</p>
         </div>
       </div>
     );
@@ -224,11 +228,11 @@ export default function PublicAssessmentPage() {
 
   if (!invitation) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
-        <Card className="max-w-md">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
+        <Card className="max-w-md bg-white dark:bg-gray-800 shadow-lg">
           <CardHeader>
-            <CardTitle>Invalid Invitation</CardTitle>
-            <CardDescription>This invitation link is invalid or has expired.</CardDescription>
+            <CardTitle className="text-gray-900 dark:text-white">Invalid Invitation</CardTitle>
+            <CardDescription className="text-gray-600 dark:text-gray-400">This invitation link is invalid or has expired.</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -236,24 +240,24 @@ export default function PublicAssessmentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       <div className="container max-w-4xl mx-auto p-4 space-y-6">
         {/* Header */}
-        <Card className="bg-gray-800 border-gray-700">
+        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-lg">
           <CardHeader>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <CardTitle className="text-white">Skills Assessment</CardTitle>
-                <CardDescription className="text-gray-400">
+                <CardTitle className="text-gray-900 dark:text-white text-2xl">Skills Assessment</CardTitle>
+                <CardDescription className="text-gray-600 dark:text-gray-400 text-lg mt-1">
                   Welcome, {invitation.name}!
                 </CardDescription>
               </div>
             </div>
-            <Progress value={overallProgress} className="h-2" />
-            <p className="text-sm text-gray-400 mt-2">
+            <Progress value={overallProgress} className="h-3" />
+            <p className="text-sm text-gray-700 dark:text-gray-300 mt-3 font-medium">
               Category {currentCategory + 1} of {categories.length}: {categories[currentCategory]}
             </p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-600 dark:text-gray-400">
               {totalAssessed} of {skills.length} skills assessed ({overallProgress}%)
             </p>
           </CardHeader>
@@ -266,18 +270,18 @@ export default function PublicAssessmentPage() {
             const isComplete = assessment.current_level && assessment.interest_level;
 
             return (
-              <Card key={skill.id} className={`bg-gray-800 border-gray-700 ${isComplete ? 'border-green-500' : ''}`}>
+              <Card key={skill.id} className={`bg-white dark:bg-gray-800 border-2 shadow-md ${isComplete ? 'border-green-500' : 'border-gray-200 dark:border-gray-700'}`}>
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <CardTitle className="text-lg text-white">{skill.name}</CardTitle>
-                      <CardDescription className="mt-1 text-gray-400">{skill.description}</CardDescription>
-                      <div className="flex gap-2 mt-2">
-                        <Badge variant="outline" className="border-gray-600 text-gray-300">
+                      <CardTitle className="text-lg text-gray-900 dark:text-white">{skill.name}</CardTitle>
+                      <CardDescription className="mt-1 text-gray-600 dark:text-gray-400">{skill.description}</CardDescription>
+                      <div className="flex gap-2 mt-3">
+                        <Badge variant="outline" className="border-blue-300 text-blue-700 dark:border-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-950">
                           Required: Level {skill.required_level}
                         </Badge>
                         {skill.service_line && (
-                          <Badge variant="secondary" className="bg-gray-700 text-gray-300">
+                          <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
                             {skill.service_line}
                           </Badge>
                         )}
@@ -302,13 +306,13 @@ export default function PublicAssessmentPage() {
                   />
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Notes (Optional)</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Notes (Optional)</label>
                     <Textarea
                       placeholder="Any additional context, certifications, or experience..."
                       value={assessment.notes || ''}
                       onChange={(e) => updateAssessment(skill.id, 'notes', e.target.value)}
                       rows={2}
-                      className="resize-none bg-gray-900 border-gray-700 text-white"
+                      className="resize-none bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white"
                     />
                   </div>
                 </CardContent>
@@ -318,11 +322,11 @@ export default function PublicAssessmentPage() {
         </div>
 
         {/* Navigation */}
-        <Card className="bg-gray-800 border-gray-700">
+        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-lg">
           <CardContent className="pt-6">
             <Button
               onClick={nextCategory}
-              className="w-full"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
               disabled={saving}
               size="lg"
             >
@@ -338,7 +342,7 @@ export default function PublicAssessmentPage() {
                 </>
               )}
             </Button>
-            <p className="text-xs text-center text-gray-500 mt-4">
+            <p className="text-xs text-center text-gray-600 dark:text-gray-400 mt-4">
               No login required. Your responses are automatically saved when you complete the assessment.
             </p>
           </CardContent>
