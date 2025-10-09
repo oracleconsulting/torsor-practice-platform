@@ -106,14 +106,16 @@ const AdvisorySkillsPage: React.FC = () => {
       try {
         const { supabase } = await import('@/lib/supabase/client');
         
-        // Fetch skill assessments with team member info
+        // Fetch skill assessments with practice member info
         const { data: assessments, error } = await supabase
           .from('skill_assessments')
           .select(`
             *,
-            team_member:team_member_id (
+            practice_member:team_member_id (
               id,
               user_id,
+              name,
+              email,
               role
             ),
             skill:skill_id (
@@ -137,14 +139,15 @@ const AdvisorySkillsPage: React.FC = () => {
             const memberId = assessment.team_member_id;
             if (!memberMap.has(memberId)) {
               // Get real member data from the database
-              const name = assessment.team_member?.name || 'Team Member';
-              const role = assessment.team_member?.role || 'Member';
+              const name = assessment.practice_member?.name || 'Team Member';
+              const role = assessment.practice_member?.role || 'Member';
+              const email = assessment.practice_member?.email || `${name.toLowerCase().replace(' ', '.')}@practice.com`;
               
               memberMap.set(memberId, {
                 id: memberId,
                 name,
                 role,
-                email: `${name.toLowerCase().replace(' ', '.')}@practice.com`,
+                email,
                 department: 'Advisory',
                 skills: []
               });
@@ -157,7 +160,7 @@ const AdvisorySkillsPage: React.FC = () => {
               currentLevel: assessment.current_level || 0,
               interestLevel: assessment.interest_level || 3,
               targetLevel: (assessment.current_level || 0) + 1,
-              lastAssessed: new Date(assessment.assessment_date),
+              lastAssessed: new Date(assessment.assessed_at),
               certifications: assessment.certifications || [],
               notes: assessment.notes,
               yearsExperience: assessment.years_experience
