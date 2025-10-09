@@ -113,14 +113,40 @@ export async function getInvitation(invitationId: string): Promise<Invitation> {
 }
 
 export async function getInvitationByCode(inviteCode: string): Promise<Invitation> {
-  const { data, error } = await supabase
+  console.log('[InvitationsAPI] Fetching invitation with code:', inviteCode);
+  
+  // Add timeout wrapper
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Query timeout after 10 seconds')), 10000);
+  });
+  
+  const queryPromise = supabase
     .from('invitations')
     .select('*')
     .eq('invite_code', inviteCode)
     .single();
-
-  if (error) throw error;
-  return data;
+  
+  try {
+    const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+    
+    console.log('[InvitationsAPI] Query response:', { data, error });
+    
+    if (error) {
+      console.error('[InvitationsAPI] Supabase error:', error);
+      throw error;
+    }
+    
+    if (!data) {
+      console.error('[InvitationsAPI] No data returned');
+      throw new Error('Invitation not found');
+    }
+    
+    console.log('[InvitationsAPI] Successfully loaded invitation:', data);
+    return data;
+  } catch (err) {
+    console.error('[InvitationsAPI] Error in getInvitationByCode:', err);
+    throw err;
+  }
 }
 
 export async function resendInvitation(invitationId: string): Promise<void> {
