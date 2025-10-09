@@ -131,6 +131,15 @@ export const AccountancyProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   useEffect(() => {
     if (user && !practiceInitialized) {
+      // Check if we're in invitation acceptance flow - if so, skip practice loading
+      const urlParams = new URLSearchParams(window.location.search);
+      const inviteCode = urlParams.get('invite');
+      
+      if (inviteCode) {
+        console.log('[AccountancyContext] Invitation flow detected, skipping practice load');
+        return;
+      }
+      
       console.log('[AccountancyContext] User authenticated, loading practice...');
       loadPracticeData();
       setPracticeInitialized(true);
