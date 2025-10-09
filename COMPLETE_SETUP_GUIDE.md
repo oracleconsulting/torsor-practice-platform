@@ -1,7 +1,9 @@
 # 🚀 TORSOR Skills Portal - Complete Setup Guide
-## 105-Skill RPGCC Matrix Implementation
+## 110-Skill RPGCC Matrix Implementation
 
 This guide will get your skills assessment system fully operational for Monday launch.
+
+**Note:** The framework contains **110 skills** (15+12+10+15+10+10+8+10+8+12), not 105 as initially titled.
 
 ---
 
@@ -84,14 +86,14 @@ ORDER BY column_name;
 
 ---
 
-### **Step 3: Load 105-Skill Matrix**
-**Purpose:** Replace existing skills with new comprehensive 105-skill framework
+### **Step 3: Load 110-Skill Matrix**
+**Purpose:** Replace existing skills with new comprehensive 110-skill framework
 
 **File:** Copy entire contents of `supabase/migrations/20251009_rpgcc_105_skills_complete.sql`
 
 This script:
 - Clears existing skills (TRUNCATE skills CASCADE)
-- Loads all 105 skills with full descriptions
+- Loads all 110 skills with full descriptions
 - Organized into 10 categories:
   - Technical Accounting Fundamentals (15)
   - Cloud Accounting & Automation (12)
@@ -106,7 +108,7 @@ This script:
 
 **Expected Output:** 
 ```
-✅ SUCCESS: 105 skills loaded correctly
+✅ SUCCESS: 110 skills loaded correctly
    - 15 Technical Accounting Fundamentals
    - 12 Cloud Accounting & Automation
    - 10 Management Accounting & Reporting
@@ -117,6 +119,8 @@ This script:
    - 10 Client Management & Development
    -  8 Leadership & Team Skills
    - 12 Communication & Soft Skills
+
+🎯 Total: 110 skills (15+12+10+15+10+10+8+10+8+12)
 ```
 
 ---
@@ -184,7 +188,7 @@ ORDER BY category;
 -- Sector & Industry Knowledge: 8
 -- Tax & Compliance - UK Focus: 10
 -- Technical Accounting Fundamentals: 15
--- TOTAL: 105
+-- TOTAL: 110
 
 -- 4. Check invitations table
 SELECT column_name, data_type
@@ -221,7 +225,7 @@ After SQL setup, Railway needs to detect changes and redeploy:
    - ✅ "Skills Assessment" header
    - ✅ "Welcome, [Your Name]!"
    - ✅ "Category 1 of 10: Technical Accounting Fundamentals"
-   - ✅ "Loaded 105 skills in 10 categories" (check console)
+   - ✅ "Loaded 110 skills in 10 categories" (check console)
 
 4. Complete at least one skill:
    - Select a skill level (1-5)
@@ -265,7 +269,7 @@ During submission, you should see:
 **Solution:** Run Step 2 (skill_assessments fix) again
 
 ### Issue 3: "Loaded 0 skills in 0 categories"
-**Solution:** Run Step 3 (105-skill matrix) again
+**Solution:** Run Step 3 (110-skill matrix) again
 
 ### Issue 4: "Failed to create skill assessments"
 **Check:** 
@@ -286,7 +290,7 @@ During submission, you should see:
 ### ✅ Database Setup Complete
 - All 4 SQL scripts run without errors
 - Verification queries return expected results
-- 105 skills visible in Supabase `skills` table
+- 110 skills visible in Supabase `skills` table
 
 ### ✅ Application Deployed
 - Railway shows "Deployed" status
@@ -295,7 +299,7 @@ During submission, you should see:
 
 ### ✅ Assessment Flow Working
 - Invitation email sent successfully
-- Assessment page displays all 105 skills
+- Assessment page displays all 110 skills
 - Progress bar shows category navigation
 - Submission completes without errors
 
