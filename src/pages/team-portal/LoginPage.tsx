@@ -77,6 +77,7 @@ const LoginPage: React.FC<LoginPageProps> = () => {
     setError('');
 
     try {
+      console.log('[LoginPage] ✨✨✨ NEW CODE v2 - Starting invitation acceptance... ✨✨✨');
       console.log('[LoginPage] Starting invitation acceptance...');
       
       // Use a consistent temp password based on email for this invitation
