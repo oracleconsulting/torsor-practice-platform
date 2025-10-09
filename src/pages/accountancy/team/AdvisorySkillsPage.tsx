@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, AlertCircle, Award, Brain, Briefcase, Download, Settings, ChevronDown
+  Users, AlertCircle, Award, Brain, Briefcase, Download, Settings, ChevronDown, Trash2
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -113,12 +114,14 @@ interface TrainingRecommendation {
 }
 
 const AdvisorySkillsPage: React.FC = () => {
+  const { toast } = useToast();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [skillCategories, setSkillCategories] = useState<SkillCategory[]>([]);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [selectedCategory] = useState<string>('all');
   const [filterRole] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+  const [deletingMember, setDeletingMember] = useState<string | null>(null);
   
   // New state for advanced features
   const [activeTab, setActiveTab] = useState('matrix');
@@ -261,6 +264,36 @@ const AdvisorySkillsPage: React.FC = () => {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteMember = async (member: TeamMember) => {
+    if (!window.confirm(`Are you sure you want to delete ${member.name}?\n\nThis will permanently remove:\n- Their skills assessment data\n- All CPD records\n- All development goals\n- Their invitation record\n\nThis action cannot be undone!`)) {
+      return;
+    }
+
+    setDeletingMember(member.id);
+    
+    try {
+      const { deleteTeamMember } = await import('@/lib/api/team-members');
+      await deleteTeamMember(member.id, member.email);
+      
+      toast({
+        title: 'Team member deleted',
+        description: `${member.name} and all their data has been removed.`,
+      });
+      
+      // Reload data
+      await loadData();
+    } catch (error: any) {
+      console.error('Error deleting team member:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete team member',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingMember(null);
     }
   };
 
@@ -575,6 +608,8 @@ const AdvisorySkillsPage: React.FC = () => {
     );
   }
 
+  const [showManageTeam, setShowManageTeam] = useState(false);
+
   return (
     <div className="p-6 space-y-6 bg-background">
       {/* Header with actions */}
@@ -584,6 +619,10 @@ const AdvisorySkillsPage: React.FC = () => {
           <p className="text-muted-foreground">Assess capabilities, identify gaps, and plan development</p>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => setShowManageTeam(true)} variant="outline">
+            <Users className="w-4 h-4 mr-2" />
+            Manage Team ({teamMembers.length})
+          </Button>
           <Button onClick={() => setAssessmentMode('assess')}>
             Start Assessment
           </Button>
@@ -597,6 +636,65 @@ const AdvisorySkillsPage: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Manage Team Dialog */}
+      <Dialog open={showManageTeam} onOpenChange={setShowManageTeam}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Manage Team Members</DialogTitle>
+            <p className="text-sm text-gray-600 mt-2">
+              Remove team members and all their associated data. This action is permanent.
+            </p>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            {teamMembers.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">
+                No team members found. Use Team Invitations to add members.
+              </p>
+            ) : (
+              teamMembers.map((member) => (
+                <Card key={member.id} className="bg-white border border-gray-200">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-semibold">
+                        {member.name.split(' ').map(n => n[0]).join('')}
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">{member.name}</div>
+                        <div className="text-sm text-gray-600">{member.role} • {member.email}</div>
+                        <div className="text-xs text-gray-500">
+                          {member.skills.length} skills assessed
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        setShowManageTeam(false);
+                        handleDeleteMember(member);
+                      }}
+                      disabled={deletingMember === member.id}
+                    >
+                      {deletingMember === member.id ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
