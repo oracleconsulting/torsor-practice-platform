@@ -11,6 +11,13 @@ const PORT = process.env.PORT || 3000;
 // Parse JSON request bodies
 app.use(express.json());
 
+// Import Supabase client for server-side operations
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+const supabase = supabaseUrl && supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null;
+
 // Cache control middleware
 app.use((req, res, next) => {
   // Disable caching for HTML files and auth routes
@@ -76,6 +83,52 @@ app.post('/api/send-email', async (req, res) => {
     console.error('❌ Email endpoint error:', error);
     return res.status(500).json({
       success: false,
+      error: error.message || 'Internal server error',
+    });
+  }
+});
+
+// Invitation fetching endpoint (bypasses RLS)
+app.get('/api/invitations/:inviteCode', async (req, res) => {
+  try {
+    const { inviteCode } = req.params;
+    
+    console.log('🔍 Fetching invitation with code:', inviteCode);
+    
+    if (!supabase) {
+      console.error('❌ Supabase not configured on server');
+      return res.status(500).json({
+        error: 'Database not configured',
+      });
+    }
+    
+    // Fetch invitation using server-side client (bypasses RLS)
+    const { data, error } = await supabase
+      .from('invitations')
+      .select('*')
+      .eq('invite_code', inviteCode)
+      .single();
+    
+    if (error) {
+      console.error('❌ Supabase error fetching invitation:', error);
+      return res.status(404).json({
+        error: 'Invitation not found',
+        details: error.message,
+      });
+    }
+    
+    if (!data) {
+      console.error('❌ No invitation found with code:', inviteCode);
+      return res.status(404).json({
+        error: 'Invitation not found',
+      });
+    }
+    
+    console.log('✅ Invitation found:', data.email);
+    return res.json(data);
+  } catch (error) {
+    console.error('❌ Invitation endpoint error:', error);
+    return res.status(500).json({
       error: error.message || 'Internal server error',
     });
   }

@@ -115,33 +115,20 @@ export async function getInvitation(invitationId: string): Promise<Invitation> {
 export async function getInvitationByCode(inviteCode: string): Promise<Invitation> {
   console.log('[InvitationsAPI] Fetching invitation with code:', inviteCode);
   
-  // Add timeout wrapper
-  const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Query timeout after 10 seconds')), 10000);
-  });
-  
-  const queryPromise = supabase
-    .from('invitations')
-    .select('*')
-    .eq('invite_code', inviteCode)
-    .single();
-  
   try {
-    const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+    // Call backend endpoint to bypass RLS
+    const response = await fetch(`/api/invitations/${inviteCode}`);
     
-    console.log('[InvitationsAPI] Query response:', { data, error });
+    console.log('[InvitationsAPI] Backend response status:', response.status);
     
-    if (error) {
-      console.error('[InvitationsAPI] Supabase error:', error);
-      throw error;
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Failed to fetch invitation' }));
+      console.error('[InvitationsAPI] Backend error:', errorData);
+      throw new Error(errorData.error || 'Invitation not found');
     }
     
-    if (!data) {
-      console.error('[InvitationsAPI] No data returned');
-      throw new Error('Invitation not found');
-    }
-    
-    console.log('[InvitationsAPI] Successfully loaded invitation:', data);
+    const data = await response.json();
+    console.log('[InvitationsAPI] Successfully loaded invitation:', data.email);
     return data;
   } catch (err) {
     console.error('[InvitationsAPI] Error in getInvitationByCode:', err);
