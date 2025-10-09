@@ -656,22 +656,22 @@ const AdvisorySkillsPage: React.FC = () => {
       {/* Member Details Dialog */}
       {selectedMember && (
         <Dialog open={!!selectedMember} onOpenChange={() => setSelectedMember(null)}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{selectedMember.name} - Skills Profile</DialogTitle>
-              <DialogDescription>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col bg-white text-gray-900">
+            <DialogHeader className="border-b pb-4">
+              <DialogTitle className="text-xl font-bold text-gray-900">{selectedMember.name} - Skills Profile</DialogTitle>
+              <DialogDescription className="text-gray-600">
                 {selectedMember.role} • {selectedMember.department}
               </DialogDescription>
             </DialogHeader>
             
-            <div className="space-y-6">
-              {/* Radar Chart */}
-              <Card className="bg-gray-800 border-gray-700">
-                <CardHeader>
-                  <CardTitle>Skills Overview</CardTitle>
+            <div className="overflow-y-auto flex-1 pr-2 space-y-4">
+              {/* Radar Chart - Compact */}
+              <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base text-gray-900">Skills Overview</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-64">
+                <CardContent className="pb-4">
+                  <div className="h-48">
                     <Radar 
                       data={getRadarChartData(selectedMember)}
                       options={{
@@ -682,20 +682,23 @@ const AdvisorySkillsPage: React.FC = () => {
                             beginAtZero: true,
                             max: 100,
                             ticks: {
-                              color: 'white'
+                              color: '#374151',
+                              font: { size: 10 }
                             },
                             grid: {
-                              color: 'rgba(255, 255, 255, 0.1)'
+                              color: 'rgba(0, 0, 0, 0.1)'
                             },
                             pointLabels: {
-                              color: 'white'
+                              color: '#1f2937',
+                              font: { size: 9, weight: 'bold' }
                             }
                           }
                         },
                         plugins: {
                           legend: {
                             labels: {
-                              color: 'white'
+                              color: '#1f2937',
+                              font: { size: 11 }
                             }
                           }
                         }
@@ -705,14 +708,18 @@ const AdvisorySkillsPage: React.FC = () => {
                 </CardContent>
               </Card>
 
-              {/* Skills by Category */}
-              <Tabs defaultValue={skillCategories[0]?.id}>
-                <TabsList className="bg-gray-800 border-gray-700">
+              {/* Skills by Category - Compact Scrollable */}
+              <Tabs defaultValue={skillCategories[0]?.id} className="w-full">
+                <TabsList className="bg-gray-100 border border-gray-300 w-full flex flex-wrap h-auto">
                   {skillCategories.map(cat => {
                     const Icon = cat.icon;
                     return (
-                      <TabsTrigger key={cat.id} value={cat.id}>
-                        <Icon className="w-4 h-4 mr-2" />
+                      <TabsTrigger 
+                        key={cat.id} 
+                        value={cat.id}
+                        className="text-xs data-[state=active]:bg-white data-[state=active]:text-blue-600 text-gray-700"
+                      >
+                        <Icon className="w-3 h-3 mr-1" />
                         {cat.name}
                       </TabsTrigger>
                     );
@@ -720,25 +727,25 @@ const AdvisorySkillsPage: React.FC = () => {
                 </TabsList>
 
                 {skillCategories.map(category => (
-                  <TabsContent key={category.id} value={category.id}>
-                    <div className="space-y-4">
+                  <TabsContent key={category.id} value={category.id} className="mt-3">
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                       {category.skills.map(skill => {
                         const memberSkill = selectedMember.skills.find(s => s.skillId === skill.id);
                         if (!memberSkill) return null;
 
                         return (
-                          <Card key={skill.id} className="bg-gray-800 border-gray-700">
-                            <CardContent className="p-4">
-                              <div className="space-y-3">
-                                <div className="flex items-start justify-between">
-                                  <div>
-                                    <p className="font-medium text-white">{skill.name}</p>
-                                    <p className="text-sm text-gray-400">{skill.description}</p>
+                          <Card key={skill.id} className="bg-white border-gray-200 shadow-sm">
+                            <CardContent className="p-3">
+                              <div className="space-y-2">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-sm text-gray-900 truncate">{skill.name}</p>
+                                    <p className="text-xs text-gray-600 line-clamp-2">{skill.description}</p>
                                   </div>
-                                  {memberSkill.certifications && (
-                                    <div className="flex gap-1">
-                                      {memberSkill.certifications.map(cert => (
-                                        <Badge key={cert} variant="outline" className="text-xs">
+                                  {memberSkill.certifications && memberSkill.certifications.length > 0 && (
+                                    <div className="flex gap-1 flex-shrink-0">
+                                      {memberSkill.certifications.slice(0, 2).map(cert => (
+                                        <Badge key={cert} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
                                           {cert}
                                         </Badge>
                                       ))}
@@ -746,23 +753,22 @@ const AdvisorySkillsPage: React.FC = () => {
                                   )}
                                 </div>
 
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between text-sm">
-                                    <span className="text-gray-400">Current Level</span>
-                                    <span className="text-white">{memberSkill.currentLevel}/5</span>
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-600 font-medium">Current Level</span>
+                                    <span className="text-gray-900 font-bold">{memberSkill.currentLevel}/5</span>
                                   </div>
                                   <Progress 
                                     value={memberSkill.currentLevel * 20} 
-                                    className="h-2"
+                                    className="h-2 bg-gray-200"
                                   />
                                 </div>
 
                                 {memberSkill.currentLevel < memberSkill.targetLevel && (
-                                  <Alert className="bg-yellow-900/20 border-yellow-700">
-                                    <AlertCircle className="h-4 w-4" />
-                                    <AlertDescription className="text-sm">
-                                      Gap: {memberSkill.targetLevel - memberSkill.currentLevel} levels
-                                      • Target: {memberSkill.targetLevel}/5
+                                  <Alert className="bg-amber-50 border-amber-300 py-2">
+                                    <AlertCircle className="h-3 w-3 text-amber-600" />
+                                    <AlertDescription className="text-xs text-amber-800">
+                                      Gap: {memberSkill.targetLevel - memberSkill.currentLevel} levels • Target: {memberSkill.targetLevel}/5
                                     </AlertDescription>
                                   </Alert>
                                 )}
@@ -776,34 +782,34 @@ const AdvisorySkillsPage: React.FC = () => {
                 ))}
               </Tabs>
 
-              {/* Training Recommendations */}
+              {/* Training Recommendations - Compact */}
               {getTrainingRecommendations(selectedMember).length > 0 && (
-                <Card className="bg-gray-800 border-gray-700">
-                  <CardHeader>
-                    <CardTitle>Training Recommendations</CardTitle>
+                <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base text-gray-900">Training Recommendations</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {getTrainingRecommendations(selectedMember).map((rec, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <Badge variant={
-                              rec.priority === 'high' ? 'destructive' : 
-                              rec.priority === 'medium' ? 'secondary' : 'outline'
-                            }>
+                  <CardContent className="pb-3">
+                    <div className="space-y-2">
+                      {getTrainingRecommendations(selectedMember).slice(0, 3).map((rec, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-2 bg-white/70 rounded-lg border border-green-200">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <Badge 
+                              variant={rec.priority === 'high' ? 'destructive' : rec.priority === 'medium' ? 'secondary' : 'outline'}
+                              className="text-xs flex-shrink-0"
+                            >
                               {rec.priority}
                             </Badge>
-                            <div>
-                              <p className="font-medium text-white">{rec.skillName}</p>
-                              <p className="text-sm text-gray-400">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-sm text-gray-900 truncate">{rec.skillName}</p>
+                              <p className="text-xs text-gray-600 truncate">
                                 {rec.trainingType} • {rec.duration}
                               </p>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className="text-sm text-gray-400">{rec.provider}</p>
+                          <div className="text-right flex-shrink-0 ml-2">
+                            <p className="text-xs text-gray-600">{rec.provider}</p>
                             {rec.cost && (
-                              <p className="font-medium text-white">£{rec.cost}</p>
+                              <p className="font-bold text-sm text-gray-900">£{rec.cost}</p>
                             )}
                           </div>
                         </div>
