@@ -353,7 +353,14 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
               Skills Gap Priority Matrix
             </CardTitle>
             <CardDescription>
-              X-axis: Skill Gap (Required - Current), Y-axis: Interest Level
+              <strong>How to Read This Chart:</strong>
+              <ul className="mt-2 space-y-1 text-sm">
+                <li>• <strong>X-axis (Horizontal)</strong>: Skill Gap = How much development needed (Target - Current Level)</li>
+                <li>• <strong>Y-axis (Vertical)</strong>: Interest Level = How eager team members are to learn this skill (1-5)</li>
+                <li>• <strong>Position</strong>: Top-right = High interest + Big gap = Priority for development!</li>
+                <li>• <strong>Bottom-right</strong>: Big gap but low interest = May need external hiring or motivation</li>
+                <li>• <strong>Top-left</strong>: High interest + Small gap = Quick wins, easy to close</li>
+              </ul>
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -494,9 +501,10 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
                       <PriorityScore priority={gap.priority} />
                     </td>
                     <td className="p-3 text-center">
-                      <Button size="sm" variant="outline">
-                        Create Plan
-                      </Button>
+                      {/* Create Plan functionality to be implemented */}
+                      <Badge variant="outline" className="text-xs text-gray-500">
+                        Coming Soon
+                      </Badge>
                     </td>
                   </tr>
                 ))}

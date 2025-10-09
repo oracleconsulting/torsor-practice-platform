@@ -328,7 +328,19 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
               </div>
             </CardTitle>
             <CardDescription>
-              Shows team's average capability across different skill categories. Each point represents how strong your team is in that area (0-100%). Larger shapes = stronger overall capability. Use this to identify which categories need development.
+              <strong className="text-white">How to Read This Chart:</strong>
+              <ul className="mt-2 space-y-1 text-sm text-gray-300">
+                <li>• <strong>Blue Shape</strong>: Your team's current capability (0-100%)</li>
+                <li>• <strong>100% = Excellence</strong>: All team members at target skill levels</li>
+                <li>• <strong>Calculation</strong>: (Avg Current Level / Target Level) × 100 for each category</li>
+                <li>• <strong>Larger shape</strong> = Stronger overall capability</li>
+                <li>• <strong>Indented areas</strong> = Categories needing development</li>
+              </ul>
+              {showBenchmarks && (
+                <p className="mt-2 text-xs text-amber-400">
+                  <strong>Note:</strong> Red dashed line (75%) is a placeholder industry benchmark for demonstration. Will be replaced with real sector data.
+                </p>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent>
