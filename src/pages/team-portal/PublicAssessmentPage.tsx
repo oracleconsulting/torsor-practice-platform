@@ -63,18 +63,18 @@ export default function PublicAssessmentPage() {
       setInvitation(inviteData);
       console.log('[PublicAssessment] Invitation loaded:', inviteData.email);
 
-      // Load skills (public access)
-      const { data: skillsData, error: skillsError } = await supabase
-        .from('skills')
-        .select('*')
-        .order('category', { ascending: true })
-        .order('name', { ascending: true });
+      // Load skills from backend (bypasses RLS)
+      console.log('[PublicAssessment] Loading skills from backend...');
+      const skillsResponse = await fetch('/api/skills');
+      if (!skillsResponse.ok) {
+        throw new Error('Failed to load skills');
+      }
+      const skillsData = await skillsResponse.json();
       
-      if (skillsError) throw skillsError;
       setSkills(skillsData || []);
 
       // Get unique categories
-      const cats = Array.from(new Set(skillsData?.map(s => s.category) || [])).sort();
+      const cats = Array.from(new Set(skillsData?.map((s: any) => s.category) || [])).sort();
       setCategories(cats);
       
       console.log('[PublicAssessment] Loaded', skillsData?.length, 'skills in', cats.length, 'categories');
@@ -117,20 +117,21 @@ export default function PublicAssessmentPage() {
     try {
       console.log('[PublicAssessment] Submitting assessment...');
       
-      // Save assessment data as JSON in invitation record
+      // Save assessment data via backend endpoint
       const assessmentData = Array.from(assessments.values());
       
-      const { error } = await supabase
-        .from('invitations')
-        .update({
-          status: 'accepted',
-          accepted_at: new Date().toISOString(),
-          // Store assessment data in a JSON column
-          assessment_data: assessmentData,
-        })
-        .eq('invite_code', inviteCode);
+      const response = await fetch(`/api/invitations/${inviteCode}/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ assessmentData }),
+      });
       
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to submit' }));
+        throw new Error(errorData.error || 'Failed to submit assessment');
+      }
       
       console.log('[PublicAssessment] Assessment submitted successfully!');
       

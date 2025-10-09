@@ -134,6 +134,88 @@ app.get('/api/invitations/:inviteCode', async (req, res) => {
   }
 });
 
+// Skills fetching endpoint (bypasses RLS)
+app.get('/api/skills', async (req, res) => {
+  try {
+    console.log('🔍 Fetching all skills...');
+    
+    if (!supabase) {
+      console.error('❌ Supabase not configured on server');
+      return res.status(500).json({
+        error: 'Database not configured',
+      });
+    }
+    
+    // Fetch all skills using server-side client (bypasses RLS)
+    const { data, error } = await supabase
+      .from('skills')
+      .select('*')
+      .order('category', { ascending: true })
+      .order('name', { ascending: true });
+    
+    if (error) {
+      console.error('❌ Supabase error fetching skills:', error);
+      return res.status(500).json({
+        error: 'Failed to fetch skills',
+        details: error.message,
+      });
+    }
+    
+    console.log('✅ Fetched', data?.length || 0, 'skills');
+    return res.json(data || []);
+  } catch (error) {
+    console.error('❌ Skills endpoint error:', error);
+    return res.status(500).json({
+      error: error.message || 'Internal server error',
+    });
+  }
+});
+
+// Submit assessment endpoint (bypasses RLS)
+app.post('/api/invitations/:inviteCode/submit', async (req, res) => {
+  try {
+    const { inviteCode } = req.params;
+    const { assessmentData } = req.body;
+    
+    console.log('📝 Submitting assessment for:', inviteCode);
+    
+    if (!supabase) {
+      console.error('❌ Supabase not configured on server');
+      return res.status(500).json({
+        error: 'Database not configured',
+      });
+    }
+    
+    // Update invitation with assessment data
+    const { data, error } = await supabase
+      .from('invitations')
+      .update({
+        status: 'accepted',
+        accepted_at: new Date().toISOString(),
+        assessment_data: assessmentData,
+      })
+      .eq('invite_code', inviteCode)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('❌ Supabase error submitting assessment:', error);
+      return res.status(500).json({
+        error: 'Failed to submit assessment',
+        details: error.message,
+      });
+    }
+    
+    console.log('✅ Assessment submitted successfully for:', data.email);
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.error('❌ Submit assessment endpoint error:', error);
+    return res.status(500).json({
+      error: error.message || 'Internal server error',
+    });
+  }
+});
+
 // Serve static files from the dist directory
 app.use(express.static(path.join(__dirname, 'dist'), {
   etag: true,
