@@ -8,13 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription 
-} from '@/components/ui/dialog';
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Radar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -33,12 +29,32 @@ import GapAnalysis from '@/components/accountancy/team/GapAnalysis';
 import DevelopmentPlanning from '@/components/accountancy/team/DevelopmentPlanning';
 import TeamMetrics from '@/components/accountancy/team/TeamMetrics';
 
-// DEBUG: Verify Dialog is imported correctly
-console.log('🔍 Dialog component check:', { 
-  Dialog: typeof Dialog, 
-  DialogContent: typeof DialogContent,
-  isDialogDefined: typeof Dialog !== 'undefined'
-});
+// Direct Dialog components to avoid wrapper issues
+const Dialog = DialogPrimitive.Root;
+const DialogPortal = DialogPrimitive.Portal;
+const DialogOverlay = DialogPrimitive.Overlay;
+const DialogContent = ({ className, children, ...props }: any) => (
+  <DialogPortal>
+    <DialogOverlay className="fixed inset-0 z-50 bg-black/80" />
+    <DialogPrimitive.Content
+      className={cn(
+        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-4xl translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 sm:rounded-lg",
+        className
+      )}
+      {...props}
+    >
+      {children}
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100">
+        <X className="h-4 w-4" />
+      </DialogPrimitive.Close>
+    </DialogPrimitive.Content>
+  </DialogPortal>
+);
+const DialogHeader = ({ className, ...props }: any) => (
+  <div className={cn("flex flex-col space-y-1.5 text-center sm:text-left", className)} {...props} />
+);
+const DialogTitle = DialogPrimitive.Title;
+const DialogDescription = DialogPrimitive.Description;
 
 ChartJS.register(
   RadialLinearScale,
