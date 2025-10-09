@@ -10,6 +10,8 @@ const TeamPortalLogin = lazy(() => import('../pages/team-portal/LoginPage'));
 const TeamPortalLayout = lazy(() => import('../pages/team-portal/PortalLayout'));
 const TeamPortalDashboard = lazy(() => import('../pages/team-portal/DashboardPage'));
 const TeamPortalAssessment = lazy(() => import('../pages/team-portal/AssessmentPage'));
+const PublicAssessment = lazy(() => import('../pages/team-portal/PublicAssessmentPage'));
+const AssessmentComplete = lazy(() => import('../pages/team-portal/AssessmentCompletePage'));
 
 // Import all page components
 import AccountancyDashboard from '../pages/AccountancyDashboard';
@@ -192,14 +194,28 @@ const TorsorRoutes: React.FC = () => {
         user ? <Navigate to="/dashboard" replace /> : <Navigate to="/auth?portal=torsor" replace />
       } />
       
-      {/* Team Portal - Public login, then protected routes */}
+      {/* Team Portal - Public Assessment (No Auth Required) */}
+      <Route path="/team-portal/assessment-public" element={
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-gray-900"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div></div>}>
+          <PublicAssessment />
+        </Suspense>
+      } />
+      
+      {/* Team Portal - Assessment Complete */}
+      <Route path="/team-portal/assessment-complete" element={
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-gray-900"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div></div>}>
+          <AssessmentComplete />
+        </Suspense>
+      } />
+      
+      {/* Team Portal - Public login (for future use) */}
       <Route path="/team-portal/login" element={
         <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-gray-900"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div></div>}>
           <TeamPortalLogin />
         </Suspense>
       } />
       
-      {/* Team Portal - Protected routes */}
+      {/* Team Portal - Protected routes (for future use) */}
       <Route path="/team-portal/*" element={
         <ProtectedRoute>
           <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-gray-900"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div></div>}>

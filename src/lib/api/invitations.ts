@@ -389,7 +389,7 @@ export async function markReminderSent(invitationId: string): Promise<void> {
 // =====================================================
 
 export function generateInviteLink(inviteCode: string): string {
-  return `${window.location.origin}/team-portal/login?invite=${inviteCode}`;
+  return `${window.location.origin}/team-portal/assessment-public?invite=${inviteCode}`;
 }
 
 export function getInvitationEmailTemplate(
