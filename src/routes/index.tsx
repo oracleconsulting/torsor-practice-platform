@@ -11,7 +11,10 @@ const TeamPortalLayout = lazy(() => import('../pages/team-portal/PortalLayout'))
 const TeamPortalDashboard = lazy(() => import('../pages/team-portal/DashboardPage'));
 const TeamPortalAssessment = lazy(() => import('../pages/team-portal/AssessmentPage'));
 const PublicAssessment = lazy(() => import('../pages/team-portal/PublicAssessmentPage'));
-const AssessmentComplete = lazy(() => import('../pages/team-portal/AssessmentCompletePage'));
+
+// Eager load AssessmentComplete to prevent "Failed to fetch module" errors
+// This is a critical page at the end of the assessment flow
+import AssessmentComplete from '../pages/team-portal/AssessmentCompletePage';
 
 // Import all page components
 import AccountancyDashboard from '../pages/AccountancyDashboard';
@@ -201,12 +204,8 @@ const TorsorRoutes: React.FC = () => {
         </Suspense>
       } />
       
-      {/* Team Portal - Assessment Complete */}
-      <Route path="/team-portal/assessment-complete" element={
-        <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-gray-900"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div></div>}>
-          <AssessmentComplete />
-        </Suspense>
-      } />
+      {/* Team Portal - Assessment Complete (eager loaded to prevent module fetch errors) */}
+      <Route path="/team-portal/assessment-complete" element={<AssessmentComplete />} />
       
       {/* Team Portal - Public login (for future use) */}
       <Route path="/team-portal/login" element={
