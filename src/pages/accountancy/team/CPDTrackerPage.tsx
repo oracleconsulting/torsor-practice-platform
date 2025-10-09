@@ -554,40 +554,59 @@ const CPDTrackerPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {activities
-                  .sort((a, b) => b.date.getTime() - a.date.getTime())
-                  .map((activity) => (
-                    <div key={activity.id} className="flex items-center justify-between p-4 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-1">
-                          <h4 className="font-medium">{activity.title}</h4>
-                          <Badge variant={
-                            activity.status === 'completed' ? 'default' : 
-                            activity.status === 'in-progress' ? 'secondary' : 'outline'
-                          }>
-                            {activity.status}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-gray-400">
-                          {activity.provider} • {activity.category} • {formatDate(activity.date)}
-                        </p>
-                        {activity.description && (
-                          <p className="text-sm text-gray-500 mt-1">{activity.description}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="font-medium">{activity.hours} hours</p>
+                {activities.length === 0 ? (
+                  <p className="text-center text-gray-400 py-8">No activities found. Add your first CPD activity above.</p>
+                ) : (
+                  activities
+                    .filter(a => selectedMember === 'all' || a.practice_member_id === selectedMember)
+                    .sort((a, b) => new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime())
+                    .map((activity) => (
+                      <div key={activity.id} className="flex items-center justify-between p-4 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <h4 className="font-medium">{activity.title}</h4>
+                            <Badge variant={
+                              activity.status === 'completed' ? 'default' : 
+                              activity.status === 'in_progress' ? 'secondary' : 'outline'
+                            }>
+                              {activity.status.replace('_', ' ')}
+                            </Badge>
+                            {activity.external_link && (
+                              <a 
+                                href={activity.external_link} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-orange-500 hover:text-orange-400 text-xs flex items-center gap-1"
+                              >
+                                <FileText className="h-3 w-3" />
+                                Link
+                              </a>
+                            )}
+                          </div>
                           <p className="text-sm text-gray-400">
-                            {activity.verifiable ? 'Verifiable' : 'Non-verifiable'}
+                            {activity.practice_member?.name || 'Unknown'} • {activity.provider || 'No provider'} • {activity.category || 'Uncategorized'} • {formatDate(new Date(activity.activity_date))}
                           </p>
+                          {activity.description && (
+                            <p className="text-sm text-gray-500 mt-1">{activity.description}</p>
+                          )}
+                          {activity.cost && (
+                            <p className="text-xs text-gray-500 mt-1">Cost: £{activity.cost.toFixed(2)}</p>
+                          )}
                         </div>
-                        <Button variant="ghost" size="icon">
-                          <FileText className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="font-medium">{activity.hours_claimed} hours</p>
+                            {activity.hours_verified && activity.hours_verified !== activity.hours_claimed && (
+                              <p className="text-xs text-green-400">{activity.hours_verified} verified</p>
+                            )}
+                            <p className="text-sm text-gray-400">
+                              {activity.verifiable ? 'Verifiable' : 'Non-verifiable'}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -615,21 +634,21 @@ const CPDTrackerPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {teamMembers.map((member) => {
-                      const progress = (member.completedHours / member.requiredHours) * 100;
+                    {teamSummary.map((member) => {
+                      const progress = member.progress_percentage;
                       const status = progress >= 100 ? 'compliant' : progress >= 70 ? 'on-track' : 'at-risk';
                       
                       return (
-                        <tr key={member.id} className="border-b border-gray-800">
+                        <tr key={member.member_id} className="border-b border-gray-800">
                           <td className="py-4">
                             <div>
-                              <p className="font-medium">{member.name}</p>
-                              <p className="text-sm text-gray-400">{member.role}</p>
+                              <p className="font-medium">{member.member_name}</p>
+                              <p className="text-sm text-gray-400">{member.member_role}</p>
                             </div>
                           </td>
-                          <td className="text-center py-4">{member.requiredHours}</td>
-                          <td className="text-center py-4">{member.completedHours}</td>
-                          <td className="text-center py-4">{member.verifiableHours}</td>
+                          <td className="text-center py-4">{member.required_hours}</td>
+                          <td className="text-center py-4">{member.completed_hours}</td>
+                          <td className="text-center py-4">{member.verifiable_hours}</td>
                           <td className="py-4">
                             <div className="w-full max-w-[100px] mx-auto">
                               <Progress value={progress} className="h-2" />
@@ -645,8 +664,12 @@ const CPDTrackerPage: React.FC = () => {
                             </Badge>
                           </td>
                           <td className="text-center py-4">
-                            <Button variant="ghost" size="sm">
-                              View Details
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => setSelectedMember(member.member_id)}
+                            >
+                              View Activities
                             </Button>
                           </td>
                         </tr>
@@ -722,44 +745,57 @@ const CPDTrackerPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                {requirements.map((req) => (
-                  <div key={req.body} className="border-b border-gray-800 pb-6 last:border-0">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <h3 className="text-lg font-semibold">{req.body}</h3>
-                        <p className="text-sm text-gray-400">Deadline: {req.deadline}</p>
+                {requirements.length === 0 ? (
+                  <p className="text-center text-gray-400 py-8">No CPD requirements configured.</p>
+                ) : (
+                  requirements.map((req) => {
+                    const verifiablePercentage = req.verifiable_hours_minimum > 0 
+                      ? Math.round((req.verifiable_hours_minimum / req.annual_hours_required) * 100)
+                      : 0;
+                    
+                    return (
+                      <div key={req.id} className="border-b border-gray-800 pb-6 last:border-0">
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h3 className="text-lg font-semibold capitalize">{req.role}</h3>
+                            <p className="text-sm text-gray-400">Deadline: 31 December (Year End)</p>
+                            {req.description && (
+                              <p className="text-sm text-gray-500 mt-1">{req.description}</p>
+                            )}
+                          </div>
+                          <Award className="h-6 w-6 text-gray-400" />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="bg-gray-800 rounded-lg p-4">
+                            <p className="text-sm text-gray-400 mb-1">Annual Requirement</p>
+                            <p className="text-2xl font-bold">{req.annual_hours_required} hours</p>
+                          </div>
+                          <div className="bg-gray-800 rounded-lg p-4">
+                            <p className="text-sm text-gray-400 mb-1">Verifiable CPD</p>
+                            <p className="text-2xl font-bold">{req.verifiable_hours_minimum} hrs</p>
+                            <p className="text-xs text-gray-500">({verifiablePercentage}% minimum)</p>
+                          </div>
+                          <div className="bg-gray-800 rounded-lg p-4">
+                            <p className="text-sm text-gray-400 mb-1">Members Affected</p>
+                            <p className="text-2xl font-bold">
+                              {teamSummary.filter(m => m.member_role?.toLowerCase() === req.role.toLowerCase()).length}
+                            </p>
+                            <p className="text-xs text-gray-500">team members</p>
+                          </div>
+                        </div>
+                        <div className="mt-4">
+                          <h4 className="text-sm font-medium mb-2">Key Requirements:</h4>
+                          <ul className="space-y-1 text-sm text-gray-400">
+                            <li>• Maintain evidence of all CPD activities</li>
+                            <li>• Complete annual declaration by deadline</li>
+                            <li>• Ensure {req.verifiable_hours_minimum} hours is verifiable CPD</li>
+                            <li>• Keep records for minimum 5 years</li>
+                          </ul>
+                        </div>
                       </div>
-                      <Award className="h-6 w-6 text-gray-400" />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-gray-800 rounded-lg p-4">
-                        <p className="text-sm text-gray-400 mb-1">Annual Requirement</p>
-                        <p className="text-2xl font-bold">{req.annualHours} hours</p>
-                      </div>
-                      <div className="bg-gray-800 rounded-lg p-4">
-                        <p className="text-sm text-gray-400 mb-1">Verifiable CPD</p>
-                        <p className="text-2xl font-bold">{req.verifiablePercentage}%</p>
-                        <p className="text-xs text-gray-500">minimum required</p>
-                      </div>
-                      <div className="bg-gray-800 rounded-lg p-4">
-                        <p className="text-sm text-gray-400 mb-1">Members Affected</p>
-                        <p className="text-2xl font-bold">
-                          {teamMembers.filter(m => m.requiredHours === req.annualHours).length}
-                        </p>
-                        <p className="text-xs text-gray-500">team members</p>
-                      </div>
-                    </div>
-                    <div className="mt-4">
-                      <h4 className="text-sm font-medium mb-2">Key Requirements:</h4>
-                      <ul className="space-y-1 text-sm text-gray-400">
-                        <li>• Maintain evidence of all CPD activities</li>
-                        <li>• Complete annual declaration by deadline</li>
-                        <li>• Ensure {req.verifiablePercentage}% is verifiable CPD</li>
-                        <li>• Keep records for minimum 5 years</li>
-                      </ul>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  })
+                )}
               </div>
             </CardContent>
           </Card>
@@ -769,97 +805,67 @@ const CPDTrackerPage: React.FC = () => {
         <TabsContent value="recommendations" className="space-y-6">
           <Card className="border-gray-700">
             <CardHeader>
-              <CardTitle>Recommended Courses</CardTitle>
-              <CardDescription>Tailored CPD opportunities based on team needs</CardDescription>
+              <CardTitle>External CPD Resources</CardTitle>
+              <CardDescription>Curated training and development opportunities</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="p-4 bg-gray-800 rounded-lg">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h4 className="font-medium">Making Tax Digital Advanced Workshop</h4>
-                      <p className="text-sm text-gray-400">ICAEW • 8 hours • Verifiable</p>
+                {externalResources.length === 0 ? (
+                  <p className="text-center text-gray-400 py-8">No external resources available yet.</p>
+                ) : (
+                  externalResources.slice(0, 10).map((resource) => (
+                    <div key={resource.id} className="p-4 bg-gray-800 rounded-lg">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <h4 className="font-medium">{resource.title}</h4>
+                          <p className="text-sm text-gray-400">
+                            {resource.provider}
+                            {resource.cpd_hours && ` • ${resource.cpd_hours} hours`}
+                            {resource.accredited_by && ` • Accredited by ${resource.accredited_by}`}
+                          </p>
+                        </div>
+                        <Badge className="bg-blue-500/20 text-blue-400 capitalize">
+                          {resource.type.replace('_', ' ')}
+                        </Badge>
+                      </div>
+                      {resource.description && (
+                        <p className="text-sm text-gray-500 mb-3">{resource.description}</p>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4 text-sm text-gray-400">
+                          {resource.duration && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-4 w-4" />
+                              {resource.duration}
+                            </span>
+                          )}
+                          {resource.cost && resource.cost > 0 ? (
+                            <span className="flex items-center gap-1">
+                              £{resource.cost.toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="text-green-400">Free</span>
+                          )}
+                          {resource.skill_categories && resource.skill_categories.length > 0 && (
+                            <span className="text-xs">
+                              {resource.skill_categories.slice(0, 2).join(', ')}
+                            </span>
+                          )}
+                        </div>
+                        <a
+                          href={resource.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block"
+                        >
+                          <Button size="sm" className="bg-orange-500 hover:bg-orange-600">
+                            View Resource
+                          </Button>
+                        </a>
+                      </div>
                     </div>
-                    <Badge className="bg-green-500/20 text-green-400">Recommended</Badge>
-                  </div>
-                  <p className="text-sm text-gray-500 mb-3">
-                    Essential training for the upcoming MTD changes. Perfect for team members 
-                    working with VAT-registered clients.
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 text-sm text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <CalendarIcon className="h-4 w-4" />
-                        15 Feb 2024
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Target className="h-4 w-4" />
-                        3 team members need this
-                      </span>
-                    </div>
-                    <Button size="sm" className="bg-orange-500 hover:bg-orange-600">
-                      Book Now
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-gray-800 rounded-lg">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h4 className="font-medium">ESG Reporting Fundamentals</h4>
-                      <p className="text-sm text-gray-400">ACCA • 6 hours • Verifiable</p>
-                    </div>
-                    <Badge className="bg-blue-500/20 text-blue-400">New Topic</Badge>
-                  </div>
-                  <p className="text-sm text-gray-500 mb-3">
-                    Stay ahead with sustainability reporting. Growing client demand for ESG 
-                    advisory services makes this essential learning.
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 text-sm text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <CalendarIcon className="h-4 w-4" />
-                        22 Feb 2024
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <TrendingUp className="h-4 w-4" />
-                        High demand topic
-                      </span>
-                    </div>
-                    <Button size="sm" className="bg-orange-500 hover:bg-orange-600">
-                      Book Now
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-gray-800 rounded-lg">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h4 className="font-medium">AI in Audit: Practical Applications</h4>
-                      <p className="text-sm text-gray-400">Online • 4 hours • Verifiable</p>
-                    </div>
-                    <Badge className="bg-purple-500/20 text-purple-400">Technology</Badge>
-                  </div>
-                  <p className="text-sm text-gray-500 mb-3">
-                    Learn how to leverage AI tools in audit processes. Includes hands-on 
-                    exercises with popular audit software.
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 text-sm text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <BookOpen className="h-4 w-4" />
-                        Self-paced
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Users className="h-4 w-4" />
-                        Whole team benefit
-                      </span>
-                    </div>
-                    <Button size="sm" className="bg-orange-500 hover:bg-orange-600">
-                      Enroll Team
-                    </Button>
-                  </div>
-                </div>
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
