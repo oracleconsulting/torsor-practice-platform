@@ -107,11 +107,14 @@ const LoginPage: React.FC<LoginPageProps> = () => {
         // If user already exists, try signing them in with the consistent password
         if (signupError.message.includes('already registered') || signupError.message.includes('User already registered')) {
           console.log('[LoginPage] Account exists, attempting login...');
+          console.log('[LoginPage] About to call signInWithPassword...');
           
           const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
             email: invitation.email,
             password: tempPassword,
           });
+          
+          console.log('[LoginPage] signInWithPassword completed', { hasData: !!loginData, hasError: !!loginError });
           
           if (loginError) {
             console.error('[LoginPage] Login failed:', loginError);
@@ -130,7 +133,7 @@ const LoginPage: React.FC<LoginPageProps> = () => {
             return;
           }
           
-          console.log('[LoginPage] Login successful for existing user!');
+          console.log('[LoginPage] ✅ Login successful for existing user! Continuing to create practice_members...');
         } else {
           console.error('[LoginPage] Unexpected signup error:', signupError);
           throw signupError;
