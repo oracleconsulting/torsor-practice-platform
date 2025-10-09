@@ -31,10 +31,11 @@ export async function deleteTeamMember(memberId: string, email: string): Promise
   
   try {
     // Delete skill assessments
+    // Note: Using team_member_id (the actual column name in the database)
     const { error: skillsError } = await supabase
       .from('skill_assessments')
       .delete()
-      .eq('practice_member_id', memberId);
+      .eq('team_member_id', memberId);
     
     if (skillsError) {
       console.error('[TeamMembersAPI] Error deleting skill_assessments:', skillsError);
@@ -48,7 +49,7 @@ export async function deleteTeamMember(memberId: string, email: string): Promise
       await supabase
         .from('development_goals')
         .delete()
-        .eq('practice_member_id', memberId);
+        .eq('team_member_id', memberId);
       console.log('[TeamMembersAPI] Deleted development_goals');
     } catch (err) {
       console.log('[TeamMembersAPI] development_goals table might not exist, skipping');
@@ -59,7 +60,7 @@ export async function deleteTeamMember(memberId: string, email: string): Promise
       await supabase
         .from('survey_sessions')
         .delete()
-        .eq('practice_member_id', memberId);
+        .eq('team_member_id', memberId);
       console.log('[TeamMembersAPI] Deleted survey_sessions');
     } catch (err) {
       console.log('[TeamMembersAPI] survey_sessions table might not exist, skipping');
@@ -70,7 +71,7 @@ export async function deleteTeamMember(memberId: string, email: string): Promise
       await supabase
         .from('cpd_activities')
         .delete()
-        .eq('practice_member_id', memberId);
+        .eq('team_member_id', memberId);
       console.log('[TeamMembersAPI] Deleted cpd_activities');
     } catch (err) {
       console.log('[TeamMembersAPI] cpd_activities table might not exist, skipping');

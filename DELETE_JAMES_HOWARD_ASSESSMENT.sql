@@ -21,14 +21,15 @@ BEGIN
     
     IF v_member_id IS NOT NULL THEN
         -- Delete skill assessments (110 rows)
+        -- Note: Using team_member_id (the actual column name in the database)
         DELETE FROM skill_assessments 
-        WHERE practice_member_id = v_member_id;
+        WHERE team_member_id = v_member_id;
         RAISE NOTICE 'Deleted skill_assessments for jhoward@rpgcc.co.uk';
         
         -- Delete development goals (if exists)
         BEGIN
             DELETE FROM development_goals 
-            WHERE practice_member_id = v_member_id;
+            WHERE team_member_id = v_member_id;
             RAISE NOTICE 'Deleted development_goals';
         EXCEPTION
             WHEN undefined_table THEN
@@ -38,7 +39,7 @@ BEGIN
         -- Delete survey sessions (if exists)
         BEGIN
             DELETE FROM survey_sessions 
-            WHERE practice_member_id = v_member_id;
+            WHERE team_member_id = v_member_id;
             RAISE NOTICE 'Deleted survey_sessions';
         EXCEPTION
             WHEN undefined_table THEN
@@ -48,7 +49,7 @@ BEGIN
         -- Delete CPD activities (if exists)
         BEGIN
             DELETE FROM cpd_activities 
-            WHERE practice_member_id = v_member_id;
+            WHERE team_member_id = v_member_id;
             RAISE NOTICE 'Deleted cpd_activities';
         EXCEPTION
             WHEN undefined_table THEN
@@ -88,7 +89,7 @@ BEGIN
     LIMIT 1;
     
     IF v_member_id IS NOT NULL THEN
-        DELETE FROM skill_assessments WHERE practice_member_id = v_member_id;
+        DELETE FROM skill_assessments WHERE team_member_id = v_member_id;
         DELETE FROM practice_members WHERE id = v_member_id;
         DELETE FROM invitations WHERE email = 'laspartnership@googlemail.com';
         RAISE NOTICE '✅ Test assessment (laspartnership@googlemail.com) completely deleted!';
@@ -121,12 +122,12 @@ BEGIN
         LIMIT 1;
         
         IF v_member_id IS NOT NULL THEN
-            DELETE FROM skill_assessments WHERE practice_member_id = v_member_id;
+            DELETE FROM skill_assessments WHERE team_member_id = v_member_id;
             
             BEGIN
-                DELETE FROM development_goals WHERE practice_member_id = v_member_id;
-                DELETE FROM survey_sessions WHERE practice_member_id = v_member_id;
-                DELETE FROM cpd_activities WHERE practice_member_id = v_member_id;
+                DELETE FROM development_goals WHERE team_member_id = v_member_id;
+                DELETE FROM survey_sessions WHERE team_member_id = v_member_id;
+                DELETE FROM cpd_activities WHERE team_member_id = v_member_id;
             EXCEPTION
                 WHEN undefined_table THEN NULL;
             END;
@@ -165,7 +166,7 @@ SELECT
     pm.email,
     pm.name
 FROM skill_assessments sa
-JOIN practice_members pm ON sa.practice_member_id = pm.id
+JOIN practice_members pm ON sa.team_member_id = pm.id
 WHERE pm.email IN ('jhoward@rpgcc.co.uk', 'laspartnership@googlemail.com')
 GROUP BY pm.email, pm.name;
 

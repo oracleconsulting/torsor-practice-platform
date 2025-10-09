@@ -36,8 +36,7 @@ ORDER BY email;
 
 -- Step 2: Update practice_members table
 UPDATE practice_members
-SET email = 'BSGBD@rpgcc.co.uk',
-    updated_at = NOW()
+SET email = 'BSGBD@rpgcc.co.uk'
 WHERE email = 'jhoward@rpgcc.co.uk';
 
 -- Verify practice_members update
@@ -54,8 +53,7 @@ ORDER BY email;
 
 -- Step 3: Update any invitations (if any exist)
 UPDATE invitations
-SET email = 'BSGBD@rpgcc.co.uk',
-    updated_at = NOW()
+SET email = 'BSGBD@rpgcc.co.uk'
 WHERE email = 'jhoward@rpgcc.co.uk';
 
 -- Verify invitations update
