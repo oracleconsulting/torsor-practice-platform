@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, AlertCircle, Award, Brain, Briefcase, Download, Settings
+  Users, AlertCircle, Award, Brain, Briefcase, Download, Settings, ChevronDown
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -38,7 +39,7 @@ const DialogContent = ({ className, children, ...props }: any) => (
     <DialogOverlay className="fixed inset-0 z-50 bg-black/80" />
     <DialogPrimitive.Content
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-4xl translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 sm:rounded-lg",
+        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-6xl translate-x-[-50%] translate-y-[-50%] gap-4 border bg-white p-8 shadow-lg duration-200 sm:rounded-lg max-h-[90vh] overflow-y-auto",
         className
       )}
       {...props}
@@ -658,17 +659,48 @@ const AdvisorySkillsPage: React.FC = () => {
               </p>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                {skillCategories.map(category => (
-                  <div key={category.id} className="space-y-4">
-                    <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
-                      <category.icon className="w-5 h-5 text-orange-500" />
-                      <h3 className="text-lg font-semibold text-gray-900">{category.name}</h3>
-                      <Badge variant="outline">{category.skills.length} skills</Badge>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      {category.skills.map(skill => {
+              <Accordion type="multiple" className="space-y-2">
+                {skillCategories.map((category, categoryIndex) => {
+                  // Calculate totals for this category
+                  const categorySkillsWithData = category.skills.filter(skill => {
+                    return teamMembers.some(member => 
+                      member.skills.find(s => s.skillId === skill.id)
+                    );
+                  });
+                  
+                  const categoryMentoringOpps = categorySkillsWithData.filter(skill => {
+                    const membersWithSkill = teamMembers
+                      .map(member => {
+                        const skillData = member.skills.find(s => s.skillId === skill.id);
+                        return skillData ? { ...member, currentLevel: skillData.currentLevel, interestLevel: skillData.interestLevel } : null;
+                      })
+                      .filter(Boolean);
+                    const topPerformers = membersWithSkill.filter((m: any) => m.currentLevel >= 3);
+                    const highInterestLearners = membersWithSkill.filter((m: any) => m.currentLevel <= 2 && m.interestLevel >= 4);
+                    return topPerformers.length > 0 && highInterestLearners.length > 0;
+                  }).length;
+
+                  return (
+                    <AccordionItem key={category.id} value={`category-${categoryIndex}`} className="border border-gray-200 rounded-lg overflow-hidden">
+                      <AccordionTrigger className="px-4 py-3 hover:bg-gray-50 [&[data-state=open]]:bg-gray-50">
+                        <div className="flex items-center justify-between w-full pr-4">
+                          <div className="flex items-center gap-3">
+                            <category.icon className="w-5 h-5 text-orange-500" />
+                            <h3 className="text-base font-semibold text-gray-900">{category.name}</h3>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">{categorySkillsWithData.length} skills</Badge>
+                            {categoryMentoringOpps > 0 && (
+                              <Badge className="bg-green-100 text-green-800 border-green-300 text-xs">
+                                {categoryMentoringOpps} mentoring opps
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-4 pb-4">
+                        <div className="space-y-3 mt-2">
+                          {category.skills.map(skill => {
                         // Get all team members who have this skill assessed
                         const membersWithSkill = teamMembers
                           .map(member => {
@@ -775,10 +807,12 @@ const AdvisorySkillsPage: React.FC = () => {
                           </div>
                         );
                       })}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  );
+                })}
+              </Accordion>
             </CardContent>
           </Card>
         </TabsContent>
@@ -893,15 +927,28 @@ const AdvisorySkillsPage: React.FC = () => {
                                   )}
                                 </div>
 
-                                <div className="space-y-1">
-                                  <div className="flex items-center justify-between text-xs">
-                                    <span className="text-gray-600 font-medium">Current Level</span>
-                                    <span className="text-gray-900 font-bold">{memberSkill.currentLevel}/5</span>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between text-xs">
+                                      <span className="text-gray-600 font-medium">Current Level</span>
+                                      <span className="text-gray-900 font-bold">{memberSkill.currentLevel}/5</span>
+                                    </div>
+                                    <Progress 
+                                      value={memberSkill.currentLevel * 20} 
+                                      className="h-2 bg-gray-200"
+                                    />
                                   </div>
-                                  <Progress 
-                                    value={memberSkill.currentLevel * 20} 
-                                    className="h-2 bg-gray-200"
-                                  />
+                                  
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between text-xs">
+                                      <span className="text-gray-600 font-medium">Interest Level</span>
+                                      <span className="text-blue-900 font-bold">{memberSkill.interestLevel}/5</span>
+                                    </div>
+                                    <Progress 
+                                      value={memberSkill.interestLevel * 20} 
+                                      className="h-2 bg-blue-100"
+                                    />
+                                  </div>
                                 </div>
 
                                 {memberSkill.currentLevel < memberSkill.targetLevel && (
@@ -922,42 +969,20 @@ const AdvisorySkillsPage: React.FC = () => {
                 ))}
               </Tabs>
 
-              {/* Training Recommendations - Compact */}
-              {getTrainingRecommendations(selectedMember).length > 0 && (
-                <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base text-gray-900">Training Recommendations</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pb-3">
-                    <div className="space-y-2">
-                      {getTrainingRecommendations(selectedMember).slice(0, 3).map((rec, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-2 bg-white/70 rounded-lg border border-green-200">
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <Badge 
-                              variant={rec.priority === 'high' ? 'destructive' : rec.priority === 'medium' ? 'secondary' : 'outline'}
-                              className="text-xs flex-shrink-0"
-                            >
-                              {rec.priority}
-                            </Badge>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-sm text-gray-900 truncate">{rec.skillName}</p>
-                              <p className="text-xs text-gray-600 truncate">
-                                {rec.trainingType} • {rec.duration}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-right flex-shrink-0 ml-2">
-                            <p className="text-xs text-gray-600">{rec.provider}</p>
-                            {rec.cost && (
-                              <p className="font-bold text-sm text-gray-900">£{rec.cost}</p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              {/* Training Recommendations - TO BE BUILT */}
+              <Card className="bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base text-gray-900 flex items-center gap-2">
+                    Training Recommendations
+                    <Badge variant="outline" className="text-xs">Coming Soon</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pb-3">
+                  <p className="text-sm text-gray-600">
+                    Personalized training recommendations will appear here based on skill gaps and development goals.
+                  </p>
+                </CardContent>
+              </Card>
             </div>
           </DialogContent>
         </Dialog>
