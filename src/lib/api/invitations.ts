@@ -91,13 +91,20 @@ export async function createInvitation(
 }
 
 export async function getInvitations(practiceId: string): Promise<Invitation[]> {
+  console.log('[InvitationsAPI] Loading invitations for practice:', practiceId);
+  
   const { data, error } = await supabase
     .from('invitations')
     .select('*')
     .eq('practice_id', practiceId)
     .order('created_at', { ascending: false });
 
-  if (error) throw error;
+  console.log('[InvitationsAPI] Query result:', { count: data?.length, error: error?.message });
+  
+  if (error) {
+    console.error('[InvitationsAPI] Error loading invitations:', error);
+    throw error;
+  }
   return data || [];
 }
 
@@ -333,12 +340,19 @@ export async function getBatchInvitations(batchId: string): Promise<Invitation[]
 // =====================================================
 
 export async function getInvitationStats(practiceId: string) {
+  console.log('[InvitationsAPI] Loading stats for practice:', practiceId);
+  
   const { data, error } = await supabase
     .from('invitations')
     .select('status')
     .eq('practice_id', practiceId);
 
-  if (error) throw error;
+  console.log('[InvitationsAPI] Stats query result:', { count: data?.length, error: error?.message });
+  
+  if (error) {
+    console.error('[InvitationsAPI] Error loading stats:', error);
+    throw error;
+  }
 
   const stats = {
     total: data.length,
