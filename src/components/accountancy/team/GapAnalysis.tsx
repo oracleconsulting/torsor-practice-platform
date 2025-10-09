@@ -553,9 +553,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
                         +{mismatch.developmentPotential}
                       </Badge>
                     </div>
-                    <Button size="sm">
-                      Create Plan
-                    </Button>
+                    {/* Coming soon: Development plan creation */}
                   </div>
                 </div>
               ))}
