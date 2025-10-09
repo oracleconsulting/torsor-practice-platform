@@ -59,6 +59,7 @@ export default defineConfig({
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'ui-vendor': ['@headlessui/react', '@heroicons/react', 'framer-motion'],
+          'radix-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select', '@radix-ui/react-tabs'],
           'data-vendor': ['@supabase/supabase-js', '@tanstack/react-query'],
         },
         // Add cache busting
