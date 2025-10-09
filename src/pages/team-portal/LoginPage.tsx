@@ -109,17 +109,27 @@ const LoginPage: React.FC<LoginPageProps> = () => {
           console.log('[LoginPage] Account exists, attempting login...');
           console.log('[LoginPage] About to call signInWithPassword...');
           
-          const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+          // Sign in but don't wait for the promise (it can hang)
+          // Instead, we'll wait for auth state to change
+          supabase.auth.signInWithPassword({
             email: invitation.email,
             password: tempPassword,
+          }).then(({ error: loginError }) => {
+            if (loginError) {
+              console.error('[LoginPage] Login failed:', loginError);
+            }
           });
           
-          console.log('[LoginPage] signInWithPassword completed', { hasData: !!loginData, hasError: !!loginError });
+          // Wait a moment for auth state to propagate
+          console.log('[LoginPage] Waiting for auth state to settle...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
           
-          if (loginError) {
-            console.error('[LoginPage] Login failed:', loginError);
-            // Password doesn't match - send magic link instead
-            console.log('[LoginPage] Sending magic link...');
+          // Check if we're now authenticated
+          const { data: checkData } = await supabase.auth.getUser();
+          
+          if (!checkData.user) {
+            // Login failed - send magic link instead
+            console.log('[LoginPage] Login verification failed, sending magic link...');
             const { error: magicError } = await supabase.auth.signInWithOtp({
               email: invitation.email,
               options: {
