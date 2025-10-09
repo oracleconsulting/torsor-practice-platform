@@ -246,7 +246,7 @@ const AdvisorySkillsPage: React.FC = () => {
               setSkillCategories(Array.from(categoryMap.values()));
               console.log('✅ Loaded real data:', members.length, 'members,', allSkills.length, 'skills');
             } else {
-              setSkillCategories(getMockSkillCategories());
+            setSkillCategories(getMockSkillCategories());
             }
             return;
           }
@@ -704,7 +704,9 @@ const AdvisorySkillsPage: React.FC = () => {
           <TabsTrigger value="gaps">Gap Analysis</TabsTrigger>
           <TabsTrigger value="planning">Development Planning</TabsTrigger>
           <TabsTrigger value="skills-analysis">Skills Analysis</TabsTrigger>
-          <TabsTrigger value="metrics">Team Metrics</TabsTrigger>
+          {/* TEMPORARILY DISABLED: Team Metrics tab (causing React error #310) */}
+          {/* Will be re-enabled once Railway deploys the fix */}
+          {/* <TabsTrigger value="metrics">Team Metrics</TabsTrigger> */}
         </TabsList>
 
         <TabsContent value="matrix" className="space-y-6">
@@ -915,13 +917,14 @@ const AdvisorySkillsPage: React.FC = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="metrics" className="space-y-6">
+        {/* TEMPORARILY DISABLED: Team Metrics tab content */}
+        {/* <TabsContent value="metrics" className="space-y-6">
           <TeamMetrics 
             teamMembers={teamMembers}
             skillCategories={skillCategories}
             showBenchmarks={true}
           />
-        </TabsContent>
+        </TabsContent> */}
       </Tabs>
 
       {/* Member Details Dialog */}
@@ -1029,9 +1032,9 @@ const AdvisorySkillsPage: React.FC = () => {
                                     <div className="flex items-center justify-between text-xs">
                                       <span className="text-gray-600 font-medium">Current Level</span>
                                       <span className="text-gray-900 font-bold">{memberSkill.currentLevel}/5</span>
-                                    </div>
-                                    <Progress 
-                                      value={memberSkill.currentLevel * 20} 
+                                  </div>
+                                  <Progress 
+                                    value={memberSkill.currentLevel * 20} 
                                       className="h-2 bg-gray-200"
                                     />
                                   </div>
@@ -1073,13 +1076,13 @@ const AdvisorySkillsPage: React.FC = () => {
                     Training Recommendations
                     <Badge variant="outline" className="text-xs">Coming Soon</Badge>
                   </CardTitle>
-                </CardHeader>
+                  </CardHeader>
                 <CardContent className="pb-3">
                   <p className="text-sm text-gray-600">
                     Personalized training recommendations will appear here based on skill gaps and development goals.
                   </p>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
             </div>
           </DialogContent>
         </Dialog>
