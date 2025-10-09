@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Calendar } from '@/components/ui/calendar';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { 
   GraduationCap, 
@@ -25,174 +24,142 @@ import {
   Users,
   BarChart,
   CheckCircle,
-  BookOpen
+  BookOpen,
+  Loader2
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
-
-interface CPDActivity {
-  id: string;
-  title: string;
-  type: 'course' | 'seminar' | 'webinar' | 'reading' | 'other';
-  provider: string;
-  date: Date;
-  hours: number;
-  verifiable: boolean;
-  category: string;
-  description: string;
-  certificate?: string;
-  status: 'planned' | 'completed' | 'in-progress';
-}
-
-interface TeamMember {
-  id: string;
-  name: string;
-  role: string;
-  requiredHours: number;
-  completedHours: number;
-  verifiableHours: number;
-  lastActivity?: Date;
-}
-
-interface CPDRequirement {
-  body: string;
-  annualHours: number;
-  verifiablePercentage: number;
-  deadline: string;
-}
+import { useAccountancy } from '@/contexts/AccountancyContext';
+import {
+  getCPDActivities,
+  getTeamCPDSummary,
+  getCPDRequirements,
+  getCPDExternalResources,
+  createCPDActivity,
+  updateCPDActivity,
+  type CPDActivity,
+  type TeamCPDSummary,
+  type CPDRequirement,
+  type CPDExternalResource,
+  type CPDActivityInput
+} from '@/lib/api/cpd';
 
 const CPDTrackerPage: React.FC = () => {
+  const { practice, practiceMembers } = useAccountancy();
+  
   const [activities, setActivities] = useState<CPDActivity[]>([]);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamSummary, setTeamSummary] = useState<TeamCPDSummary[]>([]);
+  const [requirements, setRequirements] = useState<CPDRequirement[]>([]);
+  const [externalResources, setExternalResources] = useState<CPDExternalResource[]>([]);
+  
   const [selectedMember, setSelectedMember] = useState<string>('all');
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Form state
-  const [newActivity, setNewActivity] = useState<Partial<CPDActivity>>({
+  const [newActivity, setNewActivity] = useState<Partial<CPDActivityInput>>({
     type: 'course',
     verifiable: true,
     status: 'planned',
-    date: new Date()
+    activity_date: new Date().toISOString().split('T')[0],
+    currency: 'GBP'
   });
 
-  // Mock data - replace with API calls
+  // Load all CPD data
   useEffect(() => {
-    // Load team members
-    setTeamMembers([
-      {
-        id: '1',
-        name: 'Sarah Johnson',
-        role: 'Senior Manager',
-        requiredHours: 40,
-        completedHours: 28,
-        verifiableHours: 21,
-        lastActivity: new Date('2024-01-15')
-      },
-      {
-        id: '2',
-        name: 'James Wilson',
-        role: 'Accountant',
-        requiredHours: 35,
-        completedHours: 32,
-        verifiableHours: 26,
-        lastActivity: new Date('2024-01-20')
-      },
-      {
-        id: '3',
-        name: 'Emma Davis',
-        role: 'Junior Accountant',
-        requiredHours: 35,
-        completedHours: 15,
-        verifiableHours: 10,
-        lastActivity: new Date('2024-01-10')
-      }
-    ]);
+    async function loadCPDData() {
+      if (!practice?.id) return;
 
-    // Load activities
-    setActivities([
-      {
-        id: '1',
-        title: 'Advanced Tax Planning Strategies',
-        type: 'course',
-        provider: 'ICAEW',
-        date: new Date('2024-01-15'),
-        hours: 6,
-        verifiable: true,
-        category: 'Taxation',
-        description: 'Comprehensive course on advanced tax planning for high-net-worth individuals',
-        status: 'completed'
-      },
-      {
-        id: '2',
-        title: 'Digital Transformation in Accounting',
-        type: 'webinar',
-        provider: 'ACCA',
-        date: new Date('2024-02-01'),
-        hours: 2,
-        verifiable: true,
-        category: 'Technology',
-        description: 'Exploring the impact of AI and automation on accounting practices',
-        status: 'planned'
-      }
-    ]);
-  }, []);
+      try {
+        setLoading(true);
+        setError(null);
 
-  const requirements: CPDRequirement[] = [
-    {
-      body: 'ICAEW',
-      annualHours: 40,
-      verifiablePercentage: 60,
-      deadline: '31 December'
-    },
-    {
-      body: 'ACCA',
-      annualHours: 35,
-      verifiablePercentage: 50,
-      deadline: '31 December'
+        const [activitiesData, summaryData, requirementsData, resourcesData] = await Promise.all([
+          getCPDActivities(practice.id),
+          getTeamCPDSummary(practice.id),
+          getCPDRequirements(),
+          getCPDExternalResources()
+        ]);
+
+        setActivities(activitiesData);
+        setTeamSummary(summaryData);
+        setRequirements(requirementsData);
+        setExternalResources(resourcesData);
+      } catch (err) {
+        console.error('Error loading CPD data:', err);
+        setError('Failed to load CPD data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     }
-  ];
+
+    loadCPDData();
+  }, [practice?.id]);
 
   const categories = [
-    'Accounting & Reporting',
-    'Audit & Assurance',
-    'Business Advisory',
-    'Ethics',
-    'Leadership & Management',
-    'Regulatory & Compliance',
-    'Taxation',
-    'Technology'
+    'technical-accounting-audit',
+    'taxation-advisory',
+    'regulatory-compliance',
+    'business-strategy-advisory',
+    'digital-technology',
+    'client-management',
+    'leadership-people-management',
+    'professional-ethics'
   ];
 
-  const handleAddActivity = () => {
-    if (newActivity.title && newActivity.hours) {
-      const activity: CPDActivity = {
-        id: Date.now().toString(),
+  const handleAddActivity = async () => {
+    if (!newActivity.title || !newActivity.hours_claimed || !newActivity.practice_member_id) {
+      return;
+    }
+
+    try {
+      const activityData: CPDActivityInput = {
+        practice_member_id: newActivity.practice_member_id!,
         title: newActivity.title!,
         type: newActivity.type as CPDActivity['type'],
-        provider: newActivity.provider || '',
-        date: newActivity.date!,
-        hours: newActivity.hours!,
-        verifiable: newActivity.verifiable!,
-        category: newActivity.category || '',
-        description: newActivity.description || '',
-        status: newActivity.status as CPDActivity['status']
+        provider: newActivity.provider,
+        activity_date: newActivity.activity_date!,
+        hours_claimed: newActivity.hours_claimed!,
+        cost: newActivity.cost,
+        currency: newActivity.currency || 'GBP',
+        category: newActivity.category,
+        description: newActivity.description,
+        learning_objectives: newActivity.learning_objectives,
+        key_takeaways: newActivity.key_takeaways,
+        external_link: newActivity.external_link,
+        status: newActivity.status!,
+        verifiable: newActivity.verifiable!
       };
+
+      const created = await createCPDActivity(activityData);
+      setActivities([created, ...activities]);
       
-      setActivities([...activities, activity]);
+      // Refresh team summary
+      if (practice?.id) {
+        const summaryData = await getTeamCPDSummary(practice.id);
+        setTeamSummary(summaryData);
+      }
+
       setNewActivity({
         type: 'course',
         verifiable: true,
         status: 'planned',
-        date: new Date()
+        activity_date: new Date().toISOString().split('T')[0],
+        currency: 'GBP'
       });
       setShowAddActivity(false);
+    } catch (err) {
+      console.error('Error creating CPD activity:', err);
+      setError('Failed to create activity. Please try again.');
     }
   };
 
   const getTeamProgress = () => {
-    const totalRequired = teamMembers.reduce((sum, member) => sum + member.requiredHours, 0);
-    const totalCompleted = teamMembers.reduce((sum, member) => sum + member.completedHours, 0);
-    return (totalCompleted / totalRequired) * 100;
+    if (teamSummary.length === 0) return 0;
+    const totalRequired = teamSummary.reduce((sum, member) => sum + member.required_hours, 0);
+    const totalCompleted = teamSummary.reduce((sum, member) => sum + member.completed_hours, 0);
+    return totalRequired > 0 ? (totalCompleted / totalRequired) * 100 : 0;
   };
 
   const getUpcomingDeadlines = () => {
@@ -201,6 +168,26 @@ const CPDTrackerPage: React.FC = () => {
     const daysRemaining = Math.floor((yearEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     return daysRemaining;
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8 max-w-7xl mx-auto">
+        <Alert className="border-red-500/50 bg-red-500/10">
+          <AlertCircle className="h-4 w-4 text-red-500" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -230,10 +217,10 @@ const CPDTrackerPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {teamMembers.reduce((sum, m) => sum + m.completedHours, 0)}
+              {teamSummary.reduce((sum, m) => sum + m.completed_hours, 0)}
             </div>
             <p className="text-xs text-gray-400 mt-2">
-              {teamMembers.reduce((sum, m) => sum + m.verifiableHours, 0)} verifiable
+              {teamSummary.reduce((sum, m) => sum + m.verifiable_hours, 0)} verifiable
             </p>
           </CardContent>
         </Card>
@@ -245,7 +232,7 @@ const CPDTrackerPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {teamMembers.filter(m => m.completedHours >= m.requiredHours).length}/{teamMembers.length}
+              {teamSummary.filter(m => m.completed_hours >= m.required_hours).length}/{teamSummary.length}
             </div>
             <p className="text-xs text-gray-400 mt-2">members compliant</p>
           </CardContent>
@@ -275,12 +262,12 @@ const CPDTrackerPage: React.FC = () => {
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
           {/* At-Risk Members Alert */}
-          {teamMembers.some(m => m.completedHours < m.requiredHours * 0.7) && (
+          {teamSummary.some(m => m.progress_percentage < 70) && (
             <Alert className="border-yellow-500/50 bg-yellow-500/10">
               <AlertCircle className="h-4 w-4 text-yellow-500" />
               <AlertTitle>Attention Required</AlertTitle>
               <AlertDescription>
-                {teamMembers.filter(m => m.completedHours < m.requiredHours * 0.7).length} team members 
+                {teamSummary.filter(m => m.progress_percentage < 70).length} team members 
                 are behind on their CPD requirements and need immediate attention.
               </AlertDescription>
             </Alert>
@@ -293,38 +280,42 @@ const CPDTrackerPage: React.FC = () => {
               <CardDescription>Individual CPD completion status</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {teamMembers.map((member) => {
-                const progress = (member.completedHours / member.requiredHours) * 100;
-                const isAtRisk = progress < 70;
-                
-                return (
-                  <div key={member.id} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{member.name}</p>
-                        <p className="text-sm text-gray-400">{member.role}</p>
+              {teamSummary.length === 0 ? (
+                <p className="text-center text-gray-400 py-8">No team members found. Invite team members to get started.</p>
+              ) : (
+                teamSummary.map((member) => {
+                  const progress = member.progress_percentage;
+                  const isAtRisk = progress < 70;
+                  
+                  return (
+                    <div key={member.member_id} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{member.member_name}</p>
+                          <p className="text-sm text-gray-400">{member.member_role}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium">
+                            {member.completed_hours}/{member.required_hours} hours
+                          </p>
+                          <p className="text-sm text-gray-400">
+                            {member.verifiable_hours} verifiable
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-medium">
-                          {member.completedHours}/{member.requiredHours} hours
+                      <Progress 
+                        value={progress} 
+                        className={`h-2 ${isAtRisk ? 'bg-red-900' : ''}`}
+                      />
+                      {isAtRisk && (
+                        <p className="text-xs text-yellow-500">
+                          ⚠️ Behind schedule - needs {Math.round(member.required_hours - member.completed_hours)} more hours
                         </p>
-                        <p className="text-sm text-gray-400">
-                          {member.verifiableHours} verifiable
-                        </p>
-                      </div>
+                      )}
                     </div>
-                    <Progress 
-                      value={progress} 
-                      className={`h-2 ${isAtRisk ? 'bg-red-900' : ''}`}
-                    />
-                    {isAtRisk && (
-                      <p className="text-xs text-yellow-500">
-                        ⚠️ Behind schedule - needs {member.requiredHours - member.completedHours} more hours
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </CardContent>
           </Card>
 
@@ -336,26 +327,33 @@ const CPDTrackerPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {activities
-                  .filter(a => a.status === 'planned' && a.date > new Date())
-                  .sort((a, b) => a.date.getTime() - b.date.getTime())
-                  .slice(0, 5)
-                  .map((activity) => (
-                    <div key={activity.id} className="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
-                      <div>
-                        <p className="font-medium">{activity.title}</p>
-                        <p className="text-sm text-gray-400">
-                          {activity.provider} • {formatDate(activity.date)}
-                        </p>
+                {activities.length === 0 ? (
+                  <p className="text-center text-gray-400 py-8">No activities found. Add CPD activities to track progress.</p>
+                ) : (
+                  activities
+                    .filter(a => a.status === 'planned' && new Date(a.activity_date) > new Date())
+                    .sort((a, b) => new Date(a.activity_date).getTime() - new Date(b.activity_date).getTime())
+                    .slice(0, 5)
+                    .map((activity) => (
+                      <div key={activity.id} className="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
+                        <div>
+                          <p className="font-medium">{activity.title}</p>
+                          <p className="text-sm text-gray-400">
+                            {activity.provider || 'No provider'} • {formatDate(new Date(activity.activity_date))}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <Badge variant="secondary">{activity.hours_claimed} hours</Badge>
+                          <Badge variant={activity.verifiable ? "default" : "secondary"}>
+                            {activity.verifiable ? 'Verifiable' : 'Non-verifiable'}
+                          </Badge>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <Badge variant="secondary">{activity.hours} hours</Badge>
-                        <Badge variant={activity.verifiable ? "default" : "secondary"}>
-                          {activity.verifiable ? 'Verifiable' : 'Non-verifiable'}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                )}
+                {activities.filter(a => a.status === 'planned' && new Date(a.activity_date) > new Date()).length === 0 && activities.length > 0 && (
+                  <p className="text-center text-gray-400 py-4">No upcoming activities scheduled.</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -371,9 +369,9 @@ const CPDTrackerPage: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Members</SelectItem>
-                  {teamMembers.map((member) => (
-                    <SelectItem key={member.id} value={member.id}>
-                      {member.name}
+                  {teamSummary.map((member) => (
+                    <SelectItem key={member.member_id} value={member.member_id}>
+                      {member.member_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -397,7 +395,25 @@ const CPDTrackerPage: React.FC = () => {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label>Activity Title</Label>
+                    <Label>Team Member *</Label>
+                    <Select 
+                      value={newActivity.practice_member_id} 
+                      onValueChange={(value) => setNewActivity({...newActivity, practice_member_id: value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select team member" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {teamSummary.map((member) => (
+                          <SelectItem key={member.member_id} value={member.member_id}>
+                            {member.member_name} ({member.member_role})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Activity Title *</Label>
                     <Input
                       value={newActivity.title || ''}
                       onChange={(e) => setNewActivity({...newActivity, title: e.target.value})}
@@ -409,11 +425,11 @@ const CPDTrackerPage: React.FC = () => {
                     <Input
                       value={newActivity.provider || ''}
                       onChange={(e) => setNewActivity({...newActivity, provider: e.target.value})}
-                      placeholder="e.g., ICAEW"
+                      placeholder="e.g., ACCA, ICAEW"
                     />
                   </div>
                   <div>
-                    <Label>Type</Label>
+                    <Label>Type *</Label>
                     <Select 
                       value={newActivity.type} 
                       onValueChange={(value) => setNewActivity({...newActivity, type: value as CPDActivity['type']})}
@@ -426,6 +442,9 @@ const CPDTrackerPage: React.FC = () => {
                         <SelectItem value="seminar">Seminar</SelectItem>
                         <SelectItem value="webinar">Webinar</SelectItem>
                         <SelectItem value="reading">Reading</SelectItem>
+                        <SelectItem value="conference">Conference</SelectItem>
+                        <SelectItem value="workshop">Workshop</SelectItem>
+                        <SelectItem value="certification">Certification</SelectItem>
                         <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>
@@ -447,20 +466,39 @@ const CPDTrackerPage: React.FC = () => {
                     </Select>
                   </div>
                   <div>
-                    <Label>Hours</Label>
+                    <Label>Hours *</Label>
                     <Input
                       type="number"
-                      value={newActivity.hours || ''}
-                      onChange={(e) => setNewActivity({...newActivity, hours: parseFloat(e.target.value)})}
+                      step="0.5"
+                      value={newActivity.hours_claimed || ''}
+                      onChange={(e) => setNewActivity({...newActivity, hours_claimed: parseFloat(e.target.value)})}
                       placeholder="0"
                     />
                   </div>
                   <div>
-                    <Label>Date</Label>
+                    <Label>Date *</Label>
                     <Input
                       type="date"
-                      value={newActivity.date?.toISOString().split('T')[0] || ''}
-                      onChange={(e) => setNewActivity({...newActivity, date: new Date(e.target.value)})}
+                      value={newActivity.activity_date || ''}
+                      onChange={(e) => setNewActivity({...newActivity, activity_date: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label>Cost (£)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={newActivity.cost || ''}
+                      onChange={(e) => setNewActivity({...newActivity, cost: parseFloat(e.target.value)})}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label>External Link (Optional)</Label>
+                    <Input
+                      value={newActivity.external_link || ''}
+                      onChange={(e) => setNewActivity({...newActivity, external_link: e.target.value})}
+                      placeholder="https://example.com/course"
                     />
                   </div>
                 </div>
