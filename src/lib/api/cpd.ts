@@ -1,4 +1,4 @@
-import { supabase } from '../supabase';
+import { supabase } from '@/lib/supabase';
 
 // =====================================================
 // CPD ACTIVITIES
@@ -422,7 +422,7 @@ export async function getTeamCPDSummary(practiceId: string): Promise<TeamCPDSumm
     .eq('practice_id', practiceId);
 
   if (membersError) {
-    console.error('Error fetching practice members:', error);
+    console.error('Error fetching practice members:', membersError);
     throw membersError;
   }
 
@@ -436,7 +436,7 @@ export async function getTeamCPDSummary(practiceId: string): Promise<TeamCPDSumm
     .select('*');
 
   const requirementsMap = new Map(
-    (requirements || []).map(req => [req.role.toLowerCase(), req])
+    (requirements || []).map((req: CPDRequirement) => [req.role.toLowerCase(), req])
   );
 
   // Get all CPD activities for these members

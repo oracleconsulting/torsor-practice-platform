@@ -10,32 +10,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { 
-  GraduationCap, 
   Clock, 
-  TrendingUp, 
   Award, 
   AlertCircle,
   Plus,
   Calendar as CalendarIcon,
   FileText,
-  Download,
-  Upload,
-  Target,
   Users,
-  BarChart,
   CheckCircle,
-  BookOpen,
   Loader2
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
-import { useAccountancy } from '@/contexts/AccountancyContext';
+import { useContext } from 'react';
+import { AccountancyContext } from '@/contexts/AccountancyContext';
 import {
   getCPDActivities,
   getTeamCPDSummary,
   getCPDRequirements,
   getCPDExternalResources,
   createCPDActivity,
-  updateCPDActivity,
   type CPDActivity,
   type TeamCPDSummary,
   type CPDRequirement,
@@ -44,7 +37,8 @@ import {
 } from '@/lib/api/cpd';
 
 const CPDTrackerPage: React.FC = () => {
-  const { practice, practiceMembers } = useAccountancy();
+  const accountancyContext = useContext(AccountancyContext);
+  const practice = accountancyContext?.practice;
   
   const [activities, setActivities] = useState<CPDActivity[]>([]);
   const [teamSummary, setTeamSummary] = useState<TeamCPDSummary[]>([]);
@@ -692,7 +686,7 @@ const CPDTrackerPage: React.FC = () => {
                   {categories.slice(0, 5).map((category) => {
                     const categoryHours = activities
                       .filter(a => a.category === category && a.status === 'completed')
-                      .reduce((sum, a) => sum + a.hours, 0);
+                      .reduce((sum, a) => sum + a.hours_claimed, 0);
                     
                     return (
                       <div key={category} className="flex items-center justify-between">
