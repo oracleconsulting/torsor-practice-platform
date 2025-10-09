@@ -18,6 +18,15 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 const supabase = supabaseUrl && supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null;
 
+// Debug logging
+console.log('🔧 Supabase Config:', {
+  hasUrl: !!supabaseUrl,
+  hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+  hasAnonKey: !!process.env.VITE_SUPABASE_ANON_KEY,
+  usingKey: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SERVICE_ROLE' : 'ANON',
+  keyPrefix: supabaseServiceKey?.substring(0, 20) + '...',
+});
+
 // Cache control middleware
 app.use((req, res, next) => {
   // Disable caching for HTML files and auth routes
@@ -147,11 +156,19 @@ app.get('/api/skills', async (req, res) => {
     }
     
     // Fetch all skills using server-side client (bypasses RLS)
-    const { data, error } = await supabase
+    console.log('📊 Querying skills table...');
+    const { data, error, count } = await supabase
       .from('skills')
-      .select('*')
+      .select('*', { count: 'exact' })
       .order('category', { ascending: true })
       .order('name', { ascending: true });
+    
+    console.log('📊 Query result:', { 
+      dataLength: data?.length, 
+      error: error?.message,
+      count,
+      sampleSkill: data?.[0]?.name 
+    });
     
     if (error) {
       console.error('❌ Supabase error fetching skills:', error);
