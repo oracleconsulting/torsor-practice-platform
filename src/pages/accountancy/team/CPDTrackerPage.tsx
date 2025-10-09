@@ -21,8 +21,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
-import { useContext } from 'react';
-import { AccountancyContext } from '@/contexts/AccountancyContext';
+import { useAccountancyContext } from '@/contexts/AccountancyContext';
 import {
   getCPDActivities,
   getTeamCPDSummary,
@@ -37,7 +36,7 @@ import {
 } from '@/lib/api/cpd';
 
 const CPDTrackerPage: React.FC = () => {
-  const accountancyContext = useContext(AccountancyContext);
+  const accountancyContext = useAccountancyContext();
   const practice = accountancyContext?.practice;
   
   const [activities, setActivities] = useState<CPDActivity[]>([]);

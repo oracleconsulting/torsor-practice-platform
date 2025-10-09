@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, FileText, Search, Plus, Tag, Clock, Eye, Loader2, AlertCircle
 } from 'lucide-react';
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AccountancyContext } from '@/contexts/AccountancyContext';
+import { useAccountancyContext } from '@/contexts/AccountancyContext';
 import { 
   getKnowledgeDocuments, 
   createKnowledgeDocument,
@@ -21,7 +21,6 @@ import {
   type CPDActivity 
 } from '@/lib/api/cpd';
 import { formatDate } from '@/lib/utils';
-import { supabase } from '@/lib/supabase/client';
 
 interface KnowledgeDocumentForm {
   title: string;
@@ -34,7 +33,7 @@ interface KnowledgeDocumentForm {
 }
 
 const KnowledgeBasePage: React.FC = () => {
-  const accountancyContext = useContext(AccountancyContext);
+  const accountancyContext = useAccountancyContext();
   const practice = accountancyContext?.practice;
   const practiceMember = accountancyContext?.practiceMember;
 
