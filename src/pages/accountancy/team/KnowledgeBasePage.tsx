@@ -21,7 +21,7 @@ import {
   type CPDActivity 
 } from '@/lib/api/cpd';
 import { formatDate } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/client';
 
 interface KnowledgeDocumentForm {
   title: string;
