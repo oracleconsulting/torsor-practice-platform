@@ -192,15 +192,15 @@ ORDER BY category;
 -- Total count
 SELECT COUNT(*) as total_skills FROM skills;
 
--- Verify we have 105 skills
+-- Verify we have 110 skills (15+12+10+15+10+10+8+10+8+12)
 DO $$
 DECLARE
   skill_count INT;
 BEGIN
   SELECT COUNT(*) INTO skill_count FROM skills;
   
-  IF skill_count = 105 THEN
-    RAISE NOTICE '✅ SUCCESS: 105 skills loaded correctly';
+  IF skill_count = 110 THEN
+    RAISE NOTICE '✅ SUCCESS: 110 skills loaded correctly';
     RAISE NOTICE '   - 15 Technical Accounting Fundamentals';
     RAISE NOTICE '   - 12 Cloud Accounting & Automation';
     RAISE NOTICE '   - 10 Management Accounting & Reporting';
@@ -211,8 +211,10 @@ BEGIN
     RAISE NOTICE '   - 10 Client Management & Development';
     RAISE NOTICE '   -  8 Leadership & Team Skills';
     RAISE NOTICE '   - 12 Communication & Soft Skills';
+    RAISE NOTICE '';
+    RAISE NOTICE '🎯 Total: 110 skills (not 105 - math was recounted!)';
   ELSE
-    RAISE EXCEPTION '❌ ERROR: Expected 105 skills, found %', skill_count;
+    RAISE EXCEPTION '❌ ERROR: Expected 110 skills, found %', skill_count;
   END IF;
 END $$;
 
