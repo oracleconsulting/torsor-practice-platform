@@ -122,28 +122,9 @@ const LoginPage: React.FC<LoginPageProps> = () => {
           
           // Wait a moment for auth state to propagate
           console.log('[LoginPage] Waiting for auth state to settle...');
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 1500));
           
-          // Check if we're now authenticated
-          const { data: checkData } = await supabase.auth.getUser();
-          
-          if (!checkData.user) {
-            // Login failed - send magic link instead
-            console.log('[LoginPage] Login verification failed, sending magic link...');
-            const { error: magicError } = await supabase.auth.signInWithOtp({
-              email: invitation.email,
-              options: {
-                emailRedirectTo: `${window.location.origin}/team-portal/assessment?invite=${inviteCode}`,
-              },
-            });
-            
-            if (magicError) throw magicError;
-            
-            setError('Account exists. We\'ve sent a magic link to your email to access the assessment.');
-            return;
-          }
-          
-          console.log('[LoginPage] ✅ Login successful for existing user! Continuing to create practice_members...');
+          console.log('[LoginPage] ✅ Auth state should be settled, continuing to create practice_members...');
         } else {
           console.error('[LoginPage] Unexpected signup error:', signupError);
           throw signupError;
