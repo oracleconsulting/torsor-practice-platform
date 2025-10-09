@@ -71,25 +71,27 @@ const TeamManagementPage: React.FC = () => {
       icon: TrendingUp,
       component: AdvisorySkillsPage,
     },
-    // Coming soon - currently showing mock data
-    // {
-    //   value: 'cpd',
-    //   label: 'CPD TRACKER',
-    //   icon: Award,
-    //   component: CPDTrackerPage,
-    // },
-    // {
-    //   value: 'kpi',
-    //   label: 'KPI MANAGEMENT',
-    //   icon: BarChart2,
-    //   component: KPIManagementPage,
-    // },
-    // {
-    //   value: 'knowledge',
-    //   label: 'KNOWLEDGE BASE',
-    //   icon: BookOpen,
-    //   component: KnowledgeBasePage,
-    // },
+    {
+      value: 'cpd',
+      label: 'CPD TRACKER',
+      icon: Award,
+      component: CPDTrackerPage,
+      badge: 'COMING SOON',
+    },
+    {
+      value: 'kpi',
+      label: 'KPI MANAGEMENT',
+      icon: BarChart2,
+      component: KPIManagementPage,
+      badge: 'COMING SOON',
+    },
+    {
+      value: 'knowledge',
+      label: 'KNOWLEDGE BASE',
+      icon: BookOpen,
+      component: KnowledgeBasePage,
+      badge: 'COMING SOON',
+    },
   ];
 
   return (
@@ -114,7 +116,7 @@ const TeamManagementPage: React.FC = () => {
       <div className="relative z-10 container mx-auto px-6 py-12">
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid grid-cols-3 gap-4 bg-[#1a2b4a] p-1 h-auto border-2 border-[#ff6b35]">
+          <TabsList className="grid grid-cols-6 gap-4 bg-[#1a2b4a] p-1 h-auto border-2 border-[#ff6b35]">
             {tabs.map((tab) => (
               <TabsTrigger
                 key={tab.value}

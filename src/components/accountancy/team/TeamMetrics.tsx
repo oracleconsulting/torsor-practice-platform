@@ -355,6 +355,9 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
                 </Button>
               </div>
             </CardTitle>
+            <CardDescription>
+              Shows team's average capability across different skill categories. Each point represents how strong your team is in that area (0-100%). Larger shapes = stronger overall capability. Use this to identify which categories need development.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-64">
@@ -439,6 +442,9 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
                 </SelectContent>
               </Select>
             </CardTitle>
+            <CardDescription>
+              Tracks how team skills improve over time. Rising lines = team getting stronger in those areas. Use this to measure training effectiveness and set realistic timelines for capability development.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-64">
