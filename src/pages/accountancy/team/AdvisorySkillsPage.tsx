@@ -106,6 +106,18 @@ const AdvisorySkillsPage: React.FC = () => {
       try {
         const { supabase } = await import('@/lib/supabase/client');
         
+        // Fetch ALL skills from database first
+        const { data: allSkills, error: skillsError } = await supabase
+          .from('skills')
+          .select('*')
+          .order('category', { ascending: true });
+        
+        if (skillsError) {
+          console.error('Failed to fetch skills:', skillsError);
+        }
+        
+        console.log('Found', allSkills?.length || 0, 'skills in database');
+        
         // Fetch skill assessments with practice member info
         const { data: assessments, error } = await supabase
           .from('skill_assessments')
@@ -171,8 +183,39 @@ const AdvisorySkillsPage: React.FC = () => {
           
           if (members.length > 0) {
             setTeamMembers(members);
-            setSkillCategories(getMockSkillCategories());
-            console.log('✅ Loaded real data:', members.length, 'members');
+            
+            // Build skill categories from real database skills
+            if (allSkills && allSkills.length > 0) {
+              const categoryMap = new Map<string, any>();
+              
+              allSkills.forEach((skill: any) => {
+                const category = skill.category || 'uncategorized';
+                if (!categoryMap.has(category)) {
+                  categoryMap.set(category, {
+                    id: category,
+                    name: category.split('-').map((word: string) => 
+                      word.charAt(0).toUpperCase() + word.slice(1)
+                    ).join(' '),
+                    description: `${category} skills`,
+                    icon: Brain,
+                    skills: []
+                  });
+                }
+                
+                categoryMap.get(category).skills.push({
+                  id: skill.id,
+                  name: skill.name,
+                  description: skill.description || '',
+                  requiredLevel: skill.required_level || 3,
+                  category: category
+                });
+              });
+              
+              setSkillCategories(Array.from(categoryMap.values()));
+              console.log('✅ Loaded real data:', members.length, 'members,', allSkills.length, 'skills');
+            } else {
+              setSkillCategories(getMockSkillCategories());
+            }
             return;
           }
         }
