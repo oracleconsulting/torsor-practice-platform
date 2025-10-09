@@ -133,15 +133,17 @@ const LoginPage: React.FC<LoginPageProps> = () => {
         console.log('[LoginPage] Account created successfully for new user!');
       }
 
-      // 2. Get current user
-      console.log('[LoginPage] Getting current user...');
-      const { data: userData } = await supabase.auth.getUser();
-      console.log('[LoginPage] User data:', userData?.user?.id);
+      // 2. Get current user from session (getUser() can hang)
+      console.log('[LoginPage] Getting current user from session...');
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('[LoginPage] Session data:', session?.user?.id);
       
-      if (!userData.user) {
-        console.error('[LoginPage] No user found after auth!');
+      if (!session?.user) {
+        console.error('[LoginPage] No session found after auth!');
         throw new Error('User not found after signup/login');
       }
+      
+      const userData = { user: session.user };
 
       // 3. Create practice_members record
       console.log('[LoginPage] Creating practice member record for user:', userData.user.id);
