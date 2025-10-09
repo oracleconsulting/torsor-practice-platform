@@ -203,8 +203,102 @@ app.post('/api/invitations/:inviteCode/submit', async (req, res) => {
       });
     }
     
-    // Update invitation with assessment data
-    const { data, error } = await supabase
+    // Step 1: Get invitation details
+    console.log('📋 Fetching invitation details...');
+    const { data: invitation, error: inviteError } = await supabase
+      .from('invitations')
+      .select('*')
+      .eq('invite_code', inviteCode)
+      .single();
+    
+    if (inviteError || !invitation) {
+      console.error('❌ Invitation not found:', inviteError);
+      return res.status(404).json({
+        error: 'Invitation not found',
+        details: inviteError?.message,
+      });
+    }
+    
+    console.log('✅ Invitation found:', invitation.email, 'Practice ID:', invitation.practice_id);
+    
+    // Step 2: Create or find practice_member record
+    console.log('👤 Creating/finding practice member...');
+    const { data: existingMember } = await supabase
+      .from('practice_members')
+      .select('*')
+      .eq('email', invitation.email)
+      .eq('practice_id', invitation.practice_id)
+      .single();
+    
+    let practiceMemberId;
+    
+    if (existingMember) {
+      console.log('✅ Practice member already exists:', existingMember.id);
+      practiceMemberId = existingMember.id;
+    } else {
+      console.log('➕ Creating new practice member...');
+      const { data: newMember, error: memberError } = await supabase
+        .from('practice_members')
+        .insert({
+          practice_id: invitation.practice_id,
+          name: invitation.name || 'Team Member',
+          email: invitation.email,
+          role: invitation.role || 'team_member',
+          is_active: true,
+          joined_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      
+      if (memberError) {
+        console.error('❌ Failed to create practice member:', memberError);
+        return res.status(500).json({
+          error: 'Failed to create practice member',
+          details: memberError.message,
+        });
+      }
+      
+      console.log('✅ Practice member created:', newMember.id);
+      practiceMemberId = newMember.id;
+    }
+    
+    // Step 3: Create skill_assessments records
+    console.log('📊 Creating skill assessments...');
+    const skillAssessments = assessmentData.map(assessment => ({
+      team_member_id: practiceMemberId,
+      skill_id: assessment.skill_id,
+      current_level: assessment.current_level,
+      interest_level: assessment.interest_level,
+      notes: assessment.notes || null,
+      assessed_at: new Date().toISOString(),
+    }));
+    
+    // Delete existing assessments for this member (to avoid duplicates)
+    console.log('🗑️ Clearing existing assessments...');
+    await supabase
+      .from('skill_assessments')
+      .delete()
+      .eq('team_member_id', practiceMemberId);
+    
+    // Insert new assessments
+    console.log(`➕ Inserting ${skillAssessments.length} skill assessments...`);
+    const { error: assessmentError } = await supabase
+      .from('skill_assessments')
+      .insert(skillAssessments);
+    
+    if (assessmentError) {
+      console.error('❌ Failed to create skill assessments:', assessmentError);
+      return res.status(500).json({
+        error: 'Failed to create skill assessments',
+        details: assessmentError.message,
+      });
+    }
+    
+    console.log('✅ Skill assessments created successfully');
+    
+    // Step 4: Update invitation status
+    console.log('📝 Updating invitation status...');
+    const { data: updatedInvitation, error: updateError } = await supabase
       .from('invitations')
       .update({
         status: 'accepted',
@@ -215,16 +309,21 @@ app.post('/api/invitations/:inviteCode/submit', async (req, res) => {
       .select()
       .single();
     
-    if (error) {
-      console.error('❌ Supabase error submitting assessment:', error);
-      return res.status(500).json({
-        error: 'Failed to submit assessment',
-        details: error.message,
-      });
+    if (updateError) {
+      console.error('❌ Failed to update invitation:', updateError);
+      // Non-critical, continue anyway
     }
     
-    console.log('✅ Assessment submitted successfully for:', data.email);
-    return res.json({ success: true, data });
+    console.log('🎉 Assessment submission complete for:', invitation.email);
+    console.log('   - Practice Member ID:', practiceMemberId);
+    console.log('   - Skill Assessments:', skillAssessments.length);
+    
+    return res.json({ 
+      success: true, 
+      data: updatedInvitation,
+      practiceMemberId,
+      assessmentCount: skillAssessments.length,
+    });
   } catch (error) {
     console.error('❌ Submit assessment endpoint error:', error);
     return res.status(500).json({
