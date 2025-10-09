@@ -129,44 +129,60 @@ const LoginPage: React.FC<LoginPageProps> = () => {
             return;
           }
           
-          console.log('[LoginPage] Login successful!');
+          console.log('[LoginPage] Login successful for existing user!');
         } else {
+          console.error('[LoginPage] Unexpected signup error:', signupError);
           throw signupError;
         }
       } else {
-        console.log('[LoginPage] Account created successfully!');
+        console.log('[LoginPage] Account created successfully for new user!');
       }
 
-          // 2. Get current user
-          console.log('[LoginPage] Getting current user...');
-          const { data: userData } = await supabase.auth.getUser();
-          if (!userData.user) throw new Error('User not found after signup');
+      // 2. Get current user
+      console.log('[LoginPage] Getting current user...');
+      const { data: userData } = await supabase.auth.getUser();
+      console.log('[LoginPage] User data:', userData?.user?.id);
+      
+      if (!userData.user) {
+        console.error('[LoginPage] No user found after auth!');
+        throw new Error('User not found after signup/login');
+      }
 
-          // 3. Create practice_members record
-          console.log('[LoginPage] Creating practice member record...');
-          const { data: practiceMember, error: memberError } = await supabase
-            .from('practice_members')
-            .upsert({
-              user_id: userData.user.id,
-              practice_id: invitation.practice_id,
-              name: invitation.name || 'Team Member',
-              email: invitation.email,
-              role: invitation.role || 'team_member',
-              is_active: true,
-              joined_at: new Date().toISOString(),
-            }, {
-              onConflict: 'user_id,practice_id',
-              ignoreDuplicates: false,
-            })
-            .select()
-            .single();
+      // 3. Create practice_members record
+      console.log('[LoginPage] Creating practice member record for user:', userData.user.id);
+      console.log('[LoginPage] Practice ID:', invitation.practice_id);
+      
+      const { data: practiceMember, error: memberError } = await supabase
+        .from('practice_members')
+        .upsert({
+          user_id: userData.user.id,
+          practice_id: invitation.practice_id,
+          name: invitation.name || 'Team Member',
+          email: invitation.email,
+          role: invitation.role || 'team_member',
+          is_active: true,
+          joined_at: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id,practice_id',
+          ignoreDuplicates: false,
+        })
+        .select()
+        .single();
 
-          if (memberError) {
-            console.error('[LoginPage] Failed to create practice member:', memberError);
-            throw memberError;
-          }
+      console.log('[LoginPage] Upsert result:', { practiceMember, memberError });
 
-          console.log('[LoginPage] Practice member created:', practiceMember);
+      if (memberError) {
+        console.error('[LoginPage] Failed to create practice member:', memberError);
+        console.error('[LoginPage] Error details:', JSON.stringify(memberError, null, 2));
+        throw memberError;
+      }
+
+      if (!practiceMember) {
+        console.error('[LoginPage] No practice member data returned');
+        throw new Error('Failed to create practice member record');
+      }
+
+      console.log('[LoginPage] Practice member created successfully:', practiceMember.id);
 
           // 4. Accept invitation
           console.log('[LoginPage] Accepting invitation...');
