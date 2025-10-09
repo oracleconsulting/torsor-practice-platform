@@ -1,7 +1,7 @@
 # Use Node 20 to avoid Docker Hub rate limiting issues
 FROM node:20-alpine AS deps
 # Install dependencies needed for node-gyp
-# Cache bust: 2025-10-09-16:15
+# Cache bust: 2025-10-09-19:20 - FORCE REBUILD for Vite bundling fixes
 RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
