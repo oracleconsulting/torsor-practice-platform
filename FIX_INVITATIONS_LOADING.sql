@@ -37,6 +37,8 @@ END $$;
 
 -- STEP 4: Disable RLS on invitation_events (if exists)
 DO $$
+DECLARE
+    pol RECORD;
 BEGIN
     IF EXISTS (
         SELECT 1 FROM information_schema.tables 
@@ -59,6 +61,8 @@ END $$;
 
 -- STEP 5: Disable RLS on invitation_batches (if exists)
 DO $$
+DECLARE
+    pol RECORD;
 BEGIN
     IF EXISTS (
         SELECT 1 FROM information_schema.tables 
