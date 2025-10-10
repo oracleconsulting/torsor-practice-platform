@@ -39,11 +39,17 @@ if (!SUPABASE_URL) {
 // Supabase URL format: https://PROJECT_ID.supabase.co
 const projectId = SUPABASE_URL.replace('https://', '').replace('.supabase.co', '');
 
-// Build PostgreSQL connection string
-// Format: postgresql://postgres:[PASSWORD]@db.PROJECT_ID.supabase.co:5432/postgres
+// Build PostgreSQL connection string using Connection Pooler
+// Pooler uses IPv4 and is recommended for CI/CD (GitHub Actions)
+// Format: postgresql://postgres.PROJECT_ID:[PASSWORD]@aws-0-eu-west-2.pooler.supabase.com:6543/postgres
 const connectionString = SUPABASE_DB_PASSWORD 
-  ? `postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${projectId}.supabase.co:5432/postgres`
+  ? `postgresql://postgres.${projectId}:${SUPABASE_DB_PASSWORD}@aws-0-eu-west-2.pooler.supabase.com:6543/postgres`
   : null;
+
+// SSL configuration for pooler
+const sslConfig = {
+  rejectUnauthorized: false // Required for Supabase pooler
+};
 
 console.log('🔧 Supabase Migration Tool');
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
@@ -64,7 +70,10 @@ if (!connectionString) {
 const migrationsDir = join(__dirname, '..', 'supabase', 'migrations');
 
 async function applyMigrations() {
-  const client = new Client({ connectionString });
+  const client = new Client({ 
+    connectionString,
+    ssl: sslConfig
+  });
 
   try {
     console.log('🔌 Connecting to Supabase database...');
