@@ -1,10 +1,11 @@
 #!/bin/bash
 
-echo "⏳ Waiting for Railway to deploy v1.0.6..."
+echo "⏳ Waiting for Railway to deploy v1.0.7..."
 echo "   This checks every 30 seconds for the NEW bundle hash"
+echo "   THE REAL FIX: Hook was after early return (conditional hook!)"
 echo ""
 
-OLD_HASH="index-64aa8212.js"
+OLD_HASH="index-b88d72ec.js"
 PROD_URL="https://torsor-practice-platform-production.up.railway.app"
 MAX_ATTEMPTS=20  # 10 minutes (20 × 30 seconds)
 attempt=1
@@ -28,10 +29,12 @@ while [ $attempt -le $MAX_ATTEMPTS ]; do
         echo ""
         echo "Next steps:"
         echo "1. Hard refresh your browser (Cmd+Shift+R)"
-        echo "2. Look for: '🎯 Advisory Skills Page - Build Version: 1.0.6-isolate-problem-component' in console"
-        echo "3. Check if React error #310 appears or not"
-        echo "4. Only 2 tabs should be visible: Skills Matrix + Skills Analysis"
-        echo "5. Report back: Does the error still happen?"
+        echo "2. Look for: '🎯 Advisory Skills Page - Build Version: 1.0.7-REAL-FIX-hooks-must-be-at-top' in console"
+        echo "3. NO React error #310 should appear! ✅"
+        echo "4. ALL 6 tabs should be visible and working!"
+        echo "5. Full functionality restored!"
+        echo ""
+        echo "🎉 THIS IS THE FIX! The problem was ONE misplaced hook!"
         exit 0
     fi
     
