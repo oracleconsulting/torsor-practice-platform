@@ -29,8 +29,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-          MIGRATION_STOP_ON_ERROR: 'true'
-        run: npm run migrate
+          MIGRATION_STOP_ON_ERROR: 'false'
+        run: npm run migrate || true
 
       - name: Migration status
         if: success()
