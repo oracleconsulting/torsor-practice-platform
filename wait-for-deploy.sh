@@ -1,10 +1,10 @@
 #!/bin/bash
 
-echo "⏳ Waiting for Railway to deploy v1.0.5..."
+echo "⏳ Waiting for Railway to deploy v1.0.6..."
 echo "   This checks every 30 seconds for the NEW bundle hash"
 echo ""
 
-OLD_HASH="index-7cbda6a4.js"
+OLD_HASH="index-64aa8212.js"
 PROD_URL="https://torsor-practice-platform-production.up.railway.app"
 MAX_ATTEMPTS=20  # 10 minutes (20 × 30 seconds)
 attempt=1
@@ -28,9 +28,10 @@ while [ $attempt -le $MAX_ATTEMPTS ]; do
         echo ""
         echo "Next steps:"
         echo "1. Hard refresh your browser (Cmd+Shift+R)"
-        echo "2. Look for: '🎯 Advisory Skills Page - Build Version: 1.0.5-remove-teammetrics-import' in console"
-        echo "3. NO React error #310 should appear!"
-        echo "4. Advisory Skills page should load WITHOUT errors!"
+        echo "2. Look for: '🎯 Advisory Skills Page - Build Version: 1.0.6-isolate-problem-component' in console"
+        echo "3. Check if React error #310 appears or not"
+        echo "4. Only 2 tabs should be visible: Skills Matrix + Skills Analysis"
+        echo "5. Report back: Does the error still happen?"
         exit 0
     fi
     
