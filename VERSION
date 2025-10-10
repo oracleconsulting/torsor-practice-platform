@@ -1,50 +1,57 @@
-v1.0.8-currency-and-contrast-2025-10-10-23:30
+v1.0.9-data-flow-debug-2025-10-10-23:45
 
-🎨 UI/UX IMPROVEMENTS
+🔍 DATA FLOW INVESTIGATION IN PROGRESS
 
-## Changes in v1.0.8:
+## Changes in v1.0.9:
 
-### 1. Currency Symbol Standardization
-- ✅ Replaced all $ symbols with £ for UK localization
-- Updated `WorkflowExecutionList.tsx` formatCost() function
-- Application-wide currency consistency achieved
+### Debugging Added
+- ✅ Comprehensive console logging in AdvisorySkillsPage.tsx
+- ✅ Fallback query for practice_members if join fails
+- ✅ Detailed member construction logging
+- ✅ Error tracking at each step
 
-### 2. Assessment Review Contrast Enhancement
-- ✅ Improved WCAG compliance from AA to AAA
-- Enhanced text contrast in AssessmentReview components
-- Labels: text-gray-500 → text-gray-700 (7.1:1 contrast ratio)
-- Values: text-gray-800 → text-gray-900 (14.3:1 contrast ratio)
-- Added font-semibold for better visual hierarchy
+### What We're Investigating
+- ❌ Skills Matrix: No data showing despite 111 skills loaded
+- ❌ Gap Analysis: Visualization unclear
+- ❌ Development Planning: Team members missing  
+- ❌ Skills Analysis: No skills displayed
+- **Root Issue**: 0 team members found (expected: Luke + Jaanu)
 
-## Files Modified:
-- `src/components/workflows/WorkflowExecutionList.tsx`
-- `src/components/dashboard/AssessmentReview.tsx`
-- `src/components/dashboard/AssessmentReviewEnhanced.tsx`
-- `CURRENCY_AND_CONTRAST_FIXES.md` (new documentation)
+### Debug Output Expected
+- 🔍 Fetching skill assessments...
+- 📊 Assessments query result: { count, error, sampleData }
+- 👥 Unique team member IDs: [...]
+- 📋 Practice members: { count, error, members }
+- 👤 Building member: { memberId, name, role, hasData }
 
-## What's Still Working:
-- ✅ All Advisory Skills tabs functional
-- ✅ Auto-migration system operational
-- ✅ All previous features intact
+### Possible Root Causes
+1. Assessments in `survey_sessions` not `skill_assessments`
+2. Foreign key relationship misconfigured
+3. RLS policy blocking access
+4. Table structure mismatch
+
+### Next Steps
+1. Refresh page after deployment
+2. Check console for new debug logs
+3. Identify exact failure point
+4. Apply targeted fix
 
 ---
 
 ## Previous Versions:
 
+### v1.0.8 (2025-10-10 23:30)
+- Currency symbol standardization ($ → £)
+- Assessment review contrast enhancement (AAA compliance)
+
 ### v1.0.7 (2025-10-10 23:25)
 - Fixed React error #310 (misplaced useState hook)
-- Restored all Advisory Skills tabs
-- Full functionality operational
 
 ### v1.0.6 (2025-10-10 23:00)
 - Isolated React error to component loading
-- Minimal configuration test
 
 ### v1.0.5 (2025-10-10 22:48)
 - Attempted component isolation
-- Removed TeamMetrics temporarily
 
 ### v1.0.4 (2025-10-10 22:00)
 - Auto-migration system implemented
-- GitHub Actions integration
-- Database cleanup completed
