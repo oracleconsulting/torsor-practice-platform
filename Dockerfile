@@ -1,8 +1,9 @@
 # Use Node 20 to avoid Docker Hub rate limiting issues
 FROM node:20-alpine AS deps
 # Install dependencies needed for node-gyp
-# Cache bust: 2025-10-09-19:45 - Fix React error #310 (comparePeriods prop)
-RUN apk add --no-cache python3 make g++
+# FORCE REBUILD: 2025-10-10-22:35 - Railway cache stuck, forcing complete rebuild
+# Previous attempts failed to deploy. This forces all layers to rebuild.
+RUN apk add --no-cache python3 make g++ git
 
 WORKDIR /app
 

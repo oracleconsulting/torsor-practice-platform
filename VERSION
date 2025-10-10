@@ -1,0 +1,5 @@
+v1.0.4-fix-team-metrics-2025-10-10-22:35
+Build: Force complete Docker rebuild
+Fix: React error #310 - Team Metrics tab disabled temporarily
+Data: Database cleaned - 2 real members (Luke + Jaanu)
+
