@@ -64,8 +64,8 @@ export const AssessmentReviewEnhanced = ({ displayData, navigate }) => {
             <div className="p-6 grid md:grid-cols-3 gap-4">
               {section.items.map((item, i) => (
                 <div key={i}>
-                  <p className="text-sm text-gray-500">{item.label}</p>
-                  <p className="font-medium">{item.value || 'Not specified'}</p>
+                  <p className="text-sm font-semibold text-gray-700">{item.label}</p>
+                  <p className="font-semibold text-gray-900">{item.value || 'Not specified'}</p>
                 </div>
               ))}
             </div>

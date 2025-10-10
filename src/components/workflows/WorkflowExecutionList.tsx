@@ -97,8 +97,8 @@ export const WorkflowExecutionList: React.FC<WorkflowExecutionListProps> = ({
   };
 
   const formatCost = (cost: number | null) => {
-    if (!cost) return '$0.00';
-    return `$${cost.toFixed(4)}`;
+    if (!cost) return '£0.00';
+    return `£${cost.toFixed(4)}`;
   };
 
   const getWorkflowName = (workflowId: string) => {

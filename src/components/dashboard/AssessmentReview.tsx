@@ -114,8 +114,8 @@ export const AssessmentReview: React.FC<AssessmentReviewProps> = ({ displayData 
                       }`} />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-500">{item.label}</p>
-                      <p className="text-gray-800 mt-1">
+                      <p className="text-sm font-semibold text-gray-700">{item.label}</p>
+                      <p className="text-gray-900 mt-1 font-medium">
                         {item.value || 'Not specified'}
                       </p>
                     </div>
