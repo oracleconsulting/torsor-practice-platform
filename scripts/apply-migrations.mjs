@@ -89,7 +89,7 @@ async function applyMigrations() {
     );
     
     const appliedSet = new Set(appliedMigrations.map(m => m.name));
-    console.log(`📦 ${appliedSet.size} migration(s) already applied\n');
+    console.log(`📦 ${appliedSet.size} migration(s) already applied\n`);
 
     // Check if migrations directory exists
     if (!existsSync(migrationsDir)) {

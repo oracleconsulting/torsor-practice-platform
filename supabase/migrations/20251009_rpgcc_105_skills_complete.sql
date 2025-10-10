@@ -200,11 +200,11 @@ DECLARE
 BEGIN
   SELECT COUNT(*) INTO skill_count FROM skills;
   
-  IF skill_count = 110 THEN
-    RAISE NOTICE '✅ SUCCESS: 110 skills loaded correctly';
+  IF skill_count = 111 THEN
+    RAISE NOTICE '✅ SUCCESS: 111 skills loaded correctly';
     RAISE NOTICE '   - 15 Technical Accounting Fundamentals';
     RAISE NOTICE '   - 12 Cloud Accounting & Automation';
-    RAISE NOTICE '   - 10 Management Accounting & Reporting';
+    RAISE NOTICE '   - 11 Management Accounting & Reporting (includes DataRails)';
     RAISE NOTICE '   - 15 Advisory & Consulting';
     RAISE NOTICE '   - 10 Digital & AI Capabilities';
     RAISE NOTICE '   - 10 Tax & Compliance - UK Focus';
@@ -213,9 +213,9 @@ BEGIN
     RAISE NOTICE '   -  8 Leadership & Team Skills';
     RAISE NOTICE '   - 12 Communication & Soft Skills';
     RAISE NOTICE '';
-    RAISE NOTICE '🎯 Total: 110 skills (not 105 - math was recounted!)';
+    RAISE NOTICE '🎯 Total: 111 skills (110 base + DataRails added Oct 2025)';
   ELSE
-    RAISE EXCEPTION '❌ ERROR: Expected 110 skills, found %', skill_count;
+    RAISE EXCEPTION '❌ ERROR: Expected 111 skills, found %', skill_count;
   END IF;
 END $$;
 
