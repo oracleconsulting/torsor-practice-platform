@@ -431,6 +431,15 @@ export function getInvitationEmailTemplate(
       You've been invited to join the RPGCC Business Services Group Skills Portal – your personal development hub.
     </p>
     
+    <div style="background: #e3f2fd; border-left: 4px solid #2196F3; padding: 20px; margin: 20px 0; border-radius: 5px;">
+      <h3 style="color: #1565C0; margin-top: 0; font-size: 18px;">📊 Why We're Doing This</h3>
+      <p style="margin: 0; color: #555; font-size: 15px; line-height: 1.8;">
+        This is part of our commitment to invest in your professional development. By understanding your current skills and interests, 
+        we can provide targeted training, mentoring opportunities, and career progression pathways that align with both your aspirations 
+        and our business needs. Your honest self-assessment will help us build a stronger, more capable team together.
+      </p>
+    </div>
+    
     ${personalMessage ? `
     <div style="background: white; border-left: 4px solid #ff6b35; padding: 20px; margin: 30px 0; border-radius: 5px;">
       <p style="margin: 0; font-style: italic; color: #555;">${personalMessage}</p>

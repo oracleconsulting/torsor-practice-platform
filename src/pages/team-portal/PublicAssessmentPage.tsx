@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { Star, CheckCircle, ArrowRight } from 'lucide-react';
+import { Star, CheckCircle, ArrowRight, ArrowLeft } from 'lucide-react';
 
 /**
  * Public Skills Assessment Page (No Authentication Required)
@@ -105,9 +105,31 @@ export default function PublicAssessmentPage() {
     setAssessments(updated);
   };
 
+  const previousCategory = () => {
+    if (currentCategory > 0) {
+      setCurrentCategory(currentCategory - 1);
+    }
+  };
+
   const nextCategory = async () => {
+    // Validate that all skills in current category have both skill level AND interest level
+    const incompleteSkills = currentCategorySkills.filter(skill => {
+      const assessment = assessments.get(skill.id);
+      return !assessment || !assessment.current_level || !assessment.interest_level;
+    });
+
+    if (incompleteSkills.length > 0) {
+      toast({
+        title: 'Please Complete All Skills',
+        description: `You must rate both skill level and interest level for all ${currentCategorySkills.length} skills in this category before continuing.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (currentCategory < categories.length - 1) {
       setCurrentCategory(currentCategory + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       // Submit final assessment
       await submitAssessment();
@@ -186,7 +208,9 @@ export default function PublicAssessmentPage() {
 
   const InterestSelector = ({ skill, value, onChange }: any) => (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Interest Level</label>
+      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        Interest Level <span className="text-red-500">*</span>
+      </label>
       <div className="flex gap-2 justify-center">
         {[1, 2, 3, 4, 5].map(level => (
           <button
@@ -205,7 +229,7 @@ export default function PublicAssessmentPage() {
         ))}
       </div>
       <p className="text-xs text-center text-gray-600 dark:text-gray-400 font-medium">
-        {value === 0 && 'Rate your interest'}
+        {value === 0 && 'Rate your interest (required)'}
         {value === 1 && 'No Interest'}
         {value === 2 && 'Low Interest'}
         {value === 3 && 'Moderate Interest'}
@@ -324,26 +348,42 @@ export default function PublicAssessmentPage() {
         {/* Navigation */}
         <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-lg">
           <CardContent className="pt-6">
-            <Button
-              onClick={nextCategory}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
-              disabled={saving}
-              size="lg"
-            >
-              {currentCategory < categories.length - 1 ? (
-                <>
-                  Next Category
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </>
-              ) : (
-                <>
-                  Complete Assessment
-                  <CheckCircle className="w-4 h-4 ml-2" />
-                </>
+            <div className="flex gap-3">
+              {currentCategory > 0 && (
+                <Button
+                  onClick={previousCategory}
+                  variant="outline"
+                  className="border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  disabled={saving}
+                  size="lg"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Previous
+                </Button>
               )}
-            </Button>
+              <Button
+                onClick={nextCategory}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
+                disabled={saving}
+                size="lg"
+              >
+                {currentCategory < categories.length - 1 ? (
+                  <>
+                    Next Category
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </>
+                ) : (
+                  <>
+                    Complete Assessment
+                    <CheckCircle className="w-4 h-4 ml-2" />
+                  </>
+                )}
+              </Button>
+            </div>
             <p className="text-xs text-center text-gray-600 dark:text-gray-400 mt-4">
-              No login required. Your responses are automatically saved when you complete the assessment.
+              {currentCategory < categories.length - 1 
+                ? 'Both skill level and interest level are required for all skills before continuing.'
+                : 'Review your responses, then submit to complete the assessment.'}
             </p>
           </CardContent>
         </Card>
