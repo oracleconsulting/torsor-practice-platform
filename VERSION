@@ -1,9 +1,49 @@
-v1.0.6-isolate-problem-component-2025-10-10-23:10
-Build: Disable ALL component imports except SkillsMatrix to isolate the problem
-Status: React error #310 persisted even after removing TeamMetrics import
-Test: Only SkillsMatrix and Skills Analysis tabs enabled
-Goal: Identify which component is causing the hook error
-Previous: v1.0.5 removed TeamMetrics import (error persisted)
-Current: Minimal configuration - if this works, we add components back one by one
-Data: Database cleaned - 2 real members (Luke + Jaanu)
+v1.0.7-REAL-FIX-hooks-must-be-at-top-2025-10-10-23:25
 
+🎯 REAL ROOT CAUSE IDENTIFIED AND FIXED!
+
+## The Problem:
+React error #310: "Rendered more hooks than during the previous render"
+
+## Root Cause:
+Line 616: `const [showManageTeam, setShowManageTeam] = useState(false);`
+
+This hook was declared AFTER the early return statement:
+```typescript
+if (loading) {
+  return (...); // Early return when loading
+}
+
+const [showManageTeam, setShowManageTeam] = useState(false); // ❌ CONDITIONAL!
+```
+
+## Why This Broke React:
+- When `loading = true`: Hook was NOT called (early return)
+- When `loading = false`: Hook WAS called
+- React requires ALL hooks to be called in the SAME ORDER every render
+- Changing the number of hooks between renders = React error #310
+
+## The Fix:
+Moved `showManageTeam` useState to the TOP of the component with all other hooks (line 134)
+
+Now ALL hooks are called BEFORE any conditional logic or early returns.
+
+## What Wasn't the Problem:
+- ❌ TeamMetrics component (was fine all along)
+- ❌ SkillsAssessment component (was fine)
+- ❌ GapAnalysis component (was fine)
+- ❌ DevelopmentPlanning component (was fine)
+- ✅ Just ONE misplaced hook in AdvisorySkillsPage!
+
+## Re-Enabled:
+- ✅ ALL component imports restored
+- ✅ ALL tabs restored (Matrix, Assessment, Gaps, Planning, Skills Analysis, Metrics)
+- ✅ Full functionality restored
+
+## Timeline:
+- v1.0.4-1.0.6: Tried removing components (wrong diagnosis)
+- v1.0.6: Isolated to minimal config (proved it wasn't the components)
+- v1.0.7: Found the REAL cause (misplaced hook)
+
+Data: Database cleaned - 2 real members (Luke + Jaanu)
+Expected: Advisory Skills page loads perfectly with ALL tabs working!

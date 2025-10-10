@@ -1,8 +1,9 @@
 # Use Node 20 to avoid Docker Hub rate limiting issues
 FROM node:20-alpine AS deps
 # Install dependencies needed for node-gyp
-# BUILD: 2025-10-10-23:10 - v1.0.6 - Isolate problem: disable all imports except SkillsMatrix
-# Error persisted after removing TeamMetrics - testing with minimal components
+# BUILD: 2025-10-10-23:25 - v1.0.7 - REAL FIX: Hook was after early return!
+# Problem: showManageTeam useState was AFTER the loading check (conditional hook = React error #310)
+# Solution: Moved ALL hooks to top of component (React rules of hooks)
 RUN apk add --no-cache python3 make g++ git curl wget nano
 
 WORKDIR /app

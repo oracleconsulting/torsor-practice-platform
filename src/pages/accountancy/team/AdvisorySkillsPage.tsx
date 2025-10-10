@@ -26,11 +26,10 @@ import {
 
 // Import new components
 import SkillsMatrix from '@/components/accountancy/team/SkillsMatrix';
-// TEMPORARILY DISABLED: Isolating the problem component
-// import SkillsAssessment from '@/components/accountancy/team/SkillsAssessment';
-// import GapAnalysis from '@/components/accountancy/team/GapAnalysis';
-// import DevelopmentPlanning from '@/components/accountancy/team/DevelopmentPlanning';
-// import TeamMetrics from '@/components/accountancy/team/TeamMetrics';
+import SkillsAssessment from '@/components/accountancy/team/SkillsAssessment';
+import GapAnalysis from '@/components/accountancy/team/GapAnalysis';
+import DevelopmentPlanning from '@/components/accountancy/team/DevelopmentPlanning';
+import TeamMetrics from '@/components/accountancy/team/TeamMetrics';
 
 // Direct Dialog components to avoid wrapper issues
 const Dialog = DialogPrimitive.Root;
@@ -124,13 +123,15 @@ const AdvisorySkillsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [deletingMember, setDeletingMember] = useState<string | null>(null);
   
-  // Build timestamp to force new bundle: 2025-10-10-23:10
-  const BUILD_VERSION = '1.0.6-isolate-problem-component';
+  // Build timestamp to force new bundle: 2025-10-10-23:25
+  // REAL FIX: Moved showManageTeam useState to top (was after early return = conditional hook!)
+  const BUILD_VERSION = '1.0.7-REAL-FIX-hooks-must-be-at-top';
   
   // New state for advanced features
   const [activeTab, setActiveTab] = useState('matrix');
   const [assessmentMode, setAssessmentMode] = useState<'view' | 'assess'>('view');
   const [selectedMemberForAssessment] = useState<TeamMember | null>(null);
+  const [showManageTeam, setShowManageTeam] = useState(false);
 
   useEffect(() => {
     console.log(`🎯 Advisory Skills Page - Build Version: ${BUILD_VERSION}`);
@@ -613,8 +614,6 @@ const AdvisorySkillsPage: React.FC = () => {
     );
   }
 
-  const [showManageTeam, setShowManageTeam] = useState(false);
-
   return (
     <div className="p-6 space-y-6 bg-background">
       {/* Header with actions */}
@@ -705,12 +704,11 @@ const AdvisorySkillsPage: React.FC = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-slate-100 border-slate-200">
           <TabsTrigger value="matrix">Skills Matrix</TabsTrigger>
-          {/* TEMPORARILY DISABLED: Isolating the problem */}
-          {/* <TabsTrigger value="assessment">Assessment</TabsTrigger>
+          <TabsTrigger value="assessment">Assessment</TabsTrigger>
           <TabsTrigger value="gaps">Gap Analysis</TabsTrigger>
-          <TabsTrigger value="planning">Development Planning</TabsTrigger> */}
+          <TabsTrigger value="planning">Development Planning</TabsTrigger>
           <TabsTrigger value="skills-analysis">Skills Analysis</TabsTrigger>
-          {/* <TabsTrigger value="metrics">Team Metrics</TabsTrigger> */}
+          <TabsTrigger value="metrics">Team Metrics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="matrix" className="space-y-6">
@@ -722,8 +720,7 @@ const AdvisorySkillsPage: React.FC = () => {
           />
         </TabsContent>
 
-        {/* TEMPORARILY DISABLED: Isolating the problem component */}
-        {/* <TabsContent value="assessment" className="space-y-6">
+        <TabsContent value="assessment" className="space-y-6">
           <SkillsAssessment 
             member={selectedMemberForAssessment}
             mode={assessmentMode}
@@ -748,7 +745,7 @@ const AdvisorySkillsPage: React.FC = () => {
             skillCategories={skillCategories}
             autoRecommendations={true}
           />
-        </TabsContent> */}
+        </TabsContent>
 
         <TabsContent value="skills-analysis" className="space-y-6">
           {/* Skills Analysis for Internal Mentoring */}
@@ -922,14 +919,13 @@ const AdvisorySkillsPage: React.FC = () => {
           </Card>
         </TabsContent>
 
-        {/* TEMPORARILY DISABLED: Team Metrics tab content */}
-        {/* <TabsContent value="metrics" className="space-y-6">
+        <TabsContent value="metrics" className="space-y-6">
           <TeamMetrics 
             teamMembers={teamMembers}
             skillCategories={skillCategories}
             showBenchmarks={true}
           />
-        </TabsContent> */}
+        </TabsContent>
       </Tabs>
 
       {/* Member Details Dialog */}
