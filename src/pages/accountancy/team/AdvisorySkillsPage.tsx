@@ -157,7 +157,8 @@ const AdvisorySkillsPage: React.FC = () => {
         console.log('Found', allSkills?.length || 0, 'skills in database');
         
         // Fetch skill assessments with practice member info
-        const { data: assessments, error } = await supabase
+        console.log('🔍 Fetching skill assessments...');
+        const { data: assessments, error: assessmentsError } = await supabase
           .from('skill_assessments')
           .select(`
             *,
@@ -177,10 +178,34 @@ const AdvisorySkillsPage: React.FC = () => {
             )
           `);
           
-        if (error) throw error;
+        console.log('📊 Assessments query result:', { 
+          count: assessments?.length || 0, 
+          error: assessmentsError,
+          sampleData: assessments?.[0]
+        });
+        
+        if (assessmentsError) {
+          console.error('❌ Error fetching assessments:', assessmentsError);
+          throw assessmentsError;
+        }
         
         if (assessments && assessments.length > 0) {
-          console.log('Found', assessments.length, 'skill assessments from database');
+          console.log('✅ Found', assessments.length, 'skill assessments from database');
+          
+          // If practice_member data is missing, fetch it separately
+          const uniqueMemberIds = [...new Set(assessments.map((a: any) => a.team_member_id))];
+          console.log('👥 Unique team member IDs:', uniqueMemberIds);
+          
+          const { data: practiceMembers, error: membersError } = await supabase
+            .from('practice_members')
+            .select('*')
+            .in('id', uniqueMemberIds);
+            
+          console.log('📋 Practice members:', { 
+            count: practiceMembers?.length || 0, 
+            error: membersError,
+            members: practiceMembers
+          });
           
           // Build team members from assessments
           const memberMap = new Map<string, any>();
@@ -188,10 +213,15 @@ const AdvisorySkillsPage: React.FC = () => {
           assessments.forEach((assessment: any) => {
             const memberId = assessment.team_member_id;
             if (!memberMap.has(memberId)) {
-              // Get real member data from the database
-              const name = assessment.practice_member?.name || 'Team Member';
-              const role = assessment.practice_member?.role || 'Member';
-              const email = assessment.practice_member?.email || `${name.toLowerCase().replace(' ', '.')}@practice.com`;
+              // Try to get member data from join first, then from separate query
+              const memberData = assessment.practice_member || 
+                                 practiceMembers?.find((pm: any) => pm.id === memberId);
+              
+              const name = memberData?.name || 'Team Member';
+              const role = memberData?.role || 'Member';
+              const email = memberData?.email || `${name.toLowerCase().replace(' ', '.')}@practice.com`;
+              
+              console.log('👤 Building member:', { memberId, name, role, email, hasData: !!memberData });
               
               memberMap.set(memberId, {
                 id: memberId,
