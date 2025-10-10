@@ -1,8 +1,9 @@
-v1.0.5-remove-teammetrics-import-2025-10-10-23:00
-Build: Remove TeamMetrics IMPORT statement (not just JSX)
-Fix: React error #310 - The import was loading the broken module
-Previous: v1.0.4 disabled JSX but kept import (error persisted)
-Current: Removed import statement completely
+v1.0.6-isolate-problem-component-2025-10-10-23:10
+Build: Disable ALL component imports except SkillsMatrix to isolate the problem
+Status: React error #310 persisted even after removing TeamMetrics import
+Test: Only SkillsMatrix and Skills Analysis tabs enabled
+Goal: Identify which component is causing the hook error
+Previous: v1.0.5 removed TeamMetrics import (error persisted)
+Current: Minimal configuration - if this works, we add components back one by one
 Data: Database cleaned - 2 real members (Luke + Jaanu)
-Expected: Advisory Skills page loads WITHOUT errors
 
