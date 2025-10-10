@@ -1,5 +1,7 @@
-v1.0.4-fix-team-metrics-2025-10-10-22:35
-Build: Force complete Docker rebuild
+v1.0.4-fix-team-metrics-2025-10-10-22:48
+Build: Force NEW bundle hash with code change
 Fix: React error #310 - Team Metrics tab disabled temporarily
+Code: Added BUILD_VERSION constant + console log to force new bundle
 Data: Database cleaned - 2 real members (Luke + Jaanu)
+Expected: NEW bundle hash (not index-8648972c.js)
 

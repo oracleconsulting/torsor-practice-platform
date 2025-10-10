@@ -123,12 +123,16 @@ const AdvisorySkillsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [deletingMember, setDeletingMember] = useState<string | null>(null);
   
+  // Build timestamp to force new bundle: 2025-10-10-22:48
+  const BUILD_VERSION = '1.0.4-fix-react-error-310';
+  
   // New state for advanced features
   const [activeTab, setActiveTab] = useState('matrix');
   const [assessmentMode, setAssessmentMode] = useState<'view' | 'assess'>('view');
   const [selectedMemberForAssessment] = useState<TeamMember | null>(null);
 
   useEffect(() => {
+    console.log(`🎯 Advisory Skills Page - Build Version: ${BUILD_VERSION}`);
     loadData();
   }, []);
 

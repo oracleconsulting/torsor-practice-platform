@@ -1,9 +1,9 @@
 # Use Node 20 to avoid Docker Hub rate limiting issues
 FROM node:20-alpine AS deps
 # Install dependencies needed for node-gyp
-# FORCE REBUILD: 2025-10-10-22:35 - Railway cache stuck, forcing complete rebuild
-# Previous attempts failed to deploy. This forces all layers to rebuild.
-RUN apk add --no-cache python3 make g++ git
+# BUILD: 2025-10-10-22:48 - v1.0.4 - Force NEW bundle hash with code change
+# Added BUILD_VERSION constant to AdvisorySkillsPage to ensure new bundle
+RUN apk add --no-cache python3 make g++ git curl
 
 WORKDIR /app
 
