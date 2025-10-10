@@ -1,9 +1,9 @@
 # Use Node 20 to avoid Docker Hub rate limiting issues
 FROM node:20-alpine AS deps
 # Install dependencies needed for node-gyp
-# BUILD: 2025-10-10-22:48 - v1.0.4 - Force NEW bundle hash with code change
-# Added BUILD_VERSION constant to AdvisorySkillsPage to ensure new bundle
-RUN apk add --no-cache python3 make g++ git curl
+# BUILD: 2025-10-10-23:00 - v1.0.5 - Remove TeamMetrics IMPORT (not just JSX)
+# The import statement was loading the broken module even though JSX was commented out
+RUN apk add --no-cache python3 make g++ git curl wget
 
 WORKDIR /app
 

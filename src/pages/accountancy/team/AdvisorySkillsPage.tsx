@@ -29,7 +29,8 @@ import SkillsMatrix from '@/components/accountancy/team/SkillsMatrix';
 import SkillsAssessment from '@/components/accountancy/team/SkillsAssessment';
 import GapAnalysis from '@/components/accountancy/team/GapAnalysis';
 import DevelopmentPlanning from '@/components/accountancy/team/DevelopmentPlanning';
-import TeamMetrics from '@/components/accountancy/team/TeamMetrics';
+// TEMPORARILY DISABLED: TeamMetrics component causing React error #310
+// import TeamMetrics from '@/components/accountancy/team/TeamMetrics';
 
 // Direct Dialog components to avoid wrapper issues
 const Dialog = DialogPrimitive.Root;
@@ -123,8 +124,8 @@ const AdvisorySkillsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [deletingMember, setDeletingMember] = useState<string | null>(null);
   
-  // Build timestamp to force new bundle: 2025-10-10-22:48
-  const BUILD_VERSION = '1.0.4-fix-react-error-310';
+  // Build timestamp to force new bundle: 2025-10-10-23:00
+  const BUILD_VERSION = '1.0.5-remove-teammetrics-import';
   
   // New state for advanced features
   const [activeTab, setActiveTab] = useState('matrix');

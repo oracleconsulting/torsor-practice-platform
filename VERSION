@@ -1,7 +1,8 @@
-v1.0.4-fix-team-metrics-2025-10-10-22:48
-Build: Force NEW bundle hash with code change
-Fix: React error #310 - Team Metrics tab disabled temporarily
-Code: Added BUILD_VERSION constant + console log to force new bundle
+v1.0.5-remove-teammetrics-import-2025-10-10-23:00
+Build: Remove TeamMetrics IMPORT statement (not just JSX)
+Fix: React error #310 - The import was loading the broken module
+Previous: v1.0.4 disabled JSX but kept import (error persisted)
+Current: Removed import statement completely
 Data: Database cleaned - 2 real members (Luke + Jaanu)
-Expected: NEW bundle hash (not index-8648972c.js)
+Expected: Advisory Skills page loads WITHOUT errors
 
