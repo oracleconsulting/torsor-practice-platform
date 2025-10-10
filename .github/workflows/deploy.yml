@@ -1,0 +1,45 @@
+name: Deploy and Migrate
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    name: Apply Database Migrations
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run migrations
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          MIGRATION_STOP_ON_ERROR: 'true'
+        run: npm run migrate
+
+      - name: Migration status
+        if: success()
+        run: echo "✅ Migrations applied successfully!"
+
+      - name: Migration failed
+        if: failure()
+        run: |
+          echo "❌ Migrations failed!"
+          echo "Check the logs above for details."
+          exit 1
+
