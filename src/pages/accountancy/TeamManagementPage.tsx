@@ -3,7 +3,7 @@ import { Award, BookOpen, TrendingUp, BarChart2, Mail, LayoutDashboard } from 'l
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import CPDTrackerPage from './team/CPDTrackerPage';
-import AdvisorySkillsPageRedesigned from './team/AdvisorySkillsPageRedesigned';
+import AdvisorySkillsPage from './team/AdvisorySkillsPage';
 import KPIManagementPage from './team/KPIManagementPage';
 import KnowledgeBasePage from './team/KnowledgeBasePage';
 import InvitationsPage from './team/InvitationsPage';
@@ -69,7 +69,7 @@ const TeamManagementPage: React.FC = () => {
       value: 'advisory',
       label: 'ADVISORY SKILLS',
       icon: TrendingUp,
-      component: AdvisorySkillsPageRedesigned,
+      component: AdvisorySkillsPage,
     },
     {
       value: 'cpd',
