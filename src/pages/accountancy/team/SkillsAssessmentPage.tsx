@@ -22,7 +22,10 @@ const SkillsAssessmentPage: React.FC = () => {
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [skillCategories, setSkillCategories] = useState<any[]>([]);
 
+  console.log('[SkillsAssessmentPage] Component mounted/rendered');
+
   useEffect(() => {
+    console.log('[SkillsAssessmentPage] useEffect running - loading data');
     loadData();
   }, []);
 

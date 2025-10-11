@@ -353,7 +353,10 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                               {totalSkills - assessedSkills} skills remaining
                             </p>
                           </div>
-                          <Button size="sm" onClick={() => navigate('/accountancy/team/skills-assessment')}>
+                          <Button size="sm" onClick={() => {
+                            console.log('[SkillsDashboardV2] Navigate to assessment clicked');
+                            navigate('/accountancy/team/skills-assessment');
+                          }}>
                             Start
                           </Button>
                         </div>
@@ -417,7 +420,10 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                         <div className="text-center py-8 text-gray-300">
                           <Target className="w-12 h-12 mx-auto mb-3 opacity-50" />
                           <p className="text-sm">Start an assessment to build your development plan</p>
-                          <Button className="mt-4" size="sm" onClick={() => navigate('/accountancy/team/skills-assessment')}>
+                          <Button className="mt-4" size="sm" onClick={() => {
+                            console.log('[SkillsDashboardV2] Begin Assessment clicked');
+                            navigate('/accountancy/team/skills-assessment');
+                          }}>
                             Begin Assessment
                           </Button>
                         </div>
@@ -568,7 +574,10 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {/* Start Assessment */}
                     <Card className="bg-white border-gray-300 hover:border-purple-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
-                          onClick={() => navigate('/accountancy/team/skills-assessment')}>
+                          onClick={() => {
+                            console.log('[SkillsDashboardV2] Quick Assessment card clicked');
+                            navigate('/accountancy/team/skills-assessment');
+                          }}>
                       <CardContent className="p-6 text-center">
                         <Play className="w-10 h-10 text-purple-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">Quick Assessment</h3>
