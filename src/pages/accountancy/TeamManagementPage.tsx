@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Users, Award, BookOpen, TrendingUp, BarChart2, Mail, LayoutDashboard } from 'lucide-react';
+import { Award, BookOpen, TrendingUp, BarChart2, Mail, LayoutDashboard } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import CPDTrackerPage from './team/CPDTrackerPage';
-import AdvisorySkillsPage from './team/AdvisorySkillsPage';
+import AdvisorySkillsPageRedesigned from './team/AdvisorySkillsPageRedesigned';
 import KPIManagementPage from './team/KPIManagementPage';
 import KnowledgeBasePage from './team/KnowledgeBasePage';
 import InvitationsPage from './team/InvitationsPage';
@@ -69,7 +69,7 @@ const TeamManagementPage: React.FC = () => {
       value: 'advisory',
       label: 'ADVISORY SKILLS',
       icon: TrendingUp,
-      component: AdvisorySkillsPage,
+      component: AdvisorySkillsPageRedesigned,
     },
     {
       value: 'cpd',
