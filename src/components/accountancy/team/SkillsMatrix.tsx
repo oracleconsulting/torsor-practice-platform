@@ -4,13 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Toggle } from '@/components/ui/toggle';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { 
   Download, 
   Eye, 
   TrendingUp, 
   AlertTriangle,
   CheckCircle,
-  Target
+  Target,
+  ChevronDown
 } from 'lucide-react';
 
 interface Skill {
@@ -433,6 +436,45 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Category Filter Badges */}
+          <div className="mb-4 p-3 bg-gray-700/20 rounded-lg border border-gray-600">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-semibold text-gray-300">Filter by Category:</span>
+              {selectedCategory !== 'all' && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setSelectedCategory('all')}
+                  className="h-6 text-xs"
+                >
+                  Clear Filter
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge 
+                variant={selectedCategory === 'all' ? 'default' : 'outline'}
+                className="cursor-pointer hover:bg-primary/80"
+                onClick={() => setSelectedCategory('all')}
+              >
+                All ({uniqueSkills.length})
+              </Badge>
+              {skillCategories.map(cat => {
+                const categorySkillCount = cat.skills.length;
+                return (
+                  <Badge 
+                    key={cat.id}
+                    variant={selectedCategory === cat.id ? 'default' : 'outline'}
+                    className="cursor-pointer hover:bg-primary/80"
+                    onClick={() => setSelectedCategory(cat.id)}
+                  >
+                    {cat.name} ({categorySkillCount})
+                  </Badge>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="overflow-x-auto overflow-y-visible">
             <div className="inline-block min-w-full">
               {/* Skill headers */}
