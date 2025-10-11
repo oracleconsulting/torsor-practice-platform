@@ -66,7 +66,7 @@ interface TeamMember {
 const AdvisorySkillsPage: React.FC = () => {
   const { toast } = useToast();
   
-  console.log('[AdvisorySkillsPage v1.0.11] SKILLS ANALYSIS BUG FIXED!');
+  console.log('[AdvisorySkillsPage v1.0.12] SKILLS ANALYSIS DATA STRUCTURE FIXED!');
   
   // State
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -197,6 +197,28 @@ const AdvisorySkillsPage: React.FC = () => {
 
       const loadedMembers = Array.from(memberMap.values());
       console.log('📭 Loaded team members:', loadedMembers.length);
+      
+      // Debug: Log assessment levels
+      if (loadedMembers.length > 0) {
+        const sampleMember = loadedMembers[0];
+        console.log('📊 Sample member data:', {
+          name: sampleMember.name,
+          skillsCount: sampleMember.skills?.length || 0,
+          sampleSkills: sampleMember.skills?.slice(0, 3)
+        });
+        
+        // Count level distribution
+        const levelCounts: Record<number, number> = {};
+        const interestCounts: Record<number, number> = {};
+        loadedMembers.forEach(member => {
+          member.skills?.forEach((skill: any) => {
+            levelCounts[skill.currentLevel] = (levelCounts[skill.currentLevel] || 0) + 1;
+            interestCounts[skill.interestLevel] = (interestCounts[skill.interestLevel] || 0) + 1;
+          });
+        });
+        console.log('📈 Level distribution:', levelCounts);
+        console.log('💡 Interest distribution:', interestCounts);
+      }
 
       setTeamMembers(loadedMembers);
 
@@ -324,9 +346,37 @@ const AdvisorySkillsPage: React.FC = () => {
         );
       
       case 'skills-analysis':
+        // Transform team members data to match SkillsAnalysis expected structure
+        const transformedMembers = teamMembers.map(member => {
+          // Create a map of skill IDs to skill info for quick lookup
+          const skillInfoMap = new Map<string, any>();
+          skillCategories.forEach(cat => {
+            cat.skills.forEach(skill => {
+              skillInfoMap.set(skill.id, { ...skill, category: cat.name });
+            });
+          });
+          
+          return {
+            ...member,
+            assessments: (member.skills || []).map((skill: any) => {
+              const skillInfo = skillInfoMap.get(skill.skillId);
+              return {
+                skill: {
+                  id: skill.skillId,
+                  name: skillInfo?.name || 'Unknown Skill',
+                  category: skillInfo?.category || 'Unknown'
+                },
+                currentLevel: skill.currentLevel || 0,
+                interestLevel: skill.interestLevel || 0,
+                notes: skill.notes || ''
+              };
+            })
+          };
+        });
+        
         return (
           <SkillsAnalysis
-            teamMembers={teamMembers}
+            teamMembers={transformedMembers}
             skillCategories={skillCategories}
           />
         );
