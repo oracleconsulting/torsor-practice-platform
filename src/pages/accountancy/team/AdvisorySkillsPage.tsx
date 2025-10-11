@@ -66,7 +66,7 @@ interface TeamMember {
 const AdvisorySkillsPage: React.FC = () => {
   const { toast } = useToast();
   
-  console.log('[AdvisorySkillsPage v1.0.10] SKILLS ANALYSIS FEATURE LIVE!');
+  console.log('[AdvisorySkillsPage v1.0.11] SKILLS ANALYSIS BUG FIXED!');
   
   // State
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);

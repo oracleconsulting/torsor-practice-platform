@@ -104,14 +104,20 @@ export default function SkillsAnalysis({ teamMembers, skillCategories }: SkillsA
   // Create skill lookup map
   const skillsMap = useMemo(() => {
     const map = new Map<string, { name: string; category: string; requiredLevel?: number }>();
+    if (!skillCategories || !Array.isArray(skillCategories)) return map;
+    
     skillCategories.forEach(cat => {
-      cat.skills.forEach(skill => {
-        map.set(skill.id, {
-          name: skill.name,
-          category: cat.name,
-          requiredLevel: skill.requiredLevel
+      if (cat && cat.skills && Array.isArray(cat.skills)) {
+        cat.skills.forEach(skill => {
+          if (skill && skill.id) {
+            map.set(skill.id, {
+              name: skill.name,
+              category: cat.name,
+              requiredLevel: skill.requiredLevel
+            });
+          }
         });
-      });
+      }
     });
     return map;
   }, [skillCategories]);
@@ -119,10 +125,16 @@ export default function SkillsAnalysis({ teamMembers, skillCategories }: SkillsA
   // Identify Top Performers (Experts)
   const topPerformers = useMemo(() => {
     const experts: ExpertProfile[] = [];
+    if (!teamMembers || !Array.isArray(teamMembers)) return experts;
 
     teamMembers.forEach(member => {
+      // Defensive check: ensure assessments array exists
+      if (!member || !member.assessments || !Array.isArray(member.assessments)) {
+        return;
+      }
+
       const expertiseAreas = member.assessments
-        .filter(a => a.currentLevel >= 4) // Level 4-5 = Expert
+        .filter(a => a && a.currentLevel >= 4) // Level 4-5 = Expert
         .map(a => ({
           skillId: a.skill.id,
           skillName: a.skill.name,
@@ -153,10 +165,16 @@ export default function SkillsAnalysis({ teamMembers, skillCategories }: SkillsA
   // Identify High-Interest Learners
   const highInterestLearners = useMemo(() => {
     const learners: LearnerProfile[] = [];
+    if (!teamMembers || !Array.isArray(teamMembers)) return learners;
 
     teamMembers.forEach(member => {
+      // Defensive check: ensure assessments array exists
+      if (!member || !member.assessments || !Array.isArray(member.assessments)) {
+        return;
+      }
+
       const highInterestAreas = member.assessments
-        .filter(a => (a.interestLevel || 0) >= 4 && a.currentLevel < 4) // High interest + not expert yet
+        .filter(a => a && (a.interestLevel || 0) >= 4 && a.currentLevel < 4) // High interest + not expert yet
         .map(a => ({
           skillId: a.skill.id,
           skillName: a.skill.name,
@@ -258,35 +276,66 @@ export default function SkillsAnalysis({ teamMembers, skillCategories }: SkillsA
 
   // Filter functions
   const filteredExperts = useMemo(() => {
+    if (!topPerformers || topPerformers.length === 0) return [];
+    
     return topPerformers.filter(expert => {
-      const matchesSearch = expert.member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            expert.expertiseAreas.some(e => e.skillName.toLowerCase().includes(searchTerm.toLowerCase()));
+      if (!expert || !expert.member || !expert.expertiseAreas) return false;
+      
+      const matchesSearch = expert.member.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            expert.expertiseAreas.some(e => e?.skillName?.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesCategory = selectedCategory === 'all' || 
-                              expert.expertiseAreas.some(e => e.category === selectedCategory);
+                              expert.expertiseAreas.some(e => e?.category === selectedCategory);
       return matchesSearch && matchesCategory;
     });
   }, [topPerformers, searchTerm, selectedCategory]);
 
   const filteredLearners = useMemo(() => {
+    if (!highInterestLearners || highInterestLearners.length === 0) return [];
+    
     return highInterestLearners.filter(learner => {
-      const matchesSearch = learner.member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            learner.highInterestAreas.some(h => h.skillName.toLowerCase().includes(searchTerm.toLowerCase()));
+      if (!learner || !learner.member || !learner.highInterestAreas) return false;
+      
+      const matchesSearch = learner.member.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            learner.highInterestAreas.some(h => h?.skillName?.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesCategory = selectedCategory === 'all' || 
-                              learner.highInterestAreas.some(h => h.category === selectedCategory);
+                              learner.highInterestAreas.some(h => h?.category === selectedCategory);
       return matchesSearch && matchesCategory;
     });
   }, [highInterestLearners, searchTerm, selectedCategory]);
 
   const filteredMatches = useMemo(() => {
+    if (!mentoringMatches || mentoringMatches.length === 0) return [];
+    
     return mentoringMatches.filter(match => {
-      const matchesSearch = match.expert.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            match.learner.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            match.matchedSkills.some(s => s.skillName.toLowerCase().includes(searchTerm.toLowerCase()));
+      if (!match || !match.expert || !match.learner || !match.matchedSkills) return false;
+      
+      const matchesSearch = match.expert.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            match.learner.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            match.matchedSkills.some(s => s?.skillName?.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesCategory = selectedCategory === 'all' || 
-                              match.matchedSkills.some(s => s.category === selectedCategory);
+                              match.matchedSkills.some(s => s?.category === selectedCategory);
       return matchesSearch && matchesCategory;
     });
   }, [mentoringMatches, searchTerm, selectedCategory]);
+
+  // Show message if no data
+  if (!teamMembers || teamMembers.length === 0) {
+    return (
+      <div className="p-8 text-center">
+        <h2 className="text-2xl font-bold mb-4" style={{ color: '#000000' }}>Skills Analysis</h2>
+        <p className="text-lg text-gray-600">No team members found. Please add team members and complete assessments first.</p>
+      </div>
+    );
+  }
+
+  if (!skillCategories || skillCategories.length === 0) {
+    return (
+      <div className="p-8 text-center">
+        <h2 className="text-2xl font-bold mb-4" style={{ color: '#000000' }}>Skills Analysis</h2>
+        <p className="text-lg text-gray-600">No skill categories found. Please configure skills first.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
