@@ -548,58 +548,58 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                   {/* Quick Actions Grid */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {/* Start Assessment */}
-                    <Card className="bg-gray-900 border-gray-700 hover:border-purple-500 transition-colors cursor-pointer"
+                    <Card className="bg-gray-700 border-gray-600 hover:border-purple-400 hover:bg-gray-600 transition-all cursor-pointer shadow-lg"
                           onClick={() => navigate('/accountancy/team-portal/assessment')}>
                       <CardContent className="p-6 text-center">
-                        <Play className="w-8 h-8 text-purple-400 mx-auto mb-3" />
-                        <h3 className="text-sm font-semibold text-white mb-1">Quick Assessment</h3>
-                        <p className="text-xs text-gray-300">Launch skills evaluation</p>
+                        <Play className="w-10 h-10 text-purple-300 mx-auto mb-3" />
+                        <h3 className="text-base font-bold text-white mb-2">Quick Assessment</h3>
+                        <p className="text-sm text-gray-200">Launch skills evaluation</p>
                       </CardContent>
                     </Card>
 
                     {/* Training Catalog */}
-                    <Card className="bg-gray-900 border-gray-700 hover:border-blue-500 transition-colors cursor-pointer">
+                    <Card className="bg-gray-700 border-gray-600 hover:border-blue-400 hover:bg-gray-600 transition-all cursor-pointer shadow-lg">
                       <CardContent className="p-6 text-center">
-                        <BookOpen className="w-8 h-8 text-blue-300 mx-auto mb-3" />
-                        <h3 className="text-sm font-semibold text-white mb-1">Training Catalog</h3>
-                        <p className="text-xs text-gray-300">Browse courses</p>
+                        <BookOpen className="w-10 h-10 text-blue-300 mx-auto mb-3" />
+                        <h3 className="text-base font-bold text-white mb-2">Training Catalog</h3>
+                        <p className="text-sm text-gray-200">Browse courses</p>
                       </CardContent>
                     </Card>
 
                     {/* Find Mentor */}
-                    <Card className="bg-gray-900 border-gray-700 hover:border-green-500 transition-colors cursor-pointer">
+                    <Card className="bg-gray-700 border-gray-600 hover:border-green-400 hover:bg-gray-600 transition-all cursor-pointer shadow-lg">
                       <CardContent className="p-6 text-center">
-                        <Users className="w-8 h-8 text-green-400 mx-auto mb-3" />
-                        <h3 className="text-sm font-semibold text-white mb-1">Find a Mentor</h3>
-                        <p className="text-xs text-gray-300">Connect with experts</p>
+                        <Users className="w-10 h-10 text-green-300 mx-auto mb-3" />
+                        <h3 className="text-base font-bold text-white mb-2">Find a Mentor</h3>
+                        <p className="text-sm text-gray-200">Connect with experts</p>
                       </CardContent>
                     </Card>
 
                     {/* Log CPD */}
-                    <Card className="bg-gray-900 border-gray-700 hover:border-yellow-500 transition-colors cursor-pointer">
+                    <Card className="bg-gray-700 border-gray-600 hover:border-yellow-400 hover:bg-gray-600 transition-all cursor-pointer shadow-lg">
                       <CardContent className="p-6 text-center">
-                        <Clock className="w-8 h-8 text-yellow-400 mx-auto mb-3" />
-                        <h3 className="text-sm font-semibold text-white mb-1">Log CPD Activity</h3>
-                        <p className="text-xs text-gray-300">Track your learning</p>
+                        <Clock className="w-10 h-10 text-yellow-300 mx-auto mb-3" />
+                        <h3 className="text-base font-bold text-white mb-2">Log CPD Activity</h3>
+                        <p className="text-sm text-gray-200">Track your learning</p>
                       </CardContent>
                     </Card>
 
                     {/* AI Recommendations */}
-                    <Card className="bg-gray-900 border-gray-700 hover:border-pink-500 transition-colors cursor-pointer"
+                    <Card className="bg-gray-700 border-gray-600 hover:border-pink-400 hover:bg-gray-600 transition-all cursor-pointer shadow-lg"
                           onClick={() => setExpandedSections(['team'])}>
                       <CardContent className="p-6 text-center">
-                        <Sparkles className="w-8 h-8 text-pink-400 mx-auto mb-3" />
-                        <h3 className="text-sm font-semibold text-white mb-1">AI Recommendations</h3>
-                        <p className="text-xs text-gray-300">Personalized suggestions</p>
+                        <Sparkles className="w-10 h-10 text-pink-300 mx-auto mb-3" />
+                        <h3 className="text-base font-bold text-white mb-2">AI Recommendations</h3>
+                        <p className="text-sm text-gray-200">Personalized suggestions</p>
                       </CardContent>
                     </Card>
 
                     {/* Resources Library */}
-                    <Card className="bg-gray-900 border-gray-700 hover:border-orange-500 transition-colors cursor-pointer">
+                    <Card className="bg-gray-700 border-gray-600 hover:border-orange-400 hover:bg-gray-600 transition-all cursor-pointer shadow-lg">
                       <CardContent className="p-6 text-center">
-                        <GraduationCap className="w-8 h-8 text-orange-400 mx-auto mb-3" />
-                        <h3 className="text-sm font-semibold text-white mb-1">Resources Library</h3>
-                        <p className="text-xs text-gray-300">Guides and articles</p>
+                        <GraduationCap className="w-10 h-10 text-orange-300 mx-auto mb-3" />
+                        <h3 className="text-base font-bold text-white mb-2">Resources Library</h3>
+                        <p className="text-sm text-gray-200">Guides and articles</p>
                       </CardContent>
                     </Card>
                   </div>
