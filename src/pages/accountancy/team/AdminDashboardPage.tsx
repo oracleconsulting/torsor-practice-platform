@@ -5,6 +5,7 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Users,
   TrendingUp,
@@ -16,7 +17,9 @@ import {
   BarChart3,
   Settings,
   Save,
+  Shield,
 } from 'lucide-react';
+import RoleManagement from '@/components/accountancy/team/RoleManagement';
 import {
   BarChart,
   Bar,
@@ -135,6 +138,20 @@ export default function AdminDashboardPage() {
         </p>
       </div>
 
+      {/* Tabs for Dashboard vs Role Management */}
+      <Tabs defaultValue="dashboard" className="space-y-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="dashboard" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="roles" className="flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            Role Management
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="dashboard" className="space-y-6">
       {/* CPD Configuration Section */}
       <Card className="border-blue-200 bg-blue-50/50">
         <CardHeader>
@@ -485,6 +502,13 @@ export default function AdminDashboardPage() {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        {/* Role Management Tab */}
+        <TabsContent value="roles">
+          <RoleManagement />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
