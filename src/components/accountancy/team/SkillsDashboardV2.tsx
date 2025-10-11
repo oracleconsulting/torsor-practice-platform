@@ -175,7 +175,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
               <Sparkles className="w-6 h-6 text-purple-400" />
               <div>
                 <h1 className="text-xl font-bold text-white">Skills Dashboard</h1>
-                <p className="text-xs text-gray-400">Track, develop, and excel</p>
+                <p className="text-xs text-gray-300">Track, develop, and excel</p>
               </div>
             </div>
 
@@ -221,7 +221,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                 className="hidden lg:flex items-center gap-2"
               >
                 <Command className="w-4 h-4" />
-                <span className="text-xs text-gray-400">⌘K</span>
+                <span className="text-xs text-gray-300">⌘K</span>
               </Button>
             </div>
 
@@ -276,7 +276,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                   </div>
                   <div className="flex-1 text-left">
                     <h2 className="text-lg font-semibold text-white">My Skills Journey</h2>
-                    <p className="text-sm text-gray-400">Personal development and progress</p>
+                    <p className="text-sm text-gray-300">Personal development and progress</p>
                   </div>
                   {expandedSections.includes('journey') && (
                     <Badge variant="outline" className="text-green-400 border-green-500">
@@ -293,14 +293,14 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                     <Card className="bg-gray-900 border-gray-700">
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm text-gray-400">Skills Assessed</span>
+                          <span className="text-sm text-gray-300">Skills Assessed</span>
                           <CheckCircle className="w-4 h-4 text-green-500" />
                         </div>
                         <div className="text-2xl font-bold text-white mb-2">
                           {assessedSkills}/{totalSkills}
                         </div>
                         <Progress value={assessmentProgress} className="h-2" />
-                        <p className="text-xs text-gray-500 mt-2">{Math.round(assessmentProgress)}% complete</p>
+                        <p className="text-xs text-gray-300 mt-2">{Math.round(assessmentProgress)}% complete</p>
                       </CardContent>
                     </Card>
 
@@ -308,14 +308,14 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                     <Card className="bg-gray-900 border-gray-700">
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm text-gray-400">Average Level</span>
+                          <span className="text-sm text-gray-300">Average Level</span>
                           <TrendingUp className="w-4 h-4 text-blue-500" />
                         </div>
                         <div className="text-2xl font-bold text-white mb-2">
                           {averageSkillLevel.toFixed(1)}/5
                         </div>
                         <Progress value={(averageSkillLevel / 5) * 100} className="h-2" />
-                        <p className="text-xs text-gray-500 mt-2">
+                        <p className="text-xs text-gray-300 mt-2">
                           {averageSkillLevel >= 3.5 ? 'Strong performer' : 'Room to grow'}
                         </p>
                       </CardContent>
@@ -325,14 +325,14 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                     <Card className="bg-gray-900 border-gray-700">
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm text-gray-400">CPD Hours</span>
+                          <span className="text-sm text-gray-300">CPD Hours</span>
                           <Clock className="w-4 h-4 text-yellow-500" />
                         </div>
                         <div className="text-2xl font-bold text-white mb-2">
                           {cpdHoursCompleted}/{cpdHoursRequired}
                         </div>
                         <Progress value={cpdProgress} className="h-2" />
-                        <p className="text-xs text-gray-500 mt-2">{cpdHoursRequired - cpdHoursCompleted}h remaining</p>
+                        <p className="text-xs text-gray-300 mt-2">{cpdHoursRequired - cpdHoursCompleted}h remaining</p>
                       </CardContent>
                     </Card>
                   </div>
@@ -349,7 +349,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                           <Play className="w-5 h-5 text-purple-400" />
                           <div className="flex-1">
                             <p className="text-sm font-medium text-white">Complete Skills Assessment</p>
-                            <p className="text-xs text-gray-400">
+                            <p className="text-xs text-gray-300">
                               {totalSkills - assessedSkills} skills remaining
                             </p>
                           </div>
@@ -364,7 +364,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                           <BookOpen className="w-5 h-5 text-yellow-400" />
                           <div className="flex-1">
                             <p className="text-sm font-medium text-white">Log CPD Activity</p>
-                            <p className="text-xs text-gray-400">
+                            <p className="text-xs text-gray-300">
                               {cpdHoursRequired - cpdHoursCompleted} hours to goal
                             </p>
                           </div>
@@ -375,10 +375,10 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                       )}
 
                       <div className="flex items-center gap-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                        <Sparkles className="w-5 h-5 text-blue-400" />
+                        <Sparkles className="w-5 h-5 text-blue-300" />
                         <div className="flex-1">
                           <p className="text-sm font-medium text-white">View AI Recommendations</p>
-                          <p className="text-xs text-gray-400">
+                          <p className="text-xs text-gray-300">
                             Personalized training suggestions
                           </p>
                         </div>
@@ -404,7 +404,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                                 <p className="text-sm font-medium text-white">{skill.skillName || 'Skill'}</p>
                                 <div className="flex items-center gap-2 mt-1">
                                   <Progress value={(skill.currentLevel / 5) * 100} className="h-1 flex-1" />
-                                  <span className="text-xs text-gray-400">{skill.currentLevel}/5</span>
+                                  <span className="text-xs text-gray-300">{skill.currentLevel}/5</span>
                                 </div>
                               </div>
                               <Badge variant="outline" className="text-xs">
@@ -414,7 +414,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                           ))}
                         </div>
                       ) : (
-                        <div className="text-center py-8 text-gray-400">
+                        <div className="text-center py-8 text-gray-300">
                           <Target className="w-12 h-12 mx-auto mb-3 opacity-50" />
                           <p className="text-sm">Start an assessment to build your development plan</p>
                           <Button className="mt-4" size="sm" onClick={() => navigate('/accountancy/team-portal/assessment')}>
@@ -436,13 +436,13 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                 <AccordionTrigger className="hover:no-underline px-6 py-4">
                   <div className="flex items-center gap-3 w-full">
                     <div className="p-2 bg-blue-500/20 rounded-lg">
-                      <Users className="w-5 h-5 text-blue-400" />
+                      <Users className="w-5 h-5 text-blue-300" />
                     </div>
                     <div className="flex-1 text-left">
                       <h2 className="text-lg font-semibold text-white">Team Intelligence</h2>
-                      <p className="text-sm text-gray-400">Skills heatmap and team insights</p>
+                      <p className="text-sm text-gray-300">Skills heatmap and team insights</p>
                     </div>
-                    <Badge variant="outline" className="text-blue-400 border-blue-500">
+                    <Badge variant="outline" className="text-blue-300 border-blue-500">
                       {teamCapabilityScore}% Capability
                     </Badge>
                   </div>
@@ -474,7 +474,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                         <CardContent>
                           <div className="text-3xl font-bold text-white mb-2">{teamCapabilityScore}%</div>
                           <Progress value={teamCapabilityScore} className="h-2 mb-2" />
-                          <p className="text-xs text-gray-400">
+                          <p className="text-xs text-gray-300">
                             {teamCapabilityScore >= 75 ? 'Strong team' : 'Growing team'}
                           </p>
                         </CardContent>
@@ -491,7 +491,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                                 {idx + 1}
                               </Badge>
                               <span className="text-sm text-white">{member.name}</span>
-                              <span className="text-xs text-gray-400 ml-auto">{member.overallScore || 0}%</span>
+                              <span className="text-xs text-gray-300 ml-auto">{member.overallScore || 0}%</span>
                             </div>
                           ))}
                         </CardContent>
@@ -539,7 +539,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                   </div>
                   <div className="flex-1 text-left">
                     <h2 className="text-lg font-semibold text-white">Development Hub</h2>
-                    <p className="text-sm text-gray-400">Training, mentoring, and resources</p>
+                    <p className="text-sm text-gray-300">Training, mentoring, and resources</p>
                   </div>
                 </div>
               </AccordionTrigger>
@@ -553,16 +553,16 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                       <CardContent className="p-6 text-center">
                         <Play className="w-8 h-8 text-purple-400 mx-auto mb-3" />
                         <h3 className="text-sm font-semibold text-white mb-1">Quick Assessment</h3>
-                        <p className="text-xs text-gray-400">Launch skills evaluation</p>
+                        <p className="text-xs text-gray-300">Launch skills evaluation</p>
                       </CardContent>
                     </Card>
 
                     {/* Training Catalog */}
                     <Card className="bg-gray-900 border-gray-700 hover:border-blue-500 transition-colors cursor-pointer">
                       <CardContent className="p-6 text-center">
-                        <BookOpen className="w-8 h-8 text-blue-400 mx-auto mb-3" />
+                        <BookOpen className="w-8 h-8 text-blue-300 mx-auto mb-3" />
                         <h3 className="text-sm font-semibold text-white mb-1">Training Catalog</h3>
-                        <p className="text-xs text-gray-400">Browse courses</p>
+                        <p className="text-xs text-gray-300">Browse courses</p>
                       </CardContent>
                     </Card>
 
@@ -571,7 +571,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                       <CardContent className="p-6 text-center">
                         <Users className="w-8 h-8 text-green-400 mx-auto mb-3" />
                         <h3 className="text-sm font-semibold text-white mb-1">Find a Mentor</h3>
-                        <p className="text-xs text-gray-400">Connect with experts</p>
+                        <p className="text-xs text-gray-300">Connect with experts</p>
                       </CardContent>
                     </Card>
 
@@ -580,7 +580,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                       <CardContent className="p-6 text-center">
                         <Clock className="w-8 h-8 text-yellow-400 mx-auto mb-3" />
                         <h3 className="text-sm font-semibold text-white mb-1">Log CPD Activity</h3>
-                        <p className="text-xs text-gray-400">Track your learning</p>
+                        <p className="text-xs text-gray-300">Track your learning</p>
                       </CardContent>
                     </Card>
 
@@ -590,7 +590,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                       <CardContent className="p-6 text-center">
                         <Sparkles className="w-8 h-8 text-pink-400 mx-auto mb-3" />
                         <h3 className="text-sm font-semibold text-white mb-1">AI Recommendations</h3>
-                        <p className="text-xs text-gray-400">Personalized suggestions</p>
+                        <p className="text-xs text-gray-300">Personalized suggestions</p>
                       </CardContent>
                     </Card>
 
@@ -599,7 +599,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                       <CardContent className="p-6 text-center">
                         <GraduationCap className="w-8 h-8 text-orange-400 mx-auto mb-3" />
                         <h3 className="text-sm font-semibold text-white mb-1">Resources Library</h3>
-                        <p className="text-xs text-gray-400">Guides and articles</p>
+                        <p className="text-xs text-gray-300">Guides and articles</p>
                       </CardContent>
                     </Card>
                   </div>
@@ -684,7 +684,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
       {/* Keyboard Shortcuts Hint */}
       <div className="fixed bottom-4 right-4 hidden lg:block">
         <Card className="bg-gray-800 border-gray-700 p-3">
-          <div className="flex items-center gap-2 text-xs text-gray-400">
+          <div className="flex items-center gap-2 text-xs text-gray-300">
             <kbd className="px-2 py-1 bg-gray-700 rounded border border-gray-600">J</kbd>
             <kbd className="px-2 py-1 bg-gray-700 rounded border border-gray-600">K</kbd>
             <span>Navigate sections</span>
@@ -716,7 +716,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                   <span><strong>My Skills Journey</strong> - Track your personal progress</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <Users className="w-4 h-4 mt-0.5 text-blue-400" />
+                  <Users className="w-4 h-4 mt-0.5 text-blue-300" />
                   <span><strong>Team Intelligence</strong> - View team insights (managers only)</span>
                 </li>
                 <li className="flex items-start gap-2">
@@ -724,7 +724,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                   <span><strong>Development Hub</strong> - Access training and resources</span>
                 </li>
               </ul>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-300">
                 💡 Tip: Use <kbd className="px-2 py-1 bg-gray-700 rounded">J</kbd>/<kbd className="px-2 py-1 bg-gray-700 rounded">K</kbd> keys to navigate or <kbd className="px-2 py-1 bg-gray-700 rounded">⌘K</kbd> for quick actions
               </p>
             </CardContent>
