@@ -13,7 +13,8 @@ import {
   AlertCircle,
   AlertTriangle,
   CheckCircle,
-  Target
+  Target,
+  XCircle
 } from 'lucide-react';
 import TrainingRecommendationCards from './TrainingRecommendationCards';
 import { getTrainingRecommendations, getGroupTrainingOpportunities, createLearningPath } from '@/lib/api/training-recommendations';
