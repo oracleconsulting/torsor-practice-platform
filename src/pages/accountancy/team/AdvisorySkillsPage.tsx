@@ -65,7 +65,7 @@ interface TeamMember {
 const AdvisorySkillsPage: React.FC = () => {
   const { toast } = useToast();
   
-  console.log('[AdvisorySkillsPage v1.0.8] GAP ANALYSIS COMPLETELY OVERHAULED');
+  console.log('[AdvisorySkillsPage v1.0.9] DEVELOPMENT PLANNING CONTRAST FIXED');
   
   // State
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);

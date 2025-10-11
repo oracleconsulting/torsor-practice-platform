@@ -288,7 +288,7 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
         <CardContent className="p-8 text-center">
           <Users className="w-16 h-16 text-gray-600 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-white mb-2">Select a Team Member</h3>
-          <p className="text-gray-400 mb-6">Choose a team member to create development plans</p>
+          <p className="text-white mb-6">Choose a team member to create development plans</p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
             {teamMembers.map(member => (
@@ -305,7 +305,7 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
                   </Avatar>
                   <div>
                     <div className="font-medium text-white">{member.name}</div>
-                    <div className="text-sm text-gray-400">{member.role}</div>
+                    <div className="text-sm text-white">{member.role}</div>
                   </div>
                 </div>
               </div>
@@ -368,22 +368,22 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
                           {rec.priority} priority
                         </Badge>
                       </div>
-                      <p className="text-sm text-gray-400 mb-3">{rec.description}</p>
+                      <p className="text-sm text-white mb-3">{rec.description}</p>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                         <div>
-                          <span className="text-gray-400">Method:</span>
+                          <span className="text-white font-semibold">Method:</span>
                           <p className="text-white">{rec.trainingType}</p>
                         </div>
                         <div>
-                          <span className="text-gray-400">Provider:</span>
+                          <span className="text-white font-semibold">Provider:</span>
                           <p className="text-white">{rec.provider}</p>
                         </div>
                         <div>
-                          <span className="text-gray-400">Duration:</span>
+                          <span className="text-white font-semibold">Duration:</span>
                           <p className="text-white">{rec.duration}</p>
                         </div>
                         <div>
-                          <span className="text-gray-400">Cost:</span>
+                          <span className="text-white font-semibold">Cost:</span>
                           <p className="text-white">£{rec.cost}</p>
                         </div>
                       </div>
@@ -396,7 +396,7 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
                   
                   {/* Learning Path */}
                   <div className="mt-4 pt-4 border-t border-gray-600">
-                    <h5 className="text-sm font-medium text-gray-300 mb-2">Learning Path:</h5>
+                    <h5 className="text-sm font-medium text-white mb-2">Learning Path:</h5>
                     <div className="flex flex-wrap gap-2">
                       {rec.learningPath.map((step, stepIndex) => (
                         <Badge key={stepIndex} variant="outline" className="text-xs">
@@ -433,22 +433,22 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
                       <h4 className="font-medium text-white">{skill.skillInfo?.name}</h4>
                       <Badge variant="outline">{skill.skillInfo?.category}</Badge>
                     </div>
-                    <p className="text-sm text-gray-400 mb-3">{skill.skillInfo?.description}</p>
+                    <p className="text-sm text-white mb-3">{skill.skillInfo?.description}</p>
                     <div className="flex items-center gap-6 text-sm">
                       <div>
-                        <span className="text-gray-400">Current:</span>
+                        <span className="text-white font-semibold">Current:</span>
                         <span className="text-white ml-1">{skill.currentLevel}/5</span>
                       </div>
                       <div>
-                        <span className="text-gray-400">Target:</span>
+                        <span className="text-white font-semibold">Target:</span>
                         <span className="text-white ml-1">{skill.targetLevel}/5</span>
                       </div>
                       <div>
-                        <span className="text-gray-400">Gap:</span>
+                        <span className="text-white font-semibold">Gap:</span>
                         <span className="text-yellow-400 ml-1">{skill.gap}</span>
                       </div>
                       <div>
-                        <span className="text-gray-400">Interest:</span>
+                        <span className="text-white font-semibold">Interest:</span>
                         <span className="text-blue-400 ml-1">{skill.interestLevel || 0}/5</span>
                       </div>
                     </div>
@@ -500,19 +500,19 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
                       
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-3">
                         <div>
-                          <span className="text-gray-400">Target Level:</span>
+                          <span className="text-white font-semibold">Target Level:</span>
                           <p className="text-white">{plan.targetLevel}/5</p>
                         </div>
                         <div>
-                          <span className="text-gray-400">Method:</span>
+                          <span className="text-white font-semibold">Method:</span>
                           <p className="text-white">{plan.trainingMethod}</p>
                         </div>
                         <div>
-                          <span className="text-gray-400">Target Date:</span>
+                          <span className="text-white font-semibold">Target Date:</span>
                           <p className="text-white">{format(plan.targetDate, 'MMM dd, yyyy')}</p>
                         </div>
                         <div>
-                          <span className="text-gray-400">Budget:</span>
+                          <span className="text-white font-semibold">Budget:</span>
                           <p className="text-white">£{plan.budget || 0}</p>
                         </div>
                       </div>
