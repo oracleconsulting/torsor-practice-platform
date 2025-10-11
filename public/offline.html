@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline - Torsor Practice Platform</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      color: white;
+    }
+    
+    .container {
+      max-width: 500px;
+      text-align: center;
+    }
+    
+    .icon {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 30px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 60px;
+    }
+    
+    h1 {
+      font-size: 32px;
+      margin-bottom: 15px;
+      font-weight: 700;
+    }
+    
+    p {
+      font-size: 18px;
+      line-height: 1.6;
+      opacity: 0.9;
+      margin-bottom: 30px;
+    }
+    
+    .button {
+      display: inline-block;
+      padding: 15px 40px;
+      background: white;
+      color: #667eea;
+      text-decoration: none;
+      border-radius: 30px;
+      font-weight: 600;
+      font-size: 16px;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+      border: none;
+    }
+    
+    .button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    }
+    
+    .button:active {
+      transform: translateY(0);
+    }
+    
+    .features {
+      margin-top: 40px;
+      padding: 25px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+    
+    .features h2 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      font-weight: 600;
+    }
+    
+    .features ul {
+      list-style: none;
+      text-align: left;
+    }
+    
+    .features li {
+      padding: 8px 0;
+      font-size: 14px;
+      opacity: 0.9;
+    }
+    
+    .features li:before {
+      content: "✓ ";
+      margin-right: 10px;
+      font-weight: bold;
+    }
+    
+    .spinner {
+      display: none;
+      width: 40px;
+      height: 40px;
+      margin: 20px auto;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .checking {
+      display: none;
+      font-size: 14px;
+      margin-top: 15px;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">📡</div>
+    <h1>You're Offline</h1>
+    <p>
+      No internet connection detected. Don't worry - your assessment progress
+      is saved locally and will sync automatically when you're back online.
+    </p>
+    
+    <button class="button" onclick="checkConnection()">
+      Try Again
+    </button>
+    
+    <div class="spinner" id="spinner"></div>
+    <div class="checking" id="checking">Checking connection...</div>
+    
+    <div class="features">
+      <h2>What you can still do offline:</h2>
+      <ul>
+        <li>View previously loaded assessments</li>
+        <li>Complete saved skill ratings</li>
+        <li>Review your progress</li>
+        <li>Access cached team data</li>
+      </ul>
+    </div>
+  </div>
+  
+  <script>
+    // Auto-check connection every 5 seconds
+    let checkInterval;
+    
+    function checkConnection() {
+      const spinner = document.getElementById('spinner');
+      const checking = document.getElementById('checking');
+      const button = document.querySelector('.button');
+      
+      button.style.display = 'none';
+      spinner.style.display = 'block';
+      checking.style.display = 'block';
+      
+      fetch('/', { method: 'HEAD', cache: 'no-cache' })
+        .then(() => {
+          // Connection restored
+          window.location.reload();
+        })
+        .catch(() => {
+          // Still offline
+          spinner.style.display = 'none';
+          checking.style.display = 'none';
+          button.style.display = 'inline-block';
+          button.textContent = 'Still Offline - Try Again';
+        });
+    }
+    
+    // Listen for online event
+    window.addEventListener('online', () => {
+      window.location.reload();
+    });
+    
+    // Start periodic check
+    checkInterval = setInterval(() => {
+      fetch('/', { method: 'HEAD', cache: 'no-cache' })
+        .then(() => {
+          clearInterval(checkInterval);
+          window.location.reload();
+        })
+        .catch(() => {
+          // Still offline, continue checking
+        });
+    }, 5000);
+  </script>
+</body>
+</html>
+
