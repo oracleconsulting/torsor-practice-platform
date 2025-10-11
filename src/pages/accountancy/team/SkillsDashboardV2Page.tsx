@@ -105,6 +105,8 @@ const SkillsDashboardV2Page: React.FC = () => {
 
         return {
           ...member,
+          department: member.department || 'Advisory', // Default department
+          role: member.role || 'Team Member', // Ensure role exists
           skills,
           overallScore: Math.round(avgLevel * 10) / 10
         };
@@ -179,6 +181,7 @@ const SkillsDashboardV2Page: React.FC = () => {
         name: 'Sarah Johnson',
         email: 'sarah@example.com',
         role: 'Senior Advisor',
+        department: 'Advisory',
         skills: [
           { skillId: '1-1', currentLevel: 5, interestLevel: 5, targetLevel: 5, lastAssessed: new Date() },
           { skillId: '1-2', currentLevel: 4, interestLevel: 4, targetLevel: 5, lastAssessed: new Date() },
@@ -192,6 +195,7 @@ const SkillsDashboardV2Page: React.FC = () => {
         name: 'Michael Chen',
         email: 'michael@example.com',
         role: 'Advisory Consultant',
+        department: 'Advisory',
         skills: [
           { skillId: '1-1', currentLevel: 3, interestLevel: 5, targetLevel: 4, lastAssessed: new Date() },
           { skillId: '1-3', currentLevel: 4, interestLevel: 4, targetLevel: 4, lastAssessed: new Date() },
@@ -205,6 +209,7 @@ const SkillsDashboardV2Page: React.FC = () => {
         name: 'Emma Davis',
         email: 'emma@example.com',
         role: 'Junior Advisor',
+        department: 'Advisory',
         skills: [
           { skillId: '1-1', currentLevel: 2, interestLevel: 5, targetLevel: 4, lastAssessed: new Date() },
           { skillId: '1-4', currentLevel: 2, interestLevel: 4, targetLevel: 3, lastAssessed: new Date() },

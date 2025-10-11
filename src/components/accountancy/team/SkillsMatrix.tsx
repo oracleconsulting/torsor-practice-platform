@@ -105,6 +105,10 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
   // Filter and prepare data
   const matrixData = useMemo(() => {
     const filteredMembers = teamMembers.filter(member => {
+      // Filter out null/undefined members
+      if (!member || !member.id || !member.role) {
+        return false;
+      }
       if (filterOptions.role !== 'all' && !member.role.toLowerCase().includes(filterOptions.role)) {
         return false;
       }
