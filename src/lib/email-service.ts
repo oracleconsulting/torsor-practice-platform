@@ -117,9 +117,11 @@ export async function sendInvitationEmail(
     <div style="background: #e3f2fd; border-left: 4px solid #2196F3; padding: 20px; margin: 20px 0; border-radius: 5px;">
       <h3 style="color: #1565C0; margin-top: 0; font-size: 18px;">📊 Why We're Doing This</h3>
       <p style="margin: 0; color: #555; font-size: 15px; line-height: 1.8;">
-        This is part of our commitment to invest in your professional development. By understanding your current skills and interests, 
-        we can provide targeted training, mentoring opportunities, and career progression pathways that align with both your aspirations 
-        and our business needs. Your honest self-assessment will help us build a stronger, more capable team together.
+        In line with the changes that have been made throughout the past year to the department, notably the creation of the pod system 
+        and the split of clients into different categories, we are now revisiting our skills matrix. This is to assist with the introduction 
+        of new services that we intend the team to be able to offer clients and by participating in this exercise we will be able to more 
+        closely match each person's skills with the services we wish to deliver. There will be more about this prior to our team event on 
+        29th October but in the meantime thank you for completing this exercise.
       </p>
     </div>
     
@@ -165,6 +167,9 @@ export async function sendInvitationEmail(
 Hi ${name || 'there'},
 
 You've been invited to join the RPGCC BSG Skills Portal.
+
+WHY WE'RE DOING THIS:
+In line with the changes that have been made throughout the past year to the department, notably the creation of the pod system and the split of clients into different categories, we are now revisiting our skills matrix. This is to assist with the introduction of new services that we intend the team to be able to offer clients and by participating in this exercise we will be able to more closely match each person's skills with the services we wish to deliver. There will be more about this prior to our team event on 29th October but in the meantime thank you for completing this exercise.
 
 ${personalMessage ? `\n${personalMessage}\n` : ''}
 
