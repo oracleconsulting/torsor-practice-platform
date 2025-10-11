@@ -95,6 +95,31 @@ const TeamManagementPage: React.FC = () => {
       component: AnalyticsDashboardPage,
       badge: 'NEW',
     },
+    {
+      value: 'onboarding',
+      label: 'ONBOARDING',
+      icon: CheckCircle,
+      component: OnboardingAdminPage,
+      badge: 'NEW',
+    },
+    {
+      value: 'cpd',
+      label: 'CPD TRACKER',
+      icon: Award,
+      component: CPDTrackerPage,
+    },
+    {
+      value: 'kpi',
+      label: 'KPI MANAGEMENT',
+      icon: BarChart2,
+      component: KPIManagementPage,
+    },
+    {
+      value: 'knowledge',
+      label: 'KNOWLEDGE BASE',
+      icon: BookOpen,
+      component: KnowledgeBasePage,
+    },
   ];
 
   return (
