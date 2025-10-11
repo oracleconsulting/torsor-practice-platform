@@ -1,59 +1,67 @@
-v1.1.0-data-migration-fix-2025-10-11-00:00
+v1.1.1-invitation-data-migration-2025-10-11-00:15
 
-✅ MAJOR DATA FLOW FIX DEPLOYED!
+🎯 CORRECT DATA SOURCE IDENTIFIED & MIGRATING!
 
-## Changes in v1.1.0:
+## Changes in v1.1.1:
 
-### Critical Fix: Data Migration
-- ✅ Created migration: `20251011_migrate_survey_to_assessments.sql`
-- ✅ Migrates assessment data from `survey_sessions.survey_data` to `skill_assessments`
-- ✅ Creates `practice_members` records if missing
-- ✅ Links all assessments to correct team members
-- ✅ Handles both camelCase and snake_case field names
-- ✅ Preserves all data: levels, interest, experience, notes
+### Critical Fix: Correct Data Migration
+- ✅ Found assessment data in `invitations.assessment_data` (not `survey_sessions`)
+- ✅ Created migration: `20251011_migrate_invitation_assessments.sql`
+- ✅ Migrating ALL 3 completed assessments:
+  - James Howard: 111 skills
+  - Luke Tyrrell: 111 skills
+  - Jaanu Anandeswaran: 111 skills
+- ✅ Total: ~333 skill assessments
 
-### Root Cause
-- Public assessment submissions saved to `survey_sessions` (temp storage)
-- Advisory Skills page queried `skill_assessments` (permanent storage)
-- Result: 0 assessments found → "No team members found"
+### How We Found It
+- User provided SQL export showing data in `invitations.assessment_data`
+- Data is JSONB array with current_level + interest_level for each skill
+- Previous migration looked in wrong table (`survey_sessions`)
 
 ### Expected Results After Migration
-- ✅ 222 skill assessments (Luke + Jaanu × 111 skills)
-- ✅ 2 team members visible
-- ✅ Skills Matrix shows heatmap
-- ✅ Gap Analysis shows data points
-- ✅ Development Planning shows members
-- ✅ Skills Analysis populates
+- ✅ Skills Matrix: Shows 3 members with colored heatmap
+- ✅ Gap Analysis: Displays scatter plot with priority skills
+- ✅ Development Planning: Member dropdown populated
+- ✅ Skills Analysis: Categories show skill counts
+- ✅ Team Metrics: Real data calculations
+
+### Data Flow
+```
+invitations.assessment_data (JSONB)
+  ↓ MIGRATION ↓
+skill_assessments (normalized table)
+  ├─ team_member_id → practice_members
+  ├─ skill_id → skills
+  ├─ current_level (0-5)
+  ├─ interest_level (0-5)
+  └─ assessed_at (timestamp)
+```
 
 ### Documentation Added
-- `DATA_FLOW_INVESTIGATION.md` - Complete root cause analysis
-- `DATA_FLOW_FIX_APPLIED.md` - Solution and verification steps
-- `CHECK_ASSESSMENT_DATA.sql` - Diagnostic queries
+- `FINAL_DATA_MIGRATION.md` - Complete solution and verification steps
+- `check-data.mjs`, `run-check.mjs`, `check-data-direct.sql` - Diagnostic scripts
 
-### Next Steps
-Once data loads correctly:
-1. Fix Skills Matrix scrolling and layout
-2. Improve Gap Analysis visualization  
-3. Enable Development Planning features
-4. Populate Skills Analysis accordion
-5. Add UI/UX enhancements
+### Verification Steps
+1. Wait 60 seconds for GitHub Actions
+2. Hard refresh Advisory Skills page (⌘+Shift+R)
+3. Check console for `count: 333`
+4. Visual: See 3 member columns with colored cells
 
 ---
 
 ## Previous Versions:
 
+### v1.1.0 (2025-10-11 00:00)
+- Attempted migration from survey_sessions (wrong source)
+- Root cause analysis completed
+
 ### v1.0.9 (2025-10-10 23:45)
 - Added comprehensive debugging logs
-- Fallback query for practice_members
-- Identified root cause: 0 assessments in table
+- Identified: 0 assessments in skill_assessments table
 
 ### v1.0.8 (2025-10-10 23:30)
-- Currency symbol standardization ($ → £)
+- Currency standardization ($ → £)
 - Assessment review contrast enhancement
 
 ### v1.0.7 (2025-10-10 23:25)
-- Fixed React error #310 (misplaced useState hook)
-
-### v1.0.6-v1.0.4
-- Component isolation attempts
-- Auto-migration system implemented
+- Fixed React error #310 (useState after early return)
