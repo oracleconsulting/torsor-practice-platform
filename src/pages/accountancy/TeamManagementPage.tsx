@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Award, BookOpen, TrendingUp, BarChart2, Mail, LayoutDashboard } from 'lucide-react';
+import { Award, BookOpen, TrendingUp, BarChart2, Mail, LayoutDashboard, Target, Users, CheckCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import CPDTrackerPage from './team/CPDTrackerPage';
@@ -8,6 +8,10 @@ import KPIManagementPage from './team/KPIManagementPage';
 import KnowledgeBasePage from './team/KnowledgeBasePage';
 import InvitationsPage from './team/InvitationsPage';
 import AdminDashboardPage from './team/AdminDashboardPage';
+import TrainingRecommendationsPage from './team/TrainingRecommendationsPage';
+import MentoringHubPage from './team/MentoringHubPage';
+import AnalyticsDashboardPage from './team/AnalyticsDashboardPage';
+import OnboardingAdminPage from './team/OnboardingAdminPage';
 
 // Visual Pattern Components
 const DiagonalPattern = () => (
@@ -72,6 +76,34 @@ const TeamManagementPage: React.FC = () => {
       component: AdvisorySkillsPage,
     },
     {
+      value: 'training',
+      label: 'TRAINING',
+      icon: Target,
+      component: TrainingRecommendationsPage,
+      badge: 'NEW',
+    },
+    {
+      value: 'mentoring',
+      label: 'MENTORING',
+      icon: Users,
+      component: MentoringHubPage,
+      badge: 'NEW',
+    },
+    {
+      value: 'analytics',
+      label: 'ANALYTICS',
+      icon: BarChart2,
+      component: AnalyticsDashboardPage,
+      badge: 'NEW',
+    },
+    {
+      value: 'onboarding',
+      label: 'ONBOARDING',
+      icon: CheckCircle,
+      component: OnboardingAdminPage,
+      badge: 'NEW',
+    },
+    {
       value: 'cpd',
       label: 'CPD TRACKER',
       icon: Award,
@@ -116,7 +148,7 @@ const TeamManagementPage: React.FC = () => {
       <div className="relative z-10 container mx-auto px-6 py-12">
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid grid-cols-6 gap-4 bg-[#1a2b4a] p-1 h-auto border-2 border-[#ff6b35]">
+          <TabsList className="grid grid-cols-5 lg:grid-cols-10 gap-2 bg-[#1a2b4a] p-1 h-auto border-2 border-[#ff6b35]">
             {tabs.map((tab) => (
               <TabsTrigger
                 key={tab.value}

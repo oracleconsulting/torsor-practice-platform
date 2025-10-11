@@ -6,6 +6,8 @@ import {
 import { ChevronDownIcon, BeakerIcon, ArchiveBoxIcon, CogIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
 import { useAccountancyContext } from '../../../contexts/AccountancyContext';
 import { useAuth } from '../../../contexts/AuthContext';
+import AISkillsCoach from '../team/AISkillsCoach';
+import { CommandPalette } from '@/components/ui/command-palette';
 
 const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { practice, subscriptionTier } = useAccountancyContext();
@@ -356,6 +358,27 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
           {children}
         </div>
       </main>
+
+      {/* Floating AI Skills Coach */}
+      {user?.id && (
+        <AISkillsCoach
+          memberId={user.id}
+          context={{
+            type: 'general',
+            userData: {
+              memberName: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'there'
+            }
+          }}
+        />
+      )}
+
+      {/* Command Palette (Cmd+K / Ctrl+K) */}
+      <CommandPalette />
+
+      {/* Keyboard Shortcut Hint */}
+      <div className="fixed bottom-4 left-4 bg-gray-800 text-gray-400 px-3 py-2 rounded-lg text-sm hidden lg:block z-40 border border-gray-700">
+        Press <kbd className="px-2 py-1 bg-gray-700 rounded text-white border border-gray-600">⌘K</kbd> for commands
+      </div>
     </div>
   );
 };

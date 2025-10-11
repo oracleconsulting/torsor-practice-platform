@@ -12,6 +12,11 @@ import {
   Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import QuickActions from './QuickActions';
+import LeaderboardWidget from './LeaderboardWidget';
+import ProgressStreaks from './ProgressStreaks';
+import { useAuth } from '@/contexts/AuthContext';
+import { useAccountancyContext } from '@/contexts/AccountancyContext';
 
 interface TeamMember {
   id: string;
@@ -37,6 +42,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
   skillCategories,
   onNavigate 
 }) => {
+  const { user } = useAuth();
+  const { practice } = useAccountancyContext();
+  const currentUserId = user?.id || '';
+  const currentPracticeId = practice?.id || '';
+
   // Calculate key metrics
   const metrics = useMemo(() => {
     const totalSkills = skillCategories.flatMap(cat => cat.skills).length;
@@ -168,6 +178,9 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         </Card>
       </div>
 
+      {/* NEW: Quick Actions to All Features */}
+      <QuickActions />
+
       {/* Quick Actions */}
       <Card>
         <CardHeader>
@@ -192,8 +205,25 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         </CardContent>
       </Card>
 
-      {/* Top Performers & Insights */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Gamification & Insights Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Progress Streaks */}
+        {currentUserId && currentPracticeId && (
+          <ProgressStreaks 
+            memberId={currentUserId} 
+            practiceId={currentPracticeId}
+          />
+        )}
+
+        {/* Leaderboard */}
+        {currentPracticeId && (
+          <LeaderboardWidget 
+            practiceId={currentPracticeId}
+            leaderboardType="top_points"
+          />
+        )}
+
+        {/* Top Performers */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -223,7 +253,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
             </div>
           </CardContent>
         </Card>
+      </div>
 
+      {/* Next Steps */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Next Steps</CardTitle>

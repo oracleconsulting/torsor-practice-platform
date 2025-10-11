@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useNavigate } from 'react-router-dom';
 import { 
   BarChart3,
   Download,
@@ -101,6 +102,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
   priorityAlgorithm
 }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [minGapThreshold, setMinGapThreshold] = useState<number>(1);
   const [sortBy, setSortBy] = useState<string>('priority');
@@ -1024,6 +1026,28 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
           </CardContent>
         </Card>
       </div>
+
+      {/* AI-Powered Recommendations CTA */}
+      <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-700">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Sparkles className="w-5 h-5" />
+            AI-Powered Training Recommendations
+          </CardTitle>
+          <CardDescription className="text-gray-300">
+            Get personalized training recommendations based on your skill gaps, interests, and learning style
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button 
+            onClick={() => navigate('/accountancy/team-portal/training-recommendations')}
+            className="w-full bg-purple-600 hover:bg-purple-700"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            Generate AI Recommendations
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 };
