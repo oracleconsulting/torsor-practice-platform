@@ -1,12 +1,55 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import TrainingRecommendationCards from '@/components/accountancy/team/TrainingRecommendationCards';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Target, TrendingUp, ArrowLeft } from 'lucide-react';
+import { Target, TrendingUp, ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { generateRecommendations } from '@/services/ai/trainingRecommendations';
+import type { TrainingRecommendation, GroupTrainingOpportunity } from '@/services/ai/trainingRecommendations';
 
 const TrainingRecommendationsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [recommendations, setRecommendations] = useState<{
+    topRecommendations: TrainingRecommendation[];
+    quickWins: TrainingRecommendation[];
+    strategicInvestments: TrainingRecommendation[];
+    groupOpportunities: GroupTrainingOpportunity[];
+  }>({
+    topRecommendations: [],
+    quickWins: [],
+    strategicInvestments: [],
+    groupOpportunities: []
+  });
+
+  useEffect(() => {
+    loadRecommendations();
+  }, []);
+
+  const loadRecommendations = async () => {
+    if (!user?.id) {
+      setError('User not authenticated');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Generate recommendations (this will analyze user's skills and gaps)
+      const data = await generateRecommendations(user.id);
+      setRecommendations(data);
+    } catch (err) {
+      console.error('Error loading recommendations:', err);
+      setError('Failed to load training recommendations. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 p-6">
@@ -55,8 +98,53 @@ const TrainingRecommendationsPage: React.FC = () => {
           </CardContent>
         </Card>
 
+        {/* Loading State */}
+        {loading && (
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="p-12">
+              <div className="flex flex-col items-center justify-center text-center">
+                <Loader2 className="w-12 h-12 text-purple-500 animate-spin mb-4" />
+                <p className="text-white font-medium">Generating personalized recommendations...</p>
+                <p className="text-gray-400 text-sm mt-2">Analyzing your skills, gaps, and learning style</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Error State */}
+        {error && !loading && (
+          <Card className="bg-red-900/20 border-red-700">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-white font-medium mb-2">Error Loading Recommendations</p>
+                  <p className="text-gray-300 text-sm">{error}</p>
+                  <Button 
+                    onClick={loadRecommendations}
+                    className="mt-4 bg-red-600 hover:bg-red-700"
+                  >
+                    Try Again
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Recommendations */}
-        <TrainingRecommendationCards />
+        {!loading && !error && (
+          <TrainingRecommendationCards
+            topRecommendations={recommendations.topRecommendations}
+            quickWins={recommendations.quickWins}
+            strategicInvestments={recommendations.strategicInvestments}
+            groupOpportunities={recommendations.groupOpportunities}
+            onGenerateLearningPath={() => {
+              // TODO: Implement 6-month learning path generation
+              console.log('Generate learning path');
+            }}
+          />
+        )}
       </div>
     </div>
   );
