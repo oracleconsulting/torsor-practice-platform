@@ -80,7 +80,20 @@ module.exports = {
           '3': tailwindConfig.colors.primary.gold,
           '4': tailwindConfig.colors.semantic.success,
           '5': '#8B5CF6',
-        }
+        },
+        // Skill Levels
+        'skill-0': '#6b7280',
+        'skill-1': '#ef4444',
+        'skill-2': '#f97316',
+        'skill-3': '#eab308',
+        'skill-4': '#10b981',
+        'skill-5': '#3b82f6',
+        // Badge Rarities
+        'badge-common': '#9ca3af',
+        'badge-uncommon': '#10b981',
+        'badge-rare': '#3b82f6',
+        'badge-epic': '#a855f7',
+        'badge-legendary': '#fbbf24',
       },
       fontFamily: tailwindConfig.fontFamily,
       fontSize: tailwindConfig.fontSize,
@@ -105,10 +118,18 @@ module.exports = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: 0 },
         },
+        glow: {
+          '0%, 100%': { boxShadow: '0 0 20px var(--badge-legendary)' },
+          '50%': { boxShadow: '0 0 40px var(--badge-legendary)' },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        'spin-slow': 'spin 3s linear infinite',
+        'bounce-slow': 'bounce 3s infinite',
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'glow': 'glow 2s ease-in-out infinite',
         ...tailwindConfig.animation,
       },
     }

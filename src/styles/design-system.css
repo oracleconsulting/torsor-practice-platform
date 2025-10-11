@@ -1,0 +1,246 @@
+/* TORSOR Skills Portal Design System */
+:root {
+  /* === COLOR PALETTE === */
+  
+  /* Primary Colors */
+  --primary-purple: #8b5cf6;
+  --primary-blue: #3b82f6;
+  --primary-green: #10b981;
+  
+  /* Status Colors */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+  
+  /* Skill Level Colors */
+  --skill-level-0: #6b7280; /* None */
+  --skill-level-1: #ef4444; /* Beginner */
+  --skill-level-2: #f97316; /* Intermediate */
+  --skill-level-3: #eab308; /* Proficient */
+  --skill-level-4: #10b981; /* Advanced */
+  --skill-level-5: #3b82f6; /* Expert */
+  
+  /* Gamification Badge Rarity */
+  --badge-common: #9ca3af;
+  --badge-uncommon: #10b981;
+  --badge-rare: #3b82f6;
+  --badge-epic: #a855f7;
+  --badge-legendary: #fbbf24;
+  
+  /* Dark Theme Grays */
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+  
+  /* === TYPOGRAPHY === */
+  
+  /* Font Families */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Fira Code', 'Courier New', monospace;
+  
+  /* Font Sizes */
+  --text-xs: 0.75rem;    /* 12px */
+  --text-sm: 0.875rem;   /* 14px */
+  --text-base: 1rem;     /* 16px */
+  --text-lg: 1.125rem;   /* 18px */
+  --text-xl: 1.25rem;    /* 20px */
+  --text-2xl: 1.5rem;    /* 24px */
+  --text-3xl: 1.875rem;  /* 30px */
+  --text-4xl: 2.25rem;   /* 36px */
+  
+  /* Font Weights */
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  
+  /* Line Heights */
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75;
+  
+  /* === SPACING === */
+  
+  /* Base unit: 4px */
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-12: 3rem;     /* 48px */
+  --space-16: 4rem;     /* 64px */
+  --space-20: 5rem;     /* 80px */
+  
+  /* === BORDER RADIUS === */
+  
+  --radius-sm: 0.25rem;   /* 4px */
+  --radius-md: 0.375rem;  /* 6px */
+  --radius-lg: 0.5rem;    /* 8px */
+  --radius-xl: 0.75rem;   /* 12px */
+  --radius-2xl: 1rem;     /* 16px */
+  --radius-full: 9999px;
+  
+  /* === SHADOWS === */
+  
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  
+  /* === TRANSITIONS === */
+  
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* === Z-INDEX === */
+  
+  --z-base: 0;
+  --z-dropdown: 10;
+  --z-sticky: 20;
+  --z-fixed: 30;
+  --z-modal-backdrop: 40;
+  --z-modal: 50;
+  --z-popover: 60;
+  --z-tooltip: 70;
+  --z-notification: 80;
+}
+
+/* === UTILITY CLASSES === */
+
+/* Skill Level Badges */
+.skill-level-0 { 
+  background-color: var(--skill-level-0); 
+  color: white; 
+}
+.skill-level-1 { 
+  background-color: var(--skill-level-1); 
+  color: white; 
+}
+.skill-level-2 { 
+  background-color: var(--skill-level-2); 
+  color: white; 
+}
+.skill-level-3 { 
+  background-color: var(--skill-level-3); 
+  color: white; 
+}
+.skill-level-4 { 
+  background-color: var(--skill-level-4); 
+  color: white; 
+}
+.skill-level-5 { 
+  background-color: var(--skill-level-5); 
+  color: white; 
+}
+
+/* Badge Rarity Classes */
+.badge-common { 
+  background: linear-gradient(135deg, var(--badge-common), #6b7280);
+  border: 2px solid var(--badge-common);
+}
+.badge-uncommon { 
+  background: linear-gradient(135deg, var(--badge-uncommon), #059669);
+  border: 2px solid var(--badge-uncommon);
+}
+.badge-rare { 
+  background: linear-gradient(135deg, var(--badge-rare), #2563eb);
+  border: 2px solid var(--badge-rare);
+}
+.badge-epic { 
+  background: linear-gradient(135deg, var(--badge-epic), #9333ea);
+  border: 2px solid var(--badge-epic);
+}
+.badge-legendary { 
+  background: linear-gradient(135deg, var(--badge-legendary), #f59e0b);
+  border: 2px solid var(--badge-legendary);
+  animation: glow 2s ease-in-out infinite;
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 20px var(--badge-legendary); }
+  50% { box-shadow: 0 0 40px var(--badge-legendary); }
+}
+
+/* Transition Classes */
+.transition-fast { transition: all var(--transition-fast); }
+.transition-base { transition: all var(--transition-base); }
+.transition-slow { transition: all var(--transition-slow); }
+
+/* Hover Effects */
+.hover-lift {
+  transition: transform var(--transition-base);
+}
+.hover-lift:hover {
+  transform: translateY(-4px);
+}
+
+.hover-scale {
+  transition: transform var(--transition-fast);
+}
+.hover-scale:hover {
+  transform: scale(1.05);
+}
+
+/* Glass Morphism */
+.glass {
+  background: rgba(31, 41, 55, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Gradient Backgrounds */
+.gradient-purple {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+}
+
+.gradient-blue {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+}
+
+.gradient-green {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+/* Focus Styles (Accessibility) */
+.focus-ring {
+  outline: 2px solid var(--primary-blue);
+  outline-offset: 2px;
+}
+
+/* Loading Spinner */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+  border: 2px solid var(--gray-700);
+  border-top-color: var(--primary-purple);
+  border-radius: 50%;
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+/* Pulse Animation */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
