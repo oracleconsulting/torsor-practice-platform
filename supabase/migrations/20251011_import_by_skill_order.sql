@@ -23,16 +23,16 @@ assessment_items AS (
     inv.email,
     inv.accepted_at,
     pm.id as member_id,
-    (skill_item->>'current_level')::int as current_level,
-    COALESCE((skill_item->>'interest_level')::int, 3) as interest_level,
-    skill_item->>'notes' as notes,
-    ROW_NUMBER() OVER (PARTITION BY inv.email ORDER BY ordinality) as item_position
+    (element.value->>'current_level')::int as current_level,
+    COALESCE((element.value->>'interest_level')::int, 3) as interest_level,
+    element.value->>'notes' as notes,
+    element.ordinality as item_position
   FROM invitations inv
-  CROSS JOIN LATERAL jsonb_array_elements(inv.assessment_data) WITH ORDINALITY as skill_item(val, ordinality)
+  CROSS JOIN LATERAL jsonb_array_elements(inv.assessment_data) WITH ORDINALITY as element(value, ordinality)
   JOIN practice_members pm ON pm.email = inv.email
   WHERE inv.assessment_data IS NOT NULL
     AND jsonb_array_length(inv.assessment_data) > 0
-    AND skill_item.val ? 'current_level'
+    AND element.value ? 'current_level'
 )
 -- Insert matching by position
 INSERT INTO skill_assessments (
