@@ -20,6 +20,7 @@ import SkillsAssessment from '@/components/accountancy/team/SkillsAssessment';
 import GapAnalysis from '@/components/accountancy/team/GapAnalysis';
 import DevelopmentPlanning from '@/components/accountancy/team/DevelopmentPlanning';
 import TeamMetrics from '@/components/accountancy/team/TeamMetrics';
+import SkillsAnalysis from '@/components/accountancy/team/SkillsAnalysis';
 
 // Import new Overview tab
 import OverviewTab from '@/components/accountancy/team/OverviewTab';
@@ -65,7 +66,7 @@ interface TeamMember {
 const AdvisorySkillsPage: React.FC = () => {
   const { toast } = useToast();
   
-  console.log('[AdvisorySkillsPage v1.0.9] DEVELOPMENT PLANNING CONTRAST FIXED');
+  console.log('[AdvisorySkillsPage v1.0.10] SKILLS ANALYSIS FEATURE LIVE!');
   
   // State
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -324,10 +325,10 @@ const AdvisorySkillsPage: React.FC = () => {
       
       case 'skills-analysis':
         return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Skills Analysis</h2>
-            <p className="text-gray-600">Coming soon - advanced skills analysis features</p>
-          </div>
+          <SkillsAnalysis
+            teamMembers={teamMembers}
+            skillCategories={skillCategories}
+          />
         );
       
       case 'metrics':
