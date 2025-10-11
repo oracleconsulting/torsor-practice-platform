@@ -66,6 +66,8 @@ interface TeamMember {
 const AdvisorySkillsPage: React.FC = () => {
   const { toast } = useToast();
   
+  console.log('[AdvisorySkillsPage v1.0.4] NEW REDESIGNED UI LOADED - Sidebar should be visible');
+  
   // State
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [skillCategories, setSkillCategories] = useState<SkillCategory[]>([]);
