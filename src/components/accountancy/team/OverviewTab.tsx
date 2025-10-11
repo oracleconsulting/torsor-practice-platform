@@ -118,11 +118,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-black text-sm font-semibold">Team Capability</p>
-                <p className="text-3xl font-bold mt-1 text-black">{metrics.teamCapability}%</p>
-                <p className="text-black text-xs mt-1 font-medium">Avg level: {metrics.avgSkillLevel}/5</p>
+                <p className="text-sm font-semibold" style={{ color: '#000000' }}>Team Capability</p>
+                <p className="text-3xl font-bold mt-1" style={{ color: '#000000' }}>{metrics.teamCapability}%</p>
+                <p className="text-xs mt-1 font-medium" style={{ color: '#000000' }}>Avg level: {metrics.avgSkillLevel}/5</p>
               </div>
-              <TrendingUp className="w-12 h-12 text-black opacity-20" />
+              <TrendingUp className="w-12 h-12" style={{ color: '#000000', opacity: 0.2 }} />
             </div>
             <Progress value={metrics.teamCapability} className="mt-4 bg-blue-400" />
           </CardContent>
@@ -132,11 +132,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-black text-sm font-semibold">Critical Gaps</p>
-                <p className="text-3xl font-bold mt-1 text-black">{metrics.criticalGaps}</p>
-                <p className="text-black text-xs mt-1 font-medium">Need attention</p>
+                <p className="text-sm font-semibold" style={{ color: '#000000' }}>Critical Gaps</p>
+                <p className="text-3xl font-bold mt-1" style={{ color: '#000000' }}>{metrics.criticalGaps}</p>
+                <p className="text-xs mt-1 font-medium" style={{ color: '#000000' }}>Need attention</p>
               </div>
-              <AlertTriangle className="w-12 h-12 text-black opacity-20" />
+              <AlertTriangle className="w-12 h-12" style={{ color: '#000000', opacity: 0.2 }} />
             </div>
           </CardContent>
         </Card>
@@ -145,11 +145,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-black text-sm font-semibold">High Interest</p>
-                <p className="text-3xl font-bold mt-1 text-black">{metrics.highInterest}</p>
-                <p className="text-black text-xs mt-1 font-medium">Skills to develop</p>
+                <p className="text-sm font-semibold" style={{ color: '#000000' }}>High Interest</p>
+                <p className="text-3xl font-bold mt-1" style={{ color: '#000000' }}>{metrics.highInterest}</p>
+                <p className="text-xs mt-1 font-medium" style={{ color: '#000000' }}>Skills to develop</p>
               </div>
-              <Sparkles className="w-12 h-12 text-black opacity-20" />
+              <Sparkles className="w-12 h-12" style={{ color: '#000000', opacity: 0.2 }} />
             </div>
           </CardContent>
         </Card>
@@ -158,11 +158,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-black text-sm font-semibold">Team Members</p>
-                <p className="text-3xl font-bold mt-1 text-black">{metrics.totalMembers}</p>
-                <p className="text-black text-xs mt-1 font-medium">{metrics.totalAssessments} assessments</p>
+                <p className="text-sm font-semibold" style={{ color: '#000000' }}>Team Members</p>
+                <p className="text-3xl font-bold mt-1" style={{ color: '#000000' }}>{metrics.totalMembers}</p>
+                <p className="text-xs mt-1 font-medium" style={{ color: '#000000' }}>{metrics.totalAssessments} assessments</p>
               </div>
-              <Users className="w-12 h-12 text-black opacity-20" />
+              <Users className="w-12 h-12" style={{ color: '#000000', opacity: 0.2 }} />
             </div>
           </CardContent>
         </Card>

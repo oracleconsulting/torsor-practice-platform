@@ -65,7 +65,7 @@ interface TeamMember {
 const AdvisorySkillsPage: React.FC = () => {
   const { toast } = useToast();
   
-  console.log('[AdvisorySkillsPage v1.0.6] ALL BLACK TEXT + ADMIN EDITING + IMPROVED GAP ANALYSIS');
+  console.log('[AdvisorySkillsPage v1.0.7] FORCE BLACK TEXT + AUTH FIX');
   
   // State
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);

@@ -297,11 +297,11 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-blue-500" />
-                <p className="text-sm text-muted-foreground">Team Capability Score</p>
+                <p className="text-sm" style={{ color: '#000000' }}>Team Capability Score</p>
               </div>
               <Badge variant="outline" className="text-xs">+5%</Badge>
             </div>
-            <p className="text-2xl font-bold text-card-foreground">{teamMetrics.capabilityScore}</p>
+            <p className="text-2xl font-bold" style={{ color: '#000000' }}>{teamMetrics.capabilityScore}</p>
             <div className="w-full bg-muted rounded-full h-2 mt-2">
               <div 
                 className="bg-primary h-2 rounded-full transition-all"
@@ -549,12 +549,12 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <Target className="w-5 h-5 text-red-500" />
-                  <p className="text-sm text-muted-foreground">Critical Gaps</p>
+                  <p className="text-sm" style={{ color: '#000000' }}>Critical Gaps</p>
                 </div>
                 <Badge variant="outline" className="text-xs text-green-600">-12%</Badge>
               </div>
-              <p className="text-2xl font-bold text-card-foreground">{teamMetrics.criticalGaps}</p>
-              <p className="text-xs text-muted-foreground mt-2">
+              <p className="text-2xl font-bold" style={{ color: '#000000' }}>{teamMetrics.criticalGaps}</p>
+              <p className="text-xs mt-2" style={{ color: '#000000' }}>
                 Skills where current level is 2+ levels below required. Priority for training.
               </p>
             </CardContent>
@@ -565,12 +565,12 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <Award className="w-5 h-5 text-blue-500" />
-                  <p className="text-sm text-muted-foreground">High Interest Areas</p>
+                  <p className="text-sm" style={{ color: '#000000' }}>High Interest Areas</p>
                 </div>
                 <Badge variant="outline" className="text-xs">+8%</Badge>
               </div>
-              <p className="text-2xl font-bold text-card-foreground">{teamMetrics.highInterestCount}</p>
-              <p className="text-xs text-muted-foreground mt-2">
+              <p className="text-2xl font-bold" style={{ color: '#000000' }}>{teamMetrics.highInterestCount}</p>
+              <p className="text-xs mt-2" style={{ color: '#000000' }}>
                 Skills with interest level 4-5. Team members eager to develop these.
               </p>
             </CardContent>

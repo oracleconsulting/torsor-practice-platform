@@ -210,12 +210,11 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
 
       toast({
         title: 'Score Updated',
-        description: `${editingCell.skill.name} updated to ${newLevel}/5 for ${editingCell.member.name}`,
+        description: `${editingCell.skill.name} updated to ${newLevel}/5 for ${editingCell.member.name}. Refresh the page to see changes.`,
       });
 
       setEditDialogOpen(false);
-      // Reload the page to refresh data
-      window.location.reload();
+      // Don't reload - just close dialog. User can manually refresh if needed.
     } catch (error) {
       console.error('Error saving score:', error);
       toast({
@@ -632,69 +631,69 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
           </div>
 
           {/* Legend - Enhanced with descriptions */}
-          <div className="mt-6 p-4 bg-gray-700/30 rounded-lg border border-gray-600">
-            <h4 className="text-sm font-semibold text-white mb-3">Color Guide</h4>
+          <div className="mt-6 p-4 bg-gray-200 rounded-lg border border-gray-400">
+            <h4 className="text-sm font-semibold mb-3" style={{ color: '#000000' }}>Color Guide</h4>
             <div className="space-y-3">
               <div>
-                <p className="text-xs text-gray-400 mb-2 font-medium">Skill Levels (1-5):</p>
+                <p className="text-xs mb-2 font-medium" style={{ color: '#000000' }}>Skill Levels (1-5):</p>
                 <div className="flex items-center gap-4 flex-wrap">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded bg-slate-800 border border-gray-600"></div>
-                    <span className="text-xs text-gray-300">0 - No Experience</span>
+                    <span className="text-xs" style={{ color: '#000000' }}>0 - No Experience</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded bg-red-500"></div>
-                    <span className="text-xs text-gray-300">1 - Beginner</span>
+                    <span className="text-xs" style={{ color: '#000000' }}>1 - Beginner</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded bg-red-400"></div>
-                    <span className="text-xs text-gray-300">2 - Basic</span>
+                    <span className="text-xs" style={{ color: '#000000' }}>2 - Basic</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded bg-amber-500"></div>
-                    <span className="text-xs text-gray-300">3 - Competent</span>
+                    <span className="text-xs" style={{ color: '#000000' }}>3 - Competent</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded bg-emerald-500"></div>
-                    <span className="text-xs text-gray-300">4 - Proficient</span>
+                    <span className="text-xs" style={{ color: '#000000' }}>4 - Proficient</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded bg-emerald-400"></div>
-                    <span className="text-xs text-gray-300">5 - Expert</span>
+                    <span className="text-xs" style={{ color: '#000000' }}>5 - Expert</span>
                   </div>
                 </div>
               </div>
               {showInterestLevels && (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Interest Level:</span>
+                  <span className="text-sm" style={{ color: '#000000' }}>Interest Level:</span>
                   <div className="flex items-center gap-1">
                     <div className="w-4 h-4 rounded border-2 border-cyan-500 ring-2 ring-cyan-500/50"></div>
-                    <span className="text-xs text-muted-foreground/70">High (4-5)</span>
+                    <span className="text-xs" style={{ color: '#000000' }}>High (4-5)</span>
                     <div className="w-4 h-4 rounded border-2 border-cyan-400 ring-2 ring-cyan-400/50"></div>
-                    <span className="text-xs text-muted-foreground/70">Medium (3)</span>
+                    <span className="text-xs" style={{ color: '#000000' }}>Medium (3)</span>
                     <div className="w-4 h-4 rounded border border-cyan-300"></div>
-                    <span className="text-xs text-muted-foreground/70">Low (2)</span>
+                    <span className="text-xs" style={{ color: '#000000' }}>Low (2)</span>
                     <div className="w-4 h-4 rounded border border-dashed border-cyan-200"></div>
-                    <span className="text-xs text-muted-foreground/70">Minimal (1)</span>
+                    <span className="text-xs" style={{ color: '#000000' }}>Minimal (1)</span>
                   </div>
                 </div>
               )}
               {showInterestLevels && (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Interest Bar:</span>
+                  <span className="text-sm" style={{ color: '#000000' }}>Interest Bar:</span>
                   <div className="flex items-center gap-1">
                     <div className="w-8 h-1 bg-slate-800 rounded-full overflow-hidden">
                       <div className="w-full h-full bg-cyan-400"></div>
                     </div>
-                    <span className="text-xs text-muted-foreground/70">Full interest</span>
+                    <span className="text-xs" style={{ color: '#000000' }}>Full interest</span>
                     <div className="w-8 h-1 bg-slate-800 rounded-full overflow-hidden">
                       <div className="w-3/5 h-full bg-cyan-400"></div>
                     </div>
-                    <span className="text-xs text-muted-foreground/70">3/5 interest</span>
+                    <span className="text-xs" style={{ color: '#000000' }}>3/5 interest</span>
                     <div className="w-8 h-1 bg-slate-800 rounded-full overflow-hidden">
                       <div className="w-1/5 h-full bg-cyan-400"></div>
                     </div>
-                    <span className="text-xs text-muted-foreground/70">1/5 interest</span>
+                    <span className="text-xs" style={{ color: '#000000' }}>1/5 interest</span>
                   </div>
                 </div>
               )}
