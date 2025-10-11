@@ -8,7 +8,8 @@ import { useNavigate } from 'react-router-dom';
 import { 
   BarChart3,
   Download,
-  Sparkles
+  Sparkles,
+  Lightbulb
 } from 'lucide-react';
 import TrainingRecommendationCards from './TrainingRecommendationCards';
 import { getTrainingRecommendations, getGroupTrainingOpportunities, createLearningPath } from '@/lib/api/training-recommendations';
