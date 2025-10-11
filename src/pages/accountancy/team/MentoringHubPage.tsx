@@ -27,27 +27,27 @@ const MentoringHubPage: React.FC = () => {
 
     setLoading(true);
     try {
-      // Load team members with skills and learning preferences
+      // Load team members - simple query without auth.users join
       const { data: members, error: membersError } = await supabase
         .from('practice_members')
-        .select(`
-          *,
-          user:auth.users(email)
-        `);
+        .select('*');
 
       if (membersError) {
         console.error('Error loading members:', membersError);
         setTeamMembers([]);
+        setLoading(false);
         return;
       }
 
-      // Load skills for each member
+      // Load skills assessments instead of team_member_skills
       const { data: skillsData } = await supabase
-        .from('team_member_skills')
-        .select(`
-          *,
-          skill:skills(*)
-        `);
+        .from('skill_assessments')
+        .select('*');
+
+      // Load skills reference
+      const { data: skillsRef } = await supabase
+        .from('skills')
+        .select('*');
 
       // Load learning preferences
       const { data: learningPrefs } = await supabase
@@ -57,22 +57,25 @@ const MentoringHubPage: React.FC = () => {
       // Transform data to match interface
       const transformedMembers: TeamMemberForMatching[] = (members || []).map(member => {
         const memberSkills = (skillsData || [])
-          .filter((s: any) => s.member_id === member.id)
-          .map((s: any) => ({
-            skillId: s.skill_id,
-            skillName: s.skill?.name || 'Unknown',
-            category: s.skill?.category || 'General',
-            currentLevel: s.current_level,
-            targetLevel: s.target_level,
-            interestLevel: s.interest_level
-          }));
+          .filter((s: any) => s.team_member_id === member.id)
+          .map((s: any) => {
+            const skillInfo = skillsRef?.find((sr: any) => sr.id === s.skill_id);
+            return {
+              skillId: s.skill_id,
+              skillName: skillInfo?.name || 'Unknown',
+              category: skillInfo?.category || 'General',
+              currentLevel: s.current_level,
+              targetLevel: Math.min(s.current_level + 1, 5),
+              interestLevel: s.interest_level || 3
+            };
+          });
 
         const learningPref = learningPrefs?.find((lp: any) => lp.user_id === member.user_id);
 
         return {
           id: member.id,
           name: member.name,
-          email: member.user?.email || '',
+          email: member.email || '',
           role: member.role || 'Team Member',
           department: member.department || 'General',
           skills: memberSkills,
