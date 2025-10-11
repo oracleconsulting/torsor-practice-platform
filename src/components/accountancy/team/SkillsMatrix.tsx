@@ -5,7 +5,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Toggle } from '@/components/ui/toggle';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Download, 
   Eye, 
@@ -13,7 +17,8 @@ import {
   AlertTriangle,
   CheckCircle,
   Target,
-  ChevronDown
+  Edit,
+  Save
 } from 'lucide-react';
 
 interface Skill {
@@ -77,11 +82,19 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
   onSelectMember,
   filterOptions
 }) => {
+  const { toast } = useToast();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
   const [showInterestLevels, setShowInterestLevels] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<string>('name');
   const [viewMode, setViewMode] = useState<'heatmap' | 'table'>('heatmap');
+  
+  // Admin editing state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingCell, setEditingCell] = useState<MatrixCell | null>(null);
+  const [newLevel, setNewLevel] = useState<number>(0);
+  const [editNotes, setEditNotes] = useState<string>('');
+  const [saving, setSaving] = useState(false);
 
   // Filter and prepare data
   const matrixData = useMemo(() => {
@@ -146,6 +159,74 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
       priorityScore: priorityScore.toFixed(0)
     };
   }, [matrixData, skillCategories]);
+
+  // Admin edit functions
+  const handleCellClick = (cell: MatrixCell) => {
+    setEditingCell(cell);
+    setNewLevel(cell.assessment?.currentLevel || 0);
+    setEditNotes(cell.assessment?.notes || '');
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingCell) return;
+
+    setSaving(true);
+    try {
+      const { supabase } = await import('@/lib/supabase/client');
+
+      if (editingCell.assessment) {
+        // Update existing assessment
+        const updateData = {
+          current_level: newLevel,
+          notes: editNotes,
+          assessed_at: new Date().toISOString()
+        };
+        // @ts-expect-error - Supabase types not properly generated
+        const { error } = await supabase
+          .from('skill_assessments')
+          .update(updateData)
+          .eq('team_member_id', editingCell.member.id)
+          .eq('skill_id', editingCell.skill.id);
+
+        if (error) throw error;
+      } else {
+        // Create new assessment
+        const insertData = {
+          team_member_id: editingCell.member.id,
+          skill_id: editingCell.skill.id,
+          current_level: newLevel,
+          interest_level: 3, // Default interest
+          notes: editNotes,
+          assessed_at: new Date().toISOString()
+        };
+        // @ts-expect-error - Supabase types not properly generated
+        const { error } = await supabase
+          .from('skill_assessments')
+          .insert(insertData);
+
+        if (error) throw error;
+      }
+
+      toast({
+        title: 'Score Updated',
+        description: `${editingCell.skill.name} updated to ${newLevel}/5 for ${editingCell.member.name}`,
+      });
+
+      setEditDialogOpen(false);
+      // Reload the page to refresh data
+      window.location.reload();
+    } catch (error) {
+      console.error('Error saving score:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update score. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Color scale for skill levels - London Skyline theme
   const getSkillLevelColor = (level: number): string => {
@@ -321,10 +402,12 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
                       <td key={`${member.id}-${skill.id}`} className="p-3">
                         <div className="flex justify-center">
                           <div 
-                            className={`w-12 h-12 rounded-lg flex items-center justify-center text-white text-base font-bold shadow-md transition-transform hover:scale-110 ${getSkillLevelColor(cell.assessment?.currentLevel || 0)} ${getInterestIndicator(cell.interestLevel)}`}
-                            title={`${skill.name}\nCurrent: ${cell.assessment?.currentLevel || 0}/5\nRequired: ${skill.requiredLevel}/5\nGap: ${cell.gap}${showInterestLevels ? `\nInterest: ${cell.interestLevel}/5` : ''}`}
+                            onClick={() => handleCellClick(cell)}
+                            className={`w-12 h-12 rounded-lg flex items-center justify-center text-white text-base font-bold shadow-md transition-all hover:scale-110 cursor-pointer relative group ${getSkillLevelColor(cell.assessment?.currentLevel || 0)} ${getInterestIndicator(cell.interestLevel)}`}
+                            title={`Click to edit\n${skill.name}\nCurrent: ${cell.assessment?.currentLevel || 0}/5\nRequired: ${skill.requiredLevel}/5\nGap: ${cell.gap}${showInterestLevels ? `\nInterest: ${cell.interestLevel}/5` : ''}`}
                           >
                             {cell.assessment?.currentLevel || 0}
+                            <Edit className="w-3 h-3 absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity" />
                           </div>
                         </div>
                       </td>
@@ -518,10 +601,15 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
                         <div className="relative">
                           {/* Main skill level box */}
                           <div 
-                            className={`w-12 h-12 rounded-lg flex items-center justify-center text-white text-sm font-bold shadow-lg transition-all duration-200 hover:scale-110 ${getSkillLevelColor(cell.assessment?.currentLevel || 0)} ${getInterestIndicator(cell.interestLevel)}`}
-                            title={`${skill.name} - Current: ${cell.assessment?.currentLevel || 0}/5, Required: ${skill.requiredLevel}/5, Gap: ${cell.gap}${showInterestLevels ? `, Interest: ${cell.interestLevel}/5` : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent row click
+                              handleCellClick(cell);
+                            }}
+                            className={`w-12 h-12 rounded-lg flex items-center justify-center text-white text-sm font-bold shadow-lg transition-all duration-200 hover:scale-110 cursor-pointer relative group ${getSkillLevelColor(cell.assessment?.currentLevel || 0)} ${getInterestIndicator(cell.interestLevel)}`}
+                            title={`Click to edit\n${skill.name} - Current: ${cell.assessment?.currentLevel || 0}/5, Required: ${skill.requiredLevel}/5, Gap: ${cell.gap}${showInterestLevels ? `, Interest: ${cell.interestLevel}/5` : ''}`}
                           >
                             {cell.assessment?.currentLevel || 0}
+                            <Edit className="w-3 h-3 absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity" />
                           </div>
                           
                           {/* Interest level bar chart */}
@@ -639,6 +727,114 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
           icon={<CheckCircle className="w-5 h-5" />}
         />
       </div>
+
+      {/* Admin Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="w-5 h-5" />
+              Edit Skill Score
+            </DialogTitle>
+            <DialogDescription>
+              Adjust the skill level for benchmarking and scaling purposes.
+              Changes will be saved to the database.
+            </DialogDescription>
+          </DialogHeader>
+
+          {editingCell && (
+            <div className="space-y-4 py-4">
+              {/* Member & Skill Info */}
+              <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-lg space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm font-semibold">Team Member:</span>
+                  <span className="text-sm">{editingCell.member.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm font-semibold">Skill:</span>
+                  <span className="text-sm">{editingCell.skill.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm font-semibold">Current Level:</span>
+                  <span className="text-sm">{editingCell.assessment?.currentLevel || 0}/5</span>
+                </div>
+              </div>
+
+              {/* New Level Input */}
+              <div className="space-y-2">
+                <Label htmlFor="newLevel">New Skill Level (0-5)</Label>
+                <div className="flex items-center gap-4">
+                  <Input
+                    id="newLevel"
+                    type="number"
+                    min="0"
+                    max="5"
+                    value={newLevel}
+                    onChange={(e) => setNewLevel(Math.min(5, Math.max(0, parseInt(e.target.value) || 0)))}
+                    className="w-24 text-lg font-bold text-center"
+                  />
+                  <div className="flex gap-1">
+                    {[0, 1, 2, 3, 4, 5].map((level) => (
+                      <Button
+                        key={level}
+                        variant={newLevel === level ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setNewLevel(level)}
+                        className="w-10"
+                      >
+                        {level}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-2">
+                <Label htmlFor="editNotes">Notes (Optional)</Label>
+                <Textarea
+                  id="editNotes"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="Add context for this adjustment (e.g., external certification, recent project work)"
+                  rows={3}
+                />
+              </div>
+
+              {/* Visual Preview */}
+              <div className="flex items-center justify-center p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 mb-2">Preview:</p>
+                  <div 
+                    className={`w-16 h-16 rounded-lg flex items-center justify-center text-white text-xl font-bold shadow-lg ${getSkillLevelColor(newLevel)}`}
+                  >
+                    {newLevel}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={saving}>
+              {saving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Save Changes
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

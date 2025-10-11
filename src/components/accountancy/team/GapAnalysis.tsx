@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   AlertTriangle, 
   Target, 
@@ -396,39 +395,103 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
                       title: {
                         display: true,
                         text: 'Skill Gap (Required - Current)',
-                        color: 'white'
+                        color: 'white',
+                        font: { size: 14, weight: 'bold' }
                       },
-                      ticks: { color: 'white' },
+                      ticks: { color: 'white', font: { size: 12 } },
                       grid: { color: 'rgba(255, 255, 255, 0.1)' }
                     },
                     y: {
                       title: {
                         display: true,
-                        text: 'Interest Level',
-                        color: 'white'
+                        text: 'Interest Level (How eager to learn)',
+                        color: 'white',
+                        font: { size: 14, weight: 'bold' }
                       },
-                      ticks: { color: 'white' },
+                      min: 0,
+                      max: 5,
+                      ticks: { 
+                        color: 'white', 
+                        font: { size: 12 },
+                        stepSize: 1
+                      },
                       grid: { color: 'rgba(255, 255, 255, 0.1)' }
                     }
                   },
                   plugins: {
                     legend: {
-                      labels: { color: 'white' }
+                      labels: { color: 'white', font: { size: 12 } }
                     },
                     tooltip: {
+                      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                      titleColor: 'white',
+                      bodyColor: 'white',
+                      borderColor: 'rgba(255, 255, 255, 0.3)',
+                      borderWidth: 1,
+                      padding: 12,
+                      displayColors: true,
                       callbacks: {
-                        title: (context: any) => context[0].raw.skill,
-                        label: (context: any) => [
-                          `Gap: ${context.raw.x}`,
-                          `Interest: ${context.raw.y}/5`,
-                          `Members affected: ${context.raw.members}`,
-                          `Priority: ${context.raw.priority.toFixed(1)}`
-                        ]
+                        title: (context: any) => {
+                          return `📊 ${context[0].raw.skill}`;
+                        },
+                        label: (context: any) => {
+                          return [
+                            `Skill Gap: ${context.raw.x} levels`,
+                            `Team Interest: ${context.raw.y.toFixed(1)}/5 ⭐`,
+                            `Team Members: ${context.raw.members} people`,
+                            `Priority Score: ${context.raw.priority.toFixed(1)} 🎯`
+                          ];
+                        },
+                        afterLabel: (context: any) => {
+                          const priority = context.raw.priority;
+                          if (priority >= 10) return '\n🔴 HIGH PRIORITY - Urgent focus needed!';
+                          if (priority >= 5) return '\n🟠 MEDIUM PRIORITY - Should address soon';
+                          if (priority >= 2) return '\n🔵 LOW PRIORITY - Nice to have';
+                          return '\n⚪ VERY LOW - Not urgent';
+                        }
                       }
                     }
                   }
                 }}
               />
+            </div>
+            
+            {/* Interpretation Guide */}
+            <div className="mt-4 p-4 bg-blue-900/30 border border-blue-700 rounded-lg">
+              <h4 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
+                <Lightbulb className="w-4 h-4" />
+                How to Use This Chart:
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-gray-300">
+                <div className="flex items-start gap-2">
+                  <div className="text-green-400 font-bold mt-0.5">✅</div>
+                  <div>
+                    <span className="font-semibold text-white">TOP-RIGHT (High Interest, Big Gap)</span> 
+                    <p className="text-gray-400">= BEST opportunities! Team wants to learn AND needs these skills.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <div className="text-amber-400 font-bold mt-0.5">⚠️</div>
+                  <div>
+                    <span className="font-semibold text-white">BOTTOM-RIGHT (Low Interest, Big Gap)</span>
+                    <p className="text-gray-400">= Challenges. Need motivation strategies or external hiring.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <div className="text-blue-400 font-bold mt-0.5">🚀</div>
+                  <div>
+                    <span className="font-semibold text-white">TOP-LEFT (High Interest, Small Gap)</span>
+                    <p className="text-gray-400">= Quick wins! Easy to close with minimal training.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <div className="text-gray-400 font-bold mt-0.5">⏸️</div>
+                  <div>
+                    <span className="font-semibold text-white">BOTTOM-LEFT (Low Interest, Small Gap)</span>
+                    <p className="text-gray-400">= Low priority. Monitor but don't focus resources here.</p>
+                  </div>
+                </div>
+              </div>
             </div>
             
             {/* Color Legend */}
