@@ -1,9 +1,9 @@
 # Use Node 20 to avoid Docker Hub rate limiting issues
 FROM node:20-alpine AS deps
 # Install dependencies needed for node-gyp
-# BUILD: 2025-10-10-23:25 - v1.0.7 - REAL FIX: Hook was after early return!
-# Problem: showManageTeam useState was AFTER the loading check (conditional hook = React error #310)
-# Solution: Moved ALL hooks to top of component (React rules of hooks)
+# BUILD: 2025-10-11-v1.0.3 - FORCE CACHE CLEAR
+# Problem: Railway was caching Vite build, causing unchanged file hashes
+# Solution: Added explicit Vite cache clearing before build
 RUN apk add --no-cache python3 make g++ git curl wget nano
 
 WORKDIR /app
@@ -47,7 +47,12 @@ RUN echo "Creating .env file for build..." && \
     echo "Environment variables set:" && \
     cat .env | sed 's/\(VITE_SUPABASE_ANON_KEY=\).*/\1***hidden***/' | sed 's/\(VITE_RESEND_API_KEY=\).*/\1***hidden***/'
 
-# Build the application
+# Clear Vite cache to force fresh build
+RUN echo "Clearing Vite cache..." && \
+    rm -rf node_modules/.vite .vite dist && \
+    echo "Cache cleared, starting fresh build..."
+
+# Build the application (fresh, no cache)
 RUN npm run build
 
 # Runner stage
