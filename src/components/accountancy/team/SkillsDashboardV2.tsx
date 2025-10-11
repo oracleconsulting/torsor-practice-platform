@@ -508,8 +508,18 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                         {teamMembers.length > 0 && skillCategories.length > 0 ? (
                           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
                             <SkillsMatrix
-                              teamMembers={teamMembers.filter(m => m && m.id)}
+                              teamMembers={teamMembers.filter(m => m && m.id && m.role)}
                               skillCategories={skillCategories.filter(c => c && c.skills)}
+                              onSelectMember={(member) => {
+                                toast({
+                                  title: `${member.name}`,
+                                  description: `Role: ${member.role} • Overall Score: ${member.overallScore || 'N/A'}`
+                                });
+                              }}
+                              filterOptions={{
+                                category: 'all',
+                                role: 'all'
+                              }}
                             />
                           </Suspense>
                         ) : (
