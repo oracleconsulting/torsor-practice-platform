@@ -1,430 +1,174 @@
-/**
- * Mobile Assessment Page
- * PROMPT 7: Mobile-First Assessment Experience
- * 
- * Optimized for mobile devices with:
- * - Swipeable card interface
- * - PWA offline capability
- * - Gesture controls
- * - Performance optimizations
- */
-
-import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
-import { 
-  CheckCircle, Download, Wifi, WifiOff, Loader2, Home, 
-  ChevronLeft, ChevronRight, Save
-} from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import MobileSkillCard from '@/components/accountancy/team/MobileSkillCard';
+import MobileRatingSelector from '@/components/accountancy/team/MobileRatingSelector';
+import MobileProgressIndicator from '@/components/accountancy/team/MobileProgressIndicator';
+import { Card, CardContent } from '@/components/ui/card';
 
-// Mobile components
-import { MobileSkillCard } from '@/components/accountancy/team/MobileSkillCard';
-import { MobileProgressIndicator } from '@/components/accountancy/team/MobileProgressIndicator';
+// Sample skills data - replace with actual data from your API
+const SAMPLE_SKILLS = [
+  { id: '1', name: 'Financial Reporting', category: 'Technical', description: 'Preparation of financial statements' },
+  { id: '2', name: 'Tax Compliance', category: 'Technical', description: 'Understanding of UK tax regulations' },
+  { id: '3', name: 'Excel Advanced', category: 'Technical', description: 'Advanced Excel formulas and functions' },
+  { id: '4', name: 'Client Communication', category: 'Soft Skills', description: 'Effective client interaction' },
+  { id: '5', name: 'Time Management', category: 'Soft Skills', description: 'Managing multiple priorities' },
+];
 
-// PWA utilities
-import { 
-  registerServiceWorker, 
-  showInstallPrompt, 
-  checkOnlineStatus,
-  listenToOnlineStatus,
-  syncPendingData
-} from '@/lib/pwa/registerSW';
-
-export default function MobileAssessmentPage() {
-  const [searchParams] = useSearchParams();
+const MobileAssessmentPage: React.FC = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const inviteCode = searchParams.get('invite');
+  const [currentSkillIndex, setCurrentSkillIndex] = useState(0);
+  const [ratings, setRatings] = useState<Record<string, { level: number; interest: number }>>({});
+  const [showDescription, setShowDescription] = useState(false);
 
-  // State
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [isOnline, setIsOnline] = useState(checkOnlineStatus());
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const [invitation, setInvitation] = useState<any>(null);
-  const [skills, setSkills] = useState<any[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [assessments, setAssessments] = useState<Map<string, any>>(new Map());
-  
-  // Auto-save timer
-  const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
-  const lastSavedIndex = useRef(0);
+  const currentSkill = SAMPLE_SKILLS[currentSkillIndex];
+  const progress = ((currentSkillIndex + 1) / SAMPLE_SKILLS.length) * 100;
 
-  // Initialize PWA
-  useEffect(() => {
-    registerServiceWorker();
-    showInstallPrompt();
-    
-    listenToOnlineStatus((online) => {
-      setIsOnline(online);
-      if (online) {
-        toast({
-          title: 'Connection Restored',
-          description: 'Syncing your progress...',
-        });
-        syncPendingData();
-      } else {
-        toast({
-          title: 'Offline Mode',
-          description: 'Your progress will sync when connection is restored.',
-        });
+  const handleRating = (type: 'level' | 'interest', value: number) => {
+    setRatings(prev => ({
+      ...prev,
+      [currentSkill.id]: {
+        ...prev[currentSkill.id],
+        [type]: value
       }
-    });
+    }));
+  };
 
-    // Check if app is installed
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      setShowInstallBanner(false);
+  const handleNext = () => {
+    if (currentSkillIndex < SAMPLE_SKILLS.length - 1) {
+      setCurrentSkillIndex(prev => prev + 1);
+      setShowDescription(false);
     } else {
-      setTimeout(() => setShowInstallBanner(true), 5000);
-    }
-  }, []);
-
-  // Load data
-  useEffect(() => {
-    if (inviteCode) {
-      loadData();
-    } else {
-      setLoading(false);
-      toast({
-        title: 'Error',
-        description: 'No invitation code provided',
-        variant: 'destructive',
-      });
-    }
-  }, [inviteCode]);
-
-  // Auto-save on assessment change
-  useEffect(() => {
-    if (autoSaveTimer.current) {
-      clearTimeout(autoSaveTimer.current);
-    }
-
-    autoSaveTimer.current = setTimeout(() => {
-      if (assessments.size > lastSavedIndex.current) {
-        saveProgress();
-      }
-    }, 2000); // Save after 2 seconds of inactivity
-
-    return () => {
-      if (autoSaveTimer.current) {
-        clearTimeout(autoSaveTimer.current);
-      }
-    };
-  }, [assessments]);
-
-  const loadData = async () => {
-    try {
-      console.log('[MobileAssessment] Loading data...');
-      
-      // Try to load from cache first (PWA)
-      const cachedData = await loadFromCache();
-      if (cachedData) {
-        setSkills(cachedData.skills);
-        setInvitation(cachedData.invitation);
-        setLoading(false);
-      }
-
-      // Then fetch fresh data if online
-      if (isOnline) {
-        const inviteResponse = await fetch(`/api/invitations/${inviteCode}`);
-        if (!inviteResponse.ok) throw new Error('Invitation not found');
-        const inviteData = await inviteResponse.json();
-        setInvitation(inviteData);
-
-        const skillsResponse = await fetch('/api/skills');
-        if (!skillsResponse.ok) throw new Error('Failed to load skills');
-        const skillsData = await skillsResponse.json();
-        setSkills(skillsData || []);
-
-        // Cache data for offline use
-        cacheData({ skills: skillsData, invitation: inviteData });
-      }
-    } catch (error: any) {
-      console.error('[MobileAssessment] Load error:', error);
-      if (!isOnline) {
-        toast({
-          title: 'Offline',
-          description: 'Using cached data. Connect to internet to sync.',
-        });
-      } else {
-        toast({
-          title: 'Error',
-          description: error.message || 'Failed to load assessment',
-          variant: 'destructive',
-        });
-      }
-    } finally {
-      setLoading(false);
+      // Assessment complete
+      alert('Assessment complete! Redirecting to dashboard...');
+      navigate('/accountancy/team');
     }
   };
 
-  const loadFromCache = async (): Promise<any> => {
-    try {
-      const cached = localStorage.getItem(`assessment-${inviteCode}`);
-      return cached ? JSON.parse(cached) : null;
-    } catch (error) {
-      console.error('[MobileAssessment] Cache load error:', error);
-      return null;
+  const handlePrevious = () => {
+    if (currentSkillIndex > 0) {
+      setCurrentSkillIndex(prev => prev - 1);
+      setShowDescription(false);
     }
   };
 
-  const cacheData = (data: any) => {
-    try {
-      localStorage.setItem(`assessment-${inviteCode}`, JSON.stringify(data));
-      
-      // Send to service worker for offline access
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'CACHE_ASSESSMENT_DATA',
-          payload: data
-        });
-      }
-    } catch (error) {
-      console.error('[MobileAssessment] Cache save error:', error);
+  const handleSwipe = (direction: 'left' | 'right') => {
+    if (direction === 'right') {
+      handleNext();
+    } else if (direction === 'left') {
+      handlePrevious();
     }
   };
 
-  const saveProgress = async () => {
-    setSaving(true);
-    try {
-      const assessmentData = Array.from(assessments.entries()).map(([skillId, data]) => ({
-        skill_id: skillId,
-        ...data
-      }));
-
-      if (isOnline) {
-        // Save to server
-        const response = await fetch(`/api/assessments/${inviteCode}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ assessments: assessmentData })
-        });
-
-        if (!response.ok) throw new Error('Failed to save');
-        lastSavedIndex.current = assessments.size;
-      } else {
-        // Queue for background sync
-        await queueForSync(assessmentData);
-        toast({
-          title: 'Saved Offline',
-          description: 'Will sync when connection is restored',
-        });
-      }
-    } catch (error: any) {
-      console.error('[MobileAssessment] Save error:', error);
-      toast({
-        title: 'Save Failed',
-        description: 'Your progress is saved locally',
-        variant: 'destructive',
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const queueForSync = async (data: any[]) => {
-    try {
-      // Store in IndexedDB for background sync
-      const pending = JSON.parse(localStorage.getItem('pending-assessments') || '[]');
-      pending.push({
-        id: Date.now(),
-        inviteCode,
-        data,
-        timestamp: new Date().toISOString()
-      });
-      localStorage.setItem('pending-assessments', JSON.stringify(pending));
-
-      // Register background sync
-      await syncPendingData();
-    } catch (error) {
-      console.error('[MobileAssessment] Queue error:', error);
-    }
-  };
-
-  const handleRatingChange = (skillId: string, type: 'level' | 'interest', value: number) => {
-    setAssessments(prev => {
-      const newMap = new Map(prev);
-      const existing = newMap.get(skillId) || {};
-      newMap.set(skillId, {
-        ...existing,
-        [type === 'level' ? 'current_level' : 'interest_level']: value
-      });
-      return newMap;
-    });
-
-    // Trigger haptic feedback
-    if ('vibrate' in navigator) {
-      navigator.vibrate([10]);
-    }
-  };
-
-  const handleSwipeLeft = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
-    }
-  };
-
-  const handleSwipeRight = () => {
-    if (currentIndex < skills.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    } else {
-      // Completed all skills
-      handleComplete();
-    }
-  };
-
-  const handleComplete = async () => {
-    await saveProgress();
-    toast({
-      title: 'Assessment Complete!',
-      description: 'Thank you for completing your skills assessment.',
-    });
-    navigate('/assessment-complete');
-  };
-
-  // Loading state
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 to-primary/5">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary mb-4" />
-          <p className="text-muted-foreground">Loading your assessment...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const currentSkill = skills[currentIndex];
-  const currentAssessment = currentSkill ? assessments.get(currentSkill.id) : {};
-  const completedCount = skills.filter(s => {
-    const a = assessments.get(s.id);
-    return a && a.current_level !== undefined;
-  }).length;
+  const currentRating = ratings[currentSkill.id] || { level: 0, interest: 0 };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-background pb-safe">
+    <div className="min-h-screen bg-gray-900 pb-safe">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-        <div className="container flex items-center justify-between h-14 px-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
-            <Home className="h-4 w-4 mr-2" />
+      <div className="bg-gray-800 border-b border-gray-700 px-4 py-3 sticky top-0 z-10">
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/accountancy/team')}
+            className="text-gray-400 hover:text-white"
+          >
+            <ArrowLeft className="w-4 h-4 mr-1" />
             Exit
           </Button>
-          
-          {/* Online Status */}
-          <div className="flex items-center gap-2">
-            {isOnline ? (
-              <Wifi className="h-4 w-4 text-green-500" />
-            ) : (
-              <WifiOff className="h-4 w-4 text-orange-500" />
-            )}
-            {saving && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
-          </div>
-
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={saveProgress}
-            disabled={saving}
-          >
-            <Save className="h-4 w-4 mr-2" />
-            Save
-          </Button>
+          <h1 className="text-white font-semibold">Skills Assessment</h1>
+          <div className="w-16" /> {/* Spacer for centering */}
         </div>
-      </header>
+      </div>
 
-      {/* Install Banner */}
-      {showInstallBanner && (
-        <div className="bg-primary text-primary-foreground p-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 flex-1">
-            <Download className="h-5 w-5" />
-            <span className="text-sm font-medium">Install app for offline access</span>
-          </div>
-          <Button 
-            id="pwa-install-button" 
-            size="sm" 
-            variant="secondary"
-            onClick={() => setShowInstallBanner(false)}
-          >
-            Install
-          </Button>
-        </div>
-      )}
+      {/* Progress */}
+      <div className="px-4 pt-4">
+        <MobileProgressIndicator
+          current={currentSkillIndex + 1}
+          total={SAMPLE_SKILLS.length}
+          progress={progress}
+        />
+      </div>
+
+      {/* Info Alert */}
+      <div className="px-4 pt-4">
+        <Alert className="bg-blue-900/20 border-blue-700">
+          <Info className="h-4 w-4 text-blue-400" />
+          <AlertDescription className="text-gray-300 text-sm">
+            Swipe right to continue, swipe left to go back. Tap and hold the card to see skill description.
+          </AlertDescription>
+        </Alert>
+      </div>
 
       {/* Main Content */}
-      <main className="container px-4 py-6 max-w-2xl mx-auto">
-        {/* Progress */}
-        <div className="mb-6">
-          <MobileProgressIndicator
-            current={currentIndex}
-            total={skills.length}
-            completed={completedCount}
-            showPercentage={true}
-          />
+      <div className="flex-1 flex flex-col justify-center px-4 py-6">
+        <MobileSkillCard
+          skill={currentSkill}
+          onSwipe={handleSwipe}
+          showDescription={showDescription}
+          onToggleDescription={() => setShowDescription(!showDescription)}
+        />
+
+        {/* Rating Selectors */}
+        <div className="space-y-6 mt-6">
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="pt-6">
+              <MobileRatingSelector
+                label="Current Skill Level"
+                value={currentRating.level}
+                onChange={(value) => handleRating('level', value)}
+                labels={['Beginner', 'Basic', 'Competent', 'Proficient', 'Expert']}
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="pt-6">
+              <MobileRatingSelector
+                label="Interest Level"
+                value={currentRating.interest}
+                onChange={(value) => handleRating('interest', value)}
+                labels={['No Interest', 'Low', 'Moderate', 'High', 'Very High']}
+              />
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Skill Card */}
-        {currentSkill ? (
-          <div className="mb-6">
-            <MobileSkillCard
-              skillName={currentSkill.name}
-              category={currentSkill.category}
-              description={currentSkill.description}
-              currentLevel={currentAssessment?.current_level || 0}
-              interestLevel={currentAssessment?.interest_level || 0}
-              completed={currentAssessment?.current_level !== undefined}
-              totalSkills={skills.length}
-              currentIndex={currentIndex}
-              onSwipeLeft={handleSwipeLeft}
-              onSwipeRight={handleSwipeRight}
-              onRatingChange={(type, value) => handleRatingChange(currentSkill.id, type, value)}
-            />
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Assessment Complete!</h2>
-            <p className="text-muted-foreground mb-6">
-              You've rated all {skills.length} skills. Great job!
-            </p>
-            <Button onClick={handleComplete} size="lg">
-              Submit Assessment
-            </Button>
-          </div>
-        )}
-
         {/* Navigation Buttons */}
-        <div className="flex gap-3 mb-6">
+        <div className="flex gap-3 mt-6">
           <Button
             variant="outline"
-            size="lg"
-            onClick={handleSwipeLeft}
-            disabled={currentIndex === 0}
-            className="flex-1"
+            onClick={handlePrevious}
+            disabled={currentSkillIndex === 0}
+            className="flex-1 h-12 bg-gray-800 border-gray-700 text-white disabled:opacity-30"
           >
-            <ChevronLeft className="h-5 w-5 mr-2" />
             Previous
           </Button>
           <Button
-            size="lg"
-            onClick={handleSwipeRight}
-            disabled={currentIndex >= skills.length}
-            className="flex-1"
+            onClick={handleNext}
+            disabled={currentRating.level === 0 || currentRating.interest === 0}
+            className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
           >
-            {currentIndex === skills.length - 1 ? 'Complete' : 'Next'}
-            <ChevronRight className="h-5 w-5 ml-2" />
+            {currentSkillIndex === SAMPLE_SKILLS.length - 1 ? 'Complete' : 'Next'}
           </Button>
         </div>
 
-        {/* Helper Text */}
-        <div className="text-center text-sm text-muted-foreground">
-          <p className="mb-1">💡 Tip: Swipe left/right to navigate</p>
-          <p>📱 Long press to see skill description</p>
-        </div>
-      </main>
+        {/* Skip Button */}
+        <Button
+          variant="ghost"
+          onClick={handleNext}
+          className="mt-4 text-gray-400 hover:text-white"
+        >
+          Skip this skill
+        </Button>
+      </div>
+
+      {/* Bottom Safe Area */}
+      <div className="h-safe" />
     </div>
   );
-}
+};
 
+export default MobileAssessmentPage;

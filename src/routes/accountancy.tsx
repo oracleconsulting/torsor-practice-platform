@@ -53,6 +53,9 @@ import MentoringHubPage from '../pages/accountancy/team/MentoringHubPage';
 import OnboardingHubPage from '../pages/accountancy/team/OnboardingHubPage';
 import OnboardingAdminPage from '../pages/accountancy/team/OnboardingAdminPage';
 import AnalyticsDashboardPage from '../pages/accountancy/team/AnalyticsDashboardPage';
+import TrainingRecommendationsPage from '../pages/accountancy/team/TrainingRecommendationsPage';
+import CPDSkillsBridgePage from '../pages/accountancy/team/CPDSkillsBridgePage';
+import MobileAssessmentPage from '../pages/team-portal/MobileAssessmentPage';
 
 // Add this component for practice selection
 const PracticeSelection = () => {
@@ -116,6 +119,9 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="team-portal/onboarding" element={<OnboardingHubPage />} />
       <Route path="team-portal/onboarding-admin" element={<OnboardingAdminPage />} />
       <Route path="team-portal/analytics" element={<AnalyticsDashboardPage />} />
+      <Route path="team-portal/training-recommendations" element={<TrainingRecommendationsPage />} />
+      <Route path="team-portal/cpd-skills-impact" element={<CPDSkillsBridgePage />} />
+      <Route path="team-portal/mobile-assessment" element={<MobileAssessmentPage />} />
       <Route path="client-rescues" element={<ClientRescues />} />
       <Route path="advisory-services" element={<AdvisoryServices />} />
       
