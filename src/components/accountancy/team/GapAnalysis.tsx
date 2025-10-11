@@ -552,71 +552,156 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
         </Card>
       )}
 
-      {/* Top Gaps Table */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5" />
-            Critical Development Areas
+      {/* Top Gaps Table - ACTIONABLE DATA */}
+      <Card className="bg-white border-gray-300 shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-red-50 to-orange-50">
+          <CardTitle className="flex items-center gap-2" style={{ color: '#000000' }}>
+            <AlertTriangle className="w-5 h-5 text-red-600" />
+            🎯 TOP PRIORITY SKILLS TO DEVELOP
           </CardTitle>
-          <CardDescription>
-            Skills with the highest development priority based on gap analysis
+          <CardDescription style={{ color: '#000000' }}>
+            These skills have the biggest gaps and highest priority. Focus training resources here for maximum impact.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6">
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-700">
-                  <th className="text-left p-3 text-gray-400">Skill</th>
-                  <th className="text-center p-3 text-gray-400">Gap</th>
-                  <th className="text-center p-3 text-gray-400">Members Affected</th>
-                  <th className="text-center p-3 text-gray-400">Business Impact</th>
-                  <th className="text-center p-3 text-gray-400">Avg Interest</th>
-                  <th className="text-center p-3 text-gray-400">Priority Score</th>
-                  <th className="text-center p-3 text-gray-400">Action</th>
+            <table className="w-full border-collapse">
+              <thead className="bg-gray-100">
+                <tr className="border-b-2 border-gray-300">
+                  <th className="text-left p-4 font-bold" style={{ color: '#000000' }}>Skill Name</th>
+                  <th className="text-center p-4 font-bold" style={{ color: '#000000' }}>Gap Size</th>
+                  <th className="text-center p-4 font-bold" style={{ color: '#000000' }}>Team Members</th>
+                  <th className="text-center p-4 font-bold" style={{ color: '#000000' }}>Interest Level</th>
+                  <th className="text-left p-4 font-bold" style={{ color: '#000000' }}>Recommended Action</th>
                 </tr>
               </thead>
               <tbody>
-                {gapData.slice(0, 20).map((gap) => (
-                  <tr key={gap.skillId} className="border-b border-gray-700 hover:bg-gray-700/50">
-                    <td className="p-3">
+                {gapData.slice(0, 15).map((gap, index) => (
+                  <tr key={gap.skillId} className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${index < 5 ? 'bg-red-50/30' : ''}`}>
+                    <td className="p-4">
                       <div>
-                        <div className="font-medium text-white">{gap.skillName}</div>
-                        <div className="text-sm text-gray-400">{gap.category}</div>
-                        <div className="text-xs text-gray-500">
-                          Required: {gap.requiredLevel}/5 • Current: {gap.avgCurrentLevel.toFixed(1)}/5
+                        <div className="font-semibold text-lg" style={{ color: '#000000' }}>{gap.skillName}</div>
+                        <div className="text-sm text-gray-600 mt-1">{gap.category}</div>
+                        <div className="text-xs mt-1 flex gap-3">
+                          <span style={{ color: '#000000' }}>
+                            <strong>Required:</strong> Level {gap.requiredLevel}
+                          </span>
+                          <span style={{ color: '#000000' }}>
+                            <strong>Current:</strong> Level {gap.avgCurrentLevel.toFixed(1)}
+                          </span>
                         </div>
                       </div>
                     </td>
-                    <td className="p-3 text-center">
-                      <GapIndicator gap={gap.gap} />
-                    </td>
-                    <td className="p-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <Users className="w-4 h-4 text-gray-400" />
-                        <span className="text-white">{gap.memberCount}</span>
+                    <td className="p-4 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <div className={`text-2xl font-bold ${
+                          gap.gap >= 2 ? 'text-red-600' : 
+                          gap.gap >= 1 ? 'text-orange-600' : 
+                          'text-blue-600'
+                        }`}>
+                          {gap.gap.toFixed(1)}
+                        </div>
+                        <div className="text-xs" style={{ color: '#000000' }}>levels</div>
                       </div>
                     </td>
-                    <td className="p-3 text-center">
-                      <ImpactBadge impact={gap.businessImpact} />
+                    <td className="p-4 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="text-xl font-bold" style={{ color: '#000000' }}>{gap.memberCount}</div>
+                        <div className="text-xs" style={{ color: '#000000' }}>people</div>
+                      </div>
                     </td>
-                    <td className="p-3 text-center">
-                      <InterestBar interest={gap.avgInterest} />
+                    <td className="p-4 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="text-lg font-bold" style={{ color: '#000000' }}>
+                          {gap.avgInterest.toFixed(1)}/5
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full ${
+                              gap.avgInterest >= 4 ? 'bg-green-500' :
+                              gap.avgInterest >= 3 ? 'bg-blue-500' :
+                              gap.avgInterest >= 2 ? 'bg-orange-500' :
+                              'bg-red-500'
+                            }`}
+                            style={{ width: `${(gap.avgInterest / 5) * 100}%` }}
+                          />
+                        </div>
+                        <div className="text-xs" style={{ color: '#000000' }}>
+                          {gap.avgInterest >= 4 ? '⭐ High' :
+                           gap.avgInterest >= 3 ? '✓ Medium' :
+                           gap.avgInterest >= 2 ? '⚠️ Low' :
+                           '❌ Very Low'}
+                        </div>
+                      </div>
                     </td>
-                    <td className="p-3 text-center">
-                      <PriorityScore priority={gap.priority} />
-                    </td>
-                    <td className="p-3 text-center">
-                      {/* Create Plan functionality to be implemented */}
-                      <Badge variant="outline" className="text-xs text-gray-500">
-                        Coming Soon
-                      </Badge>
+                    <td className="p-4">
+                      <div className="space-y-2">
+                        {gap.avgInterest >= 4 && gap.gap >= 1.5 ? (
+                          <div className="p-3 bg-green-100 rounded-lg border border-green-300">
+                            <div className="font-semibold text-green-900 flex items-center gap-2 mb-1">
+                              <CheckCircle className="w-4 h-4" />
+                              EXCELLENT OPPORTUNITY!
+                            </div>
+                            <div className="text-sm text-green-800">
+                              Team is eager to learn. Invest in training program.
+                            </div>
+                          </div>
+                        ) : gap.avgInterest >= 2.5 && gap.gap >= 1 ? (
+                          <div className="p-3 bg-blue-100 rounded-lg border border-blue-300">
+                            <div className="font-semibold text-blue-900 flex items-center gap-2 mb-1">
+                              <Target className="w-4 h-4" />
+                              GOOD CANDIDATE
+                            </div>
+                            <div className="text-sm text-blue-800">
+                              Moderate interest. Schedule training workshop.
+                            </div>
+                          </div>
+                        ) : gap.gap >= 2 && gap.avgInterest < 2.5 ? (
+                          <div className="p-3 bg-orange-100 rounded-lg border border-orange-300">
+                            <div className="font-semibold text-orange-900 flex items-center gap-2 mb-1">
+                              <AlertCircle className="w-4 h-4" />
+                              NEEDS MOTIVATION
+                            </div>
+                            <div className="text-sm text-orange-800">
+                              Low interest but critical. Consider incentives or external hire.
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-3 bg-gray-100 rounded-lg border border-gray-300">
+                            <div className="font-semibold text-gray-900 flex items-center gap-2 mb-1">
+                              <XCircle className="w-4 h-4" />
+                              LOW PRIORITY
+                            </div>
+                            <div className="text-sm text-gray-700">
+                              Small gap or low interest. Monitor but not urgent.
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+          
+          {/* Summary Action Box */}
+          <div className="mt-6 p-4 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-lg border-2 border-blue-400">
+            <h4 className="font-bold text-lg mb-2" style={{ color: '#000000' }}>📋 IMMEDIATE ACTIONS:</h4>
+            <ul className="space-y-2 text-sm" style={{ color: '#000000' }}>
+              <li className="flex items-start gap-2">
+                <span className="font-bold">1.</span>
+                <span><strong>Top 5 skills</strong> (highlighted in pink) - These are CRITICAL. Book training sessions this month.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold">2.</span>
+                <span><strong>Green boxes</strong> (Excellent Opportunity) - Team wants to learn these! Invest here for best ROI.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold">3.</span>
+                <span><strong>Orange boxes</strong> (Needs Motivation) - Critical but low interest. Consider bonuses or hire externally.</span>
+              </li>
+            </ul>
           </div>
         </CardContent>
       </Card>
