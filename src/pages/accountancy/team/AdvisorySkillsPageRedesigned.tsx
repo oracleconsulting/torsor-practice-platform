@@ -1,18 +1,17 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Download, Settings, HelpCircle, Search as SearchIcon, Play, FileDown } from 'lucide-react';
+import { Download, Settings, Play } from 'lucide-react';
 
 // Import new design system
-import { statusColors, transitions, card, grid } from '@/lib/design-tokens';
+import { transitions } from '@/lib/design-tokens';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useSavedViews, useHighContrastMode } from '@/hooks/useSavedViews';
 
 // Import new UI components
 import { SidebarNavigation } from '@/components/ui/sidebar-navigation';
 import { Breadcrumb, BreadcrumbItem } from '@/components/ui/breadcrumb';
-import { FloatingActionButton, useSkillsFABActions } from '@/components/ui/floating-action-button';
 import { KeyboardShortcutsDialog } from '@/components/ui/keyboard-shortcuts-dialog';
 import { PageSkeleton } from '@/components/ui/skeleton-loaders';
 
@@ -75,15 +74,14 @@ const AdvisorySkillsPageRedesigned: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   
   // Assessment mode
-  const [assessmentMode, setAssessmentMode] = useState<'view' | 'assess'>('view');
-  const [selectedMemberForAssessment, setSelectedMemberForAssessment] = useState<TeamMember | null>(null);
+  const [assessmentMode] = useState<'view' | 'assess'>('view');
+  const [selectedMemberForAssessment] = useState<TeamMember | null>(null);
 
   // Custom hooks
   const { isHighContrast, toggleHighContrast } = useHighContrastMode();
-  const { currentView, saveView, clearCurrentView } = useSavedViews('advisory-skills');
+  const { currentView, clearCurrentView } = useSavedViews('advisory-skills');
 
   // Keyboard shortcuts
   useKeyboardShortcuts([
@@ -96,16 +94,7 @@ const AdvisorySkillsPageRedesigned: React.FC = () => {
     { key: 'g+t', handler: () => setActiveTab('metrics'), description: 'Go to Team Metrics' },
     { key: 'e', handler: handleExport, description: 'Export Data' },
     { key: '?', handler: () => setShowKeyboardHelp(true), description: 'Show Help' },
-    { key: '/', handler: () => setSearchOpen(true), description: 'Search' },
   ]);
-
-  // FAB actions
-  const fabActions = useSkillsFABActions({
-    onStartAssessment: () => setActiveTab('assessment'),
-    onExport: handleExport,
-    onHelp: () => setShowKeyboardHelp(true),
-    onSearch: () => setSearchOpen(true),
-  });
 
   // Load data
   useEffect(() => {
@@ -154,7 +143,7 @@ const AdvisorySkillsPageRedesigned: React.FC = () => {
       const memberMap = new Map<string, TeamMember>();
       const uniqueMemberIds = new Set<string>();
 
-      assessments?.forEach(assessment => {
+      assessments?.forEach((assessment: any) => {
         const memberId = assessment.team_member_id;
         if (!memberId) return;
         
@@ -191,7 +180,7 @@ const AdvisorySkillsPageRedesigned: React.FC = () => {
           .from('practice_members')
           .select('*');
 
-        practiceMembers?.forEach(pm => {
+        practiceMembers?.forEach((pm: any) => {
           if (uniqueMemberIds.has(pm.id) && !memberMap.has(pm.id)) {
             memberMap.set(pm.id, {
               id: pm.id,
@@ -411,21 +400,33 @@ const AdvisorySkillsPageRedesigned: React.FC = () => {
 
             {/* Bottom Row: Page Title + Current View */}
             <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">{tabLabels[activeTab]}</h1>
-                {currentView && (
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="secondary" className="text-xs">
-                      View: {currentView.name}
-                    </Badge>
-                    <button
-                      onClick={clearCurrentView}
-                      className="text-xs text-gray-500 hover:text-gray-700"
-                    >
-                      Clear
-                    </button>
-                  </div>
+              <div className="flex items-center gap-3">
+                {activeTab !== 'overview' && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setActiveTab('overview')}
+                    className="text-gray-600 hover:text-gray-900"
+                  >
+                    ← Back to Overview
+                  </Button>
                 )}
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">{tabLabels[activeTab]}</h1>
+                  {currentView && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="secondary" className="text-xs">
+                        View: {currentView.name}
+                      </Badge>
+                      <button
+                        onClick={clearCurrentView}
+                        className="text-xs text-gray-500 hover:text-gray-700"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Quick Stats */}
@@ -453,9 +454,6 @@ const AdvisorySkillsPageRedesigned: React.FC = () => {
           </div>
         </main>
       </div>
-
-      {/* Floating Action Button */}
-      <FloatingActionButton actions={fabActions} position="bottom-right" />
 
       {/* Keyboard Shortcuts Dialog */}
       <KeyboardShortcutsDialog

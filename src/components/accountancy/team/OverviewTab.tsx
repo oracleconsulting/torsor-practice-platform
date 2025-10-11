@@ -12,7 +12,6 @@ import {
   Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { statusColors, getStatusFromGap, getStatusFromInterest } from '@/lib/design-tokens';
 
 interface TeamMember {
   id: string;
@@ -115,55 +114,55 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
     <div className="space-y-6">
       {/* Hero Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none">
+        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-none">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-100 text-sm font-medium">Team Capability</p>
-                <p className="text-3xl font-bold mt-1">{metrics.teamCapability}%</p>
-                <p className="text-blue-100 text-xs mt-1">Avg level: {metrics.avgSkillLevel}/5</p>
+                <p className="text-blue-950 text-sm font-semibold">Team Capability</p>
+                <p className="text-3xl font-bold mt-1 text-white">{metrics.teamCapability}%</p>
+                <p className="text-blue-900 text-xs mt-1 font-medium">Avg level: {metrics.avgSkillLevel}/5</p>
               </div>
-              <TrendingUp className="w-12 h-12 opacity-20" />
+              <TrendingUp className="w-12 h-12 text-blue-900 opacity-30" />
             </div>
             <Progress value={metrics.teamCapability} className="mt-4 bg-blue-400" />
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white border-none">
+        <Card className="bg-gradient-to-br from-amber-500 to-amber-600 border-none">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-amber-100 text-sm font-medium">Critical Gaps</p>
-                <p className="text-3xl font-bold mt-1">{metrics.criticalGaps}</p>
-                <p className="text-amber-100 text-xs mt-1">Need attention</p>
+                <p className="text-amber-950 text-sm font-semibold">Critical Gaps</p>
+                <p className="text-3xl font-bold mt-1 text-white">{metrics.criticalGaps}</p>
+                <p className="text-amber-900 text-xs mt-1 font-medium">Need attention</p>
               </div>
-              <AlertTriangle className="w-12 h-12 opacity-20" />
+              <AlertTriangle className="w-12 h-12 text-amber-900 opacity-30" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white border-none">
+        <Card className="bg-gradient-to-br from-green-500 to-green-600 border-none">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-green-100 text-sm font-medium">High Interest</p>
-                <p className="text-3xl font-bold mt-1">{metrics.highInterest}</p>
-                <p className="text-green-100 text-xs mt-1">Skills to develop</p>
+                <p className="text-green-950 text-sm font-semibold">High Interest</p>
+                <p className="text-3xl font-bold mt-1 text-white">{metrics.highInterest}</p>
+                <p className="text-green-900 text-xs mt-1 font-medium">Skills to develop</p>
               </div>
-              <Sparkles className="w-12 h-12 opacity-20" />
+              <Sparkles className="w-12 h-12 text-green-900 opacity-30" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-none">
+        <Card className="bg-gradient-to-br from-purple-500 to-purple-600 border-none">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-purple-100 text-sm font-medium">Team Members</p>
-                <p className="text-3xl font-bold mt-1">{metrics.totalMembers}</p>
-                <p className="text-purple-100 text-xs mt-1">{metrics.totalAssessments} assessments</p>
+                <p className="text-purple-950 text-sm font-semibold">Team Members</p>
+                <p className="text-3xl font-bold mt-1 text-white">{metrics.totalMembers}</p>
+                <p className="text-purple-900 text-xs mt-1 font-medium">{metrics.totalAssessments} assessments</p>
               </div>
-              <Users className="w-12 h-12 opacity-20" />
+              <Users className="w-12 h-12 text-purple-900 opacity-30" />
             </div>
           </CardContent>
         </Card>
