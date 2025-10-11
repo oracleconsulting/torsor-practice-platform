@@ -47,6 +47,10 @@ import AlignmentProgrammePage from '../pages/accountancy/AlignmentProgrammePage'
 import ForecastingPage from '../pages/accountancy/advisory/ForecastingPage';
 import ValuationPage from '../pages/accountancy/advisory/ValuationPage';
 
+// Team sub-pages
+import VARKAssessmentPage from '../pages/accountancy/team/VARKAssessmentPage';
+import MentoringHubPage from '../pages/accountancy/team/MentoringHubPage';
+
 // Add this component for practice selection
 const PracticeSelection = () => {
   const { initializePractice, loading } = useAccountancyContext();
@@ -104,6 +108,8 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="client-management" element={<ClientManagementPage practiceId={practiceId} />} />
       <Route path="health" element={<PracticeHealth />} />
       <Route path="team" element={<TeamManagementPage />} />
+      <Route path="team-portal/vark-assessment" element={<VARKAssessmentPage />} />
+      <Route path="team-portal/mentoring" element={<MentoringHubPage />} />
       <Route path="client-rescues" element={<ClientRescues />} />
       <Route path="advisory-services" element={<AdvisoryServices />} />
       
