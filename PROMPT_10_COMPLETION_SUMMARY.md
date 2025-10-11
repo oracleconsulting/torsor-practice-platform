@@ -1,7 +1,7 @@
 # PROMPT 10 COMPLETION SUMMARY: AI Skills Coach Integration
 
 ## Overview
-Successfully implemented an AI-powered coaching system that provides personalized guidance for skills development, career planning, and CPD activities. The system integrates with OpenAI GPT-4 and includes comprehensive features for coaching, analytics, and user engagement.
+Successfully implemented an AI-powered coaching system that provides personalized guidance for skills development, career planning, and CPD activities. The system integrates with OpenRouter for flexible LLM access (supporting GPT-4, Claude, and other models) and includes comprehensive features for coaching, analytics, and user engagement.
 
 ## Components Created
 
@@ -32,7 +32,7 @@ Created 6 tables:
 **File:** `src/services/ai/skillsCoachService.ts`
 
 **Key Features:**
-- OpenAI GPT-4 integration with streaming support
+- OpenRouter integration for flexible LLM access (GPT-4, Claude, Llama, etc.)
 - Context-aware system prompts for 5 coaching types:
   - Skills development
   - CPD planning
@@ -44,6 +44,7 @@ Created 6 tables:
 - Conversation history management
 - Template system with variable replacement
 - VARK learning style adaptation
+- Configurable model selection via environment variables
 
 **Functions:**
 - `sendCoachMessage()` - Main coaching interaction
@@ -128,6 +129,12 @@ Created 6 tables:
 - Proactive check-ins
 - Onboarding support
 
+### 5. OpenRouter Configuration
+- Flexible model selection (GPT-4, Claude, Llama, etc.)
+- Cost optimization options
+- Fallback model support
+- Usage tracking and analytics
+
 ## Key Features
 
 ### Personalization
@@ -146,7 +153,7 @@ Created 6 tables:
 - Content safety filtering
 - 100 messages per day rate limit
 - Privacy-focused (RLS policies)
-- OpenAI moderation
+- Model-level moderation (varies by provider)
 
 ### Analytics
 - Conversation effectiveness tracking
@@ -156,20 +163,47 @@ Created 6 tables:
 
 ## Environment Configuration
 
-### Required Environment Variable
+### Required Environment Variables
 ```env
-VITE_OPENAI_API_KEY=your_openai_api_key_here
+# Required: OpenRouter API key
+VITE_OPENROUTER_API_KEY=your_openrouter_api_key_here
+
+# Optional: Model selection (defaults to openai/gpt-4-turbo)
+VITE_OPENROUTER_MODEL=openai/gpt-4-turbo
+# Other popular options:
+# - anthropic/claude-3.5-sonnet
+# - anthropic/claude-3-opus
+# - meta-llama/llama-3.1-70b-instruct
+# - google/gemini-pro-1.5
+
+# Optional: App identification for OpenRouter
+VITE_APP_NAME=Torsor Practice Platform
+VITE_APP_URL=https://torsor.app
 ```
 
-**Note:** This needs to be added to:
+**Note:** These need to be added to:
 - `.env.local` for development
 - Railway environment variables for production
 
-### OpenAI Setup
-1. Create OpenAI account at https://platform.openai.com
-2. Generate API key
-3. Add to environment variables
-4. Ensure billing is set up (GPT-4 access)
+### OpenRouter Setup
+1. Create OpenRouter account at https://openrouter.ai
+2. Add credits to your account (pay-as-you-go)
+3. Generate API key from https://openrouter.ai/keys
+4. Add to environment variables
+5. Select your preferred model (GPT-4 Turbo recommended for best quality)
+
+### Model Selection Guide
+**For Best Quality:**
+- `openai/gpt-4-turbo` - Most accurate, $10/1M tokens
+- `anthropic/claude-3.5-sonnet` - Excellent reasoning, $3/1M tokens
+
+**For Cost Efficiency:**
+- `openai/gpt-3.5-turbo` - Fast and cheap, $0.50/1M tokens
+- `meta-llama/llama-3.1-70b-instruct` - Good quality, $0.50/1M tokens
+
+**For Balanced:**
+- `anthropic/claude-3-sonnet` - Good quality/cost ratio, $3/1M tokens
+- `google/gemini-pro-1.5` - Free tier available
 
 ## Database Migration
 
@@ -393,28 +427,45 @@ All files copied to `TORSOR_CODEBASE_ANALYSIS/` with `-copy` suffix:
 
 ## Cost Estimates
 
-### OpenAI API Costs (GPT-4)
-- Input: $0.03 per 1K tokens
-- Output: $0.06 per 1K tokens
+### OpenRouter API Costs (Model Dependent)
+
+**GPT-4 Turbo (Recommended Default):**
+- Input: $10 per 1M tokens (~$0.01 per 1K)
+- Output: $30 per 1M tokens (~$0.03 per 1K)
 - Average message: ~500 tokens total
-- Cost per message: ~$0.03
-- 100 messages/day: ~$3.00/user/day
-- Monthly (per active user): ~$90
+- Cost per message: ~$0.02
+- 100 messages/day: ~$2.00/user/day
+- Monthly (per active user): ~$60
+
+**Claude 3.5 Sonnet (Best Value):**
+- Input/Output: $3 per 1M tokens
+- Average message: ~500 tokens total
+- Cost per message: ~$0.0015
+- 100 messages/day: ~$0.15/user/day
+- Monthly (per active user): ~$4.50
+
+**GPT-3.5 Turbo (Budget Option):**
+- Cost per message: ~$0.001
+- 100 messages/day: ~$0.10/user/day
+- Monthly (per active user): ~$3
 
 ### Recommendations for Cost Control
-1. Set organization spending limits in OpenAI dashboard
-2. Monitor usage via OpenAI API dashboard
-3. Consider GPT-3.5-turbo for non-critical queries (10x cheaper)
-4. Implement response caching for common questions
-5. Use embeddings for FAQ matching before GPT-4 call
+1. Set spending limits in OpenRouter dashboard
+2. Monitor usage via OpenRouter usage page
+3. Start with GPT-3.5-turbo or Claude 3 Haiku for testing
+4. Switch to GPT-4 Turbo or Claude 3.5 Sonnet for production
+5. Implement response caching for common questions
+6. Use embeddings for FAQ matching before LLM call
+7. Consider cheaper models for simple queries (routing logic)
 
 ## Support & Troubleshooting
 
 ### Common Issues
 
-**"OpenAI API key not configured"**
-- Add `VITE_OPENAI_API_KEY` to environment variables
+**"OpenRouter API key not configured"**
+- Add `VITE_OPENROUTER_API_KEY` to environment variables
 - Restart development server
+- Verify key is valid at https://openrouter.ai/keys
 
 **"Daily limit reached"**
 - User has sent 100 messages today
@@ -423,9 +474,15 @@ All files copied to `TORSOR_CODEBASE_ANALYSIS/` with `-copy` suffix:
 
 **"Failed to send message"**
 - Check internet connection
-- Verify OpenAI API key valid
-- Check OpenAI service status
+- Verify OpenRouter API key valid
+- Check OpenRouter credits balance
+- Verify model name is correct
 - Review content safety filter
+
+**"Model not available"**
+- Check model name matches OpenRouter format
+- Verify your account has access to the model
+- Try fallback to `openai/gpt-3.5-turbo`
 
 **Voice input not working**
 - Check browser compatibility

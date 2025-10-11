@@ -1,19 +1,19 @@
 /**
  * AI Skills Coach Service
  * 
- * Integrates with OpenAI GPT-4 to provide personalized skills coaching
+ * Integrates with OpenRouter for LLM access to provide personalized skills coaching
  * Includes rate limiting, content filtering, and context-aware responses
  */
 
 import { supabase } from '@/lib/supabase/client';
 
-// OpenAI API types
-interface OpenAIMessage {
+// OpenRouter API types
+interface OpenRouterMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
 }
 
-interface OpenAIResponse {
+interface OpenRouterResponse {
   id: string;
   choices: {
     message: {
@@ -206,23 +206,30 @@ async function incrementRateLimit(memberId: string, tokens: number): Promise<voi
 }
 
 /**
- * Call OpenAI GPT-4 API
+ * Call OpenRouter LLM API
  */
-async function callOpenAI(messages: OpenAIMessage[]): Promise<OpenAIResponse> {
-  const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+async function callOpenRouter(messages: OpenRouterMessage[]): Promise<OpenRouterResponse> {
+  const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+  const appName = import.meta.env.VITE_APP_NAME || 'Torsor Practice Platform';
+  const appUrl = import.meta.env.VITE_APP_URL || 'https://torsor.app';
   
   if (!apiKey) {
-    throw new Error('OpenAI API key not configured');
+    throw new Error('OpenRouter API key not configured. Please set VITE_OPENROUTER_API_KEY in your environment variables.');
   }
   
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  // Default to GPT-4 Turbo, but allow override via env var
+  const model = import.meta.env.VITE_OPENROUTER_MODEL || 'openai/gpt-4-turbo';
+  
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': appUrl,
+      'X-Title': appName
     },
     body: JSON.stringify({
-      model: 'gpt-4',
+      model,
       messages,
       temperature: 0.7,
       max_tokens: 500,
@@ -233,7 +240,7 @@ async function callOpenAI(messages: OpenAIMessage[]): Promise<OpenAIResponse> {
   
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`);
+    throw new Error(`OpenRouter API error: ${error.error?.message || 'Unknown error'}`);
   }
   
   return response.json();
@@ -304,6 +311,8 @@ async function saveMessage(
   content: string,
   tokensUsed: number = 0
 ): Promise<void> {
+  const model = import.meta.env.VITE_OPENROUTER_MODEL || 'openai/gpt-4-turbo';
+  
   await (supabase as any)
     .from('ai_coach_messages')
     .insert({
@@ -311,7 +320,7 @@ async function saveMessage(
       role,
       content,
       tokens_used: tokensUsed,
-      model: 'gpt-4'
+      model
     });
 }
 
@@ -343,14 +352,14 @@ export async function sendCoachMessage(
   const history = await getConversationHistory(convId, 8); // Last 8 messages for context
   const systemPrompt = buildSystemPrompt(context);
   
-  const messages: OpenAIMessage[] = [
+  const messages: OpenRouterMessage[] = [
     { role: 'system', content: systemPrompt },
     ...history,
     { role: 'user', content: message }
   ];
   
-  // Call OpenAI
-  const response = await callOpenAI(messages);
+  // Call OpenRouter
+  const response = await callOpenRouter(messages);
   const assistantMessage = response.choices[0].message.content;
   const tokensUsed = response.usage.total_tokens;
   
