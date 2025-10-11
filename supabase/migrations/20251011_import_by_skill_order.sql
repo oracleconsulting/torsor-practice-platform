@@ -54,7 +54,7 @@ SELECT
   ai.interest_level,
   ai.notes,
   ai.accepted_at,
-  ai.member_id,
+  NULL,  -- assessed_by (requires auth.users FK, set to NULL)
   'self',
   NOW(),
   NOW()
