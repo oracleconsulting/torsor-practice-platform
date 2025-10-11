@@ -51,38 +51,52 @@ const SkillsDashboardV2Page: React.FC = () => {
         return;
       }
 
-      // Load team members with their skills
+      // Load team members with their skills from skill_assessments table
       const { data: members, error: membersError } = await supabase
         .from('practice_members')
         .select(`
           id,
           name,
           email,
-          role,
-          skills:team_member_skills(
-            skill_id,
-            current_level,
-            interest_level,
-            target_level,
-            last_assessed
-          )
+          role
         `);
-
+      
       if (membersError) {
         console.error('Error loading members:', membersError);
       }
 
+      // Load skill assessments separately
+      const { data: assessments, error: assessmentsError } = await supabase
+        .from('skill_assessments')
+        .select(`
+          team_member_id,
+          skill_id,
+          current_level,
+          interest_level,
+          assessed_at
+        `);
+
+      if (assessmentsError) {
+        console.error('Error loading assessments:', assessmentsError);
+      }
+
       console.log('Loaded categories:', categories);
       console.log('Loaded members:', members);
+      console.log('Loaded assessments:', assessments);
 
       // Transform member skills to match expected format
       const transformedMembers = (members || []).map(member => {
-        const skills = (member.skills || []).map((s: any) => ({
-          skillId: s.skill_id,
-          currentLevel: s.current_level,
-          interestLevel: s.interest_level,
-          targetLevel: s.target_level,
-          lastAssessed: s.last_assessed ? new Date(s.last_assessed) : null
+        // Find all assessments for this member
+        const memberAssessments = (assessments || []).filter(
+          (a: any) => a.team_member_id === member.id
+        );
+
+        const skills = memberAssessments.map((a: any) => ({
+          skillId: a.skill_id,
+          currentLevel: a.current_level,
+          interestLevel: a.interest_level || 3,
+          targetLevel: Math.min(a.current_level + 1, 5), // Default target is one level up
+          lastAssessed: a.assessed_at ? new Date(a.assessed_at) : null
         }));
 
         const avgLevel = skills.length > 0
