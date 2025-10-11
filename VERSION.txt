@@ -1,0 +1,4 @@
+v1.0.2 - UI Redesign Active
+Deployed: 2025-10-11
+Changes: Activated AdvisorySkillsPageRedesigned with improved navigation and darker text in metric boxes
+
