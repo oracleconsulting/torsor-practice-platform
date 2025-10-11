@@ -292,15 +292,30 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
     <div className="grid grid-cols-12 gap-6">
       {/* Overall Metrics */}
       <div className="col-span-3">
-        <MetricCard 
-          title="Team Capability Score"
-          value={teamMetrics.capabilityScore}
-          max={100}
-          trend="+5%"
-          benchmark={showBenchmarks ? 82 : undefined}
-          description="vs Industry Avg"
-          icon={<TrendingUp className="w-5 h-5" />}
-        />
+        <Card className="bg-card border-border shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-blue-500" />
+                <p className="text-sm text-muted-foreground">Team Capability Score</p>
+              </div>
+              <Badge variant="outline" className="text-xs">+5%</Badge>
+            </div>
+            <p className="text-2xl font-bold text-card-foreground">{teamMetrics.capabilityScore}</p>
+            <div className="w-full bg-muted rounded-full h-2 mt-2">
+              <div 
+                className="bg-primary h-2 rounded-full transition-all"
+                style={{ width: `${teamMetrics.capabilityScore}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Average of all skill levels across all team members and categories. 100% = all skills at expert level.
+            </p>
+            {showBenchmarks && (
+              <p className="text-xs text-amber-400 mt-1">Industry avg: 82%</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Category Breakdown */}
@@ -331,8 +346,9 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
               <strong className="text-white">How to Read This Chart:</strong>
               <ul className="mt-2 space-y-1 text-sm text-gray-300">
                 <li>• <strong>Blue Shape</strong>: Your team's current capability (0-100%)</li>
-                <li>• <strong>100% = Excellence</strong>: All team members at target skill levels</li>
-                <li>• <strong>Calculation</strong>: (Avg Current Level / Target Level) × 100 for each category</li>
+                <li>• <strong>100% Capacity</strong>: All team members at Expert Level (5/5) in that category</li>
+                <li>• <strong>Calculation</strong>: (Average Skill Level ÷ 5) × 100% for each category</li>
+                <li>• <strong>Example</strong>: Avg level 3.5 = 70% capacity, Avg level 4 = 80% capacity</li>
                 <li>• <strong>Larger shape</strong> = Stronger overall capability</li>
                 <li>• <strong>Indented areas</strong> = Categories needing development</li>
               </ul>
@@ -528,24 +544,53 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
       {/* Additional Metrics */}
       <div className="col-span-4">
         <div className="space-y-4">
-          <MetricCard 
-            title="Critical Gaps"
-            value={teamMetrics.criticalGaps}
-            trend="-12%"
-            icon={<Target className="w-5 h-5" />}
-          />
-          <MetricCard 
-            title="High Interest Areas"
-            value={teamMetrics.highInterestCount}
-            trend="+8%"
-            icon={<Award className="w-5 h-5" />}
-          />
-          <MetricCard 
-            title="Succession Risks"
-            value={teamMetrics.successionRisk}
-            trend="+2"
-            icon={<AlertTriangle className="w-5 h-5" />}
-          />
+          <Card className="bg-card border-border shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Target className="w-5 h-5 text-red-500" />
+                  <p className="text-sm text-muted-foreground">Critical Gaps</p>
+                </div>
+                <Badge variant="outline" className="text-xs text-green-600">-12%</Badge>
+              </div>
+              <p className="text-2xl font-bold text-card-foreground">{teamMetrics.criticalGaps}</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Skills where current level is 2+ levels below required. Priority for training.
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-card border-border shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Award className="w-5 h-5 text-blue-500" />
+                  <p className="text-sm text-muted-foreground">High Interest Areas</p>
+                </div>
+                <Badge variant="outline" className="text-xs">+8%</Badge>
+              </div>
+              <p className="text-2xl font-bold text-card-foreground">{teamMetrics.highInterestCount}</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Skills with interest level 4-5. Team members eager to develop these.
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-card border-border shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-500" />
+                  <p className="text-sm text-muted-foreground">Succession Risks</p>
+                </div>
+                <Badge variant="outline" className="text-xs text-red-600">+2</Badge>
+              </div>
+              <p className="text-2xl font-bold text-card-foreground">{teamMetrics.successionRisk}</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Critical skills held by only 1 person. High risk if they leave.
+              </p>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
