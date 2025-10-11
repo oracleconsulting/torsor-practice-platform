@@ -5,12 +5,11 @@ import { Badge } from '@/components/ui/badge';
 import { Download, Settings, Play } from 'lucide-react';
 
 // Import new design system
-import { transitions } from '@/lib/design-tokens';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useSavedViews, useHighContrastMode } from '@/hooks/useSavedViews';
 
 // Import new UI components
-import { SidebarNavigation } from '@/components/ui/sidebar-navigation';
+// import { SidebarNavigation } from '@/components/ui/sidebar-navigation';
 import { Breadcrumb, BreadcrumbItem } from '@/components/ui/breadcrumb';
 import { KeyboardShortcutsDialog } from '@/components/ui/keyboard-shortcuts-dialog';
 import { PageSkeleton } from '@/components/ui/skeleton-loaders';
@@ -74,7 +73,6 @@ const AdvisorySkillsPage: React.FC = () => {
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   
   // Assessment mode
@@ -266,7 +264,7 @@ const AdvisorySkillsPage: React.FC = () => {
   // Render loading state
   if (loading) {
     return (
-      <div className={`min-h-screen bg-gray-50 ${sidebarCollapsed ? 'pl-20' : 'pl-64'} transition-all duration-300`}>
+      <div className="min-h-screen bg-gray-50">
         <PageSkeleton />
       </div>
     );
@@ -348,20 +346,9 @@ const AdvisorySkillsPage: React.FC = () => {
   };
 
   return (
-    <div className={`min-h-screen bg-gray-50 ${isHighContrast ? 'high-contrast' : ''}`}>
-      {/* Sidebar Navigation */}
-      <SidebarNavigation
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        collapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
-      />
-
-      {/* Main Content */}
-      <div
-        className={`${transitions.normal} ${sidebarCollapsed ? 'pl-20' : 'pl-64'}`}
-        style={{ minHeight: '100vh' }}
-      >
+    <div className={`min-h-screen ${isHighContrast ? 'high-contrast' : ''}`}>
+      {/* Main Content - No sidebar due to tabs container constraints */}
+      <div className="w-full">
         {/* Sticky Header */}
         <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
           <div className="px-6 py-4">
@@ -402,33 +389,21 @@ const AdvisorySkillsPage: React.FC = () => {
 
             {/* Bottom Row: Page Title + Current View */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {activeTab !== 'overview' && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => setActiveTab('overview')}
-                    className="text-gray-600 hover:text-gray-900"
-                  >
-                    ← Back to Overview
-                  </Button>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">{tabLabels[activeTab]}</h1>
+                {currentView && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant="secondary" className="text-xs">
+                      View: {currentView.name}
+                    </Badge>
+                    <button
+                      onClick={clearCurrentView}
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      Clear
+                    </button>
+                  </div>
                 )}
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">{tabLabels[activeTab]}</h1>
-                  {currentView && (
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="secondary" className="text-xs">
-                        View: {currentView.name}
-                      </Badge>
-                      <button
-                        onClick={clearCurrentView}
-                        className="text-xs text-gray-500 hover:text-gray-700"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* Quick Stats */}
