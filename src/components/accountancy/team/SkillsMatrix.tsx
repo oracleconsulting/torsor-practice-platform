@@ -433,11 +433,11 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <div className="min-w-full">
+          <div className="overflow-x-auto overflow-y-visible">
+            <div className="inline-block min-w-full">
               {/* Skill headers */}
-              <div className="grid grid-cols-1 gap-3 mb-6" style={{ gridTemplateColumns: `minmax(200px, 250px) repeat(${uniqueSkills.length}, minmax(120px, 1fr))` }}>
-                <div className="font-medium text-muted-foreground sticky left-0 bg-card z-10">Team Member</div>
+              <div className="grid grid-cols-1 gap-3 mb-6" style={{ gridTemplateColumns: `250px repeat(${uniqueSkills.length}, 120px)` }}>
+                <div className="font-medium text-muted-foreground sticky left-0 bg-card z-10 pr-4">Team Member</div>
                 {uniqueSkills.map(skill => (
                   <div key={skill.id} className="text-center">
                     <div className="text-xs text-muted-foreground font-medium mb-1 h-12 flex items-center justify-center px-1" title={`${skill.description} - Required: ${skill.requiredLevel}/5`}>
@@ -453,10 +453,10 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
                 <div 
                   key={member.id} 
                   className="grid grid-cols-1 gap-3 mb-3 hover:bg-gray-700/30 rounded-lg p-3 cursor-pointer transition-colors"
-                  style={{ gridTemplateColumns: `minmax(200px, 250px) repeat(${uniqueSkills.length}, minmax(120px, 1fr))` }}
+                  style={{ gridTemplateColumns: `250px repeat(${uniqueSkills.length}, 120px)` }}
                   onClick={() => onSelectMember(member)}
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 sticky left-0 bg-card z-10 pr-4 -ml-3 pl-3">
                     <Avatar className="w-6 h-6">
                       <AvatarFallback className="text-xs">
                         {member.name.split(' ').map(n => n[0]).join('')}
