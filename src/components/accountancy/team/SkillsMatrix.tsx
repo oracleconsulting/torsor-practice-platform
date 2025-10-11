@@ -18,7 +18,11 @@ import {
   CheckCircle,
   Target,
   Edit,
-  Save
+  Save,
+  Ear,
+  BookOpen,
+  Hand,
+  Sparkles
 } from 'lucide-react';
 
 interface Skill {
@@ -48,6 +52,8 @@ interface TeamMember {
   department: string;
   skills: TeamMemberSkill[];
   overallScore?: number;
+  learningStyle?: 'visual' | 'auditory' | 'reading_writing' | 'kinesthetic' | 'multimodal';
+  varkCompleted?: boolean;
 }
 
 interface SkillCategory {
@@ -250,6 +256,40 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
     return 'border-cyan-200 border border-dashed';
   };
 
+  // Learning style badge
+  const getLearningStyleBadge = (learningStyle?: string) => {
+    if (!learningStyle) return null;
+
+    const styles: { [key: string]: { icon: React.ReactNode; color: string; label: string } } = {
+      visual: { icon: <Eye className="w-3 h-3" />, color: 'bg-blue-500/20 text-blue-400 border-blue-500/40', label: 'V' },
+      auditory: { icon: <Ear className="w-3 h-3" />, color: 'bg-purple-500/20 text-purple-400 border-purple-500/40', label: 'A' },
+      reading_writing: { icon: <BookOpen className="w-3 h-3" />, color: 'bg-green-500/20 text-green-400 border-green-500/40', label: 'R' },
+      kinesthetic: { icon: <Hand className="w-3 h-3" />, color: 'bg-orange-500/20 text-orange-400 border-orange-500/40', label: 'K' },
+      multimodal: { icon: <Sparkles className="w-3 h-3" />, color: 'bg-pink-500/20 text-pink-400 border-pink-500/40', label: 'M' },
+    };
+
+    const style = styles[learningStyle];
+    if (!style) return null;
+
+    const tooltipText = {
+      visual: 'Visual Learner',
+      auditory: 'Auditory Learner',
+      reading_writing: 'Reading/Writing Learner',
+      kinesthetic: 'Kinesthetic Learner',
+      multimodal: 'Multimodal Learner',
+    }[learningStyle] || learningStyle;
+
+    return (
+      <span 
+        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${style.color}`}
+        title={tooltipText}
+      >
+        {style.icon}
+        <span>{style.label}</span>
+      </span>
+    );
+  };
+
   // Sort members
   const sortedMembers = useMemo(() => {
     const members = [...new Set(matrixData.map(cell => cell.member))];
@@ -387,8 +427,11 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
                               {member.name.split(' ').map(n => n[0]).join('')}
                             </AvatarFallback>
                           </Avatar>
-                          <div>
-                            <div className="text-card-foreground font-medium text-sm">{member.name}</div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-card-foreground font-medium text-sm">{member.name}</span>
+                              {getLearningStyleBadge(member.learningStyle)}
+                            </div>
                             <div className="text-muted-foreground text-xs">{member.role}</div>
                           </div>
                         </div>
@@ -586,8 +629,11 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
                         {member.name.split(' ').map(n => n[0]).join('')}
                       </AvatarFallback>
                     </Avatar>
-                    <div>
-                      <div className="text-card-foreground font-medium text-sm">{member.name}</div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-card-foreground font-medium text-sm">{member.name}</span>
+                        {getLearningStyleBadge(member.learningStyle)}
+                      </div>
                       <div className="text-muted-foreground text-xs">{member.role}</div>
                     </div>
                   </div>
