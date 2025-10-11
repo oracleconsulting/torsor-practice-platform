@@ -97,6 +97,27 @@ const AnalyticsDashboardPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
+      // Set empty data for now to prevent loading loops
+      setMetrics({
+        teamCapabilityScore: 0,
+        skillsCoveragePercentage: 0,
+        averageImprovementRate: 0,
+        cpdComplianceRate: 0,
+        mentoringEngagementScore: 0
+      });
+      setSkillProgression([]);
+      setDepartmentData([]);
+      setCpdInvestment([]);
+      setDemandSupply([]);
+      setGrowthTrajectories([]);
+      setSkillsAtRisk([]);
+      setSuccessionAlerts([]);
+      setTrainingROI([]);
+      setSkillGapForecasts([]);
+      setLoading(false);
+      return;
+      
+      /* Temporarily disabled - will be enabled when data is ready
       const [
         metricsData,
         progressionData,

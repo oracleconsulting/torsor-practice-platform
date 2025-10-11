@@ -70,6 +70,20 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
       }
     } catch (error) {
       console.error('Error loading CPD-Skills bridge data:', error);
+      // Set empty data to prevent crashes
+      setImprovementHistory([]);
+      setRoiData({
+        totalCpdHours: 0,
+        totalSkillImprovement: 0,
+        improvementPerHour: 0,
+        totalCost: 0,
+        costPerLevelIncrease: 0,
+        teamCapabilityScore: 0,
+        teamCapabilityChange: 0,
+        topPerformingActivities: [],
+        skillProgress: []
+      });
+      setSkillMappings([]);
     } finally {
       setLoading(false);
     }

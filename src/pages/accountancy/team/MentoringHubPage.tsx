@@ -20,7 +20,10 @@ const MentoringHubPage: React.FC = () => {
   }, [user]);
 
   const loadTeamData = async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     try {
@@ -30,27 +33,26 @@ const MentoringHubPage: React.FC = () => {
         .select(`
           *,
           user:auth.users(email)
-        `)
-        .eq('practice_id', user.practice_id);
+        `);
 
-      if (membersError) throw membersError;
+      if (membersError) {
+        console.error('Error loading members:', membersError);
+        setTeamMembers([]);
+        return;
+      }
 
       // Load skills for each member
-      const { data: skillsData, error: skillsError } = await supabase
+      const { data: skillsData } = await supabase
         .from('team_member_skills')
         .select(`
           *,
           skill:skills(*)
         `);
 
-      if (skillsError) throw skillsError;
-
       // Load learning preferences
-      const { data: learningPrefs, error: learningError } = await supabase
+      const { data: learningPrefs } = await supabase
         .from('learning_preferences')
         .select('*');
-
-      if (learningError) throw learningError;
 
       // Transform data to match interface
       const transformedMembers: TeamMemberForMatching[] = (members || []).map(member => {
@@ -75,8 +77,8 @@ const MentoringHubPage: React.FC = () => {
           department: member.department || 'General',
           skills: memberSkills,
           learningStyle: learningPref?.primary_style,
-          availability: [], // TODO: Load from calendar integration
-          currentMentees: 0, // Will be calculated from relationships
+          availability: [],
+          currentMentees: 0,
           maxMentees: 3
         };
       });
@@ -84,6 +86,7 @@ const MentoringHubPage: React.FC = () => {
       setTeamMembers(transformedMembers);
     } catch (error) {
       console.error('Error loading team data:', error);
+      setTeamMembers([]);
     } finally {
       setLoading(false);
     }

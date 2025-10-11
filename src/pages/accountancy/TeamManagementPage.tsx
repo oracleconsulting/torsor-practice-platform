@@ -60,14 +60,12 @@ const TeamManagementPage: React.FC = () => {
       label: 'TEAM INVITATIONS',
       icon: Mail,
       component: InvitationsPage,
-      badge: 'NEW',
     },
     {
       value: 'dashboard',
       label: 'ADMIN DASHBOARD',
       icon: LayoutDashboard,
       component: AdminDashboardPage,
-      badge: 'NEW',
     },
     {
       value: 'advisory',
@@ -96,34 +94,6 @@ const TeamManagementPage: React.FC = () => {
       icon: BarChart2,
       component: AnalyticsDashboardPage,
       badge: 'NEW',
-    },
-    {
-      value: 'onboarding',
-      label: 'ONBOARDING',
-      icon: CheckCircle,
-      component: OnboardingAdminPage,
-      badge: 'NEW',
-    },
-    {
-      value: 'cpd',
-      label: 'CPD TRACKER',
-      icon: Award,
-      component: CPDTrackerPage,
-      badge: 'COMING SOON',
-    },
-    {
-      value: 'kpi',
-      label: 'KPI MANAGEMENT',
-      icon: BarChart2,
-      component: KPIManagementPage,
-      badge: 'COMING SOON',
-    },
-    {
-      value: 'knowledge',
-      label: 'KNOWLEDGE BASE',
-      icon: BookOpen,
-      component: KnowledgeBasePage,
-      badge: 'COMING SOON',
     },
   ];
 

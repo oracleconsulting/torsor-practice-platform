@@ -42,14 +42,22 @@ const OnboardingAdminPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     
-    const [dashboard, leaderboardData] = await Promise.all([
-      getAdminDashboardData(practiceId),
-      getLeaderboard(practiceId, 'all_time')
-    ]);
+    try {
+      const [dashboard, leaderboardData] = await Promise.all([
+        getAdminDashboardData(practiceId),
+        getLeaderboard(practiceId, 'all_time')
+      ]);
 
-    setDashboardData(dashboard);
-    setLeaderboard(leaderboardData);
-    setLoading(false);
+      setDashboardData(dashboard);
+      setLeaderboard(leaderboardData);
+    } catch (error) {
+      console.error('Error loading onboarding data:', error);
+      // Set empty data to prevent infinite loading
+      setDashboardData(null);
+      setLeaderboard(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {

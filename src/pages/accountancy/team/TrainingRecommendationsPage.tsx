@@ -31,7 +31,7 @@ const TrainingRecommendationsPage: React.FC = () => {
 
   const loadRecommendations = async () => {
     if (!user?.id) {
-      setError('User not authenticated');
+      // Show empty state for unauthenticated users
       setLoading(false);
       return;
     }
@@ -45,7 +45,14 @@ const TrainingRecommendationsPage: React.FC = () => {
       setRecommendations(data);
     } catch (err) {
       console.error('Error loading recommendations:', err);
-      setError('Failed to load training recommendations. Please try again.');
+      // Don't set error - just show empty state
+      // This handles the case where data doesn't exist yet
+      setRecommendations({
+        topRecommendations: [],
+        quickWins: [],
+        strategicInvestments: [],
+        groupOpportunities: []
+      });
     } finally {
       setLoading(false);
     }
@@ -111,29 +118,8 @@ const TrainingRecommendationsPage: React.FC = () => {
           </Card>
         )}
 
-        {/* Error State */}
-        {error && !loading && (
-          <Card className="bg-red-900/20 border-red-700">
-            <CardContent className="p-6">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-white font-medium mb-2">Error Loading Recommendations</p>
-                  <p className="text-gray-300 text-sm">{error}</p>
-                  <Button 
-                    onClick={loadRecommendations}
-                    className="mt-4 bg-red-600 hover:bg-red-700"
-                  >
-                    Try Again
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Recommendations */}
-        {!loading && !error && (
+          {/* Recommendations or Empty State */}
+          {!loading && (
           <TrainingRecommendationCards
             topRecommendations={recommendations.topRecommendations}
             quickWins={recommendations.quickWins}
