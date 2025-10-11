@@ -31,29 +31,22 @@ const SkillsAssessmentPage: React.FC = () => {
       // Get current user
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        toast({
-          title: 'Authentication Required',
-          description: 'Please log in to complete your assessment',
-          variant: 'destructive',
-        });
-        navigate('/accountancy/team');
+        console.log('[SkillsAssessmentPage] No session found, but continuing with empty state');
+        setLoading(false);
         return;
       }
 
       // Get practice member
-      const { data: memberData } = await supabase
+      const { data: memberData, error: memberError } = await supabase
         .from('practice_members')
         .select('*')
         .eq('user_id', session.user.id)
         .single();
 
-      if (!memberData) {
-        toast({
-          title: 'Member Not Found',
-          description: 'Your team member profile was not found',
-          variant: 'destructive',
-        });
-        navigate('/accountancy/team');
+      if (memberError || !memberData) {
+        console.error('[SkillsAssessmentPage] Error loading member:', memberError);
+        // Don't redirect - show empty state instead
+        setLoading(false);
         return;
       }
 

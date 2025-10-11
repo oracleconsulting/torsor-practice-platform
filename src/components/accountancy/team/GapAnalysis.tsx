@@ -9,7 +9,10 @@ import {
   BarChart3,
   Download,
   Sparkles,
-  Lightbulb
+  Lightbulb,
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle
 } from 'lucide-react';
 import TrainingRecommendationCards from './TrainingRecommendationCards';
 import { getTrainingRecommendations, getGroupTrainingOpportunities, createLearningPath } from '@/lib/api/training-recommendations';
