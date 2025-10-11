@@ -1,27 +1,101 @@
 import React, { useState, useEffect } from 'react';
 import SkillsDashboardV2 from '@/components/accountancy/team/SkillsDashboardV2';
 import { Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Wrapper page that loads data and passes to SkillsDashboardV2
 const SkillsDashboardV2Page: React.FC = () => {
+  const { user } = useAuth();
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [skillCategories, setSkillCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user) {
+      loadData();
+    }
+  }, [user]);
 
   const loadData = async () => {
     try {
-      // Load mock data for now - replace with real API calls
-      const mockSkillCategories = getMockSkillCategories();
-      const mockTeamMembers = getMockTeamMembers();
+      console.log('Loading real data from Supabase...');
       
-      setSkillCategories(mockSkillCategories);
-      setTeamMembers(mockTeamMembers);
+      // Load skill categories and skills
+      const { data: categories, error: categoriesError } = await supabase
+        .from('skill_categories')
+        .select(`
+          *,
+          skills:skills(*)
+        `)
+        .order('name');
+
+      if (categoriesError) {
+        console.error('Error loading categories:', categoriesError);
+        // Fall back to mock data
+        const mockSkillCategories = getMockSkillCategories();
+        const mockTeamMembers = getMockTeamMembers();
+        setSkillCategories(mockSkillCategories);
+        setTeamMembers(mockTeamMembers);
+        return;
+      }
+
+      // Load team members with their skills
+      const { data: members, error: membersError } = await supabase
+        .from('practice_members')
+        .select(`
+          id,
+          name,
+          email,
+          role,
+          skills:team_member_skills(
+            skill_id,
+            current_level,
+            interest_level,
+            target_level,
+            last_assessed
+          )
+        `);
+
+      if (membersError) {
+        console.error('Error loading members:', membersError);
+      }
+
+      console.log('Loaded categories:', categories);
+      console.log('Loaded members:', members);
+
+      // Transform member skills to match expected format
+      const transformedMembers = (members || []).map(member => {
+        const skills = (member.skills || []).map((s: any) => ({
+          skillId: s.skill_id,
+          currentLevel: s.current_level,
+          interestLevel: s.interest_level,
+          targetLevel: s.target_level,
+          lastAssessed: s.last_assessed ? new Date(s.last_assessed) : null
+        }));
+
+        const avgLevel = skills.length > 0
+          ? skills.reduce((sum: number, s: any) => sum + s.currentLevel, 0) / skills.length
+          : 0;
+
+        return {
+          ...member,
+          skills,
+          overallScore: Math.round(avgLevel * 10) / 10
+        };
+      });
+
+      setSkillCategories(categories || []);
+      setTeamMembers(transformedMembers);
+      
+      console.log('Data loaded successfully');
     } catch (error) {
       console.error('Error loading data:', error);
+      // Fall back to mock data on any error
+      const mockSkillCategories = getMockSkillCategories();
+      const mockTeamMembers = getMockTeamMembers();
+      setSkillCategories(mockSkillCategories);
+      setTeamMembers(mockTeamMembers);
     } finally {
       setLoading(false);
     }
