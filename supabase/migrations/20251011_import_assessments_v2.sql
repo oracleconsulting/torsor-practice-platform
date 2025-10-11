@@ -37,13 +37,12 @@ WHERE inv.assessment_data IS NOT NULL
   AND jsonb_array_length(inv.assessment_data) > 0
   AND skill_item ? 'skill_id'
   AND skill_item ? 'current_level'
-ON CONFLICT (team_member_id, skill_id) DO UPDATE
-SET
-  current_level = EXCLUDED.current_level,
-  interest_level = EXCLUDED.interest_level,
-  notes = EXCLUDED.notes,
-  assessed_at = EXCLUDED.assessed_at,
-  updated_at = NOW();
+  -- Only insert if not already exists
+  AND NOT EXISTS (
+    SELECT 1 FROM skill_assessments sa2
+    WHERE sa2.team_member_id = pm.id
+      AND sa2.skill_id = (skill_item->>'skill_id')::UUID
+  );
 
 -- Show results
 SELECT 
