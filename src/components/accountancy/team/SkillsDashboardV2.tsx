@@ -578,7 +578,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
 
                     {/* Training Catalog */}
                     <Card className="bg-white border-gray-300 hover:border-blue-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
-                          onClick={() => window.location.href = '/accountancy/team?tab=training'}>
+                          onClick={() => navigate('/accountancy/team?tab=training')}>
                       <CardContent className="p-6 text-center">
                         <BookOpen className="w-10 h-10 text-blue-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">Training Catalog</h3>
@@ -588,7 +588,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
 
                     {/* Find Mentor */}
                     <Card className="bg-white border-gray-300 hover:border-green-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
-                          onClick={() => window.location.href = '/accountancy/team?tab=mentoring'}>
+                          onClick={() => navigate('/accountancy/team?tab=mentoring')}>
                       <CardContent className="p-6 text-center">
                         <Users className="w-10 h-10 text-green-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">Find a Mentor</h3>
@@ -598,7 +598,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
 
                     {/* Log CPD */}
                     <Card className="bg-white border-gray-300 hover:border-yellow-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
-                          onClick={() => window.location.href = '/accountancy/team?tab=cpd'}>
+                          onClick={() => navigate('/accountancy/team?tab=cpd')}>
                       <CardContent className="p-6 text-center">
                         <Clock className="w-10 h-10 text-yellow-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">Log CPD Activity</h3>
@@ -608,7 +608,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
 
                     {/* AI Recommendations */}
                     <Card className="bg-white border-gray-300 hover:border-pink-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
-                          onClick={() => window.location.href = '/accountancy/team?tab=training'}>
+                          onClick={() => navigate('/accountancy/team?tab=training')}>
                       <CardContent className="p-6 text-center">
                         <Sparkles className="w-10 h-10 text-pink-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">AI Recommendations</h3>
@@ -618,7 +618,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
 
                     {/* Resources Library */}
                     <Card className="bg-white border-gray-300 hover:border-orange-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
-                          onClick={() => window.location.href = '/accountancy/team?tab=knowledge'}>
+                          onClick={() => navigate('/accountancy/team?tab=knowledge')}>
                       <CardContent className="p-6 text-center">
                         <GraduationCap className="w-10 h-10 text-orange-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">Resources Library</h3>
