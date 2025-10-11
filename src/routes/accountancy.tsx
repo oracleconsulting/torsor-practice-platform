@@ -114,8 +114,8 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="client-portal" element={<Navigate to="/accountancy/client-management" replace />} />
       <Route path="client-management" element={<ClientManagementPage practiceId={practiceId} />} />
       <Route path="health" element={<PracticeHealth />} />
-      <Route path="team" element={<TeamManagementPage />} />
       <Route path="team/skills-assessment" element={<SkillsAssessmentPage />} />
+      <Route path="team" element={<TeamManagementPage />} />
       <Route path="team-portal/vark-assessment" element={<VARKAssessmentPage />} />
       <Route path="team-portal/mentoring" element={<MentoringHubPage />} />
       <Route path="team-portal/onboarding" element={<OnboardingHubPage />} />
@@ -187,7 +187,12 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="settings" element={<SettingsPage />} />
       
       {/* Catch all - redirect to dashboard */}
-      <Route path="*" element={<Navigate to="/accountancy/dashboard" replace />} />
+      <Route path="*" element={
+        <>
+          {console.log('[AccountancyRoutes] Catch-all route triggered - redirecting to dashboard')}
+          <Navigate to="/accountancy/dashboard" replace />
+        </>
+      } />
     </Routes>
   );
 };
