@@ -114,8 +114,7 @@ const AnalyticsDashboardPage: React.FC = () => {
       setSuccessionAlerts([]);
       setTrainingROI([]);
       setSkillGapForecasts([]);
-      setLoading(false);
-      return;
+      setLastUpdate(new Date());
       
       /* Temporarily disabled - will be enabled when data is ready
       const [
@@ -152,7 +151,7 @@ const AnalyticsDashboardPage: React.FC = () => {
       setSuccessionAlerts(successionData);
       setTrainingROI(roiData);
       setSkillGapForecasts(forecastData);
-      setLastUpdate(new Date());
+      */
     } catch (error: any) {
       console.error('Error loading analytics:', error);
       toast({
