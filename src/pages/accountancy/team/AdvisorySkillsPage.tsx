@@ -65,7 +65,7 @@ interface TeamMember {
 const AdvisorySkillsPage: React.FC = () => {
   const { toast } = useToast();
   
-  console.log('[AdvisorySkillsPage v1.0.4] NEW REDESIGNED UI LOADED - Sidebar should be visible');
+  console.log('[AdvisorySkillsPage v1.0.5] BLACK TEXT + WORKING SIDEBAR');
   
   // State
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -346,11 +346,64 @@ const AdvisorySkillsPage: React.FC = () => {
   };
 
   return (
-    <div className={`min-h-screen ${isHighContrast ? 'high-contrast' : ''}`}>
-      {/* Main Content - No sidebar due to tabs container constraints */}
-      <div className="w-full">
+    <div className={`flex min-h-screen ${isHighContrast ? 'high-contrast' : ''}`}>
+      {/* LEFT SIDEBAR - Always visible */}
+      <aside className="w-64 bg-gradient-to-b from-gray-900 to-gray-800 text-white flex-shrink-0 border-r border-gray-700">
+        <div className="p-4 border-b border-gray-700">
+          <h2 className="text-xl font-bold text-blue-400">Advisory Skills</h2>
+          <p className="text-xs text-gray-400 mt-1">Navigation</p>
+        </div>
+        
+        <nav className="p-3 space-y-1">
+          {[
+            { id: 'overview', label: 'Overview', icon: '📊' },
+            { id: 'matrix', label: 'Skills Matrix', icon: '🗂️' },
+            { id: 'assessment', label: 'Assessment', icon: '📝' },
+            { id: 'gaps', label: 'Gap Analysis', icon: '🎯' },
+            { id: 'planning', label: 'Development Planning', icon: '📅' },
+            { id: 'skills-analysis', label: 'Skills Analysis', icon: '💡' },
+            { id: 'metrics', label: 'Team Metrics', icon: '📈' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all ${
+                activeTab === tab.id
+                  ? 'bg-blue-600 text-white font-semibold shadow-lg'
+                  : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+              }`}
+            >
+              <span className="text-xl">{tab.icon}</span>
+              <span className="text-sm">{tab.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        {/* Quick Stats in Sidebar */}
+        <div className="p-4 mt-4 border-t border-gray-700">
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-gray-400">Team Members</span>
+              <span className="font-semibold text-white">{teamMembers.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Total Skills</span>
+              <span className="font-semibold text-white">{skillCategories.flatMap(c => c.skills).length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Assessments</span>
+              <span className="font-semibold text-white">
+                {teamMembers.reduce((sum, m) => sum + m.skills.length, 0)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* RIGHT: Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
         {/* Sticky Header */}
-        <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
+        <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
           <div className="px-6 py-4">
             {/* Top Row: Breadcrumbs + Actions */}
             <div className="flex items-center justify-between mb-3">
@@ -387,7 +440,7 @@ const AdvisorySkillsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Bottom Row: Page Title + Current View */}
+            {/* Bottom Row: Page Title */}
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">{tabLabels[activeTab]}</h1>
@@ -405,27 +458,12 @@ const AdvisorySkillsPage: React.FC = () => {
                   </div>
                 )}
               </div>
-
-              {/* Quick Stats */}
-              <div className="flex items-center gap-4 text-sm text-gray-600">
-                <div>
-                  <span className="font-semibold">{teamMembers.length}</span> Members
-                </div>
-                <div>
-                  <span className="font-semibold">{skillCategories.flatMap(c => c.skills).length}</span> Skills
-                </div>
-                <div>
-                  <span className="font-semibold">
-                    {teamMembers.reduce((sum, m) => sum + m.skills.length, 0)}
-                  </span> Assessments
-                </div>
-              </div>
             </div>
           </div>
         </header>
 
-        {/* Page Content */}
-        <main className="p-6">
+        {/* Page Content - Scrollable */}
+        <main className="flex-1 overflow-y-auto p-6 bg-gray-50">
           <div className={`mx-auto ${activeTab === 'overview' ? 'max-w-7xl' : ''}`}>
             {renderTabContent()}
           </div>

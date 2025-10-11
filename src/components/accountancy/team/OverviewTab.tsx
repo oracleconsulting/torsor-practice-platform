@@ -118,11 +118,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-950 text-sm font-semibold">Team Capability</p>
+                <p className="text-black text-sm font-semibold">Team Capability</p>
                 <p className="text-3xl font-bold mt-1 text-white">{metrics.teamCapability}%</p>
-                <p className="text-blue-900 text-xs mt-1 font-medium">Avg level: {metrics.avgSkillLevel}/5</p>
+                <p className="text-black text-xs mt-1 font-medium">Avg level: {metrics.avgSkillLevel}/5</p>
               </div>
-              <TrendingUp className="w-12 h-12 text-blue-900 opacity-30" />
+              <TrendingUp className="w-12 h-12 text-black opacity-20" />
             </div>
             <Progress value={metrics.teamCapability} className="mt-4 bg-blue-400" />
           </CardContent>
@@ -132,11 +132,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-amber-950 text-sm font-semibold">Critical Gaps</p>
+                <p className="text-black text-sm font-semibold">Critical Gaps</p>
                 <p className="text-3xl font-bold mt-1 text-white">{metrics.criticalGaps}</p>
-                <p className="text-amber-900 text-xs mt-1 font-medium">Need attention</p>
+                <p className="text-black text-xs mt-1 font-medium">Need attention</p>
               </div>
-              <AlertTriangle className="w-12 h-12 text-amber-900 opacity-30" />
+              <AlertTriangle className="w-12 h-12 text-black opacity-20" />
             </div>
           </CardContent>
         </Card>
@@ -145,11 +145,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-green-950 text-sm font-semibold">High Interest</p>
+                <p className="text-black text-sm font-semibold">High Interest</p>
                 <p className="text-3xl font-bold mt-1 text-white">{metrics.highInterest}</p>
-                <p className="text-green-900 text-xs mt-1 font-medium">Skills to develop</p>
+                <p className="text-black text-xs mt-1 font-medium">Skills to develop</p>
               </div>
-              <Sparkles className="w-12 h-12 text-green-900 opacity-30" />
+              <Sparkles className="w-12 h-12 text-black opacity-20" />
             </div>
           </CardContent>
         </Card>
@@ -158,11 +158,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-purple-950 text-sm font-semibold">Team Members</p>
+                <p className="text-black text-sm font-semibold">Team Members</p>
                 <p className="text-3xl font-bold mt-1 text-white">{metrics.totalMembers}</p>
-                <p className="text-purple-900 text-xs mt-1 font-medium">{metrics.totalAssessments} assessments</p>
+                <p className="text-black text-xs mt-1 font-medium">{metrics.totalAssessments} assessments</p>
               </div>
-              <Users className="w-12 h-12 text-purple-900 opacity-30" />
+              <Users className="w-12 h-12 text-black opacity-20" />
             </div>
           </CardContent>
         </Card>
