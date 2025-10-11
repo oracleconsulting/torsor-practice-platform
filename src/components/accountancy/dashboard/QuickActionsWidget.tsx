@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAccountancyContext } from '../../../contexts/AccountancyContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 
 export const QuickActionsWidget: React.FC = () => {
+  const navigate = useNavigate();
   const context = useAccountancyContext();
   const { subscriptionTier } = context || { subscriptionTier: 'free' };
 
@@ -25,7 +27,7 @@ export const QuickActionsWidget: React.FC = () => {
       title: 'New Client',
       description: 'Add a new client to your practice',
       icon: <Plus className="w-5 h-5" />,
-      action: () => console.log('New client'),
+      action: () => navigate('/accountancy/client-management'),
       available: true,
       color: 'bg-semantic-success'
     },
@@ -33,7 +35,7 @@ export const QuickActionsWidget: React.FC = () => {
       title: 'Health Check',
       description: 'Run a practice health assessment',
       icon: <FileText className="w-5 h-5" />,
-      action: () => console.log('Health check'),
+      action: () => navigate('/accountancy/health'),
       available: true,
       color: 'bg-primary-blue'
     },
@@ -41,7 +43,7 @@ export const QuickActionsWidget: React.FC = () => {
       title: 'Team Management',
       description: 'Manage team members and CPD',
       icon: <Users className="w-5 h-5" />,
-      action: () => console.log('Team management'),
+      action: () => navigate('/accountancy/team'),
       available: !isFreeTier,
       color: 'bg-primary-blue'
     },
@@ -49,7 +51,7 @@ export const QuickActionsWidget: React.FC = () => {
       title: 'Client Rescue',
       description: 'Start a new client rescue project',
       icon: <AlertTriangle className="w-5 h-5" />,
-      action: () => console.log('Client rescue'),
+      action: () => navigate('/accountancy/client-rescues'),
       available: !isFreeTier,
       color: 'bg-orange-500'
     },
@@ -57,7 +59,7 @@ export const QuickActionsWidget: React.FC = () => {
       title: 'Advisory Services',
       description: 'Track advisory revenue and projects',
       icon: <TrendingUp className="w-5 h-5" />,
-      action: () => console.log('Advisory services'),
+      action: () => navigate('/accountancy/advisory-services'),
       available: true,
       color: 'bg-pink-500'
     },
@@ -65,7 +67,7 @@ export const QuickActionsWidget: React.FC = () => {
       title: 'Regulatory Compliance',
       description: 'Manage complaints and compliance',
       icon: <Settings className="w-5 h-5" />,
-      action: () => console.log('Regulatory compliance'),
+      action: () => navigate('/accountancy/compliance'),
       available: isProfessionalPlus,
       color: 'bg-primary-coral'
     }
