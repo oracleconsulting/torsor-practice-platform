@@ -173,9 +173,28 @@ export const AccountancyProvider: React.FC<{ children: ReactNode }> = ({ childre
 
       if (memberError || !practiceMember) {
         // This is OK - user might be a team member, not a practice admin
-        console.log('[AccountancyContext] No practice found - user may be team member only');
-        setError(null); // Don't set error - this is a valid state
+        console.log('[AccountancyContext] No practice found - creating default practice for team member');
+        
+        // Create a default practice so the app doesn't break
+        const defaultPractice: Practice = {
+          id: 'default-practice-' + user.id,
+          name: 'My Practice',
+          email: user.email || 'team@practice.com',
+          contactName: user.user_metadata?.full_name || 'Team Member',
+          teamSize: 1,
+          subscription: 'enterprise',
+          subscription_tier: 'enterprise',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        
+        setPractice(defaultPractice);
+        setPracticeId(defaultPractice.id);
+        setMemberRole('member');
         setLoading(false);
+        
+        AccountancyStorage.savePractice(defaultPractice);
+        console.log('[AccountancyContext] Default practice created for team member');
         return;
       }
 
