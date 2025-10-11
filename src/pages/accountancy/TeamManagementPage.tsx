@@ -141,34 +141,58 @@ const TeamManagementPage: React.FC = () => {
       </div>
       
       {/* Page Content */}
-      <div className="relative z-10 container mx-auto px-6 py-12 max-w-7xl">
-        {/* Tabs - Centered Card Grid */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-12">
-          {/* Tab Buttons - Spacious Card Grid */}
-          <TabsList className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 bg-transparent p-0 h-auto">
-            {tabs.map((tab) => (
-              <TabsTrigger
-                key={tab.value}
-                value={tab.value}
-                className="flex flex-col items-center justify-center gap-4 p-6 h-32 bg-white border-2 border-[#1a2b4a] data-[state=active]:bg-[#ff6b35] data-[state=active]:border-[#ff6b35] data-[state=active]:text-white data-[state=inactive]:text-[#1a2b4a] font-bold transition-all duration-300 relative rounded-lg hover:bg-[#ff6b35] hover:border-[#ff6b35] hover:text-white shadow-md hover:shadow-xl hover:scale-105"
-              >
-                {tab.badge && (
-                  <Badge className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 font-bold">
-                    {tab.badge}
-                  </Badge>
-                )}
-                <tab.icon className="w-10 h-10 flex-shrink-0" />
-                <span className="text-sm font-black uppercase text-center leading-tight">{tab.label}</span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
+      <div className="relative z-10 container mx-auto px-6 py-8">
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          {/* Tab Buttons - 2 Rows of 5 */}
+          <div className="flex flex-col gap-3 max-w-6xl mx-auto">
+            {/* Row 1 */}
+            <TabsList className="grid grid-cols-5 gap-2 bg-[#1a2b4a] p-2 border-2 border-[#ff6b35] h-auto">
+              {tabs.slice(0, 5).map((tab) => (
+                <TabsTrigger
+                  key={tab.value}
+                  value={tab.value}
+                  className="flex flex-col items-center justify-center gap-2 p-3 h-20 data-[state=active]:bg-[#ff6b35] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#1a2b4a] font-bold transition-all duration-200 relative rounded hover:bg-[#ff6b35]/90 hover:text-white"
+                >
+                  {tab.badge && (
+                    <Badge className="absolute -top-1 -right-1 bg-green-500 text-white text-xs px-1.5 py-0.5">
+                      {tab.badge}
+                    </Badge>
+                  )}
+                  <tab.icon className="w-6 h-6" />
+                  <span className="text-xs font-bold uppercase leading-tight text-center">{tab.label}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-          {/* Tab Content */}
-          {tabs.map((tab) => (
-            <TabsContent key={tab.value} value={tab.value} className="mt-0">
-              <tab.component />
-            </TabsContent>
-          ))}
+            {/* Row 2 */}
+            <TabsList className="grid grid-cols-5 gap-2 bg-[#1a2b4a] p-2 border-2 border-[#ff6b35] h-auto">
+              {tabs.slice(5, 10).map((tab) => (
+                <TabsTrigger
+                  key={tab.value}
+                  value={tab.value}
+                  className="flex flex-col items-center justify-center gap-2 p-3 h-20 data-[state=active]:bg-[#ff6b35] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#1a2b4a] font-bold transition-all duration-200 relative rounded hover:bg-[#ff6b35]/90 hover:text-white"
+                >
+                  {tab.badge && (
+                    <Badge className="absolute -top-1 -right-1 bg-green-500 text-white text-xs px-1.5 py-0.5">
+                      {tab.badge}
+                    </Badge>
+                  )}
+                  <tab.icon className="w-6 h-6" />
+                  <span className="text-xs font-bold uppercase leading-tight text-center">{tab.label}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+
+          {/* Tab Content Below */}
+          <div className="mt-6">
+            {tabs.map((tab) => (
+              <TabsContent key={tab.value} value={tab.value} className="m-0">
+                <tab.component />
+              </TabsContent>
+            ))}
+          </div>
         </Tabs>
       </div>
     </div>
