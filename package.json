@@ -1,7 +1,7 @@
 {
   "name": "torsor-practice-platform",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.3",
   "type": "module",
   "description": "Complete practice management platform for accountancy firms",
   "scripts": {
