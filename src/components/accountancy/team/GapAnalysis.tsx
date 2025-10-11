@@ -105,6 +105,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [minGapThreshold, setMinGapThreshold] = useState<number>(1);
   const [sortBy, setSortBy] = useState<string>('priority');
+  const [topNFilter, setTopNFilter] = useState<number>(20); // Show only top N gaps
 
   // Calculate gaps for each skill
   const gapData = useMemo((): GapData[] => {
@@ -213,7 +214,12 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
 
   // Prepare scatter plot data for priority matrix
   const scatterData = useMemo(() => {
-    const data = gapData.map(gap => ({
+    // Get top N gaps by priority to avoid overcrowding
+    const topGaps = [...gapData]
+      .sort((a, b) => b.priority - a.priority)
+      .slice(0, topNFilter);
+    
+    const data = topGaps.map(gap => ({
       x: gap.gap,
       y: gap.avgInterest,
       skill: gap.skillName,
@@ -223,13 +229,13 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
 
     return {
       datasets: [{
-        label: 'Skills',
+        label: `Top ${topNFilter} Priority Skills`,
         data,
         backgroundColor: data.map(d => {
-          if (d.priority >= 10) return 'rgba(239, 68, 68, 0.7)'; // High priority - Red
-          if (d.priority >= 5) return 'rgba(245, 158, 11, 0.7)'; // Medium priority - Orange
-          if (d.priority >= 2) return 'rgba(59, 130, 246, 0.7)'; // Low priority - Blue
-          return 'rgba(156, 163, 175, 0.7)'; // Very low priority - Gray
+          if (d.priority >= 10) return 'rgba(239, 68, 68, 0.8)'; // High priority - Red
+          if (d.priority >= 5) return 'rgba(245, 158, 11, 0.8)'; // Medium priority - Orange
+          if (d.priority >= 2) return 'rgba(59, 130, 246, 0.8)'; // Low priority - Blue
+          return 'rgba(156, 163, 175, 0.8)'; // Very low priority - Gray
         }),
         borderColor: data.map(d => {
           if (d.priority >= 10) return 'rgba(239, 68, 68, 1)';
@@ -237,11 +243,12 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
           if (d.priority >= 2) return 'rgba(59, 130, 246, 1)';
           return 'rgba(156, 163, 175, 1)';
         }),
-        borderWidth: 1,
-        pointRadius: Math.max(4, Math.min(12, data.map(d => d.members).reduce((a, b) => Math.max(a, b), 0) / 2))
+        borderWidth: 2,
+        pointRadius: 8, // Fixed larger size for better visibility
+        pointHoverRadius: 12
       }]
     };
-  }, [gapData]);
+  }, [gapData, topNFilter]);
 
   const GapIndicator: React.FC<{ gap: number }> = ({ gap }) => {
     if (gap >= 2) return <Badge variant="destructive">Critical ({gap})</Badge>;
@@ -326,6 +333,19 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
           </SelectContent>
         </Select>
 
+        <Select value={topNFilter.toString()} onValueChange={(value) => setTopNFilter(parseInt(value))}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Chart display" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="10">Top 10 Skills</SelectItem>
+            <SelectItem value="20">Top 20 Skills</SelectItem>
+            <SelectItem value="30">Top 30 Skills</SelectItem>
+            <SelectItem value="50">Top 50 Skills</SelectItem>
+            <SelectItem value="100">All Skills</SelectItem>
+          </SelectContent>
+        </Select>
+
         <Select value={sortBy} onValueChange={setSortBy}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="Sort by" />
@@ -357,6 +377,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
               <ul className="mt-2 space-y-1 text-sm">
                 <li>• <strong>X-axis (Horizontal)</strong>: Skill Gap = How much development needed (Target - Current Level)</li>
                 <li>• <strong>Y-axis (Vertical)</strong>: Interest Level = How eager team members are to learn this skill (1-5)</li>
+                <li>• <strong>Dot Color</strong>: Red = High Priority, Orange = Medium, Blue = Low Priority</li>
                 <li>• <strong>Position</strong>: Top-right = High interest + Big gap = Priority for development!</li>
                 <li>• <strong>Bottom-right</strong>: Big gap but low interest = May need external hiring or motivation</li>
                 <li>• <strong>Top-left</strong>: High interest + Small gap = Quick wins, easy to close</li>
@@ -408,6 +429,29 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
                   }
                 }}
               />
+            </div>
+            
+            {/* Color Legend */}
+            <div className="mt-4 p-3 bg-gray-700/30 rounded-lg border border-gray-600">
+              <h4 className="text-sm font-semibold text-white mb-2">Priority Color Guide:</h4>
+              <div className="flex items-center gap-6 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full bg-red-500"></div>
+                  <span className="text-xs text-gray-300">High Priority (≥10)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full bg-amber-500"></div>
+                  <span className="text-xs text-gray-300">Medium Priority (5-9)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full bg-blue-500"></div>
+                  <span className="text-xs text-gray-300">Low Priority (2-4)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full bg-gray-500"></div>
+                  <span className="text-xs text-gray-300">Very Low Priority (&lt;2)</span>
+                </div>
+              </div>
             </div>
             
             {/* Quadrant Labels */}
