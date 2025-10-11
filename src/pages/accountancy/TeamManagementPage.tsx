@@ -117,31 +117,35 @@ const TeamManagementPage: React.FC = () => {
       
       {/* Page Content */}
       <div className="relative z-10 container mx-auto px-6 py-12">
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid grid-cols-5 lg:grid-cols-10 gap-2 bg-[#1a2b4a] p-1 h-auto border-2 border-[#ff6b35]">
+        {/* Tabs with Vertical Sidebar */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col lg:flex-row gap-6">
+          {/* Vertical Tabs Sidebar */}
+          <TabsList className="flex flex-col lg:flex-col flex-wrap lg:flex-nowrap h-fit gap-2 bg-[#1a2b4a] p-4 border-2 border-[#ff6b35] lg:w-72 flex-shrink-0">
             {tabs.map((tab) => (
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className="flex flex-col items-center justify-center p-4 h-auto space-y-2 data-[state=active]:bg-[#ff6b35] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#1a2b4a] font-black uppercase transition-all duration-300 relative"
+                className="flex items-center justify-start gap-3 p-4 w-full h-auto data-[state=active]:bg-[#ff6b35] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#1a2b4a] font-bold transition-all duration-300 relative rounded-md hover:bg-[#ff6b35]/80 hover:text-white"
               >
+                <tab.icon className="w-6 h-6 flex-shrink-0" />
+                <span className="text-sm font-bold uppercase text-left flex-1 whitespace-nowrap">{tab.label}</span>
                 {tab.badge && (
-                  <Badge className="absolute -top-1 -right-1 bg-green-500 text-white text-xs px-2">
+                  <Badge className="bg-green-500 text-white text-xs px-2 py-1 flex-shrink-0">
                     {tab.badge}
                   </Badge>
                 )}
-                <tab.icon className="w-5 h-5" />
-                <span className="text-sm font-black uppercase">{tab.label}</span>
               </TabsTrigger>
             ))}
           </TabsList>
 
-          {tabs.map((tab) => (
-            <TabsContent key={tab.value} value={tab.value} className="mt-6">
-              <tab.component />
-            </TabsContent>
-          ))}
+          {/* Tab Content Area */}
+          <div className="flex-1 min-w-0">
+            {tabs.map((tab) => (
+              <TabsContent key={tab.value} value={tab.value} className="m-0">
+                <tab.component />
+              </TabsContent>
+            ))}
+          </div>
         </Tabs>
       </div>
     </div>
