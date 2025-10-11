@@ -52,6 +52,7 @@ import VARKAssessmentPage from '../pages/accountancy/team/VARKAssessmentPage';
 import MentoringHubPage from '../pages/accountancy/team/MentoringHubPage';
 import OnboardingHubPage from '../pages/accountancy/team/OnboardingHubPage';
 import OnboardingAdminPage from '../pages/accountancy/team/OnboardingAdminPage';
+import AnalyticsDashboardPage from '../pages/accountancy/team/AnalyticsDashboardPage';
 
 // Add this component for practice selection
 const PracticeSelection = () => {
@@ -114,6 +115,7 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="team-portal/mentoring" element={<MentoringHubPage />} />
       <Route path="team-portal/onboarding" element={<OnboardingHubPage />} />
       <Route path="team-portal/onboarding-admin" element={<OnboardingAdminPage />} />
+      <Route path="team-portal/analytics" element={<AnalyticsDashboardPage />} />
       <Route path="client-rescues" element={<ClientRescues />} />
       <Route path="advisory-services" element={<AdvisoryServices />} />
       
