@@ -1,0 +1,136 @@
+/**
+ * High Contrast Mode Styles
+ * WCAG AAA compliant color ratios
+ */
+
+.high-contrast {
+  /* Backgrounds */
+  --background: 255 255 255; /* Pure white */
+  --foreground: 0 0 0; /* Pure black */
+  
+  /* UI Elements */
+  --card: 255 255 255;
+  --card-foreground: 0 0 0;
+  
+  --popover: 255 255 255;
+  --popover-foreground: 0 0 0;
+  
+  --primary: 0 0 0;
+  --primary-foreground: 255 255 255;
+  
+  --secondary: 0 0 0;
+  --secondary-foreground: 255 255 255;
+  
+  --muted: 240 240 240;
+  --muted-foreground: 0 0 0;
+  
+  --accent: 0 0 0;
+  --accent-foreground: 255 255 255;
+  
+  --destructive: 200 0 0;
+  --destructive-foreground: 255 255 255;
+  
+  --border: 0 0 0;
+  --input: 0 0 0;
+  --ring: 0 0 0;
+}
+
+.high-contrast {
+  /* Increase border widths */
+  --border-width: 2px;
+}
+
+.high-contrast * {
+  /* Force high contrast borders */
+  border-color: rgb(0 0 0) !important;
+  border-width: 2px;
+}
+
+.high-contrast button,
+.high-contrast a,
+.high-contrast [role="button"] {
+  /* High contrast interactive elements */
+  border: 2px solid black !important;
+  font-weight: 600;
+}
+
+.high-contrast button:hover,
+.high-contrast a:hover {
+  background-color: black !important;
+  color: white !important;
+}
+
+.high-contrast input,
+.high-contrast textarea,
+.high-contrast select {
+  border: 2px solid black !important;
+  background-color: white !important;
+  color: black !important;
+}
+
+/* Chart colors in high contrast */
+.high-contrast canvas {
+  filter: contrast(1.5) saturate(0.5);
+}
+
+/* Remove subtle shadows */
+.high-contrast .shadow-sm,
+.high-contrast .shadow,
+.high-contrast .shadow-md,
+.high-contrast .shadow-lg {
+  box-shadow: 0 0 0 2px black !important;
+}
+
+/* Status colors - high contrast versions */
+.high-contrast .bg-red-50,
+.high-contrast .bg-red-100 {
+  background-color: rgb(255 200 200) !important;
+  border: 2px solid rgb(200 0 0) !important;
+}
+
+.high-contrast .bg-green-50,
+.high-contrast .bg-green-100 {
+  background-color: rgb(200 255 200) !important;
+  border: 2px solid rgb(0 150 0) !important;
+}
+
+.high-contrast .bg-blue-50,
+.high-contrast .bg-blue-100 {
+  background-color: rgb(200 220 255) !important;
+  border: 2px solid rgb(0 0 200) !important;
+}
+
+.high-contrast .bg-amber-50,
+.high-contrast .bg-amber-100,
+.high-contrast .bg-yellow-50,
+.high-contrast .bg-yellow-100 {
+  background-color: rgb(255 255 200) !important;
+  border: 2px solid rgb(200 150 0) !important;
+}
+
+/* Text colors */
+.high-contrast .text-gray-500,
+.high-contrast .text-gray-600,
+.high-contrast .text-gray-700 {
+  color: rgb(0 0 0) !important;
+}
+
+.high-contrast .text-muted-foreground {
+  color: rgb(0 0 0) !important;
+  font-weight: 600;
+}
+
+/* Focus states */
+.high-contrast *:focus {
+  outline: 3px solid black !important;
+  outline-offset: 2px;
+}
+
+/* Remove gradient backgrounds */
+.high-contrast [class*="gradient"] {
+  background-image: none !important;
+  background-color: white !important;
+  color: black !important;
+  border: 2px solid black !important;
+}
+
