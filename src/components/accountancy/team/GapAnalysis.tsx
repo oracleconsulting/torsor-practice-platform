@@ -5,16 +5,15 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { 
-  AlertTriangle, 
-  Target, 
-  Users, 
   BarChart3,
   Download,
-  Lightbulb,
-  AlertCircle,
-  CheckCircle,
-  XCircle
+  Sparkles
 } from 'lucide-react';
+import TrainingRecommendationCards from './TrainingRecommendationCards';
+import { getTrainingRecommendations, getGroupTrainingOpportunities, createLearningPath } from '@/lib/api/training-recommendations';
+import { getLearningPreference } from '@/lib/api/learning-preferences';
+import type { RecommendationAnalysis, TeamMemberProfile, SkillGap } from '@/services/ai/trainingRecommendations';
+import { useAuth } from '@/contexts/AuthContext';
 import { Scatter } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -101,10 +100,18 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
   showHeatmap,
   priorityAlgorithm
 }) => {
+  const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [minGapThreshold, setMinGapThreshold] = useState<number>(1);
   const [sortBy, setSortBy] = useState<string>('priority');
   const [topNFilter, setTopNFilter] = useState<number>(20); // Show only top N gaps
+  
+  // AI Recommendations state
+  const [showAIRecommendations, setShowAIRecommendations] = useState<boolean>(false);
+  const [aiRecommendations, setAiRecommendations] = useState<RecommendationAnalysis | null>(null);
+  const [loadingRecommendations, setLoadingRecommendations] = useState<boolean>(false);
+  const [selectedMemberForAI, setSelectedMemberForAI] = useState<string | null>(null);
+  const [generatingLearningPath, setGeneratingLearningPath] = useState<boolean>(false);
 
   // Calculate gaps for each skill
   const gapData = useMemo((): GapData[] => {
@@ -302,6 +309,129 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
         <span className="text-sm text-gray-400">{score.toFixed(0)}</span>
       </div>
     );
+  };
+
+  // Load AI Recommendations for selected member
+  const loadAIRecommendations = async (member: TeamMember) => {
+    if (!member) return;
+    
+    setLoadingRecommendations(true);
+    setSelectedMemberForAI(member.id);
+    setShowAIRecommendations(true);
+
+    try {
+      // Get member's learning preference
+      const learningPref = await getLearningPreference(member.id);
+      
+      // Build skill gaps array
+      const skillGaps: SkillGap[] = gapData
+        .filter(gap => gap.affectedMembers.some(m => m.id === member.id))
+        .map(gap => {
+          const memberSkill = member.skills.find(s => s.skillId === gap.skillId);
+          return {
+            skillId: gap.skillId,
+            skillName: gap.skillName,
+            category: gap.category,
+            currentLevel: memberSkill?.currentLevel || 0,
+            requiredLevel: gap.requiredLevel,
+            gap: gap.requiredLevel - (memberSkill?.currentLevel || 0),
+            interestLevel: memberSkill?.interestLevel || 3,
+            criticality: gap.businessImpact === 'high' ? 'critical' as const : 
+                         gap.businessImpact === 'medium' ? 'medium' as const : 'low' as const,
+            businessImpact: gap.businessImpact === 'high' ? 9 : 
+                            gap.businessImpact === 'medium' ? 5 : 3
+          };
+        });
+
+      // Build team member profile
+      const profile: TeamMemberProfile = {
+        id: member.id,
+        name: member.name,
+        role: member.role,
+        department: member.department,
+        learningStyle: learningPref?.primary_style,
+        skillGaps,
+        timeAvailability: 10,
+        budgetConstraint: 2000
+      };
+
+      // Get recommendations
+      const recommendations = await getTrainingRecommendations(profile);
+      
+      // Get group opportunities
+      const teamProfiles: TeamMemberProfile[] = teamMembers.map(tm => ({
+        id: tm.id,
+        name: tm.name,
+        role: tm.role,
+        department: tm.department,
+        skillGaps: gapData
+          .filter(gap => gap.affectedMembers.some(m => m.id === tm.id))
+          .map(gap => {
+            const memberSkill = tm.skills.find(s => s.skillId === gap.skillId);
+            return {
+              skillId: gap.skillId,
+              skillName: gap.skillName,
+              category: gap.category,
+              currentLevel: memberSkill?.currentLevel || 0,
+              requiredLevel: gap.requiredLevel,
+              gap: gap.requiredLevel - (memberSkill?.currentLevel || 0),
+              interestLevel: memberSkill?.interestLevel || 3,
+              criticality: gap.businessImpact === 'high' ? 'critical' as const : 'medium' as const,
+              businessImpact: 5
+            };
+          })
+      }));
+
+      const groupOpps = await getGroupTrainingOpportunities(
+        member.department,
+        teamProfiles
+      );
+
+      setAiRecommendations({
+        ...recommendations,
+        groupOpportunities: groupOpps
+      });
+    } catch (error) {
+      console.error('Error loading AI recommendations:', error);
+    } finally {
+      setLoadingRecommendations(false);
+    }
+  };
+
+  // Generate 6-month learning path
+  const handleGenerateLearningPath = async () => {
+    if (!aiRecommendations || !selectedMemberForAI || !user) return;
+
+    setGeneratingLearningPath(true);
+    try {
+      const member = teamMembers.find(m => m.id === selectedMemberForAI);
+      if (!member) return;
+
+      const learningPref = await getLearningPreference(member.id);
+      const profile: TeamMemberProfile = {
+        id: member.id,
+        name: member.name,
+        role: member.role,
+        department: member.department,
+        learningStyle: learningPref?.primary_style,
+        skillGaps: [],
+        timeAvailability: 10,
+        budgetConstraint: 2000
+      };
+
+      await createLearningPath(
+        profile,
+        aiRecommendations.topRecommendations,
+        user.id
+      );
+
+      alert('6-month learning path generated successfully!');
+    } catch (error) {
+      console.error('Error generating learning path:', error);
+      alert('Failed to generate learning path. Please try again.');
+    } finally {
+      setGeneratingLearningPath(false);
+    }
   };
 
   return (
@@ -761,6 +891,107 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
           </CardContent>
         </Card>
       )}
+
+      {/* AI-Powered Training Recommendations */}
+      <Card className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 border-purple-700">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-white">
+                <Sparkles className="w-6 h-6 text-yellow-400" />
+                AI-Powered Training Recommendations
+              </CardTitle>
+              <CardDescription className="mt-2">
+                Get personalized training recommendations based on skill gaps, learning styles, and business priorities
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAIRecommendations(!showAIRecommendations)}
+              className="border-purple-500 text-purple-400 hover:bg-purple-900/30"
+            >
+              {showAIRecommendations ? 'Hide' : 'Show'} Recommendations
+            </Button>
+          </div>
+        </CardHeader>
+        
+        {showAIRecommendations && (
+          <CardContent>
+            {!selectedMemberForAI ? (
+              <div className="text-center py-8">
+                <p className="text-gray-400 mb-4">Select a team member to generate personalized recommendations</p>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {teamMembers.slice(0, 5).map(member => (
+                    <Button
+                      key={member.id}
+                      onClick={() => loadAIRecommendations(member)}
+                      disabled={loadingRecommendations}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Avatar className="w-6 h-6 mr-2">
+                        <AvatarFallback className="text-xs">
+                          {member.name.split(' ').map(n => n[0]).join('')}
+                        </AvatarFallback>
+                      </Avatar>
+                      {member.name}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ) : loadingRecommendations ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
+                <p className="text-gray-400">Generating AI-powered recommendations...</p>
+              </div>
+            ) : aiRecommendations ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-gray-900/50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-10 h-10">
+                      <AvatarFallback>
+                        {teamMembers.find(m => m.id === selectedMemberForAI)?.name.split(' ').map(n => n[0]).join('')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="font-medium text-white">
+                        {teamMembers.find(m => m.id === selectedMemberForAI)?.name}
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        {aiRecommendations.topRecommendations.length} recommendations • 
+                        {' '}{aiRecommendations.totalEstimatedHours}h • 
+                        {' '}£{aiRecommendations.totalEstimatedCost}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedMemberForAI(null);
+                        setAiRecommendations(null);
+                      }}
+                    >
+                      Change Member
+                    </Button>
+                  </div>
+                </div>
+                
+                <TrainingRecommendationCards
+                  topRecommendations={aiRecommendations.topRecommendations}
+                  quickWins={aiRecommendations.quickWins}
+                  strategicInvestments={aiRecommendations.strategicInvestments}
+                  groupOpportunities={aiRecommendations.groupOpportunities}
+                  onGenerateLearningPath={handleGenerateLearningPath}
+                  isGenerating={generatingLearningPath}
+                />
+              </div>
+            ) : null}
+          </CardContent>
+        )}
+      </Card>
 
       {/* Summary Statistics */}
       <div className="grid grid-cols-4 gap-4">

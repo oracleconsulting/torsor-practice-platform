@@ -33,14 +33,15 @@ export async function getTrainingRecommendations(
 
     if (cached && !cacheError) {
       console.log('Using cached recommendations');
+      const cachedData = cached as any;
       return {
-        topRecommendations: cached.top_recommendations,
-        quickWins: cached.quick_wins || [],
-        strategicInvestments: cached.strategic_investments || [],
+        topRecommendations: cachedData.top_recommendations,
+        quickWins: cachedData.quick_wins || [],
+        strategicInvestments: cachedData.strategic_investments || [],
         groupOpportunities: [],
-        totalEstimatedHours: cached.total_estimated_hours,
-        totalEstimatedCost: parseFloat(cached.total_estimated_cost),
-        averageSuccessProbability: cached.average_success_probability
+        totalEstimatedHours: cachedData.total_estimated_hours,
+        totalEstimatedCost: parseFloat(cachedData.total_estimated_cost),
+        averageSuccessProbability: cachedData.average_success_probability
       };
     }
 
@@ -88,8 +89,8 @@ async function cacheRecommendations(
     is_valid: true
   };
 
-  const { error } = await supabase
-    .from('training_recommendations_cache')
+  const { error } = await (supabase
+    .from('training_recommendations_cache') as any)
     .upsert(cacheData, { onConflict: 'team_member_id' });
 
   if (error) {
@@ -114,9 +115,9 @@ export async function getGroupTrainingOpportunities(
       .gte('identified_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
 
     if (cached && cached.length > 0) {
-      return cached.map(c => ({
+      return cached.map((c: any) => ({
         skillName: c.skill_name,
-        members: [], // Would need to join with members
+        members: [],
         memberCount: c.member_count,
         averageGap: parseFloat(c.average_gap),
         recommendation: c.recommendation,
@@ -129,7 +130,7 @@ export async function getGroupTrainingOpportunities(
 
     // Cache them
     for (const opp of opportunities) {
-      await supabase.from('group_training_opportunities').insert({
+      await (supabase.from('group_training_opportunities') as any).insert({
         practice_id: practiceId,
         skill_name: opp.skillName,
         member_ids: teamProfiles
@@ -163,8 +164,8 @@ export async function createLearningPath(
   try {
     const path = await generateLearningPath(profile, recommendations);
 
-    const { data, error } = await supabase
-      .from('learning_paths')
+    const { data, error } = await (supabase
+      .from('learning_paths') as any)
       .insert({
         team_member_id: profile.id,
         duration_months: path.duration,
@@ -179,7 +180,7 @@ export async function createLearningPath(
       .select()
       .single();
 
-    if (error) throw error;
+    if (error || !data) throw error || new Error('No data returned');
 
     return {
       ...path,
@@ -207,17 +208,18 @@ export async function getLearningPath(teamMemberId: string): Promise<LearningPat
 
     if (error || !data) return null;
 
+    const pathData = data as any;
     return {
-      id: data.id,
-      memberId: data.team_member_id,
-      memberName: '', // Would need to join
-      createdAt: data.created_at,
-      duration: data.duration_months,
-      totalHours: data.total_hours,
-      totalCost: parseFloat(data.total_cost),
-      recommendations: data.recommendations,
-      milestones: data.milestones,
-      successProbability: data.success_probability
+      id: pathData.id,
+      memberId: pathData.team_member_id,
+      memberName: '',
+      createdAt: pathData.created_at,
+      duration: pathData.duration_months,
+      totalHours: pathData.total_hours,
+      totalCost: parseFloat(pathData.total_cost),
+      recommendations: pathData.recommendations,
+      milestones: pathData.milestones,
+      successProbability: pathData.success_probability
     };
   } catch (error) {
     console.error('Error getting learning path:', error);
@@ -249,8 +251,8 @@ export async function updateLearningPathStatus(
     updates.completion_percentage = 100;
   }
 
-  await supabase
-    .from('learning_paths')
+  await (supabase
+    .from('learning_paths') as any)
     .update(updates)
     .eq('id', pathId);
 }
@@ -271,7 +273,7 @@ export async function submitRecommendationFeedback(
     skillImprovement?: number;
   }
 ): Promise<void> {
-  await supabase.from('recommendation_feedback').insert({
+  await (supabase.from('recommendation_feedback') as any).insert({
     team_member_id: teamMemberId,
     recommendation_id: recommendationId,
     rating: feedback.rating,
@@ -289,8 +291,8 @@ export async function submitRecommendationFeedback(
  * Invalidate cache manually
  */
 export async function invalidateRecommendationsCache(teamMemberId: string): Promise<void> {
-  await supabase
-    .from('training_recommendations_cache')
+  await (supabase
+    .from('training_recommendations_cache') as any)
     .update({
       is_valid: false,
       invalidation_reason: 'Manual invalidation'

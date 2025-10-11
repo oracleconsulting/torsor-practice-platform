@@ -4,8 +4,6 @@
  * to generate personalized training plans
  */
 
-import { getLearningPreference } from '@/lib/api/learning-preferences';
-
 // Types
 export interface SkillGap {
   skillId: string;

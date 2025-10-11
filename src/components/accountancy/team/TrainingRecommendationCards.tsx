@@ -20,7 +20,6 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
-  Ear,
   BookOpen,
   Hand,
   CheckCircle,
