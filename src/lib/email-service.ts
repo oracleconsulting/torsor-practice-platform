@@ -8,8 +8,8 @@
 // =====================================================
 
 const RESEND_API_KEY = import.meta.env.VITE_RESEND_API_KEY || import.meta.env.RESEND_API_KEY || process.env.RESEND_API_KEY;
-const FROM_EMAIL = import.meta.env.VITE_FROM_EMAIL || 'noreply@rpgcc.com';
-const FROM_NAME = import.meta.env.VITE_FROM_NAME || 'RPGCC Team Portal';
+const FROM_EMAIL = import.meta.env.VITE_FROM_EMAIL || 'noreply@torsor.co.uk';
+const FROM_NAME = import.meta.env.VITE_FROM_NAME || 'TORSOR Skills Portal';
 const RESEND_API_URL = 'https://api.resend.com/emails';
 
 // =====================================================
