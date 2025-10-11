@@ -152,7 +152,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
 
   // Command palette actions
   const commandActions = [
-    { id: 'start-assessment', label: 'Start Skills Assessment', icon: Play, action: () => navigate('/accountancy/team-portal/vark-assessment') },
+    { id: 'start-assessment', label: 'Start Skills Assessment', icon: Play, action: () => navigate('/team-portal/vark-assessment') },
     { id: 'view-gaps', label: 'View Gap Analysis', icon: Target, action: () => setExpandedSections(['team']) },
     { id: 'log-cpd', label: 'Log CPD Activity', icon: BookOpen, action: () => toast({ title: 'CPD Logger', description: 'Opening CPD activity logger...' }) },
     { id: 'find-mentor', label: 'Find a Mentor', icon: Users, action: () => toast({ title: 'Mentor Matching', description: 'Finding mentors for you...' }) },
@@ -355,7 +355,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                           </div>
                           <Button size="sm" onClick={() => {
                             console.log('[SkillsDashboardV2] Navigate to assessment clicked');
-                            navigate('/accountancy/team/skills-assessment');
+                            navigate('/team/skills-assessment');
                           }}>
                             Start
                           </Button>
@@ -422,7 +422,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                           <p className="text-sm">Start an assessment to build your development plan</p>
                           <Button className="mt-4" size="sm" onClick={() => {
                             console.log('[SkillsDashboardV2] Begin Assessment clicked');
-                            navigate('/accountancy/team/skills-assessment');
+                            navigate('/team/skills-assessment');
                           }}>
                             Begin Assessment
                           </Button>
@@ -576,7 +576,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                     <Card className="bg-white border-gray-300 hover:border-purple-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
                           onClick={() => {
                             console.log('[SkillsDashboardV2] Quick Assessment card clicked');
-                            navigate('/accountancy/team/skills-assessment');
+                            navigate('/team/skills-assessment');
                           }}>
                       <CardContent className="p-6 text-center">
                         <Play className="w-10 h-10 text-purple-600 mx-auto mb-3" />
@@ -587,7 +587,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
 
                     {/* Training Catalog */}
                     <Card className="bg-white border-gray-300 hover:border-blue-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
-                          onClick={() => navigate('/accountancy/team?tab=training')}>
+                          onClick={() => navigate('/team?tab=training')}>
                       <CardContent className="p-6 text-center">
                         <BookOpen className="w-10 h-10 text-blue-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">Training Catalog</h3>
@@ -597,7 +597,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
 
                     {/* Find Mentor */}
                     <Card className="bg-white border-gray-300 hover:border-green-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
-                          onClick={() => navigate('/accountancy/team?tab=mentoring')}>
+                          onClick={() => navigate('/team?tab=mentoring')}>
                       <CardContent className="p-6 text-center">
                         <Users className="w-10 h-10 text-green-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">Find a Mentor</h3>
@@ -607,7 +607,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
 
                     {/* Log CPD */}
                     <Card className="bg-white border-gray-300 hover:border-yellow-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
-                          onClick={() => navigate('/accountancy/team?tab=cpd')}>
+                          onClick={() => navigate('/team?tab=cpd')}>
                       <CardContent className="p-6 text-center">
                         <Clock className="w-10 h-10 text-yellow-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">Log CPD Activity</h3>
@@ -617,7 +617,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
 
                     {/* AI Recommendations */}
                     <Card className="bg-white border-gray-300 hover:border-pink-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
-                          onClick={() => navigate('/accountancy/team?tab=training')}>
+                          onClick={() => navigate('/team?tab=training')}>
                       <CardContent className="p-6 text-center">
                         <Sparkles className="w-10 h-10 text-pink-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">AI Recommendations</h3>
@@ -627,7 +627,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
 
                     {/* Resources Library */}
                     <Card className="bg-white border-gray-300 hover:border-orange-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
-                          onClick={() => navigate('/accountancy/team?tab=knowledge')}>
+                          onClick={() => navigate('/team?tab=knowledge')}>
                       <CardContent className="p-6 text-center">
                         <GraduationCap className="w-10 h-10 text-orange-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">Resources Library</h3>
