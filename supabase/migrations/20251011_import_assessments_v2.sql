@@ -32,6 +32,7 @@ SELECT
 FROM invitations inv
 CROSS JOIN LATERAL jsonb_array_elements(inv.assessment_data) as skill_item
 JOIN practice_members pm ON pm.email = inv.email
+JOIN skills sk ON sk.id = (skill_item->>'skill_id')::UUID  -- Validate skill exists
 WHERE inv.assessment_data IS NOT NULL
   AND inv.assessment_data != '[]'::jsonb
   AND jsonb_array_length(inv.assessment_data) > 0
