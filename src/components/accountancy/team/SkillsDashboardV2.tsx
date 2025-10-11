@@ -353,7 +353,10 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                               {totalSkills - assessedSkills} skills remaining
                             </p>
                           </div>
-                          <Button size="sm" onClick={() => navigate('/accountancy/team-portal/assessment')}>
+                          <Button size="sm" onClick={(e) => {
+                            e.preventDefault();
+                            window.location.href = '/team-portal/assessment';
+                          }}>
                             Start
                           </Button>
                         </div>
@@ -417,7 +420,10 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                         <div className="text-center py-8 text-gray-300">
                           <Target className="w-12 h-12 mx-auto mb-3 opacity-50" />
                           <p className="text-sm">Start an assessment to build your development plan</p>
-                          <Button className="mt-4" size="sm" onClick={() => navigate('/accountancy/team-portal/assessment')}>
+                          <Button className="mt-4" size="sm" onClick={(e) => {
+                            e.preventDefault();
+                            window.location.href = '/team-portal/assessment';
+                          }}>
                             Begin Assessment
                           </Button>
                         </div>
@@ -505,24 +511,33 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                         <CardDescription>Team-wide skill distribution</CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                          <SkillsMatrix
-                            teamMembers={teamMembers}
-                            skillCategories={skillCategories}
-                          />
-                        </Suspense>
+                        {teamMembers.length > 0 && skillCategories.length > 0 ? (
+                          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                            <SkillsMatrix
+                              teamMembers={teamMembers.filter(m => m && m.id)}
+                              skillCategories={skillCategories.filter(c => c && c.skills)}
+                            />
+                          </Suspense>
+                        ) : (
+                          <div className="text-center py-12 text-gray-300">
+                            <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                            <p className="text-sm">Complete your assessment to see the team heatmap</p>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
 
                     {/* Gap Analysis */}
-                    <Suspense fallback={<Skeleton className="h-96 w-full" />}>
-                      <GapAnalysis
-                        teamMembers={teamMembers}
-                        skillCategories={skillCategories}
-                        showHeatmap={true}
-                        priorityAlgorithm="weighted"
-                      />
-                    </Suspense>
+                    {teamMembers.length > 0 && skillCategories.length > 0 ? (
+                      <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+                        <GapAnalysis
+                          teamMembers={teamMembers.filter(m => m && m.id)}
+                          skillCategories={skillCategories.filter(c => c && c.skills)}
+                          showHeatmap={true}
+                          priorityAlgorithm="weighted"
+                        />
+                      </Suspense>
+                    ) : null}
                   </CardContent>
                 </AccordionContent>
               </Card>
@@ -548,58 +563,64 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                   {/* Quick Actions Grid */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {/* Start Assessment */}
-                    <Card className="bg-gray-700 border-gray-600 hover:border-purple-400 hover:bg-gray-600 transition-all cursor-pointer shadow-lg"
-                          onClick={() => navigate('/accountancy/team-portal/assessment')}>
+                    <Card className="bg-white border-gray-300 hover:border-purple-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            window.location.href = '/team-portal/assessment';
+                          }}>
                       <CardContent className="p-6 text-center">
-                        <Play className="w-10 h-10 text-purple-300 mx-auto mb-3" />
-                        <h3 className="text-base font-bold text-white mb-2">Quick Assessment</h3>
-                        <p className="text-sm text-gray-200">Launch skills evaluation</p>
+                        <Play className="w-10 h-10 text-purple-600 mx-auto mb-3" />
+                        <h3 className="text-base font-bold text-gray-900 mb-2">Quick Assessment</h3>
+                        <p className="text-sm text-gray-600">Launch skills evaluation</p>
                       </CardContent>
                     </Card>
 
                     {/* Training Catalog */}
-                    <Card className="bg-gray-700 border-gray-600 hover:border-blue-400 hover:bg-gray-600 transition-all cursor-pointer shadow-lg">
+                    <Card className="bg-white border-gray-300 hover:border-blue-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
+                          onClick={() => navigate('/accountancy/team-portal/training-recommendations')}>
                       <CardContent className="p-6 text-center">
-                        <BookOpen className="w-10 h-10 text-blue-300 mx-auto mb-3" />
-                        <h3 className="text-base font-bold text-white mb-2">Training Catalog</h3>
-                        <p className="text-sm text-gray-200">Browse courses</p>
+                        <BookOpen className="w-10 h-10 text-blue-600 mx-auto mb-3" />
+                        <h3 className="text-base font-bold text-gray-900 mb-2">Training Catalog</h3>
+                        <p className="text-sm text-gray-600">Browse courses</p>
                       </CardContent>
                     </Card>
 
                     {/* Find Mentor */}
-                    <Card className="bg-gray-700 border-gray-600 hover:border-green-400 hover:bg-gray-600 transition-all cursor-pointer shadow-lg">
+                    <Card className="bg-white border-gray-300 hover:border-green-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
+                          onClick={() => navigate('/accountancy/team-portal/mentoring')}>
                       <CardContent className="p-6 text-center">
-                        <Users className="w-10 h-10 text-green-300 mx-auto mb-3" />
-                        <h3 className="text-base font-bold text-white mb-2">Find a Mentor</h3>
-                        <p className="text-sm text-gray-200">Connect with experts</p>
+                        <Users className="w-10 h-10 text-green-600 mx-auto mb-3" />
+                        <h3 className="text-base font-bold text-gray-900 mb-2">Find a Mentor</h3>
+                        <p className="text-sm text-gray-600">Connect with experts</p>
                       </CardContent>
                     </Card>
 
                     {/* Log CPD */}
-                    <Card className="bg-gray-700 border-gray-600 hover:border-yellow-400 hover:bg-gray-600 transition-all cursor-pointer shadow-lg">
+                    <Card className="bg-white border-gray-300 hover:border-yellow-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
+                          onClick={() => navigate('/accountancy/team-portal/cpd-skills-impact')}>
                       <CardContent className="p-6 text-center">
-                        <Clock className="w-10 h-10 text-yellow-300 mx-auto mb-3" />
-                        <h3 className="text-base font-bold text-white mb-2">Log CPD Activity</h3>
-                        <p className="text-sm text-gray-200">Track your learning</p>
+                        <Clock className="w-10 h-10 text-yellow-600 mx-auto mb-3" />
+                        <h3 className="text-base font-bold text-gray-900 mb-2">Log CPD Activity</h3>
+                        <p className="text-sm text-gray-600">Track your learning</p>
                       </CardContent>
                     </Card>
 
                     {/* AI Recommendations */}
-                    <Card className="bg-gray-700 border-gray-600 hover:border-pink-400 hover:bg-gray-600 transition-all cursor-pointer shadow-lg"
-                          onClick={() => setExpandedSections(['team'])}>
+                    <Card className="bg-white border-gray-300 hover:border-pink-500 hover:shadow-xl transition-all cursor-pointer shadow-md"
+                          onClick={() => navigate('/accountancy/team-portal/training-recommendations')}>
                       <CardContent className="p-6 text-center">
-                        <Sparkles className="w-10 h-10 text-pink-300 mx-auto mb-3" />
-                        <h3 className="text-base font-bold text-white mb-2">AI Recommendations</h3>
-                        <p className="text-sm text-gray-200">Personalized suggestions</p>
+                        <Sparkles className="w-10 h-10 text-pink-600 mx-auto mb-3" />
+                        <h3 className="text-base font-bold text-gray-900 mb-2">AI Recommendations</h3>
+                        <p className="text-sm text-gray-600">Personalized suggestions</p>
                       </CardContent>
                     </Card>
 
                     {/* Resources Library */}
-                    <Card className="bg-gray-700 border-gray-600 hover:border-orange-400 hover:bg-gray-600 transition-all cursor-pointer shadow-lg">
+                    <Card className="bg-white border-gray-300 hover:border-orange-500 hover:shadow-xl transition-all cursor-pointer shadow-md">
                       <CardContent className="p-6 text-center">
-                        <GraduationCap className="w-10 h-10 text-orange-300 mx-auto mb-3" />
-                        <h3 className="text-base font-bold text-white mb-2">Resources Library</h3>
-                        <p className="text-sm text-gray-200">Guides and articles</p>
+                        <GraduationCap className="w-10 h-10 text-orange-600 mx-auto mb-3" />
+                        <h3 className="text-base font-bold text-gray-900 mb-2">Resources Library</h3>
+                        <p className="text-sm text-gray-600">Guides and articles</p>
                       </CardContent>
                     </Card>
                   </div>
