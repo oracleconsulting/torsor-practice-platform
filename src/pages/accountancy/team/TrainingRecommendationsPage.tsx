@@ -5,7 +5,7 @@ import { Target, TrendingUp, ArrowLeft, Loader2, AlertCircle } from 'lucide-reac
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { generateRecommendations } from '@/services/ai/trainingRecommendations';
+import { generateTrainingRecommendations } from '@/services/ai/trainingRecommendations';
 import type { TrainingRecommendation, GroupTrainingOpportunity } from '@/services/ai/trainingRecommendations';
 
 const TrainingRecommendationsPage: React.FC = () => {
@@ -41,7 +41,7 @@ const TrainingRecommendationsPage: React.FC = () => {
       setError(null);
       
       // Generate recommendations (this will analyze user's skills and gaps)
-      const data = await generateRecommendations(user.id);
+      const data = await generateTrainingRecommendations(user.id);
       setRecommendations(data);
     } catch (err) {
       console.error('Error loading recommendations:', err);
