@@ -378,3 +378,5 @@ export const AISkillsCoach: React.FC<AISkillsCoachProps> = ({
   );
 };
 
+export default AISkillsCoach;
+
