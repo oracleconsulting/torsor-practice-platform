@@ -83,7 +83,9 @@ const SkillsAssessmentPage: React.FC = () => {
         categoriesMap[skill.category].skills.push(skill);
       });
 
-      setSkillCategories(Object.values(categoriesMap));
+      const categories = Object.values(categoriesMap);
+      console.log('[SkillsAssessmentPage] Grouped skills into categories:', categories.map((c: any) => `${c.name} (${c.skills.length} skills)`));
+      setSkillCategories(categories);
 
       // Load user's existing skill assessments
       const { data: userAssessments, error: assessmentsError } = await supabase

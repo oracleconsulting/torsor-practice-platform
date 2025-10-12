@@ -88,17 +88,8 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
 
-  // Skill categories for assessment
-  const skillCategoriesList = [
-    'Technical Accounting & Audit',
-    'Digital & Technology',
-    'Advisory & Consulting',
-    'Sector Specialisation',
-    'Regulatory & Compliance',
-    'Client & Business Development',
-    'Leadership & Management',
-    'Soft Skills & Communication'
-  ];
+  // Use ACTUAL categories from the database instead of hardcoded list
+  const skillCategoriesList = skillCategories.map(cat => cat.name);
 
   useEffect(() => {
     if (selectedMember && selectedMember.skills) {
@@ -343,7 +334,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm text-gray-400">Assessment Progress</div>
+                  <div className="text-sm text-gray-300">Assessment Progress</div>
                   <div className="text-lg font-semibold text-white">
                     {getCompletedSkillsCount()}/{getTotalSkillsCount()} skills
                   </div>
@@ -357,7 +348,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
             <CardContent className="p-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400">
+                  <span className="text-gray-200">
                     Category {currentCategory + 1} of {skillCategoriesList.length}
                   </span>
                   <span className="text-white font-medium">
@@ -365,7 +356,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
                   </span>
                 </div>
                 <Progress value={getProgressPercentage()} className="h-2" />
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-gray-300">
                   {skillCategoriesList[currentCategory]}
                 </div>
               </div>
@@ -392,112 +383,58 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
                 };
 
                 return (
-                  <div key={skill.id} className="space-y-4 py-4 border-b border-gray-700 last:border-b-0">
-                    <div>
-                      <h4 className="font-medium text-white">{skill.name}</h4>
-                      <p className="text-sm text-gray-400">{skill.description}</p>
-                      <div className="flex gap-2 mt-2">
-                        <Badge variant="outline" className="text-xs">
-                          Required: {skill.requiredLevel}/5
-                        </Badge>
-                      </div>
+                  <div key={skill.id} className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                    <div className="mb-3">
+                      <h4 className="font-medium text-white text-base">{skill.name}</h4>
+                      <p className="text-sm text-gray-300 mt-1">{skill.description}</p>
                     </div>
                     
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Skill Level */}
-                      <div>
-                        <Label className="text-white font-medium">Current Skill Level</Label>
-                        <RadioGroup 
-                          value={skillData.skillLevel.toString()}
-                          onValueChange={(value) => updateAssessment(skill.id, 'skillLevel', parseInt(value))}
-                          className="mt-2"
-                        >
-                          {[1,2,3,4,5].map(level => (
-                            <div key={level} className="flex items-center space-x-2">
-                              <RadioGroupItem value={level.toString()} id={`${skill.id}-skill-${level}`} />
-                              <Label 
-                                htmlFor={`${skill.id}-skill-${level}`}
-                                className="text-sm text-gray-300 cursor-pointer"
-                              >
-                                {level} - {getSkillLevelLabel(level)}
-                              </Label>
-                            </div>
-                          ))}
-                        </RadioGroup>
+                    {/* Visual Skill Level Selector */}
+                    <div className="mb-3">
+                      <Label className="text-white text-sm mb-2 block">Your Skill Level</Label>
+                      <div className="flex gap-2">
+                        {[1,2,3,4,5].map(level => (
+                          <button
+                            key={level}
+                            type="button"
+                            onClick={() => updateAssessment(skill.id, 'skillLevel', level)}
+                            className={`flex-1 px-3 py-2 rounded-lg text-center transition-all ${
+                              skillData.skillLevel === level
+                                ? 'bg-purple-600 text-white font-semibold shadow-lg scale-105'
+                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            }`}
+                          >
+                            {level}
+                          </button>
+                        ))}
                       </div>
-
-                      {/* Interest Level */}
-                      <div>
-                        <Label className="text-white font-medium">Interest Level</Label>
-                        <RadioGroup 
-                          value={skillData.interestLevel.toString()}
-                          onValueChange={(value) => updateAssessment(skill.id, 'interestLevel', parseInt(value))}
-                          className="mt-2"
-                        >
-                          {[1,2,3,4,5].map(level => (
-                            <div key={level} className="flex items-center space-x-2">
-                              <RadioGroupItem value={level.toString()} id={`${skill.id}-interest-${level}`} />
-                              <Label 
-                                htmlFor={`${skill.id}-interest-${level}`}
-                                className="text-sm text-gray-300 cursor-pointer"
-                              >
-                                {level} - {getInterestLevelLabel(level)}
-                              </Label>
-                            </div>
-                          ))}
-                        </RadioGroup>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {skillData.skillLevel > 0 ? getSkillLevelLabel(skillData.skillLevel) : 'Select your skill level'}
                       </div>
                     </div>
 
-                    {/* Additional Fields */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor={`${skill.id}-experience`} className="text-white">Years of Experience</Label>
-                        <Input 
-                          id={`${skill.id}-experience`}
-                          type="number" 
-                          step="0.5"
-                          placeholder="0"
-                          value={skillData.experience}
-                          onChange={(e) => updateAssessment(skill.id, 'experience', parseFloat(e.target.value) || 0)}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor={`${skill.id}-lastUsed`} className="text-white">Last Used</Label>
-                        <Input 
-                          id={`${skill.id}-lastUsed`}
-                          type="date"
-                          value={skillData.lastUsed}
-                          onChange={(e) => updateAssessment(skill.id, 'lastUsed', e.target.value)}
-                          className="mt-1"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Certifications */}
+                    {/* Visual Interest Level Selector */}
                     <div>
-                      <Label htmlFor={`${skill.id}-certifications`} className="text-white">Related Certifications</Label>
-                      <Input 
-                        id={`${skill.id}-certifications`}
-                        placeholder="e.g., CPA, CFA, CTA"
-                        value={skillData.certifications.join(', ')}
-                        onChange={(e) => updateAssessment(skill.id, 'certifications', e.target.value.split(',').map(c => c.trim()).filter(c => c))}
-                        className="mt-1"
-                      />
-                    </div>
-
-                    {/* Notes */}
-                    <div>
-                      <Label htmlFor={`${skill.id}-notes`} className="text-white">Notes</Label>
-                      <Textarea 
-                        id={`${skill.id}-notes`}
-                        placeholder="Additional comments or context..."
-                        value={skillData.notes}
-                        onChange={(e) => updateAssessment(skill.id, 'notes', e.target.value)}
-                        className="mt-1"
-                        rows={2}
-                      />
+                      <Label className="text-white text-sm mb-2 block">Interest Level</Label>
+                      <div className="flex gap-2">
+                        {[1,2,3,4,5].map(level => (
+                          <button
+                            key={level}
+                            type="button"
+                            onClick={() => updateAssessment(skill.id, 'interestLevel', level)}
+                            className={`flex-1 px-3 py-2 rounded-lg text-center transition-all ${
+                              skillData.interestLevel === level
+                                ? 'bg-blue-600 text-white font-semibold shadow-lg scale-105'
+                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            }`}
+                          >
+                            {level}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {getInterestLevelLabel(skillData.interestLevel)}
+                      </div>
                     </div>
                   </div>
                 );
@@ -579,7 +516,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
             <Card className="bg-gray-800 border-gray-700">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-white">{getCompletedSkillsCount()}/{getTotalSkillsCount()}</div>
-                <div className="text-sm text-gray-400">Skills Assessed</div>
+                <div className="text-sm text-gray-300">Skills Assessed</div>
               </CardContent>
             </Card>
             <Card className="bg-gray-800 border-gray-700">
@@ -587,7 +524,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
                 <div className="text-2xl font-bold text-white">
                   {Math.round(getProgressPercentage())}%
                 </div>
-                <div className="text-sm text-gray-400">Complete</div>
+                <div className="text-sm text-gray-300">Complete</div>
               </CardContent>
             </Card>
             <Card className="bg-gray-800 border-gray-700">
@@ -595,7 +532,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
                 <div className="text-2xl font-bold text-white">
                   {skillCategoriesList.length - currentCategory - 1}
                 </div>
-                <div className="text-sm text-gray-400">Categories Remaining</div>
+                <div className="text-sm text-gray-300">Categories Remaining</div>
               </CardContent>
             </Card>
           </div>
