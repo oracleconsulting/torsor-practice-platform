@@ -196,18 +196,27 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
           certifications: data.certifications && data.certifications.length > 0 ? data.certifications : null
         }));
 
-      console.log(`Upserting ${records.length} skill assessments for member ${selectedMember.id}`);
+      console.log(`Saving ${records.length} skill assessments for member ${selectedMember.id}`);
 
-      // Upsert all records (insert new, update existing)
-      const { error } = await supabase
+      // Delete existing assessments for this member (we'll replace them all)
+      const { error: deleteError } = await supabase
         .from('skill_assessments')
-        .upsert(records, {
-          onConflict: 'team_member_id,skill_id' // Update if this combination exists
-        });
+        .delete()
+        .eq('team_member_id', selectedMember.id);
 
-      if (error) {
-        console.error('Error saving assessments:', error);
-        throw error;
+      if (deleteError) {
+        console.error('Error deleting old assessments:', deleteError);
+        // Continue anyway - insert will work even if delete fails
+      }
+
+      // Insert all new records
+      const { error: insertError } = await supabase
+        .from('skill_assessments')
+        .insert(records);
+
+      if (insertError) {
+        console.error('Error saving assessments:', insertError);
+        throw insertError;
       }
 
       console.log('Assessment saved successfully!');
