@@ -30,6 +30,7 @@ import {
   type LearningStyleProfile,
 } from '@/lib/api/learning-preferences';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase/client';
 
 interface VARKAssessmentProps {
   teamMemberId: string;
@@ -155,6 +156,32 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
       const newProfile = await getLearningStyleProfile(teamMemberId);
       setProfile(newProfile);
       setCompleted(true);
+
+      // Mark VARK assessment as complete in practice_members
+      console.log('[VARKAssessment] Marking VARK as complete for member:', teamMemberId);
+      const varkResult = {
+        visual: newProfile?.visual_score || 0,
+        auditory: newProfile?.auditory_score || 0,
+        reading_writing: newProfile?.reading_writing_score || 0,
+        kinesthetic: newProfile?.kinesthetic_score || 0,
+        primary_style: newProfile?.primary_learning_style || 'multimodal',
+        completed_at: new Date().toISOString()
+      };
+
+      const { error: updateError } = await supabase
+        .from('practice_members')
+        .update({
+          vark_assessment_completed: true,
+          vark_completed_at: new Date().toISOString(),
+          vark_result: varkResult
+        })
+        .or(`id.eq.${teamMemberId},user_id.eq.${user.id}`);
+
+      if (updateError) {
+        console.error('[VARKAssessment] Error marking VARK complete:', updateError);
+      } else {
+        console.log('[VARKAssessment] ✅ VARK marked as complete');
+      }
 
       // Clear localStorage
       localStorage.removeItem(`vark_answers_${teamMemberId}`);

@@ -29,6 +29,13 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import * as InvitationsAPI from '@/lib/api/invitations';
 import * as EmailService from '@/lib/email-service';
 
@@ -195,14 +202,27 @@ export default function InvitationsPage() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="role">Role</Label>
-          <Input
-            id="role"
-            type="text"
-            placeholder="e.g., Senior Accountant"
+          <Label htmlFor="role">Role *</Label>
+          <Select
             value={formData.role}
-            onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-          />
+            onValueChange={(value) => setFormData({ ...formData, role: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select a role" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Owner">Owner</SelectItem>
+              <SelectItem value="Director">Director</SelectItem>
+              <SelectItem value="Senior Manager">Senior Manager</SelectItem>
+              <SelectItem value="Manager">Manager</SelectItem>
+              <SelectItem value="Senior Accountant">Senior Accountant</SelectItem>
+              <SelectItem value="Accountant">Accountant</SelectItem>
+              <SelectItem value="Assistant Manager">Assistant Manager</SelectItem>
+              <SelectItem value="Team Member">Team Member</SelectItem>
+              <SelectItem value="Intern">Intern</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-gray-600">This determines their access level and onboarding flow</p>
         </div>
 
         <div className="space-y-2">

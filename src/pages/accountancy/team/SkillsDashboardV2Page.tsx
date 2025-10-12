@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import SkillsDashboardV2 from '@/components/accountancy/team/SkillsDashboardV2';
+import PendingAssessmentBanner from '@/components/accountancy/team/PendingAssessmentBanner';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -56,7 +57,9 @@ const SkillsDashboardV2Page: React.FC = () => {
           id,
           name,
           email,
-          role
+          role,
+          vark_assessment_completed,
+          vark_result
         `);
       
       if (membersError) {
@@ -101,12 +104,20 @@ const SkillsDashboardV2Page: React.FC = () => {
           ? skills.reduce((sum: number, s: any) => sum + s.currentLevel, 0) / skills.length
           : 0;
 
+        const totalSkillsCount = categories[0]?.skills?.length || 0;
+        const skills_assessment_progress = totalSkillsCount > 0 
+          ? (skills.length / totalSkillsCount) * 100 
+          : 0;
+
         return {
           ...member,
           department: member.department || 'Advisory', // Default department
           role: member.role || 'Team Member', // Ensure role exists
           skills,
-          overallScore: Math.round(avgLevel * 10) / 10
+          overallScore: Math.round(avgLevel * 10) / 10,
+          vark_assessment_completed: member.vark_assessment_completed || false,
+          vark_result: member.vark_result,
+          skills_assessment_progress
         };
       });
 
@@ -135,11 +146,22 @@ const SkillsDashboardV2Page: React.FC = () => {
     );
   }
 
+  // Get current user's data for banner
+  const currentMember = teamMembers.find(m => m.email === user?.email);
+
   return (
-    <SkillsDashboardV2 
-      teamMembers={teamMembers}
-      skillCategories={skillCategories}
-    />
+    <div className="space-y-4">
+      {/* Assessment Notification Banners */}
+      <div className="px-6 pt-6">
+        <PendingAssessmentBanner memberData={currentMember} />
+      </div>
+      
+      {/* Main Dashboard */}
+      <SkillsDashboardV2 
+        teamMembers={teamMembers}
+        skillCategories={skillCategories}
+      />
+    </div>
   );
 };
 
