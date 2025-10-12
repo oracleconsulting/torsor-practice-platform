@@ -578,7 +578,7 @@ export async function generateTrainingRecommendationsById(
     // Fetch user's practice member record
     const { data: member, error: memberError } = await supabase
       .from('practice_members')
-      .select('id, name, role, department')
+      .select('id, name, role, email')
       .eq('user_id', userId)
       .single();
     
@@ -636,7 +636,7 @@ export async function generateTrainingRecommendationsById(
       id: member.id,
       name: member.name || 'User',
       role: member.role || 'Team Member',
-      department: member.department || 'General',
+      department: 'Advisory', // Default department
       learningStyle: 'multimodal', // Default - could be fetched from VARK assessment
       skillGaps,
       timeAvailability: 10, // Default 10 hours per week
