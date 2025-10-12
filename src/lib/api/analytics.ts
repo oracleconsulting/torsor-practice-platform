@@ -164,28 +164,84 @@ export async function getSkillProgression(
   months: number = 6
 ): Promise<SkillProgressionPoint[]> {
   try {
-    // Mock data - would query skill_improvement_tracking table
-    const mockData: SkillProgressionPoint[] = [];
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - months);
+    const startDateStr = startDate.toISOString();
 
-    for (let i = 0; i < months; i++) {
-      const date = new Date(startDate);
-      date.setMonth(date.getMonth() + i);
-      
-      mockData.push({
-        date: date.toISOString().split('T')[0],
-        avg_level: 2.5 + (Math.random() * 0.5) + (i * 0.1),
-        skill_name: 'Tax Planning',
-        category: 'Technical',
-        member_count: 12
-      });
+    // Query skill assessments over time
+    let query = supabase
+      .from('skill_assessments')
+      .select(`
+        assessed_at,
+        current_level,
+        skill_id,
+        skills (
+          name,
+          category
+        )
+      `)
+      .gte('assessed_at', startDateStr)
+      .order('assessed_at', { ascending: true });
+
+    if (skillId) {
+      query = query.eq('skill_id', skillId);
     }
 
-    return mockData;
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching skill progression:', error);
+      return [];
+    }
+
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    // Group by month and calculate averages
+    const progressionMap = new Map<string, {
+      total: number;
+      count: number;
+      skillName: string;
+      category: string;
+      memberIds: Set<string>;
+    }>();
+
+    data.forEach((assessment: any) => {
+      const date = new Date(assessment.assessed_at);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+      
+      if (!progressionMap.has(monthKey)) {
+        progressionMap.set(monthKey, {
+          total: 0,
+          count: 0,
+          skillName: assessment.skills?.name || 'Unknown',
+          category: assessment.skills?.category || 'Unknown',
+          memberIds: new Set()
+        });
+      }
+
+      const entry = progressionMap.get(monthKey)!;
+      entry.total += assessment.current_level;
+      entry.count += 1;
+      entry.memberIds.add(assessment.team_member_id);
+    });
+
+    // Convert to array format
+    const progression: SkillProgressionPoint[] = Array.from(progressionMap.entries())
+      .map(([date, data]) => ({
+        date,
+        avg_level: data.total / data.count,
+        skill_name: data.skillName,
+        category: data.category,
+        member_count: data.memberIds.size
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return progression;
   } catch (error) {
     console.error('Error fetching skill progression:', error);
-    throw error;
+    return [];
   }
 }
 

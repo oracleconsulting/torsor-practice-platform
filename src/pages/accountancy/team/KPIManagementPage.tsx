@@ -17,6 +17,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { useAccountancyContext } from '@/contexts/AccountancyContext';
+import { supabase } from '@/lib/supabase/client';
 
 interface TeamKPI {
   id: string;
@@ -65,10 +66,12 @@ const KPIManagementPage: React.FC = () => {
 
   const loadKPIData = async () => {
     try {
-      // In real implementation, fetch from API
-      setKpis(getMockTeamKPIs());
+      // TODO: Implement real KPI tracking system
+      // For now, show empty state - KPIs need to be configured by practice
+      setKpis([]);
     } catch (error) {
       console.error('Error loading KPIs:', error);
+      setKpis([]);
     } finally {
       setLoading(false);
     }
@@ -76,125 +79,23 @@ const KPIManagementPage: React.FC = () => {
 
   const loadTeamMembers = async () => {
     try {
-      // In real implementation, fetch from API
-      setTeamMembers(getMockTeamMembers());
+      // Load real team members from practice_members table
+      const { data, error } = await supabase
+        .from('practice_members')
+        .select('id, name, role');
+      
+      if (error) throw error;
+      
+      setTeamMembers((data || []).map((m: any) => ({
+        id: m.id,
+        name: m.name || 'Unknown',
+        role: m.role || 'Team Member',
+        kpis: []
+      })));
     } catch (error) {
       console.error('Error loading team members:', error);
+      setTeamMembers([]);
     }
-  };
-
-  const getMockTeamKPIs = (): TeamKPI[] => {
-    return [
-      {
-        id: '1',
-        name: 'Team Utilization Rate',
-        description: 'Percentage of billable hours vs available hours',
-        category: 'productivity',
-        currentValue: 78,
-        targetValue: 85,
-        unit: '%',
-        frequency: 'weekly',
-        trend: { direction: 'up', percentage: 5.2 },
-        status: 'on-track',
-        owner: 'Sarah Johnson',
-        lastUpdated: new Date('2024-01-15'),
-        formula: '(Billable Hours / Available Hours) × 100',
-        history: [
-          { date: new Date('2024-01-01'), value: 72 },
-          { date: new Date('2024-01-08'), value: 75 },
-          { date: new Date('2024-01-15'), value: 78 }
-        ]
-      },
-      {
-        id: '2',
-        name: 'Client Satisfaction Score',
-        description: 'Average satisfaction rating from client feedback',
-        category: 'quality',
-        currentValue: 4.2,
-        targetValue: 4.5,
-        unit: '/5',
-        frequency: 'monthly',
-        trend: { direction: 'stable', percentage: 0 },
-        status: 'at-risk',
-        owner: 'Michael Chen',
-        lastUpdated: new Date('2024-01-10'),
-        dataSource: 'Client feedback surveys',
-        history: [
-          { date: new Date('2023-11-01'), value: 4.3 },
-          { date: new Date('2023-12-01'), value: 4.2 },
-          { date: new Date('2024-01-01'), value: 4.2 }
-        ]
-      },
-      {
-        id: '3',
-        name: 'CPD Hours Completed',
-        description: 'Average CPD hours completed per team member',
-        category: 'development',
-        currentValue: 12,
-        targetValue: 20,
-        unit: 'hours',
-        frequency: 'quarterly',
-        trend: { direction: 'down', percentage: 10 },
-        status: 'off-track',
-        owner: 'Emma Wilson',
-        lastUpdated: new Date('2024-01-05'),
-        history: [
-          { date: new Date('2023-10-01'), value: 15 },
-          { date: new Date('2023-11-01'), value: 13 },
-          { date: new Date('2024-01-01'), value: 12 }
-        ]
-      },
-      {
-        id: '4',
-        name: 'Team Satisfaction Index',
-        description: 'Overall team satisfaction and engagement score',
-        category: 'satisfaction',
-        currentValue: 7.8,
-        targetValue: 8.5,
-        unit: '/10',
-        frequency: 'monthly',
-        trend: { direction: 'up', percentage: 3.5 },
-        status: 'on-track',
-        owner: 'David Brown',
-        lastUpdated: new Date('2024-01-12'),
-        dataSource: 'Monthly team surveys',
-        history: [
-          { date: new Date('2023-11-01'), value: 7.5 },
-          { date: new Date('2023-12-01'), value: 7.6 },
-          { date: new Date('2024-01-01'), value: 7.8 }
-        ]
-      },
-      {
-        id: '5',
-        name: 'Process Efficiency Score',
-        description: 'Efficiency of standard processes and workflows',
-        category: 'efficiency',
-        currentValue: 82,
-        targetValue: 90,
-        unit: '%',
-        frequency: 'weekly',
-        trend: { direction: 'up', percentage: 8.1 },
-        status: 'on-track',
-        owner: 'Lisa Anderson',
-        lastUpdated: new Date('2024-01-14'),
-        formula: '(Tasks Completed on Time / Total Tasks) × 100',
-        history: [
-          { date: new Date('2024-01-01'), value: 75 },
-          { date: new Date('2024-01-08'), value: 79 },
-          { date: new Date('2024-01-15'), value: 82 }
-        ]
-      }
-    ];
-  };
-
-  const getMockTeamMembers = (): TeamMember[] => {
-    return [
-      { id: '1', name: 'Sarah Johnson', role: 'Senior Manager', kpis: ['1', '5'] },
-      { id: '2', name: 'Michael Chen', role: 'Client Manager', kpis: ['2'] },
-      { id: '3', name: 'Emma Wilson', role: 'Training Lead', kpis: ['3'] },
-      { id: '4', name: 'David Brown', role: 'HR Manager', kpis: ['4'] },
-      { id: '5', name: 'Lisa Anderson', role: 'Operations Manager', kpis: ['5'] }
-    ];
   };
 
   const categoryConfig = {

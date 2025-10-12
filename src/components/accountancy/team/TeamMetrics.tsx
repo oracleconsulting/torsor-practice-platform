@@ -204,16 +204,45 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
       .sort((a, b) => a.expertsCount - b.expertsCount);
   }, [filteredMembers, skillCategories]);
 
-  // Development progress trends - will be populated from CPD/development plan data
+  // Development progress trends - calculated from actual skill assessments
   const developmentTrends = useMemo(() => {
-    // TODO: Calculate from real CPD completion data
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    // Generate last 6 months
+    const months: string[] = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push(date.toLocaleDateString('en-US', { month: 'short' }));
+    }
+
+    // Count assessments per month from actual data
+    const assessmentCounts = months.map((_, monthIndex) => {
+      const date = new Date(now.getFullYear(), now.getMonth() - (5 - monthIndex), 1);
+      const monthStart = date.toISOString();
+      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString();
+      
+      // Count unique skills assessed in this month
+      let count = 0;
+      filteredMembers.forEach(member => {
+        if (member.skills) {
+          member.skills.forEach(skill => {
+            if (skill.lastAssessed) {
+              const assessedDate = new Date(skill.lastAssessed).toISOString();
+              if (assessedDate >= monthStart && assessedDate <= monthEnd) {
+                count++;
+              }
+            }
+          });
+        }
+      });
+      return count;
+    });
+
     return {
       labels: months,
       datasets: [
         {
           label: 'Skills Assessed',
-          data: [filteredMembers.length * 10, filteredMembers.length * 15, filteredMembers.length * 20, filteredMembers.length * 25, filteredMembers.length * 30, filteredMembers.length * 35],
+          data: assessmentCounts,
           borderColor: 'rgb(59, 130, 246)',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
           fill: true
