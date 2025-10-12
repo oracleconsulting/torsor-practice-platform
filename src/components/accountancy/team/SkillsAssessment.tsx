@@ -10,6 +10,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { supabase } from '@/lib/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -82,6 +85,8 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
   teamMembers,
   skillCategories
 }) => {
+  const { toast } = useToast();
+  const navigate = useNavigate();
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(member);
   const [currentCategory, setCurrentCategory] = useState(0);
   const [assessmentData, setAssessmentData] = useState<AssessmentData>({});
@@ -164,14 +169,65 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
   };
 
   const submitAssessment = async () => {
+    if (!selectedMember) {
+      toast({
+        title: 'Error',
+        description: 'No team member selected',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      // In a real implementation, this would call the API
-      console.log('Submitting assessment:', assessmentData);
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      setCompleted(true);
+      console.log('Saving assessment to database:', assessmentData);
+      
+      // Convert assessmentData to array of upsert records
+      const records = Object.entries(assessmentData)
+        .filter(([_, data]) => data.skillLevel > 0) // Only save assessed skills
+        .map(([skillId, data]) => ({
+          team_member_id: selectedMember.id,
+          skill_id: skillId,
+          current_level: data.skillLevel,
+          interest_level: data.interestLevel,
+          years_experience: data.experience || 0,
+          assessed_at: new Date().toISOString(),
+          notes: data.notes || null,
+          certifications: data.certifications.length > 0 ? data.certifications : null
+        }));
+
+      console.log(`Upserting ${records.length} skill assessments for member ${selectedMember.id}`);
+
+      // Upsert all records (insert new, update existing)
+      const { error } = await supabase
+        .from('skill_assessments')
+        .upsert(records, {
+          onConflict: 'team_member_id,skill_id' // Update if this combination exists
+        });
+
+      if (error) {
+        console.error('Error saving assessments:', error);
+        throw error;
+      }
+
+      console.log('Assessment saved successfully!');
+      toast({
+        title: 'Success!',
+        description: `Saved ${records.length} skill assessments`,
+      });
+
+      // Navigate back to team page
+      setTimeout(() => {
+        navigate('/team');
+      }, 1500);
+
     } catch (error) {
       console.error('Error submitting assessment:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save assessment. Please try again.',
+        variant: 'destructive'
+      });
     } finally {
       setIsSubmitting(false);
     }
