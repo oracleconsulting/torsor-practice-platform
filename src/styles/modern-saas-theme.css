@@ -1,21 +1,23 @@
 /* Modern SaaS Theme - Clean, Contemporary Design */
 
 /* ===== GLOBAL STYLES ===== */
+/* DISABLED - Forces light background everywhere, breaking dark pages
 html, body, #root {
   background-color: #F8F9FC !important;
-  /* color: #1E293B !important; */ /* DISABLED - conflicts with Tailwind text-white */
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif !important;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+*/
 
 /* ===== ACCOUNTANCY PORTAL SPECIFIC ===== */
+/* DISABLED - Forces light background everywhere, breaking dark pages
 [data-portal="accountancy"] {
   background-color: #F8F9FC !important;
-  /* color: #1E293B !important; */ /* DISABLED - conflicts with Tailwind text-white */
   min-height: 100vh;
 }
+*/
 
 /* ===== LAYOUT COMPONENTS ===== */
 

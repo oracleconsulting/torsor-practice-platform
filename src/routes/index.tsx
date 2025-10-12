@@ -56,6 +56,7 @@ import PracticeHealth from '../pages/accountancy/PracticeHealth';
 import ClientVaultPage from '../pages/accountancy/ClientVaultPage';
 import SystemsAuditPage from '../pages/accountancy/SystemsAuditPage';
 import AlignmentProgrammePage from '../pages/accountancy/AlignmentProgrammePage';
+import VARKAssessmentPage from '../pages/accountancy/team/VARKAssessmentPage';
 
 // Advisory sub-pages
 import ForecastingPage from '../pages/accountancy/advisory/ForecastingPage';
@@ -118,6 +119,7 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="client-management" element={<ClientManagementPage practiceId={practiceId} />} />
       <Route path="health" element={<PracticeHealth />} />
       <Route path="team/skills-assessment" element={<SkillsAssessmentPage />} />
+      <Route path="team-portal/vark-assessment" element={<VARKAssessmentPage />} />
       <Route path="team" element={<TeamManagementPage />} />
       <Route path="client-rescues" element={<ClientRescues />} />
       <Route path="advisory-services" element={<AdvisoryServices />} />
