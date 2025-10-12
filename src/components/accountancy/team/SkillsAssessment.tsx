@@ -115,8 +115,19 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
         };
       });
       setAssessmentData(initialData);
+
+      // Auto-jump to first category with incomplete skills
+      const firstIncompleteCategory = skillCategoriesList.findIndex(categoryName => {
+        const categorySkills = getSkillsForCategory(categoryName);
+        return categorySkills.some(skill => !initialData[skill.id] || initialData[skill.id].skillLevel === 0);
+      });
+
+      if (firstIncompleteCategory !== -1) {
+        console.log('[SkillsAssessment] Jumping to first incomplete category:', skillCategoriesList[firstIncompleteCategory]);
+        setCurrentCategory(firstIncompleteCategory);
+      }
     }
-  }, [selectedMember]);
+  }, [selectedMember, skillCategories]);
 
   const getSkillsForCategory = (categoryName: string): Skill[] => {
     return skillCategories
@@ -183,6 +194,30 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
     return Object.keys(assessmentData).filter(skillId => 
       assessmentData[skillId]?.skillLevel > 0
     ).length;
+  };
+
+  const findNextIncompleteCategory = (): number => {
+    // Start searching from the NEXT category after current
+    for (let i = currentCategory + 1; i < skillCategoriesList.length; i++) {
+      const categorySkills = getSkillsForCategory(skillCategoriesList[i]);
+      const hasIncomplete = categorySkills.some(skill => 
+        !assessmentData[skill.id] || assessmentData[skill.id].skillLevel === 0
+      );
+      if (hasIncomplete) {
+        return i;
+      }
+    }
+    // If no incomplete found after current, search from beginning
+    for (let i = 0; i < currentCategory; i++) {
+      const categorySkills = getSkillsForCategory(skillCategoriesList[i]);
+      const hasIncomplete = categorySkills.some(skill => 
+        !assessmentData[skill.id] || assessmentData[skill.id].skillLevel === 0
+      );
+      if (hasIncomplete) {
+        return i;
+      }
+    }
+    return -1; // No incomplete categories found
   };
 
   if (mode === 'view' && !selectedMember) {
@@ -468,7 +503,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
                 </Alert>
               )}
             </CardContent>
-            <CardFooter className="flex justify-between">
+            <CardFooter className="flex justify-between items-center gap-2">
               <Button 
                 variant="outline" 
                 onClick={() => setCurrentCategory(Math.max(0, currentCategory - 1))}
@@ -477,6 +512,29 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
                 <ChevronLeft className="w-4 h-4 mr-2" />
                 Previous
               </Button>
+              
+              {/* Skip to Incomplete Button */}
+              <Button 
+                variant="secondary"
+                onClick={() => {
+                  const nextIncomplete = findNextIncompleteCategory();
+                  if (nextIncomplete !== -1) {
+                    setCurrentCategory(nextIncomplete);
+                  }
+                }}
+                disabled={isSubmitting || findNextIncompleteCategory() === -1}
+                className="flex-shrink-0"
+              >
+                {findNextIncompleteCategory() === -1 ? (
+                  'All Complete ✓'
+                ) : (
+                  <>
+                    Skip to Incomplete
+                    <ChevronRight className="w-4 h-4 ml-2" />
+                  </>
+                )}
+              </Button>
+
               <Button 
                 onClick={() => {
                   if (currentCategory < skillCategoriesList.length - 1) {
