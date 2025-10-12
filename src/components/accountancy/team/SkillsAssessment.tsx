@@ -193,7 +193,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
           years_experience: data.experience || 0,
           assessed_at: new Date().toISOString(),
           notes: data.notes || null,
-          certifications: data.certifications.length > 0 ? data.certifications : null
+          certifications: data.certifications && data.certifications.length > 0 ? data.certifications : null
         }));
 
       console.log(`Upserting ${records.length} skill assessments for member ${selectedMember.id}`);
