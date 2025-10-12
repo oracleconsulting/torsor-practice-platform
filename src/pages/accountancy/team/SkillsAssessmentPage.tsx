@@ -84,6 +84,37 @@ const SkillsAssessmentPage: React.FC = () => {
       });
 
       setSkillCategories(Object.values(categoriesMap));
+
+      // Load user's existing skill assessments
+      const { data: userAssessments, error: assessmentsError } = await supabase
+        .from('skill_assessments')
+        .select('*')
+        .eq('team_member_id', memberData.id);
+
+      if (assessmentsError) {
+        console.error('[SkillsAssessmentPage] Error loading user assessments:', assessmentsError);
+      } else if (userAssessments && userAssessments.length > 0) {
+        console.log('[SkillsAssessmentPage] Loaded', userAssessments.length, 'existing assessments');
+        
+        // Transform assessments into skills format that SkillsAssessment component expects
+        const userSkills = userAssessments.map(assessment => ({
+          skillId: assessment.skill_id,
+          skillName: skillsData?.find(s => s.id === assessment.skill_id)?.name || 'Unknown Skill',
+          currentLevel: assessment.current_level || 0,
+          interestLevel: assessment.interest_level || 3,
+          targetLevel: assessment.target_level || assessment.current_level + 1,
+          yearsExperience: assessment.years_experience || 0,
+          lastAssessed: assessment.assessed_at ? new Date(assessment.assessed_at) : new Date(),
+          certifications: assessment.certifications || [],
+          notes: assessment.notes || ''
+        }));
+
+        // Update member object with skills
+        setMember({
+          ...memberData,
+          skills: userSkills
+        });
+      }
     } catch (error) {
       console.error('Failed to load assessment data:', error);
       toast({
