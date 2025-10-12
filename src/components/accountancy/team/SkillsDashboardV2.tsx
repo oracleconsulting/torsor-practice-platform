@@ -373,8 +373,8 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                           </div>
                           <Button 
                             size="sm" 
-                            onClick={() => navigate('/team-portal/vark-assessment')}
-                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => navigate('/accountancy/team-portal/vark-assessment')}
+                            className="bg-green-600 hover:bg-green-700 text-white font-bold"
                           >
                             Take Now
                           </Button>

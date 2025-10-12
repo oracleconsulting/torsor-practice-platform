@@ -20,15 +20,18 @@ html, body, #root {
 */
 
 /* ===== LAYOUT COMPONENTS ===== */
-
+/* DISABLED - These force light backgrounds everywhere
 /* Main Layout Container */
+/*
 [data-portal="accountancy"] .main-layout {
   display: flex;
   min-height: 100vh;
   background-color: #F8F9FC;
 }
+*/
 
 /* Sidebar */
+/*
 [data-portal="accountancy"] .sidebar {
   width: 260px;
   background-color: #FFFFFF;
@@ -40,8 +43,10 @@ html, body, #root {
   z-index: 50;
   overflow-y: auto;
 }
+*/
 
 /* Main Content */
+/*
 [data-portal="accountancy"] .main-content {
   flex: 1;
   margin-left: 260px;
@@ -49,6 +54,7 @@ html, body, #root {
   background-color: #F8F9FC;
   min-height: 100vh;
 }
+*/
 
 /* ===== HEADER ===== */
 [data-portal="accountancy"] .header {

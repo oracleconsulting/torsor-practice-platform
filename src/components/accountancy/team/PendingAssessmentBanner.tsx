@@ -99,8 +99,8 @@ export const PendingAssessmentBanner: React.FC<PendingAssessmentBannerProps> = (
             <div className="flex items-center gap-2">
               <Button
                 size="sm"
-                onClick={() => navigate('/team-portal/vark-assessment')}
-                className="bg-green-600 hover:bg-green-700"
+                onClick={() => navigate('/accountancy/team-portal/vark-assessment')}
+                className="bg-green-600 hover:bg-green-700 text-white font-bold"
               >
                 Take VARK Assessment
               </Button>
