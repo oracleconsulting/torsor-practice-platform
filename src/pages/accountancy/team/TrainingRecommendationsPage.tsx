@@ -79,8 +79,8 @@ const TrainingRecommendationsPage: React.FC = () => {
                 <Target className="w-8 h-8 text-purple-500" />
               </div>
               <div>
-                <CardTitle className="text-2xl text-white">AI-Powered Training Recommendations</CardTitle>
-                <CardDescription className="text-gray-400">
+                <CardTitle className="text-2xl text-white font-bold">AI-Powered Training Recommendations</CardTitle>
+                <CardDescription className="text-white font-medium">
                   Personalized learning paths based on your skill gaps, interests, and learning style
                 </CardDescription>
               </div>
@@ -94,8 +94,8 @@ const TrainingRecommendationsPage: React.FC = () => {
             <div className="flex items-start gap-3">
               <TrendingUp className="w-5 h-5 text-purple-400 mt-0.5" />
               <div>
-                <p className="text-white font-medium mb-2">How it works</p>
-                <p className="text-gray-300 text-sm">
+                <p className="text-white font-bold mb-2">How it works</p>
+                <p className="text-white text-sm">
                   Our AI analyzes your current skill levels, identified gaps, personal interests, and learning style (VARK)
                   to generate tailored training recommendations. Each recommendation includes estimated time, cost-benefit
                   analysis, and success probability.
@@ -111,8 +111,8 @@ const TrainingRecommendationsPage: React.FC = () => {
             <CardContent className="p-12">
               <div className="flex flex-col items-center justify-center text-center">
                 <Loader2 className="w-12 h-12 text-purple-500 animate-spin mb-4" />
-                <p className="text-white font-medium">Generating personalized recommendations...</p>
-                <p className="text-gray-400 text-sm mt-2">Analyzing your skills, gaps, and learning style</p>
+                <p className="text-white font-bold text-lg">Generating personalized recommendations...</p>
+                <p className="text-white font-medium text-sm mt-2">Analyzing your skills, gaps, and learning style</p>
               </div>
             </CardContent>
           </Card>
