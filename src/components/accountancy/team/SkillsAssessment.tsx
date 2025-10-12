@@ -101,7 +101,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
   ];
 
   useEffect(() => {
-    if (selectedMember) {
+    if (selectedMember && selectedMember.skills) {
       // Initialize assessment data from existing skills
       const initialData: AssessmentData = {};
       selectedMember.skills.forEach(skill => {
@@ -109,7 +109,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
           skillLevel: skill.currentLevel,
           interestLevel: skill.interestLevel || 3,
           experience: skill.yearsExperience || 0,
-          lastUsed: skill.lastAssessed.toISOString().split('T')[0],
+          lastUsed: skill.lastAssessed ? skill.lastAssessed.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           certifications: skill.certifications || [],
           notes: skill.notes || ''
         };

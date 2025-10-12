@@ -101,7 +101,7 @@ const SkillsAssessmentPage: React.FC = () => {
       title: 'Assessment Complete!',
       description: 'Your skills have been saved successfully',
     });
-    navigate('/accountancy/team');
+    navigate('/team');
   };
 
   if (loading) {
