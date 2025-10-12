@@ -371,7 +371,11 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                               {cpdHoursRequired - cpdHoursCompleted} hours to goal
                             </p>
                           </div>
-                          <Button size="sm" variant="outline">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => navigate('/team?tab=cpd')}
+                          >
                             Log Now
                           </Button>
                         </div>
@@ -385,7 +389,11 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                             Personalized training suggestions
                           </p>
                         </div>
-                        <Button size="sm" variant="outline" onClick={() => setExpandedSections(['team'])}>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => navigate('/team?tab=training')}
+                        >
                           View
                         </Button>
                       </div>
