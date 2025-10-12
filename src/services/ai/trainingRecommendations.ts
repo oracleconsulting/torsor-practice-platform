@@ -2,7 +2,11 @@
  * AI-Powered Training Recommendations Engine
  * Analyzes skill gaps, interest levels, and VARK learning styles
  * to generate personalized training plans
+ * 
+ * Now integrated with REAL CPD courses from Mercia and AccountingCPD.net
  */
+
+import { matchSkillToCourses, type CPDCourse } from '../cpd/cpdCourseData';
 
 // Types
 export interface SkillGap {
@@ -232,7 +236,78 @@ function calculateMatchScore(
 }
 
 /**
+ * Convert a CPD Course into a Training Recommendation
+ */
+function cpdCourseToRecommendation(
+  course: CPDCourse,
+  gap: SkillGap,
+  profile: TeamMemberProfile,
+  priority: TrainingRecommendation['priority']
+): TrainingRecommendation {
+  const varkFormats = getVARKFormats(profile.learningStyle);
+  
+  // Determine format based on delivery format
+  let format: TrainingRecommendation['format'] = 'course';
+  if (course.deliveryFormat.includes('Pathway')) format = 'mixed';
+  if (course.learningType === 'Webinar') format = 'video';
+  
+  // Map difficulty based on course hours and target audience
+  let difficulty: TrainingRecommendation['difficulty'] = 'intermediate';
+  if (course.targetAudience.includes('Senior') || course.targetAudience.includes('Leadership')) {
+    difficulty = 'advanced';
+  } else if (course.cpdHours <= 4) {
+    difficulty = 'beginner';
+  }
+  
+  // Estimate cost based on provider and hours
+  const estimatedCost = course.provider.includes('AccountingCPD') 
+    ? course.cpdHours * 50  // ~£50/hour for AccountingCPD
+    : course.cpdHours * 40; // ~£40/hour for Mercia
+  
+  const recommendation: TrainingRecommendation = {
+    id: `cpd-${course.courseTitle.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`,
+    skillId: gap.skillId,
+    skillName: gap.skillName,
+    title: course.courseTitle,
+    description: course.learningOutcomes,
+    provider: 'external',
+    providerName: course.provider,
+    format,
+    learningFormats: varkFormats.slice(0, 3),
+    estimatedHours: course.cpdHours,
+    estimatedCost,
+    difficulty,
+    successProbability: calculateSuccessProbability(
+      gap.gap,
+      gap.interestLevel,
+      1,
+      profile.timeAvailability || 10,
+      course.cpdHours
+    ),
+    priority,
+    rationale: `Real CPD course from ${course.provider} matching ${gap.skillName} skill gap`,
+    expectedOutcome: `Achieve ${course.cpdHours} CPD hours and improve ${gap.skillName} to level ${Math.min(5, gap.currentLevel + gap.gap)}`,
+    matchScore: 0,
+    url: course.provider.includes('AccountingCPD') 
+      ? 'https://www.accountingcpd.net'
+      : 'https://mercia.co.uk'
+  };
+  
+  // Calculate match score
+  recommendation.matchScore = calculateMatchScore(
+    gap,
+    recommendation,
+    profile.learningStyle,
+    profile.timeAvailability,
+    profile.budgetConstraint
+  );
+  
+  return recommendation;
+}
+
+/**
  * Generate training recommendations for a skill gap
+ * Now uses REAL CPD courses from Mercia and AccountingCPD.net
  */
 function generateRecommendationsForSkill(
   gap: SkillGap,
@@ -249,8 +324,21 @@ function generateRecommendationsForSkill(
     priority = 'critical';
   }
 
-  // Generate different types of recommendations based on gap size
-  if (gap.gap <= 2) {
+  // FIRST: Try to match REAL CPD courses
+  const matchedCourses = matchSkillToCourses(gap.skillName, gap.currentLevel);
+  console.log(`[AI Recommendations] Found ${matchedCourses.length} real CPD courses for ${gap.skillName}`);
+  
+  if (matchedCourses.length > 0) {
+    // Add top 3 matched courses as recommendations
+    const topCourses = matchedCourses.slice(0, 3);
+    topCourses.forEach(course => {
+      const rec = cpdCourseToRecommendation(course, gap, profile, priority);
+      recommendations.push(rec);
+    });
+  }
+
+  // FALLBACK: Generate generic recommendations if no real courses found or for variety
+  if (matchedCourses.length === 0 && gap.gap <= 2) {
     // Small gap - quick courses and practice
     recommendations.push({
       id: `${gap.skillId}-practice`,
@@ -279,8 +367,8 @@ function generateRecommendationsForSkill(
     });
   }
 
-  if (gap.gap >= 2) {
-    // Medium/Large gap - comprehensive course
+  if (matchedCourses.length === 0 && gap.gap >= 2) {
+    // Medium/Large gap - comprehensive course (only if no real CPD courses found)
     const courseHours = gap.gap * 15;
     const courseCost = gap.gap * 200;
     
