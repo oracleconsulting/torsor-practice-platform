@@ -146,6 +146,7 @@
 }
 
 /* Secondary Text */
+/* DISABLED - conflicts with Tailwind text-white
 [data-portal="accountancy"] .text-muted-foreground,
 [data-portal="accountancy"] .text-gray-400,
 [data-portal="accountancy"] .text-gray-500,
@@ -154,13 +155,16 @@
   color: var(--theme-text-secondary) !important;
   font-weight: 400 !important;
 }
+*/
 
 /* Tertiary Text */
+/* DISABLED - conflicts with Tailwind text-white
 [data-portal="accountancy"] .text-gray-300,
 [data-portal="accountancy"] .text-slate-300 {
   color: var(--theme-text-tertiary) !important;
   font-weight: 400 !important;
 }
+*/
 
 /* ===== PROFESSIONAL BUTTONS ===== */
 [data-portal="accountancy"] button,

@@ -122,6 +122,7 @@ body,
 }
 
 /* ===== FORCE SECONDARY TEXT ===== */
+/* DISABLED - conflicts with Tailwind text-white
 [data-portal="accountancy"] .text-muted-foreground,
 [data-portal="accountancy"] .text-gray-400,
 [data-portal="accountancy"] .text-gray-500,
@@ -129,12 +130,15 @@ body,
 [data-portal="accountancy"] .text-slate-500 {
   color: #CBD5E1 !important;
 }
+*/
 
 /* ===== FORCE TERTIARY TEXT ===== */
+/* DISABLED - conflicts with Tailwind text-white
 [data-portal="accountancy"] .text-gray-300,
 [data-portal="accountancy"] .text-slate-300 {
   color: #94A3B8 !important;
 }
+*/
 
 /* ===== FORCE BUTTONS TO PRIMARY BLUE ===== */
 [data-portal="accountancy"] button,
