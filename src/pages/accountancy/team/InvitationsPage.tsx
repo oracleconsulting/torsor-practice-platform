@@ -602,8 +602,8 @@ export default function InvitationsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Team Invitations</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-3xl font-bold text-gray-900">Team Invitations</h1>
+          <p className="text-gray-600 mt-1">
             Manage team member access to the skills portal
           </p>
         </div>
@@ -651,25 +651,25 @@ export default function InvitationsPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardDescription>Total Invitations</CardDescription>
-              <CardTitle className="text-3xl">{stats.total}</CardTitle>
+              <CardDescription className="text-gray-600">Total Invitations</CardDescription>
+              <CardTitle className="text-3xl text-gray-900">{stats.total}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-3">
-              <CardDescription>Pending</CardDescription>
+              <CardDescription className="text-gray-600">Pending</CardDescription>
               <CardTitle className="text-3xl text-yellow-600">{stats.pending}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-3">
-              <CardDescription>Accepted</CardDescription>
+              <CardDescription className="text-gray-600">Accepted</CardDescription>
               <CardTitle className="text-3xl text-green-600">{stats.accepted}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-3">
-              <CardDescription>Expired</CardDescription>
+              <CardDescription className="text-gray-600">Expired</CardDescription>
               <CardTitle className="text-3xl text-red-600">{stats.expired}</CardTitle>
             </CardHeader>
           </Card>
@@ -678,13 +678,13 @@ export default function InvitationsPage() {
 
       {/* Invitations List */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">All Invitations</h2>
+        <h2 className="text-xl font-semibold text-gray-900">All Invitations</h2>
         {invitations.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
-              <Mail className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No invitations yet</h3>
-              <p className="text-muted-foreground mb-4">
+              <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No invitations yet</h3>
+              <p className="text-gray-600 mb-4">
                 Start by sending your first invitation
               </p>
               <Button onClick={() => setShowNewInvite(true)}>
