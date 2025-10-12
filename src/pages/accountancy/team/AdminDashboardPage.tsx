@@ -122,7 +122,7 @@ export default function AdminDashboardPage() {
       <div className="flex items-center justify-center min-h-96">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading dashboard...</p>
+          <p className="text-gray-600">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -132,8 +132,8 @@ export default function AdminDashboardPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Skills Portal Admin</h1>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="text-3xl font-bold text-gray-900">Skills Portal Admin</h1>
+        <p className="text-gray-600 mt-1">
           Team assessment progress and service line readiness
         </p>
       </div>
@@ -158,13 +158,13 @@ export default function AdminDashboardPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Settings className="w-5 h-5 text-blue-600" />
-              <CardTitle>CPD Configuration</CardTitle>
+              <CardTitle className="text-gray-900">CPD Configuration</CardTitle>
             </div>
-            <Badge variant="outline" className="bg-white">
+            <Badge variant="outline" className="bg-white text-gray-700">
               Practice-wide Settings
             </Badge>
           </div>
-          <CardDescription>
+          <CardDescription className="text-gray-600">
             Set CPD requirements for all team members. Changes apply to the current CPD year.
           </CardDescription>
         </CardHeader>
@@ -174,7 +174,7 @@ export default function AdminDashboardPage() {
             <div className="space-y-2">
               <Label htmlFor="totalHours" className="text-sm font-medium">
                 Total Expected CPD Hours
-                <span className="text-muted-foreground text-xs ml-2">(per year)</span>
+                <span className="text-gray-600 text-xs ml-2">(per year)</span>
               </Label>
               <div className="flex items-center gap-2">
                 <Input
@@ -191,9 +191,9 @@ export default function AdminDashboardPage() {
                   }
                   className="bg-white"
                 />
-                <span className="text-sm text-muted-foreground">hours</span>
+                <span className="text-sm text-gray-600">hours</span>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-gray-600">
                 Total CPD requirement per team member annually
               </p>
             </div>
@@ -202,7 +202,7 @@ export default function AdminDashboardPage() {
             <div className="space-y-2">
               <Label htmlFor="determinedHours" className="text-sm font-medium">
                 Determined CPD Hours
-                <span className="text-muted-foreground text-xs ml-2">(structured)</span>
+                <span className="text-gray-600 text-xs ml-2">(structured)</span>
               </Label>
               <div className="flex items-center gap-2">
                 <Input
@@ -219,9 +219,9 @@ export default function AdminDashboardPage() {
                   }
                   className="bg-white"
                 />
-                <span className="text-sm text-muted-foreground">hours</span>
+                <span className="text-sm text-gray-600">hours</span>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-gray-600">
                 Practice-mandated learning (courses, training)
               </p>
             </div>
@@ -230,7 +230,7 @@ export default function AdminDashboardPage() {
             <div className="space-y-2">
               <Label htmlFor="selfHours" className="text-sm font-medium">
                 Self-Allocated CPD Hours
-                <span className="text-muted-foreground text-xs ml-2">(self-directed)</span>
+                <span className="text-gray-600 text-xs ml-2">(self-directed)</span>
               </Label>
               <div className="flex items-center gap-2">
                 <Input
@@ -247,9 +247,9 @@ export default function AdminDashboardPage() {
                   }
                   className="bg-white"
                 />
-                <span className="text-sm text-muted-foreground">hours</span>
+                <span className="text-sm text-gray-600">hours</span>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-gray-600">
                 Member-chosen learning (reading, research)
               </p>
             </div>
@@ -272,7 +272,7 @@ export default function AdminDashboardPage() {
 
           {/* Save Button */}
           <div className="mt-6 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-gray-600">
               Changes will apply to all team members' CPD tracking
             </p>
             <Button
@@ -292,18 +292,18 @@ export default function AdminDashboardPage() {
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardDescription>Assessment Progress</CardDescription>
-              <Users className="w-4 h-4 text-muted-foreground" />
+              <CardDescription className="text-gray-600">Assessment Progress</CardDescription>
+              <Users className="w-4 h-4 text-gray-600" />
             </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               <div className="flex items-end gap-2">
-                <CardTitle className="text-3xl">{data.assessmentsComplete}</CardTitle>
-                <span className="text-muted-foreground mb-1">/ {data.teamSize}</span>
+                <CardTitle className="text-3xl text-gray-900">{data.assessmentsComplete}</CardTitle>
+                <span className="text-gray-600 mb-1">/ {data.teamSize}</span>
               </div>
               <Progress value={data.averageCompletion} className="h-2" />
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-gray-600">
                 {data.averageCompletion}% complete
               </p>
             </div>
@@ -313,13 +313,13 @@ export default function AdminDashboardPage() {
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardDescription>Team Average Level</CardDescription>
-              <TrendingUp className="w-4 h-4 text-muted-foreground" />
+              <CardDescription className="text-gray-600">Team Average Level</CardDescription>
+              <TrendingUp className="w-4 h-4 text-gray-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <CardTitle className="text-3xl">{data.avgTeamLevel}</CardTitle>
-            <p className="text-sm text-muted-foreground mt-2">
+            <CardTitle className="text-3xl text-gray-900">{data.avgTeamLevel}</CardTitle>
+            <p className="text-sm text-gray-600 mt-2">
               Across {data.totalSkills} skills
             </p>
           </CardContent>
@@ -328,13 +328,13 @@ export default function AdminDashboardPage() {
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardDescription>Active Goals</CardDescription>
-              <Target className="w-4 h-4 text-muted-foreground" />
+              <CardDescription className="text-gray-600">Active Goals</CardDescription>
+              <Target className="w-4 h-4 text-gray-600" />
             </div>
           </CardHeader>
           <CardContent>
             <CardTitle className="text-3xl text-blue-600">{data.activeGoals}</CardTitle>
-            <p className="text-sm text-muted-foreground mt-2">
+            <p className="text-sm text-gray-600 mt-2">
               In progress
             </p>
           </CardContent>
@@ -349,7 +349,7 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <CardTitle className="text-3xl text-red-600">{data.criticalGaps}</CardTitle>
-            <p className="text-sm text-muted-foreground mt-2">
+            <p className="text-sm text-gray-600 mt-2">
               Need immediate attention
             </p>
           </CardContent>
@@ -359,8 +359,8 @@ export default function AdminDashboardPage() {
       {/* Service Line Readiness */}
       <Card>
         <CardHeader>
-          <CardTitle>Service Line Readiness</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-gray-900">Service Line Readiness</CardTitle>
+          <CardDescription className="text-gray-600">
             Coverage and capability across BSG service offerings
           </CardDescription>
         </CardHeader>
@@ -389,7 +389,7 @@ export default function AdminDashboardPage() {
                     {sl.coverage}% coverage
                   </Badge>
                 </div>
-                <div className="text-sm text-muted-foreground">
+                <div className="text-sm text-gray-600">
                   {sl.teamCount} team members • Avg Level {sl.avgLevel}
                 </div>
               </div>
@@ -413,8 +413,8 @@ export default function AdminDashboardPage() {
         {/* Category Breakdown */}
         <Card>
           <CardHeader>
-            <CardTitle>Category Skill Levels</CardTitle>
-            <CardDescription>Average team level by skill category</CardDescription>
+            <CardTitle className="text-gray-900">Category Skill Levels</CardTitle>
+            <CardDescription className="text-gray-600">Average team level by skill category</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -438,8 +438,8 @@ export default function AdminDashboardPage() {
         {/* Top Skill Gaps */}
         <Card>
           <CardHeader>
-            <CardTitle>Priority Skill Gaps</CardTitle>
-            <CardDescription>Skills requiring immediate development</CardDescription>
+            <CardTitle className="text-gray-900">Priority Skill Gaps</CardTitle>
+            <CardDescription className="text-gray-600">Skills requiring immediate development</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -448,7 +448,7 @@ export default function AdminDashboardPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="font-medium text-sm">{gap.skill}</div>
-                      <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-4 mt-1 text-xs text-gray-600">
                         <span>Current: {gap.currentAvg.toFixed(1)}</span>
                         <span>Target: {gap.required}</span>
                         <span>Gap: {Math.abs(gap.gap).toFixed(1)}</span>
@@ -480,8 +480,8 @@ export default function AdminDashboardPage() {
       {/* Recent Activity */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>Latest team member actions</CardDescription>
+          <CardTitle className="text-gray-900">Recent Activity</CardTitle>
+          <CardDescription className="text-gray-600">Latest team member actions</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -491,10 +491,10 @@ export default function AdminDashboardPage() {
                 <div className="flex-1">
                   <p className="text-sm">
                     <span className="font-medium">{activity.member}</span>{' '}
-                    <span className="text-muted-foreground">{activity.action}</span>
+                    <span className="text-gray-600">{activity.action}</span>
                   </p>
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs text-gray-600">
                   {activity.timestamp}
                 </div>
               </div>
