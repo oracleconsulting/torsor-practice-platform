@@ -127,6 +127,8 @@
   line-height: 1.25 !important;
 }
 
+/* DISABLED - Nuclear override forcing font-weight: 400 on EVERYTHING
+   This was making bold text (font-bold) look grey/washed out
 [data-portal="accountancy"] p,
 [data-portal="accountancy"] span,
 [data-portal="accountancy"] div,
@@ -144,6 +146,7 @@
   color: var(--theme-text-primary) !important;
   font-weight: 400 !important;
 }
+*/
 
 /* Secondary Text */
 /* DISABLED - conflicts with Tailwind text-white
