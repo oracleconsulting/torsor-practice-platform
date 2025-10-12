@@ -20,21 +20,18 @@ html, body, #root {
 */
 
 /* ===== LAYOUT COMPONENTS ===== */
-/* DISABLED - These force light backgrounds everywhere
-/* Main Layout Container */
-/*
+
+/* Main Layout Container - Restored layout structure, removed background override */
 [data-portal="accountancy"] .main-layout {
   display: flex;
   min-height: 100vh;
-  background-color: #F8F9FC;
+  /* background-color: #F8F9FC; */ /* DISABLED - Let Tailwind control backgrounds */
 }
-*/
 
-/* Sidebar */
-/*
+/* Sidebar - Restored layout structure, removed background override */
 [data-portal="accountancy"] .sidebar {
   width: 260px;
-  background-color: #FFFFFF;
+  /* background-color: #FFFFFF; */ /* DISABLED - Let Tailwind control backgrounds */
   border-right: 1px solid #E2E8F0;
   position: fixed;
   height: 100vh;
@@ -43,18 +40,15 @@ html, body, #root {
   z-index: 50;
   overflow-y: auto;
 }
-*/
 
-/* Main Content */
-/*
+/* Main Content - Restored layout structure, removed background override */
 [data-portal="accountancy"] .main-content {
   flex: 1;
   margin-left: 260px;
   padding: 40px;
-  background-color: #F8F9FC;
+  /* background-color: #F8F9FC; */ /* DISABLED - Let Tailwind control backgrounds */
   min-height: 100vh;
 }
-*/
 
 /* ===== HEADER ===== */
 [data-portal="accountancy"] .header {
