@@ -358,6 +358,7 @@ function generateRecommendationsForSkill(
 
 /**
  * Main function: Generate AI-powered training recommendations
+ * @deprecated Use generateTrainingRecommendationsById instead
  */
 export async function generateTrainingRecommendations(
   profile: TeamMemberProfile
@@ -561,5 +562,100 @@ export async function generateLearningPath(
   );
 
   return path;
+}
+
+/**
+ * Generate training recommendations by user ID
+ * Fetches user profile and skill assessments from database
+ */
+export async function generateTrainingRecommendationsById(
+  userId: string
+): Promise<RecommendationAnalysis> {
+  try {
+    // Import supabase client
+    const { supabase } = await import('@/lib/supabase/client');
+    
+    // Fetch user's practice member record
+    const { data: member, error: memberError } = await supabase
+      .from('practice_members')
+      .select('id, name, role, department')
+      .eq('user_id', userId)
+      .single();
+    
+    if (memberError || !member) {
+      console.error('Error fetching member:', memberError);
+      // Return empty recommendations
+      return {
+        topRecommendations: [],
+        quickWins: [],
+        strategicInvestments: [],
+        groupOpportunities: [],
+        totalEstimatedHours: 0,
+        totalEstimatedCost: 0,
+        averageSuccessProbability: 0
+      };
+    }
+
+    // Fetch skill assessments
+    const { data: assessments, error: assessmentsError } = await supabase
+      .from('skill_assessments')
+      .select(`
+        skill_id,
+        current_level,
+        interest_level,
+        skills (
+          id,
+          name,
+          category,
+          required_level
+        )
+      `)
+      .eq('team_member_id', member.id);
+
+    if (assessmentsError) {
+      console.error('Error fetching assessments:', assessmentsError);
+    }
+
+    // Build skill gaps from assessments
+    const skillGaps: SkillGap[] = (assessments || [])
+      .filter((a: any) => a.skills && a.current_level < (a.skills.required_level || 3))
+      .map((a: any) => ({
+        skillId: a.skill_id,
+        skillName: a.skills.name,
+        category: a.skills.category,
+        currentLevel: a.current_level,
+        requiredLevel: a.skills.required_level || 3,
+        gap: (a.skills.required_level || 3) - a.current_level,
+        interestLevel: a.interest_level || 3,
+        criticality: 'medium' as const,
+        businessImpact: 5
+      }));
+
+    // Build team member profile
+    const profile: TeamMemberProfile = {
+      id: member.id,
+      name: member.name || 'User',
+      role: member.role || 'Team Member',
+      department: member.department || 'General',
+      learningStyle: 'multimodal', // Default - could be fetched from VARK assessment
+      skillGaps,
+      timeAvailability: 10, // Default 10 hours per week
+      budgetConstraint: 2000 // Default £2000
+    };
+
+    // Generate recommendations
+    return await generateTrainingRecommendations(profile);
+  } catch (error) {
+    console.error('Error generating recommendations:', error);
+    return {
+      topRecommendations: [],
+      quickWins: [],
+      strategicInvestments: [],
+      groupOpportunities: [],
+      totalEstimatedHours: 0,
+      totalEstimatedCost: 0,
+      averageSuccessProbability: 0
+    };
+  }
 }
 
