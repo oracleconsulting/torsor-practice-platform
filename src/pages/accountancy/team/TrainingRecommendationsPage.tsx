@@ -92,10 +92,10 @@ const TrainingRecommendationsPage: React.FC = () => {
         <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-700/50">
           <CardContent className="pt-6">
             <div className="flex items-start gap-3">
-              <TrendingUp className="w-5 h-5 text-purple-400 mt-0.5" />
+              <TrendingUp className="w-5 h-5 text-purple-600 mt-0.5" />
               <div>
-                <p className="text-white font-bold mb-2">How it works</p>
-                <p className="text-white text-sm">
+                <p className="text-gray-900 font-bold mb-2">How it works</p>
+                <p className="text-gray-700 text-sm">
                   Our AI analyzes your current skill levels, identified gaps, personal interests, and learning style (VARK)
                   to generate tailored training recommendations. Each recommendation includes estimated time, cost-benefit
                   analysis, and success probability.
