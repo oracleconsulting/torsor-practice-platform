@@ -284,11 +284,11 @@ const CPDTrackerPage: React.FC = () => {
                     <div key={member.member_id} className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium">{member.member_name}</p>
+                          <p className="font-bold text-white">{member.member_name}</p>
                           <p className="text-sm text-white font-medium">{member.member_role}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-medium">
+                          <p className="font-bold text-white">
                             {member.completed_hours}/{member.required_hours} hours
                           </p>
                           <p className="text-sm text-white font-medium">
@@ -557,7 +557,7 @@ const CPDTrackerPage: React.FC = () => {
                       <div key={activity.id} className="flex items-center justify-between p-4 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-1">
-                            <h4 className="font-medium">{activity.title}</h4>
+                            <h4 className="font-bold text-white">{activity.title}</h4>
                             <Badge variant={
                               activity.status === 'completed' ? 'default' : 
                               activity.status === 'in_progress' ? 'secondary' : 'outline'
@@ -588,7 +588,7 @@ const CPDTrackerPage: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="text-right">
-                            <p className="font-medium">{activity.hours_claimed} hours</p>
+                            <p className="font-bold text-white">{activity.hours_claimed} hours</p>
                             {activity.hours_verified && activity.hours_verified !== activity.hours_claimed && (
                               <p className="text-xs text-green-400">{activity.hours_verified} verified</p>
                             )}
@@ -617,13 +617,13 @@ const CPDTrackerPage: React.FC = () => {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-700">
-                      <th className="text-left py-3">Team Member</th>
-                      <th className="text-center py-3">Required</th>
-                      <th className="text-center py-3">Completed</th>
-                      <th className="text-center py-3">Verifiable</th>
-                      <th className="text-center py-3">Progress</th>
-                      <th className="text-center py-3">Status</th>
-                      <th className="text-center py-3">Actions</th>
+                      <th className="text-left py-3 text-white font-bold">Team Member</th>
+                      <th className="text-center py-3 text-white font-bold">Required</th>
+                      <th className="text-center py-3 text-white font-bold">Completed</th>
+                      <th className="text-center py-3 text-white font-bold">Verifiable</th>
+                      <th className="text-center py-3 text-white font-bold">Progress</th>
+                      <th className="text-center py-3 text-white font-bold">Status</th>
+                      <th className="text-center py-3 text-white font-bold">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -635,17 +635,17 @@ const CPDTrackerPage: React.FC = () => {
                         <tr key={member.member_id} className="border-b border-gray-800">
                           <td className="py-4">
                             <div>
-                              <p className="font-medium">{member.member_name}</p>
+                              <p className="font-bold text-white">{member.member_name}</p>
                               <p className="text-sm text-white font-medium">{member.member_role}</p>
                             </div>
                           </td>
-                          <td className="text-center py-4">{member.required_hours}</td>
-                          <td className="text-center py-4">{member.completed_hours}</td>
-                          <td className="text-center py-4">{member.verifiable_hours}</td>
+                          <td className="text-center py-4 text-white font-medium">{member.required_hours}</td>
+                          <td className="text-center py-4 text-white font-medium">{member.completed_hours}</td>
+                          <td className="text-center py-4 text-white font-medium">{member.verifiable_hours}</td>
                           <td className="py-4">
                             <div className="w-full max-w-[100px] mx-auto">
                               <Progress value={progress} className="h-2" />
-                              <p className="text-xs text-center mt-1">{Math.round(progress)}%</p>
+                              <p className="text-xs text-center mt-1 text-white font-medium">{Math.round(progress)}%</p>
                             </div>
                           </td>
                           <td className="text-center py-4">
