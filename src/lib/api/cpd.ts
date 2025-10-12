@@ -430,6 +430,34 @@ export async function getTeamCPDSummary(practiceId: string): Promise<TeamCPDSumm
     return [];
   }
 
+  // Deduplicate members by email (keep the one with highest priority role)
+  const rolesPriority: { [key: string]: number } = {
+    'owner': 5,
+    'director': 4,
+    'senior manager': 3,
+    'manager': 2,
+    'team member': 1
+  };
+  
+  const uniqueMembers = members.reduce((acc, member) => {
+    const existing = acc.find(m => m.email === member.email);
+    if (!existing) {
+      acc.push(member);
+    } else {
+      // Keep the member with higher priority role
+      const existingPriority = rolesPriority[existing.role?.toLowerCase() || ''] || 0;
+      const newPriority = rolesPriority[member.role?.toLowerCase() || ''] || 0;
+      if (newPriority > existingPriority) {
+        // Replace with higher priority role
+        const index = acc.indexOf(existing);
+        acc[index] = member;
+      }
+    }
+    return acc;
+  }, [] as typeof members);
+  
+  console.log(`[CPD] Found ${members.length} members, deduplicated to ${uniqueMembers.length}`);
+
   // Get CPD requirements for each role
   const { data: requirements } = await supabase
     .from('cpd_requirements')
@@ -443,10 +471,10 @@ export async function getTeamCPDSummary(practiceId: string): Promise<TeamCPDSumm
   const { data: activities } = await supabase
     .from('cpd_activities')
     .select('*')
-    .in('practice_member_id', members.map(m => m.id));
+    .in('practice_member_id', uniqueMembers.map(m => m.id));
 
   // Calculate summary for each member
-  const summary: TeamCPDSummary[] = members.map(member => {
+  const summary: TeamCPDSummary[] = uniqueMembers.map(member => {
     const memberActivities = (activities || []).filter(
       a => a.practice_member_id === member.id
     );
