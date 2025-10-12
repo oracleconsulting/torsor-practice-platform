@@ -17,3 +17,63 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
 }
+
+/* FORCE DARK TEXT ON LIGHT BACKGROUNDS - GLOBAL CONTRAST FIX */
+/* Any element with white/light background MUST have dark text */
+[data-portal="accountancy"] .bg-white,
+[data-portal="accountancy"] .bg-gray-50,
+[data-portal="accountancy"] .bg-gray-100,
+[data-portal="accountancy"] [class*="bg-white"],
+[data-portal="accountancy"] [class*="bg-gray-50"],
+[data-portal="accountancy"] [class*="bg-gray-100"],
+[data-portal="accountancy"] [style*="background: white"],
+[data-portal="accountancy"] [style*="background: #fff"],
+[data-portal="accountancy"] [style*="background: #f"],
+[data-portal="accountancy"] [style*="background-color: white"],
+[data-portal="accountancy"] [style*="background-color: #fff"],
+[data-portal="accountancy"] [style*="background-color: #f"] {
+  color: #1a1a1a !important;
+}
+
+/* Force all headings, paragraphs, and spans inside light backgrounds to be dark */
+[data-portal="accountancy"] .bg-white h1,
+[data-portal="accountancy"] .bg-white h2,
+[data-portal="accountancy"] .bg-white h3,
+[data-portal="accountancy"] .bg-white h4,
+[data-portal="accountancy"] .bg-white h5,
+[data-portal="accountancy"] .bg-white h6,
+[data-portal="accountancy"] .bg-white p,
+[data-portal="accountancy"] .bg-white span,
+[data-portal="accountancy"] .bg-white div,
+[data-portal="accountancy"] .bg-gray-50 h1,
+[data-portal="accountancy"] .bg-gray-50 h2,
+[data-portal="accountancy"] .bg-gray-50 h3,
+[data-portal="accountancy"] .bg-gray-50 h4,
+[data-portal="accountancy"] .bg-gray-50 h5,
+[data-portal="accountancy"] .bg-gray-50 h6,
+[data-portal="accountancy"] .bg-gray-50 p,
+[data-portal="accountancy"] .bg-gray-50 span,
+[data-portal="accountancy"] .bg-gray-50 div,
+[data-portal="accountancy"] .bg-gray-100 h1,
+[data-portal="accountancy"] .bg-gray-100 h2,
+[data-portal="accountancy"] .bg-gray-100 h3,
+[data-portal="accountancy"] .bg-gray-100 h4,
+[data-portal="accountancy"] .bg-gray-100 h5,
+[data-portal="accountancy"] .bg-gray-100 h6,
+[data-portal="accountancy"] .bg-gray-100 p,
+[data-portal="accountancy"] .bg-gray-100 span,
+[data-portal="accountancy"] .bg-gray-100 div {
+  color: #1a1a1a !important;
+}
+
+/* Force Card components to have dark text */
+[data-portal="accountancy"] [class*="card"] h1,
+[data-portal="accountancy"] [class*="card"] h2,
+[data-portal="accountancy"] [class*="card"] h3,
+[data-portal="accountancy"] [class*="card"] h4,
+[data-portal="accountancy"] [class*="card"] h5,
+[data-portal="accountancy"] [class*="card"] h6,
+[data-portal="accountancy"] [class*="card"] p,
+[data-portal="accountancy"] [class*="card"] span {
+  color: #1a1a1a !important;
+}
