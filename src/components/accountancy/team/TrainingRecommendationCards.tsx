@@ -92,20 +92,20 @@ const TrainingRecommendationCards: React.FC<TrainingRecommendationCardsProps> = 
                 <Badge className={`${getPriorityColor(rec.priority)} border`}>
                   {getPriorityLabel(rec.priority)}
                 </Badge>
-                <Badge variant="outline" className="text-xs">
+                <Badge variant="outline" className="text-xs text-white border-gray-500">
                   {rec.provider === 'internal' ? 'Internal' : 'External'}
                 </Badge>
-                <Badge variant="outline" className="text-xs flex items-center gap-1">
+                <Badge variant="outline" className="text-xs text-white border-gray-500 flex items-center gap-1">
                   {getFormatIcon(rec.format)}
                   {rec.format}
                 </Badge>
               </div>
-              <CardTitle className="text-lg text-white">{rec.title}</CardTitle>
-              <CardDescription className="mt-1">{rec.description}</CardDescription>
+              <CardTitle className="text-lg text-white font-bold">{rec.title}</CardTitle>
+              <CardDescription className="mt-1 text-gray-100">{rec.description}</CardDescription>
             </div>
             <div className="ml-4 text-right">
               <div className="text-2xl font-bold text-white">{rec.matchScore}%</div>
-              <div className="text-xs text-gray-400">Match</div>
+              <div className="text-xs text-white font-medium">Match</div>
             </div>
           </div>
         </CardHeader>
@@ -116,24 +116,24 @@ const TrainingRecommendationCards: React.FC<TrainingRecommendationCardsProps> = 
             <div className="flex items-center gap-2 text-sm">
               <Clock className="w-4 h-4 text-blue-400" />
               <div>
-                <div className="font-medium text-white">{rec.estimatedHours}h</div>
-                <div className="text-xs text-gray-400">Duration</div>
+                <div className="font-bold text-white text-base">{rec.estimatedHours}h</div>
+                <div className="text-xs text-white font-medium">Duration</div>
               </div>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <DollarSign className="w-4 h-4 text-green-400" />
               <div>
-                <div className="font-medium text-white">
+                <div className="font-bold text-white text-base">
                   {rec.estimatedCost === 0 ? 'Free' : `£${rec.estimatedCost}`}
                 </div>
-                <div className="text-xs text-gray-400">Cost</div>
+                <div className="text-xs text-white font-medium">Cost</div>
               </div>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <TrendingUp className="w-4 h-4 text-purple-400" />
               <div>
-                <div className="font-medium text-white">{rec.successProbability}%</div>
-                <div className="text-xs text-gray-400">Success Rate</div>
+                <div className="font-bold text-white text-base">{rec.successProbability}%</div>
+                <div className="text-xs text-white font-medium">Success Rate</div>
               </div>
             </div>
           </div>
@@ -141,8 +141,8 @@ const TrainingRecommendationCards: React.FC<TrainingRecommendationCardsProps> = 
           {/* Success Probability Bar */}
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Success Probability</span>
-              <span className="text-white font-medium">{rec.successProbability}%</span>
+              <span className="text-white font-medium">Success Probability</span>
+              <span className="text-white font-bold">{rec.successProbability}%</span>
             </div>
             <Progress 
               value={rec.successProbability} 
@@ -153,11 +153,11 @@ const TrainingRecommendationCards: React.FC<TrainingRecommendationCardsProps> = 
           {/* Learning Formats */}
           {rec.learningFormats && rec.learningFormats.length > 0 && (
             <div>
-              <div className="text-sm font-medium text-white mb-2">Best for your learning style:</div>
+              <div className="text-sm font-bold text-white mb-2">Best for your learning style:</div>
               <div className="space-y-1">
                 {rec.learningFormats.slice(0, isExpanded ? undefined : 2).map((format, idx) => (
-                  <div key={idx} className="flex items-start gap-2 text-sm text-gray-300">
-                    <CheckCircle className="w-3 h-3 text-green-500 mt-1 flex-shrink-0" />
+                  <div key={idx} className="flex items-start gap-2 text-sm text-white">
+                    <CheckCircle className="w-3 h-3 text-green-400 mt-1 flex-shrink-0" />
                     <span>{format}</span>
                   </div>
                 ))}
@@ -169,20 +169,20 @@ const TrainingRecommendationCards: React.FC<TrainingRecommendationCardsProps> = 
           {isExpanded && showDetails && (
             <div className="space-y-3 pt-3 border-t border-gray-700">
               <div>
-                <div className="text-sm font-medium text-white mb-1">Why this recommendation:</div>
-                <p className="text-sm text-gray-300">{rec.rationale}</p>
+                <div className="text-sm font-bold text-white mb-1">Why this recommendation:</div>
+                <p className="text-sm text-white">{rec.rationale}</p>
               </div>
               <div>
-                <div className="text-sm font-medium text-white mb-1">Expected outcome:</div>
-                <p className="text-sm text-gray-300">{rec.expectedOutcome}</p>
+                <div className="text-sm font-bold text-white mb-1">Expected outcome:</div>
+                <p className="text-sm text-white">{rec.expectedOutcome}</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-400">Provider:</span>
-                <span className="text-sm text-white">{rec.providerName}</span>
+                <span className="text-sm font-medium text-white">Provider:</span>
+                <span className="text-sm text-white font-bold">{rec.providerName}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-400">Difficulty:</span>
-                <Badge variant="outline" className="capitalize">{rec.difficulty}</Badge>
+                <span className="text-sm font-medium text-white">Difficulty:</span>
+                <Badge variant="outline" className="capitalize text-white border-gray-500">{rec.difficulty}</Badge>
               </div>
             </div>
           )}
@@ -193,6 +193,7 @@ const TrainingRecommendationCards: React.FC<TrainingRecommendationCardsProps> = 
             variant="ghost"
             size="sm"
             onClick={() => toggleCard(rec.id)}
+            className="text-white hover:text-white hover:bg-gray-700"
           >
             {isExpanded ? (
               <>
@@ -207,7 +208,7 @@ const TrainingRecommendationCards: React.FC<TrainingRecommendationCardsProps> = 
             )}
           </Button>
           {rec.url && (
-            <Button variant="outline" size="sm" asChild>
+            <Button variant="outline" size="sm" asChild className="text-white border-gray-500 hover:bg-gray-700">
               <a href={rec.url} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="w-4 h-4 mr-2" />
                 View Course
@@ -225,11 +226,11 @@ const TrainingRecommendationCards: React.FC<TrainingRecommendationCardsProps> = 
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2 text-white">
+              <CardTitle className="flex items-center gap-2 text-white font-bold">
                 <Users className="w-5 h-5" />
                 {opportunity.skillName} - Team Workshop
               </CardTitle>
-              <CardDescription className="mt-1">
+              <CardDescription className="mt-1 text-white font-medium">
                 {opportunity.memberCount} team members need training
               </CardDescription>
             </div>
@@ -237,18 +238,18 @@ const TrainingRecommendationCards: React.FC<TrainingRecommendationCardsProps> = 
               <div className="text-2xl font-bold text-green-400">
                 £{opportunity.costSavings}
               </div>
-              <div className="text-xs text-gray-400">Savings</div>
+              <div className="text-xs text-white font-medium">Savings</div>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <RecommendationCard rec={opportunity.recommendation} />
           <div className="mt-4 p-3 bg-green-900/20 rounded-lg border border-green-700">
-            <div className="flex items-center gap-2 text-green-400 font-medium">
+            <div className="flex items-center gap-2 text-green-400 font-bold">
               <Zap className="w-4 h-4" />
               Cost-effective group training opportunity!
             </div>
-            <div className="text-sm text-gray-300 mt-1">
+            <div className="text-sm text-white font-medium mt-1">
               Save £{opportunity.costSavings} by training {opportunity.memberCount} members together
             </div>
           </div>
