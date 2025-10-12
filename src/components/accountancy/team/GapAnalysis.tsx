@@ -296,7 +296,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
           style={{ width: `${(interest / 5) * 100}%` }}
         />
       </div>
-      <span className="text-sm text-gray-400">{interest.toFixed(1)}/5</span>
+      <span className="text-sm text-white font-medium">{interest.toFixed(1)}/5</span>
     </div>
   );
 
@@ -314,7 +314,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
             style={{ width: `${score}%` }}
           />
         </div>
-        <span className="text-sm text-gray-400">{score.toFixed(0)}</span>
+        <span className="text-sm text-white font-medium">{score.toFixed(0)}</span>
       </div>
     );
   };
@@ -600,33 +600,33 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
                 <Lightbulb className="w-4 h-4" />
                 How to Use This Chart:
               </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-gray-300">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-white font-medium">
                 <div className="flex items-start gap-2">
                   <div className="text-green-400 font-bold mt-0.5">✅</div>
                   <div>
                     <span className="font-semibold text-white">TOP-RIGHT (High Interest, Big Gap)</span> 
-                    <p className="text-gray-400">= BEST opportunities! Team wants to learn AND needs these skills.</p>
+                    <p className="text-white font-medium">= BEST opportunities! Team wants to learn AND needs these skills.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="text-amber-400 font-bold mt-0.5">⚠️</div>
                   <div>
                     <span className="font-semibold text-white">BOTTOM-RIGHT (Low Interest, Big Gap)</span>
-                    <p className="text-gray-400">= Challenges. Need motivation strategies or external hiring.</p>
+                    <p className="text-white font-medium">= Challenges. Need motivation strategies or external hiring.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="text-blue-400 font-bold mt-0.5">🚀</div>
                   <div>
                     <span className="font-semibold text-white">TOP-LEFT (High Interest, Small Gap)</span>
-                    <p className="text-gray-400">= Quick wins! Easy to close with minimal training.</p>
+                    <p className="text-white font-medium">= Quick wins! Easy to close with minimal training.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
-                  <div className="text-gray-400 font-bold mt-0.5">⏸️</div>
+                  <div className="text-white font-medium font-bold mt-0.5">⏸️</div>
                   <div>
                     <span className="font-semibold text-white">BOTTOM-LEFT (Low Interest, Small Gap)</span>
-                    <p className="text-gray-400">= Low priority. Monitor but don't focus resources here.</p>
+                    <p className="text-white font-medium">= Low priority. Monitor but don't focus resources here.</p>
                   </div>
                 </div>
               </div>
@@ -638,19 +638,19 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
               <div className="flex items-center gap-6 flex-wrap">
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded-full bg-red-500"></div>
-                  <span className="text-xs text-gray-300">High Priority (≥10)</span>
+                  <span className="text-xs text-white font-medium">High Priority (≥10)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded-full bg-amber-500"></div>
-                  <span className="text-xs text-gray-300">Medium Priority (5-9)</span>
+                  <span className="text-xs text-white font-medium">Medium Priority (5-9)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded-full bg-blue-500"></div>
-                  <span className="text-xs text-gray-300">Low Priority (2-4)</span>
+                  <span className="text-xs text-white font-medium">Low Priority (2-4)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded-full bg-gray-500"></div>
-                  <span className="text-xs text-gray-300">Very Low Priority (&lt;2)</span>
+                  <span className="text-xs text-white font-medium">Very Low Priority (&lt;2)</span>
                 </div>
               </div>
             </div>
@@ -662,28 +662,28 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
                   <CheckCircle className="w-4 h-4 text-green-500" />
                   <span className="font-medium text-green-400">Quick Wins</span>
                 </div>
-                <p className="text-xs text-gray-400">High interest, low gap - ideal for development</p>
+                <p className="text-xs text-white font-medium">High interest, low gap - ideal for development</p>
               </div>
               <div className="p-3 bg-blue-900/20 border border-blue-700 rounded-lg">
                 <div className="flex items-center gap-2 mb-1">
                   <Target className="w-4 h-4 text-blue-500" />
                   <span className="font-medium text-blue-400">Strategic Development</span>
                 </div>
-                <p className="text-xs text-gray-400">High interest, high gap - strategic focus needed</p>
+                <p className="text-xs text-white font-medium">High interest, high gap - strategic focus needed</p>
               </div>
               <div className="p-3 bg-yellow-900/20 border border-yellow-700 rounded-lg">
                 <div className="flex items-center gap-2 mb-1">
                   <AlertCircle className="w-4 h-4 text-yellow-500" />
                   <span className="font-medium text-yellow-400">Low Priority</span>
                 </div>
-                <p className="text-xs text-gray-400">Low interest, low gap - minimal impact</p>
+                <p className="text-xs text-white font-medium">Low interest, low gap - minimal impact</p>
               </div>
               <div className="p-3 bg-red-900/20 border border-red-700 rounded-lg">
                 <div className="flex items-center gap-2 mb-1">
                   <XCircle className="w-4 h-4 text-red-500" />
                   <span className="font-medium text-red-400">Critical Gaps</span>
                 </div>
-                <p className="text-xs text-gray-400">Low interest, high gap - urgent attention required</p>
+                <p className="text-xs text-white font-medium">Low interest, high gap - urgent attention required</p>
               </div>
             </div>
           </CardContent>
@@ -719,7 +719,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
                     <td className="p-4">
                       <div>
                         <div className="font-semibold text-lg" style={{ color: '#000000' }}>{gap.skillName}</div>
-                        <div className="text-sm text-gray-600 mt-1">{gap.category}</div>
+                        <div className="text-sm text-gray-100 font-medium mt-1">{gap.category}</div>
                         <div className="text-xs mt-1 flex gap-3">
                           <span style={{ color: '#000000' }}>
                             <strong>Required:</strong> Level {gap.requiredLevel}
@@ -868,25 +868,25 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
                     </Avatar>
                     <div>
                       <div className="font-medium text-white">{mismatch.member.name}</div>
-                      <div className="text-sm text-gray-400">{mismatch.member.role}</div>
-                      <div className="text-sm text-gray-500">{mismatch.skill.name}</div>
+                      <div className="text-sm text-white font-medium">{mismatch.member.role}</div>
+                      <div className="text-sm text-gray-100 font-medium">{mismatch.skill.name}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-center">
-                      <div className="text-sm text-gray-400">Skill Level</div>
+                      <div className="text-sm text-white font-medium">Skill Level</div>
                       <Badge variant="outline" className="text-red-400 border-red-400">
                         {mismatch.currentLevel}/5
                       </Badge>
                     </div>
                     <div className="text-center">
-                      <div className="text-sm text-gray-400">Interest Level</div>
+                      <div className="text-sm text-white font-medium">Interest Level</div>
                       <Badge variant="outline" className="text-blue-400 border-blue-400">
                         {mismatch.interestLevel}/5
                       </Badge>
                     </div>
                     <div className="text-center">
-                      <div className="text-sm text-gray-400">Potential</div>
+                      <div className="text-sm text-white font-medium">Potential</div>
                       <Badge variant="default" className="bg-green-600">
                         +{mismatch.developmentPotential}
                       </Badge>
@@ -928,7 +928,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
           <CardContent>
             {!selectedMemberForAI ? (
               <div className="text-center py-8">
-                <p className="text-gray-400 mb-4">Select a team member to generate personalized recommendations</p>
+                <p className="text-white font-medium mb-4">Select a team member to generate personalized recommendations</p>
                 <div className="flex flex-wrap gap-2 justify-center">
                   {teamMembers.slice(0, 5).map(member => (
                     <Button
@@ -951,7 +951,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
             ) : loadingRecommendations ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
-                <p className="text-gray-400">Generating AI-powered recommendations...</p>
+                <p className="text-white font-medium">Generating AI-powered recommendations...</p>
               </div>
             ) : aiRecommendations ? (
               <div className="space-y-4">
@@ -966,7 +966,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
                       <div className="font-medium text-white">
                         {teamMembers.find(m => m.id === selectedMemberForAI)?.name}
                       </div>
-                      <div className="text-sm text-gray-400">
+                      <div className="text-sm text-white font-medium">
                         {aiRecommendations.topRecommendations.length} recommendations • 
                         {' '}{aiRecommendations.totalEstimatedHours}h • 
                         {' '}£{aiRecommendations.totalEstimatedCost}
@@ -1006,7 +1006,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
         <Card className="bg-gray-800 border-gray-700">
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-red-500">{gapData.length}</div>
-            <div className="text-sm text-gray-400">Total Gaps Identified</div>
+            <div className="text-sm text-white font-medium">Total Gaps Identified</div>
           </CardContent>
         </Card>
         <Card className="bg-gray-800 border-gray-700">
@@ -1014,13 +1014,13 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
             <div className="text-2xl font-bold text-yellow-500">
               {gapData.filter(g => g.businessImpact === 'high').length}
             </div>
-            <div className="text-sm text-gray-400">Critical Gaps</div>
+            <div className="text-sm text-white font-medium">Critical Gaps</div>
           </CardContent>
         </Card>
         <Card className="bg-gray-800 border-gray-700">
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-blue-500">{mismatches.length}</div>
-            <div className="text-sm text-gray-400">Development Opportunities</div>
+            <div className="text-sm text-white font-medium">Development Opportunities</div>
           </CardContent>
         </Card>
         <Card className="bg-gray-800 border-gray-700">
@@ -1028,7 +1028,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
             <div className="text-2xl font-bold text-green-500">
               {Math.round(gapData.reduce((sum, gap) => sum + gap.avgInterest, 0) / gapData.length)}
             </div>
-            <div className="text-sm text-gray-400">Avg Interest Level</div>
+            <div className="text-sm text-white font-medium">Avg Interest Level</div>
           </CardContent>
         </Card>
       </div>
@@ -1040,7 +1040,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
             <Sparkles className="w-5 h-5" />
             AI-Powered Training Recommendations
           </CardTitle>
-          <CardDescription className="text-gray-300">
+          <CardDescription className="text-white font-medium">
             Get personalized training recommendations based on your skill gaps, interests, and learning style
           </CardDescription>
         </CardHeader>

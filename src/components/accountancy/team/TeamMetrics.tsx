@@ -306,7 +306,7 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
               </p>
             )}
             {benchmark && description && (
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-100 font-medium">
                 {description}: {benchmark}
               </p>
             )}
@@ -373,7 +373,7 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
             </CardTitle>
             <CardDescription>
               <strong className="text-white">How to Read This Chart:</strong>
-              <ul className="mt-2 space-y-1 text-sm text-gray-300">
+              <ul className="mt-2 space-y-1 text-sm text-white font-medium">
                 <li>• <strong>Blue Shape</strong>: Your team's current capability (0-100%)</li>
                 <li>• <strong>100% Capacity</strong>: All team members at Expert Level (5/5) in that category</li>
                 <li>• <strong>Calculation</strong>: (Average Skill Level ÷ 5) × 100% for each category</li>
@@ -424,12 +424,12 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
             <div className="mt-4 flex flex-wrap gap-4 justify-center text-sm">
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded bg-blue-500"></div>
-                <span className="text-gray-300">Current Team Capability (0-100%)</span>
+                <span className="text-white font-medium">Current Team Capability (0-100%)</span>
               </div>
               {showBenchmarks && (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded border-2 border-dashed border-red-500"></div>
-                  <span className="text-gray-300">Industry Benchmark (75%)</span>
+                  <span className="text-white font-medium">Industry Benchmark (75%)</span>
                 </div>
               )}
             </div>
@@ -454,7 +454,7 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
               {criticalSkills.slice(0, 5).map(skill => (
                 <div key={skill.skillId} className="flex flex-col gap-1 pb-2 border-b border-gray-700 last:border-0">
                   <div className="flex justify-between items-start">
-                    <span className="text-sm text-gray-300 font-medium line-clamp-2 flex-1 mr-2">{skill.name}</span>
+                    <span className="text-sm text-white font-medium font-medium line-clamp-2 flex-1 mr-2">{skill.name}</span>
                     <Badge 
                       variant={skill.risk === 'high' ? 'destructive' : skill.risk === 'medium' ? 'secondary' : 'outline'}
                       className="text-xs flex-shrink-0"
@@ -463,7 +463,7 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
                     </Badge>
                   </div>
                   {skill.experts && skill.experts.length > 0 && (
-                    <span className="text-xs text-gray-500">{skill.experts[0].name}</span>
+                    <span className="text-xs text-gray-100 font-medium">{skill.experts[0].name}</span>
                   )}
                 </div>
               ))}
@@ -525,11 +525,11 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
             <div className="mt-4 flex flex-wrap gap-4 justify-center text-sm">
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded bg-blue-500"></div>
-                <span className="text-gray-300">Skills Assessed (Total Count)</span>
+                <span className="text-white font-medium">Skills Assessed (Total Count)</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-16 h-1 bg-gradient-to-r from-blue-500 to-blue-400"></div>
-                <span className="text-gray-300">Upward Trend = Improving Capability</span>
+                <span className="text-white font-medium">Upward Trend = Improving Capability</span>
               </div>
             </div>
           </CardContent>
@@ -552,17 +552,17 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 bg-gradient-to-br from-blue-900/20 to-blue-800/20 rounded-lg border border-blue-700/30">
                 <h4 className="text-sm font-semibold text-blue-400 mb-2">Internal Training</h4>
-                <p className="text-xs text-gray-400">In-house courses and mentoring programs available</p>
+                <p className="text-xs text-white font-medium">In-house courses and mentoring programs available</p>
                 <Button variant="outline" size="sm" className="mt-3 text-xs">View Courses</Button>
               </div>
               <div className="p-4 bg-gradient-to-br from-purple-900/20 to-purple-800/20 rounded-lg border border-purple-700/30">
                 <h4 className="text-sm font-semibold text-purple-400 mb-2">External CPD</h4>
-                <p className="text-xs text-gray-400">Professional development opportunities and certifications</p>
+                <p className="text-xs text-white font-medium">Professional development opportunities and certifications</p>
                 <Button variant="outline" size="sm" className="mt-3 text-xs">Browse CPD</Button>
               </div>
               <div className="p-4 bg-gradient-to-br from-green-900/20 to-green-800/20 rounded-lg border border-green-700/30">
                 <h4 className="text-sm font-semibold text-green-400 mb-2">Knowledge Base</h4>
-                <p className="text-xs text-gray-400">Team-shared CPD summaries and learning resources</p>
+                <p className="text-xs text-white font-medium">Team-shared CPD summaries and learning resources</p>
                 <Button variant="outline" size="sm" className="mt-3 text-xs">Explore Knowledge</Button>
               </div>
             </div>

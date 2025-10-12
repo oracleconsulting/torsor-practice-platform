@@ -136,7 +136,7 @@ export const OnboardingProgress: React.FC<OnboardingProgressProps> = ({
                     <span className="text-white text-xs font-bold">{step.number}</span>
                   </div>
                 ) : (
-                  <Circle className="h-6 w-6 text-gray-400 dark:text-gray-600" />
+                  <Circle className="h-6 w-6 text-white font-medium dark:text-gray-100 font-medium" />
                 )}
               </div>
 
@@ -148,7 +148,7 @@ export const OnboardingProgress: React.FC<OnboardingProgressProps> = ({
                       ? 'text-green-700 dark:text-green-300'
                       : step.number === currentStep
                       ? 'text-blue-700 dark:text-blue-300'
-                      : 'text-gray-600 dark:text-gray-400'
+                      : 'text-gray-100 font-medium dark:text-white font-medium'
                   }`}>
                     {step.title}
                   </span>

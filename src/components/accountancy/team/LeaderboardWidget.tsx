@@ -32,7 +32,7 @@ export const LeaderboardWidget: React.FC<LeaderboardWidgetProps> = ({
 }) => {
   const getRankIcon = (rank: number) => {
     if (rank === 1) return <Crown className="h-5 w-5 text-yellow-500" />;
-    if (rank === 2) return <Medal className="h-5 w-5 text-gray-400" />;
+    if (rank === 2) return <Medal className="h-5 w-5 text-white font-medium" />;
     if (rank === 3) return <Medal className="h-5 w-5 text-orange-600" />;
     return <span className="text-sm font-semibold text-muted-foreground">#{rank}</span>;
   };

@@ -74,7 +74,7 @@ export const SkillsJourney: React.FC<SkillsJourneyProps> = ({
                   milestone.completed
                     ? 'bg-green-500 text-white'
                     : milestone.locked
-                    ? 'bg-gray-300 dark:bg-gray-700 text-gray-500'
+                    ? 'bg-gray-300 dark:bg-gray-700 text-gray-100 font-medium'
                     : 'bg-blue-500 text-white animate-pulse'
                 }`}
               >
@@ -106,7 +106,7 @@ export const SkillsJourney: React.FC<SkillsJourneyProps> = ({
                     </div>
                   )}
                   {milestone.locked && (
-                    <div className="text-xs text-gray-500 mt-2">
+                    <div className="text-xs text-gray-100 font-medium mt-2">
                       🔒 Unlock previous milestones first
                     </div>
                   )}

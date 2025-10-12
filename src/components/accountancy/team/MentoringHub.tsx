@@ -335,7 +335,7 @@ const MentoringHub: React.FC<MentoringHubProps> = ({ teamMembers, currentUserId 
                   ? 'bg-green-500/20 text-green-300 border-green-500/30'
                   : rel.status === 'pending'
                   ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
-                  : 'bg-gray-500/20 text-gray-300 border-gray-500/30'
+                  : 'bg-gray-500/20 text-white font-medium border-gray-500/30'
               }
             >
               {rel.status.charAt(0).toUpperCase() + rel.status.slice(1)}

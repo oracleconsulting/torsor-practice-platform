@@ -323,7 +323,7 @@ export default function SkillsAnalysis({ teamMembers, skillCategories }: SkillsA
     return (
       <div className="p-8 text-center">
         <h2 className="text-2xl font-bold mb-4" style={{ color: '#000000' }}>Skills Analysis</h2>
-        <p className="text-lg text-gray-600">No team members found. Please add team members and complete assessments first.</p>
+        <p className="text-lg text-gray-100 font-medium">No team members found. Please add team members and complete assessments first.</p>
       </div>
     );
   }
@@ -332,7 +332,7 @@ export default function SkillsAnalysis({ teamMembers, skillCategories }: SkillsA
     return (
       <div className="p-8 text-center">
         <h2 className="text-2xl font-bold mb-4" style={{ color: '#000000' }}>Skills Analysis</h2>
-        <p className="text-lg text-gray-600">No skill categories found. Please configure skills first.</p>
+        <p className="text-lg text-gray-100 font-medium">No skill categories found. Please configure skills first.</p>
       </div>
     );
   }
@@ -395,7 +395,7 @@ export default function SkillsAnalysis({ teamMembers, skillCategories }: SkillsA
           <div className="flex gap-4">
             <div className="flex-1">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white font-medium w-4 h-4" />
                 <Input
                   placeholder="Search by name or skill..."
                   value={searchTerm}
@@ -429,7 +429,7 @@ export default function SkillsAnalysis({ teamMembers, skillCategories }: SkillsA
                 <h3 className="text-xl font-bold" style={{ color: '#000000' }}>
                   🏆 Top Performers - Team Experts
                 </h3>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-gray-100 font-medium mt-1">
                   {filteredExperts.length} team members with advanced expertise (Level 4-5)
                 </p>
               </div>
@@ -438,7 +438,7 @@ export default function SkillsAnalysis({ teamMembers, skillCategories }: SkillsA
           <AccordionContent className="px-6 pb-6">
             <div className="space-y-4 mt-4">
               {filteredExperts.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No experts found matching your filters</p>
+                <p className="text-gray-100 font-medium text-center py-8">No experts found matching your filters</p>
               ) : (
                 filteredExperts.map(expert => (
                   <Card key={expert.member.id} className="border-l-4 border-l-green-500">
@@ -494,7 +494,7 @@ export default function SkillsAnalysis({ teamMembers, skillCategories }: SkillsA
                 <h3 className="text-xl font-bold" style={{ color: '#000000' }}>
                   💡 Eager Learners - High-Interest Team Members
                 </h3>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-gray-100 font-medium mt-1">
                   {filteredLearners.length} team members with strong interest in developing skills
                 </p>
               </div>
@@ -503,7 +503,7 @@ export default function SkillsAnalysis({ teamMembers, skillCategories }: SkillsA
           <AccordionContent className="px-6 pb-6">
             <div className="space-y-4 mt-4">
               {filteredLearners.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No learners found matching your filters</p>
+                <p className="text-gray-100 font-medium text-center py-8">No learners found matching your filters</p>
               ) : (
                 filteredLearners.map(learner => (
                   <Card key={learner.member.id} className="border-l-4 border-l-blue-500">
@@ -566,7 +566,7 @@ export default function SkillsAnalysis({ teamMembers, skillCategories }: SkillsA
                 <h3 className="text-xl font-bold" style={{ color: '#000000' }}>
                   🤝 Suggested Mentoring Pairs
                 </h3>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-gray-100 font-medium mt-1">
                   {filteredMatches.length} optimal expert-learner pairings for internal CPD
                 </p>
               </div>
@@ -575,7 +575,7 @@ export default function SkillsAnalysis({ teamMembers, skillCategories }: SkillsA
           <AccordionContent className="px-6 pb-6">
             <div className="space-y-4 mt-4">
               {filteredMatches.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No matches found matching your filters</p>
+                <p className="text-gray-100 font-medium text-center py-8">No matches found matching your filters</p>
               ) : (
                 filteredMatches.slice(0, 20).map((match, index) => (
                   <Card key={`${match.expert.id}-${match.learner.id}`} className="border-l-4 border-l-purple-500">
@@ -584,7 +584,7 @@ export default function SkillsAnalysis({ teamMembers, skillCategories }: SkillsA
                         <div className="flex-1">
                           <CardTitle className="text-lg flex items-center gap-2" style={{ color: '#000000' }}>
                             <span className="font-semibold text-green-700">{match.expert.name}</span>
-                            <span className="text-gray-400">→</span>
+                            <span className="text-white font-medium">→</span>
                             <span className="font-semibold text-blue-700">{match.learner.name}</span>
                           </CardTitle>
                           <CardDescription style={{ color: '#000000' }}>
@@ -647,7 +647,7 @@ export default function SkillsAnalysis({ teamMembers, skillCategories }: SkillsA
                 <h3 className="text-xl font-bold" style={{ color: '#000000' }}>
                   📚 Expertise by Category
                 </h3>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-gray-100 font-medium mt-1">
                   Team experts organized by skill category
                 </p>
               </div>

@@ -90,7 +90,7 @@ export const MobileProgressIndicator: React.FC<MobileProgressIndicatorProps> = (
 
         {/* Remaining */}
         <div className="bg-background/50 backdrop-blur rounded-lg p-3 text-center">
-          <Circle className="h-5 w-5 text-gray-400 mx-auto mb-1" />
+          <Circle className="h-5 w-5 text-white font-medium mx-auto mb-1" />
           <div className="text-xl font-bold text-foreground">{remaining - 1}</div>
           <div className="text-xs text-muted-foreground">Left</div>
         </div>

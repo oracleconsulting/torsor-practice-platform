@@ -65,7 +65,7 @@ const TrainingRecommendationsPage: React.FC = () => {
         <Button
           variant="ghost"
           onClick={() => navigate('/team')}
-          className="text-gray-400 hover:text-white"
+          className="text-white font-medium hover:text-white"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Team Management

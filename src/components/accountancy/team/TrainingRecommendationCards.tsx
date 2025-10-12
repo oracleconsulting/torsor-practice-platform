@@ -56,7 +56,7 @@ const TrainingRecommendationCards: React.FC<TrainingRecommendationCardsProps> = 
       case 'quick-win': return 'bg-green-500/20 text-green-400 border-green-500/40';
       case 'strategic': return 'bg-blue-500/20 text-blue-400 border-blue-500/40';
       case 'group-opportunity': return 'bg-purple-500/20 text-purple-400 border-purple-500/40';
-      default: return 'bg-gray-500/20 text-gray-400 border-gray-500/40';
+      default: return 'bg-gray-500/20 text-white font-medium border-gray-500/40';
     }
   };
 
@@ -267,7 +267,7 @@ const TrainingRecommendationCards: React.FC<TrainingRecommendationCardsProps> = 
             <Sparkles className="w-6 h-6 text-yellow-400" />
             AI-Powered Training Recommendations
           </h3>
-          <p className="text-gray-300 mt-1">
+          <p className="text-white font-medium mt-1">
             Personalized recommendations based on skill gaps, learning style, and business priorities
           </p>
         </div>
@@ -367,9 +367,9 @@ const TrainingRecommendationCards: React.FC<TrainingRecommendationCardsProps> = 
        strategicInvestments.length === 0 && groupOpportunities.length === 0 && (
         <Card className="bg-gray-800 border-gray-700">
           <CardContent className="p-12 text-center">
-            <AlertCircle className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+            <AlertCircle className="w-12 h-12 text-gray-100 font-medium mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-white mb-2">No Recommendations Available</h3>
-            <p className="text-gray-400">
+            <p className="text-white font-medium">
               Complete skill assessments to generate personalized training recommendations.
             </p>
           </CardContent>

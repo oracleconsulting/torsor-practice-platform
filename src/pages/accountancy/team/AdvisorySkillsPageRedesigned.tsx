@@ -326,7 +326,7 @@ const AdvisorySkillsPageRedesigned: React.FC = () => {
         return (
           <div className="p-6">
             <h2 className="text-2xl font-bold mb-4">Skills Analysis</h2>
-            <p className="text-gray-600">Coming soon - advanced skills analysis features</p>
+            <p className="text-gray-100 font-medium">Coming soon - advanced skills analysis features</p>
           </div>
         );
       
@@ -406,7 +406,7 @@ const AdvisorySkillsPageRedesigned: React.FC = () => {
                     variant="ghost" 
                     size="sm" 
                     onClick={() => setActiveTab('overview')}
-                    className="text-gray-600 hover:text-gray-900"
+                    className="text-gray-100 font-medium hover:text-gray-900"
                   >
                     ← Back to Overview
                   </Button>
@@ -420,7 +420,7 @@ const AdvisorySkillsPageRedesigned: React.FC = () => {
                       </Badge>
                       <button
                         onClick={clearCurrentView}
-                        className="text-xs text-gray-500 hover:text-gray-700"
+                        className="text-xs text-gray-100 font-medium hover:text-gray-700"
                       >
                         Clear
                       </button>
@@ -430,7 +430,7 @@ const AdvisorySkillsPageRedesigned: React.FC = () => {
               </div>
 
               {/* Quick Stats */}
-              <div className="flex items-center gap-4 text-sm text-gray-600">
+              <div className="flex items-center gap-4 text-sm text-gray-100 font-medium">
                 <div>
                   <span className="font-semibold">{teamMembers.length}</span> Members
                 </div>

@@ -402,7 +402,7 @@ const AdvisorySkillsPage: React.FC = () => {
       <aside className="w-64 bg-gradient-to-b from-gray-900 to-gray-800 text-white flex-shrink-0 border-r border-gray-700">
         <div className="p-4 border-b border-gray-700">
           <h2 className="text-xl font-bold text-blue-400">Advisory Skills</h2>
-          <p className="text-xs text-gray-400 mt-1">Navigation</p>
+          <p className="text-xs text-white font-medium mt-1">Navigation</p>
         </div>
         
         <nav className="p-3 space-y-1">
@@ -421,7 +421,7 @@ const AdvisorySkillsPage: React.FC = () => {
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all ${
                 activeTab === tab.id
                   ? 'bg-blue-600 text-white font-semibold shadow-lg'
-                  : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                  : 'text-white font-medium hover:bg-gray-700 hover:text-white'
               }`}
             >
               <span className="text-xl">{tab.icon}</span>
@@ -434,15 +434,15 @@ const AdvisorySkillsPage: React.FC = () => {
         <div className="p-4 mt-4 border-t border-gray-700">
           <div className="space-y-2 text-xs">
             <div className="flex justify-between">
-              <span className="text-gray-400">Team Members</span>
+              <span className="text-white font-medium">Team Members</span>
               <span className="font-semibold text-white">{teamMembers.length}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400">Total Skills</span>
+              <span className="text-white font-medium">Total Skills</span>
               <span className="font-semibold text-white">{skillCategories.flatMap(c => c.skills).length}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400">Assessments</span>
+              <span className="text-white font-medium">Assessments</span>
               <span className="font-semibold text-white">
                 {teamMembers.reduce((sum, m) => sum + m.skills.length, 0)}
               </span>
@@ -502,7 +502,7 @@ const AdvisorySkillsPage: React.FC = () => {
                     </Badge>
                     <button
                       onClick={clearCurrentView}
-                      className="text-xs text-gray-500 hover:text-gray-700"
+                      className="text-xs text-gray-100 font-medium hover:text-gray-700"
                     >
                       Clear
                     </button>

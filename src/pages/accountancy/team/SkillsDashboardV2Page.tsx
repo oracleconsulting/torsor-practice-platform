@@ -129,7 +129,7 @@ const SkillsDashboardV2Page: React.FC = () => {
       <div className="flex items-center justify-center min-h-screen bg-gray-900">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-purple-500 mx-auto mb-4" />
-          <p className="text-gray-400">Loading Skills Dashboard...</p>
+          <p className="text-white font-medium">Loading Skills Dashboard...</p>
         </div>
       </div>
     );

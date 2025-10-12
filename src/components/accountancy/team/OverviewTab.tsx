@@ -195,10 +195,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                 onClick={action.action}
                 className="p-4 rounded-lg border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all text-left group"
               >
-                <action.icon className="w-8 h-8 text-gray-400 group-hover:text-blue-500 mb-2" />
+                <action.icon className="w-8 h-8 text-white font-medium group-hover:text-blue-500 mb-2" />
                 <h3 className="font-semibold text-gray-900">{action.title}</h3>
-                <p className="text-sm text-gray-600 mt-1">{action.description}</p>
-                <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-blue-500 mt-2" />
+                <p className="text-sm text-gray-100 font-medium mt-1">{action.description}</p>
+                <ArrowRight className="w-4 h-4 text-white font-medium group-hover:text-blue-500 mt-2" />
               </button>
             ))}
           </div>
@@ -242,7 +242,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                     </div>
                     <div>
                       <p className="font-medium text-gray-900">{member.name}</p>
-                      <p className="text-sm text-gray-600">{member.role}</p>
+                      <p className="text-sm text-gray-100 font-medium">{member.role}</p>
                     </div>
                   </div>
                   <Badge variant="secondary" className="bg-amber-100 text-amber-800">

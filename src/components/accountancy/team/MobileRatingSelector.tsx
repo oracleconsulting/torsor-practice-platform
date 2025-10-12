@@ -66,7 +66,7 @@ export const MobileRatingSelector: React.FC<MobileRatingSelectorProps> = ({
   };
 
   const getTextColor = (isSelected: boolean) => {
-    return isSelected ? 'text-white' : 'text-gray-700 dark:text-gray-300';
+    return isSelected ? 'text-white' : 'text-gray-700 dark:text-white font-medium';
   };
 
   return (

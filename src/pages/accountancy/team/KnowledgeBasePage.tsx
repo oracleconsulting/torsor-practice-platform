@@ -157,8 +157,8 @@ const KnowledgeBasePage: React.FC = () => {
       case 'guide': return 'text-green-500';
       case 'case_study': return 'text-purple-500';
       case 'template': return 'text-orange-500';
-      case 'notes': return 'text-gray-500';
-      default: return 'text-gray-500';
+      case 'notes': return 'text-gray-100 font-medium';
+      default: return 'text-gray-100 font-medium';
     }
   };
 
@@ -193,7 +193,7 @@ const KnowledgeBasePage: React.FC = () => {
             Add Document
           </Button>
         </div>
-        <p className="text-gray-400">
+        <p className="text-white font-medium">
           Team knowledge, CPD summaries, and learning resources
         </p>
       </div>
@@ -201,7 +201,7 @@ const KnowledgeBasePage: React.FC = () => {
       {/* Search and Filters */}
       <div className="flex gap-4 mb-6">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white font-medium w-4 h-4" />
           <Input 
             placeholder="Search documents..."
             value={searchQuery}
@@ -245,50 +245,50 @@ const KnowledgeBasePage: React.FC = () => {
         <Card className="border-gray-700">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Documents</CardTitle>
-            <FileText className="h-4 w-4 text-gray-400" />
+            <FileText className="h-4 w-4 text-white font-medium" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{documents.length}</div>
-            <p className="text-xs text-gray-400 mt-2">in knowledge base</p>
+            <p className="text-xs text-white font-medium mt-2">in knowledge base</p>
           </CardContent>
         </Card>
 
         <Card className="border-gray-700">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">CPD Summaries</CardTitle>
-            <BookOpen className="h-4 w-4 text-gray-400" />
+            <BookOpen className="h-4 w-4 text-white font-medium" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {documents.filter(d => d.document_type === 'cpd_summary').length}
             </div>
-            <p className="text-xs text-gray-400 mt-2">learning documents</p>
+            <p className="text-xs text-white font-medium mt-2">learning documents</p>
           </CardContent>
         </Card>
 
         <Card className="border-gray-700">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Views</CardTitle>
-            <Eye className="h-4 w-4 text-gray-400" />
+            <Eye className="h-4 w-4 text-white font-medium" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {documents.reduce((sum, d) => sum + d.download_count, 0)}
             </div>
-            <p className="text-xs text-gray-400 mt-2">document views</p>
+            <p className="text-xs text-white font-medium mt-2">document views</p>
           </CardContent>
         </Card>
 
         <Card className="border-gray-700">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Categories</CardTitle>
-            <Tag className="h-4 w-4 text-gray-400" />
+            <Tag className="h-4 w-4 text-white font-medium" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {new Set(documents.flatMap(d => d.skill_categories || [])).size}
             </div>
-            <p className="text-xs text-gray-400 mt-2">skill areas</p>
+            <p className="text-xs text-white font-medium mt-2">skill areas</p>
           </CardContent>
         </Card>
       </div>
@@ -297,9 +297,9 @@ const KnowledgeBasePage: React.FC = () => {
       {filteredDocuments.length === 0 ? (
         <Card className="border-gray-700">
           <CardContent className="p-12 text-center">
-            <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-400 mb-2">No documents found</p>
-            <p className="text-sm text-gray-500">
+            <FileText className="h-12 w-12 text-white font-medium mx-auto mb-4" />
+            <p className="text-white font-medium mb-2">No documents found</p>
+            <p className="text-sm text-gray-100 font-medium">
               {documents.length === 0 
                 ? 'Add your first knowledge document to get started'
                 : 'Try adjusting your search or filters'}
@@ -348,7 +348,7 @@ const KnowledgeBasePage: React.FC = () => {
                         )}
 
                         {/* Metadata */}
-                        <div className="flex items-center justify-between text-xs text-gray-400">
+                        <div className="flex items-center justify-between text-xs text-white font-medium">
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
                             {formatDate(new Date(doc.created_at))}
@@ -360,7 +360,7 @@ const KnowledgeBasePage: React.FC = () => {
                         </div>
 
                         {/* Author */}
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-100 font-medium">
                           By {doc.uploader?.name || 'Unknown'}
                         </p>
 

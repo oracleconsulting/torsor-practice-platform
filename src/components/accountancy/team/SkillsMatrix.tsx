@@ -568,7 +568,7 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
           {/* Category Filter Badges */}
           <div className="mb-4 p-3 bg-gray-700/20 rounded-lg border border-gray-600">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs font-semibold text-gray-300">Filter by Category:</span>
+              <span className="text-xs font-semibold text-white font-medium">Filter by Category:</span>
               {selectedCategory !== 'all' && (
                 <Button 
                   variant="ghost" 
@@ -853,7 +853,7 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
               {/* Visual Preview */}
               <div className="flex items-center justify-center p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
                 <div className="text-center">
-                  <p className="text-xs text-gray-500 mb-2">Preview:</p>
+                  <p className="text-xs text-gray-100 font-medium mb-2">Preview:</p>
                   <div 
                     className={`w-16 h-16 rounded-lg flex items-center justify-center text-white text-xl font-bold shadow-lg ${getSkillLevelColor(newLevel)}`}
                   >

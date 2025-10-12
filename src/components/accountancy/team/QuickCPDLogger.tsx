@@ -85,7 +85,7 @@ export const QuickCPDLogger: React.FC<QuickCPDLoggerProps> = ({ memberId, onSucc
       <CardContent className="space-y-4">
         {/* Title */}
         <div>
-          <label className="text-sm text-gray-400">Activity Title</label>
+          <label className="text-sm text-white font-medium">Activity Title</label>
           <Input 
             placeholder="e.g., Excel Advanced Training"
             value={formData.title}
@@ -97,7 +97,7 @@ export const QuickCPDLogger: React.FC<QuickCPDLoggerProps> = ({ memberId, onSucc
         {/* Hours & Date (side by side) */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-sm text-gray-400 flex items-center gap-1">
+            <label className="text-sm text-white font-medium flex items-center gap-1">
               <Clock className="w-3 h-3" />
               Hours
             </label>
@@ -113,7 +113,7 @@ export const QuickCPDLogger: React.FC<QuickCPDLoggerProps> = ({ memberId, onSucc
           </div>
           
           <div>
-            <label className="text-sm text-gray-400 flex items-center gap-1">
+            <label className="text-sm text-white font-medium flex items-center gap-1">
               <CalendarIcon className="w-3 h-3" />
               Date
             </label>
@@ -128,7 +128,7 @@ export const QuickCPDLogger: React.FC<QuickCPDLoggerProps> = ({ memberId, onSucc
 
         {/* Notes (optional) */}
         <div>
-          <label className="text-sm text-gray-400">Quick Notes (optional)</label>
+          <label className="text-sm text-white font-medium">Quick Notes (optional)</label>
           <Textarea 
             placeholder="Key takeaways..."
             rows={2}
@@ -148,7 +148,7 @@ export const QuickCPDLogger: React.FC<QuickCPDLoggerProps> = ({ memberId, onSucc
         </Button>
 
         {/* AI will suggest skills after logging */}
-        <p className="text-xs text-gray-500 text-center">
+        <p className="text-xs text-gray-100 font-medium text-center">
           We'll auto-suggest related skills after logging
         </p>
       </CardContent>

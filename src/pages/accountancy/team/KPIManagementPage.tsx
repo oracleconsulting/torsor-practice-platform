@@ -111,7 +111,7 @@ const KPIManagementPage: React.FC = () => {
       case 'on-track': return 'text-green-500';
       case 'at-risk': return 'text-yellow-500';
       case 'off-track': return 'text-red-500';
-      default: return 'text-gray-500';
+      default: return 'text-gray-100 font-medium';
     }
   };
 
@@ -164,7 +164,7 @@ const KPIManagementPage: React.FC = () => {
           {/* Current vs Target */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">Current</span>
+              <span className="text-white font-medium">Current</span>
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-bold text-white">
                   {kpi.currentValue}{kpi.unit}
@@ -184,7 +184,7 @@ const KPIManagementPage: React.FC = () => {
               className="h-2"
             />
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">Target: {kpi.targetValue}{kpi.unit}</span>
+              <span className="text-white font-medium">Target: {kpi.targetValue}{kpi.unit}</span>
               <Badge variant={kpi.status === 'on-track' ? 'default' : 
                              kpi.status === 'at-risk' ? 'secondary' : 'destructive'}>
                 {kpi.status}
@@ -195,16 +195,16 @@ const KPIManagementPage: React.FC = () => {
           {/* Additional Info */}
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <span className="text-gray-400">Owner</span>
+              <span className="text-white font-medium">Owner</span>
               <p className="text-white">{kpi.owner || 'Unassigned'}</p>
             </div>
             <div>
-              <span className="text-gray-400">Frequency</span>
+              <span className="text-white font-medium">Frequency</span>
               <p className="text-white capitalize">{kpi.frequency}</p>
             </div>
             {kpi.formula && (
               <div className="col-span-2">
-                <span className="text-gray-400">Formula</span>
+                <span className="text-white font-medium">Formula</span>
                 <p className="text-white text-xs font-mono bg-gray-900 p-2 rounded mt-1">
                   {kpi.formula}
                 </p>
@@ -213,7 +213,7 @@ const KPIManagementPage: React.FC = () => {
           </div>
 
           {/* Last Updated */}
-          <div className="text-xs text-gray-400">
+          <div className="text-xs text-white font-medium">
             Last updated: {kpi.lastUpdated.toLocaleDateString()}
           </div>
         </CardContent>
@@ -377,7 +377,7 @@ const KPIManagementPage: React.FC = () => {
           <h1 className="text-3xl font-bold text-white mb-2">
             Team KPI Management
           </h1>
-          <p className="text-gray-400">
+          <p className="text-white font-medium">
             Define, track, and manage key performance indicators for your team
           </p>
         </div>
@@ -406,7 +406,7 @@ const KPIManagementPage: React.FC = () => {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400">Total KPIs</p>
+                <p className="text-sm text-white font-medium">Total KPIs</p>
                 <p className="text-2xl font-bold text-white">{kpis.length}</p>
               </div>
               <BarChart3 className="w-8 h-8 text-blue-500" />
@@ -418,7 +418,7 @@ const KPIManagementPage: React.FC = () => {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400">On Track</p>
+                <p className="text-sm text-white font-medium">On Track</p>
                 <p className="text-2xl font-bold text-green-500">
                   {kpis.filter(k => k.status === 'on-track').length}
                 </p>
@@ -432,7 +432,7 @@ const KPIManagementPage: React.FC = () => {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400">At Risk</p>
+                <p className="text-sm text-white font-medium">At Risk</p>
                 <p className="text-2xl font-bold text-yellow-500">
                   {kpis.filter(k => k.status === 'at-risk').length}
                 </p>
@@ -446,7 +446,7 @@ const KPIManagementPage: React.FC = () => {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400">Off Track</p>
+                <p className="text-sm text-white font-medium">Off Track</p>
                 <p className="text-2xl font-bold text-red-500">
                   {kpis.filter(k => k.status === 'off-track').length}
                 </p>

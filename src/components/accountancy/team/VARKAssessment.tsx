@@ -203,7 +203,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
       <Card className="bg-gray-800 border-gray-700">
         <CardContent className="p-8 text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading assessment...</p>
+          <p className="text-white font-medium">Loading assessment...</p>
         </CardContent>
       </Card>
     );
@@ -215,7 +215,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
         <CardContent className="p-8 text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-white mb-2">Error</h3>
-          <p className="text-gray-400 mb-4">{error}</p>
+          <p className="text-white font-medium mb-4">{error}</p>
           <Button onClick={loadQuestions}>Try Again</Button>
         </CardContent>
       </Card>
@@ -230,7 +230,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
           <CardContent className="p-8 text-center">
             <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
             <h3 className="text-2xl font-semibold text-white mb-2">Assessment Complete!</h3>
-            <p className="text-gray-300 mb-6">
+            <p className="text-white font-medium mb-6">
               {teamMemberName ? `${teamMemberName}'s` : 'Your'} learning style profile has been created.
             </p>
           </CardContent>
@@ -259,7 +259,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm">
                     <Eye className="w-4 h-4 text-blue-500" />
-                    <span className="text-gray-300">Visual</span>
+                    <span className="text-white font-medium">Visual</span>
                   </div>
                   <span className="text-white font-medium">{profile.scores.visual}%</span>
                 </div>
@@ -271,7 +271,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm">
                     <Ear className="w-4 h-4 text-purple-500" />
-                    <span className="text-gray-300">Auditory</span>
+                    <span className="text-white font-medium">Auditory</span>
                   </div>
                   <span className="text-white font-medium">{profile.scores.auditory}%</span>
                 </div>
@@ -283,7 +283,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm">
                     <BookOpen className="w-4 h-4 text-green-500" />
-                    <span className="text-gray-300">Reading/Writing</span>
+                    <span className="text-white font-medium">Reading/Writing</span>
                   </div>
                   <span className="text-white font-medium">{profile.scores.reading_writing}%</span>
                 </div>
@@ -295,7 +295,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm">
                     <Hand className="w-4 h-4 text-orange-500" />
-                    <span className="text-gray-300">Kinesthetic</span>
+                    <span className="text-white font-medium">Kinesthetic</span>
                   </div>
                   <span className="text-white font-medium">{profile.scores.kinesthetic}%</span>
                 </div>
@@ -316,7 +316,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
           <CardContent>
             <ul className="space-y-2">
               {profile.strengths.map((strength, index) => (
-                <li key={index} className="flex items-start gap-2 text-gray-300">
+                <li key={index} className="flex items-start gap-2 text-white font-medium">
                   <CheckSquare className="w-4 h-4 text-green-500 mt-1 flex-shrink-0" />
                   <span>{strength}</span>
                 </li>
@@ -336,7 +336,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
           <CardContent>
             <ul className="space-y-2">
               {profile.learning_tips.map((tip, index) => (
-                <li key={index} className="flex items-start gap-2 text-gray-300">
+                <li key={index} className="flex items-start gap-2 text-white font-medium">
                   <Sparkles className="w-4 h-4 text-yellow-500 mt-1 flex-shrink-0" />
                   <span>{tip}</span>
                 </li>
@@ -354,7 +354,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
             <div className="space-y-3">
               {profile.recommendations.map((rec, index) => (
                 <Alert key={index} className="bg-blue-900/20 border-blue-700">
-                  <AlertDescription className="text-gray-300">{rec}</AlertDescription>
+                  <AlertDescription className="text-white font-medium">{rec}</AlertDescription>
                 </Alert>
               ))}
             </div>
@@ -409,7 +409,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
         <CardContent>
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">Overall Progress</span>
+              <span className="text-white font-medium">Overall Progress</span>
               <span className="text-white font-medium">{Math.round(getProgressPercentage())}%</span>
             </div>
             <Progress value={getProgressPercentage()} className="h-2" />
@@ -421,7 +421,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
       {error && (
         <Alert className="bg-red-900/20 border-red-700">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="text-gray-300">{error}</AlertDescription>
+          <AlertDescription className="text-white font-medium">{error}</AlertDescription>
         </Alert>
       )}
 
@@ -453,7 +453,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
               <RadioGroupItem value="a" id={`q${currentQ.question_number}-a`} className="mt-1" />
               <Label
                 htmlFor={`q${currentQ.question_number}-a`}
-                className="text-gray-300 cursor-pointer flex-1"
+                className="text-white font-medium cursor-pointer flex-1"
               >
                 {currentQ.option_a}
               </Label>
@@ -464,7 +464,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
               <RadioGroupItem value="b" id={`q${currentQ.question_number}-b`} className="mt-1" />
               <Label
                 htmlFor={`q${currentQ.question_number}-b`}
-                className="text-gray-300 cursor-pointer flex-1"
+                className="text-white font-medium cursor-pointer flex-1"
               >
                 {currentQ.option_b}
               </Label>
@@ -475,7 +475,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
               <RadioGroupItem value="c" id={`q${currentQ.question_number}-c`} className="mt-1" />
               <Label
                 htmlFor={`q${currentQ.question_number}-c`}
-                className="text-gray-300 cursor-pointer flex-1"
+                className="text-white font-medium cursor-pointer flex-1"
               >
                 {currentQ.option_c}
               </Label>
@@ -486,7 +486,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
               <RadioGroupItem value="d" id={`q${currentQ.question_number}-d`} className="mt-1" />
               <Label
                 htmlFor={`q${currentQ.question_number}-d`}
-                className="text-gray-300 cursor-pointer flex-1"
+                className="text-white font-medium cursor-pointer flex-1"
               >
                 {currentQ.option_d}
               </Label>
@@ -530,7 +530,7 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
       <Card className="bg-gray-800 border-gray-700">
         <CardContent className="p-4">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-gray-400 mr-2">Quick Jump:</span>
+            <span className="text-sm text-white font-medium mr-2">Quick Jump:</span>
             {questions.map((q, index) => (
               <Button
                 key={q.question_number}

@@ -37,7 +37,7 @@ const VARKAssessmentPage: React.FC = () => {
           <Button
             variant="ghost"
             onClick={handleBack}
-            className="mb-4 text-gray-400 hover:text-white"
+            className="mb-4 text-white font-medium hover:text-white"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Team Portal
@@ -45,7 +45,7 @@ const VARKAssessmentPage: React.FC = () => {
           <h1 className="text-4xl font-bold text-white mb-2">
             VARK Learning Style Assessment
           </h1>
-          <p className="text-gray-300 text-lg">
+          <p className="text-white font-medium text-lg">
             Discover your learning preferences to personalize your development path
           </p>
         </div>
@@ -57,14 +57,14 @@ const VARKAssessmentPage: React.FC = () => {
         <Card className="bg-gray-800 border-gray-700 mb-6">
           <CardContent className="p-6">
             <h2 className="text-xl font-semibold text-white mb-3">About VARK</h2>
-            <p className="text-gray-300 mb-4">
+            <p className="text-white font-medium mb-4">
               VARK stands for Visual, Auditory, Reading/Writing, and Kinesthetic learning preferences. 
               This assessment helps identify how you prefer to take in and process information.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
                 <h3 className="font-medium text-white mb-2">What to expect:</h3>
-                <ul className="text-gray-400 space-y-1 list-disc list-inside">
+                <ul className="text-white font-medium space-y-1 list-disc list-inside">
                   <li>16 scenario-based questions</li>
                   <li>Takes approximately 5-10 minutes</li>
                   <li>No right or wrong answers</li>
@@ -73,7 +73,7 @@ const VARKAssessmentPage: React.FC = () => {
               </div>
               <div>
                 <h3 className="font-medium text-white mb-2">You'll receive:</h3>
-                <ul className="text-gray-400 space-y-1 list-disc list-inside">
+                <ul className="text-white font-medium space-y-1 list-disc list-inside">
                   <li>Your learning style profile</li>
                   <li>Personalized learning strategies</li>
                   <li>Recommendations for CPD activities</li>

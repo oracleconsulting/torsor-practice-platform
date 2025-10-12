@@ -18,7 +18,7 @@ const CPDSkillsBridgePage: React.FC = () => {
         <Button
           variant="ghost"
           onClick={() => navigate('/accountancy/team')}
-          className="text-gray-400 hover:text-white"
+          className="text-white font-medium hover:text-white"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Team Management
@@ -33,7 +33,7 @@ const CPDSkillsBridgePage: React.FC = () => {
               </div>
               <div>
                 <CardTitle className="text-2xl text-white">CPD Skills Impact</CardTitle>
-                <CardDescription className="text-gray-400">
+                <CardDescription className="text-white font-medium">
                   Track how your CPD activities improve your skills and measure your development ROI
                 </CardDescription>
               </div>
@@ -48,11 +48,11 @@ const CPDSkillsBridgePage: React.FC = () => {
               <Info className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
               <div>
                 <p className="text-white font-medium mb-2">Understanding the Connection</p>
-                <p className="text-gray-300 text-sm mb-3">
+                <p className="text-white font-medium text-sm mb-3">
                   This dashboard shows the direct correlation between your CPD activities and skill level improvements.
                   Track which types of learning deliver the best results for you.
                 </p>
-                <ul className="text-gray-300 text-sm space-y-1">
+                <ul className="text-white font-medium text-sm space-y-1">
                   <li className="flex items-start gap-2">
                     <TrendingUp className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
                     <span>See before/after skill levels for linked CPD activities</span>
@@ -77,7 +77,7 @@ const CPDSkillsBridgePage: React.FC = () => {
         ) : (
           <Card className="bg-gray-800 border-gray-700">
             <CardContent className="pt-6">
-              <p className="text-gray-400 text-center">Please log in to view your CPD skills impact.</p>
+              <p className="text-white font-medium text-center">Please log in to view your CPD skills impact.</p>
             </CardContent>
           </Card>
         )}

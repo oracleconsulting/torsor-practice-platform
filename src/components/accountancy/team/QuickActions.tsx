@@ -76,7 +76,7 @@ export const QuickActions = () => {
                 <div className="font-medium text-sm text-white">
                   {action.label}
                 </div>
-                <div className="text-xs text-gray-400 mt-1">
+                <div className="text-xs text-white font-medium mt-1">
                   {action.description}
                 </div>
               </div>

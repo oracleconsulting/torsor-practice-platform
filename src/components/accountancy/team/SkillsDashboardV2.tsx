@@ -589,7 +589,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                       <CardContent className="p-6 text-center">
                         <Play className="w-10 h-10 text-purple-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">Quick Assessment</h3>
-                        <p className="text-sm text-gray-600">Launch skills evaluation</p>
+                        <p className="text-sm text-gray-100 font-medium">Launch skills evaluation</p>
                       </CardContent>
                     </Card>
 
@@ -599,7 +599,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                       <CardContent className="p-6 text-center">
                         <BookOpen className="w-10 h-10 text-blue-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">Training Catalog</h3>
-                        <p className="text-sm text-gray-600">Browse courses</p>
+                        <p className="text-sm text-gray-100 font-medium">Browse courses</p>
                       </CardContent>
                     </Card>
 
@@ -609,7 +609,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                       <CardContent className="p-6 text-center">
                         <Users className="w-10 h-10 text-green-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">Find a Mentor</h3>
-                        <p className="text-sm text-gray-600">Connect with experts</p>
+                        <p className="text-sm text-gray-100 font-medium">Connect with experts</p>
                       </CardContent>
                     </Card>
 
@@ -619,7 +619,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                       <CardContent className="p-6 text-center">
                         <Clock className="w-10 h-10 text-yellow-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">Log CPD Activity</h3>
-                        <p className="text-sm text-gray-600">Track your learning</p>
+                        <p className="text-sm text-gray-100 font-medium">Track your learning</p>
                       </CardContent>
                     </Card>
 
@@ -629,7 +629,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                       <CardContent className="p-6 text-center">
                         <Sparkles className="w-10 h-10 text-pink-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">AI Recommendations</h3>
-                        <p className="text-sm text-gray-600">Personalized suggestions</p>
+                        <p className="text-sm text-gray-100 font-medium">Personalized suggestions</p>
                       </CardContent>
                     </Card>
 
@@ -639,7 +639,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                       <CardContent className="p-6 text-center">
                         <GraduationCap className="w-10 h-10 text-orange-600 mx-auto mb-3" />
                         <h3 className="text-base font-bold text-gray-900 mb-2">Resources Library</h3>
-                        <p className="text-sm text-gray-600">Guides and articles</p>
+                        <p className="text-sm text-gray-100 font-medium">Guides and articles</p>
                       </CardContent>
                     </Card>
                   </div>

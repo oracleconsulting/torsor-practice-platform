@@ -142,7 +142,7 @@ const SkillsAssessmentPage: React.FC = () => {
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
-          <p className="text-gray-300">Loading assessment...</p>
+          <p className="text-white font-medium">Loading assessment...</p>
         </div>
       </div>
     );
@@ -181,14 +181,14 @@ const SkillsAssessmentPage: React.FC = () => {
                   Skills Assessment
                   <Badge className="bg-purple-500">In Progress</Badge>
                 </CardTitle>
-                <CardDescription className="text-gray-400">
+                <CardDescription className="text-white font-medium">
                   Complete your skills assessment to unlock personalized training recommendations
                 </CardDescription>
               </div>
               <Button
                 variant="outline"
                 onClick={() => navigate('/accountancy/team')}
-                className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                className="border-gray-600 text-white font-medium hover:bg-gray-700"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back

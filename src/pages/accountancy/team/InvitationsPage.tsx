@@ -464,7 +464,7 @@ export default function InvitationsPage() {
       pending: { icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-100 dark:bg-yellow-950', label: 'Pending' },
       accepted: { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-950', label: 'Accepted' },
       expired: { icon: XCircle, color: 'text-red-600', bg: 'bg-red-100 dark:bg-red-950', label: 'Expired' },
-      revoked: { icon: XCircle, color: 'text-gray-600', bg: 'bg-gray-100 dark:bg-gray-950', label: 'Revoked' },
+      revoked: { icon: XCircle, color: 'text-gray-100 font-medium', bg: 'bg-gray-100 dark:bg-gray-950', label: 'Revoked' },
     };
 
     const config = statusConfig[invitation.status];

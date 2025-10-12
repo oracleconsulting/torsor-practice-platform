@@ -289,9 +289,9 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
     return (
       <Card className="bg-gray-800 border-gray-700">
         <CardContent className="p-8 text-center">
-          <User className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+          <User className="w-16 h-16 text-gray-100 font-medium mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-white mb-2">Select a Team Member</h3>
-          <p className="text-gray-400 mb-6">Choose a team member to view their skills assessment</p>
+          <p className="text-white font-medium mb-6">Choose a team member to view their skills assessment</p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
             {teamMembers.map(member => (
@@ -308,7 +308,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
                   </Avatar>
                   <div>
                     <div className="font-medium text-white">{member.name}</div>
-                    <div className="text-sm text-gray-400">{member.role}</div>
+                    <div className="text-sm text-white font-medium">{member.role}</div>
                   </div>
                 </div>
               </div>
@@ -325,11 +325,11 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
         <CardContent className="p-8 text-center">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-white mb-2">Assessment Complete!</h3>
-          <p className="text-gray-400 mb-6">
+          <p className="text-white font-medium mb-6">
             Thank you for completing the skills assessment. Your responses have been saved.
           </p>
           <div className="space-y-4">
-            <div className="text-sm text-gray-400">
+            <div className="text-sm text-white font-medium">
               <p>Skills Assessed: {getCompletedSkillsCount()}</p>
               <p>Completed: {new Date().toLocaleDateString()}</p>
             </div>
@@ -399,7 +399,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm text-gray-300">Assessment Progress</div>
+                  <div className="text-sm text-white font-medium">Assessment Progress</div>
                   <div className="text-lg font-semibold text-white">
                     {getCompletedSkillsCount()}/{getTotalSkillsCount()} skills
                   </div>
@@ -421,7 +421,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
                   </span>
                 </div>
                 <Progress value={getProgressPercentage()} className="h-2" />
-                <div className="text-xs text-gray-300">
+                <div className="text-xs text-white font-medium">
                   {skillCategoriesList[currentCategory]}
                 </div>
               </div>
@@ -451,7 +451,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
                   <div key={skill.id} className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
                     <div className="mb-3">
                       <h4 className="font-medium text-white text-base">{skill.name}</h4>
-                      <p className="text-sm text-gray-300 mt-1">{skill.description}</p>
+                      <p className="text-sm text-white font-medium mt-1">{skill.description}</p>
                     </div>
                     
                     {/* Visual Skill Level Selector */}
@@ -466,14 +466,14 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
                             className={`flex-1 px-3 py-2 rounded-lg text-center transition-all ${
                               skillData.skillLevel === level
                                 ? 'bg-purple-600 text-white font-semibold shadow-lg scale-105'
-                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                : 'bg-gray-700 text-white font-medium hover:bg-gray-600'
                             }`}
                           >
                             {level}
                           </button>
                         ))}
                       </div>
-                      <div className="text-xs text-gray-400 mt-1">
+                      <div className="text-xs text-white font-medium mt-1">
                         {skillData.skillLevel > 0 ? getSkillLevelLabel(skillData.skillLevel) : 'Select your skill level'}
                       </div>
                     </div>
@@ -490,14 +490,14 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
                             className={`flex-1 px-3 py-2 rounded-lg text-center transition-all ${
                               skillData.interestLevel === level
                                 ? 'bg-blue-600 text-white font-semibold shadow-lg scale-105'
-                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                : 'bg-gray-700 text-white font-medium hover:bg-gray-600'
                             }`}
                           >
                             {level}
                           </button>
                         ))}
                       </div>
-                      <div className="text-xs text-gray-400 mt-1">
+                      <div className="text-xs text-white font-medium mt-1">
                         {getInterestLevelLabel(skillData.interestLevel)}
                       </div>
                     </div>
@@ -581,7 +581,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
             <Card className="bg-gray-800 border-gray-700">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold text-white">{getCompletedSkillsCount()}/{getTotalSkillsCount()}</div>
-                <div className="text-sm text-gray-300">Skills Assessed</div>
+                <div className="text-sm text-white font-medium">Skills Assessed</div>
               </CardContent>
             </Card>
             <Card className="bg-gray-800 border-gray-700">
@@ -589,7 +589,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
                 <div className="text-2xl font-bold text-white">
                   {Math.round(getProgressPercentage())}%
                 </div>
-                <div className="text-sm text-gray-300">Complete</div>
+                <div className="text-sm text-white font-medium">Complete</div>
               </CardContent>
             </Card>
             <Card className="bg-gray-800 border-gray-700">
@@ -597,7 +597,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
                 <div className="text-2xl font-bold text-white">
                   {skillCategoriesList.length - currentCategory - 1}
                 </div>
-                <div className="text-sm text-gray-300">Categories Remaining</div>
+                <div className="text-sm text-white font-medium">Categories Remaining</div>
               </CardContent>
             </Card>
           </div>

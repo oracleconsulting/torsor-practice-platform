@@ -259,7 +259,7 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
       planned: 'bg-blue-900 text-blue-300 border-blue-700',
       in_progress: 'bg-yellow-900 text-yellow-300 border-yellow-700',
       completed: 'bg-green-900 text-green-300 border-green-700',
-      paused: 'bg-gray-900 text-gray-300 border-gray-700',
+      paused: 'bg-gray-900 text-white font-medium border-gray-700',
       cancelled: 'bg-red-900 text-red-300 border-red-700'
     };
     return colors[status];
@@ -286,7 +286,7 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
     return (
       <Card className="bg-gray-800 border-gray-700">
         <CardContent className="p-8 text-center">
-          <Users className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+          <Users className="w-16 h-16 text-gray-100 font-medium mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-white mb-2">Select a Team Member</h3>
           <p className="text-white mb-6">Choose a team member to create development plans</p>
           
@@ -518,14 +518,14 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
                       </div>
                       
                       {plan.notes && (
-                        <p className="text-sm text-gray-400 mb-3">{plan.notes}</p>
+                        <p className="text-sm text-white font-medium mb-3">{plan.notes}</p>
                       )}
                       
                       {/* Progress Bar */}
                       {plan.milestones && plan.milestones.length > 0 && (
                         <div className="mb-3">
                           <div className="flex items-center justify-between text-sm mb-1">
-                            <span className="text-gray-400">Progress</span>
+                            <span className="text-white font-medium">Progress</span>
                             <span className="text-white">{progress}%</span>
                           </div>
                           <div className="w-full bg-gray-700 rounded-full h-2">
@@ -562,9 +562,9 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
             
             {getMemberPlans().length === 0 && (
               <div className="text-center py-8">
-                <Target className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <Target className="w-12 h-12 text-gray-100 font-medium mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-white mb-2">No Development Plans</h3>
-                <p className="text-gray-400 mb-4">Create a development plan to start building skills</p>
+                <p className="text-white font-medium mb-4">Create a development plan to start building skills</p>
                 <Button onClick={() => setShowCreatePlan(true)}>
                   <Plus className="w-4 h-4 mr-2" />
                   Create First Plan
@@ -716,7 +716,7 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
         <Card className="bg-gray-800 border-gray-700">
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-blue-500">{getMemberPlans().length}</div>
-            <div className="text-sm text-gray-400">Total Plans</div>
+            <div className="text-sm text-white font-medium">Total Plans</div>
           </CardContent>
         </Card>
         <Card className="bg-gray-800 border-gray-700">
@@ -724,7 +724,7 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
             <div className="text-2xl font-bold text-yellow-500">
               {getMemberPlans().filter(p => p.status === 'in_progress').length}
             </div>
-            <div className="text-sm text-gray-400">In Progress</div>
+            <div className="text-sm text-white font-medium">In Progress</div>
           </CardContent>
         </Card>
         <Card className="bg-gray-800 border-gray-700">
@@ -732,7 +732,7 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
             <div className="text-2xl font-bold text-green-500">
               {getMemberPlans().filter(p => p.status === 'completed').length}
             </div>
-            <div className="text-sm text-gray-400">Completed</div>
+            <div className="text-sm text-white font-medium">Completed</div>
           </CardContent>
         </Card>
         <Card className="bg-gray-800 border-gray-700">
@@ -740,7 +740,7 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
             <div className="text-2xl font-bold text-purple-500">
               £{getMemberPlans().reduce((sum, plan) => sum + (plan.budget || 0), 0)}
             </div>
-            <div className="text-sm text-gray-400">Total Budget</div>
+            <div className="text-sm text-white font-medium">Total Budget</div>
           </CardContent>
         </Card>
       </div>
