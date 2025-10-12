@@ -186,14 +186,23 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
     }
   };
 
-  const getProgressPercentage = (): number => {
-    return ((currentCategory + 1) / skillCategoriesList.length) * 100;
+  const getTotalSkillsCount = (): number => {
+    // Count all skills across all categories
+    return skillCategories.reduce((total, category) => {
+      return total + (category.skills?.length || 0);
+    }, 0);
   };
 
   const getCompletedSkillsCount = (): number => {
     return Object.keys(assessmentData).filter(skillId => 
       assessmentData[skillId]?.skillLevel > 0
     ).length;
+  };
+
+  const getProgressPercentage = (): number => {
+    const totalSkills = getTotalSkillsCount();
+    if (totalSkills === 0) return 0;
+    return (getCompletedSkillsCount() / totalSkills) * 100;
   };
 
   const findNextIncompleteCategory = (): number => {
@@ -336,7 +345,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
                 <div className="text-right">
                   <div className="text-sm text-gray-400">Assessment Progress</div>
                   <div className="text-lg font-semibold text-white">
-                    {getCompletedSkillsCount()} skills assessed
+                    {getCompletedSkillsCount()}/{getTotalSkillsCount()} skills
                   </div>
                 </div>
               </div>
@@ -569,7 +578,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
           <div className="grid grid-cols-3 gap-4">
             <Card className="bg-gray-800 border-gray-700">
               <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-white">{getCompletedSkillsCount()}</div>
+                <div className="text-2xl font-bold text-white">{getCompletedSkillsCount()}/{getTotalSkillsCount()}</div>
                 <div className="text-sm text-gray-400">Skills Assessed</div>
               </CardContent>
             </Card>
