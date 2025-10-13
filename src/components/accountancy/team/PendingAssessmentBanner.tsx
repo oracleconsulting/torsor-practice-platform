@@ -84,15 +84,15 @@ export const PendingAssessmentBanner: React.FC<PendingAssessmentBannerProps> = (
 
       {/* VARK Assessment Banner */}
       {varkIncomplete && !dismissed.includes('vark') && !skillsIncomplete && (
-        <Alert className="bg-green-900/20 border-green-500/50">
+        <Alert className="bg-green-900 border-green-700">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-start gap-3 flex-1">
               <GraduationCap className="w-5 h-5 text-white mt-0.5 flex-shrink-0" />
               <div className="flex-1">
-                <AlertDescription className="text-white font-bold" style={{ color: '#ffffff' }}>
-                  <span className="font-bold">Next Step:</span> Discover your learning style with the VARK Assessment. 
+                <AlertDescription className="text-white font-bold" style={{ color: '#ffffff !important' }}>
+                  <span className="font-bold" style={{ color: '#ffffff !important' }}>Next Step:</span> Discover your learning style with the VARK Assessment. 
                   This helps us tailor training recommendations to match how you learn best. 
-                  <span className="block mt-1 text-sm text-white font-bold" style={{ color: '#ffffff' }}>Takes only 5 minutes • Visual, Auditory, Reading, Kinesthetic</span>
+                  <span className="block mt-1 text-sm text-white font-bold" style={{ color: '#ffffff !important' }}>Takes only 5 minutes • Visual, Auditory, Reading, Kinesthetic</span>
                 </AlertDescription>
               </div>
             </div>
