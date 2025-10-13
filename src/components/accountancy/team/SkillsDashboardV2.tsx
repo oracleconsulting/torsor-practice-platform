@@ -472,8 +472,8 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                       <Users className="w-5 h-5 text-blue-300" />
                     </div>
                     <div className="flex-1 text-left">
-                      <h2 className="text-lg font-bold text-white">Team Intelligence</h2>
-                      <p className="text-sm text-white font-medium">Skills heatmap and team insights</p>
+                      <h2 className="text-lg font-bold text-white" style={{ color: '#ffffff' }}>Team Intelligence</h2>
+                      <p className="text-sm text-white font-medium" style={{ color: '#ffffff' }}>Skills heatmap and team insights</p>
                     </div>
                     <Badge variant="outline" className="text-blue-300 border-blue-500">
                       {teamCapabilityScore}% Capability
@@ -590,8 +590,8 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                     <GraduationCap className="w-5 h-5 text-green-400" />
                   </div>
                   <div className="flex-1 text-left">
-                    <h2 className="text-lg font-bold text-white">Development Hub</h2>
-                    <p className="text-sm text-white font-medium">Training, mentoring, and resources</p>
+                    <h2 className="text-lg font-bold text-white" style={{ color: '#ffffff' }}>Development Hub</h2>
+                    <p className="text-sm text-white font-medium" style={{ color: '#ffffff' }}>Training, mentoring, and resources</p>
                   </div>
                 </div>
               </AccordionTrigger>

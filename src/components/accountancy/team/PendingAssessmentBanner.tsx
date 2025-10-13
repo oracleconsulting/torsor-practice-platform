@@ -87,12 +87,12 @@ export const PendingAssessmentBanner: React.FC<PendingAssessmentBannerProps> = (
         <Alert className="bg-green-900/20 border-green-500/50">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-start gap-3 flex-1">
-              <GraduationCap className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
+              <GraduationCap className="w-5 h-5 text-white mt-0.5 flex-shrink-0" />
               <div className="flex-1">
-                <AlertDescription className="text-white font-medium">
+                <AlertDescription className="text-white font-bold" style={{ color: '#ffffff' }}>
                   <span className="font-bold">Next Step:</span> Discover your learning style with the VARK Assessment. 
                   This helps us tailor training recommendations to match how you learn best. 
-                  <span className="block mt-1 text-sm text-green-300">Takes only 5 minutes • Visual, Auditory, Reading, Kinesthetic</span>
+                  <span className="block mt-1 text-sm text-white font-bold" style={{ color: '#ffffff' }}>Takes only 5 minutes • Visual, Auditory, Reading, Kinesthetic</span>
                 </AlertDescription>
               </div>
             </div>

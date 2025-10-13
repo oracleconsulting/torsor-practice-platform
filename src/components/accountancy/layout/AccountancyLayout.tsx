@@ -29,14 +29,9 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
   }, []);
 
   const menuItems = [
-    { label: 'Dashboard', icon: Home, href: '/dashboard', available: true },
-    { label: 'Client Management', icon: Users, href: '/client-management', available: true },
-    { label: 'Health Score', icon: FileText, href: '/health', available: true },
     { label: 'Team Management', icon: Users, href: '/team', available: subscriptionTier !== 'free', badge: 'NEW' },
-    { label: 'Client Rescues', icon: AlertTriangle, href: '/client-rescues', available: subscriptionTier !== 'free', badge: 'PRO' },
     { label: 'Advisory Services', icon: TrendingUp, href: '/advisory-services', available: true },
     { label: 'Client Outreach', icon: Mail, href: '/outreach', available: true },
-    { label: 'Client Vault', icon: ArchiveBoxIcon, href: '/client-vault', available: isProfessionalPlus, badge: 'NEW' },
     { label: 'Systems Audit', icon: CogIcon, href: '/systems-audit', available: isProfessionalPlus, badge: 'NEW' },
     { label: '365 Alignment', icon: CalendarDaysIcon, href: '/365-alignment', available: isProfessionalPlus, badge: 'PRO' },
     { label: 'Manage Subscription', icon: Crown, href: '/manage-subscription', available: true },
@@ -108,7 +103,7 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
           {/* Core Section */}
           <div className="nav-section">
             <div className="nav-section-label">Core</div>
-            {menuItems.slice(0, 3).map((item, index) => {
+            {menuItems.slice(0, 1).map((item, index) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.href;
               return (
@@ -122,6 +117,13 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
                   {!sidebarCollapsed && (
                     <span>{item.label}</span>
                   )}
+                  {!sidebarCollapsed && item.badge && (
+                    <span className={`ml-auto text-xs px-2 py-1 rounded-full ${
+                      item.badge === 'NEW' ? 'bg-primary-blue text-white' : 'bg-semantic-warning text-white'
+                    }`}>
+                      {item.badge}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -129,8 +131,8 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
 
           {/* Team & Growth Section */}
           <div className="nav-section">
-            <div className="nav-section-label">Team & Growth</div>
-            {menuItems.slice(3, 10).map((item, index) => {
+            <div className="nav-section-label">Growth & Operations</div>
+            {menuItems.slice(1, 6).map((item, index) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.href;
               const showItem = item.available || subscriptionTier !== 'free';
@@ -183,6 +185,42 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
             {inDevelopmentOpen && !sidebarCollapsed && (
               <div className="ml-4 mt-2 space-y-1 animate-fadeIn">
                 <Link
+                  to="/dashboard"
+                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    location.pathname === '/dashboard'
+                      ? 'bg-gray-800 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  <Home className="w-5 h-5 mr-3" />
+                  <span>Dashboard</span>
+                </Link>
+                
+                <Link
+                  to="/client-management"
+                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    location.pathname === '/client-management'
+                      ? 'bg-gray-800 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  <Users className="w-5 h-5 mr-3" />
+                  <span>Client Management</span>
+                </Link>
+                
+                <Link
+                  to="/health"
+                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    location.pathname === '/health'
+                      ? 'bg-gray-800 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  <FileText className="w-5 h-5 mr-3" />
+                  <span>Health Score</span>
+                </Link>
+                
+                <Link
                   to="/client-rescues"
                   className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                     location.pathname === '/client-rescues'
@@ -193,6 +231,19 @@ const AccountancyLayout: React.FC<{ children: React.ReactNode }> = ({ children }
                   <AlertTriangle className="w-5 h-5 mr-3" />
                   <span>Client Rescues</span>
                   <span className="ml-auto bg-blue-500 text-white text-xs px-2 py-0.5 rounded">PRO</span>
+                </Link>
+                
+                <Link
+                  to="/client-vault"
+                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    location.pathname === '/client-vault'
+                      ? 'bg-gray-800 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  <ArchiveBoxIcon className="w-5 h-5 mr-3" />
+                  <span>Client Vault</span>
+                  <span className="ml-auto bg-orange-500 text-white text-xs px-2 py-0.5 rounded">NEW</span>
                 </Link>
                 
                 <Link

@@ -111,7 +111,7 @@ const AccountancyRoutesWrapper: React.FC = () => {
 
   return (
     <Routes>
-      <Route index element={<Navigate to="/dashboard" replace />} />
+      <Route index element={<Navigate to="/team" replace />} />
       <Route path="dashboard" element={<AccountancyDashboard />} />
       
       {/* Core Features */}
