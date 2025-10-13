@@ -1,88 +1,29 @@
-/* Modern SaaS Theme - Re-enabled for v2.2.0 */
-@import './styles/modern-saas-theme.css';
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Minimal essential fixes only */
+/* ============================================================ */
+/* UNIFIED TORSOR THEME - One Clean Solution */
+/* ============================================================ */
+
+/* Essential body/html setup */
 body, html, #root {
   margin: 0;
   padding: 0;
   min-height: 100vh;
 }
 
-/* Ensure scrolling works */
 body {
   overflow-y: auto;
   overflow-x: hidden;
 }
 
-/* FORCE DARK TEXT ON LIGHT BACKGROUNDS - GLOBAL CONTRAST FIX */
-/* Any element with white/light background MUST have dark text */
-[data-portal="accountancy"] .bg-white,
-[data-portal="accountancy"] .bg-gray-50,
-[data-portal="accountancy"] .bg-gray-100,
-[data-portal="accountancy"] [class*="bg-white"],
-[data-portal="accountancy"] [class*="bg-gray-50"],
-[data-portal="accountancy"] [class*="bg-gray-100"],
-[data-portal="accountancy"] [style*="background: white"],
-[data-portal="accountancy"] [style*="background: #fff"],
-[data-portal="accountancy"] [style*="background: #f"],
-[data-portal="accountancy"] [style*="background-color: white"],
-[data-portal="accountancy"] [style*="background-color: #fff"],
-[data-portal="accountancy"] [style*="background-color: #f"] {
-  color: #1a1a1a !important;
-}
-
-/* Force all headings, paragraphs, and spans inside light backgrounds to be dark */
-[data-portal="accountancy"] .bg-white h1,
-[data-portal="accountancy"] .bg-white h2,
-[data-portal="accountancy"] .bg-white h3,
-[data-portal="accountancy"] .bg-white h4,
-[data-portal="accountancy"] .bg-white h5,
-[data-portal="accountancy"] .bg-white h6,
-[data-portal="accountancy"] .bg-white p,
-[data-portal="accountancy"] .bg-white span,
-[data-portal="accountancy"] .bg-white div,
-[data-portal="accountancy"] .bg-gray-50 h1,
-[data-portal="accountancy"] .bg-gray-50 h2,
-[data-portal="accountancy"] .bg-gray-50 h3,
-[data-portal="accountancy"] .bg-gray-50 h4,
-[data-portal="accountancy"] .bg-gray-50 h5,
-[data-portal="accountancy"] .bg-gray-50 h6,
-[data-portal="accountancy"] .bg-gray-50 p,
-[data-portal="accountancy"] .bg-gray-50 span,
-[data-portal="accountancy"] .bg-gray-50 div,
-[data-portal="accountancy"] .bg-gray-100 h1,
-[data-portal="accountancy"] .bg-gray-100 h2,
-[data-portal="accountancy"] .bg-gray-100 h3,
-[data-portal="accountancy"] .bg-gray-100 h4,
-[data-portal="accountancy"] .bg-gray-100 h5,
-[data-portal="accountancy"] .bg-gray-100 h6,
-[data-portal="accountancy"] .bg-gray-100 p,
-[data-portal="accountancy"] .bg-gray-100 span,
-[data-portal="accountancy"] .bg-gray-100 div {
-  color: #1a1a1a !important;
-}
-
-/* Force Card components to have dark text */
-[data-portal="accountancy"] [class*="card"] h1,
-[data-portal="accountancy"] [class*="card"] h2,
-[data-portal="accountancy"] [class*="card"] h3,
-[data-portal="accountancy"] [class*="card"] h4,
-[data-portal="accountancy"] [class*="card"] h5,
-[data-portal="accountancy"] [class*="card"] h6,
-[data-portal="accountancy"] [class*="card"] p,
-[data-portal="accountancy"] [class*="card"] span {
-  color: #1a1a1a !important;
-}
-
 /* ============================================================ */
-/* MINIMAL FIX: Let Tailwind classes work, stop theme overrides */
+/* TAILWIND CLASS PROTECTION */
+/* Ensure Tailwind utility classes ALWAYS work */
 /* ============================================================ */
 
-/* Ensure text-white ALWAYS stays white (prevents theme CSS from overriding) */
+/* WHITE TEXT - Always stays white */
 [data-portal="accountancy"] .text-white,
 [data-portal="accountancy"] h1.text-white,
 [data-portal="accountancy"] h2.text-white,
@@ -92,16 +33,117 @@ body {
 [data-portal="accountancy"] h6.text-white,
 [data-portal="accountancy"] p.text-white,
 [data-portal="accountancy"] span.text-white,
-[data-portal="accountancy"] div.text-white {
+[data-portal="accountancy"] div.text-white,
+[data-portal="accountancy"] label.text-white {
   color: #ffffff !important;
 }
 
-/* Ensure text-gray-900 stays dark (for light backgrounds) */
+/* DARK TEXT - Always stays dark */
 [data-portal="accountancy"] .text-gray-900 {
   color: #111827 !important;
 }
 
-/* Ensure text-gray-800 stays dark */
 [data-portal="accountancy"] .text-gray-800 {
   color: #1f2937 !important;
+}
+
+[data-portal="accountancy"] .text-gray-700 {
+  color: #374151 !important;
+}
+
+[data-portal="accountancy"] .text-gray-600 {
+  color: #4b5563 !important;
+}
+
+/* MEDIUM TEXT - Readable on light backgrounds */
+[data-portal="accountancy"] .text-gray-500 {
+  color: #6b7280 !important;
+}
+
+[data-portal="accountancy"] .text-gray-400 {
+  color: #9ca3af !important;
+}
+
+[data-portal="accountancy"] .text-gray-300 {
+  color: #d1d5db !important;
+}
+
+[data-portal="accountancy"] .text-gray-200 {
+  color: #e5e7eb !important;
+}
+
+[data-portal="accountancy"] .text-gray-100 {
+  color: #f3f4f6 !important;
+}
+
+/* ============================================================ */
+/* FONT WEIGHT PROTECTION */
+/* Ensure font weights work */
+/* ============================================================ */
+
+[data-portal="accountancy"] .font-bold {
+  font-weight: 700 !important;
+}
+
+[data-portal="accountancy"] .font-semibold {
+  font-weight: 600 !important;
+}
+
+[data-portal="accountancy"] .font-medium {
+  font-weight: 500 !important;
+}
+
+[data-portal="accountancy"] .font-normal {
+  font-weight: 400 !important;
+}
+
+/* ============================================================ */
+/* BACKGROUND PROTECTION */
+/* Ensure background colors work */
+/* ============================================================ */
+
+[data-portal="accountancy"] .bg-gray-900 {
+  background-color: #111827 !important;
+}
+
+[data-portal="accountancy"] .bg-gray-800 {
+  background-color: #1f2937 !important;
+}
+
+[data-portal="accountancy"] .bg-gray-700 {
+  background-color: #374151 !important;
+}
+
+[data-portal="accountancy"] .bg-white {
+  background-color: #ffffff !important;
+}
+
+/* ============================================================ */
+/* SMART DEFAULTS - No class? Use these sensible defaults */
+/* ============================================================ */
+
+/* Dark backgrounds should default to light text (if no explicit class) */
+[data-portal="accountancy"] .bg-gray-900:not([class*="text-"]) {
+  color: #e5e7eb;
+}
+
+[data-portal="accountancy"] .bg-gray-800:not([class*="text-"]) {
+  color: #e5e7eb;
+}
+
+[data-portal="accountancy"] .bg-gray-700:not([class*="text-"]) {
+  color: #f3f4f6;
+}
+
+/* Light backgrounds should default to dark text (if no explicit class) */
+[data-portal="accountancy"] .bg-white:not([class*="text-"]) {
+  color: #111827;
+}
+
+[data-portal="accountancy"] .bg-gray-50:not([class*="text-"]) {
+  color: #111827;
+}
+
+[data-portal="accountancy"] .bg-gray-100:not([class*="text-"]) {
+  color: #111827;
 }
