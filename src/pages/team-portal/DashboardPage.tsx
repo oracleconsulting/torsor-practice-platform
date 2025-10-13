@@ -9,7 +9,9 @@ import {
   Star,
   CheckCircle,
   Clock,
-  AlertCircle
+  AlertCircle,
+  GraduationCap,
+  X
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -26,6 +28,10 @@ const DashboardPage: React.FC = () => {
   });
   const [goals, setGoals] = useState<any[]>([]);
   const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [varkCompleted, setVarkCompleted] = useState(true); // Default to true to hide banner until loaded
+  const [varkBannerDismissed, setVarkBannerDismissed] = useState(() => {
+    return localStorage.getItem('vark_banner_dismissed') === 'true';
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -40,11 +46,14 @@ const DashboardPage: React.FC = () => {
       // Get practice member
       const { data: member } = await supabase
         .from('practice_members')
-        .select('id')
+        .select('id, vark_assessment_completed')
         .eq('user_id', session.user.id)
         .single();
 
       if (!member) return;
+
+      // Set VARK completion status
+      setVarkCompleted(member.vark_assessment_completed || false);
 
       // Get skill assessments
       const { data: assessments } = await supabase
@@ -164,14 +173,54 @@ const DashboardPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-2xl p-6">
+      <div className="bg-gradient-to-r from-blue-900 to-purple-900 border border-blue-500/50 rounded-2xl p-6">
         <h1 className="text-3xl font-bold text-white mb-2">
           Welcome back! 👋
         </h1>
-        <p className="text-gray-400">
+        <p className="text-white font-medium">
           Here's your skills and development overview
         </p>
       </div>
+
+      {/* VARK Assessment Banner */}
+      {!varkCompleted && !varkBannerDismissed && (
+        <div className="bg-gradient-to-r from-green-900/60 to-emerald-900/60 border border-green-500/50 rounded-xl p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3 flex-1">
+              <GraduationCap className="w-6 h-6 text-green-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <h2 className="text-white font-bold text-lg mb-1">
+                  Discover Your Learning Style
+                </h2>
+                <p className="text-white font-medium mb-2">
+                  Take the VARK Assessment to help us tailor training recommendations to match how you learn best.
+                </p>
+                <p className="text-green-300 text-sm font-medium">
+                  ⏱️ Takes only 5 minutes • Visual, Auditory, Reading, Kinesthetic
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate('/team-portal/vark-assessment')}
+                className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors whitespace-nowrap"
+              >
+                Take VARK Assessment
+              </button>
+              <button
+                onClick={() => {
+                  setVarkBannerDismissed(true);
+                  localStorage.setItem('vark_banner_dismissed', 'true');
+                }}
+                className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                aria-label="Dismiss"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -255,7 +304,7 @@ const DashboardPage: React.FC = () => {
 
       {/* Recommendations */}
       {recommendations.length > 0 && (
-        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-6">
+        <div className="bg-yellow-900/40 border border-yellow-500/50 rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <AlertCircle className="w-5 h-5 text-yellow-400" />
             <h2 className="text-lg font-bold text-white">Recommended Actions</h2>
@@ -265,11 +314,11 @@ const DashboardPage: React.FC = () => {
               <div key={idx} className="flex items-center justify-between">
                 <div>
                   <p className="text-white font-medium">{rec.title}</p>
-                  <p className="text-sm text-gray-400">{rec.description}</p>
+                  <p className="text-sm text-white font-medium">{rec.description}</p>
                 </div>
                 <button
                   onClick={() => navigate(rec.url)}
-                  className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-black font-medium rounded-lg transition-colors whitespace-nowrap"
+                  className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-black font-bold rounded-lg transition-colors whitespace-nowrap"
                 >
                   {rec.action}
                 </button>
