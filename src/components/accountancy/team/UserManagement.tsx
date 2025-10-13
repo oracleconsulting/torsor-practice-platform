@@ -259,23 +259,23 @@ export default function UserManagement() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2 text-white">
-                <Users className="w-5 h-5" />
+              <CardTitle className="flex items-center gap-2 text-white font-bold">
+                <Users className="w-5 h-5 text-white" />
                 User Management
               </CardTitle>
-              <CardDescription className="text-white font-medium">
+              <CardDescription className="text-gray-200 font-medium">
                 Manage practice members • Nuclear delete option
               </CardDescription>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">
                 <div className="text-2xl font-bold text-white">{users.length}</div>
-                <div className="text-sm text-white font-medium">Total Users</div>
+                <div className="text-sm text-gray-200 font-medium">Total Users</div>
               </div>
               {duplicateEmails.size > 0 && (
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-red-500">{duplicateEmails.size}</div>
-                  <div className="text-sm text-white font-medium">Duplicates</div>
+                  <div className="text-2xl font-bold text-red-400">{duplicateEmails.size}</div>
+                  <div className="text-sm text-gray-200 font-medium">Duplicates</div>
                 </div>
               )}
             </div>
@@ -293,14 +293,14 @@ export default function UserManagement() {
                 placeholder="Search by name, email, or role..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-gray-900 border-gray-600 text-white"
+                className="pl-10 bg-gray-900 border-gray-600 text-white font-medium placeholder:text-gray-400"
               />
             </div>
             <Button
               variant="outline"
               onClick={loadUsers}
               disabled={loading}
-              className="border-gray-600 text-white hover:bg-gray-700"
+              className="border-gray-600 text-white font-bold hover:bg-gray-700 hover:text-white"
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
@@ -314,8 +314,8 @@ export default function UserManagement() {
         <CardContent className="p-6">
           {filteredUsers.length === 0 ? (
             <div className="text-center py-8">
-              <Users className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-              <p className="text-white font-medium">
+              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-white font-bold">
                 {searchQuery ? 'No users found' : 'No users yet'}
               </p>
             </div>
@@ -336,15 +336,15 @@ export default function UserManagement() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-white font-bold">{user.name}</h3>
+                          <h3 className="text-white font-bold text-lg">{user.name}</h3>
                           {isDuplicate && (
-                            <Badge variant="destructive" className="text-xs">
+                            <Badge variant="destructive" className="text-xs font-bold">
                               <Copy className="w-3 h-3 mr-1" />
                               Duplicate
                             </Badge>
                           )}
                           {!user.is_active && (
-                            <Badge variant="secondary" className="text-xs">
+                            <Badge variant="secondary" className="text-xs font-bold">
                               Inactive
                             </Badge>
                           )}
@@ -352,22 +352,22 @@ export default function UserManagement() {
                         
                         <div className="space-y-1 text-sm">
                           <div className="flex items-center gap-2 text-white font-medium">
-                            <Mail className="w-3 h-3" />
+                            <Mail className="w-4 h-4 text-white" />
                             {user.email}
                           </div>
                           <div className="flex items-center gap-2 text-white font-medium">
-                            <Shield className="w-3 h-3" />
+                            <Shield className="w-4 h-4 text-white" />
                             {user.role}
                           </div>
                           {user.user_id && (
-                            <div className="text-xs text-gray-400">
+                            <div className="text-xs text-gray-300 font-medium">
                               Auth ID: {user.user_id.slice(0, 8)}...
                             </div>
                           )}
-                          <div className="text-xs text-gray-400">
+                          <div className="text-xs text-gray-300 font-medium">
                             Joined: {new Date(user.joined_at).toLocaleDateString()}
                             {user.vark_assessment_completed && (
-                              <span className="ml-2 text-green-400">• VARK Complete</span>
+                              <span className="ml-2 text-green-400 font-bold">• VARK Complete</span>
                             )}
                           </div>
                         </div>
@@ -377,7 +377,7 @@ export default function UserManagement() {
                         variant="destructive"
                         size="sm"
                         onClick={() => setUserToDelete(user)}
-                        className="flex-shrink-0"
+                        className="flex-shrink-0 bg-red-600 hover:bg-red-700 text-white font-bold"
                       >
                         <Trash2 className="w-4 h-4 mr-2" />
                         Delete
@@ -395,13 +395,13 @@ export default function UserManagement() {
       <AlertDialog open={!!userToDelete} onOpenChange={() => !deleting && setUserToDelete(null)}>
         <AlertDialogContent className="bg-gray-800 border-red-500">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-white">
-              <AlertTriangle className="w-5 h-5 text-red-500" />
+            <AlertDialogTitle className="flex items-center gap-2 text-white font-bold">
+              <AlertTriangle className="w-5 h-5 text-red-400" />
               Nuclear Delete: {userToDelete?.name}
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-white font-medium">
+            <AlertDialogDescription className="text-gray-200 font-medium">
               This action cannot be undone. This will permanently delete:
-              <ul className="mt-2 space-y-1 list-disc list-inside text-sm">
+              <ul className="mt-2 space-y-1 list-disc list-inside text-sm text-white font-medium">
                 <li>Practice member record</li>
                 <li>All skill assessments</li>
                 <li>All CPD activities</li>
@@ -409,7 +409,7 @@ export default function UserManagement() {
                 <li>Associated invitations</li>
               </ul>
               {userToDelete?.user_id && (
-                <p className="mt-3 text-yellow-400 text-sm">
+                <p className="mt-3 text-yellow-400 text-sm font-bold">
                   ⚠️ Note: User has an auth account. They can still log in if invited again.
                 </p>
               )}
@@ -418,14 +418,14 @@ export default function UserManagement() {
           <AlertDialogFooter>
             <AlertDialogCancel
               disabled={deleting}
-              className="bg-gray-700 text-white hover:bg-gray-600"
+              className="bg-gray-700 text-white font-bold hover:bg-gray-600 hover:text-white"
             >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteUser}
               disabled={deleting}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-red-600 hover:bg-red-700 text-white font-bold"
             >
               {deleting ? (
                 <>
