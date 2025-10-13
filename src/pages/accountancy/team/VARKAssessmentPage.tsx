@@ -1,30 +1,41 @@
+/**
+ * Comprehensive VARK Assessment Page
+ * Handles assessment flow, results, and database persistence
+ */
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
-import VARKAssessment from '@/components/accountancy/team/VARKAssessment';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import VARKAssessmentNew from '@/components/accountancy/team/VARKAssessmentNew';
+import VARKResults from '@/components/accountancy/team/VARKResults';
+import { type VARKProfile } from '@/data/varkQuestions';
 
 const VARKAssessmentPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
+  
   const [teamMemberId, setTeamMemberId] = useState<string>('');
+  const [teamMemberName, setTeamMemberName] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const teamMemberName = searchParams.get('member_name') || undefined;
+  const [showResults, setShowResults] = useState(false);
+  const [profile, setProfile] = useState<VARKProfile | null>(null);
 
-  // Fetch the actual practice_members ID (not auth.users ID)
+  // Fetch member ID and info
   useEffect(() => {
-    const fetchMemberId = async () => {
+    const fetchMemberInfo = async () => {
       const memberIdParam = searchParams.get('member_id');
+      const memberNameParam = searchParams.get('member_name');
       
       if (memberIdParam) {
         // If member_id is provided in URL, use it
         setTeamMemberId(memberIdParam);
+        if (memberNameParam) {
+          setTeamMemberName(memberNameParam);
+        }
         setLoading(false);
       } else if (user?.id) {
         // Fetch practice_members ID based on auth user ID
@@ -32,7 +43,7 @@ const VARKAssessmentPage: React.FC = () => {
         try {
           const { data, error } = await supabase
             .from('practice_members')
-            .select('id')
+            .select('id, name')
             .eq('user_id', user.id)
             .single();
 
@@ -44,8 +55,9 @@ const VARKAssessmentPage: React.FC = () => {
               variant: 'destructive',
             });
           } else if (data) {
-            console.log('[VARKAssessmentPage] Found practice_member ID:', data.id);
+            console.log('[VARKAssessmentPage] Found practice_member:', data);
             setTeamMemberId(data.id);
+            setTeamMemberName(data.name || 'Team Member');
           }
         } catch (err) {
           console.error('[VARKAssessmentPage] Exception:', err);
@@ -54,11 +66,83 @@ const VARKAssessmentPage: React.FC = () => {
       }
     };
 
-    fetchMemberId();
+    fetchMemberInfo();
   }, [user, searchParams, toast]);
 
-  const handleComplete = async () => {
-    console.log('[VARKAssessmentPage] Assessment complete, checking next steps...');
+  const handleAssessmentComplete = async (varkProfile: VARKProfile) => {
+    console.log('[VARKAssessmentPage] Assessment complete:', varkProfile);
+    
+    // Save to database
+    try {
+      const { error } = await supabase
+        .from('learning_preferences')
+        .upsert({
+          team_member_id: teamMemberId,
+          visual_score: varkProfile.scores.visual,
+          auditory_score: varkProfile.scores.auditory,
+          read_write_score: varkProfile.scores.readWrite,
+          kinesthetic_score: varkProfile.scores.kinesthetic,
+          visual_percentage: varkProfile.percentages.visual,
+          auditory_percentage: varkProfile.percentages.auditory,
+          read_write_percentage: varkProfile.percentages.readWrite,
+          kinesthetic_percentage: varkProfile.percentages.kinesthetic,
+          learning_type: varkProfile.learningType,
+          dominant_styles: varkProfile.dominantStyles,
+          responses: varkProfile.scores, // Store full scores as JSONB
+          assessment_date: new Date().toISOString()
+        }, {
+          onConflict: 'team_member_id'
+        });
+
+      if (error) {
+        console.error('[VARKAssessmentPage] Error saving preferences:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to save your learning preferences. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Also update practice_members to mark VARK as completed
+      const { error: updateError } = await supabase
+        .from('practice_members')
+        .update({
+          vark_assessment_completed: true,
+          vark_completed_at: new Date().toISOString(),
+          vark_result: {
+            visual: varkProfile.percentages.visual,
+            auditory: varkProfile.percentages.auditory,
+            reading: varkProfile.percentages.readWrite,
+            kinesthetic: varkProfile.percentages.kinesthetic,
+            primaryStyle: varkProfile.learningType,
+            dominantStyles: varkProfile.dominantStyles
+          }
+        })
+        .eq('id', teamMemberId);
+
+      if (updateError) {
+        console.error('[VARKAssessmentPage] Error updating member status:', updateError);
+      }
+
+      console.log('[VARKAssessmentPage] VARK profile saved successfully');
+      
+      // Show results
+      setProfile(varkProfile);
+      setShowResults(true);
+      
+    } catch (err) {
+      console.error('[VARKAssessmentPage] Exception saving profile:', err);
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleResultsContinue = async () => {
+    console.log('[VARKAssessmentPage] Results viewed, checking next steps...');
     
     // Check if password setup is needed
     try {
@@ -77,110 +161,82 @@ const VARKAssessmentPage: React.FC = () => {
 
       console.log('[VARKAssessmentPage] Password setup needed:', needsPassword, 'Has user_id:', hasUserId);
 
-      // Show completion message and redirect to dashboard
+      // Show completion message
       toast({
-        title: '🎉 Onboarding Complete!',
-        description: 'You can now access your full team portal and development resources',
+        title: 'Onboarding Complete! 🎉',
+        description: needsPassword && !hasUserId 
+          ? 'Next, please set up your password to access the portal.'
+          : 'Your profile is complete. Welcome to the team!',
       });
-      
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 2000);
+
+      // Navigate based on status
+      if (needsPassword && !hasUserId) {
+        // TODO: Navigate to password setup page
+        setTimeout(() => {
+          navigate('/team');
+        }, 2000);
+      } else {
+        // Navigate to dashboard
+        setTimeout(() => {
+          navigate('/team');
+        }, 2000);
+      }
     } catch (err) {
-      console.error('[VARKAssessmentPage] Error:', err);
-      navigate('/team');
+      console.error('[VARKAssessmentPage] Exception:', err);
+      setTimeout(() => {
+        navigate('/team');
+      }, 2000);
     }
   };
 
-  const handleBack = () => {
+  const handleCancel = () => {
     navigate('/team');
   };
 
-  // Show loading state while fetching member ID
-  if (loading || !teamMemberId) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-white font-medium">Loading assessment...</p>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading assessment...</p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-[#0f1419] relative">
-      {/* Background Pattern */}
-      <div className="absolute inset-0 opacity-5">
-        <div className="absolute inset-0" style={{
-          backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(255,255,255,.1) 35px, rgba(255,255,255,.1) 70px)`
-        }} />
-      </div>
-
-      {/* Page Header */}
-      <div className="relative bg-gradient-to-r from-blue-900/50 to-purple-900/50 py-12 border-b border-gray-800">
-        <div className="container mx-auto px-6">
-          <Button
-            variant="ghost"
-            onClick={handleBack}
-            className="mb-4 text-white font-medium hover:text-white"
+  if (!teamMemberId) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
+        <div className="text-center p-6 bg-white rounded-lg shadow-lg">
+          <p className="text-gray-600 mb-4">Unable to load assessment. Please try again.</p>
+          <button
+            onClick={() => navigate('/team')}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Team Portal
-          </Button>
-          <h1 className="text-4xl font-bold text-white mb-2">
-            VARK Learning Style Assessment
-          </h1>
-          <p className="text-white font-medium text-lg">
-            Discover your learning preferences to personalize your development path
-          </p>
+            Return to Dashboard
+          </button>
         </div>
       </div>
+    );
+  }
 
-      {/* Page Content */}
-      <div className="relative z-10 container mx-auto px-6 py-12 max-w-5xl">
-        {/* Info Card */}
-        <Card className="bg-gray-800 border-gray-700 mb-6">
-          <CardContent className="p-6">
-            <h2 className="text-xl font-semibold text-white mb-3">About VARK</h2>
-            <p className="text-white font-medium mb-4">
-              VARK stands for Visual, Auditory, Reading/Writing, and Kinesthetic learning preferences. 
-              This assessment helps identify how you prefer to take in and process information.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div>
-                <h3 className="font-medium text-white mb-2">What to expect:</h3>
-                <ul className="text-white font-medium space-y-1 list-disc list-inside">
-                  <li>16 scenario-based questions</li>
-                  <li>Takes approximately 5-10 minutes</li>
-                  <li>No right or wrong answers</li>
-                  <li>Your answers are auto-saved</li>
-                </ul>
-              </div>
-              <div>
-                <h3 className="font-medium text-white mb-2">You'll receive:</h3>
-                <ul className="text-white font-medium space-y-1 list-disc list-inside">
-                  <li>Your learning style profile</li>
-                  <li>Personalized learning strategies</li>
-                  <li>Recommendations for CPD activities</li>
-                  <li>Tips for effective skill development</li>
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+  if (showResults && profile) {
+    return (
+      <VARKResults
+        profile={profile}
+        memberName={teamMemberName}
+        onContinue={handleResultsContinue}
+      />
+    );
+  }
 
-        {/* Assessment Component */}
-        <VARKAssessment
-          teamMemberId={teamMemberId}
-          teamMemberName={teamMemberName}
-          onComplete={handleComplete}
-          onBack={handleBack}
-        />
-      </div>
-    </div>
+  return (
+    <VARKAssessmentNew
+      teamMemberId={teamMemberId}
+      onComplete={handleAssessmentComplete}
+      onCancel={handleCancel}
+    />
   );
 };
 
 export default VARKAssessmentPage;
-
