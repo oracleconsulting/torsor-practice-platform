@@ -1,9 +1,9 @@
+/* Modern SaaS Theme */
+@import './styles/modern-saas-theme.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Import essential theme styles */
-@import './styles/torsor-theme.css';
 
 /* ============================================================ */
 /* UNIFIED TORSOR THEME - One Clean Solution */
