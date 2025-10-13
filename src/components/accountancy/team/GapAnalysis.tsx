@@ -763,11 +763,11 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
       {/* Top Gaps Table - ACTIONABLE DATA */}
       <Card className="bg-white border-gray-300 shadow-lg">
         <CardHeader className="bg-gradient-to-r from-red-50 to-orange-50">
-          <CardTitle className="flex items-center gap-2" style={{ color: '#000000' }}>
+          <CardTitle className="flex items-center gap-2" style={{ color: '#000000 !important' }}>
             <AlertTriangle className="w-5 h-5 text-red-600" />
-            🎯 TOP PRIORITY SKILLS TO DEVELOP
+            <span style={{ color: '#000000 !important' }}>🎯 TOP PRIORITY SKILLS TO DEVELOP</span>
           </CardTitle>
-          <CardDescription style={{ color: '#000000' }}>
+          <CardDescription style={{ color: '#000000 !important', fontWeight: '600' }}>
             These skills have the biggest gaps and highest priority. Focus training resources here for maximum impact.
           </CardDescription>
         </CardHeader>
@@ -971,15 +971,15 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
       )}
 
       {/* AI-Powered Training Recommendations */}
-      <Card className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 border-purple-700">
+      <Card className="bg-gradient-to-br from-purple-100 to-indigo-100 border-purple-300">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2 text-white font-bold" style={{ color: '#ffffff' }}>
-                <Sparkles className="w-6 h-6 text-yellow-400" />
-                AI-Powered Training Recommendations
+              <CardTitle className="flex items-center gap-2" style={{ color: '#000000 !important', fontWeight: '700' }}>
+                <Sparkles className="w-6 h-6 text-purple-600" />
+                <span style={{ color: '#000000 !important' }}>AI-Powered Training Recommendations</span>
               </CardTitle>
-              <CardDescription className="mt-2 text-white font-medium" style={{ color: '#ffffff' }}>
+              <CardDescription className="mt-2" style={{ color: '#000000 !important', fontWeight: '600' }}>
                 Get personalized training recommendations based on skill gaps, learning styles, and business priorities
               </CardDescription>
             </div>
@@ -1104,20 +1104,20 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
       </div>
 
       {/* AI-Powered Recommendations CTA */}
-      <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-700">
+      <Card className="bg-gradient-to-br from-purple-100 to-blue-100 border-purple-300">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white font-bold" style={{ color: '#ffffff' }}>
-            <Sparkles className="w-5 h-5" />
-            AI-Powered Training Recommendations
+          <CardTitle className="flex items-center gap-2" style={{ color: '#000000 !important', fontWeight: '700' }}>
+            <Sparkles className="w-5 h-5 text-purple-600" />
+            <span style={{ color: '#000000 !important' }}>AI-Powered Training Recommendations</span>
           </CardTitle>
-          <CardDescription className="text-white font-medium" style={{ color: '#ffffff' }}>
+          <CardDescription style={{ color: '#000000 !important', fontWeight: '600' }}>
             Get personalized training recommendations based on your skill gaps, interests, and learning style
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button 
             onClick={() => navigate('/accountancy/team-portal/training-recommendations')}
-            className="w-full bg-purple-600 hover:bg-purple-700"
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold"
           >
             <Sparkles className="w-4 h-4 mr-2" />
             Generate AI Recommendations
