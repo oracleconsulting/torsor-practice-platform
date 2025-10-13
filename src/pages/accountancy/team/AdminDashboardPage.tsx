@@ -571,7 +571,7 @@ export default function AdminDashboardPage() {
                 />
                 <YAxis domain={[0, 5]} />
                 <Tooltip />
-                <Bar dataKey="avgLevel" fill="#3b82f6" name="Avg Level" />
+                <Bar dataKey="level" fill="#3b82f6" name="Avg Level" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
