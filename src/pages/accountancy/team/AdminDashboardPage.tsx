@@ -103,8 +103,8 @@ export default function AdminDashboardPage() {
       // Calculate average team level
       const totalLevel = assessments?.reduce((sum, a) => sum + (a.current_level || 0), 0) || 0;
       const avgTeamLevel = assessments && assessments.length > 0 
-        ? (totalLevel / assessments.length).toFixed(1) 
-        : '0';
+        ? Number((totalLevel / assessments.length).toFixed(1))
+        : 0;
 
       // Get development goals
       const { data: goals, error: goalsError } = await supabase
