@@ -225,6 +225,7 @@ const TorsorRoutes: React.FC = () => {
             <Routes>
               <Route path="dashboard" element={<TeamPortalDashboard />} />
               <Route path="assessment" element={<TeamPortalAssessment />} />
+              <Route path="vark-assessment" element={<VARKAssessmentPage />} />
               <Route path="*" element={<Navigate to="/team-portal/dashboard" replace />} />
             </Routes>
           </Suspense>
