@@ -220,14 +220,49 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
       }
 
       console.log('Assessment saved successfully!');
+      
+      // Check if VARK assessment is completed
+      const { data: memberData, error: memberError } = await supabase
+        .from('practice_members')
+        .select('vark_assessment_completed, needs_password_setup')
+        .eq('id', selectedMember.id)
+        .single();
+
+      if (memberError) {
+        console.error('Error checking VARK status:', memberError);
+      }
+
+      const varkCompleted = memberData?.vark_assessment_completed || false;
+      const needsPassword = memberData?.needs_password_setup || false;
+
       toast({
         title: 'Success!',
         description: `Saved ${records.length} skill assessments`,
       });
 
-      // Navigate back to team page
+      // Redirect based on completion status
       setTimeout(() => {
-        navigate('/team');
+        if (!varkCompleted) {
+          // VARK not completed - redirect to VARK assessment
+          console.log('[SkillsAssessment] Redirecting to VARK assessment');
+          toast({
+            title: 'Next Step: VARK Assessment',
+            description: 'Discover your learning style in just 5 minutes!',
+          });
+          navigate('/accountancy/team-portal/vark-assessment');
+        } else if (needsPassword) {
+          // VARK done, but needs password setup
+          console.log('[SkillsAssessment] Redirecting to password setup');
+          toast({
+            title: 'Final Step: Set Your Password',
+            description: 'Create a password to access your portal',
+          });
+          // TODO: Add password setup route
+          navigate('/team');
+        } else {
+          // All done - go to team page
+          navigate('/team');
+        }
       }, 1500);
 
     } catch (error) {

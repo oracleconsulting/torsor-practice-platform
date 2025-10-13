@@ -5,17 +5,50 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import VARKAssessment from '@/components/accountancy/team/VARKAssessment';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 const VARKAssessmentPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const teamMemberId = searchParams.get('member_id') || user?.id || '';
   const teamMemberName = searchParams.get('member_name') || undefined;
 
-  const handleComplete = () => {
-    // Navigate back to team management or skills page
-    navigate('/accountancy/team');
+  const handleComplete = async () => {
+    console.log('[VARKAssessmentPage] Assessment complete, checking next steps...');
+    
+    // Check if password setup is needed
+    try {
+      const { data: memberData, error } = await supabase
+        .from('practice_members')
+        .select('needs_password_setup, user_id')
+        .eq('id', teamMemberId)
+        .single();
+
+      if (error) {
+        console.error('[VARKAssessmentPage] Error checking password setup status:', error);
+      }
+
+      const needsPassword = memberData?.needs_password_setup || false;
+      const hasUserId = !!memberData?.user_id;
+
+      console.log('[VARKAssessmentPage] Password setup needed:', needsPassword, 'Has user_id:', hasUserId);
+
+      // Show completion message and redirect to dashboard
+      toast({
+        title: '🎉 Onboarding Complete!',
+        description: 'You can now access your full team portal and development resources',
+      });
+      
+      setTimeout(() => {
+        navigate('/accountancy/dashboard');
+      }, 2000);
+    } catch (err) {
+      console.error('[VARKAssessmentPage] Error:', err);
+      navigate('/accountancy/team');
+    }
   };
 
   const handleBack = () => {
