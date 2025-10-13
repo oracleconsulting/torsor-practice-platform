@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,8 +13,49 @@ const VARKAssessmentPage: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
-  const teamMemberId = searchParams.get('member_id') || user?.id || '';
+  const [teamMemberId, setTeamMemberId] = useState<string>('');
+  const [loading, setLoading] = useState(true);
   const teamMemberName = searchParams.get('member_name') || undefined;
+
+  // Fetch the actual practice_members ID (not auth.users ID)
+  useEffect(() => {
+    const fetchMemberId = async () => {
+      const memberIdParam = searchParams.get('member_id');
+      
+      if (memberIdParam) {
+        // If member_id is provided in URL, use it
+        setTeamMemberId(memberIdParam);
+        setLoading(false);
+      } else if (user?.id) {
+        // Fetch practice_members ID based on auth user ID
+        console.log('[VARKAssessmentPage] Fetching practice_member ID for user:', user.id);
+        try {
+          const { data, error } = await supabase
+            .from('practice_members')
+            .select('id')
+            .eq('user_id', user.id)
+            .single();
+
+          if (error) {
+            console.error('[VARKAssessmentPage] Error fetching member ID:', error);
+            toast({
+              title: 'Error',
+              description: 'Could not load your profile. Please try again.',
+              variant: 'destructive',
+            });
+          } else if (data) {
+            console.log('[VARKAssessmentPage] Found practice_member ID:', data.id);
+            setTeamMemberId(data.id);
+          }
+        } catch (err) {
+          console.error('[VARKAssessmentPage] Exception:', err);
+        }
+        setLoading(false);
+      }
+    };
+
+    fetchMemberId();
+  }, [user, searchParams, toast]);
 
   const handleComplete = async () => {
     console.log('[VARKAssessmentPage] Assessment complete, checking next steps...');
@@ -54,6 +95,18 @@ const VARKAssessmentPage: React.FC = () => {
   const handleBack = () => {
     navigate('/team');
   };
+
+  // Show loading state while fetching member ID
+  if (loading || !teamMemberId) {
+    return (
+      <div className="min-h-screen bg-[#0f1419] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-white font-medium">Loading assessment...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0f1419] relative">
