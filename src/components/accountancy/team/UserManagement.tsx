@@ -187,14 +187,20 @@ export default function UserManagement() {
       }
 
       // 5. Finally, delete the practice member
-      const { error: memberError } = await supabase
+      const { error: memberError, data: deletedData } = await supabase
         .from('practice_members')
         .delete()
-        .eq('id', userToDelete.id);
+        .eq('id', userToDelete.id)
+        .select();
 
       if (memberError) {
-        console.error('Error deleting practice member:', memberError);
+        console.error('❌ Error deleting practice member:', memberError);
         throw memberError;
+      }
+
+      if (!deletedData || deletedData.length === 0) {
+        console.error('❌ No rows deleted - user may not exist or RLS policy blocked deletion');
+        throw new Error('Failed to delete user - no rows affected');
       }
 
       // 6. If they have a user_id, optionally delete from auth.users (admin only)
@@ -204,14 +210,15 @@ export default function UserManagement() {
         console.log('[UserManagement] Note: Auth account deletion requires admin API');
       }
 
-      console.log('[UserManagement] ✅ User deleted successfully');
+      console.log('[UserManagement] ✅ User deleted successfully - rows affected:', deletedData.length);
       
       toast({
         title: 'User Deleted',
         description: `${userToDelete.name} has been permanently removed`,
       });
 
-      // Reload users list
+      // Wait a moment for database to fully commit, then reload
+      await new Promise(resolve => setTimeout(resolve, 500));
       await loadUsers();
       setUserToDelete(null);
       
