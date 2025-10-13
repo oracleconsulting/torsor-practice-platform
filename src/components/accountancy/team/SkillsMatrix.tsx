@@ -566,9 +566,9 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
         </CardHeader>
         <CardContent>
           {/* Category Filter Badges */}
-          <div className="mb-4 p-3 bg-gray-700/20 rounded-lg border border-gray-600">
+          <div className="mb-4 p-3 bg-gray-100 rounded-lg border border-gray-300">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs font-semibold text-white font-medium">Filter by Category:</span>
+              <span className="text-xs font-semibold text-gray-900 font-bold">Filter by Category:</span>
               {selectedCategory !== 'all' && (
                 <Button 
                   variant="ghost" 

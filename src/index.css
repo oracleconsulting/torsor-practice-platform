@@ -152,38 +152,88 @@ body {
 }
 
 /* ============================================================ */
-/* NUCLEAR FIXES FOR SPECIFIC CONTRAST ISSUES */
-/* Override modern-saas-theme.css for light background sections */
+/* SURGICAL FIXES FOR LIGHT BACKGROUNDS ONLY */
+/* Override modern-saas-theme.css ONLY for specific light backgrounds */
 /* ============================================================ */
 
-/* Fix light purple/pink background sections - force black text */
-[data-portal="accountancy"] .bg-gradient-to-r h3,
-[data-portal="accountancy"] .bg-gradient-to-r h2,
-[data-portal="accountancy"] .bg-gradient-to-r p,
-[data-portal="accountancy"] .bg-gradient-to-r span,
-[data-portal="accountancy"] .bg-gradient-to-br h3,
-[data-portal="accountancy"] .bg-gradient-to-br h2,
-[data-portal="accountancy"] .bg-gradient-to-br p,
-[data-portal="accountancy"] .bg-gradient-to-br span {
-  color: inherit !important;
-}
-
-/* Force inline styles to always work */
-[data-portal="accountancy"] [style*="color"] {
-  color: inherit !important;
-}
-
-/* Specific fix for CardTitle and CardDescription on light backgrounds */
+/* ONLY target specific LIGHT background gradients - force black text */
+[data-portal="accountancy"] .from-red-50 h1,
+[data-portal="accountancy"] .from-red-50 h2,
 [data-portal="accountancy"] .from-red-50 h3,
+[data-portal="accountancy"] .from-red-50 h4,
+[data-portal="accountancy"] .from-red-50 h5,
+[data-portal="accountancy"] .from-red-50 h6,
 [data-portal="accountancy"] .from-red-50 p,
+[data-portal="accountancy"] .from-red-50 span,
+[data-portal="accountancy"] .from-orange-50 h1,
+[data-portal="accountancy"] .from-orange-50 h2,
 [data-portal="accountancy"] .from-orange-50 h3,
+[data-portal="accountancy"] .from-orange-50 h4,
+[data-portal="accountancy"] .from-orange-50 h5,
+[data-portal="accountancy"] .from-orange-50 h6,
 [data-portal="accountancy"] .from-orange-50 p,
+[data-portal="accountancy"] .from-orange-50 span,
+[data-portal="accountancy"] .from-purple-100 h1,
+[data-portal="accountancy"] .from-purple-100 h2,
 [data-portal="accountancy"] .from-purple-100 h3,
+[data-portal="accountancy"] .from-purple-100 h4,
+[data-portal="accountancy"] .from-purple-100 h5,
+[data-portal="accountancy"] .from-purple-100 h6,
 [data-portal="accountancy"] .from-purple-100 p,
+[data-portal="accountancy"] .from-purple-100 span,
+[data-portal="accountancy"] .from-indigo-100 h1,
+[data-portal="accountancy"] .from-indigo-100 h2,
 [data-portal="accountancy"] .from-indigo-100 h3,
+[data-portal="accountancy"] .from-indigo-100 h4,
+[data-portal="accountancy"] .from-indigo-100 h5,
+[data-portal="accountancy"] .from-indigo-100 h6,
 [data-portal="accountancy"] .from-indigo-100 p,
+[data-portal="accountancy"] .from-indigo-100 span,
+[data-portal="accountancy"] .from-blue-100 h1,
+[data-portal="accountancy"] .from-blue-100 h2,
 [data-portal="accountancy"] .from-blue-100 h3,
-[data-portal="accountancy"] .from-blue-100 p {
+[data-portal="accountancy"] .from-blue-100 h4,
+[data-portal="accountancy"] .from-blue-100 h5,
+[data-portal="accountancy"] .from-blue-100 h6,
+[data-portal="accountancy"] .from-blue-100 p,
+[data-portal="accountancy"] .from-blue-100 span {
   color: #000000 !important;
   font-weight: 600 !important;
+}
+
+/* Light gray/white backgrounds should have dark text */
+[data-portal="accountancy"] .bg-gray-50 h1,
+[data-portal="accountancy"] .bg-gray-50 h2,
+[data-portal="accountancy"] .bg-gray-50 h3,
+[data-portal="accountancy"] .bg-gray-50 h4,
+[data-portal="accountancy"] .bg-gray-50 h5,
+[data-portal="accountancy"] .bg-gray-50 h6,
+[data-portal="accountancy"] .bg-gray-50 p,
+[data-portal="accountancy"] .bg-gray-100 h1,
+[data-portal="accountancy"] .bg-gray-100 h2,
+[data-portal="accountancy"] .bg-gray-100 h3,
+[data-portal="accountancy"] .bg-gray-100 h4,
+[data-portal="accountancy"] .bg-gray-100 h5,
+[data-portal="accountancy"] .bg-gray-100 h6,
+[data-portal="accountancy"] .bg-gray-100 p,
+[data-portal="accountancy"] .bg-gray-200 h1,
+[data-portal="accountancy"] .bg-gray-200 h2,
+[data-portal="accountancy"] .bg-gray-200 h3,
+[data-portal="accountancy"] .bg-gray-200 h4,
+[data-portal="accountancy"] .bg-gray-200 h5,
+[data-portal="accountancy"] .bg-gray-200 h6,
+[data-portal="accountancy"] .bg-gray-200 p {
+  color: #000000 !important;
+}
+
+/* Dark navy/blue backgrounds should have white text */
+[data-portal="accountancy"] .bg-\\[\\#1a2b4a\\] h1,
+[data-portal="accountancy"] .bg-\\[\\#1a2b4a\\] h2,
+[data-portal="accountancy"] .bg-\\[\\#1a2b4a\\] h3,
+[data-portal="accountancy"] .bg-\\[\\#1a2b4a\\] h4,
+[data-portal="accountancy"] .bg-\\[\\#1a2b4a\\] h5,
+[data-portal="accountancy"] .bg-\\[\\#1a2b4a\\] h6,
+[data-portal="accountancy"] .bg-\\[\\#1a2b4a\\] p,
+[data-portal="accountancy"] .bg-\\[\\#1a2b4a\\] span {
+  color: #ffffff !important;
 }
