@@ -227,39 +227,61 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
   }, [teamMembers, skillCategories]);
 
   // Prepare scatter plot data for priority matrix
+  // X-axis: Average current skill level (1-5)
+  // Y-axis: Average interest level (1-5)
+  // Creates quadrant matrix: low-low to high-high
   const scatterData = useMemo(() => {
-    // Get top N gaps by priority to avoid overcrowding
-    const topGaps = [...gapData]
+    // Only include skills that have at least one assessment
+    const assessedGaps = gapData.filter(gap => gap.memberCount > 0);
+    
+    // Get top N by priority to avoid overcrowding
+    const topGaps = [...assessedGaps]
       .sort((a, b) => b.priority - a.priority)
       .slice(0, topNFilter);
     
     const data = topGaps.map(gap => ({
-      x: gap.gap,
-      y: gap.avgInterest,
+      x: gap.avgCurrentLevel, // Skill level (1-5)
+      y: gap.avgInterest, // Interest level (1-5)
       skill: gap.skillName,
+      category: gap.category,
+      currentLevel: gap.avgCurrentLevel,
+      requiredLevel: gap.requiredLevel,
+      gap: gap.gap,
       priority: gap.priority,
       members: gap.memberCount
     }));
 
+    // Color by quadrant position
     return {
       datasets: [{
-        label: `Top ${topNFilter} Priority Skills`,
+        label: `Team Skills (${data.length} assessed)`,
         data,
         backgroundColor: data.map(d => {
-          if (d.priority >= 10) return 'rgba(239, 68, 68, 0.8)'; // High priority - Red
-          if (d.priority >= 5) return 'rgba(245, 158, 11, 0.8)'; // Medium priority - Orange
-          if (d.priority >= 2) return 'rgba(59, 130, 246, 0.8)'; // Low priority - Blue
-          return 'rgba(156, 163, 175, 0.8)'; // Very low priority - Gray
+          // Quadrant-based coloring:
+          // High skill, High interest = Green (keep these strong)
+          // High skill, Low interest = Blue (maintain)
+          // Low skill, High interest = Orange (quick wins!)
+          // Low skill, Low interest = Red (critical gaps)
+          const highSkill = d.x >= 3;
+          const highInterest = d.y >= 3;
+          
+          if (highSkill && highInterest) return 'rgba(34, 197, 94, 0.8)'; // Green - Strategic assets
+          if (highSkill && !highInterest) return 'rgba(59, 130, 246, 0.8)'; // Blue - Maintain
+          if (!highSkill && highInterest) return 'rgba(245, 158, 11, 0.8)'; // Orange - Quick wins
+          return 'rgba(239, 68, 68, 0.8)'; // Red - Critical gaps
         }),
         borderColor: data.map(d => {
-          if (d.priority >= 10) return 'rgba(239, 68, 68, 1)';
-          if (d.priority >= 5) return 'rgba(245, 158, 11, 1)';
-          if (d.priority >= 2) return 'rgba(59, 130, 246, 1)';
-          return 'rgba(156, 163, 175, 1)';
+          const highSkill = d.x >= 3;
+          const highInterest = d.y >= 3;
+          
+          if (highSkill && highInterest) return 'rgba(34, 197, 94, 1)';
+          if (highSkill && !highInterest) return 'rgba(59, 130, 246, 1)';
+          if (!highSkill && highInterest) return 'rgba(245, 158, 11, 1)';
+          return 'rgba(239, 68, 68, 1)';
         }),
         borderWidth: 2,
-        pointRadius: 8, // Fixed larger size for better visibility
-        pointHoverRadius: 12
+        pointRadius: 8,
+        pointHoverRadius: 14
       }]
     };
   }, [gapData, topNFilter]);
@@ -510,14 +532,13 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
               Skills Gap Priority Matrix
             </CardTitle>
             <CardDescription>
-              <strong>How to Read This Chart:</strong>
+              <strong>Quadrant Analysis (Skill Level vs Interest Level):</strong>
               <ul className="mt-2 space-y-1 text-sm">
-                <li>• <strong>X-axis (Horizontal)</strong>: Skill Gap = How much development needed (Target - Current Level)</li>
-                <li>• <strong>Y-axis (Vertical)</strong>: Interest Level = How eager team members are to learn this skill (1-5)</li>
-                <li>• <strong>Dot Color</strong>: Red = High Priority, Orange = Medium, Blue = Low Priority</li>
-                <li>• <strong>Position</strong>: Top-right = High interest + Big gap = Priority for development!</li>
-                <li>• <strong>Bottom-right</strong>: Big gap but low interest = May need external hiring or motivation</li>
-                <li>• <strong>Top-left</strong>: High interest + Small gap = Quick wins, easy to close</li>
+                <li>• <strong>🟢 Top-Right</strong> (High Skill, High Interest): Strategic Assets - Keep these strong!</li>
+                <li>• <strong>🟠 Top-Left</strong> (Low Skill, High Interest): Quick Wins - Eager to learn, easy to develop</li>
+                <li>• <strong>🔴 Bottom-Left</strong> (Low Skill, Low Interest): Critical Gaps - Need motivation & training</li>
+                <li>• <strong>🔵 Bottom-Right</strong> (High Skill, Low Interest): Maintain - Competent but not passionate</li>
+                <li>• <strong>Hover over dots</strong> to see detailed metrics for each skill</li>
               </ul>
             </CardDescription>
           </CardHeader>
@@ -532,17 +553,23 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
                     x: {
                       title: {
                         display: true,
-                        text: 'Skill Gap (Required - Current)',
+                        text: 'Average Current Skill Level (1-5)',
                         color: 'white',
                         font: { size: 14, weight: 'bold' }
                       },
-                      ticks: { color: 'white', font: { size: 12 } },
+                      min: 0,
+                      max: 5,
+                      ticks: { 
+                        color: 'white', 
+                        font: { size: 12 },
+                        stepSize: 1
+                      },
                       grid: { color: 'rgba(255, 255, 255, 0.1)' }
                     },
                     y: {
                       title: {
                         display: true,
-                        text: 'Interest Level (How eager to learn)',
+                        text: 'Average Interest Level (1-5)',
                         color: 'white',
                         font: { size: 14, weight: 'bold' }
                       },
@@ -561,31 +588,48 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
                       labels: { color: 'white', font: { size: 12 } }
                     },
                     tooltip: {
-                      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                      backgroundColor: 'rgba(0, 0, 0, 0.95)',
                       titleColor: 'white',
                       bodyColor: 'white',
                       borderColor: 'rgba(255, 255, 255, 0.3)',
-                      borderWidth: 1,
-                      padding: 12,
+                      borderWidth: 2,
+                      padding: 16,
                       displayColors: true,
+                      bodyFont: { size: 13 },
+                      titleFont: { size: 14, weight: 'bold' },
                       callbacks: {
                         title: (context: any) => {
                           return `📊 ${context[0].raw.skill}`;
                         },
                         label: (context: any) => {
+                          const d = context.raw;
                           return [
-                            `Skill Gap: ${context.raw.x} levels`,
-                            `Team Interest: ${context.raw.y.toFixed(1)}/5 ⭐`,
-                            `Team Members: ${context.raw.members} people`,
-                            `Priority Score: ${context.raw.priority.toFixed(1)} 🎯`
+                            `Category: ${d.category}`,
+                            ``,
+                            `Current Level: ${d.currentLevel.toFixed(1)}/5 ⭐`,
+                            `Interest Level: ${d.y.toFixed(1)}/5 🎯`,
+                            `Required Level: ${d.requiredLevel}/5`,
+                            `Gap: ${d.gap.toFixed(1)} levels`,
+                            ``,
+                            `Team Members Assessed: ${d.members}`,
+                            `Priority Score: ${d.priority.toFixed(1)}`
                           ];
                         },
                         afterLabel: (context: any) => {
-                          const priority = context.raw.priority;
-                          if (priority >= 10) return '\n🔴 HIGH PRIORITY - Urgent focus needed!';
-                          if (priority >= 5) return '\n🟠 MEDIUM PRIORITY - Should address soon';
-                          if (priority >= 2) return '\n🔵 LOW PRIORITY - Nice to have';
-                          return '\n⚪ VERY LOW - Not urgent';
+                          const d = context.raw;
+                          const highSkill = d.x >= 3;
+                          const highInterest = d.y >= 3;
+                          
+                          if (highSkill && highInterest) {
+                            return '\n\n🟢 STRATEGIC ASSET\nKeep this skill strong!';
+                          }
+                          if (!highSkill && highInterest) {
+                            return '\n\n🟠 QUICK WIN\nTeam is eager - train now!';
+                          }
+                          if (!highSkill && !highInterest) {
+                            return '\n\n🔴 CRITICAL GAP\nNeeds development & motivation!';
+                          }
+                          return '\n\n🔵 MAINTAIN\nCompetent but not passionate';
                         }
                       }
                     }
