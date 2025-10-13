@@ -43,16 +43,16 @@ const VARKAssessmentPage: React.FC = () => {
       });
       
       setTimeout(() => {
-        navigate('/accountancy/dashboard');
+        navigate('/dashboard');
       }, 2000);
     } catch (err) {
       console.error('[VARKAssessmentPage] Error:', err);
-      navigate('/accountancy/team');
+      navigate('/team');
     }
   };
 
   const handleBack = () => {
-    navigate('/accountancy/team');
+    navigate('/team');
   };
 
   return (

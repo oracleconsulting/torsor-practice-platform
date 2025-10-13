@@ -152,7 +152,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
 
   // Command palette actions
   const commandActions = [
-    { id: 'start-assessment', label: 'Start Skills Assessment', icon: Play, action: () => navigate('/accountancy/team-portal/vark-assessment') },
+    { id: 'start-assessment', label: 'Start Skills Assessment', icon: Play, action: () => navigate('/team-portal/vark-assessment') },
     { id: 'view-gaps', label: 'View Gap Analysis', icon: Target, action: () => setExpandedSections(['team']) },
     { id: 'log-cpd', label: 'Log CPD Activity', icon: BookOpen, action: () => toast({ title: 'CPD Logger', description: 'Opening CPD activity logger...' }) },
     { id: 'find-mentor', label: 'Find a Mentor', icon: Users, action: () => toast({ title: 'Mentor Matching', description: 'Finding mentors for you...' }) },
@@ -373,7 +373,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                           </div>
                           <Button 
                             size="sm" 
-                            onClick={() => navigate('/accountancy/team-portal/vark-assessment')}
+                            onClick={() => navigate('/team-portal/vark-assessment')}
                             className="bg-green-600 hover:bg-green-700 text-white font-bold"
                           >
                             Take Now

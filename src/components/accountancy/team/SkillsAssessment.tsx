@@ -249,7 +249,7 @@ const SkillsAssessment: React.FC<SkillsAssessmentProps> = ({
             title: 'Next Step: VARK Assessment',
             description: 'Discover your learning style in just 5 minutes!',
           });
-          navigate('/accountancy/team-portal/vark-assessment');
+          navigate('/team-portal/vark-assessment');
         } else if (needsPassword) {
           // VARK done, but needs password setup
           console.log('[SkillsAssessment] Redirecting to password setup');
