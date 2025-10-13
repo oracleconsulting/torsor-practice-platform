@@ -109,6 +109,38 @@ const SkillsDashboardV2Page: React.FC = () => {
           ? (skills.length / totalSkillsCount) * 100 
           : 0;
 
+        // Extract learning style from VARK result
+        let learningStyle: 'visual' | 'auditory' | 'reading_writing' | 'kinesthetic' | 'multimodal' | undefined;
+        if (member.vark_result) {
+          const varkData = member.vark_result as any;
+          // Determine dominant style from percentages
+          const percentages = {
+            visual: varkData.visual || 0,
+            auditory: varkData.auditory || 0,
+            reading: varkData.reading || 0,
+            kinesthetic: varkData.kinesthetic || 0
+          };
+          
+          // Find max percentage
+          const max = Math.max(...Object.values(percentages));
+          const dominantStyles = Object.entries(percentages)
+            .filter(([_, val]) => val === max)
+            .map(([key]) => key);
+          
+          // Map to learningStyle format
+          if (dominantStyles.length >= 2) {
+            learningStyle = 'multimodal';
+          } else if (dominantStyles[0] === 'visual') {
+            learningStyle = 'visual';
+          } else if (dominantStyles[0] === 'auditory') {
+            learningStyle = 'auditory';
+          } else if (dominantStyles[0] === 'reading') {
+            learningStyle = 'reading_writing';
+          } else if (dominantStyles[0] === 'kinesthetic') {
+            learningStyle = 'kinesthetic';
+          }
+        }
+
         return {
           ...member,
           department: member.department || 'Advisory', // Default department
@@ -117,7 +149,8 @@ const SkillsDashboardV2Page: React.FC = () => {
           overallScore: Math.round(avgLevel * 10) / 10,
           vark_assessment_completed: member.vark_assessment_completed || false,
           vark_result: member.vark_result,
-          skills_assessment_progress
+          skills_assessment_progress,
+          learningStyle // Add learningStyle for Skills Matrix badges
         };
       });
 
