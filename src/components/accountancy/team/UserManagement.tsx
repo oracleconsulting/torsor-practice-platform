@@ -170,7 +170,7 @@ export default function UserManagement() {
       const { error: varkError } = await supabase
         .from('learning_preferences')
         .delete()
-        .eq('practice_member_id', userToDelete.id);
+        .eq('team_member_id', userToDelete.id);
 
       if (varkError) {
         console.error('Error deleting learning preferences:', varkError);
