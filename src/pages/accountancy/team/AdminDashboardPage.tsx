@@ -589,25 +589,25 @@ export default function AdminDashboardPage() {
                 <div key={index} className="space-y-2">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="font-medium text-sm">{gap.skill}</div>
+                      <div className="font-medium text-sm">{gap.name}</div>
                       <div className="flex items-center gap-4 mt-1 text-xs text-gray-600">
-                        <span>Current: {gap.currentAvg.toFixed(1)}</span>
-                        <span>Target: {gap.required}</span>
-                        <span>Gap: {Math.abs(gap.gap).toFixed(1)}</span>
+                        <span>Current: {gap.avgLevel?.toFixed(1) ?? '0.0'}</span>
+                        <span>Target: {gap.requiredLevel ?? 3}</span>
+                        <span>Gap: {Math.abs(gap.gap ?? 0).toFixed(1)}</span>
                         <div className="flex items-center gap-1">
                           <Award className="w-3 h-3" />
-                          Interest: {gap.interest}
+                          {gap.memberCount} team member{gap.memberCount !== 1 ? 's' : ''}
                         </div>
                       </div>
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <div className="flex-1">
-                      <Progress value={(gap.currentAvg / 5) * 100} className="h-1.5" />
+                      <Progress value={((gap.avgLevel ?? 0) / 5) * 100} className="h-1.5" />
                     </div>
                     <div className="flex-1">
                       <Progress
-                        value={(gap.required / 5) * 100}
+                        value={((gap.requiredLevel ?? 3) / 5) * 100}
                         className="h-1.5 [&>div]:bg-green-500"
                       />
                     </div>
