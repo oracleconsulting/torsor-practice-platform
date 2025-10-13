@@ -79,59 +79,29 @@ body {
 }
 
 /* ============================================================ */
-/* NUCLEAR FIX: AUTOMATIC CONTRAST FOR ALL BACKGROUNDS */
-/* Dark backgrounds → WHITE TEXT | Light backgrounds → BLACK TEXT */
+/* MINIMAL FIX: Let Tailwind classes work, stop theme overrides */
 /* ============================================================ */
 
-/* RULE 1: ALL DARK BACKGROUNDS → WHITE TEXT */
-[data-portal="accountancy"] .bg-gray-700,
-[data-portal="accountancy"] .bg-gray-800,
-[data-portal="accountancy"] .bg-gray-900,
-[data-portal="accountancy"] .bg-slate-700,
-[data-portal="accountancy"] .bg-slate-800,
-[data-portal="accountancy"] .bg-slate-900,
-[data-portal="accountancy"] .bg-blue-900,
-[data-portal="accountancy"] .bg-purple-900,
-[data-portal="accountancy"] .bg-indigo-900,
-[data-portal="accountancy"] .bg-green-900,
-[data-portal="accountancy"] .bg-red-900,
-[data-portal="accountancy"] .bg-yellow-900,
-[data-portal="accountancy"] [class*="bg-gray-7"],
-[data-portal="accountancy"] [class*="bg-gray-8"],
-[data-portal="accountancy"] [class*="bg-gray-9"],
-[data-portal="accountancy"] [class*="bg-slate-7"],
-[data-portal="accountancy"] [class*="bg-slate-8"],
-[data-portal="accountancy"] [class*="bg-slate-9"] {
-  color: #ffffff !important;
-}
-
-/* RULE 2: ALL DARK BACKGROUNDS → WHITE TEXT FOR ALL CHILDREN */
-[data-portal="accountancy"] .bg-gray-700 *,
-[data-portal="accountancy"] .bg-gray-800 *,
-[data-portal="accountancy"] .bg-gray-900 *,
-[data-portal="accountancy"] .bg-slate-700 *,
-[data-portal="accountancy"] .bg-slate-800 *,
-[data-portal="accountancy"] .bg-slate-900 *,
-[data-portal="accountancy"] .bg-blue-900 *,
-[data-portal="accountancy"] .bg-purple-900 *,
-[data-portal="accountancy"] .bg-indigo-900 *,
-[data-portal="accountancy"] .bg-green-900 *,
-[data-portal="accountancy"] .bg-red-900 *,
-[data-portal="accountancy"] .bg-yellow-900 *,
-[data-portal="accountancy"] [class*="bg-gray-7"] *,
-[data-portal="accountancy"] [class*="bg-gray-8"] *,
-[data-portal="accountancy"] [class*="bg-gray-9"] *,
-[data-portal="accountancy"] [class*="bg-slate-7"] *,
-[data-portal="accountancy"] [class*="bg-slate-8"] *,
-[data-portal="accountancy"] [class*="bg-slate-9"] * {
-  color: #ffffff !important;
-}
-
-/* RULE 3: FORCE WHITE FOR text-white CLASS (prevents overrides) */
+/* Ensure text-white ALWAYS stays white (prevents theme CSS from overriding) */
 [data-portal="accountancy"] .text-white,
-[data-portal="accountancy"] [class*="text-white"] {
+[data-portal="accountancy"] h1.text-white,
+[data-portal="accountancy"] h2.text-white,
+[data-portal="accountancy"] h3.text-white,
+[data-portal="accountancy"] h4.text-white,
+[data-portal="accountancy"] h5.text-white,
+[data-portal="accountancy"] h6.text-white,
+[data-portal="accountancy"] p.text-white,
+[data-portal="accountancy"] span.text-white,
+[data-portal="accountancy"] div.text-white {
   color: #ffffff !important;
 }
 
-/* RULE 4: LIGHT BACKGROUNDS → BLACK TEXT (already exists above) */
-/* This ensures light backgrounds always have dark text */
+/* Ensure text-gray-900 stays dark (for light backgrounds) */
+[data-portal="accountancy"] .text-gray-900 {
+  color: #111827 !important;
+}
+
+/* Ensure text-gray-800 stays dark */
+[data-portal="accountancy"] .text-gray-800 {
+  color: #1f2937 !important;
+}
