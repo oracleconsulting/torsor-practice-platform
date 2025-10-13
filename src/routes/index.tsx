@@ -21,6 +21,7 @@ import AccountancyDashboard from '../pages/AccountancyDashboard';
 import { ClientManagementPage } from '../components/accountancy/client-management/ClientManagementPage';
 import TeamManagementPage from '../pages/accountancy/TeamManagementPage';
 import SkillsAssessmentPage from '../pages/accountancy/team/SkillsAssessmentPage';
+import TeamMemberProfilePage from '../pages/accountancy/team/TeamMemberProfilePage';
 import { AlternateAuditorPage } from '../pages/accountancy/AlternateAuditorPage';
 import { MTDCapacityPage } from '../pages/accountancy/MTDCapacityPage';
 import { ESGReportingPage } from '../pages/accountancy/ESGReportingPage';
@@ -119,6 +120,7 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="client-management" element={<ClientManagementPage practiceId={practiceId} />} />
       <Route path="health" element={<PracticeHealth />} />
       <Route path="team/skills-assessment" element={<SkillsAssessmentPage />} />
+      <Route path="team/profile/:memberId" element={<TeamMemberProfilePage />} />
       <Route path="team-portal/vark-assessment" element={<VARKAssessmentPage />} />
       <Route path="team" element={<TeamManagementPage />} />
       <Route path="client-rescues" element={<ClientRescues />} />

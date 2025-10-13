@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +32,7 @@ import {
   Copy,
   Shield,
   Mail,
+  User,
 } from 'lucide-react';
 
 interface User {
@@ -48,6 +50,7 @@ interface User {
 export default function UserManagement() {
   const { practice } = useAccountancyContext();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -380,15 +383,26 @@ export default function UserManagement() {
                         </div>
                       </div>
 
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setUserToDelete(user)}
-                        className="flex-shrink-0 bg-red-600 hover:bg-red-700 text-white font-bold"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/team/profile/${user.id}`)}
+                          className="flex-shrink-0 border-gray-600 text-white font-bold hover:bg-gray-700 hover:text-white"
+                        >
+                          <User className="w-4 h-4 mr-2" />
+                          View Profile
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => setUserToDelete(user)}
+                          className="flex-shrink-0 bg-red-600 hover:bg-red-700 text-white font-bold"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 );
