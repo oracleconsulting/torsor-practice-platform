@@ -432,8 +432,10 @@ export async function getTeamCPDSummary(practiceId: string): Promise<TeamCPDSumm
 
   // Deduplicate members by email (keep the one with highest priority role)
   const rolesPriority: { [key: string]: number } = {
-    'owner': 5,
-    'director': 4,
+    'owner': 6,
+    'partner': 6,  // Same as owner
+    'director': 5,
+    'associate director': 4,
     'senior manager': 3,
     'manager': 2,
     'team member': 1
