@@ -487,7 +487,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                       <div className="flex items-start gap-3">
                         <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
                         <div>
-                          <h3 className="text-sm font-bold text-red-400">Critical Skills Gaps Detected</h3>
+                          <h3 className="text-sm font-bold text-white" style={{ color: '#ffffff' }}>Critical Skills Gaps Detected</h3>
                           <p className="text-sm text-white font-medium mt-1">
                             3 high-priority skills need immediate attention
                           </p>
