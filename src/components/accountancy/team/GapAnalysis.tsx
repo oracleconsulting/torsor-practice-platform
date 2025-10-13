@@ -231,25 +231,51 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
   // Y-axis: Average interest level (1-5)
   // Creates quadrant matrix: low-low to high-high
   const scatterData = useMemo(() => {
-    // Only include skills that have at least one assessment
-    const assessedGaps = gapData.filter(gap => gap.memberCount > 0);
+    // Get ALL assessed skills (don't filter by gap threshold for the chart)
+    const allSkills = skillCategories.flatMap(cat => cat.skills);
+    const assessedSkills = allSkills
+      .map(skill => {
+        const skillAssessments = teamMembers
+          .flatMap(member => member.skills)
+          .filter(memberSkill => memberSkill.skillId === skill.id);
+        
+        if (skillAssessments.length === 0) return null;
+        
+        const avgCurrentLevel = skillAssessments.reduce((sum, s) => sum + s.currentLevel, 0) / skillAssessments.length;
+        const avgInterest = skillAssessments.reduce((sum, s) => sum + (s.interestLevel || 3), 0) / skillAssessments.length;
+        const gap = Math.max(0, skill.requiredLevel - avgCurrentLevel);
+        
+        // Calculate priority
+        const priority = gap * (skill.requiredLevel / 5) * (avgInterest / 5) * skillAssessments.length;
+        
+        return {
+          skill: skill.name,
+          category: skill.category,
+          x: avgCurrentLevel,
+          y: avgInterest,
+          currentLevel: avgCurrentLevel,
+          requiredLevel: skill.requiredLevel,
+          gap,
+          priority,
+          members: skillAssessments.length
+        };
+      })
+      .filter(s => s !== null) as any[];
     
     // Get top N by priority to avoid overcrowding
-    const topGaps = [...assessedGaps]
+    const topSkills = [...assessedSkills]
       .sort((a, b) => b.priority - a.priority)
       .slice(0, topNFilter);
     
-    const data = topGaps.map(gap => ({
-      x: gap.avgCurrentLevel, // Skill level (1-5)
-      y: gap.avgInterest, // Interest level (1-5)
-      skill: gap.skillName,
-      category: gap.category,
-      currentLevel: gap.avgCurrentLevel,
-      requiredLevel: gap.requiredLevel,
-      gap: gap.gap,
-      priority: gap.priority,
-      members: gap.memberCount
-    }));
+    const data = topSkills;
+    
+    // Debug logging
+    console.log('[GapAnalysis] Scatter data:', {
+      totalSkills: allSkills.length,
+      assessedSkills: assessedSkills.length,
+      topSkills: data.length,
+      sample: data.slice(0, 3)
+    });
 
     // Color by quadrant position
     return {
@@ -527,18 +553,18 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
       {showHeatmap && (
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-white font-bold" style={{ color: '#ffffff' }}>
+              <BarChart3 className="w-5 h-5 text-white" />
               Skills Gap Priority Matrix
             </CardTitle>
-            <CardDescription>
-              <strong>Quadrant Analysis (Skill Level vs Interest Level):</strong>
-              <ul className="mt-2 space-y-1 text-sm">
-                <li>• <strong>🟢 Top-Right</strong> (High Skill, High Interest): Strategic Assets - Keep these strong!</li>
-                <li>• <strong>🟠 Top-Left</strong> (Low Skill, High Interest): Quick Wins - Eager to learn, easy to develop</li>
-                <li>• <strong>🔴 Bottom-Left</strong> (Low Skill, Low Interest): Critical Gaps - Need motivation & training</li>
-                <li>• <strong>🔵 Bottom-Right</strong> (High Skill, Low Interest): Maintain - Competent but not passionate</li>
-                <li>• <strong>Hover over dots</strong> to see detailed metrics for each skill</li>
+            <CardDescription className="text-white font-medium" style={{ color: '#ffffff' }}>
+              <strong className="text-white" style={{ color: '#ffffff' }}>Quadrant Analysis (Skill Level vs Interest Level):</strong>
+              <ul className="mt-2 space-y-1 text-sm text-white" style={{ color: '#ffffff' }}>
+                <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>🟢 Top-Right</strong> (High Skill, High Interest): Strategic Assets - Keep these strong!</li>
+                <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>🟠 Top-Left</strong> (Low Skill, High Interest): Quick Wins - Eager to learn, easy to develop</li>
+                <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>🔴 Bottom-Left</strong> (Low Skill, Low Interest): Critical Gaps - Need motivation & training</li>
+                <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>🔵 Bottom-Right</strong> (High Skill, Low Interest): Maintain - Competent but not passionate</li>
+                <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>Hover over dots</strong> to see detailed metrics for each skill</li>
               </ul>
             </CardDescription>
           </CardHeader>
@@ -949,11 +975,11 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2 text-white">
+              <CardTitle className="flex items-center gap-2 text-white font-bold" style={{ color: '#ffffff' }}>
                 <Sparkles className="w-6 h-6 text-yellow-400" />
                 AI-Powered Training Recommendations
               </CardTitle>
-              <CardDescription className="mt-2">
+              <CardDescription className="mt-2 text-white font-medium" style={{ color: '#ffffff' }}>
                 Get personalized training recommendations based on skill gaps, learning styles, and business priorities
               </CardDescription>
             </div>
@@ -1080,11 +1106,11 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
       {/* AI-Powered Recommendations CTA */}
       <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-700">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white">
+          <CardTitle className="flex items-center gap-2 text-white font-bold" style={{ color: '#ffffff' }}>
             <Sparkles className="w-5 h-5" />
             AI-Powered Training Recommendations
           </CardTitle>
-          <CardDescription className="text-white font-medium">
+          <CardDescription className="text-white font-medium" style={{ color: '#ffffff' }}>
             Get personalized training recommendations based on your skill gaps, interests, and learning style
           </CardDescription>
         </CardHeader>
