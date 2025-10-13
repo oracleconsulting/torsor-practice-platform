@@ -77,3 +77,26 @@ body {
 [data-portal="accountancy"] [class*="card"] span {
   color: #1a1a1a !important;
 }
+
+/* NUCLEAR FIX: Force white text on dark backgrounds in User Management */
+/* Override ALL other CSS with maximum specificity */
+[data-portal="accountancy"] .bg-gray-800 h3,
+[data-portal="accountancy"] .bg-gray-800 p,
+[data-portal="accountancy"] .bg-gray-900 h3,
+[data-portal="accountancy"] .bg-gray-900 p,
+[data-portal="accountancy"] .bg-gray-900 div,
+[data-portal="accountancy"] .bg-gray-900 span {
+  color: #ffffff !important;
+}
+
+/* Specific fix for CardTitle and CardDescription in dark cards */
+[data-portal="accountancy"] .bg-gray-800 [class*="CardTitle"],
+[data-portal="accountancy"] .bg-gray-800 [class*="CardDescription"],
+[data-portal="accountancy"] .bg-gray-800 h3[class*="text-white"],
+[data-portal="accountancy"] .bg-gray-800 p[class*="text-white"],
+[data-portal="accountancy"] .bg-gray-800 p[class*="text-gray"],
+[data-portal="accountancy"] .bg-gray-900 h3[class*="text-white"],
+[data-portal="accountancy"] .bg-gray-900 div[class*="text-white"],
+[data-portal="accountancy"] .bg-gray-900 span[class*="text-white"] {
+  color: #ffffff !important;
+}
