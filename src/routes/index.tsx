@@ -185,8 +185,8 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="manage-subscription" element={<ManageSubscriptionPage />} />
       <Route path="settings" element={<SettingsPage />} />
       
-      {/* Catch all - redirect to dashboard */}
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      {/* Catch all - redirect to team management */}
+      <Route path="*" element={<Navigate to="/team" replace />} />
     </Routes>
   );
 };
@@ -198,7 +198,7 @@ const TorsorRoutes: React.FC = () => {
     <Routes>
       {/* Public routes - No authentication required */}
       <Route path="/auth" element={
-        user ? <Navigate to="/dashboard" replace /> : <Navigate to="/auth?portal=torsor" replace />
+        user ? <Navigate to="/team" replace /> : <Navigate to="/auth?portal=torsor" replace />
       } />
       
       {/* Team Portal - Public Assessment (No Auth Required) */}

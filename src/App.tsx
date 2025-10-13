@@ -35,8 +35,8 @@ function App() {
               {/* Main App Routes */}
               <Route path="/*" element={<TorsorRoutes />} />
               
-              {/* Redirect root to dashboard */}
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              {/* Redirect root to team management */}
+              <Route path="/" element={<Navigate to="/team" replace />} />
             </Routes>
             <Toaster position="top-right" />
           </AccountancyProvider>
