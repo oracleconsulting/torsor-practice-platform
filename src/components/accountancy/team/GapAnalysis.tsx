@@ -657,31 +657,31 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
             
             {/* Quadrant Labels */}
             <div className="grid grid-cols-2 gap-4 mt-4">
-              <div className="p-3 bg-green-900/20 border border-green-700 rounded-lg">
+              <div className="p-3 bg-green-900 border border-green-700 rounded-lg">
                 <div className="flex items-center gap-2 mb-1">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  <span className="font-medium text-green-400">Quick Wins</span>
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="font-bold text-white">Quick Wins</span>
                 </div>
                 <p className="text-xs text-white font-medium">High interest, low gap - ideal for development</p>
               </div>
-              <div className="p-3 bg-blue-900/20 border border-blue-700 rounded-lg">
+              <div className="p-3 bg-blue-900 border border-blue-700 rounded-lg">
                 <div className="flex items-center gap-2 mb-1">
-                  <Target className="w-4 h-4 text-blue-500" />
-                  <span className="font-medium text-blue-400">Strategic Development</span>
+                  <Target className="w-4 h-4 text-blue-400" />
+                  <span className="font-bold text-white">Strategic Development</span>
                 </div>
                 <p className="text-xs text-white font-medium">High interest, high gap - strategic focus needed</p>
               </div>
-              <div className="p-3 bg-yellow-900/20 border border-yellow-700 rounded-lg">
+              <div className="p-3 bg-yellow-900 border border-yellow-700 rounded-lg">
                 <div className="flex items-center gap-2 mb-1">
-                  <AlertCircle className="w-4 h-4 text-yellow-500" />
-                  <span className="font-medium text-yellow-400">Low Priority</span>
+                  <AlertCircle className="w-4 h-4 text-yellow-400" />
+                  <span className="font-bold text-white">Low Priority</span>
                 </div>
                 <p className="text-xs text-white font-medium">Low interest, low gap - minimal impact</p>
               </div>
-              <div className="p-3 bg-red-900/20 border border-red-700 rounded-lg">
+              <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
                 <div className="flex items-center gap-2 mb-1">
-                  <XCircle className="w-4 h-4 text-red-500" />
-                  <span className="font-medium text-red-400">Critical Gaps</span>
+                  <XCircle className="w-4 h-4 text-red-400" />
+                  <span className="font-bold text-white">Critical Gaps</span>
                 </div>
                 <p className="text-xs text-white font-medium">Low interest, high gap - urgent attention required</p>
               </div>
@@ -718,13 +718,13 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
                   <tr key={gap.skillId} className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${index < 5 ? 'bg-red-50/30' : ''}`}>
                     <td className="p-4">
                       <div>
-                        <div className="font-semibold text-lg" style={{ color: '#000000' }}>{gap.skillName}</div>
-                        <div className="text-sm text-gray-100 font-medium mt-1">{gap.category}</div>
-                        <div className="text-xs mt-1 flex gap-3">
-                          <span style={{ color: '#000000' }}>
+                        <div className="font-semibold text-lg text-gray-900">{gap.skillName}</div>
+                        <div className="text-sm text-gray-600 font-medium mt-1">{gap.category}</div>
+                        <div className="text-xs mt-1 flex gap-3 text-gray-700">
+                          <span>
                             <strong>Required:</strong> Level {gap.requiredLevel}
                           </span>
-                          <span style={{ color: '#000000' }}>
+                          <span>
                             <strong>Current:</strong> Level {gap.avgCurrentLevel.toFixed(1)}
                           </span>
                         </div>
