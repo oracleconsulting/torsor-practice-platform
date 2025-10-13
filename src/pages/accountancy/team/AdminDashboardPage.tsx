@@ -20,6 +20,7 @@ import {
   Shield,
 } from 'lucide-react';
 import RoleManagement from '@/components/accountancy/team/RoleManagement';
+import UserManagement from '@/components/accountancy/team/UserManagement';
 import {
   BarChart,
   Bar,
@@ -138,9 +139,9 @@ export default function AdminDashboardPage() {
         </p>
       </div>
 
-      {/* Tabs for Dashboard vs Role Management */}
+      {/* Tabs for Dashboard vs Role Management vs User Management */}
       <Tabs defaultValue="dashboard" className="space-y-6">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-2xl grid-cols-3">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Dashboard
@@ -148,6 +149,10 @@ export default function AdminDashboardPage() {
           <TabsTrigger value="roles" className="flex items-center gap-2">
             <Shield className="h-4 w-4" />
             Role Management
+          </TabsTrigger>
+          <TabsTrigger value="users" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            User Management
           </TabsTrigger>
         </TabsList>
 
@@ -507,6 +512,11 @@ export default function AdminDashboardPage() {
         {/* Role Management Tab */}
         <TabsContent value="roles">
           <RoleManagement />
+        </TabsContent>
+
+        {/* User Management Tab */}
+        <TabsContent value="users">
+          <UserManagement />
         </TabsContent>
       </Tabs>
     </div>
