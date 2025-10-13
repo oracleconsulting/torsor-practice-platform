@@ -71,8 +71,8 @@ export default function Auth() {
             navigate('/auth?portal=client', { replace: true });
           }
         } else {
-          console.log('[Auth Debug] Accountancy user, redirecting to accountancy dashboard');
-          navigate('/accountancy/dashboard', { replace: true });
+          console.log('[Auth Debug] Accountancy user, redirecting to team management');
+          navigate('/accountancy/team', { replace: true });
         }
       } else {
         const from = location.state?.from?.pathname || '/dashboard';
@@ -116,10 +116,10 @@ export default function Auth() {
           
           // Add portal-specific redirect using React Router (no hard reload)
           if (portalType === 'accountancy' || isAccountancyPortal) {
-            console.log('[Auth] Redirecting to accountancy dashboard');
-            navigate('/accountancy/dashboard', { replace: true });
+            console.log('[Auth] Redirecting to team management');
+            navigate('/accountancy/team', { replace: true });
           } else {
-            navigate(location.state?.from?.pathname || '/dashboard', { replace: true });
+            navigate(location.state?.from?.pathname || '/team', { replace: true });
           }
         } else {
           setFormLoading(false);
