@@ -275,8 +275,8 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                     <User className="w-5 h-5 text-purple-400" />
                   </div>
                   <div className="flex-1 text-left">
-                    <h2 className="text-lg font-bold text-white">My Skills Journey</h2>
-                    <p className="text-sm text-white font-medium">Personal development and progress</p>
+                    <h2 className="text-lg font-bold text-white" style={{ color: '#ffffff' }}>My Skills Journey</h2>
+                    <p className="text-sm text-white font-medium" style={{ color: '#ffffff' }}>Personal development and progress</p>
                   </div>
                   {expandedSections.includes('journey') && (
                     <Badge variant="outline" className="text-green-400 border-green-500">
