@@ -35,6 +35,8 @@ import {
   PolarRadiusAxis,
   Radar,
 } from 'recharts';
+import { supabase } from '@/lib/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 /**
  * Admin Dashboard for Skills Portal
@@ -46,6 +48,7 @@ import {
  * - Development goal tracking
  */
 export default function AdminDashboardPage() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>({});
   const [cpdConfig, setCpdConfig] = useState({
@@ -58,18 +61,154 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     loadDashboardData();
     loadCpdConfig();
-  }, []);
+  }, [user]);
 
   const loadDashboardData = async () => {
     try {
-      // TODO: Implement actual admin stats API
-      // For now, show empty/zero state
+      console.log('[AdminDashboard] Loading real data from Supabase...');
+      
+      // Get all team members
+      const { data: members, error: membersError } = await supabase
+        .from('practice_members')
+        .select('*');
+
+      if (membersError) throw membersError;
+
+      const teamSize = members?.length || 0;
+      console.log('[AdminDashboard] Team size:', teamSize);
+
+      // Get all skill assessments
+      const { data: assessments, error: assessmentsError } = await supabase
+        .from('skill_assessments')
+        .select('team_member_id, skill_id, current_level, interest_level');
+
+      if (assessmentsError) throw assessmentsError;
+
+      // Get all skills
+      const { data: skills, error: skillsError } = await supabase
+        .from('skills')
+        .select('id, name, category, required_level');
+
+      if (skillsError) throw skillsError;
+
+      const totalSkills = skills?.length || 0;
+      console.log('[AdminDashboard] Total skills:', totalSkills);
+
+      // Calculate assessment progress
+      const membersWithAssessments = new Set(assessments?.map(a => a.team_member_id) || []);
+      const assessmentsComplete = membersWithAssessments.size;
+      const assessmentsPending = teamSize - assessmentsComplete;
+      const averageCompletion = teamSize > 0 ? Math.round((assessmentsComplete / teamSize) * 100) : 0;
+
+      // Calculate average team level
+      const totalLevel = assessments?.reduce((sum, a) => sum + (a.current_level || 0), 0) || 0;
+      const avgTeamLevel = assessments && assessments.length > 0 
+        ? (totalLevel / assessments.length).toFixed(1) 
+        : '0';
+
+      // Get development goals
+      const { data: goals, error: goalsError } = await supabase
+        .from('development_goals')
+        .select('*')
+        .in('status', ['active', 'planned']);
+
+      const activeGoals = goals?.length || 0;
+
+      // Calculate critical gaps (skills with avg level < required level)
+      const skillGaps = new Map<string, { total: number; count: number; required: number; name: string; category: string }>();
+      
+      assessments?.forEach(assessment => {
+        const skill = skills?.find(s => s.id === assessment.skill_id);
+        if (!skill) return;
+
+        if (!skillGaps.has(skill.id)) {
+          skillGaps.set(skill.id, {
+            total: 0,
+            count: 0,
+            required: skill.required_level || 3,
+            name: skill.name,
+            category: skill.category
+          });
+        }
+
+        const gap = skillGaps.get(skill.id)!;
+        gap.total += assessment.current_level || 0;
+        gap.count += 1;
+      });
+
+      const gaps = Array.from(skillGaps.entries())
+        .map(([skillId, gap]) => ({
+          skillId,
+          name: gap.name,
+          category: gap.category,
+          avgLevel: gap.total / gap.count,
+          requiredLevel: gap.required,
+          gap: gap.required - (gap.total / gap.count),
+          memberCount: gap.count
+        }))
+        .filter(g => g.gap > 0)
+        .sort((a, b) => b.gap - a.gap);
+
+      const criticalGaps = gaps.filter(g => g.gap >= 2).length;
+
+      // Group by category for chart
+      const categoryMap = new Map<string, { total: number; count: number }>();
+      assessments?.forEach(assessment => {
+        const skill = skills?.find(s => s.id === assessment.skill_id);
+        if (!skill) return;
+
+        if (!categoryMap.has(skill.category)) {
+          categoryMap.set(skill.category, { total: 0, count: 0 });
+        }
+
+        const cat = categoryMap.get(skill.category)!;
+        cat.total += assessment.current_level || 0;
+        cat.count += 1;
+      });
+
+      const categoryBreakdown = Array.from(categoryMap.entries())
+        .map(([category, stats]) => ({
+          category,
+          level: stats.count > 0 ? stats.total / stats.count : 0
+        }))
+        .sort((a, b) => b.level - a.level);
+
+      console.log('[AdminDashboard] Loaded data:', {
+        teamSize,
+        assessmentsComplete,
+        assessmentsPending,
+        averageCompletion,
+        totalSkills,
+        avgTeamLevel,
+        activeGoals,
+        criticalGaps,
+        categoryBreakdown: categoryBreakdown.length,
+        topGaps: gaps.slice(0, 5).length
+      });
+
       setData({
-        teamSize: 16, // Your target team size
+        teamSize,
+        assessmentsComplete,
+        assessmentsPending,
+        averageCompletion,
+        totalSkills,
+        avgTeamLevel,
+        activeGoals,
+        criticalGaps,
+        serviceLines: [], // TODO: Define service lines
+        categoryBreakdown,
+        topGaps: gaps.slice(0, 5),
+        recentActivity: [], // TODO: Track activity
+      });
+    } catch (error) {
+      console.error('[AdminDashboard] Failed to load dashboard data:', error);
+      // Set empty state on error
+      setData({
+        teamSize: 0,
         assessmentsComplete: 0,
-        assessmentsPending: 16,
+        assessmentsPending: 0,
         averageCompletion: 0,
-        totalSkills: 85,
+        totalSkills: 0,
         avgTeamLevel: 0,
         activeGoals: 0,
         criticalGaps: 0,
@@ -78,8 +217,6 @@ export default function AdminDashboardPage() {
         topGaps: [],
         recentActivity: [],
       });
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error);
     } finally {
       setLoading(false);
     }
