@@ -97,26 +97,7 @@ const AnalyticsDashboardPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Set empty data for now to prevent loading loops
-      setMetrics({
-        teamCapabilityScore: 0,
-        skillsCoveragePercentage: 0,
-        averageImprovementRate: 0,
-        cpdComplianceRate: 0,
-        mentoringEngagementScore: 0
-      });
-      setSkillProgression([]);
-      setDepartmentData([]);
-      setCpdInvestment([]);
-      setDemandSupply([]);
-      setGrowthTrajectories([]);
-      setSkillsAtRisk([]);
-      setSuccessionAlerts([]);
-      setTrainingROI([]);
-      setSkillGapForecasts([]);
-      setLastUpdate(new Date());
-      
-      /* Temporarily disabled - will be enabled when data is ready
+      // Load all analytics data
       const [
         metricsData,
         progressionData,
@@ -141,7 +122,15 @@ const AnalyticsDashboardPage: React.FC = () => {
         getSkillGapForecasts(practiceId)
       ]);
 
-      setMetrics(metricsData);
+      // Map the metrics to match the expected format
+      setMetrics({
+        teamCapabilityScore: metricsData.team_capability_score,
+        skillsCoveragePercentage: metricsData.skills_coverage_percentage,
+        averageImprovementRate: metricsData.avg_skill_improvement_rate,
+        cpdComplianceRate: metricsData.cpd_compliance_rate,
+        mentoringEngagementScore: metricsData.mentoring_engagement_score
+      });
+      
       setSkillProgression(progressionData);
       setDepartmentData(deptData);
       setCpdInvestment(cpdData);
@@ -151,9 +140,28 @@ const AnalyticsDashboardPage: React.FC = () => {
       setSuccessionAlerts(successionData);
       setTrainingROI(roiData);
       setSkillGapForecasts(forecastData);
-      */
+      setLastUpdate(new Date());
     } catch (error: any) {
       console.error('Error loading analytics:', error);
+      
+      // Set empty/default data on error
+      setMetrics({
+        teamCapabilityScore: 0,
+        skillsCoveragePercentage: 0,
+        averageImprovementRate: 0,
+        cpdComplianceRate: 0,
+        mentoringEngagementScore: 0
+      });
+      setSkillProgression([]);
+      setDepartmentData([]);
+      setCpdInvestment([]);
+      setDemandSupply([]);
+      setGrowthTrajectories([]);
+      setSkillsAtRisk([]);
+      setSuccessionAlerts([]);
+      setTrainingROI([]);
+      setSkillGapForecasts([]);
+      
       toast({
         title: 'Error',
         description: 'Failed to load analytics data',

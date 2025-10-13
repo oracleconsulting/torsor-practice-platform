@@ -150,3 +150,40 @@ body {
 [data-portal="accountancy"] .bg-gray-100:not([class*="text-"]) {
   color: #111827;
 }
+
+/* ============================================================ */
+/* NUCLEAR FIXES FOR SPECIFIC CONTRAST ISSUES */
+/* Override modern-saas-theme.css for light background sections */
+/* ============================================================ */
+
+/* Fix light purple/pink background sections - force black text */
+[data-portal="accountancy"] .bg-gradient-to-r h3,
+[data-portal="accountancy"] .bg-gradient-to-r h2,
+[data-portal="accountancy"] .bg-gradient-to-r p,
+[data-portal="accountancy"] .bg-gradient-to-r span,
+[data-portal="accountancy"] .bg-gradient-to-br h3,
+[data-portal="accountancy"] .bg-gradient-to-br h2,
+[data-portal="accountancy"] .bg-gradient-to-br p,
+[data-portal="accountancy"] .bg-gradient-to-br span {
+  color: inherit !important;
+}
+
+/* Force inline styles to always work */
+[data-portal="accountancy"] [style*="color"] {
+  color: inherit !important;
+}
+
+/* Specific fix for CardTitle and CardDescription on light backgrounds */
+[data-portal="accountancy"] .from-red-50 h3,
+[data-portal="accountancy"] .from-red-50 p,
+[data-portal="accountancy"] .from-orange-50 h3,
+[data-portal="accountancy"] .from-orange-50 p,
+[data-portal="accountancy"] .from-purple-100 h3,
+[data-portal="accountancy"] .from-purple-100 p,
+[data-portal="accountancy"] .from-indigo-100 h3,
+[data-portal="accountancy"] .from-indigo-100 p,
+[data-portal="accountancy"] .from-blue-100 h3,
+[data-portal="accountancy"] .from-blue-100 p {
+  color: #000000 !important;
+  font-weight: 600 !important;
+}
