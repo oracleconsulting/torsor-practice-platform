@@ -259,23 +259,23 @@ export default function UserManagement() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2 text-white font-bold">
+              <CardTitle className="flex items-center gap-2 text-white font-bold" style={{ color: '#ffffff' }}>
                 <Users className="w-5 h-5 text-white" />
                 User Management
               </CardTitle>
-              <CardDescription className="text-gray-200 font-medium">
+              <CardDescription className="text-gray-200 font-medium" style={{ color: '#e5e7eb' }}>
                 Manage practice members • Nuclear delete option
               </CardDescription>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">
-                <div className="text-2xl font-bold text-white">{users.length}</div>
-                <div className="text-sm text-gray-200 font-medium">Total Users</div>
+                <div className="text-2xl font-bold text-white" style={{ color: '#ffffff' }}>{users.length}</div>
+                <div className="text-sm text-gray-200 font-medium" style={{ color: '#e5e7eb' }}>Total Users</div>
               </div>
               {duplicateEmails.size > 0 && (
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-red-400">{duplicateEmails.size}</div>
-                  <div className="text-sm text-gray-200 font-medium">Duplicates</div>
+                  <div className="text-2xl font-bold text-red-400" style={{ color: '#f87171' }}>{duplicateEmails.size}</div>
+                  <div className="text-sm text-gray-200 font-medium" style={{ color: '#e5e7eb' }}>Duplicates</div>
                 </div>
               )}
             </div>
@@ -336,7 +336,7 @@ export default function UserManagement() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-white font-bold text-lg">{user.name}</h3>
+                          <h3 className="text-white font-bold text-lg" style={{ color: '#ffffff' }}>{user.name}</h3>
                           {isDuplicate && (
                             <Badge variant="destructive" className="text-xs font-bold">
                               <Copy className="w-3 h-3 mr-1" />
@@ -351,11 +351,11 @@ export default function UserManagement() {
                         </div>
                         
                         <div className="space-y-1 text-sm">
-                          <div className="flex items-center gap-2 text-white font-medium">
+                          <div className="flex items-center gap-2 text-white font-medium" style={{ color: '#ffffff' }}>
                             <Mail className="w-4 h-4 text-white" />
                             {user.email}
                           </div>
-                          <div className="flex items-center gap-2 text-white font-medium">
+                          <div className="flex items-center gap-2 text-white font-medium" style={{ color: '#ffffff' }}>
                             <Shield className="w-4 h-4 text-white" />
                             {user.role}
                           </div>
