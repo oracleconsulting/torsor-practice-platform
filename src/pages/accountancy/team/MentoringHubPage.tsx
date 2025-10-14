@@ -13,6 +13,7 @@ import type { TeamMemberForMatching } from '@/services/mentoring/matchingAlgorit
 const MentoringHubPage: React.FC = () => {
   const { user } = useAuth();
   const [teamMembers, setTeamMembers] = useState<TeamMemberForMatching[]>([]);
+  const [currentMemberId, setCurrentMemberId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,6 +28,18 @@ const MentoringHubPage: React.FC = () => {
 
     setLoading(true);
     try {
+      // First, get current user's practice_member id
+      const { data: currentMember } = await supabase
+        .from('practice_members')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (currentMember) {
+        setCurrentMemberId(currentMember.id);
+        console.log('[MentoringHubPage] Current member ID:', currentMember.id);
+      }
+
       // Load team members - simple query without auth.users join
       const { data: members, error: membersError } = await supabase
         .from('practice_members')
@@ -108,12 +121,14 @@ const MentoringHubPage: React.FC = () => {
     );
   }
 
-  if (!user) {
+  if (!user || !currentMemberId) {
     return (
       <div className="min-h-screen bg-background p-6 flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardContent className="p-8 text-center">
-            <p className="text-muted-foreground">Please log in to access the Mentoring Hub</p>
+            <p className="text-muted-foreground">
+              {!user ? 'Please log in to access the Mentoring Hub' : 'Loading your profile...'}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -125,7 +140,7 @@ const MentoringHubPage: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         <MentoringHub
           teamMembers={teamMembers}
-          currentUserId={user.id}
+          currentUserId={currentMemberId}
         />
       </div>
     </div>

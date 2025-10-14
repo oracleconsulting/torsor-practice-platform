@@ -97,12 +97,15 @@ export async function createMentoringRelationship(
 
 /**
  * Get all mentoring relationships for a user
+ * NOTE: userId is the practice_members.id, NOT auth.users.id
  */
 export async function getMentoringRelationships(
   userId: string,
   role?: 'mentor' | 'mentee'
 ): Promise<MentoringRelationship[]> {
   try {
+    console.log('[getMentoringRelationships] Fetching for userId:', userId, 'role:', role);
+    
     let query = supabase
       .from('mentoring_relationships')
       .select('*');
@@ -112,20 +115,21 @@ export async function getMentoringRelationships(
     } else if (role === 'mentee') {
       query = query.eq('mentee_id', userId);
     } else {
-      // Get both
+      // Get both - using practice_members.id
       query = query.or(`mentor_id.eq.${userId},mentee_id.eq.${userId}`);
     }
 
     const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching relationships:', error);
+      console.error('[getMentoringRelationships] Error fetching relationships:', error);
       return [];
     }
 
+    console.log('[getMentoringRelationships] Found relationships:', data?.length || 0);
     return (data as any) || [];
   } catch (error) {
-    console.error('Error fetching relationships:', error);
+    console.error('[getMentoringRelationships] Error fetching relationships:', error);
     return [];
   }
 }
