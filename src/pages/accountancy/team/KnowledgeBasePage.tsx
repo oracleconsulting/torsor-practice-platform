@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, FileText, Search, Plus, Tag, Clock, Eye, Loader2, AlertCircle,
-  Video, Newspaper, Globe, GraduationCap, BookMarked, Users
+  Video, Newspaper, Globe, GraduationCap, BookMarked, Users, Star, ExternalLink,
+  TrendingUp, Target, Award
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,12 @@ import {
   type CPDActivity 
 } from '@/lib/api/cpd';
 import { formatDate } from '@/lib/utils';
+import { 
+  loadLeadershipLibrary, 
+  getBookCoverUrl, 
+  searchLeadershipBooks,
+  type LeadershipBook 
+} from '@/lib/leadership-library-data';
 
 interface KnowledgeDocumentForm {
   title: string;
@@ -43,11 +50,15 @@ const KnowledgeBasePage: React.FC = () => {
 
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [cpdActivities, setCpdActivities] = useState<CPDActivity[]>([]);
+  const [leadershipBooks, setLeadershipBooks] = useState<LeadershipBook[]>([]);
+  const [selectedBook, setSelectedBook] = useState<LeadershipBook | null>(null);
+  const [showBookDialog, setShowBookDialog] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
   const [showUploadDialog, setShowUploadDialog] = useState(false);
 
   const [newDocument, setNewDocument] = useState<KnowledgeDocumentForm>({
@@ -81,9 +92,13 @@ const KnowledgeBasePage: React.FC = () => {
         setLoading(true);
         setError(null);
 
-        // If no practice, show empty state
+        // Load leadership library (public data)
+        const booksData = await loadLeadershipLibrary();
+        setLeadershipBooks(booksData);
+
+        // If no practice, show empty state for practice-specific content
         if (!practice?.id || !practiceMember?.id) {
-          console.log('[KnowledgeBase] No practice/member, showing empty state');
+          console.log('[KnowledgeBase] No practice/member, showing library only');
           setDocuments([]);
           setCpdActivities([]);
           setLoading(false);
@@ -147,6 +162,19 @@ const KnowledgeBasePage: React.FC = () => {
       (doc.skill_categories && doc.skill_categories.includes(selectedCategory));
 
     return matchesSearch && matchesTab && matchesType && matchesCategory;
+  });
+
+  // Filter leadership books
+  const filteredBooks = leadershipBooks.filter(book => {
+    const matchesSearch = searchQuery === '' ||
+      book.book_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      book.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      book.short_summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      book.key_concepts.some(concept => concept.toLowerCase().includes(searchQuery.toLowerCase()));
+    
+    const matchesDifficulty = selectedDifficulty === 'all' || book.difficulty_level === selectedDifficulty;
+
+    return matchesSearch && matchesDifficulty;
   });
 
   // Group documents by type
@@ -332,7 +360,7 @@ const KnowledgeBasePage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">
-              {documents.filter(d => d.document_type === 'leadership_book').length}
+              {leadershipBooks.length}
             </div>
           </CardContent>
         </Card>
@@ -386,20 +414,109 @@ const KnowledgeBasePage: React.FC = () => {
         </Card>
       </div>
 
-      {/* Documents List */}
-      {filteredDocuments.length === 0 ? (
+      {/* Leadership Books Tab - Special Handling */}
+      {activeTab === 'leadership_book' ? (
+        <div className="space-y-6">
+          {/* Filters for Books */}
+          <div className="flex gap-4 items-center">
+            <Select value={selectedDifficulty} onValueChange={setSelectedDifficulty}>
+              <SelectTrigger className="w-56">
+                <SelectValue placeholder="All Levels" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Levels</SelectItem>
+                <SelectItem value="Beginner">Beginner</SelectItem>
+                <SelectItem value="Intermediate">Intermediate</SelectItem>
+                <SelectItem value="Advanced">Advanced</SelectItem>
+              </SelectContent>
+            </Select>
+            <Badge variant="outline" className="text-gray-900">
+              {filteredBooks.length} {filteredBooks.length === 1 ? 'book' : 'books'}
+            </Badge>
+          </div>
+
+          {/* Books Gallery */}
+          {filteredBooks.length === 0 ? (
+            <Card className="bg-gray-50 border-gray-300">
+              <CardContent className="p-12 text-center">
+                <BookMarked className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-gray-900 mb-2">No Books Found</h3>
+                <p className="text-sm text-gray-700 mb-4">
+                  Try adjusting your search or filters
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+              {filteredBooks.map(book => (
+                <Card
+                  key={book.book_id}
+                  className="cursor-pointer hover:shadow-lg transition-shadow border-amber-200 hover:border-amber-400 group"
+                  onClick={() => {
+                    setSelectedBook(book);
+                    setShowBookDialog(true);
+                  }}
+                >
+                  <CardContent className="p-0">
+                    {/* Book Cover */}
+                    <div className="relative aspect-[2/3] overflow-hidden rounded-t-lg">
+                      <img
+                        src={getBookCoverUrl(book.cover_image_filename)}
+                        alt={book.book_title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = 'https://placehold.co/400x600/f59e0b/fff?text=' + encodeURIComponent(book.book_title.substring(0, 20));
+                        }}
+                      />
+                      {/* Difficulty Badge */}
+                      <div className="absolute top-2 right-2">
+                        <Badge 
+                          variant="secondary" 
+                          className={`text-xs ${
+                            book.difficulty_level === 'Beginner' ? 'bg-green-500/90' :
+                            book.difficulty_level === 'Intermediate' ? 'bg-blue-500/90' :
+                            'bg-purple-500/90'
+                          } text-white`}
+                        >
+                          {book.difficulty_level}
+                        </Badge>
+                      </div>
+                      {/* Rating Badge */}
+                      <div className="absolute bottom-2 left-2">
+                        <Badge variant="secondary" className="bg-white/90 text-gray-900 flex items-center gap-1">
+                          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                          {book.goodreads_rating.toFixed(1)}
+                        </Badge>
+                      </div>
+                    </div>
+                    {/* Book Info */}
+                    <div className="p-3 space-y-1">
+                      <h3 className="font-bold text-sm text-gray-900 line-clamp-2 group-hover:text-amber-600">
+                        {book.book_title}
+                      </h3>
+                      <p className="text-xs text-gray-700">{book.author}</p>
+                      <div className="flex items-center justify-between text-xs text-gray-600 pt-1">
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {book.estimated_read_time_hours}h
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Award className="h-3 w-3" />
+                          {book.cpd_hours_value} CPD
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : filteredDocuments.length === 0 ? (
         <Card className="bg-gray-50 border-gray-300">
           <CardContent className="p-12 text-center">
-            {activeTab === 'leadership_book' ? (
-              <>
-                <BookMarked className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-                <h3 className="text-lg font-bold text-gray-900 mb-2">Leadership Library</h3>
-                <p className="text-sm text-gray-700 mb-4">
-                  Build a curated collection of leadership books with key takeaways and actionable insights.
-                  Perfect for continuous professional development.
-                </p>
-              </>
-            ) : activeTab === 'knowledge_session' ? (
+            {activeTab === 'knowledge_session' ? (
               <>
                 <Video className="h-12 w-12 text-purple-500 mx-auto mb-4" />
                 <h3 className="text-lg font-bold text-gray-900 mb-2">Knowledge Sharing Sessions</h3>
@@ -696,6 +813,210 @@ const KnowledgeBasePage: React.FC = () => {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Book Detail Dialog */}
+      <Dialog open={showBookDialog} onOpenChange={setShowBookDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          {selectedBook && (
+            <div className="space-y-6">
+              {/* Header */}
+              <DialogHeader>
+                <div className="flex gap-6">
+                  {/* Book Cover */}
+                  <div className="flex-shrink-0">
+                    <img
+                      src={getBookCoverUrl(selectedBook.cover_image_filename)}
+                      alt={selectedBook.book_title}
+                      className="w-48 h-72 object-cover rounded-lg shadow-lg"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = 'https://placehold.co/400x600/f59e0b/fff?text=' + encodeURIComponent(selectedBook.book_title.substring(0, 20));
+                      }}
+                    />
+                  </div>
+                  
+                  {/* Book Metadata */}
+                  <div className="flex-1 space-y-3">
+                    <DialogTitle className="text-2xl text-gray-900">{selectedBook.book_title}</DialogTitle>
+                    <DialogDescription className="text-base text-gray-800 font-medium">
+                      by {selectedBook.author} • {selectedBook.publication_year}
+                    </DialogDescription>
+                    
+                    {/* Badges */}
+                    <div className="flex flex-wrap gap-2">
+                      <Badge className={`${
+                        selectedBook.difficulty_level === 'Beginner' ? 'bg-green-500' :
+                        selectedBook.difficulty_level === 'Intermediate' ? 'bg-blue-500' :
+                        'bg-purple-500'
+                      } text-white`}>
+                        {selectedBook.difficulty_level}
+                      </Badge>
+                      <Badge variant="outline" className="flex items-center gap-1 text-gray-900">
+                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                        {selectedBook.goodreads_rating.toFixed(1)} Goodreads
+                      </Badge>
+                      <Badge variant="outline" className="text-gray-900">
+                        <Clock className="h-3 w-3 mr-1" />
+                        {selectedBook.estimated_read_time_hours}h read
+                      </Badge>
+                      <Badge variant="outline" className="text-gray-900 bg-orange-50">
+                        <Award className="h-3 w-3 mr-1" />
+                        {selectedBook.cpd_hours_value} CPD hours
+                      </Badge>
+                    </div>
+
+                    {/* Short Summary */}
+                    <p className="text-sm text-gray-800 leading-relaxed">
+                      {selectedBook.short_summary}
+                    </p>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              {/* Full Summary */}
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Overview</h3>
+                <p className="text-sm text-gray-800 leading-relaxed">
+                  {selectedBook.full_summary}
+                </p>
+              </div>
+
+              {/* Key Concepts */}
+              {selectedBook.key_concepts.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+                    <Target className="h-5 w-5 text-orange-500" />
+                    Key Concepts
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedBook.key_concepts.map((concept, idx) => (
+                      <Badge key={idx} variant="outline" className="text-gray-900 bg-orange-50 border-orange-300">
+                        {concept}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Learning Objectives */}
+              {selectedBook.learning_objectives.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+                    <Target className="h-5 w-5 text-blue-500" />
+                    Learning Objectives
+                  </h3>
+                  <ul className="list-disc list-inside space-y-1 text-sm text-gray-800">
+                    {selectedBook.learning_objectives.map((obj, idx) => (
+                      <li key={idx}>{obj}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Actionable Takeaways */}
+              {selectedBook.actionable_takeaways.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-green-500" />
+                    Actionable Takeaways
+                  </h3>
+                  <ul className="list-disc list-inside space-y-1 text-sm text-gray-800">
+                    {selectedBook.actionable_takeaways.map((takeaway, idx) => (
+                      <li key={idx}>{takeaway}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Skills & Competencies */}
+              <div className="grid grid-cols-2 gap-4">
+                {selectedBook.leadership_competencies.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 mb-2">Leadership Competencies</h3>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedBook.leadership_competencies.map((comp, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-xs text-gray-900">
+                          {comp}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {selectedBook.soft_skills.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 mb-2">Soft Skills</h3>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedBook.soft_skills.slice(0, 6).map((skill, idx) => (
+                        <Badge key={idx} variant="outline" className="text-xs text-gray-900">
+                          {skill}
+                        </Badge>
+                      ))}
+                      {selectedBook.soft_skills.length > 6 && (
+                        <Badge variant="outline" className="text-xs text-gray-900">
+                          +{selectedBook.soft_skills.length - 6} more
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Best For */}
+              {selectedBook.best_for_scenarios.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 mb-2">Best For</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedBook.best_for_scenarios.map((scenario, idx) => (
+                      <Badge key={idx} variant="outline" className="text-gray-900 bg-blue-50 border-blue-300">
+                        {scenario}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Related Books */}
+              {selectedBook.related_books.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 mb-2">Related Reading</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedBook.related_books.map((book, idx) => (
+                      <Badge key={idx} variant="outline" className="text-gray-900">
+                        {book}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Quotes */}
+              {selectedBook.quotes.length > 0 && (
+                <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+                  <h3 className="text-sm font-bold text-gray-900 mb-2">Notable Quotes</h3>
+                  <div className="space-y-2">
+                    {selectedBook.quotes.map((quote, idx) => (
+                      <p key={idx} className="text-sm text-gray-800 italic">
+                        "{quote}"
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Footer Actions */}
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="outline" onClick={() => setShowBookDialog(false)}>
+                  Close
+                </Button>
+                <Button className="bg-orange-500 hover:bg-orange-600">
+                  <BookMarked className="h-4 w-4 mr-2" />
+                  Add to Reading List
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
