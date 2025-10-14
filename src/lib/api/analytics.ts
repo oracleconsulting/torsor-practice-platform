@@ -7,6 +7,9 @@
 
 import { supabase } from '@/lib/supabase/client';
 
+// Type helper to safely cast Supabase query results
+const toArray = (data: any): any[] => (data as any[] || []);
+
 // Types
 export interface TeamMetrics {
   team_capability_score: number;
@@ -107,12 +110,11 @@ export interface SkillGapForecast {
 }
 
 /**
- * Get team capability metrics
+ * Get team capability metrics - REAL DATA
  */
 export async function getTeamMetrics(practiceId: string): Promise<TeamMetrics> {
   try {
-    // In a real implementation, this would call a database view or function
-    // For now, we'll construct from multiple queries
+    console.log('[getTeamMetrics] Fetching real data for practice:', practiceId);
     
     // Get member count
     const { data: members, error: membersError } = await supabase
@@ -122,21 +124,61 @@ export async function getTeamMetrics(practiceId: string): Promise<TeamMetrics> {
 
     if (membersError) throw membersError;
     const totalMembers = members?.length || 0;
+    const memberIds = toArray(members).map((m: any) => m.id);
 
     // Get skills count
     const { data: skills, error: skillsError } = await supabase
       .from('skills')
-      .select('id');
+      .select('id, required_level');
 
     if (skillsError) throw skillsError;
     const totalSkills = skills?.length || 0;
 
-    // Calculate metrics (simplified - would be more complex in production)
-    const teamCapabilityScore = 75; // Would calculate from assessments
-    const skillsCoverage = 82; // Would calculate from assessments
-    const avgImprovement = 12.5; // Would calculate from tracking
-    const cpdCompliance = 88; // Would calculate from CPD data
-    const mentoringEngagement = 65; // Would calculate from mentoring data
+    // Get all skill assessments for the practice
+    const { data: assessments, error: assessError } = await supabase
+      .from('skill_assessments')
+      .select('team_member_id, skill_id, current_level, target_level')
+      .in('team_member_id', memberIds);
+
+    if (assessError) throw assessError;
+
+    // Calculate team capability score (average of all current levels / 5 * 100)
+    const avgLevel = assessments && assessments.length > 0
+      ? toArray(assessments).reduce((sum: number, a: any) => sum + a.current_level, 0) / assessments.length
+      : 0;
+    const teamCapabilityScore = Math.round((avgLevel / 5) * 100);
+
+    // Calculate skills coverage (% of skills assessed by at least one member)
+    const assessedSkillIds = new Set(toArray(assessments).map((a: any) => a.skill_id));
+    const skillsCoverage = totalSkills > 0 ? Math.round((assessedSkillIds.size / totalSkills) * 100) : 0;
+
+    // Calculate improvement rate (would need historical data - simplified for now)
+    const avgImprovement = 0; // TODO: Implement with skill_improvement_tracking
+
+    // Get CPD data
+    const { data: cpdData } = await supabase
+      .from('cpd_activities')
+      .select('hours, team_member_id')
+      .in('team_member_id', memberIds);
+
+    const totalCPDHours = toArray(cpdData).reduce((sum: number, c: any) => sum + (c.hours || 0), 0);
+    
+    // CPD compliance (members with >0 hours / total members * 100)
+    const membersWithCPD = new Set(toArray(cpdData).map((c: any) => c.team_member_id)).size;
+    const cpdCompliance = totalMembers > 0 ? Math.round((membersWithCPD / totalMembers) * 100) : 0;
+
+    // Mentoring engagement (simplified - would need mentoring_relationships table)
+    const mentoringEngagement = 0; // TODO: Implement with mentoring data
+
+    console.log('[getTeamMetrics] Calculated:', {
+      teamCapabilityScore,
+      skillsCoverage,
+      totalMembers,
+      totalSkills,
+      assessmentsCount: assessments?.length || 0,
+      totalCPDHours,
+      cpdCompliance
+    });
 
     return {
       team_capability_score: teamCapabilityScore,
@@ -146,8 +188,8 @@ export async function getTeamMetrics(practiceId: string): Promise<TeamMetrics> {
       mentoring_engagement_score: mentoringEngagement,
       total_members: totalMembers,
       total_skills: totalSkills,
-      total_cpd_hours: 450, // From CPD tracker
-      total_mentoring_sessions: 32 // From mentoring system
+      total_cpd_hours: totalCPDHours,
+      total_mentoring_sessions: 0 // TODO: Implement with mentoring data
     };
   } catch (error) {
     console.error('Error fetching team metrics:', error);
@@ -246,280 +288,684 @@ export async function getSkillProgression(
 }
 
 /**
- * Get department comparison data
+ * Get department comparison data - REAL DATA
  */
 export async function getDepartmentComparison(
   practiceId: string
 ): Promise<DepartmentComparison[]> {
   try {
-    // Mock data - would query assessments grouped by department
-    return [
-      {
-        department: 'Tax',
-        avg_technical: 4.2,
-        avg_soft_skills: 3.5,
-        avg_compliance: 4.5,
-        avg_business: 3.8,
-        avg_leadership: 3.2,
-        member_count: 8
-      },
-      {
-        department: 'Audit',
-        avg_technical: 4.0,
-        avg_soft_skills: 4.1,
-        avg_compliance: 4.3,
-        avg_business: 3.9,
-        avg_leadership: 3.7,
-        member_count: 10
-      },
-      {
-        department: 'Advisory',
-        avg_technical: 3.8,
-        avg_soft_skills: 4.3,
-        avg_compliance: 3.9,
-        avg_business: 4.2,
-        avg_leadership: 4.0,
-        member_count: 6
+    console.log('[getDepartmentComparison] Fetching real data for practice:', practiceId);
+
+    // Get all members with their departments
+    const { data: members, error: membersError } = await supabase
+      .from('practice_members')
+      .select('id, department')
+      .eq('practice_id', practiceId);
+
+    if (membersError) throw membersError;
+    if (!members || members.length === 0) return [];
+
+    // Get all skill assessments with skill categories
+    const memberIds = members.map(m => m.id);
+    const { data: assessments, error: assessError } = await supabase
+      .from('skill_assessments')
+      .select(`
+        team_member_id,
+        current_level,
+        skills (
+          category
+        )
+      `)
+      .in('team_member_id', memberIds);
+
+    if (assessError) throw assessError;
+    if (!assessments || assessments.length === 0) return [];
+
+    // Group by department and category
+    const deptMap = new Map<string, {
+      members: Set<string>;
+      categories: Map<string, { total: number; count: number }>;
+    }>();
+
+    members.forEach(member => {
+      const dept = member.department || 'Advisory';
+      if (!deptMap.has(dept)) {
+        deptMap.set(dept, {
+          members: new Set(),
+          categories: new Map()
+        });
       }
-    ];
+      deptMap.get(dept)!.members.add(member.id);
+    });
+
+    // Aggregate assessments by department and category
+    assessments.forEach((assessment: any) => {
+      const member = members.find(m => m.id === assessment.team_member_id);
+      if (!member) return;
+
+      const dept = member.department || 'Advisory';
+      const deptData = deptMap.get(dept)!;
+      const category = assessment.skills?.category || 'Technical';
+
+      if (!deptData.categories.has(category)) {
+        deptData.categories.set(category, { total: 0, count: 0 });
+      }
+
+      const catData = deptData.categories.get(category)!;
+      catData.total += assessment.current_level;
+      catData.count += 1;
+    });
+
+    // Convert to output format
+    const result: DepartmentComparison[] = Array.from(deptMap.entries()).map(([dept, data]) => {
+      const getAvg = (cat: string) => {
+        const catData = data.categories.get(cat);
+        return catData && catData.count > 0 ? Number((catData.total / catData.count).toFixed(1)) : 0;
+      };
+
+      return {
+        department: dept,
+        avg_technical: getAvg('Technical Accounting Fundamentals') || getAvg('Tax & Compliance - UK Focus') || 0,
+        avg_soft_skills: getAvg('Communication & Soft Skills') || 0,
+        avg_compliance: getAvg('Tax & Compliance - UK Focus') || 0,
+        avg_business: getAvg('Advisory & Consulting') || getAvg('Client Management & Development') || 0,
+        avg_leadership: getAvg('Leadership & Team Skills') || 0,
+        member_count: data.members.size
+      };
+    });
+
+    console.log('[getDepartmentComparison] Result:', result);
+    return result;
   } catch (error) {
     console.error('Error fetching department comparison:', error);
-    throw error;
+    return [];
   }
 }
 
 /**
- * Get CPD investment vs improvement data
+ * Get CPD investment vs improvement data - REAL DATA
  */
 export async function getCPDInvestmentAnalysis(
   practiceId: string
 ): Promise<CPDInvestment[]> {
   try {
-    // Mock data - would join CPD activities with skill improvements
-    return [
-      { member_name: 'John Smith', hours_invested: 40, improvement: 1.2, roi: 3.0, cost: 800 },
-      { member_name: 'Sarah Jones', hours_invested: 35, improvement: 1.5, roi: 4.3, cost: 700 },
-      { member_name: 'Mike Wilson', hours_invested: 50, improvement: 1.0, roi: 2.0, cost: 1000 },
-      { member_name: 'Emma Davis', hours_invested: 45, improvement: 1.8, roi: 4.0, cost: 900 },
-      { member_name: 'Tom Brown', hours_invested: 30, improvement: 0.8, roi: 2.7, cost: 600 }
-    ];
+    console.log('[getCPDInvestmentAnalysis] Fetching real data for practice:', practiceId);
+
+    // Get all members
+    const { data: members, error: membersError } = await supabase
+      .from('practice_members')
+      .select('id, name')
+      .eq('practice_id', practiceId);
+
+    if (membersError) throw membersError;
+    if (!members || members.length === 0) return [];
+
+    const memberIds = members.map(m => m.id);
+
+    // Get CPD activities
+    const { data: cpdActivities, error: cpdError } = await supabase
+      .from('cpd_activities')
+      .select('team_member_id, hours, cost')
+      .in('team_member_id', memberIds);
+
+    if (cpdError) throw cpdError;
+
+    // Get skill assessments to calculate improvement
+    const { data: assessments, error: assessError } = await supabase
+      .from('skill_assessments')
+      .select('team_member_id, current_level, target_level')
+      .in('team_member_id', memberIds);
+
+    if (assessError) throw assessError;
+
+    // Calculate metrics per member
+    const result: CPDInvestment[] = members.map(member => {
+      // Sum CPD hours and costs
+      const memberCPD = cpdActivities?.filter(c => c.team_member_id === member.id) || [];
+      const hours = memberCPD.reduce((sum, c) => sum + (c.hours || 0), 0);
+      const cost = memberCPD.reduce((sum, c) => sum + (c.cost || 0), 0);
+
+      // Calculate average improvement (target - current)
+      const memberAssessments = assessments?.filter(a => a.team_member_id === member.id) || [];
+      const avgImprovement = memberAssessments.length > 0
+        ? memberAssessments.reduce((sum, a) => sum + (a.target_level - a.current_level), 0) / memberAssessments.length
+        : 0;
+
+      // Calculate ROI (improvement per hour)
+      const roi = hours > 0 ? (avgImprovement * 10) / hours : 0; // Simplified formula
+
+      return {
+        member_name: member.name,
+        hours_invested: hours,
+        improvement: Number(Math.max(0, avgImprovement).toFixed(1)),
+        roi: Number(Math.max(0, roi).toFixed(1)),
+        cost: cost
+      };
+    }).filter(m => m.hours_invested > 0); // Only show members with CPD activity
+
+    console.log('[getCPDInvestmentAnalysis] Result:', result);
+    return result;
   } catch (error) {
     console.error('Error fetching CPD investment analysis:', error);
-    throw error;
+    return [];
   }
 }
 
 /**
- * Get skill demand vs supply heatmap
+ * Get skill demand vs supply heatmap - REAL DATA
  */
 export async function getSkillDemandSupply(
   practiceId: string
 ): Promise<SkillDemandSupply[]> {
   try {
-    // Mock data - would calculate from requirements vs current levels
-    return [
-      { skill_name: 'Tax Planning', demand_score: 90, supply_score: 75, gap: 15, category: 'Technical' },
-      { skill_name: 'Financial Audit', demand_score: 85, supply_score: 80, gap: 5, category: 'Technical' },
-      { skill_name: 'Client Management', demand_score: 95, supply_score: 65, gap: 30, category: 'Soft Skills' },
-      { skill_name: 'Data Analytics', demand_score: 80, supply_score: 45, gap: 35, category: 'Technical' },
-      { skill_name: 'Leadership', demand_score: 70, supply_score: 55, gap: 15, category: 'Leadership' }
-    ];
+    console.log('[getSkillDemandSupply] Fetching real data for practice:', practiceId);
+
+    // Get all members
+    const { data: members, error: membersError } = await supabase
+      .from('practice_members')
+      .select('id')
+      .eq('practice_id', practiceId);
+
+    if (membersError) throw membersError;
+    if (!members || members.length === 0) return [];
+
+    const memberIds = members.map(m => m.id);
+
+    // Get all skills with required levels
+    const { data: skills, error: skillsError } = await supabase
+      .from('skills')
+      .select('id, name, category, required_level');
+
+    if (skillsError) throw skillsError;
+    if (!skills || skills.length === 0) return [];
+
+    // Get all assessments
+    const { data: assessments, error: assessError } = await supabase
+      .from('skill_assessments')
+      .select('skill_id, current_level')
+      .in('team_member_id', memberIds);
+
+    if (assessError) throw assessError;
+
+    // Calculate demand vs supply for each skill
+    const result: SkillDemandSupply[] = skills.map(skill => {
+      // Demand score: required level * 20 (to get 0-100 scale)
+      const demandScore = skill.required_level * 20;
+
+      // Supply score: average current level * 20
+      const skillAssessments = assessments?.filter(a => a.skill_id === skill.id) || [];
+      const avgLevel = skillAssessments.length > 0
+        ? skillAssessments.reduce((sum, a) => sum + a.current_level, 0) / skillAssessments.length
+        : 0;
+      const supplyScore = Math.round(avgLevel * 20);
+
+      // Gap: difference
+      const gap = demandScore - supplyScore;
+
+      return {
+        skill_name: skill.name,
+        demand_score: demandScore,
+        supply_score: supplyScore,
+        gap: gap,
+        category: skill.category
+      };
+    })
+    .filter(s => s.gap > 0) // Only show skills with gaps
+    .sort((a, b) => b.gap - a.gap) // Sort by gap descending
+    .slice(0, 15); // Top 15
+
+    console.log('[getSkillDemandSupply] Result:', result.length, 'skills with gaps');
+    return result;
   } catch (error) {
     console.error('Error fetching skill demand/supply:', error);
-    throw error;
+    return [];
   }
 }
 
 /**
- * Get individual growth trajectories
+ * Get individual growth trajectories - REAL DATA
  */
 export async function getGrowthTrajectories(
   practiceId: string,
   limit: number = 10
 ): Promise<GrowthTrajectory[]> {
   try {
-    // Mock data - would query skill assessment history
-    return [
-      {
-        member_id: '1',
-        member_name: 'John Smith',
-        data_points: [
-          { date: '2025-06', avg_skill_level: 2.5, total_skills: 20 },
-          { date: '2025-07', avg_skill_level: 2.7, total_skills: 22 },
-          { date: '2025-08', avg_skill_level: 2.9, total_skills: 24 },
-          { date: '2025-09', avg_skill_level: 3.1, total_skills: 25 },
-          { date: '2025-10', avg_skill_level: 3.3, total_skills: 26 }
-        ]
-      },
-      {
-        member_id: '2',
-        member_name: 'Sarah Jones',
-        data_points: [
-          { date: '2025-06', avg_skill_level: 3.0, total_skills: 25 },
-          { date: '2025-07', avg_skill_level: 3.2, total_skills: 27 },
-          { date: '2025-08', avg_skill_level: 3.5, total_skills: 28 },
-          { date: '2025-09', avg_skill_level: 3.7, total_skills: 30 },
-          { date: '2025-10', avg_skill_level: 4.0, total_skills: 32 }
-        ]
-      }
-    ];
+    console.log('[getGrowthTrajectories] Fetching real data for practice:', practiceId);
+
+    // Get all members
+    const { data: members, error: membersError } = await supabase
+      .from('practice_members')
+      .select('id, name')
+      .eq('practice_id', practiceId)
+      .limit(limit);
+
+    if (membersError) throw membersError;
+    if (!members || members.length === 0) return [];
+
+    const memberIds = members.map(m => m.id);
+
+    // Get all assessments with dates
+    const { data: assessments, error: assessError } = await supabase
+      .from('skill_assessments')
+      .select('team_member_id, current_level, assessed_at')
+      .in('team_member_id', memberIds)
+      .order('assessed_at', { ascending: true });
+
+    if (assessError) throw assessError;
+    if (!assessments || assessments.length === 0) return [];
+
+    // Group by member and month
+    const result: GrowthTrajectory[] = members.map(member => {
+      const memberAssessments = assessments.filter(a => a.team_member_id === member.id);
+      
+      // Group by month
+      const monthlyData = new Map<string, { levels: number[]; count: number }>();
+      
+      memberAssessments.forEach(assessment => {
+        const date = new Date(assessment.assessed_at);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        
+        if (!monthlyData.has(monthKey)) {
+          monthlyData.set(monthKey, { levels: [], count: 0 });
+        }
+        
+        const data = monthlyData.get(monthKey)!;
+        data.levels.push(assessment.current_level);
+        data.count++;
+      });
+
+      // Convert to data points
+      const data_points = Array.from(monthlyData.entries())
+        .map(([date, data]) => ({
+          date,
+          avg_skill_level: Number((data.levels.reduce((sum, l) => sum + l, 0) / data.levels.length).toFixed(1)),
+          total_skills: data.count
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      return {
+        member_id: member.id,
+        member_name: member.name,
+        data_points
+      };
+    }).filter(m => m.data_points.length > 0); // Only members with assessment history
+
+    console.log('[getGrowthTrajectories] Result:', result.length, 'members with trajectories');
+    return result;
   } catch (error) {
     console.error('Error fetching growth trajectories:', error);
-    throw error;
+    return [];
   }
 }
 
 /**
- * Get skills at risk (declining trends)
+ * Get skills at risk (declining or stagnant trends) - REAL DATA
  */
 export async function getSkillsAtRisk(
   practiceId: string
 ): Promise<SkillAtRisk[]> {
   try {
-    // Mock data - would analyze trends in skill_improvement_tracking
-    return [
-      {
-        skill_name: 'VAT Compliance',
-        category: 'Compliance',
-        trend: 'declining',
-        current_avg_level: 3.2,
-        decline_rate: -0.15,
-        affected_members: 5,
-        recommendation: 'Schedule refresher training. VAT rules have changed recently.'
-      },
-      {
-        skill_name: 'Excel Advanced',
-        category: 'Technical',
-        trend: 'stagnant',
-        current_avg_level: 2.8,
-        decline_rate: 0.0,
-        affected_members: 8,
-        recommendation: 'Introduce new analytics tools to revitalize this skill area.'
-      }
-    ];
+    console.log('[getSkillsAtRisk] Fetching real data for practice:', practiceId);
+
+    // Get all members
+    const { data: members, error: membersError } = await supabase
+      .from('practice_members')
+      .select('id')
+      .eq('practice_id', practiceId);
+
+    if (membersError) throw membersError;
+    if (!members || members.length === 0) return [];
+
+    const memberIds = members.map(m => m.id);
+
+    // Get all skills
+    const { data: skills, error: skillsError } = await supabase
+      .from('skills')
+      .select('id, name, category, required_level');
+
+    if (skillsError) throw skillsError;
+    if (!skills || skills.length === 0) return [];
+
+    // Get assessments with dates (last 6 months)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const { data: assessments, error: assessError } = await supabase
+      .from('skill_assessments')
+      .select('skill_id, current_level, assessed_at, team_member_id')
+      .in('team_member_id', memberIds)
+      .gte('assessed_at', sixMonthsAgo.toISOString())
+      .order('assessed_at', { ascending: true });
+
+    if (assessError) throw assessError;
+    if (!assessments || assessments.length === 0) return [];
+
+    // Analyze each skill for trends
+    const result: SkillAtRisk[] = [];
+
+    skills.forEach(skill => {
+      const skillAssessments = assessments.filter(a => a.skill_id === skill.id);
+      if (skillAssessments.length < 2) return; // Need at least 2 data points
+
+      // Get current average
+      const currentAvg = skillAssessments.reduce((sum, a) => sum + a.current_level, 0) / skillAssessments.length;
+
+      // Check if below required level
+      if (currentAvg >= skill.required_level) return; // Not at risk
+
+      // Simple trend analysis: compare first half vs second half
+      const mid = Math.floor(skillAssessments.length / 2);
+      const firstHalf = skillAssessments.slice(0, mid);
+      const secondHalf = skillAssessments.slice(mid);
+
+      const firstAvg = firstHalf.reduce((sum, a) => sum + a.current_level, 0) / firstHalf.length;
+      const secondAvg = secondHalf.reduce((sum, a) => sum + a.current_level, 0) / secondHalf.length;
+      const declineRate = secondAvg - firstAvg;
+
+      // Determine trend
+      let trend: 'declining' | 'stagnant' = 'stagnant';
+      if (declineRate < -0.1) trend = 'declining';
+
+      // Count affected members
+      const affectedMemberIds = new Set(skillAssessments.map(a => a.team_member_id));
+
+      result.push({
+        skill_name: skill.name,
+        category: skill.category,
+        trend,
+        current_avg_level: Number(currentAvg.toFixed(1)),
+        decline_rate: Number(declineRate.toFixed(2)),
+        affected_members: affectedMemberIds.size,
+        recommendation: trend === 'declining'
+          ? `Schedule refresher training. ${skill.name} levels are declining.`
+          : `Introduce new tools or training to revitalize this skill area.`
+      });
+    });
+
+    console.log('[getSkillsAtRisk] Result:', result.length, 'skills at risk');
+    return result.slice(0, 10); // Top 10
   } catch (error) {
     console.error('Error fetching skills at risk:', error);
-    throw error;
+    return [];
   }
 }
 
 /**
- * Get succession planning alerts
+ * Get succession planning alerts - REAL DATA
  */
 export async function getSuccessionAlerts(
   practiceId: string
 ): Promise<SuccessionAlert[]> {
   try {
-    // Mock data - would analyze role requirements vs member skills
-    return [
-      {
-        role: 'Tax Partner',
-        current_holder: 'Jane Doe (retiring in 18 months)',
-        risk_level: 'high',
-        potential_successors: [
-          {
-            name: 'John Smith',
-            readiness_score: 75,
-            skills_gap: ['Client Portfolio Management', 'Business Development']
-          },
-          {
-            name: 'Sarah Jones',
-            readiness_score: 68,
-            skills_gap: ['Leadership', 'Strategic Planning', 'Business Development']
-          }
-        ],
-        recommendation: 'Accelerate leadership training for John Smith. Consider external hire as backup.'
-      }
-    ];
+    console.log('[getSuccessionAlerts] Fetching real data for practice:', practiceId);
+
+    // Get all members with their roles
+    const { data: members, error: membersError } = await supabase
+      .from('practice_members')
+      .select('id, name, role')
+      .eq('practice_id', practiceId);
+
+    if (membersError) throw membersError;
+    if (!members || members.length === 0) return [];
+
+    // Get all senior roles that might need succession planning
+    const seniorRoles = ['Partner', 'Director', 'Manager'];
+    const seniorMembers = members.filter(m => seniorRoles.some(role => m.role?.includes(role)));
+
+    if (seniorMembers.length === 0) return [];
+
+    const memberIds = members.map(m => m.id);
+
+    // Get all skill assessments
+    const { data: assessments, error: assessError } = await supabase
+      .from('skill_assessments')
+      .select('team_member_id, skill_id, current_level')
+      .in('team_member_id', memberIds);
+
+    if (assessError) throw assessError;
+
+    // Get all skills
+    const { data: skills, error: skillsError } = await supabase
+      .from('skills')
+      .select('id, name, category');
+
+    if (skillsError) throw skillsError;
+
+    // For each senior role, find potential successors
+    const result: SuccessionAlert[] = seniorMembers.map(seniorMember => {
+      // Get senior member's skills
+      const seniorSkills = assessments?.filter(a => a.team_member_id === seniorMember.id) || [];
+      const seniorSkillIds = new Set(seniorSkills.map(s => s.skill_id));
+
+      // Find other members who could be successors
+      const potentialSuccessors = members
+        .filter(m => m.id !== seniorMember.id && m.role !== seniorMember.role)
+        .map(member => {
+          const memberSkills = assessments?.filter(a => a.team_member_id === member.id) || [];
+          const memberSkillIds = new Set(memberSkills.map(s => s.skill_id));
+
+          // Calculate readiness: % of senior skills they have
+          const overlap = Array.from(seniorSkillIds).filter(id => memberSkillIds.has(id)).length;
+          const readinessScore = seniorSkillIds.size > 0
+            ? Math.round((overlap / seniorSkillIds.size) * 100)
+            : 0;
+
+          // Find skills gap
+          const gapSkillIds = Array.from(seniorSkillIds).filter(id => !memberSkillIds.has(id));
+          const skills_gap = gapSkillIds
+            .map(id => skills?.find(s => s.id === id)?.name)
+            .filter((name): name is string => !!name)
+            .slice(0, 3); // Top 3 gaps
+
+          return {
+            name: member.name,
+            readiness_score: readinessScore,
+            skills_gap
+          };
+        })
+        .filter(s => s.readiness_score > 50) // Only show viable successors
+        .sort((a, b) => b.readiness_score - a.readiness_score)
+        .slice(0, 3); // Top 3 successors
+
+      // Determine risk level
+      const topReadiness = potentialSuccessors[0]?.readiness_score || 0;
+      const risk_level: 'high' | 'medium' | 'low' =
+        topReadiness < 60 ? 'high' :
+        topReadiness < 75 ? 'medium' : 'low';
+
+      return {
+        role: seniorMember.role || 'Senior Role',
+        current_holder: seniorMember.name,
+        risk_level,
+        potential_successors: potentialSuccessors,
+        recommendation: potentialSuccessors.length > 0
+          ? `Accelerate leadership training for ${potentialSuccessors[0].name}. ${risk_level === 'high' ? 'Consider external hire as backup.' : ''}`
+          : 'No clear internal successor identified. Consider external recruitment.'
+      };
+    });
+
+    console.log('[getSuccessionAlerts] Result:', result.length, 'succession alerts');
+    return result;
   } catch (error) {
     console.error('Error fetching succession alerts:', error);
-    throw error;
+    return [];
   }
 }
 
 /**
- * Get training ROI predictions
+ * Get training ROI predictions - REAL DATA (simplified)
  */
 export async function getTrainingROIPredictions(
   practiceId: string
 ): Promise<TrainingROI[]> {
   try {
-    // Mock data - would use ML model based on historical data
-    return [
-      {
-        training_type: 'Data Analytics Bootcamp',
-        predicted_improvement: 1.5,
-        estimated_cost: 2500,
-        estimated_hours: 40,
-        expected_roi: 3.2,
-        confidence: 0.85
-      },
-      {
-        training_type: 'Leadership Development Program',
-        predicted_improvement: 1.2,
-        estimated_cost: 3000,
-        estimated_hours: 60,
-        expected_roi: 2.8,
-        confidence: 0.78
-      },
-      {
-        training_type: 'Client Communication Workshop',
-        predicted_improvement: 0.8,
-        estimated_cost: 800,
-        estimated_hours: 16,
-        expected_roi: 4.5,
-        confidence: 0.92
+    console.log('[getTrainingROIPredictions] Fetching real data for practice:', practiceId);
+
+    // Get members
+    const { data: members, error: membersError } = await supabase
+      .from('practice_members')
+      .select('id')
+      .eq('practice_id', practiceId);
+
+    if (membersError) throw membersError;
+    if (!members || members.length === 0) return [];
+
+    const memberIds = members.map(m => m.id);
+
+    // Get skill gaps (skills below required level)
+    const { data: skills, error: skillsError } = await supabase
+      .from('skills')
+      .select('id, name, category, required_level');
+
+    if (skillsError) throw skillsError;
+
+    const { data: assessments, error: assessError } = await supabase
+      .from('skill_assessments')
+      .select('skill_id, current_level, target_level')
+      .in('team_member_id', memberIds);
+
+    if (assessError) throw assessError;
+
+    // Calculate gaps by category
+    const categoryGaps = new Map<string, { gap: number; count: number }>();
+
+    skills?.forEach(skill => {
+      const skillAssessments = assessments?.filter(a => a.skill_id === skill.id) || [];
+      if (skillAssessments.length === 0) return;
+
+      const avgLevel = skillAssessments.reduce((sum, a) => sum + a.current_level, 0) / skillAssessments.length;
+      const gap = Math.max(0, skill.required_level - avgLevel);
+
+      if (gap > 0.5) { // Only significant gaps
+        if (!categoryGaps.has(skill.category)) {
+          categoryGaps.set(skill.category, { gap: 0, count: 0 });
+        }
+        const data = categoryGaps.get(skill.category)!;
+        data.gap += gap;
+        data.count++;
       }
-    ];
+    });
+
+    // Create training recommendations based on gaps
+    const result: TrainingROI[] = Array.from(categoryGaps.entries())
+      .map(([category, data]) => {
+        const avgGap = data.gap / data.count;
+        
+        // Estimate training parameters based on gap size and category
+        const estimated_hours = Math.round(avgGap * 20); // ~20 hours per gap level
+        const estimated_cost = estimated_hours * 50; // £50/hour estimate
+        const predicted_improvement = Number(avgGap.toFixed(1));
+        const expected_roi = Number((predicted_improvement / (estimated_hours / 10)).toFixed(1));
+        const confidence = data.count > 5 ? 0.85 : 0.70; // Higher confidence with more data
+
+        return {
+          training_type: `${category} Development Program`,
+          predicted_improvement,
+          estimated_cost,
+          estimated_hours,
+          expected_roi,
+          confidence
+        };
+      })
+      .sort((a, b) => b.expected_roi - a.expected_roi)
+      .slice(0, 5); // Top 5
+
+    console.log('[getTrainingROIPredictions] Result:', result.length, 'predictions');
+    return result;
   } catch (error) {
     console.error('Error fetching training ROI predictions:', error);
-    throw error;
+    return [];
   }
 }
 
 /**
- * Get future skill gap forecasts
+ * Get future skill gap forecasts - REAL DATA (simplified projection)
  */
 export async function getSkillGapForecasts(
   practiceId: string
 ): Promise<SkillGapForecast[]> {
   try {
-    // Mock data - would use trend analysis and industry data
-    return [
-      {
-        skill_name: 'AI/ML for Accounting',
-        category: 'Technical',
-        current_gap: 45,
-        predicted_gap_3_months: 50,
-        predicted_gap_6_months: 55,
-        predicted_gap_12_months: 60,
-        trend: 'worsening',
-        recommendation: 'Urgent: Invest in AI training now. Industry demand increasing rapidly.'
-      },
-      {
-        skill_name: 'ESG Reporting',
-        category: 'Compliance',
-        current_gap: 35,
-        predicted_gap_3_months: 32,
-        predicted_gap_6_months: 28,
-        predicted_gap_12_months: 25,
-        trend: 'improving',
-        recommendation: 'On track. Continue current training initiatives.'
-      },
-      {
-        skill_name: 'Cybersecurity Awareness',
-        category: 'Compliance',
-        current_gap: 25,
-        predicted_gap_3_months: 25,
-        predicted_gap_6_months: 26,
-        predicted_gap_12_months: 27,
-        trend: 'stable',
-        recommendation: 'Maintain current level. Consider advanced training for IT team.'
-      }
-    ];
+    console.log('[getSkillGapForecasts] Fetching real data for practice:', practiceId);
+
+    // Get members
+    const { data: members, error: membersError } = await supabase
+      .from('practice_members')
+      .select('id')
+      .eq('practice_id', practiceId);
+
+    if (membersError) throw membersError;
+    if (!members || members.length === 0) return [];
+
+    const memberIds = members.map(m => m.id);
+
+    // Get skills with required levels
+    const { data: skills, error: skillsError } = await supabase
+      .from('skills')
+      .select('id, name, category, required_level');
+
+    if (skillsError) throw skillsError;
+
+    // Get assessments
+    const { data: assessments, error: assessError } = await supabase
+      .from('skill_assessments')
+      .select('skill_id, current_level, target_level, assessed_at')
+      .in('team_member_id', memberIds)
+      .order('assessed_at', { ascending: true });
+
+    if (assessError) throw assessError;
+
+    // Calculate current gaps and trends
+    const result: SkillGapForecast[] = (skills || [])
+      .map(skill => {
+        const skillAssessments = assessments?.filter(a => a.skill_id === skill.id) || [];
+        if (skillAssessments.length === 0) return null;
+
+        // Current gap
+        const avgLevel = skillAssessments.reduce((sum, a) => sum + a.current_level, 0) / skillAssessments.length;
+        const currentGap = Math.max(0, skill.required_level - avgLevel);
+        
+        // Try to detect trend from assessment history
+        let trend: 'improving' | 'stable' | 'worsening' = 'stable';
+        if (skillAssessments.length >= 2) {
+          const mid = Math.floor(skillAssessments.length / 2);
+          const firstHalfAvg = skillAssessments.slice(0, mid).reduce((sum, a) => sum + a.current_level, 0) / mid;
+          const secondHalfAvg = skillAssessments.slice(mid).reduce((sum, a) => sum + a.current_level, 0) / (skillAssessments.length - mid);
+          const changeRate = secondHalfAvg - firstHalfAvg;
+          
+          if (changeRate > 0.2) trend = 'improving';
+          else if (changeRate < -0.2) trend = 'worsening';
+        }
+
+        // Project future gaps based on trend
+        const trendRate = trend === 'improving' ? -0.1 : trend === 'worsening' ? 0.1 : 0;
+        const predicted_gap_3_months = Math.round(Math.max(0, currentGap + trendRate * 1));
+        const predicted_gap_6_months = Math.round(Math.max(0, currentGap + trendRate * 2));
+        const predicted_gap_12_months = Math.round(Math.max(0, currentGap + trendRate * 4));
+
+        return {
+          skill_name: skill.name,
+          category: skill.category,
+          current_gap: Math.round(currentGap),
+          predicted_gap_3_months,
+          predicted_gap_6_months,
+          predicted_gap_12_months,
+          trend,
+          recommendation: trend === 'improving'
+            ? 'On track. Continue current training initiatives.'
+            : trend === 'worsening'
+            ? `Urgent: Skill gap increasing. Invest in ${skill.name} training now.`
+            : `Stable. Monitor and maintain current training level.`
+        };
+      })
+      .filter((f): f is SkillGapForecast => f !== null && f.current_gap > 0)
+      .sort((a, b) => b.current_gap - a.current_gap)
+      .slice(0, 10); // Top 10
+
+    console.log('[getSkillGapForecasts] Result:', result.length, 'forecasts');
+    return result;
   } catch (error) {
     console.error('Error fetching skill gap forecasts:', error);
-    throw error;
+    return [];
   }
 }
 
