@@ -21,6 +21,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Users,
   UserPlus,
@@ -30,7 +31,9 @@ import {
   Award,
   CheckCircle,
   Sparkles,
-  Send
+  Send,
+  Lightbulb,
+  ArrowRight
 } from 'lucide-react';
 
 import type { TeamMemberForMatching, MentorMatch, MentorProfile } from '@/services/mentoring/matchingAlgorithm';
@@ -70,6 +73,7 @@ const MentoringHub: React.FC<MentoringHubProps> = ({ teamMembers, currentUserId 
   // Dialog states
   const [showRequestDialog, setShowRequestDialog] = useState<boolean>(false);
   const [selectedMatch, setSelectedMatch] = useState<MentorMatch | null>(null);
+  const [selectedSkillForMentoring, setSelectedSkillForMentoring] = useState<string>('');
 
   // Load data
   useEffect(() => {
@@ -131,6 +135,8 @@ const MentoringHub: React.FC<MentoringHubProps> = ({ teamMembers, currentUserId 
 
   const handleRequestMentorship = async (match: MentorMatch) => {
     setSelectedMatch(match);
+    // Pre-select first matched skill
+    setSelectedSkillForMentoring(match.matchedSkills[0] || '');
     setShowRequestDialog(true);
   };
 
@@ -253,7 +259,21 @@ const MentoringHub: React.FC<MentoringHubProps> = ({ teamMembers, currentUserId 
               </div>
 
               {match && (
-                <div className="pt-3 border-t border-border space-y-2">
+                <div className="pt-3 border-t border-border space-y-3">
+                  {/* Matched Skills - PROMINENTLY DISPLAYED */}
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-2">
+                      Can help you with:
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {match.matchedSkills.map((skill, idx) => (
+                        <Badge key={idx} variant="default" className="bg-primary/20 text-primary border-primary/40">
+                          {skill}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Match Score</span>
                     <span className="text-lg font-bold text-primary">{match.matchScore}%</span>
@@ -426,14 +446,18 @@ const MentoringHub: React.FC<MentoringHubProps> = ({ teamMembers, currentUserId 
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="dashboard">
             <Target className="w-4 h-4 mr-2" />
             Dashboard
           </TabsTrigger>
+          <TabsTrigger value="find-by-skill">
+            <Lightbulb className="w-4 h-4 mr-2" />
+            Find by Skill
+          </TabsTrigger>
           <TabsTrigger value="find-mentor">
             <Sparkles className="w-4 h-4 mr-2" />
-            Find Mentor
+            Browse Mentors
           </TabsTrigger>
           <TabsTrigger value="my-mentoring">
             <Users className="w-4 h-4 mr-2" />
@@ -544,6 +568,166 @@ const MentoringHub: React.FC<MentoringHubProps> = ({ teamMembers, currentUserId 
           </Card>
         </TabsContent>
 
+        {/* Find by Skill Tab - NEW SKILL-FIRST NAVIGATION */}
+        <TabsContent value="find-by-skill" className="space-y-6">
+          <Card className="bg-gradient-to-br from-blue-50 to-purple-50 border-blue-300">
+            <CardHeader>
+              <CardTitle style={{ color: '#000000', fontWeight: '700' }}>
+                <Lightbulb className="w-5 h-5 inline mr-2 text-blue-600" />
+                Find Mentor by Skill
+              </CardTitle>
+              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
+                Select a skill you want to develop, then choose from mentors who can help
+              </CardDescription>
+            </CardHeader>
+          </Card>
+
+          {(() => {
+            // Get current user's skills from teamMembers
+            const currentUserData = teamMembers.find(m => m.id === currentUserId);
+            if (!currentUserData || !currentUserData.skills) {
+              return (
+                <Card className="bg-card/50 border-border">
+                  <CardContent className="p-12 text-center">
+                    <Lightbulb className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-xl font-semibold mb-2">Complete Your Skills Assessment</h3>
+                    <p className="text-muted-foreground mb-6">
+                      Take the skills assessment to discover which mentors can help you grow
+                    </p>
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            // Get skills user wants to develop (interest >= 4 and currentLevel < 4)
+            const skillsToGrow = currentUserData.skills
+              .filter(skill => skill.interestLevel >= 4 && skill.currentLevel < 4)
+              .sort((a, b) => b.interestLevel - a.interestLevel);
+
+            // For each skill, find mentors who can teach it
+            const skillMentorMap: Record<string, { mentor: MentorProfile; level: number }[]> = {};
+            
+            skillsToGrow.forEach(userSkill => {
+              const mentorsForSkill = mentorProfiles
+                .filter(mentor => {
+                  // Find if mentor has this skill at a higher level
+                  const mentorSkillLevel = mentor.skills.find(s => s.skillId === userSkill.skillId)?.level || 0;
+                  return mentorSkillLevel >= 4 && mentorSkillLevel > userSkill.currentLevel;
+                })
+                .map(mentor => ({
+                  mentor,
+                  level: mentor.skills.find(s => s.skillId === userSkill.skillId)?.level || 0
+                }))
+                .sort((a, b) => b.level - a.level);
+              
+              if (mentorsForSkill.length > 0) {
+                skillMentorMap[userSkill.skillName] = mentorsForSkill;
+              }
+            });
+
+            if (Object.keys(skillMentorMap).length === 0) {
+              return (
+                <Card className="bg-card/50 border-border">
+                  <CardContent className="p-12 text-center">
+                    <CheckCircle className="w-16 h-16 mx-auto text-green-400 mb-4" />
+                    <h3 className="text-xl font-semibold mb-2">You're Doing Great!</h3>
+                    <p className="text-muted-foreground mb-6">
+                      You're already skilled in the areas you're interested in. Consider exploring new skills or becoming a mentor yourself!
+                    </p>
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            return (
+              <div className="space-y-4">
+                {Object.entries(skillMentorMap).map(([skillName, mentorsData]) => {
+                  const userSkill = currentUserData.skills.find(s => s.skillName === skillName);
+                  const mentorCount = mentorsData.length;
+
+                  return (
+                    <Card key={skillName} className="bg-card/50 border-border hover:border-primary/50 transition-colors">
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg">{skillName}</CardTitle>
+                            <CardDescription>
+                              Your level: {userSkill?.currentLevel}/5 • Interest: {userSkill?.interestLevel}/5
+                            </CardDescription>
+                          </div>
+                          <Badge variant="secondary" className="ml-2">
+                            {mentorCount} mentor{mentorCount !== 1 ? 's' : ''} available
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid gap-3">
+                          {mentorsData.slice(0, 3).map(({ mentor, level }) => {
+                            const match = recommendedMatches.find(m => m.mentorId === mentor.id);
+                            const initials = mentor.name.split(' ').map(n => n[0]).join('');
+                            
+                            return (
+                              <div 
+                                key={mentor.id}
+                                className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
+                              >
+                                <div className="flex items-center gap-3 flex-1">
+                                  <Avatar className="w-10 h-10">
+                                    <AvatarFallback className="text-sm font-semibold bg-primary/10">
+                                      {initials}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1">
+                                    <div className="font-semibold">{mentor.name}</div>
+                                    <div className="text-xs text-muted-foreground">{mentor.role}</div>
+                                  </div>
+                                  <div className="text-right">
+                                    <Badge variant="outline" className="bg-green-500/20 text-green-300 border-green-500/30">
+                                      Level {level}/5
+                                    </Badge>
+                                    {match && (
+                                      <div className="text-xs text-primary mt-1">{match.matchScore}% match</div>
+                                    )}
+                                  </div>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    if (match) {
+                                      setSelectedMatch(match);
+                                      setSelectedSkillForMentoring(skillName);
+                                      setShowRequestDialog(true);
+                                    }
+                                  }}
+                                  className="ml-3"
+                                >
+                                  <Send className="w-3 h-3 mr-1" />
+                                  Request
+                                </Button>
+                              </div>
+                            );
+                          })}
+                          {mentorCount > 3 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setActiveTab('find-mentor')}
+                              className="mt-2"
+                            >
+                              <ArrowRight className="w-4 h-4 mr-2" />
+                              View all {mentorCount} mentors
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </TabsContent>
+
         {/* Find Mentor Tab */}
         <TabsContent value="find-mentor" className="space-y-6">
           <Card className="bg-card/50 border-border">
@@ -601,14 +785,43 @@ const MentoringHub: React.FC<MentoringHubProps> = ({ teamMembers, currentUserId 
           </DialogHeader>
           {selectedMatch && (
             <div className="space-y-4">
+              {/* Skill Selector - PRIMARY FOCUS */}
+              <div className="space-y-2">
+                <Label className="text-base font-semibold">
+                  Which skill do you want to focus on? *
+                </Label>
+                <Select 
+                  value={selectedSkillForMentoring} 
+                  onValueChange={setSelectedSkillForMentoring}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a skill..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedMatch.matchedSkills.map((skill, idx) => (
+                      <SelectItem key={idx} value={skill}>
+                        {skill}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  You can discuss other skills during your sessions
+                </p>
+              </div>
+
               <div className="p-4 bg-muted rounded-lg space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="font-medium">Match Score:</span>
                   <span className="text-primary font-bold">{selectedMatch.matchScore}%</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="font-medium">Skills Match:</span>
+                  <span className="font-medium">All Skills Match:</span>
                   <span>{selectedMatch.matchedSkills.join(', ')}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium">VARK Compatibility:</span>
+                  <span>{selectedMatch.varkCompatibility}%</span>
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -617,7 +830,9 @@ const MentoringHub: React.FC<MentoringHubProps> = ({ teamMembers, currentUserId 
               <div className="space-y-2">
                 <Label>Suggested Goals:</Label>
                 <ul className="list-disc list-inside space-y-1 text-sm">
-                  {selectedMatch.suggestedGoals.map((goal, idx) => (
+                  {selectedMatch.suggestedGoals.filter(goal => 
+                    !selectedSkillForMentoring || goal.toLowerCase().includes(selectedSkillForMentoring.toLowerCase())
+                  ).map((goal, idx) => (
                     <li key={idx}>{goal}</li>
                   ))}
                 </ul>
@@ -628,7 +843,10 @@ const MentoringHub: React.FC<MentoringHubProps> = ({ teamMembers, currentUserId 
             <Button variant="outline" onClick={() => setShowRequestDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={confirmRequestMentorship}>
+            <Button 
+              onClick={confirmRequestMentorship}
+              disabled={!selectedSkillForMentoring}
+            >
               <Send className="w-4 h-4 mr-2" />
               Send Request
             </Button>
