@@ -199,6 +199,90 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
       });
   }, [teamMembers, skillCategories, selectedCategory, minGapThreshold, sortBy, priorityAlgorithm]);
 
+  // Create UNFILTERED gap data for the priority table (ignore minGapThreshold)
+  const topPrioritySkills = useMemo((): GapData[] => {
+    const allSkills = skillCategories.flatMap(cat => cat.skills);
+    
+    return allSkills
+      .filter(skill => selectedCategory === 'all' || skill.category === selectedCategory)
+      .map(skill => {
+        const skillAssessments = teamMembers
+          .flatMap(member => member.skills)
+          .filter(memberSkill => memberSkill.skillId === skill.id);
+
+        if (skillAssessments.length === 0) {
+          return {
+            skillId: skill.id,
+            skillName: skill.name,
+            category: skill.category,
+            requiredLevel: skill.requiredLevel,
+            avgCurrentLevel: 0,
+            gap: skill.requiredLevel,
+            memberCount: 0,
+            avgInterest: 0,
+            priority: skill.requiredLevel * 5,
+            businessImpact: 'high' as const,
+            affectedMembers: []
+          };
+        }
+
+        const avgCurrentLevel = skillAssessments.reduce((sum, s) => sum + s.currentLevel, 0) / skillAssessments.length;
+        const gap = Math.max(0, skill.requiredLevel - avgCurrentLevel);
+        const avgInterest = skillAssessments.reduce((sum, s) => sum + (s.interestLevel || 3), 0) / skillAssessments.length;
+        
+        let priority: number;
+        if (priorityAlgorithm === 'weighted') {
+          priority = gap * (skill.requiredLevel / 5) * (avgInterest / 5) * skillAssessments.length;
+        } else {
+          priority = gap * skillAssessments.length;
+        }
+
+        let businessImpact: 'high' | 'medium' | 'low' = 'low';
+        if (gap >= 2 || skill.requiredLevel >= 4) businessImpact = 'high';
+        else if (gap >= 1 || skill.requiredLevel >= 3) businessImpact = 'medium';
+
+        const affectedMembers = teamMembers.filter(member =>
+          member.skills.some(s => s.skillId === skill.id && s.currentLevel < skill.requiredLevel)
+        );
+
+        return {
+          skillId: skill.id,
+          skillName: skill.name,
+          category: skill.category,
+          requiredLevel: skill.requiredLevel,
+          avgCurrentLevel,
+          gap,
+          memberCount: affectedMembers.length,
+          avgInterest,
+          priority,
+          businessImpact,
+          affectedMembers
+        };
+      })
+      // NO minGapThreshold filter - show all skills with any gap
+      .filter(gap => gap.gap > 0) // Only exclude perfect scores
+      .sort((a, b) => {
+        switch (sortBy) {
+          case 'gap':
+            return b.gap - a.gap;
+          case 'members':
+            return b.memberCount - a.memberCount;
+          case 'interest':
+            return b.avgInterest - a.avgInterest;
+          case 'priority':
+          default:
+            return b.priority - a.priority;
+        }
+      });
+  }, [teamMembers, skillCategories, selectedCategory, sortBy, priorityAlgorithm]);
+
+  console.log('[GapAnalysis] Top Priority Skills:', {
+    total: topPrioritySkills.length,
+    top5: topPrioritySkills.slice(0, 5).map(s => ({ name: s.skillName, gap: s.gap, interest: s.avgInterest, members: s.memberCount })),
+    greenBoxes: topPrioritySkills.filter(s => s.avgInterest >= 4 && s.gap >= 1.5).length,
+    orangeBoxes: topPrioritySkills.filter(s => s.gap >= 2 && s.avgInterest < 2.5).length
+  });
+
   // Find interest-skill mismatches (high interest, low skill)
   const mismatches = useMemo((): InterestSkillMismatch[] => {
     const mismatches: InterestSkillMismatch[] = [];
@@ -809,7 +893,17 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {gapData.slice(0, 15).map((gap, index) => (
+                {topPrioritySkills.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center">
+                      <div className="text-gray-500 text-lg">
+                        <p className="font-semibold mb-2">No skill gaps detected! 🎉</p>
+                        <p className="text-sm">Your team is performing at or above required levels for all assessed skills.</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  topPrioritySkills.slice(0, 15).map((gap, index) => (
                   <tr key={gap.skillId} className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${index < 5 ? 'bg-red-50/30' : ''}`}>
                     <td className="p-4">
                       <div>
@@ -913,12 +1007,14 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
                       </div>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           </div>
           
-          {/* Summary Action Box */}
+          {/* Summary Action Box - Only show if we have data */}
+          {topPrioritySkills.length > 0 && (
           <div className="mt-6 p-4 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-lg border-2 border-blue-400">
             <h4 className="font-bold text-lg mb-2" style={{ color: '#000000' }}>📋 IMMEDIATE ACTIONS:</h4>
             <ul className="space-y-2 text-sm" style={{ color: '#000000' }}>
@@ -936,6 +1032,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
               </li>
             </ul>
           </div>
+          )}
         </CardContent>
       </Card>
 
