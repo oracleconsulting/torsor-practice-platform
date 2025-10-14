@@ -185,60 +185,60 @@ const CPDTrackerPage: React.FC = () => {
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">CPD Tracker</h1>
-        <p className="text-white font-medium">Track and manage continuing professional development across your team</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">CPD Tracker</h1>
+        <p className="text-gray-900 font-semibold">Track and manage continuing professional development across your team</p>
       </div>
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <Card className="border-gray-700">
+        <Card className="bg-gray-50 border-gray-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Team Progress</CardTitle>
-            <Users className="h-4 w-4 text-white font-medium" />
+            <CardTitle className="text-sm font-semibold text-gray-900">Team Progress</CardTitle>
+            <Users className="h-4 w-4 text-gray-700" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{Math.round(getTeamProgress())}%</div>
+            <div className="text-2xl font-bold text-gray-900">{Math.round(getTeamProgress())}%</div>
             <Progress value={getTeamProgress()} className="mt-2" />
-            <p className="text-xs text-white font-medium mt-2">of annual requirements</p>
+            <p className="text-xs text-gray-900 font-semibold mt-2">of annual requirements</p>
           </CardContent>
         </Card>
 
-        <Card className="border-gray-700">
+        <Card className="bg-gray-50 border-gray-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Hours</CardTitle>
-            <Clock className="h-4 w-4 text-white font-medium" />
+            <CardTitle className="text-sm font-semibold text-gray-900">Total Hours</CardTitle>
+            <Clock className="h-4 w-4 text-gray-700" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold text-gray-900">
               {teamSummary.reduce((sum, m) => sum + m.completed_hours, 0)}
             </div>
-            <p className="text-xs text-white font-medium mt-2">
+            <p className="text-xs text-gray-900 font-semibold mt-2">
               {teamSummary.reduce((sum, m) => sum + m.verifiable_hours, 0)} verifiable
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-gray-700">
+        <Card className="bg-gray-50 border-gray-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Compliance</CardTitle>
-            <CheckCircle className="h-4 w-4 text-white font-medium" />
+            <CardTitle className="text-sm font-semibold text-gray-900">Compliance</CardTitle>
+            <CheckCircle className="h-4 w-4 text-gray-700" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold text-gray-900">
               {teamSummary.filter(m => m.completed_hours >= m.required_hours).length}/{teamSummary.length}
             </div>
-            <p className="text-xs text-white font-medium mt-2">members compliant</p>
+            <p className="text-xs text-gray-900 font-semibold mt-2">members compliant</p>
           </CardContent>
         </Card>
 
-        <Card className="border-gray-700">
+        <Card className="bg-gray-50 border-gray-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Days Remaining</CardTitle>
-            <CalendarIcon className="h-4 w-4 text-white font-medium" />
+            <CardTitle className="text-sm font-semibold text-gray-900">Days Remaining</CardTitle>
+            <CalendarIcon className="h-4 w-4 text-gray-700" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{getUpcomingDeadlines()}</div>
-            <p className="text-xs text-white font-medium mt-2">until year end</p>
+            <div className="text-2xl font-bold text-gray-900">{getUpcomingDeadlines()}</div>
+            <p className="text-xs text-gray-900 font-semibold mt-2">until year end</p>
           </CardContent>
         </Card>
       </div>
@@ -267,14 +267,14 @@ const CPDTrackerPage: React.FC = () => {
           )}
 
           {/* Team Member Progress */}
-          <Card className="border-gray-700">
+          <Card className="bg-gray-50 border-gray-300">
             <CardHeader>
-              <CardTitle>Team Member Progress</CardTitle>
-              <CardDescription>Individual CPD completion status</CardDescription>
+              <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Team Member Progress</CardTitle>
+              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>Individual CPD completion status</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {teamSummary.length === 0 ? (
-                <p className="text-center text-white font-medium py-8">No team members found. Invite team members to get started.</p>
+                <p className="text-center text-gray-900 font-semibold py-8">No team members found. Invite team members to get started.</p>
               ) : (
                 teamSummary.map((member) => {
                   const progress = member.progress_percentage;
@@ -540,10 +540,10 @@ const CPDTrackerPage: React.FC = () => {
           )}
 
           {/* Activities List */}
-          <Card className="border-gray-700">
+          <Card className="bg-gray-50 border-gray-300">
             <CardHeader>
-              <CardTitle>CPD Activities Log</CardTitle>
-              <CardDescription>Complete record of all CPD activities</CardDescription>
+              <CardTitle style={{ color: '#000000', fontWeight: '700' }}>CPD Activities Log</CardTitle>
+              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>Complete record of all CPD activities</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -731,15 +731,15 @@ const CPDTrackerPage: React.FC = () => {
 
         {/* Requirements Tab */}
         <TabsContent value="requirements" className="space-y-6">
-          <Card className="border-gray-700">
+          <Card className="bg-gray-50 border-gray-300">
             <CardHeader>
-              <CardTitle>Professional Body Requirements</CardTitle>
-              <CardDescription>CPD requirements by regulatory body</CardDescription>
+              <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Professional Body Requirements</CardTitle>
+              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>CPD requirements by regulatory body</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
                 {requirements.length === 0 ? (
-                  <p className="text-center text-white font-medium py-8">No CPD requirements configured.</p>
+                  <p className="text-center text-gray-900 font-semibold py-8">No CPD requirements configured.</p>
                 ) : (
                   requirements.map((req) => {
                     const verifiablePercentage = req.verifiable_hours_minimum > 0 
@@ -747,16 +747,16 @@ const CPDTrackerPage: React.FC = () => {
                       : 0;
                     
                     return (
-                      <div key={req.id} className="border-b border-gray-800 pb-6 last:border-0">
+                      <div key={req.id} className="border-b border-gray-300 pb-6 last:border-0">
                         <div className="flex items-center justify-between mb-4">
                           <div>
-                            <h3 className="text-lg font-semibold capitalize">{req.role}</h3>
-                            <p className="text-sm text-white font-medium">Deadline: 31 December (Year End)</p>
+                            <h3 className="text-lg font-bold capitalize text-gray-900">{req.role}</h3>
+                            <p className="text-sm text-gray-900 font-semibold">Deadline: 31 December (Year End)</p>
                             {req.description && (
-                              <p className="text-sm text-gray-100 font-medium mt-1">{req.description}</p>
+                              <p className="text-sm text-gray-900 font-semibold mt-1">{req.description}</p>
                             )}
                           </div>
-                          <Award className="h-6 w-6 text-white font-medium" />
+                          <Award className="h-6 w-6 text-gray-700" />
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="bg-gray-800 rounded-lg p-4">
@@ -777,8 +777,8 @@ const CPDTrackerPage: React.FC = () => {
                           </div>
                         </div>
                         <div className="mt-4">
-                          <h4 className="text-sm font-medium mb-2">Key Requirements:</h4>
-                          <ul className="space-y-1 text-sm text-white font-medium">
+                          <h4 className="text-sm font-bold mb-2 text-gray-900">Key Requirements:</h4>
+                          <ul className="space-y-1 text-sm text-gray-900 font-semibold">
                             <li>• Maintain evidence of all CPD activities</li>
                             <li>• Complete annual declaration by deadline</li>
                             <li>• Ensure {req.verifiable_hours_minimum} hours is verifiable CPD</li>
