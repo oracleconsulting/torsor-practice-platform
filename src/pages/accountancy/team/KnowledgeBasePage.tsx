@@ -34,6 +34,14 @@ import {
   getBooksForAssessedSkill,
   getAllAssessedSkillsInLibrary
 } from '@/lib/leadership-library-skills-mapping';
+import {
+  isBookAvailable,
+  getCurrentBookHolder,
+  checkOutBook,
+  checkInBook,
+  getMemberCheckouts,
+  type BookCheckout
+} from '@/lib/api/book-checkout';
 
 interface KnowledgeDocumentForm {
   title: string;
@@ -58,6 +66,8 @@ const KnowledgeBasePage: React.FC = () => {
   const [leadershipBooks, setLeadershipBooks] = useState<LeadershipBook[]>([]);
   const [selectedBook, setSelectedBook] = useState<LeadershipBook | null>(null);
   const [showBookDialog, setShowBookDialog] = useState(false);
+  const [bookCheckouts, setBookCheckouts] = useState<Map<string, BookCheckout>>(new Map());
+  const [myCheckouts, setMyCheckouts] = useState<BookCheckout[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -118,6 +128,24 @@ const KnowledgeBasePage: React.FC = () => {
 
         setDocuments(docsData);
         setCpdActivities(activitiesData);
+
+        // Load checkout status for all books
+        if (practiceMember?.id) {
+          const checkoutMap = new Map<string, BookCheckout>();
+          await Promise.all(
+            booksData.map(async (book) => {
+              const holder = await getCurrentBookHolder(book.book_id);
+              if (holder) {
+                checkoutMap.set(book.book_id, holder);
+              }
+            })
+          );
+          setBookCheckouts(checkoutMap);
+
+          // Load user's current checkouts
+          const userCheckouts = await getMemberCheckouts(practiceMember.id);
+          setMyCheckouts(userCheckouts);
+        }
       } catch (err) {
         console.error('Error loading knowledge base:', err);
         setError('Failed to load knowledge base. Please try again.');
@@ -529,8 +557,20 @@ const KnowledgeBasePage: React.FC = () => {
                           {book.difficulty_level.substring(0, 3)}
                         </Badge>
                       </div>
-                      {/* Rating Badge */}
+                      {/* Availability Badge */}
                       <div className="absolute bottom-1.5 left-1.5">
+                        {bookCheckouts.has(book.book_id) ? (
+                          <Badge variant="secondary" className="bg-red-500/90 text-white text-[10px] px-1.5 py-0.5">
+                            On Loan
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="bg-green-500/90 text-white text-[10px] px-1.5 py-0.5">
+                            Available
+                          </Badge>
+                        )}
+                      </div>
+                      {/* Rating Badge */}
+                      <div className="absolute bottom-1.5 right-1.5">
                         <Badge variant="secondary" className="bg-white/90 text-gray-900 flex items-center gap-0.5 text-[10px] px-1.5 py-0.5">
                           <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
                           {book.goodreads_rating.toFixed(1)}
@@ -1079,6 +1119,70 @@ const KnowledgeBasePage: React.FC = () => {
                         "{quote}"
                       </p>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Book Loan Status */}
+              {bookCheckouts.has(selectedBook.book_id) ? (
+                <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-red-900 mb-1">📚 Currently On Loan</h3>
+                      <p className="text-xs text-red-800">
+                        Checked out by <strong>{bookCheckouts.get(selectedBook.book_id)?.member_name}</strong>
+                      </p>
+                      <p className="text-xs text-red-700 mt-1">
+                        Due: {new Date(bookCheckouts.get(selectedBook.book_id)!.due_date).toLocaleDateString()}
+                        {bookCheckouts.get(selectedBook.book_id)?.is_overdue && 
+                          <span className="ml-2 font-bold text-red-600">⚠️ OVERDUE</span>
+                        }
+                      </p>
+                    </div>
+                    {bookCheckouts.get(selectedBook.book_id)?.practice_member_id === practiceMember?.id && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          if (!practiceMember?.id) return;
+                          const result = await checkInBook(selectedBook.book_id, practiceMember.id);
+                          if (result.success) {
+                            // Reload data
+                            window.location.reload();
+                          }
+                        }}
+                        className="text-red-700 border-red-300"
+                      >
+                        Return Book
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-green-900 mb-1">✅ Available to Borrow</h3>
+                      <p className="text-xs text-green-800">
+                        Loan period: 3 weeks from checkout
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      onClick={async () => {
+                        if (!practiceMember?.id) return;
+                        const result = await checkOutBook(selectedBook.book_id, practiceMember.id);
+                        if (result.success) {
+                          // Reload data
+                          window.location.reload();
+                        } else {
+                          alert(result.error || 'Failed to check out book');
+                        }
+                      }}
+                    >
+                      Check Out Book
+                    </Button>
                   </div>
                 </div>
               )}
