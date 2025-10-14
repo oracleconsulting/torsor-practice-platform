@@ -447,7 +447,7 @@ const KnowledgeBasePage: React.FC = () => {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+            <div className="grid grid-cols-4 gap-4">
               {filteredBooks.map(book => (
                 <Card
                   key={book.book_id}
@@ -470,40 +470,40 @@ const KnowledgeBasePage: React.FC = () => {
                         }}
                       />
                       {/* Difficulty Badge */}
-                      <div className="absolute top-2 right-2">
+                      <div className="absolute top-1.5 right-1.5">
                         <Badge 
                           variant="secondary" 
-                          className={`text-xs ${
+                          className={`text-[10px] px-1.5 py-0.5 ${
                             book.difficulty_level === 'Beginner' ? 'bg-green-500/90' :
                             book.difficulty_level === 'Intermediate' ? 'bg-blue-500/90' :
                             'bg-purple-500/90'
                           } text-white`}
                         >
-                          {book.difficulty_level}
+                          {book.difficulty_level.substring(0, 3)}
                         </Badge>
                       </div>
                       {/* Rating Badge */}
-                      <div className="absolute bottom-2 left-2">
-                        <Badge variant="secondary" className="bg-white/90 text-gray-900 flex items-center gap-1">
-                          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                      <div className="absolute bottom-1.5 left-1.5">
+                        <Badge variant="secondary" className="bg-white/90 text-gray-900 flex items-center gap-0.5 text-[10px] px-1.5 py-0.5">
+                          <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
                           {book.goodreads_rating.toFixed(1)}
                         </Badge>
                       </div>
                     </div>
                     {/* Book Info */}
-                    <div className="p-3 space-y-1">
-                      <h3 className="font-bold text-sm text-gray-900 line-clamp-2 group-hover:text-amber-600">
+                    <div className="p-2 space-y-0.5">
+                      <h3 className="font-bold text-xs text-gray-900 line-clamp-2 group-hover:text-amber-600 leading-tight">
                         {book.book_title}
                       </h3>
-                      <p className="text-xs text-gray-700">{book.author}</p>
-                      <div className="flex items-center justify-between text-xs text-gray-600 pt-1">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
+                      <p className="text-[10px] text-gray-700 line-clamp-1">{book.author}</p>
+                      <div className="flex items-center justify-between text-[10px] text-gray-600 pt-0.5">
+                        <span className="flex items-center gap-0.5">
+                          <Clock className="h-2.5 w-2.5" />
                           {book.estimated_read_time_hours}h
                         </span>
-                        <span className="flex items-center gap-1">
-                          <Award className="h-3 w-3" />
-                          {book.cpd_hours_value} CPD
+                        <span className="flex items-center gap-0.5">
+                          <Award className="h-2.5 w-2.5" />
+                          {book.cpd_hours_value}
                         </span>
                       </div>
                     </div>
