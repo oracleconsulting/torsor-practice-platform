@@ -59,6 +59,7 @@ const KnowledgeBasePage: React.FC = () => {
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
+  const [selectedSkill, setSelectedSkill] = useState<string>('all');
   const [showUploadDialog, setShowUploadDialog] = useState(false);
 
   const [newDocument, setNewDocument] = useState<KnowledgeDocumentForm>({
@@ -164,6 +165,17 @@ const KnowledgeBasePage: React.FC = () => {
     return matchesSearch && matchesTab && matchesType && matchesCategory;
   });
 
+  // Get all unique skills from the library
+  const allSkills = React.useMemo(() => {
+    const skillsSet = new Set<string>();
+    leadershipBooks.forEach(book => {
+      book.leadership_competencies.forEach(skill => skillsSet.add(skill));
+      book.technical_skills.forEach(skill => skillsSet.add(skill));
+      book.soft_skills.forEach(skill => skillsSet.add(skill));
+    });
+    return Array.from(skillsSet).sort();
+  }, [leadershipBooks]);
+
   // Filter leadership books
   const filteredBooks = leadershipBooks.filter(book => {
     const matchesSearch = searchQuery === '' ||
@@ -173,8 +185,13 @@ const KnowledgeBasePage: React.FC = () => {
       book.key_concepts.some(concept => concept.toLowerCase().includes(searchQuery.toLowerCase()));
     
     const matchesDifficulty = selectedDifficulty === 'all' || book.difficulty_level === selectedDifficulty;
+    
+    const matchesSkill = selectedSkill === 'all' || 
+      book.leadership_competencies.includes(selectedSkill) ||
+      book.technical_skills.includes(selectedSkill) ||
+      book.soft_skills.includes(selectedSkill);
 
-    return matchesSearch && matchesDifficulty;
+    return matchesSearch && matchesDifficulty && matchesSkill;
   });
 
   // Group documents by type
@@ -418,9 +435,25 @@ const KnowledgeBasePage: React.FC = () => {
       {activeTab === 'leadership_book' ? (
         <div className="space-y-6">
           {/* Filters for Books */}
-          <div className="flex gap-4 items-center">
+          <div className="flex gap-4 items-center flex-wrap">
+            {/* Skill Filter */}
+            <Select value={selectedSkill} onValueChange={setSelectedSkill}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Filter by Skill..." />
+              </SelectTrigger>
+              <SelectContent className="max-h-96">
+                <SelectItem value="all">All Skills</SelectItem>
+                {allSkills.map(skill => (
+                  <SelectItem key={skill} value={skill}>
+                    {skill}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Difficulty Filter */}
             <Select value={selectedDifficulty} onValueChange={setSelectedDifficulty}>
-              <SelectTrigger className="w-56">
+              <SelectTrigger className="w-48">
                 <SelectValue placeholder="All Levels" />
               </SelectTrigger>
               <SelectContent>
@@ -430,6 +463,22 @@ const KnowledgeBasePage: React.FC = () => {
                 <SelectItem value="Advanced">Advanced</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Clear Filters */}
+            {(selectedSkill !== 'all' || selectedDifficulty !== 'all') && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setSelectedSkill('all');
+                  setSelectedDifficulty('all');
+                }}
+                className="text-gray-900"
+              >
+                Clear Filters
+              </Button>
+            )}
+
             <Badge variant="outline" className="text-gray-900">
               {filteredBooks.length} {filteredBooks.length === 1 ? 'book' : 'books'}
             </Badge>
