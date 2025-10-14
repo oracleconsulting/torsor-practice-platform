@@ -549,18 +549,18 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
       </div>
 
       {/* Heatmap Grid */}
-      <Card className="bg-card border-border shadow-sm">
+      <Card className="bg-gray-50 border-gray-300 shadow-sm">
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
+          <CardTitle className="flex items-center justify-between" style={{ color: '#000000', fontWeight: '700' }}>
             Skills Matrix Heatmap
             <div className="flex gap-2">
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="bg-white text-gray-900 border-gray-300 hover:bg-gray-100 hover:text-gray-900 font-semibold">
                 <Download className="w-4 h-4 mr-2" />
                 Export
               </Button>
             </div>
           </CardTitle>
-          <CardDescription>
+          <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
             Color indicates skill level (1-5), border indicates interest level. Hover over cells for details.
           </CardDescription>
         </CardHeader>

@@ -193,7 +193,7 @@ const TrainingRecommendationCards: React.FC<TrainingRecommendationCardsProps> = 
             variant="ghost"
             size="sm"
             onClick={() => toggleCard(rec.id)}
-            className="text-white hover:text-white hover:bg-gray-700"
+            className="bg-white text-gray-900 hover:bg-gray-100 hover:text-gray-900 font-semibold"
           >
             {isExpanded ? (
               <>
@@ -208,7 +208,7 @@ const TrainingRecommendationCards: React.FC<TrainingRecommendationCardsProps> = 
             )}
           </Button>
           {rec.url && (
-            <Button variant="outline" size="sm" asChild className="text-white border-gray-500 hover:bg-gray-700">
+            <Button variant="outline" size="sm" asChild className="bg-white text-gray-900 border-gray-300 hover:bg-blue-600 hover:text-white font-semibold">
               <a href={rec.url} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="w-4 h-4 mr-2" />
                 View Course

@@ -527,10 +527,10 @@ const MentoringHub: React.FC<MentoringHubProps> = ({ teamMembers, currentUserId 
           )}
 
           {/* Active Relationships */}
-          <Card className="bg-card/50 border-border">
+          <Card className="bg-gray-50 border-gray-300">
             <CardHeader>
-              <CardTitle>Your Mentoring Relationships</CardTitle>
-              <CardDescription>
+              <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Your Mentoring Relationships</CardTitle>
+              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
                 {relationships.length === 0
                   ? 'No active mentoring relationships yet'
                   : `You have ${relationships.length} active relationship${relationships.length !== 1 ? 's' : ''}`}
