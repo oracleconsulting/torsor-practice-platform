@@ -255,13 +255,13 @@ const RoleManagement: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card className="bg-gradient-to-r from-blue-500 to-purple-600 text-white border-0">
+      <Card className="bg-gradient-to-r from-blue-100 to-purple-100 border-blue-300">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <Shield className="h-8 w-8" />
+            <Shield className="h-8 w-8 text-blue-600" />
             <div>
-              <CardTitle className="text-2xl">Role Management</CardTitle>
-              <CardDescription className="text-white/80">
+              <CardTitle className="text-2xl" style={{ color: '#000000', fontWeight: '700' }}>Role Management</CardTitle>
+              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
                 Manage team member permissions and access levels
               </CardDescription>
             </div>
@@ -295,10 +295,10 @@ const RoleManagement: React.FC = () => {
       </Alert>
 
       {/* Role Definitions */}
-      <Card className="bg-card border-border">
+      <Card className="bg-gray-50 border-gray-300">
         <CardHeader>
-          <CardTitle>Role Definitions</CardTitle>
-          <CardDescription>
+          <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Role Definitions</CardTitle>
+          <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
             Understanding what each role can do
           </CardDescription>
         </CardHeader>
@@ -334,10 +334,10 @@ const RoleManagement: React.FC = () => {
       </Card>
 
       {/* Team Members List */}
-      <Card className="bg-card border-border">
+      <Card className="bg-gray-50 border-gray-300">
         <CardHeader>
-          <CardTitle>Team Member Permissions</CardTitle>
-          <CardDescription>
+          <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Team Member Permissions</CardTitle>
+          <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
             {teamMembers.length} team member{teamMembers.length !== 1 ? 's' : ''}
           </CardDescription>
         </CardHeader>
