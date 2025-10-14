@@ -51,106 +51,137 @@ const iconMap: Record<string, any> = {
 
 const defaultServices: AdvisoryService[] = [
   {
-    id: 'forecasting',
-    name: 'Financial Forecasting & Budgets',
-    description: 'Comprehensive budgets, forecasts, and cashflow projections',
-    iconName: 'ArrowTrendingUpIcon',
-    basePrice: '£1,000 - £3,000',
-    deliveryTime: '3-5 days',
+    id: 'automation',
+    name: 'Automation',
+    description: 'Data capture, system integration, and finance automation',
+    iconName: 'BriefcaseIcon',
+    basePrice: '£115-£180/hour + setup',
+    deliveryTime: 'Half-day to multi-day',
+    deliveredBy: 'Technical team with system integration expertise',
+    aims: 'Automate finance processes to save time, reduce errors, and improve efficiency',
     tier: 'all',
     features: [
-      '12-month rolling forecasts',
-      'Scenario planning (best/worst/expected)',
+      'Data capture: scan invoices & receipts to electronic format',
+      'System integration: auto-upload to data entry software',
+      'Bank feed setup and troubleshooting',
+      'AI-driven categorisation rules',
+      'Chart of accounts setup',
+      'Link bookkeeping to analytics (Xero → Spotlight/Syft)',
+      'Dashboard setup for monitoring',
+      'Management accounts production',
+      'Forecasting and cashflow facilitation'
+    ]
+  },
+  {
+    id: 'management-accounts',
+    name: 'Management Accounts',
+    description: 'Regular financial reporting with KPI analysis and insights',
+    iconName: 'ChartBarIcon',
+    basePrice: '£650/month or £1,750/quarter',
+    deliveryTime: 'Monthly or quarterly',
+    deliveredBy: 'Senior accountants with analytical expertise',
+    aims: 'Provide reliable financial information throughout the year for better decision-making',
+    tier: 'all',
+    features: [
+      'Completed on suitable software package',
+      'Data check for year-end compatibility',
+      'Monthly, quarterly, or adhoc frequency',
+      'KPI commentary and key findings',
       'Cash flow waterfall analysis',
-      'Variance analysis vs actuals',
-      'KPI projections',
-      'Break-even analysis'
+      'Spotlight-derived position and performance analysis'
     ]
   },
   {
-    id: 'valuation',
-    name: 'Business Valuation',
-    description: 'Professional business valuations for various purposes',
-    iconName: 'ScaleIcon',
-    basePrice: '£1,500 - £4,000',
-    deliveryTime: '5-7 days',
+    id: 'advisory-accelerator',
+    name: 'Future Financial Information / Advisory Accelerator',
+    description: 'Budgets, forecasts, valuations, and ongoing advisory support',
+    iconName: 'ArrowTrendingUpIcon',
+    basePrice: '£1,000-£9,000 depending on scope',
+    deliveryTime: 'One-off or recurring',
+    deliveredBy: 'Directors and Partners with strategic advisory experience',
+    aims: 'Help business owners work ON the business, not IN it, with strategic insights',
     tier: 'professional',
     features: [
-      'Multiple valuation methods',
-      'Market comparables analysis',
-      'DCF modeling',
-      'Asset-based valuation',
-      'Exit planning scenarios',
-      'Valuation report & certificate'
-    ]
-  },
-  {
-    id: 'strategy',
-    name: 'Strategy Day Facilitation',
-    description: 'Structured strategic planning sessions with your team',
-    iconName: 'UserGroupIcon',
-    basePrice: '£2,000/day',
-    deliveryTime: 'Full day session',
-    tier: 'professional',
-    features: [
-      'Pre-session diagnostics',
-      'Facilitated workshops',
-      'SWOT analysis',
-      'Strategic roadmap creation',
-      'Action plan development',
-      'Post-session follow-up'
+      'Budgets, forecasts, and cashflow projections',
+      'Business valuations',
+      'Historic financial information analysis',
+      'Hands-on sessions to establish expectations',
+      'Scenario planning (margins, volumes, staff)',
+      'Re-occurring advisory at set intervals'
     ]
   },
   {
     id: 'benchmarking',
-    name: 'Industry Benchmarking',
-    description: 'Compare performance against industry peers',
-    iconName: 'ChartBarIcon',
+    name: 'Benchmarking - External and Internal',
+    description: 'Comparative financial analysis across industry',
+    iconName: 'ScaleIcon',
     basePrice: '£450 - £1,500',
     deliveryTime: '2-3 days',
+    deliveredBy: 'Analysts with industry knowledge',
+    aims: 'Identify improvement areas and enable comparison with best-in-class performance',
     tier: 'all',
     features: [
-      'Industry KPI comparison',
-      'Percentile rankings',
-      'Gap analysis',
-      'Improvement opportunities',
-      'Quarterly updates',
-      'Consultation session'
-    ]
-  },
-  {
-    id: 'accelerator',
-    name: 'Advisory Accelerator',
-    description: 'Ongoing advisory support program',
-    iconName: 'BriefcaseIcon',
-    basePrice: '£500-£2,000/month',
-    deliveryTime: 'Monthly',
-    tier: 'professional',
-    features: [
-      'Monthly advisory sessions',
-      'Quarterly business reviews',
-      'On-demand support',
-      'Performance monitoring',
-      'Strategic guidance',
-      'Board meeting support'
+      'Comparative financial data across industry/country',
+      'KPI measurement vs same-industry companies',
+      'Follow-up consultation to interpret data'
     ]
   },
   {
     id: 'profit-extraction',
-    name: 'Profit Extraction Planning',
-    description: 'Optimize director remuneration and tax efficiency',
+    name: 'Profit Extraction / Remuneration Strategies',
+    description: 'Tax-efficient director remuneration planning',
     iconName: 'CurrencyPoundIcon',
-    basePrice: '£500 - £1,500',
-    deliveryTime: '2-3 days',
+    basePrice: 'Free (compliance) to £500 (advisory)',
+    deliveryTime: 'Ongoing or one-off',
+    deliveredBy: 'Tax specialists',
+    aims: 'Maximise client drawings while optimising tax efficiency',
     tier: 'all',
     features: [
+      'Optimal profit extraction tool',
+      'Company vs personal tax optimization',
       'Salary vs dividend analysis',
-      'Tax optimization modeling',
-      'Pension contribution planning',
-      'Personal allowance utilization',
-      'NIC efficiency review',
-      'Annual review & updates'
+      'Financial planning referral opportunities'
     ]
+  },
+  {
+    id: '365-alignment',
+    name: '365 Alignment Programme',
+    description: 'Structured personal-business planning with AI-generated execution plans',
+    iconName: 'UserGroupIcon',
+    basePrice: '£1,500 - £9,000',
+    deliveryTime: 'Tiered: Lite/Growth/Partner',
+    deliveredBy: 'Senior advisors and business coaches',
+    aims: 'Align personal and corporate goals to improve execution discipline',
+    tier: 'professional',
+    features: [
+      'Tiered diagnostics (Lite/Growth/Partner)',
+      'AI-generated plan: outcomes, constraints, resources, risks',
+      'Quarterly accountability reviews',
+      'Weekly progress tracker in portal',
+      'Optional BRaaS/Management Accounts integration'
+    ]
+  },
+  {
+    id: 'systems-audit',
+    name: 'Systems Audit',
+    description: 'Independent review of finance workflows to find root-causes of issues',
+    iconName: 'BriefcaseIcon',
+    basePrice: '£7.5k - £25k',
+    deliveryTime: 'Multi-week engagement',
+    deliveredBy: 'Process optimization specialists',
+    aims: 'Identify and fix root causes of leakage, delays, and operational risk',
+    tier: 'enterprise',
+    features: [
+      'Targeted data pull from systems',
+      'Process walk-throughs with owners',
+      'Controls mapping (fraud resilience)',
+      'Efficiency diagnostics and automation review',
+      'Tech-stack review (keep/simplify/replace)',
+      'Remediation plan with ROI projections',
+      'Optional: Client Portal integration'
+    ],
+    isCustom: false,
+    isEdited: false
   }
 ];
 
