@@ -447,7 +447,7 @@ const KnowledgeBasePage: React.FC = () => {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-4 gap-4" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
               {filteredBooks.map(book => (
                 <Card
                   key={book.book_id}
