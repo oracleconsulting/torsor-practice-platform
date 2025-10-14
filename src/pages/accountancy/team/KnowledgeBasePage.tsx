@@ -29,6 +29,11 @@ import {
   searchLeadershipBooks,
   type LeadershipBook 
 } from '@/lib/leadership-library-data';
+import {
+  getAssessedSkillsForBook,
+  getBooksForAssessedSkill,
+  getAllAssessedSkillsInLibrary
+} from '@/lib/leadership-library-skills-mapping';
 
 interface KnowledgeDocumentForm {
   title: string;
@@ -165,16 +170,10 @@ const KnowledgeBasePage: React.FC = () => {
     return matchesSearch && matchesTab && matchesType && matchesCategory;
   });
 
-  // Get all unique skills from the library
-  const allSkills = React.useMemo(() => {
-    const skillsSet = new Set<string>();
-    leadershipBooks.forEach(book => {
-      book.leadership_competencies.forEach(skill => skillsSet.add(skill));
-      book.technical_skills.forEach(skill => skillsSet.add(skill));
-      book.soft_skills.forEach(skill => skillsSet.add(skill));
-    });
-    return Array.from(skillsSet).sort();
-  }, [leadershipBooks]);
+  // Get all assessed skills (from the 111) that are covered in the library
+  const allAssessedSkills = React.useMemo(() => {
+    return getAllAssessedSkillsInLibrary();
+  }, []);
 
   // Filter leadership books
   const filteredBooks = leadershipBooks.filter(book => {
@@ -186,10 +185,9 @@ const KnowledgeBasePage: React.FC = () => {
     
     const matchesDifficulty = selectedDifficulty === 'all' || book.difficulty_level === selectedDifficulty;
     
-    const matchesSkill = selectedSkill === 'all' || 
-      book.leadership_competencies.includes(selectedSkill) ||
-      book.technical_skills.includes(selectedSkill) ||
-      book.soft_skills.includes(selectedSkill);
+    // Match against the 111 assessed skills
+    const assessedSkills = getAssessedSkillsForBook(book.book_id);
+    const matchesSkill = selectedSkill === 'all' || assessedSkills.includes(selectedSkill);
 
     return matchesSearch && matchesDifficulty && matchesSkill;
   });
@@ -436,14 +434,14 @@ const KnowledgeBasePage: React.FC = () => {
         <div className="space-y-6">
           {/* Filters for Books */}
           <div className="flex gap-4 items-center flex-wrap">
-            {/* Skill Filter */}
+            {/* Assessed Skill Filter */}
             <Select value={selectedSkill} onValueChange={setSelectedSkill}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Filter by Skill..." />
+              <SelectTrigger className="w-72">
+                <SelectValue placeholder="Filter by Assessed Skill..." />
               </SelectTrigger>
               <SelectContent className="max-h-96">
-                <SelectItem value="all">All Skills</SelectItem>
-                {allSkills.map(skill => (
+                <SelectItem value="all">All Assessed Skills</SelectItem>
+                {allAssessedSkills.map(skill => (
                   <SelectItem key={skill} value={skill}>
                     {skill}
                   </SelectItem>
@@ -979,37 +977,68 @@ const KnowledgeBasePage: React.FC = () => {
                 </div>
               )}
 
-              {/* Skills & Competencies */}
-              <div className="grid grid-cols-2 gap-4">
-                {selectedBook.leadership_competencies.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-900 mb-2">Leadership Competencies</h3>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedBook.leadership_competencies.map((comp, idx) => (
-                        <Badge key={idx} variant="secondary" className="text-xs text-gray-900">
-                          {comp}
-                        </Badge>
-                      ))}
-                    </div>
+              {/* Core Skills from Assessment - PRIMARY FOCUS */}
+              {getAssessedSkillsForBook(selectedBook.book_id).length > 0 && (
+                <div className="bg-orange-50 p-4 rounded-lg border-2 border-orange-300">
+                  <h3 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+                    <Award className="h-5 w-5 text-orange-500" />
+                    Core Skills from Your Assessment
+                  </h3>
+                  <p className="text-xs text-gray-700 mb-3">
+                    This book directly develops these skills from your 111-skill assessment framework:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {getAssessedSkillsForBook(selectedBook.book_id).map((skill, idx) => (
+                      <Badge 
+                        key={idx} 
+                        className="bg-orange-500 text-white hover:bg-orange-600 text-xs font-semibold"
+                      >
+                        {skill}
+                      </Badge>
+                    ))}
                   </div>
-                )}
-                {selectedBook.soft_skills.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-900 mb-2">Soft Skills</h3>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedBook.soft_skills.slice(0, 6).map((skill, idx) => (
-                        <Badge key={idx} variant="outline" className="text-xs text-gray-900">
-                          {skill}
-                        </Badge>
-                      ))}
-                      {selectedBook.soft_skills.length > 6 && (
-                        <Badge variant="outline" className="text-xs text-gray-900">
-                          +{selectedBook.soft_skills.length - 6} more
-                        </Badge>
-                      )}
+                </div>
+              )}
+
+              {/* Additional Development Areas - SECONDARY */}
+              <div className="border-t pt-4">
+                <h3 className="text-sm font-bold text-gray-700 mb-3">Additional Development Areas</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  {selectedBook.leadership_competencies.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-600 mb-2">Leadership Competencies</h4>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedBook.leadership_competencies.slice(0, 4).map((comp, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs text-gray-700">
+                            {comp}
+                          </Badge>
+                        ))}
+                        {selectedBook.leadership_competencies.length > 4 && (
+                          <Badge variant="secondary" className="text-xs text-gray-700">
+                            +{selectedBook.leadership_competencies.length - 4} more
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                  {selectedBook.soft_skills.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-600 mb-2">Soft Skills</h4>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedBook.soft_skills.slice(0, 4).map((skill, idx) => (
+                          <Badge key={idx} variant="outline" className="text-xs text-gray-700">
+                            {skill}
+                          </Badge>
+                        ))}
+                        {selectedBook.soft_skills.length > 4 && (
+                          <Badge variant="outline" className="text-xs text-gray-700">
+                            +{selectedBook.soft_skills.length - 4} more
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Best For */}
@@ -1055,14 +1084,25 @@ const KnowledgeBasePage: React.FC = () => {
               )}
 
               {/* Footer Actions */}
-              <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button variant="outline" onClick={() => setShowBookDialog(false)}>
-                  Close
-                </Button>
-                <Button className="bg-orange-500 hover:bg-orange-600">
-                  <BookMarked className="h-4 w-4 mr-2" />
-                  Add to Reading List
-                </Button>
+              <div className="flex justify-between items-center pt-4 border-t">
+                <p className="text-xs text-gray-600 max-w-md">
+                  💡 After reading, log this as CPD and update your skill levels to track your progress
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setShowBookDialog(false)}>
+                    Close
+                  </Button>
+                  <Button 
+                    className="bg-orange-500 hover:bg-orange-600"
+                    onClick={() => {
+                      // TODO: Navigate to CPD logging with pre-filled book info
+                      alert(`Coming soon: Log "${selectedBook.book_title}" as CPD\n\nYou'll be prompted to:\n1. Log ${selectedBook.cpd_hours_value} CPD hours\n2. Update your skill levels for:\n${getAssessedSkillsForBook(selectedBook.book_id).slice(0, 3).join(', ')}${getAssessedSkillsForBook(selectedBook.book_id).length > 3 ? '...' : ''}`);
+                    }}
+                  >
+                    <Award className="h-4 w-4 mr-2" />
+                    Log as CPD & Update Skills
+                  </Button>
+                </div>
               </div>
             </div>
           )}
