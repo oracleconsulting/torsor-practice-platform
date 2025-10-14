@@ -18,10 +18,6 @@ RUN npm config set legacy-peer-deps true && \
 # Builder stage
 FROM node:20-alpine AS builder
 
-# Force cache invalidation with build timestamp
-ARG CACHEBUST=1
-RUN echo "Cache bust: $CACHEBUST"
-
 RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
@@ -32,7 +28,13 @@ COPY package*.json ./
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 
-# Copy source code
+# Force cache invalidation - MUST be after node_modules copy
+ARG CACHEBUST=1
+RUN echo "Builder cache bust: $CACHEBUST" && \
+    echo "Timestamp: $(date)" && \
+    rm -rf dist .vite node_modules/.vite
+
+# Copy source code (this layer should now be invalidated)
 COPY . .
 
 # Accept build arguments for environment variables
