@@ -2,7 +2,7 @@
  * API functions for Leadership Library book checkout system
  */
 
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/client';
 
 export interface BookCheckout {
   id: string;
