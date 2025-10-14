@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Award, BookOpen, TrendingUp, BarChart2, Mail, LayoutDashboard, Target, Users, CheckCircle } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Award, BookOpen, TrendingUp, BarChart2, Mail, LayoutDashboard, Target, Users, CheckCircle, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import CPDTrackerPage from './team/CPDTrackerPage';
@@ -53,6 +55,7 @@ const GeometricShape = () => (
 );
 
 const TeamManagementPage: React.FC = () => {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('invitations');
 
@@ -148,6 +151,37 @@ const TeamManagementPage: React.FC = () => {
             BUILD ADVISORY CONFIDENCE AND CAPABILITY ACROSS YOUR TEAM
           </p>
         </div>
+      </div>
+
+      {/* Advisory Capability Matrix - Prominent Feature */}
+      <div className="container mx-auto px-6 py-6">
+        <Card className="border-4 border-amber-500 bg-gradient-to-br from-amber-50 to-orange-50 shadow-2xl">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="bg-amber-500 p-4 rounded-full">
+                  <Target className="h-8 w-8 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-gray-900 uppercase mb-1">
+                    Advisory Services Capability Matrix
+                  </h2>
+                  <p className="text-gray-700 font-semibold">
+                    See which services you can deliver based on your team's skills • Map skills to service lines • Identify training needs
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => navigate('/team/advisory-capability')}
+                className="bg-amber-600 hover:bg-amber-700 text-white px-8 py-6 text-lg font-bold uppercase shadow-lg"
+                size="lg"
+              >
+                <Sparkles className="h-5 w-5 mr-2" />
+                View Capability Matrix
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
       
       {/* Page Content */}
