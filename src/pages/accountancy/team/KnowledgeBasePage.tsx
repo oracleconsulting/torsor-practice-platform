@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  BookOpen, FileText, Search, Plus, Tag, Clock, Eye, Loader2, AlertCircle
+  BookOpen, FileText, Search, Plus, Tag, Clock, Eye, Loader2, AlertCircle,
+  Video, Newspaper, Globe, GraduationCap, BookMarked, Users
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,11 +26,14 @@ import { formatDate } from '@/lib/utils';
 interface KnowledgeDocumentForm {
   title: string;
   summary: string;
-  document_type: 'cpd_summary' | 'case_study' | 'guide' | 'template' | 'notes' | 'other';
+  document_type: 'leadership_book' | 'knowledge_session' | 'article' | 'webinar' | 'cpd_summary' | 'case_study' | 'guide' | 'template' | 'notes' | 'other';
   tags: string[];
   skill_categories: string[];
   cpd_activity_id?: string;
   is_public: boolean;
+  url?: string; // For webinars, articles, videos
+  author?: string; // For books, articles
+  duration_minutes?: number; // For videos, webinars
 }
 
 const KnowledgeBasePage: React.FC = () => {
@@ -49,11 +53,16 @@ const KnowledgeBasePage: React.FC = () => {
   const [newDocument, setNewDocument] = useState<KnowledgeDocumentForm>({
     title: '',
     summary: '',
-    document_type: 'cpd_summary',
+    document_type: 'knowledge_session',
     tags: [],
     skill_categories: [],
-    is_public: true
+    is_public: true,
+    url: '',
+    author: '',
+    duration_minutes: undefined
   });
+
+  const [activeTab, setActiveTab] = useState('all');
 
   const skillCategories = [
     'technical-accounting-audit',
@@ -68,11 +77,18 @@ const KnowledgeBasePage: React.FC = () => {
 
   useEffect(() => {
     async function loadData() {
-      if (!practice?.id || !practiceMember?.id) return;
-
       try {
         setLoading(true);
         setError(null);
+
+        // If no practice, show empty state
+        if (!practice?.id || !practiceMember?.id) {
+          console.log('[KnowledgeBase] No practice/member, showing empty state');
+          setDocuments([]);
+          setCpdActivities([]);
+          setLoading(false);
+          return;
+        }
 
         const [docsData, activitiesData] = await Promise.all([
           getKnowledgeDocuments(practice.id),
@@ -125,11 +141,12 @@ const KnowledgeBasePage: React.FC = () => {
       doc.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (doc.tags && doc.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())));
     
+    const matchesTab = activeTab === 'all' || doc.document_type === activeTab;
     const matchesType = selectedType === 'all' || doc.document_type === selectedType;
     const matchesCategory = selectedCategory === 'all' || 
       (doc.skill_categories && doc.skill_categories.includes(selectedCategory));
 
-    return matchesSearch && matchesType && matchesCategory;
+    return matchesSearch && matchesTab && matchesType && matchesCategory;
   });
 
   // Group documents by type
@@ -142,9 +159,13 @@ const KnowledgeBasePage: React.FC = () => {
 
   const getTypeIcon = (type: string) => {
     switch (type) {
+      case 'leadership_book': return BookMarked;
+      case 'knowledge_session': return Video;
+      case 'article': return Newspaper;
+      case 'webinar': return Globe;
       case 'cpd_summary': return FileText;
       case 'guide': return BookOpen;
-      case 'case_study': return FileText;
+      case 'case_study': return GraduationCap;
       case 'template': return FileText;
       case 'notes': return FileText;
       default: return FileText;
@@ -153,12 +174,31 @@ const KnowledgeBasePage: React.FC = () => {
 
   const getTypeColor = (type: string) => {
     switch (type) {
+      case 'leadership_book': return 'text-amber-500';
+      case 'knowledge_session': return 'text-purple-500';
+      case 'article': return 'text-cyan-500';
+      case 'webinar': return 'text-pink-500';
       case 'cpd_summary': return 'text-blue-500';
       case 'guide': return 'text-green-500';
-      case 'case_study': return 'text-purple-500';
+      case 'case_study': return 'text-indigo-500';
       case 'template': return 'text-orange-500';
-      case 'notes': return 'text-gray-100 font-medium';
-      default: return 'text-gray-100 font-medium';
+      case 'notes': return 'text-gray-400';
+      default: return 'text-gray-400';
+    }
+  };
+
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case 'leadership_book': return 'Leadership Library';
+      case 'knowledge_session': return 'Knowledge Sharing';
+      case 'article': return 'Article';
+      case 'webinar': return 'Webinar';
+      case 'cpd_summary': return 'CPD Summary';
+      case 'guide': return 'Guide';
+      case 'case_study': return 'Case Study';
+      case 'template': return 'Template';
+      case 'notes': return 'Notes';
+      default: return 'Other';
     }
   };
 
@@ -187,16 +227,45 @@ const KnowledgeBasePage: React.FC = () => {
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-3xl font-bold">Knowledge Base</h1>
+          <div>
+            <h1 className="text-3xl font-bold">Knowledge Base</h1>
+            <p className="text-muted-foreground mt-1">
+              Team knowledge, learning resources, and professional development
+            </p>
+          </div>
           <Button onClick={() => setShowUploadDialog(true)} className="bg-orange-500 hover:bg-orange-600">
             <Plus className="h-4 w-4 mr-2" />
-            Add Document
+            Add Content
           </Button>
         </div>
-        <p className="text-white font-medium">
-          Team knowledge, CPD summaries, and learning resources
-        </p>
       </div>
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="all">All</TabsTrigger>
+          <TabsTrigger value="leadership_book">
+            <BookMarked className="w-4 h-4 mr-2" />
+            Books
+          </TabsTrigger>
+          <TabsTrigger value="knowledge_session">
+            <Video className="w-4 h-4 mr-2" />
+            Sessions
+          </TabsTrigger>
+          <TabsTrigger value="article">
+            <Newspaper className="w-4 h-4 mr-2" />
+            Articles
+          </TabsTrigger>
+          <TabsTrigger value="webinar">
+            <Globe className="w-4 h-4 mr-2" />
+            Webinars
+          </TabsTrigger>
+          <TabsTrigger value="cpd_summary">
+            <FileText className="w-4 h-4 mr-2" />
+            CPD
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Search and Filters */}
       <div className="flex gap-4 mb-6">
@@ -211,16 +280,20 @@ const KnowledgeBasePage: React.FC = () => {
         </div>
         
         <Select value={selectedType} onValueChange={setSelectedType}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-56">
             <SelectValue placeholder="All Types" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="cpd_summary">CPD Summary</SelectItem>
-            <SelectItem value="case_study">Case Study</SelectItem>
-            <SelectItem value="guide">Guide</SelectItem>
-            <SelectItem value="template">Template</SelectItem>
-            <SelectItem value="notes">Notes</SelectItem>
+            <SelectItem value="leadership_book">📚 Leadership Books</SelectItem>
+            <SelectItem value="knowledge_session">🎥 Knowledge Sessions</SelectItem>
+            <SelectItem value="article">📰 Articles</SelectItem>
+            <SelectItem value="webinar">🌐 Webinars</SelectItem>
+            <SelectItem value="cpd_summary">📄 CPD Summaries</SelectItem>
+            <SelectItem value="case_study">🎓 Case Studies</SelectItem>
+            <SelectItem value="guide">📖 Guides</SelectItem>
+            <SelectItem value="template">📋 Templates</SelectItem>
+            <SelectItem value="notes">📝 Notes</SelectItem>
             <SelectItem value="other">Other</SelectItem>
           </SelectContent>
         </Select>
@@ -241,69 +314,131 @@ const KnowledgeBasePage: React.FC = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <Card className="border-gray-700">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-8">
+        <Card className="bg-gray-50 border-gray-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Documents</CardTitle>
-            <FileText className="h-4 w-4 text-white font-medium" />
+            <CardTitle className="text-xs font-medium text-gray-900">Total Content</CardTitle>
+            <FileText className="h-4 w-4 text-gray-700" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{documents.length}</div>
-            <p className="text-xs text-white font-medium mt-2">in knowledge base</p>
+            <div className="text-2xl font-bold text-gray-900">{documents.length}</div>
           </CardContent>
         </Card>
 
-        <Card className="border-gray-700">
+        <Card className="bg-amber-50 border-amber-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">CPD Summaries</CardTitle>
-            <BookOpen className="h-4 w-4 text-white font-medium" />
+            <CardTitle className="text-xs font-medium text-gray-900">Books</CardTitle>
+            <BookMarked className="h-4 w-4 text-amber-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold text-gray-900">
+              {documents.filter(d => d.document_type === 'leadership_book').length}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-purple-50 border-purple-300">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-medium text-gray-900">Sessions</CardTitle>
+            <Video className="h-4 w-4 text-purple-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-900">
+              {documents.filter(d => d.document_type === 'knowledge_session').length}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-cyan-50 border-cyan-300">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-medium text-gray-900">Articles</CardTitle>
+            <Newspaper className="h-4 w-4 text-cyan-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-900">
+              {documents.filter(d => d.document_type === 'article').length}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-pink-50 border-pink-300">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-medium text-gray-900">Webinars</CardTitle>
+            <Globe className="h-4 w-4 text-pink-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-900">
+              {documents.filter(d => d.document_type === 'webinar').length}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-blue-50 border-blue-300">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-medium text-gray-900">CPD</CardTitle>
+            <FileText className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-900">
               {documents.filter(d => d.document_type === 'cpd_summary').length}
             </div>
-            <p className="text-xs text-white font-medium mt-2">learning documents</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-gray-700">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Views</CardTitle>
-            <Eye className="h-4 w-4 text-white font-medium" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {documents.reduce((sum, d) => sum + d.download_count, 0)}
-            </div>
-            <p className="text-xs text-white font-medium mt-2">document views</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-gray-700">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Categories</CardTitle>
-            <Tag className="h-4 w-4 text-white font-medium" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {new Set(documents.flatMap(d => d.skill_categories || [])).size}
-            </div>
-            <p className="text-xs text-white font-medium mt-2">skill areas</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Documents List */}
       {filteredDocuments.length === 0 ? (
-        <Card className="border-gray-700">
+        <Card className="bg-gray-50 border-gray-300">
           <CardContent className="p-12 text-center">
-            <FileText className="h-12 w-12 text-white font-medium mx-auto mb-4" />
-            <p className="text-white font-medium mb-2">No documents found</p>
-            <p className="text-sm text-gray-100 font-medium">
-              {documents.length === 0 
-                ? 'Add your first knowledge document to get started'
-                : 'Try adjusting your search or filters'}
-            </p>
+            {activeTab === 'leadership_book' ? (
+              <>
+                <BookMarked className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Leadership Library</h3>
+                <p className="text-sm text-gray-700 mb-4">
+                  Build a curated collection of leadership books with key takeaways and actionable insights.
+                  Perfect for continuous professional development.
+                </p>
+              </>
+            ) : activeTab === 'knowledge_session' ? (
+              <>
+                <Video className="h-12 w-12 text-purple-500 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Knowledge Sharing Sessions</h3>
+                <p className="text-sm text-gray-700 mb-4">
+                  Team members who complete CPD can create summarized videos or articles to share their learnings.
+                  Great for multiplying the value of training across the team.
+                </p>
+              </>
+            ) : activeTab === 'article' ? (
+              <>
+                <Newspaper className="h-12 w-12 text-cyan-500 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Articles of Interest</h3>
+                <p className="text-sm text-gray-700 mb-4">
+                  Share industry news, thought leadership pieces, and relevant articles that keep the team informed.
+                </p>
+              </>
+            ) : activeTab === 'webinar' ? (
+              <>
+                <Globe className="h-12 w-12 text-pink-500 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Webinars & Online Events</h3>
+                <p className="text-sm text-gray-700 mb-4">
+                  Track webinars, online conferences, and virtual events relevant to your team's development.
+                </p>
+              </>
+            ) : (
+              <>
+                <FileText className="h-12 w-12 text-gray-500 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-gray-900 mb-2">No Content Yet</h3>
+                <p className="text-sm text-gray-700 mb-4">
+                  {documents.length === 0 
+                    ? 'Start building your knowledge base by adding your first piece of content'
+                    : 'Try adjusting your search or filters'}
+                </p>
+              </>
+            )}
+            <Button onClick={() => setShowUploadDialog(true)} className="bg-orange-500 hover:bg-orange-600">
+              <Plus className="h-4 w-4 mr-2" />
+              Add {getTypeLabel(activeTab === 'all' ? 'other' : activeTab)}
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -382,54 +517,106 @@ const KnowledgeBasePage: React.FC = () => {
 
       {/* Upload Dialog */}
       <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Knowledge Document</DialogTitle>
+            <DialogTitle>Add Content to Knowledge Base</DialogTitle>
             <DialogDescription>
-              Share your learning or knowledge with the team
+              Share knowledge, resources, and learning with your team
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
             <div>
+              <Label>Content Type *</Label>
+              <Select 
+                value={newDocument.document_type} 
+                onValueChange={(value) => setNewDocument({...newDocument, document_type: value as any})}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="leadership_book">📚 Leadership Book</SelectItem>
+                  <SelectItem value="knowledge_session">🎥 Knowledge Session</SelectItem>
+                  <SelectItem value="article">📰 Article</SelectItem>
+                  <SelectItem value="webinar">🌐 Webinar</SelectItem>
+                  <SelectItem value="cpd_summary">📄 CPD Summary</SelectItem>
+                  <SelectItem value="case_study">🎓 Case Study</SelectItem>
+                  <SelectItem value="guide">📖 Guide</SelectItem>
+                  <SelectItem value="template">📋 Template</SelectItem>
+                  <SelectItem value="notes">📝 Notes</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
               <Label>Title *</Label>
               <Input
                 value={newDocument.title}
                 onChange={(e) => setNewDocument({...newDocument, title: e.target.value})}
-                placeholder="e.g., ACCA Tax Update Summary"
+                placeholder={
+                  newDocument.document_type === 'leadership_book' ? 'e.g., The Five Dysfunctions of a Team' :
+                  newDocument.document_type === 'knowledge_session' ? 'e.g., MTD Implementation - Key Learnings' :
+                  newDocument.document_type === 'article' ? 'e.g., Future of AI in Accounting' :
+                  'e.g., ACCA Tax Update Summary'
+                }
               />
             </div>
 
+            {/* Author field for books and articles */}
+            {(newDocument.document_type === 'leadership_book' || newDocument.document_type === 'article') && (
+              <div>
+                <Label>Author</Label>
+                <Input
+                  value={newDocument.author || ''}
+                  onChange={(e) => setNewDocument({...newDocument, author: e.target.value})}
+                  placeholder="e.g., Patrick Lencioni"
+                />
+              </div>
+            )}
+
+            {/* URL field for articles, webinars, and videos */}
+            {(['article', 'webinar', 'knowledge_session'].includes(newDocument.document_type)) && (
+              <div>
+                <Label>URL / Link</Label>
+                <Input
+                  value={newDocument.url || ''}
+                  onChange={(e) => setNewDocument({...newDocument, url: e.target.value})}
+                  placeholder="https://..."
+                  type="url"
+                />
+              </div>
+            )}
+
+            {/* Duration for videos and webinars */}
+            {(['knowledge_session', 'webinar'].includes(newDocument.document_type)) && (
+              <div>
+                <Label>Duration (minutes)</Label>
+                <Input
+                  value={newDocument.duration_minutes || ''}
+                  onChange={(e) => setNewDocument({...newDocument, duration_minutes: parseInt(e.target.value) || undefined})}
+                  placeholder="e.g., 45"
+                  type="number"
+                />
+              </div>
+            )}
+
             <div>
-              <Label>Summary *</Label>
+              <Label>Summary / Key Takeaways *</Label>
               <Textarea
                 value={newDocument.summary}
                 onChange={(e) => setNewDocument({...newDocument, summary: e.target.value})}
-                placeholder="Describe the key points and takeaways..."
+                placeholder={
+                  newDocument.document_type === 'leadership_book' ? 'What are the main concepts and how can they be applied?' :
+                  newDocument.document_type === 'knowledge_session' ? 'Share the key learnings from your CPD...' :
+                  'Describe the key points and takeaways...'
+                }
                 rows={4}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Document Type</Label>
-                <Select 
-                  value={newDocument.document_type} 
-                  onValueChange={(value) => setNewDocument({...newDocument, document_type: value as any})}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cpd_summary">CPD Summary</SelectItem>
-                    <SelectItem value="case_study">Case Study</SelectItem>
-                    <SelectItem value="guide">Guide</SelectItem>
-                    <SelectItem value="template">Template</SelectItem>
-                    <SelectItem value="notes">Notes</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
 
               <div>
                 <Label>Link to CPD Activity (Optional)</Label>
