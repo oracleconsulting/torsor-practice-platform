@@ -158,13 +158,13 @@ export async function getTeamMetrics(practiceId: string): Promise<TeamMetrics> {
     // Get CPD data
     const { data: cpdData } = await supabase
       .from('cpd_activities')
-      .select('hours, team_member_id')
-      .in('team_member_id', memberIds);
+      .select('hours, practice_member_id')
+      .in('practice_member_id', memberIds);
 
     const totalCPDHours = toArray(cpdData).reduce((sum: number, c: any) => sum + (c.hours || 0), 0);
     
     // CPD compliance (members with >0 hours / total members * 100)
-    const membersWithCPD = new Set(toArray(cpdData).map((c: any) => c.team_member_id)).size;
+    const membersWithCPD = new Set(toArray(cpdData).map((c: any) => c.practice_member_id)).size;
     const cpdCompliance = totalMembers > 0 ? Math.round((membersWithCPD / totalMembers) * 100) : 0;
 
     // Mentoring engagement (simplified - would need mentoring_relationships table)
@@ -406,8 +406,8 @@ export async function getCPDInvestmentAnalysis(
     // Get CPD activities
     const { data: cpdActivities, error: cpdError } = await supabase
       .from('cpd_activities')
-      .select('team_member_id, hours, cost')
-      .in('team_member_id', memberIds);
+      .select('practice_member_id, hours, cost')
+      .in('practice_member_id', memberIds);
 
     if (cpdError) throw cpdError;
 
@@ -422,7 +422,7 @@ export async function getCPDInvestmentAnalysis(
     // Calculate metrics per member
     const result: CPDInvestment[] = members.map(member => {
       // Sum CPD hours and costs
-      const memberCPD = cpdActivities?.filter(c => c.team_member_id === member.id) || [];
+      const memberCPD = cpdActivities?.filter(c => c.practice_member_id === member.id) || [];
       const hours = memberCPD.reduce((sum, c) => sum + (c.hours || 0), 0);
       const cost = memberCPD.reduce((sum, c) => sum + (c.cost || 0), 0);
 
