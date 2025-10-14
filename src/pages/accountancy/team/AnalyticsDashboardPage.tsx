@@ -476,8 +476,8 @@ const AnalyticsDashboardPage: React.FC = () => {
           {/* Skill Progression Timeline */}
           <Card>
             <CardHeader>
-              <CardTitle>Skill Progression Timeline</CardTitle>
-              <CardDescription>
+              <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Skill Progression Timeline</CardTitle>
+              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
                 Average skill level improvement over time
               </CardDescription>
             </CardHeader>
@@ -505,8 +505,8 @@ const AnalyticsDashboardPage: React.FC = () => {
             {/* Department Comparison Radar */}
             <Card>
               <CardHeader>
-                <CardTitle>Department Comparison</CardTitle>
-                <CardDescription>
+                <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Department Comparison</CardTitle>
+                <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
                   Skills breakdown by department
                 </CardDescription>
               </CardHeader>
@@ -547,8 +547,8 @@ const AnalyticsDashboardPage: React.FC = () => {
             {/* CPD Investment vs Improvement Scatter */}
             <Card>
               <CardHeader>
-                <CardTitle>CPD Investment vs Improvement</CardTitle>
-                <CardDescription>
+                <CardTitle style={{ color: '#000000', fontWeight: '700' }}>CPD Investment vs Improvement</CardTitle>
+                <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
                   Return on CPD investment analysis
                 </CardDescription>
               </CardHeader>
@@ -578,8 +578,8 @@ const AnalyticsDashboardPage: React.FC = () => {
           {/* Skill Demand vs Supply Heatmap */}
           <Card>
             <CardHeader>
-              <CardTitle>Skill Demand vs Supply</CardTitle>
-              <CardDescription>
+              <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Skill Demand vs Supply</CardTitle>
+              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
                 Gap analysis: Darker colors indicate larger gaps
               </CardDescription>
             </CardHeader>
@@ -602,8 +602,8 @@ const AnalyticsDashboardPage: React.FC = () => {
           {/* Individual Growth Trajectories */}
           <Card>
             <CardHeader>
-              <CardTitle>Individual Growth Trajectories</CardTitle>
-              <CardDescription>
+              <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Individual Growth Trajectories</CardTitle>
+              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
                 Top performers' skill development over time
               </CardDescription>
             </CardHeader>
@@ -637,8 +637,8 @@ const AnalyticsDashboardPage: React.FC = () => {
           {/* Training ROI Predictions */}
           <Card>
             <CardHeader>
-              <CardTitle>Training ROI Predictions</CardTitle>
-              <CardDescription>
+              <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Training ROI Predictions</CardTitle>
+              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
                 Expected return on investment for recommended training programs
               </CardDescription>
             </CardHeader>
@@ -674,8 +674,8 @@ const AnalyticsDashboardPage: React.FC = () => {
           {/* Skill Gap Forecasts */}
           <Card>
             <CardHeader>
-              <CardTitle>Future Skill Gap Forecasts</CardTitle>
-              <CardDescription>
+              <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Future Skill Gap Forecasts</CardTitle>
+              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
                 Predicted skill gaps for the next 12 months
               </CardDescription>
             </CardHeader>
@@ -737,11 +737,11 @@ const AnalyticsDashboardPage: React.FC = () => {
           {/* Skills at Risk */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2" style={{ color: '#000000', fontWeight: '700' }}>
                 <AlertTriangle className="h-5 w-5 text-orange-500" />
                 Skills at Risk
               </CardTitle>
-              <CardDescription>
+              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
                 Skills showing declining or stagnant trends
               </CardDescription>
             </CardHeader>
@@ -788,11 +788,11 @@ const AnalyticsDashboardPage: React.FC = () => {
           {/* Succession Planning Alerts */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2" style={{ color: '#000000', fontWeight: '700' }}>
                 <AlertTriangle className="h-5 w-5 text-red-500" />
                 Succession Planning Alerts
               </CardTitle>
-              <CardDescription>
+              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
                 Critical roles requiring succession planning
               </CardDescription>
             </CardHeader>
