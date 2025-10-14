@@ -135,10 +135,10 @@ export async function getTeamMetrics(practiceId: string): Promise<TeamMetrics> {
     const totalSkills = skills?.length || 0;
 
     // Get all skill assessments for the practice
-    const { data: assessments, error: assessError } = await supabase
+    const { data: assessments, error: assessError} = await supabase
       .from('skill_assessments')
-      .select('team_member_id, skill_id, current_level, target_level')
-      .in('team_member_id', memberIds);
+      .select('practice_member_id, skill_id, current_level')
+      .in('practice_member_id', memberIds);
 
     if (assessError) throw assessError;
 
@@ -158,13 +158,13 @@ export async function getTeamMetrics(practiceId: string): Promise<TeamMetrics> {
     // Get CPD data
     const { data: cpdData } = await supabase
       .from('cpd_activities')
-      .select('hours, team_member_id')
-      .in('team_member_id', memberIds);
+      .select('hours, practice_member_id')
+      .in('practice_member_id', memberIds);
 
     const totalCPDHours = toArray(cpdData).reduce((sum: number, c: any) => sum + (c.hours || 0), 0);
     
     // CPD compliance (members with >0 hours / total members * 100)
-    const membersWithCPD = new Set(toArray(cpdData).map((c: any) => c.team_member_id)).size;
+    const membersWithCPD = new Set(toArray(cpdData).map((c: any) => c.practice_member_id)).size;
     const cpdCompliance = totalMembers > 0 ? Math.round((membersWithCPD / totalMembers) * 100) : 0;
 
     // Mentoring engagement (simplified - would need mentoring_relationships table)
@@ -266,7 +266,7 @@ export async function getSkillProgression(
       const entry = progressionMap.get(monthKey)!;
       entry.total += assessment.current_level;
       entry.count += 1;
-      entry.memberIds.add(assessment.team_member_id);
+      entry.memberIds.add(assessment.practice_member_id);
     });
 
     // Convert to array format
@@ -296,10 +296,10 @@ export async function getDepartmentComparison(
   try {
     console.log('[getDepartmentComparison] Fetching real data for practice:', practiceId);
 
-    // Get all members with their departments
+    // Get all members (no department column in practice_members)
     const { data: members, error: membersError } = await supabase
       .from('practice_members')
-      .select('id, department')
+      .select('id, role')
       .eq('practice_id', practiceId);
 
     if (membersError) throw membersError;
@@ -310,13 +310,13 @@ export async function getDepartmentComparison(
     const { data: assessments, error: assessError } = await supabase
       .from('skill_assessments')
       .select(`
-        team_member_id,
+        practice_member_id,
         current_level,
         skills (
           category
         )
       `)
-      .in('team_member_id', memberIds);
+      .in('practice_member_id', memberIds);
 
     if (assessError) throw assessError;
     if (!assessments || assessments.length === 0) return [];
@@ -328,7 +328,8 @@ export async function getDepartmentComparison(
     }>();
 
     members.forEach(member => {
-      const dept = member.department || 'Advisory';
+      // Use role as pseudo-department since department column doesn't exist
+      const dept = (member as any).role || 'Team Member';
       if (!deptMap.has(dept)) {
         deptMap.set(dept, {
           members: new Set(),
@@ -338,12 +339,12 @@ export async function getDepartmentComparison(
       deptMap.get(dept)!.members.add(member.id);
     });
 
-    // Aggregate assessments by department and category
+    // Aggregate assessments by department (role) and category
     assessments.forEach((assessment: any) => {
-      const member = members.find(m => m.id === assessment.team_member_id);
+      const member = members.find(m => m.id === assessment.practice_member_id);
       if (!member) return;
 
-      const dept = member.department || 'Advisory';
+      const dept = (member as any).role || 'Team Member';
       const deptData = deptMap.get(dept)!;
       const category = assessment.skills?.category || 'Technical';
 
@@ -405,30 +406,30 @@ export async function getCPDInvestmentAnalysis(
     // Get CPD activities
     const { data: cpdActivities, error: cpdError } = await supabase
       .from('cpd_activities')
-      .select('team_member_id, hours, cost')
-      .in('team_member_id', memberIds);
+      .select('practice_member_id, hours, cost')
+      .in('practice_member_id', memberIds);
 
     if (cpdError) throw cpdError;
 
     // Get skill assessments to calculate improvement
     const { data: assessments, error: assessError } = await supabase
       .from('skill_assessments')
-      .select('team_member_id, current_level, target_level')
-      .in('team_member_id', memberIds);
+      .select('practice_member_id, current_level')
+      .in('practice_member_id', memberIds);
 
     if (assessError) throw assessError;
 
     // Calculate metrics per member
     const result: CPDInvestment[] = members.map(member => {
       // Sum CPD hours and costs
-      const memberCPD = cpdActivities?.filter(c => c.team_member_id === member.id) || [];
+      const memberCPD = cpdActivities?.filter(c => c.practice_member_id === member.id) || [];
       const hours = memberCPD.reduce((sum, c) => sum + (c.hours || 0), 0);
       const cost = memberCPD.reduce((sum, c) => sum + (c.cost || 0), 0);
 
       // Calculate average improvement (target - current)
-      const memberAssessments = assessments?.filter(a => a.team_member_id === member.id) || [];
+      const memberAssessments = assessments?.filter(a => a.practice_member_id === member.id) || [];
       const avgImprovement = memberAssessments.length > 0
-        ? memberAssessments.reduce((sum, a) => sum + (a.target_level - a.current_level), 0) / memberAssessments.length
+        ? memberAssessments.reduce((sum, a) => sum + ((5 - a.current_level)), 0) / memberAssessments.length
         : 0;
 
       // Calculate ROI (improvement per hour)
@@ -483,7 +484,7 @@ export async function getSkillDemandSupply(
     const { data: assessments, error: assessError } = await supabase
       .from('skill_assessments')
       .select('skill_id, current_level')
-      .in('team_member_id', memberIds);
+      .in('practice_member_id', memberIds);
 
     if (assessError) throw assessError;
 
@@ -547,8 +548,8 @@ export async function getGrowthTrajectories(
     // Get all assessments with dates
     const { data: assessments, error: assessError } = await supabase
       .from('skill_assessments')
-      .select('team_member_id, current_level, assessed_at')
-      .in('team_member_id', memberIds)
+      .select('practice_member_id, current_level, assessed_at')
+      .in('practice_member_id', memberIds)
       .order('assessed_at', { ascending: true });
 
     if (assessError) throw assessError;
@@ -556,7 +557,7 @@ export async function getGrowthTrajectories(
 
     // Group by member and month
     const result: GrowthTrajectory[] = members.map(member => {
-      const memberAssessments = assessments.filter(a => a.team_member_id === member.id);
+      const memberAssessments = assessments.filter(a => a.practice_member_id === member.id);
       
       // Group by month
       const monthlyData = new Map<string, { levels: number[]; count: number }>();
@@ -632,8 +633,8 @@ export async function getSkillsAtRisk(
 
     const { data: assessments, error: assessError } = await supabase
       .from('skill_assessments')
-      .select('skill_id, current_level, assessed_at, team_member_id')
-      .in('team_member_id', memberIds)
+      .select('skill_id, current_level, assessed_at, practice_member_id')
+      .in('practice_member_id', memberIds)
       .gte('assessed_at', sixMonthsAgo.toISOString())
       .order('assessed_at', { ascending: true });
 
@@ -667,7 +668,7 @@ export async function getSkillsAtRisk(
       if (declineRate < -0.1) trend = 'declining';
 
       // Count affected members
-      const affectedMemberIds = new Set(skillAssessments.map(a => a.team_member_id));
+      const affectedMemberIds = new Set(skillAssessments.map(a => a.practice_member_id));
 
       result.push({
         skill_name: skill.name,
@@ -719,8 +720,8 @@ export async function getSuccessionAlerts(
     // Get all skill assessments
     const { data: assessments, error: assessError } = await supabase
       .from('skill_assessments')
-      .select('team_member_id, skill_id, current_level')
-      .in('team_member_id', memberIds);
+      .select('practice_member_id, skill_id, current_level')
+      .in('practice_member_id', memberIds);
 
     if (assessError) throw assessError;
 
@@ -734,14 +735,14 @@ export async function getSuccessionAlerts(
     // For each senior role, find potential successors
     const result: SuccessionAlert[] = seniorMembers.map(seniorMember => {
       // Get senior member's skills
-      const seniorSkills = assessments?.filter(a => a.team_member_id === seniorMember.id) || [];
+      const seniorSkills = assessments?.filter(a => a.practice_member_id === seniorMember.id) || [];
       const seniorSkillIds = new Set(seniorSkills.map(s => s.skill_id));
 
       // Find other members who could be successors
       const potentialSuccessors = members
         .filter(m => m.id !== seniorMember.id && m.role !== seniorMember.role)
         .map(member => {
-          const memberSkills = assessments?.filter(a => a.team_member_id === member.id) || [];
+          const memberSkills = assessments?.filter(a => a.practice_member_id === member.id) || [];
           const memberSkillIds = new Set(memberSkills.map(s => s.skill_id));
 
           // Calculate readiness: % of senior skills they have
@@ -821,8 +822,8 @@ export async function getTrainingROIPredictions(
 
     const { data: assessments, error: assessError } = await supabase
       .from('skill_assessments')
-      .select('skill_id, current_level, target_level')
-      .in('team_member_id', memberIds);
+      .select('skill_id, current_level')
+      .in('practice_member_id', memberIds);
 
     if (assessError) throw assessError;
 
@@ -908,8 +909,8 @@ export async function getSkillGapForecasts(
     // Get assessments
     const { data: assessments, error: assessError } = await supabase
       .from('skill_assessments')
-      .select('skill_id, current_level, target_level, assessed_at')
-      .in('team_member_id', memberIds)
+      .select('skill_id, current_level, assessed_at')
+      .in('practice_member_id', memberIds)
       .order('assessed_at', { ascending: true });
 
     if (assessError) throw assessError;
