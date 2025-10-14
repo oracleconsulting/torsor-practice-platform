@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAccountancyContext } from '@/contexts/AccountancyContext';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/client';
 import {
   advisoryServicesMap,
   getTeamCapabilityMatrix,
@@ -46,6 +46,9 @@ export default function AdvisoryCapabilityMatrix() {
   useEffect(() => {
     if (practice?.id) {
       loadTeamData();
+    } else {
+      // If no practice, still stop loading to show empty state
+      setLoading(false);
     }
   }, [practice?.id]);
 
