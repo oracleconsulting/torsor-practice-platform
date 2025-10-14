@@ -28,6 +28,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { useAccountancyContext } from '@/contexts/AccountancyContext';
 
 // Recharts
 import {
@@ -55,6 +57,8 @@ import {
 
 const AnalyticsDashboardPage: React.FC = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { practiceId } = useAccountancyContext();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [metrics, setMetrics] = useState<TeamMetrics | null>(null);
@@ -77,10 +81,14 @@ const AnalyticsDashboardPage: React.FC = () => {
   const [trainingROI, setTrainingROI] = useState<any[]>([]);
   const [skillGapForecasts, setSkillGapForecasts] = useState<any[]>([]);
 
-  const practiceId = 'practice-123'; // Would get from context
-
   useEffect(() => {
-    loadData();
+    if (practiceId) {
+      console.log('[Analytics] Loading data for practice:', practiceId);
+      loadData();
+    } else {
+      console.log('[Analytics] No practiceId available yet');
+      setLoading(false);
+    }
 
     // Auto-refresh every 5 minutes
     refreshInterval.current = setInterval(() => {
@@ -95,8 +103,15 @@ const AnalyticsDashboardPage: React.FC = () => {
   }, [dateRange, department, skillCategory]);
 
   const loadData = async () => {
+    if (!practiceId) {
+      console.log('[Analytics] Cannot load data - no practiceId');
+      return;
+    }
+    
     setLoading(true);
     try {
+      console.log('[Analytics] Fetching analytics data...');
+      
       // Load all analytics data
       const [
         metricsData,
@@ -121,6 +136,19 @@ const AnalyticsDashboardPage: React.FC = () => {
         getTrainingROIPredictions(practiceId),
         getSkillGapForecasts(practiceId)
       ]);
+      
+      console.log('[Analytics] Data fetched:', {
+        metrics: metricsData,
+        progressionPoints: progressionData.length,
+        departments: deptData.length,
+        cpdInvestments: cpdData.length,
+        demandSupply: demandData.length,
+        trajectories: trajectoryData.length,
+        risksAlerts: riskData.length,
+        successions: successionData.length,
+        roi: roiData.length,
+        forecasts: forecastData.length
+      });
 
       // Map the metrics to match the expected format
       setMetrics({
@@ -141,8 +169,10 @@ const AnalyticsDashboardPage: React.FC = () => {
       setTrainingROI(roiData);
       setSkillGapForecasts(forecastData);
       setLastUpdate(new Date());
+      
+      console.log('[Analytics] Data loaded successfully');
     } catch (error: any) {
-      console.error('Error loading analytics:', error);
+      console.error('[Analytics] Error loading analytics:', error);
       
       // Set empty/default data on error
       setMetrics({
