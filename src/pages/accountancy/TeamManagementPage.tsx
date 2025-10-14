@@ -172,7 +172,7 @@ const TeamManagementPage: React.FC = () => {
                 </div>
               </div>
               <Button
-                onClick={() => navigate('/team/advisory-capability')}
+                onClick={() => navigate('/accountancy/team/advisory-capability')}
                 className="bg-amber-600 hover:bg-amber-700 text-white px-8 py-6 text-lg font-bold uppercase shadow-lg"
                 size="lg"
               >
