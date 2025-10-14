@@ -262,9 +262,21 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
       })
       .filter(s => s !== null) as any[];
     
-    // Get top N by priority to avoid overcrowding
+    // Sort and get top N based on the selected sort criteria
     const topSkills = [...assessedSkills]
-      .sort((a, b) => b.priority - a.priority)
+      .sort((a, b) => {
+        switch (sortBy) {
+          case 'gap':
+            return b.gap - a.gap;
+          case 'members':
+            return b.members - a.members;
+          case 'interest':
+            return b.y - a.y; // Sort by avgInterest (y-axis)
+          case 'priority':
+          default:
+            return b.priority - a.priority;
+        }
+      })
       .slice(0, topNFilter);
     
     const data = topSkills;
@@ -274,6 +286,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
       totalSkills: allSkills.length,
       assessedSkills: assessedSkills.length,
       topSkills: data.length,
+      sortedBy: sortBy,
       sample: data.slice(0, 3)
     });
 
@@ -310,7 +323,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
         pointHoverRadius: 14
       }]
     };
-  }, [gapData, topNFilter]);
+  }, [teamMembers, skillCategories, topNFilter, sortBy]);
 
   const GapIndicator: React.FC<{ gap: number }> = ({ gap }) => {
     if (gap >= 2) return <Badge variant="destructive">Critical ({gap})</Badge>;
@@ -559,13 +572,25 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
             </CardTitle>
             <CardDescription className="text-white font-medium" style={{ color: '#ffffff' }}>
               <strong className="text-white" style={{ color: '#ffffff' }}>Quadrant Analysis (Skill Level vs Interest Level):</strong>
-              <ul className="mt-2 space-y-1 text-sm text-white" style={{ color: '#ffffff' }}>
-                <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>🟢 Top-Right</strong> (High Skill, High Interest): Strategic Assets - Keep these strong!</li>
-                <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>🟠 Top-Left</strong> (Low Skill, High Interest): Quick Wins - Eager to learn, easy to develop</li>
-                <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>🔴 Bottom-Left</strong> (Low Skill, Low Interest): Critical Gaps - Need motivation & training</li>
-                <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>🔵 Bottom-Right</strong> (High Skill, Low Interest): Maintain - Competent but not passionate</li>
-                <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>Hover over dots</strong> to see detailed metrics for each skill</li>
-              </ul>
+              <div className="mt-2 space-y-2">
+                <ul className="space-y-1 text-sm text-white" style={{ color: '#ffffff' }}>
+                  <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>🟢 Top-Right</strong> (High Skill, High Interest): Strategic Assets - Keep these strong!</li>
+                  <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>🟠 Top-Left</strong> (Low Skill, High Interest): Quick Wins - Eager to learn, easy to develop</li>
+                  <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>🔴 Bottom-Left</strong> (Low Skill, Low Interest): Critical Gaps - Need motivation & training</li>
+                  <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>🔵 Bottom-Right</strong> (High Skill, Low Interest): Maintain - Competent but not passionate</li>
+                </ul>
+                <p className="text-xs text-white font-medium mt-2" style={{ color: '#ffffff' }}>
+                  <strong>📊 Chart displays top {topNFilter} skills sorted by: {
+                    sortBy === 'priority' ? 'Priority Score (gap × importance × interest × team size)' :
+                    sortBy === 'gap' ? 'Skill Gap Size (required level - current level)' :
+                    sortBy === 'members' ? 'Number of Team Members Affected' :
+                    'Average Interest Level (team engagement)'
+                  }</strong>
+                </p>
+                <p className="text-xs text-white font-medium" style={{ color: '#ffffff' }}>
+                  • Use the "Priority Score" dropdown above to change what's displayed • Hover over dots for details
+                </p>
+              </div>
             </CardDescription>
           </CardHeader>
           <CardContent>
