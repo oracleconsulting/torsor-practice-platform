@@ -75,6 +75,7 @@ ALTER TABLE mentoring_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE mentoring_goals ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for mentoring_relationships
+DROP POLICY IF EXISTS "Users can view their own mentoring relationships" ON mentoring_relationships;
 CREATE POLICY "Users can view their own mentoring relationships"
   ON mentoring_relationships
   FOR SELECT
@@ -86,6 +87,7 @@ CREATE POLICY "Users can view their own mentoring relationships"
     )
   );
 
+DROP POLICY IF EXISTS "Users can create mentoring relationships they're part of" ON mentoring_relationships;
 CREATE POLICY "Users can create mentoring relationships they're part of"
   ON mentoring_relationships
   FOR INSERT
@@ -97,6 +99,7 @@ CREATE POLICY "Users can create mentoring relationships they're part of"
     )
   );
 
+DROP POLICY IF EXISTS "Users can update their own mentoring relationships" ON mentoring_relationships;
 CREATE POLICY "Users can update their own mentoring relationships"
   ON mentoring_relationships
   FOR UPDATE
@@ -109,6 +112,7 @@ CREATE POLICY "Users can update their own mentoring relationships"
   );
 
 -- RLS Policies for mentoring_sessions
+DROP POLICY IF EXISTS "Users can view sessions from their relationships" ON mentoring_sessions;
 CREATE POLICY "Users can view sessions from their relationships"
   ON mentoring_sessions
   FOR SELECT
@@ -121,6 +125,7 @@ CREATE POLICY "Users can view sessions from their relationships"
     )
   );
 
+DROP POLICY IF EXISTS "Users can manage sessions from their relationships" ON mentoring_sessions;
 CREATE POLICY "Users can manage sessions from their relationships"
   ON mentoring_sessions
   FOR ALL
@@ -134,6 +139,7 @@ CREATE POLICY "Users can manage sessions from their relationships"
   );
 
 -- RLS Policies for mentoring_goals
+DROP POLICY IF EXISTS "Users can view goals from their relationships" ON mentoring_goals;
 CREATE POLICY "Users can view goals from their relationships"
   ON mentoring_goals
   FOR SELECT
@@ -146,6 +152,7 @@ CREATE POLICY "Users can view goals from their relationships"
     )
   );
 
+DROP POLICY IF EXISTS "Users can manage goals from their relationships" ON mentoring_goals;
 CREATE POLICY "Users can manage goals from their relationships"
   ON mentoring_goals
   FOR ALL
@@ -183,17 +190,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Triggers for updated_at
+-- Triggers for updated_at (drop existing triggers first to avoid conflicts)
+DROP TRIGGER IF EXISTS update_mentoring_relationships_updated_at ON mentoring_relationships;
 CREATE TRIGGER update_mentoring_relationships_updated_at
   BEFORE UPDATE ON mentoring_relationships
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_mentoring_sessions_updated_at ON mentoring_sessions;
 CREATE TRIGGER update_mentoring_sessions_updated_at
   BEFORE UPDATE ON mentoring_sessions
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_mentoring_goals_updated_at ON mentoring_goals;
 CREATE TRIGGER update_mentoring_goals_updated_at
   BEFORE UPDATE ON mentoring_goals
   FOR EACH ROW
