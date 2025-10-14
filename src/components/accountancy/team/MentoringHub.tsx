@@ -585,7 +585,7 @@ const MentoringHub: React.FC<MentoringHubProps> = ({ teamMembers, currentUserId 
           {(() => {
             // Get current user's skills from teamMembers
             const currentUserData = teamMembers.find(m => m.id === currentUserId);
-            if (!currentUserData || !currentUserData.skills) {
+            if (!currentUserData || !currentUserData.skills || !Array.isArray(currentUserData.skills) || currentUserData.skills.length === 0) {
               return (
                 <Card className="bg-card/50 border-border">
                   <CardContent className="p-12 text-center">
@@ -601,7 +601,13 @@ const MentoringHub: React.FC<MentoringHubProps> = ({ teamMembers, currentUserId 
 
             // Get skills user wants to develop (interest >= 4 and currentLevel < 4)
             const skillsToGrow = currentUserData.skills
-              .filter(skill => skill.interestLevel >= 4 && skill.currentLevel < 4)
+              .filter(skill => 
+                skill && 
+                typeof skill.interestLevel === 'number' && 
+                typeof skill.currentLevel === 'number' &&
+                skill.interestLevel >= 4 && 
+                skill.currentLevel < 4
+              )
               .sort((a, b) => b.interestLevel - a.interestLevel);
 
             // For each skill, find mentors who can teach it
@@ -610,13 +616,16 @@ const MentoringHub: React.FC<MentoringHubProps> = ({ teamMembers, currentUserId 
             skillsToGrow.forEach(userSkill => {
               const mentorsForSkill = mentorProfiles
                 .filter(mentor => {
+                  // Safety check: ensure mentor has skills array
+                  if (!mentor.skills || !Array.isArray(mentor.skills)) return false;
+                  
                   // Find if mentor has this skill at a higher level
                   const mentorSkillLevel = mentor.skills.find(s => s.skillId === userSkill.skillId)?.level || 0;
                   return mentorSkillLevel >= 4 && mentorSkillLevel > userSkill.currentLevel;
                 })
                 .map(mentor => ({
                   mentor,
-                  level: mentor.skills.find(s => s.skillId === userSkill.skillId)?.level || 0
+                  level: mentor.skills?.find(s => s.skillId === userSkill.skillId)?.level || 0
                 }))
                 .sort((a, b) => b.level - a.level);
               
@@ -663,6 +672,8 @@ const MentoringHub: React.FC<MentoringHubProps> = ({ teamMembers, currentUserId 
                       <CardContent>
                         <div className="grid gap-3">
                           {mentorsData.slice(0, 3).map(({ mentor, level }) => {
+                            if (!mentor || !mentor.name) return null;
+                            
                             const match = recommendedMatches.find(m => m.mentorId === mentor.id);
                             const initials = mentor.name.split(' ').map(n => n[0]).join('');
                             
@@ -679,7 +690,7 @@ const MentoringHub: React.FC<MentoringHubProps> = ({ teamMembers, currentUserId 
                                   </Avatar>
                                   <div className="flex-1">
                                     <div className="font-semibold">{mentor.name}</div>
-                                    <div className="text-xs text-muted-foreground">{mentor.role}</div>
+                                    <div className="text-xs text-muted-foreground">{mentor.role || 'Team Member'}</div>
                                   </div>
                                   <div className="text-right">
                                     <Badge variant="outline" className="bg-green-500/20 text-green-300 border-green-500/30">
@@ -700,13 +711,14 @@ const MentoringHub: React.FC<MentoringHubProps> = ({ teamMembers, currentUserId 
                                     }
                                   }}
                                   className="ml-3"
+                                  disabled={!match}
                                 >
                                   <Send className="w-3 h-3 mr-1" />
                                   Request
                                 </Button>
                               </div>
                             );
-                          })}
+                          }).filter(Boolean)}
                           {mentorCount > 3 && (
                             <Button
                               variant="outline"
