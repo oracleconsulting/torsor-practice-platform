@@ -63,6 +63,10 @@ RUN npm run build
 # Runner stage
 FROM node:20-alpine
 
+# Force cache invalidation for runner stage
+ARG CACHEBUST=1
+RUN echo "Runner cache bust: $CACHEBUST"
+
 WORKDIR /app
 
 # Copy package files and server
@@ -73,7 +77,7 @@ COPY server.js ./
 RUN npm config set legacy-peer-deps true && \
     npm ci --omit=dev --force
 
-# Copy built application
+# Copy built application (this should NOT be cached)
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
