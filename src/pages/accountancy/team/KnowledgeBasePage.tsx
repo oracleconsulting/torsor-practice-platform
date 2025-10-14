@@ -274,7 +274,7 @@ const KnowledgeBasePage: React.FC = () => {
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="leadership_book">
             <BookMarked className="w-4 h-4 mr-2" />
-            Books
+            Leadership Library
           </TabsTrigger>
           <TabsTrigger value="knowledge_session">
             <Video className="w-4 h-4 mr-2" />
@@ -355,7 +355,7 @@ const KnowledgeBasePage: React.FC = () => {
 
         <Card className="bg-amber-50 border-amber-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-medium text-gray-900">Books</CardTitle>
+            <CardTitle className="text-xs font-medium text-gray-900">Leadership Library</CardTitle>
             <BookMarked className="h-4 w-4 text-amber-600" />
           </CardHeader>
           <CardContent>
@@ -440,7 +440,7 @@ const KnowledgeBasePage: React.FC = () => {
             <Card className="bg-gray-50 border-gray-300">
               <CardContent className="p-12 text-center">
                 <BookMarked className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-                <h3 className="text-lg font-bold text-gray-900 mb-2">No Books Found</h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">No Leadership Books Found</h3>
                 <p className="text-sm text-gray-700 mb-4">
                   Try adjusting your search or filters
                 </p>
