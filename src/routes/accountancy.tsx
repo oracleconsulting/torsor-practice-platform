@@ -57,6 +57,8 @@ import TrainingRecommendationsPage from '../pages/accountancy/team/TrainingRecom
 import CPDSkillsBridgePage from '../pages/accountancy/team/CPDSkillsBridgePage';
 import MobileAssessmentPage from '../pages/team-portal/MobileAssessmentPage';
 import SkillsAssessmentPage from '../pages/accountancy/team/SkillsAssessmentPage';
+import AdvisoryCapabilityMatrix from '../pages/accountancy/team/AdvisoryCapabilityMatrix';
+import KnowledgeBasePage from '../pages/accountancy/team/KnowledgeBasePage';
 
 // Add this component for practice selection
 const PracticeSelection = () => {
@@ -115,6 +117,8 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="client-management" element={<ClientManagementPage practiceId={practiceId} />} />
       <Route path="health" element={<PracticeHealth />} />
       <Route path="team/skills-assessment" element={<SkillsAssessmentPage />} />
+      <Route path="team/advisory-capability" element={<AdvisoryCapabilityMatrix />} />
+      <Route path="team/knowledge-base" element={<KnowledgeBasePage />} />
       <Route path="team" element={<TeamManagementPage />} />
       <Route path="team-portal/vark-assessment" element={<VARKAssessmentPage />} />
       <Route path="team-portal/mentoring" element={<MentoringHubPage />} />
