@@ -508,7 +508,7 @@ const AdvisoryServices: React.FC = () => {
                 <Card 
                   key={service.id} 
                   className="relative hover:shadow-lg transition-shadow cursor-pointer"
-                  onClick={() => navigate(`/advisory-services/${service.id}`)}
+                  onClick={() => navigate(`/accountancy/advisory-services/${service.id}`)}
                 >
                   {/* Edit button for ALL services, delete only for custom */}
                   <div className="absolute top-4 right-4 flex gap-2 z-10">
