@@ -102,6 +102,19 @@ export default function SkillsManagementPage() {
 
       if (assessError) throw assessError;
 
+      // Get firm required levels for this practice
+      const { data: requiredLevels, error: requiredError } = await supabase
+        .from('skill_required_levels')
+        .select('skill_id, required_level')
+        .eq('practice_id', practice?.id);
+
+      if (requiredError) throw requiredError;
+
+      // Create a map of skill_id -> required_level
+      const requiredLevelsMap = new Map(
+        (requiredLevels || []).map(rl => [rl.skill_id, rl.required_level])
+      );
+
       // Process each skill
       const analyticsData: SkillAnalytics[] = skills?.map(skill => {
         const skillAssessments = (assessments || []).filter(
@@ -136,7 +149,7 @@ export default function SkillsManagementPage() {
           }))
           .sort((a, b) => b.level - a.level);
 
-        const firmRequired = 3; // TODO: Load from database
+        const firmRequired = requiredLevelsMap.get(skill.id) || 3; // Default to 3 if not set
         const gap = firmRequired - avgLevel;
 
         return {
@@ -255,16 +268,49 @@ export default function SkillsManagementPage() {
 
   const handleUpdateRequiredLevel = async (skillId: string, newLevel: number) => {
     try {
-      // TODO: Store required levels in a separate table
-      // For now, just update in memory
+      // Save to database using upsert
+      const { error } = await supabase
+        .from('skill_required_levels')
+        .upsert({
+          practice_id: practice?.id,
+          skill_id: skillId,
+          required_level: newLevel
+        }, {
+          onConflict: 'practice_id,skill_id'
+        });
+
+      if (error) throw error;
+
+      // Update local state
       setSkillsAnalytics(prev => prev.map(skill => 
         skill.skill_id === skillId 
           ? { ...skill, firm_required_level: newLevel, gap: newLevel - skill.average_level }
           : skill
       ));
+      
+      // Update category stats to reflect new gap
+      setCategoryStats(prev => {
+        const skill = skillsAnalytics.find(s => s.skill_id === skillId);
+        if (!skill) return prev;
+        
+        return prev.map(cat => {
+          if (cat.category !== skill.category) return cat;
+          
+          const categorySkills = skillsAnalytics
+            .filter(s => s.category === cat.category)
+            .map(s => s.skill_id === skillId ? { ...s, firm_required_level: newLevel, gap: newLevel - s.average_level } : s);
+          
+          return {
+            ...cat,
+            skills_below_target: categorySkills.filter(s => s.gap > 0).length
+          };
+        });
+      });
+      
       setEditingRequiredLevel(null);
     } catch (error) {
       console.error('Error updating required level:', error);
+      alert('Failed to update required level. Please try again.');
     }
   };
 
