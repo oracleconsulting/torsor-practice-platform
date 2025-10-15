@@ -482,16 +482,29 @@ export default function SkillsManagementPage() {
                               <h4 className="font-bold text-gray-900 mb-3 text-center">Firm Required Level</h4>
                               <div className="flex flex-col items-center gap-4">
                                 {editingRequiredLevel === skill.skill_id ? (
-                                  <div className="flex flex-col items-center gap-2">
-                                    <Input
-                                      type="number"
-                                      min="1"
-                                      max="5"
-                                      value={tempRequiredLevel}
-                                      onChange={(e) => setTempRequiredLevel(Number(e.target.value))}
-                                      className="w-20 text-center text-lg font-bold"
-                                      onClick={(e) => e.stopPropagation()}
-                                    />
+                                  <div className="flex flex-col items-center gap-3">
+                                    <p className="text-xs text-gray-600">Select new level:</p>
+                                    <div className="flex gap-2">
+                                      {[1, 2, 3, 4, 5].map((level) => (
+                                        <button
+                                          key={level}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setTempRequiredLevel(level);
+                                          }}
+                                          className={`
+                                            w-12 h-12 rounded-lg flex items-center justify-center
+                                            font-bold text-lg transition-all
+                                            ${tempRequiredLevel === level 
+                                              ? `${getHeatmapColor(level, true)} ring-4 ring-amber-500` 
+                                              : `${getHeatmapColor(level)} opacity-60 hover:opacity-100`
+                                            }
+                                          `}
+                                        >
+                                          <span className="text-white">{level}</span>
+                                        </button>
+                                      ))}
+                                    </div>
                                     <div className="flex gap-2">
                                       <Button 
                                         size="sm" 
@@ -499,9 +512,10 @@ export default function SkillsManagementPage() {
                                           e.stopPropagation();
                                           handleUpdateRequiredLevel(skill.skill_id, tempRequiredLevel);
                                         }}
-                                        className="bg-green-600"
+                                        className="bg-green-600 hover:bg-green-700"
                                       >
-                                        <Save className="h-3 w-3" />
+                                        <Save className="h-3 w-3 mr-1" />
+                                        Save
                                       </Button>
                                       <Button 
                                         size="sm" 
@@ -511,13 +525,14 @@ export default function SkillsManagementPage() {
                                           setEditingRequiredLevel(null);
                                         }}
                                       >
-                                        <X className="h-3 w-3" />
+                                        <X className="h-3 w-3 mr-1" />
+                                        Cancel
                                       </Button>
                                     </div>
                                   </div>
                                 ) : (
                                   <div 
-                                    className={`w-20 h-20 rounded-lg ${getHeatmapColor(skill.firm_required_level, true)} flex items-center justify-center cursor-pointer hover:opacity-80`}
+                                    className={`w-20 h-20 rounded-lg ${getHeatmapColor(skill.firm_required_level, true)} flex items-center justify-center cursor-pointer hover:opacity-80 transition-all`}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setEditingRequiredLevel(skill.skill_id);
