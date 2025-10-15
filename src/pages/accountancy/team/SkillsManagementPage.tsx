@@ -422,178 +422,183 @@ export default function SkillsManagementPage() {
                   <div className="mt-4 space-y-4 pl-4 border-l-4 border-amber-500">
                             {categorySkills.map((skill) => (
                       <Card key={skill.skill_id} className="overflow-hidden">
-                        <CardContent className="p-6">
-                          {/* Skill Header */}
-                          <div className="flex items-start justify-between mb-6">
+                        <CardContent className="p-4">
+                          {/* Compact Header Row */}
+                          <div className="flex items-center justify-between mb-3">
                             <div className="flex-1">
-                              <h3 className="text-xl font-bold text-gray-900 mb-1">{skill.skill_name}</h3>
-                              {skill.skill_description && (
-                                <p className="text-sm text-gray-600 mb-3">{skill.skill_description}</p>
-                              )}
-                              <div className="flex gap-2">
-                                {skill.advisory_services.map((service, idx) => (
-                                  <Badge key={idx} variant="secondary" className="text-xs">
-                                    {service}
-                                  </Badge>
-                                ))}
+                              <div className="flex items-center gap-3 mb-1">
+                                <h3 className="text-lg font-bold text-gray-900">{skill.skill_name}</h3>
+                                <div className="flex gap-1">
+                                  {skill.advisory_services.slice(0, 2).map((service, idx) => (
+                                    <Badge key={idx} variant="secondary" className="text-[10px] px-1.5 py-0">
+                                      {service}
+                                    </Badge>
+                                  ))}
+                                  {skill.advisory_services.length > 2 && (
+                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                      +{skill.advisory_services.length - 2}
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
+                              {skill.skill_description && (
+                                <p className="text-xs text-gray-600 line-clamp-1">{skill.skill_description}</p>
+                              )}
                             </div>
-                            <div className="flex gap-2">
-                              <Button variant="ghost" size="sm">
-                                <Edit className="h-4 w-4" />
+                            <div className="flex gap-1 ml-4">
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                <Edit className="h-3 w-3" />
                               </Button>
                               <Button 
                                 variant="ghost" 
                                 size="sm"
+                                className="h-7 w-7 p-0"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDeleteSkill(skill.skill_id, skill.skill_name);
                                 }}
                               >
-                                <Trash2 className="h-4 w-4 text-red-600" />
+                                <Trash2 className="h-3 w-3 text-red-600" />
                               </Button>
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            {/* Top 2 Performers */}
-                            <div>
-                              <div className="flex items-center gap-2 mb-3">
-                                <TrendingUp className="h-5 w-5 text-green-600" />
-                                <h4 className="font-bold text-gray-900">Top Performers</h4>
+                          {/* Compact Single Row Layout */}
+                          <div className="flex items-center gap-4">
+                            {/* Top 2 Performers - Compact */}
+                            <div className="flex-1">
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <TrendingUp className="h-3.5 w-3.5 text-green-600" />
+                                <span className="text-xs font-semibold text-gray-700">Top</span>
                               </div>
-                              <div className="space-y-2">
+                              <div className="flex gap-1.5">
                                 {skill.performers.slice(0, 2).map((performer, idx) => (
-                                  <div key={idx} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
-                                    <span className="text-sm font-medium text-gray-900">{performer.name}</span>
-                                    <div className={`w-12 h-12 rounded-lg ${getHeatmapColor(performer.level, true)} flex items-center justify-center`}>
-                                      <span className="text-white font-bold text-lg">{performer.level}</span>
+                                  <div key={idx} className="flex items-center gap-1.5 px-2 py-1 bg-green-50 rounded border border-green-200">
+                                    <span className="text-xs font-medium text-gray-900 truncate max-w-[80px]">{performer.name}</span>
+                                    <div className={`w-8 h-8 rounded ${getHeatmapColor(performer.level, true)} flex items-center justify-center flex-shrink-0`}>
+                                      <span className="text-white font-bold text-sm">{performer.level}</span>
                                     </div>
                                   </div>
                                 ))}
                                 {skill.performers.length < 2 && (
-                                  <p className="text-sm text-gray-500 italic">Not enough assessments</p>
+                                  <span className="text-xs text-gray-400 italic">Not enough data</span>
                                 )}
                               </div>
                             </div>
 
-                            {/* Required Level - Center Column */}
-                            <div>
-                              <h4 className="font-bold text-gray-900 mb-3 text-center">Firm Required Level</h4>
-                              <div className="flex flex-col items-center gap-4">
-                                {editingRequiredLevel === skill.skill_id ? (
-                                  <div className="flex flex-col items-center gap-3">
-                                    <p className="text-xs text-gray-600">Select new level:</p>
-                                    <div className="flex gap-2">
-                                      {[1, 2, 3, 4, 5].map((level) => (
-                                        <button
-                                          key={level}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setTempRequiredLevel(level);
-                                          }}
-                                          className={`
-                                            w-12 h-12 rounded-lg flex items-center justify-center
-                                            font-bold text-lg transition-all
-                                            ${tempRequiredLevel === level 
-                                              ? `${getHeatmapColor(level, true)} ring-4 ring-amber-500` 
-                                              : `${getHeatmapColor(level)} opacity-60 hover:opacity-100`
-                                            }
-                                          `}
-                                        >
-                                          <span className="text-white">{level}</span>
-                                        </button>
-                                      ))}
-                                    </div>
-                                    <div className="flex gap-2">
-                                      <Button 
-                                        size="sm" 
+                            {/* Required Level & Stats - Compact Center */}
+                            <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg border">
+                              {editingRequiredLevel === skill.skill_id ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-gray-600">Set:</span>
+                                  <div className="flex gap-1">
+                                    {[1, 2, 3, 4, 5].map((level) => (
+                                      <button
+                                        key={level}
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          handleUpdateRequiredLevel(skill.skill_id, tempRequiredLevel);
+                                          setTempRequiredLevel(level);
                                         }}
-                                        className="bg-green-600 hover:bg-green-700"
+                                        className={`
+                                          w-8 h-8 rounded flex items-center justify-center
+                                          font-bold text-sm transition-all
+                                          ${tempRequiredLevel === level 
+                                            ? `${getHeatmapColor(level, true)} ring-2 ring-amber-500` 
+                                            : `${getHeatmapColor(level)} opacity-50 hover:opacity-100`
+                                          }
+                                        `}
                                       >
-                                        <Save className="h-3 w-3 mr-1" />
-                                        Save
-                                      </Button>
-                                      <Button 
-                                        size="sm" 
-                                        variant="outline"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setEditingRequiredLevel(null);
-                                        }}
-                                      >
-                                        <X className="h-3 w-3 mr-1" />
-                                        Cancel
-                                      </Button>
-                                    </div>
+                                        <span className="text-white">{level}</span>
+                                      </button>
+                                    ))}
                                   </div>
-                                ) : (
-                                  <div 
-                                    className={`w-20 h-20 rounded-lg ${getHeatmapColor(skill.firm_required_level, true)} flex items-center justify-center cursor-pointer hover:opacity-80 transition-all`}
+                                  <Button 
+                                    size="sm" 
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setEditingRequiredLevel(skill.skill_id);
-                                      setTempRequiredLevel(skill.firm_required_level);
+                                      handleUpdateRequiredLevel(skill.skill_id, tempRequiredLevel);
+                                    }}
+                                    className="h-7 bg-green-600 hover:bg-green-700 px-2"
+                                  >
+                                    <Save className="h-3 w-3" />
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    className="h-7 px-2"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingRequiredLevel(null);
                                     }}
                                   >
-                                    <span className="text-white font-bold text-2xl">{skill.firm_required_level}</span>
-                                  </div>
-                                )}
-                                
-                                {/* Gap Display */}
-                                <div className="text-center">
-                                  <p className="text-xs text-gray-600 mb-1">Gap</p>
-                                  <Badge className={`
-                                    ${skill.gap <= 0 ? 'bg-green-100 text-green-800' : ''}
-                                    ${skill.gap > 0 && skill.gap <= 0.5 ? 'bg-yellow-100 text-yellow-800' : ''}
-                                    ${skill.gap > 0.5 && skill.gap <= 1 ? 'bg-orange-100 text-orange-800' : ''}
-                                    ${skill.gap > 1 ? 'bg-red-100 text-red-800' : ''}
-                                  `}>
-                                    {skill.gap > 0 ? `+${skill.gap.toFixed(1)}` : skill.gap.toFixed(1)}
-                                  </Badge>
+                                    <X className="h-3 w-3" />
+                                  </Button>
                                 </div>
-
-                                {/* Firm Average */}
-                                <div className="text-center">
-                                  <p className="text-xs text-gray-600 mb-1">Firm Average</p>
-                                  <div className={`w-16 h-16 rounded-lg ${getHeatmapColor(skill.average_level)} flex items-center justify-center`}>
-                                    <span className="text-white font-bold text-xl">{skill.average_level.toFixed(1)}</span>
+                              ) : (
+                                <>
+                                  <div className="text-center">
+                                    <div className="text-[10px] text-gray-500 mb-0.5">Required</div>
+                                    <div 
+                                      className={`w-12 h-12 rounded ${getHeatmapColor(skill.firm_required_level, true)} flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-amber-500 transition-all`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingRequiredLevel(skill.skill_id);
+                                        setTempRequiredLevel(skill.firm_required_level);
+                                      }}
+                                    >
+                                      <span className="text-white font-bold text-lg">{skill.firm_required_level}</span>
+                                    </div>
                                   </div>
-                                </div>
-                              </div>
+                                  
+                                  <div className="text-center">
+                                    <div className="text-[10px] text-gray-500 mb-0.5">Gap</div>
+                                    <Badge className={`
+                                      text-xs font-bold px-2 py-1
+                                      ${skill.gap <= 0 ? 'bg-green-100 text-green-800' : ''}
+                                      ${skill.gap > 0 && skill.gap <= 0.5 ? 'bg-yellow-100 text-yellow-800' : ''}
+                                      ${skill.gap > 0.5 && skill.gap <= 1 ? 'bg-orange-100 text-orange-800' : ''}
+                                      ${skill.gap > 1 ? 'bg-red-100 text-red-800' : ''}
+                                    `}>
+                                      {skill.gap > 0 ? `+${skill.gap.toFixed(1)}` : skill.gap.toFixed(1)}
+                                    </Badge>
+                                  </div>
+                                  
+                                  <div className="text-center">
+                                    <div className="text-[10px] text-gray-500 mb-0.5">Avg</div>
+                                    <div className={`w-12 h-12 rounded ${getHeatmapColor(skill.average_level)} flex items-center justify-center`}>
+                                      <span className="text-white font-bold text-sm">{skill.average_level.toFixed(1)}</span>
+                                    </div>
+                                  </div>
+                                </>
+                              )}
                             </div>
 
-                            {/* Bottom 2 Performers */}
-                            <div>
-                              <div className="flex items-center gap-2 mb-3">
-                                <TrendingDown className="h-5 w-5 text-red-600" />
-                                <h4 className="font-bold text-gray-900">Lowest Performers</h4>
+                            {/* Bottom 2 Performers - Compact */}
+                            <div className="flex-1">
+                              <div className="flex items-center gap-1.5 mb-1.5 justify-end">
+                                <span className="text-xs font-semibold text-gray-700">Lowest</span>
+                                <TrendingDown className="h-3.5 w-3.5 text-red-600" />
                               </div>
-                              <div className="space-y-2">
+                              <div className="flex gap-1.5 justify-end">
                                 {skill.performers.slice(-2).reverse().map((performer, idx) => (
-                                  <div key={idx} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
-                                    <span className="text-sm font-medium text-gray-900">{performer.name}</span>
-                                    <div className={`w-12 h-12 rounded-lg ${getHeatmapColor(performer.level, true)} flex items-center justify-center`}>
-                                      <span className="text-white font-bold text-lg">{performer.level}</span>
+                                  <div key={idx} className="flex items-center gap-1.5 px-2 py-1 bg-red-50 rounded border border-red-200">
+                                    <div className={`w-8 h-8 rounded ${getHeatmapColor(performer.level, true)} flex items-center justify-center flex-shrink-0`}>
+                                      <span className="text-white font-bold text-sm">{performer.level}</span>
                                     </div>
+                                    <span className="text-xs font-medium text-gray-900 truncate max-w-[80px]">{performer.name}</span>
                                   </div>
                                 ))}
                                 {skill.performers.length < 2 && (
-                                  <p className="text-sm text-gray-500 italic">Not enough assessments</p>
+                                  <span className="text-xs text-gray-400 italic">Not enough data</span>
                                 )}
                               </div>
                             </div>
                           </div>
 
-                          {/* Stats Footer */}
-                          <div className="mt-6 pt-4 border-t flex items-center justify-between">
-                            <div className="flex gap-6 text-sm text-gray-600">
-                              <span>Total Assessments: <strong>{skill.total_assessments}</strong></span>
-                              <span>Avg Interest: <strong>{skill.average_interest.toFixed(1)}/5</strong></span>
-                            </div>
+                          {/* Compact Footer */}
+                          <div className="mt-3 pt-2 border-t flex items-center justify-between text-xs text-gray-500">
+                            <span><strong>{skill.total_assessments}</strong> assessments</span>
+                            <span>Interest: <strong>{skill.average_interest.toFixed(1)}/5</strong></span>
                           </div>
                         </CardContent>
                       </Card>
