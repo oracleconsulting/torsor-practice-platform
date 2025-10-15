@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -15,28 +17,29 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Target,
   TrendingUp,
   TrendingDown,
-  Users,
-  Award,
-  AlertTriangle,
-  Search,
-  Filter,
-  ArrowUpDown
+  Plus,
+  Edit,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  Save,
+  X
 } from 'lucide-react';
 
 interface SkillAnalytics {
   skill_id: string;
   skill_name: string;
+  skill_description?: string;
   category: string;
   average_level: number;
   average_interest: number;
   total_assessments: number;
-  top_performer: string | null;
-  top_performer_level: number;
-  lowest_performer: string | null;
-  lowest_performer_level: number;
+  performers: Array<{
+    name: string;
+    level: number;
+  }>;
   firm_required_level: number;
   gap: number;
   advisory_services: string[];
@@ -46,7 +49,6 @@ interface CategoryStats {
   category: string;
   skill_count: number;
   average_level: number;
-  average_interest: number;
   skills_below_target: number;
 }
 
@@ -55,10 +57,19 @@ export default function SkillsManagementPage() {
   
   const [skillsAnalytics, setSkillsAnalytics] = useState<SkillAnalytics[]>([]);
   const [categoryStats, setCategoryStats] = useState<CategoryStats[]>([]);
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'name' | 'level' | 'gap'>('name');
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingRequiredLevel, setEditingRequiredLevel] = useState<string | null>(null);
+  const [tempRequiredLevel, setTempRequiredLevel] = useState<number>(3);
+  
+  const [newSkill, setNewSkill] = useState({
+    name: '',
+    description: '',
+    category: '',
+    advisory_service: '',
+    required_level: 3
+  });
 
   useEffect(() => {
     if (practice?.id) {
@@ -73,7 +84,7 @@ export default function SkillsManagementPage() {
       // Get all skills with their assessments
       const { data: skills, error: skillsError } = await supabase
         .from('skills')
-        .select('id, name, category');
+        .select('id, name, description, category');
 
       if (skillsError) throw skillsError;
 
@@ -101,15 +112,13 @@ export default function SkillsManagementPage() {
           return {
             skill_id: skill.id,
             skill_name: skill.name,
+            skill_description: skill.description,
             category: skill.category,
             average_level: 0,
             average_interest: 0,
             total_assessments: 0,
-            top_performer: null,
-            top_performer_level: 0,
-            lowest_performer: null,
-            lowest_performer_level: 0,
-            firm_required_level: 3, // Default target
+            performers: [],
+            firm_required_level: 3,
             gap: 3,
             advisory_services: getServicesForSkill(skill.name)
           };
@@ -119,25 +128,26 @@ export default function SkillsManagementPage() {
         const avgLevel = skillAssessments.reduce((sum, a) => sum + (a.current_level || 0), 0) / skillAssessments.length;
         const avgInterest = skillAssessments.reduce((sum, a) => sum + (a.interest_level || 0), 0) / skillAssessments.length;
 
-        // Find top and lowest performers
-        const sortedByLevel = [...skillAssessments].sort((a, b) => (b.current_level || 0) - (a.current_level || 0));
-        const topPerformer = sortedByLevel[0];
-        const lowestPerformer = sortedByLevel[sortedByLevel.length - 1];
+        // Get all performers sorted by level
+        const sortedPerformers = skillAssessments
+          .map((a: any) => ({
+            name: a.practice_members?.name || 'Unknown',
+            level: a.current_level || 0
+          }))
+          .sort((a, b) => b.level - a.level);
 
-        const firmRequired = 3; // TODO: Make this configurable per skill
+        const firmRequired = 3; // TODO: Load from database
         const gap = firmRequired - avgLevel;
 
         return {
           skill_id: skill.id,
           skill_name: skill.name,
+          skill_description: skill.description,
           category: skill.category,
           average_level: avgLevel,
           average_interest: avgInterest,
           total_assessments: skillAssessments.length,
-          top_performer: (topPerformer as any)?.practice_members?.name || null,
-          top_performer_level: topPerformer?.current_level || 0,
-          lowest_performer: (lowestPerformer as any)?.practice_members?.name || null,
-          lowest_performer_level: lowestPerformer?.current_level || 0,
+          performers: sortedPerformers,
           firm_required_level: firmRequired,
           gap: gap,
           advisory_services: getServicesForSkill(skill.name)
@@ -154,7 +164,6 @@ export default function SkillsManagementPage() {
           category,
           skill_count: categorySkills.length,
           average_level: categorySkills.reduce((sum, s) => sum + s.average_level, 0) / categorySkills.length,
-          average_interest: categorySkills.reduce((sum, s) => sum + s.average_interest, 0) / categorySkills.length,
           skills_below_target: categorySkills.filter(s => s.gap > 0).length
         };
       });
@@ -179,40 +188,110 @@ export default function SkillsManagementPage() {
     return services;
   };
 
-  // Filter and sort skills
-  const filteredSkills = skillsAnalytics
-    .filter(skill => {
-      const matchesSearch = skill.skill_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           skill.category.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = selectedCategory === 'all' || skill.category === selectedCategory;
-      return matchesSearch && matchesCategory;
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'name':
-          return a.skill_name.localeCompare(b.skill_name);
-        case 'level':
-          return b.average_level - a.average_level;
-        case 'gap':
-          return b.gap - a.gap;
-        default:
-          return 0;
-      }
-    });
+  const getHeatmapColor = (level: number, showBorder: boolean = false) => {
+    let bgColor = '';
+    let borderColor = '';
+    
+    if (level >= 4.5) {
+      bgColor = 'bg-green-600';
+      borderColor = 'border-green-700';
+    } else if (level >= 3.5) {
+      bgColor = 'bg-green-500';
+      borderColor = 'border-green-600';
+    } else if (level >= 2.5) {
+      bgColor = 'bg-yellow-500';
+      borderColor = 'border-yellow-600';
+    } else if (level >= 1.5) {
+      bgColor = 'bg-orange-500';
+      borderColor = 'border-orange-600';
+    } else if (level >= 0.5) {
+      bgColor = 'bg-red-500';
+      borderColor = 'border-red-600';
+    } else {
+      bgColor = 'bg-gray-300';
+      borderColor = 'border-gray-400';
+    }
 
-  const getGapColor = (gap: number) => {
-    if (gap <= 0) return 'text-green-600 bg-green-50';
-    if (gap <= 0.5) return 'text-yellow-600 bg-yellow-50';
-    if (gap <= 1) return 'text-orange-600 bg-orange-50';
-    return 'text-red-600 bg-red-50';
+    return showBorder ? `${bgColor} border-4 ${borderColor}` : bgColor;
   };
 
-  const getLevelColor = (level: number) => {
-    if (level >= 4) return 'bg-green-500';
-    if (level >= 3) return 'bg-blue-500';
-    if (level >= 2) return 'bg-yellow-500';
-    return 'bg-red-500';
+  const handleAddSkill = async () => {
+    try {
+      // Add skill to database
+      const { data: skill, error } = await supabase
+        .from('skills')
+        .insert({
+          name: newSkill.name,
+          description: newSkill.description,
+          category: newSkill.category
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // TODO: Create invitations for all team members to assess this skill
+      // TODO: Send push notifications
+
+      // Reload data
+      await loadSkillsData();
+
+      // Reset form and close dialog
+      setNewSkill({
+        name: '',
+        description: '',
+        category: '',
+        advisory_service: '',
+        required_level: 3
+      });
+      setShowAddDialog(false);
+
+      alert(`Skill "${newSkill.name}" added! Team members will be notified to assess it.`);
+    } catch (error) {
+      console.error('Error adding skill:', error);
+      alert('Failed to add skill. Please try again.');
+    }
   };
+
+  const handleUpdateRequiredLevel = async (skillId: string, newLevel: number) => {
+    try {
+      // TODO: Store required levels in a separate table
+      // For now, just update in memory
+      setSkillsAnalytics(prev => prev.map(skill => 
+        skill.skill_id === skillId 
+          ? { ...skill, firm_required_level: newLevel, gap: newLevel - skill.average_level }
+          : skill
+      ));
+      setEditingRequiredLevel(null);
+    } catch (error) {
+      console.error('Error updating required level:', error);
+    }
+  };
+
+  const handleDeleteSkill = async (skillId: string, skillName: string) => {
+    if (!confirm(`Are you sure you want to delete "${skillName}"? This will remove all assessments for this skill.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('skills')
+        .delete()
+        .eq('id', skillId);
+
+      if (error) throw error;
+
+      await loadSkillsData();
+      alert(`Skill "${skillName}" deleted successfully.`);
+    } catch (error) {
+      console.error('Error deleting skill:', error);
+      alert('Failed to delete skill. Please try again.');
+    }
+  };
+
+  const categorySkills = expandedCategory 
+    ? skillsAnalytics.filter(s => s.category === expandedCategory)
+    : [];
 
   if (loading) {
     return (
@@ -229,179 +308,348 @@ export default function SkillsManagementPage() {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Skills Management</h1>
-          <p className="text-gray-600">
-            Comprehensive view of all skills across your firm
-          </p>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Skills Management</h1>
+            <p className="text-gray-600">
+              Comprehensive view of all skills across your firm
+            </p>
+          </div>
+          <Button
+            onClick={() => setShowAddDialog(true)}
+            className="bg-amber-600 hover:bg-amber-700"
+            size="lg"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Add New Skill
+          </Button>
         </div>
 
-        {/* Category Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {categoryStats.slice(0, 4).map((cat, idx) => (
-            <Card key={idx}>
+        {/* Category Grid - 3 columns */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          {categoryStats.map((cat) => (
+            <Card 
+              key={cat.category}
+              className={`cursor-pointer transition-all hover:shadow-lg ${
+                expandedCategory === cat.category ? 'ring-2 ring-amber-500' : ''
+              }`}
+              onClick={() => setExpandedCategory(expandedCategory === cat.category ? null : cat.category)}
+            >
               <CardContent className="pt-6">
-                <p className="text-sm font-medium text-gray-600 mb-2">{cat.category}</p>
-                <div className="flex items-end justify-between mb-3">
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">{cat.average_level.toFixed(1)}</p>
-                    <p className="text-xs text-gray-500">Avg Level</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-semibold text-gray-700">{cat.skill_count}</p>
-                    <p className="text-xs text-gray-500">Skills</p>
-                  </div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-lg text-gray-900">{cat.category}</h3>
+                  {expandedCategory === cat.category ? (
+                    <ChevronUp className="h-5 w-5 text-amber-600" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-gray-400" />
+                  )}
                 </div>
-                {cat.skills_below_target > 0 && (
-                  <Badge variant="destructive" className="text-xs">
-                    <AlertTriangle className="h-3 w-3 mr-1" />
-                    {cat.skills_below_target} below target
-                  </Badge>
-                )}
+                
+                <div className="space-y-3">
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <p className="text-3xl font-bold text-gray-900">{cat.average_level.toFixed(1)}</p>
+                      <p className="text-xs text-gray-500">Average Level</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xl font-semibold text-gray-700">{cat.skill_count}</p>
+                      <p className="text-xs text-gray-500">Skills</p>
+                    </div>
+                  </div>
+                  
+                  {cat.skills_below_target > 0 && (
+                    <Badge variant="destructive" className="w-full justify-center">
+                      {cat.skills_below_target} below target
+                    </Badge>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardContent className="pt-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+        {/* Expanded Category Skills */}
+        {expandedCategory && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">{expandedCategory} Skills</h2>
+              <Button 
+                variant="ghost" 
+                onClick={() => setExpandedCategory(null)}
+              >
+                <X className="h-4 w-4 mr-2" />
+                Close
+              </Button>
+            </div>
+
+            {categorySkills.map((skill) => (
+              <Card key={skill.skill_id} className="overflow-hidden">
+                <CardContent className="p-6">
+                  {/* Skill Header */}
+                  <div className="flex items-start justify-between mb-6">
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold text-gray-900 mb-1">{skill.skill_name}</h3>
+                      {skill.skill_description && (
+                        <p className="text-sm text-gray-600 mb-3">{skill.skill_description}</p>
+                      )}
+                      <div className="flex gap-2">
+                        {skill.advisory_services.map((service, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs">
+                            {service}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleDeleteSkill(skill.skill_id, skill.skill_name)}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Top 2 Performers */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <TrendingUp className="h-5 w-5 text-green-600" />
+                        <h4 className="font-bold text-gray-900">Top Performers</h4>
+                      </div>
+                      <div className="space-y-2">
+                        {skill.performers.slice(0, 2).map((performer, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
+                            <span className="text-sm font-medium text-gray-900">{performer.name}</span>
+                            <div className={`w-12 h-12 rounded-lg ${getHeatmapColor(performer.level, true)} flex items-center justify-center`}>
+                              <span className="text-white font-bold text-lg">{performer.level}</span>
+                            </div>
+                          </div>
+                        ))}
+                        {skill.performers.length < 2 && (
+                          <p className="text-sm text-gray-500 italic">Not enough assessments</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Required Level - Center Column */}
+                    <div>
+                      <h4 className="font-bold text-gray-900 mb-3 text-center">Firm Required Level</h4>
+                      <div className="flex flex-col items-center gap-4">
+                        {editingRequiredLevel === skill.skill_id ? (
+                          <div className="flex flex-col items-center gap-2">
+                            <Input
+                              type="number"
+                              min="1"
+                              max="5"
+                              value={tempRequiredLevel}
+                              onChange={(e) => setTempRequiredLevel(Number(e.target.value))}
+                              className="w-20 text-center text-lg font-bold"
+                            />
+                            <div className="flex gap-2">
+                              <Button 
+                                size="sm" 
+                                onClick={() => handleUpdateRequiredLevel(skill.skill_id, tempRequiredLevel)}
+                                className="bg-green-600"
+                              >
+                                <Save className="h-3 w-3" />
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => setEditingRequiredLevel(null)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div 
+                            className={`w-20 h-20 rounded-lg ${getHeatmapColor(skill.firm_required_level, true)} flex items-center justify-center cursor-pointer hover:opacity-80`}
+                            onClick={() => {
+                              setEditingRequiredLevel(skill.skill_id);
+                              setTempRequiredLevel(skill.firm_required_level);
+                            }}
+                          >
+                            <span className="text-white font-bold text-2xl">{skill.firm_required_level}</span>
+                          </div>
+                        )}
+                        
+                        {/* Gap Display */}
+                        <div className="text-center">
+                          <p className="text-xs text-gray-600 mb-1">Gap</p>
+                          <Badge className={`
+                            ${skill.gap <= 0 ? 'bg-green-100 text-green-800' : ''}
+                            ${skill.gap > 0 && skill.gap <= 0.5 ? 'bg-yellow-100 text-yellow-800' : ''}
+                            ${skill.gap > 0.5 && skill.gap <= 1 ? 'bg-orange-100 text-orange-800' : ''}
+                            ${skill.gap > 1 ? 'bg-red-100 text-red-800' : ''}
+                          `}>
+                            {skill.gap > 0 ? `+${skill.gap.toFixed(1)}` : skill.gap.toFixed(1)}
+                          </Badge>
+                        </div>
+
+                        {/* Firm Average */}
+                        <div className="text-center">
+                          <p className="text-xs text-gray-600 mb-1">Firm Average</p>
+                          <div className={`w-16 h-16 rounded-lg ${getHeatmapColor(skill.average_level)} flex items-center justify-center`}>
+                            <span className="text-white font-bold text-xl">{skill.average_level.toFixed(1)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom 2 Performers */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <TrendingDown className="h-5 w-5 text-red-600" />
+                        <h4 className="font-bold text-gray-900">Lowest Performers</h4>
+                      </div>
+                      <div className="space-y-2">
+                        {skill.performers.slice(-2).reverse().map((performer, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
+                            <span className="text-sm font-medium text-gray-900">{performer.name}</span>
+                            <div className={`w-12 h-12 rounded-lg ${getHeatmapColor(performer.level, true)} flex items-center justify-center`}>
+                              <span className="text-white font-bold text-lg">{performer.level}</span>
+                            </div>
+                          </div>
+                        ))}
+                        {skill.performers.length < 2 && (
+                          <p className="text-sm text-gray-500 italic">Not enough assessments</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stats Footer */}
+                  <div className="mt-6 pt-4 border-t flex items-center justify-between">
+                    <div className="flex gap-6 text-sm text-gray-600">
+                      <span>Total Assessments: <strong>{skill.total_assessments}</strong></span>
+                      <span>Avg Interest: <strong>{skill.average_interest.toFixed(1)}/5</strong></span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Add Skill Dialog */}
+        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Add New Skill</DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div>
+                <Label htmlFor="skill-name">Skill Name *</Label>
                 <Input
-                  placeholder="Search skills..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  id="skill-name"
+                  value={newSkill.name}
+                  onChange={(e) => setNewSkill({...newSkill, name: e.target.value})}
+                  placeholder="e.g., Business Valuation"
                 />
               </div>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="w-full md:w-64">
-                  <SelectValue placeholder="All Categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {categoryStats.map(cat => (
-                    <SelectItem key={cat.category} value={cat.category}>
-                      {cat.category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-                <SelectTrigger className="w-full md:w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="name">Sort by Name</SelectItem>
-                  <SelectItem value="level">Sort by Level</SelectItem>
-                  <SelectItem value="gap">Sort by Gap</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Skills List */}
-        <div className="space-y-3">
-          {filteredSkills.map((skill) => (
-            <Card key={skill.skill_id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                  {/* Skill Name & Category */}
-                  <div className="lg:col-span-3">
-                    <h3 className="font-bold text-gray-900 mb-1">{skill.skill_name}</h3>
-                    <Badge variant="outline" className="text-xs">{skill.category}</Badge>
-                  </div>
+              <div>
+                <Label htmlFor="skill-description">Description</Label>
+                <Textarea
+                  id="skill-description"
+                  value={newSkill.description}
+                  onChange={(e) => setNewSkill({...newSkill, description: e.target.value})}
+                  placeholder="Describe what this skill involves..."
+                  rows={3}
+                />
+              </div>
 
-                  {/* Firm Metrics */}
-                  <div className="lg:col-span-2 flex flex-col gap-2">
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">Firm Average</p>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-gray-200 rounded-full h-2">
-                          <div 
-                            className={`${getLevelColor(skill.average_level)} h-2 rounded-full`}
-                            style={{ width: `${(skill.average_level / 5) * 100}%` }}
-                          />
-                        </div>
-                        <span className="text-sm font-bold text-gray-900">{skill.average_level.toFixed(1)}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600">Interest: {skill.average_interest.toFixed(1)}/5</p>
-                    </div>
-                  </div>
-
-                  {/* Required Level & Gap */}
-                  <div className="lg:col-span-2">
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <p className="text-xs text-gray-600 mb-1">Required</p>
-                        <Badge variant="outline" className="font-bold">
-                          Level {skill.firm_required_level}
-                        </Badge>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-600 mb-1">Gap</p>
-                        <Badge className={getGapColor(skill.gap)}>
-                          {skill.gap > 0 ? `+${skill.gap.toFixed(1)}` : skill.gap.toFixed(1)}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Top & Lowest Performers */}
-                  <div className="lg:col-span-3">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4 text-green-600" />
-                        <span className="text-xs text-gray-600">Top:</span>
-                        <span className="text-xs font-medium text-gray-900">
-                          {skill.top_performer || 'N/A'} ({skill.top_performer_level})
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <TrendingDown className="h-4 w-4 text-red-600" />
-                        <span className="text-xs text-gray-600">Lowest:</span>
-                        <span className="text-xs font-medium text-gray-900">
-                          {skill.lowest_performer || 'N/A'} ({skill.lowest_performer_level})
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Advisory Services */}
-                  <div className="lg:col-span-2">
-                    <p className="text-xs text-gray-600 mb-2">Used in:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {skill.advisory_services.length > 0 ? (
-                        skill.advisory_services.map((service, idx) => (
-                          <Badge key={idx} variant="secondary" className="text-[10px] px-1.5 py-0.5">
-                            {service.split(' ')[0]}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-xs text-gray-400">None</span>
-                      )}
-                    </div>
-                  </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="skill-category">Category *</Label>
+                  <Select 
+                    value={newSkill.category}
+                    onValueChange={(value) => setNewSkill({...newSkill, category: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categoryStats.map(cat => (
+                        <SelectItem key={cat.category} value={cat.category}>
+                          {cat.category}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="new">+ Create New Category</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
 
-        {filteredSkills.length === 0 && (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-gray-500">No skills found matching your filters</p>
-            </CardContent>
-          </Card>
-        )}
+                <div>
+                  <Label htmlFor="required-level">Firm Required Level *</Label>
+                  <Select
+                    value={newSkill.required_level.toString()}
+                    onValueChange={(value) => setNewSkill({...newSkill, required_level: Number(value)})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Level 1 - Basic</SelectItem>
+                      <SelectItem value="2">Level 2 - Developing</SelectItem>
+                      <SelectItem value="3">Level 3 - Competent</SelectItem>
+                      <SelectItem value="4">Level 4 - Proficient</SelectItem>
+                      <SelectItem value="5">Level 5 - Expert</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="advisory-service">Advisory Service Line (Optional)</Label>
+                <Select
+                  value={newSkill.advisory_service}
+                  onValueChange={(value) => setNewSkill({...newSkill, advisory_service: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select service line" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {advisoryServicesMap.map(service => (
+                      <SelectItem key={service.id} value={service.id}>
+                        {service.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+                <p className="text-sm text-amber-900">
+                  <strong>Note:</strong> When you add this skill, all team members will be notified 
+                  to complete an assessment for it.
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleAddSkill}
+                disabled={!newSkill.name || !newSkill.category}
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Skill
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
 }
-
