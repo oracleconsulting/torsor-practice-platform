@@ -120,14 +120,130 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
   };
 
   const getDefaultServices = () => {
-    // Same default services as in AdvisoryServices
+    // Same default services as in AdvisoryServices.tsx
     return [
-      { id: 'forecasting', name: 'Financial Forecasting & Budgets', description: 'Comprehensive budgets, forecasts, and cashflow projections', iconName: 'ArrowTrendingUpIcon', basePrice: '£1,000 - £3,000', deliveryTime: '3-5 days', tier: 'all' },
-      { id: 'valuation', name: 'Business Valuation', description: 'Professional business valuations for various purposes', iconName: 'ScaleIcon', basePrice: '£1,500 - £4,000', deliveryTime: '5-7 days', tier: 'professional' },
-      { id: 'strategy', name: 'Strategy Day Facilitation', description: 'Structured strategic planning sessions with your team', iconName: 'UserGroupIcon', basePrice: '£2,000/day', deliveryTime: 'Full day session', tier: 'professional' },
-      { id: 'benchmarking', name: 'Industry Benchmarking', description: 'Compare performance against industry peers', iconName: 'ChartBarIcon', basePrice: '£450 - £1,500', deliveryTime: '2-3 days', tier: 'all' },
-      { id: 'accelerator', name: 'Advisory Accelerator', description: 'Ongoing advisory support program', iconName: 'BriefcaseIcon', basePrice: '£500-£2,000/month', deliveryTime: 'Monthly', tier: 'professional' },
-      { id: 'profit-extraction', name: 'Profit Extraction Planning', description: 'Optimize director remuneration and tax efficiency', iconName: 'CurrencyPoundIcon', basePrice: '£500 - £1,500', deliveryTime: '2-3 days', tier: 'all' }
+      {
+        id: 'automation',
+        name: 'Automation',
+        description: 'Data capture, system integration, and finance automation',
+        iconName: 'BriefcaseIcon',
+        basePrice: '£115-£180/hour + setup',
+        deliveryTime: 'Half-day to multi-day',
+        deliveredBy: 'Technical team with system integration expertise',
+        aims: 'Automate finance processes to save time, reduce errors, and improve efficiency',
+        tier: 'all',
+        features: [
+          'Data capture: scan invoices & receipts to electronic format',
+          'System integration: auto-upload to data entry software',
+          'Bank feed setup and troubleshooting',
+          'AI-driven categorisation rules',
+          'Chart of accounts setup',
+          'Link bookkeeping to analytics (Xero → Spotlight/Syft)',
+          'Dashboard setup for monitoring',
+          'Management accounts production',
+          'Forecasting and cashflow facilitation'
+        ]
+      },
+      {
+        id: 'management-accounts',
+        name: 'Management Accounts',
+        description: 'Regular financial reporting with KPI analysis and insights',
+        iconName: 'ChartBarIcon',
+        basePrice: '£650/month or £1,750/quarter',
+        deliveryTime: 'Monthly or quarterly',
+        deliveredBy: 'Senior accountants with analytical expertise',
+        aims: 'Provide reliable financial information throughout the year for better decision-making',
+        tier: 'all',
+        features: [
+          'Completed on suitable software package',
+          'Data check for year-end compatibility',
+          'Monthly, quarterly, or adhoc frequency',
+          'KPI commentary and key findings',
+          'Cash flow waterfall analysis',
+          'Spotlight-derived position and performance analysis'
+        ]
+      },
+      {
+        id: 'advisory-accelerator',
+        name: 'Future Financial Information / Advisory Accelerator',
+        description: 'Budgets, forecasts, valuations, and ongoing advisory support',
+        iconName: 'ArrowTrendingUpIcon',
+        basePrice: '£1,000-£9,000 depending on scope',
+        deliveryTime: 'One-off or recurring',
+        deliveredBy: 'Senior advisors and partners',
+        aims: 'Strategic planning and future-focused financial insights',
+        tier: 'all',
+        features: [
+          'Budgets and forecasts',
+          'Business valuations',
+          'Ongoing advisory support',
+          'Strategic planning assistance'
+        ]
+      },
+      {
+        id: 'benchmarking',
+        name: 'Benchmarking',
+        description: 'Compare performance against industry peers',
+        iconName: 'ChartBarIcon',
+        basePrice: '£450-£1,500',
+        deliveryTime: '2-3 days',
+        deliveredBy: 'Analysts with industry expertise',
+        aims: 'Understand competitive position and identify improvement opportunities',
+        tier: 'all',
+        features: [
+          'Industry comparison analysis',
+          'Performance metrics benchmarking',
+          'Competitive positioning insights'
+        ]
+      },
+      {
+        id: 'restructuring',
+        name: 'Restructuring & Turnaround',
+        description: 'Financial recovery and business restructuring advisory',
+        iconName: 'ScaleIcon',
+        basePrice: '£2,000-£10,000+ depending on complexity',
+        deliveryTime: 'Ongoing project-based',
+        deliveredBy: 'Partners with restructuring expertise',
+        aims: 'Navigate financial challenges and restore business health',
+        tier: 'professional',
+        features: [
+          'Cash flow crisis management',
+          'Debt restructuring negotiations',
+          'Business turnaround planning'
+        ]
+      },
+      {
+        id: 'fractional-cfo',
+        name: 'Fractional CFO',
+        description: 'Part-time CFO services for strategic financial leadership',
+        iconName: 'UserGroupIcon',
+        basePrice: '£2,000-£5,000/month',
+        deliveryTime: 'Ongoing retainer',
+        deliveredBy: 'Experienced CFOs and senior partners',
+        aims: 'Provide strategic financial leadership without full-time CFO cost',
+        tier: 'professional',
+        features: [
+          'Strategic financial planning',
+          'Board-level financial reporting',
+          'Financial system optimization'
+        ]
+      },
+      {
+        id: 'systems-audit',
+        name: 'Systems Audit',
+        description: 'Comprehensive review of financial systems and processes',
+        iconName: 'Cog6ToothIcon',
+        basePrice: 'TBD',
+        deliveryTime: 'Coming Soon',
+        deliveredBy: 'Systems specialists',
+        aims: 'Identify system inefficiencies and improvement opportunities',
+        tier: 'enterprise',
+        features: [
+          'System architecture review',
+          'Process efficiency analysis',
+          'Integration assessment'
+        ]
+      }
     ];
   };
 
