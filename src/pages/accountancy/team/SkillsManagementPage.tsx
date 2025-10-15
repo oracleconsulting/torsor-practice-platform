@@ -25,7 +25,8 @@ import {
   ChevronDown,
   ChevronUp,
   Save,
-  X
+  X,
+  Users
 } from 'lucide-react';
 
 interface SkillAnalytics {
