@@ -325,217 +325,224 @@ export default function SkillsManagementPage() {
           </Button>
         </div>
 
-        {/* Category Grid - 3 columns */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          {categoryStats.map((cat) => (
-            <Card 
-              key={cat.category}
-              className={`cursor-pointer transition-all hover:shadow-lg ${
-                expandedCategory === cat.category ? 'ring-2 ring-amber-500' : ''
-              }`}
-              onClick={() => setExpandedCategory(expandedCategory === cat.category ? null : cat.category)}
-            >
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-lg text-gray-900">{cat.category}</h3>
-                  {expandedCategory === cat.category ? (
-                    <ChevronUp className="h-5 w-5 text-amber-600" />
-                  ) : (
-                    <ChevronDown className="h-5 w-5 text-gray-400" />
-                  )}
-                </div>
-                
-                <div className="space-y-3">
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <p className="text-3xl font-bold text-gray-900">{cat.average_level.toFixed(1)}</p>
-                      <p className="text-xs text-gray-500">Average Level</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xl font-semibold text-gray-700">{cat.skill_count}</p>
-                      <p className="text-xs text-gray-500">Skills</p>
-                    </div>
-                  </div>
-                  
-                  {cat.skills_below_target > 0 && (
-                    <Badge variant="destructive" className="w-full justify-center">
-                      {cat.skills_below_target} below target
-                    </Badge>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Expanded Category Skills */}
-        {expandedCategory && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-gray-900">{expandedCategory} Skills</h2>
-              <Button 
-                variant="ghost" 
-                onClick={() => setExpandedCategory(null)}
-              >
-                <X className="h-4 w-4 mr-2" />
-                Close
-              </Button>
-            </div>
-
-            {categorySkills.map((skill) => (
-              <Card key={skill.skill_id} className="overflow-hidden">
-                <CardContent className="p-6">
-                  {/* Skill Header */}
-                  <div className="flex items-start justify-between mb-6">
-                    <div className="flex-1">
-                      <h3 className="text-xl font-bold text-gray-900 mb-1">{skill.skill_name}</h3>
-                      {skill.skill_description && (
-                        <p className="text-sm text-gray-600 mb-3">{skill.skill_description}</p>
+        {/* Category Grid with Inline Expansion */}
+        <div className="space-y-4">
+          {categoryStats.map((cat) => {
+            const isExpanded = expandedCategory === cat.category;
+            const categorySkills = skillsAnalytics.filter(s => s.category === cat.category);
+            
+            return (
+              <div key={cat.category}>
+                {/* Category Card */}
+                <Card 
+                  className={`cursor-pointer transition-all hover:shadow-lg ${
+                    isExpanded ? 'ring-2 ring-amber-500' : ''
+                  }`}
+                  onClick={() => setExpandedCategory(isExpanded ? null : cat.category)}
+                >
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-lg text-gray-900">{cat.category}</h3>
+                      {isExpanded ? (
+                        <ChevronUp className="h-5 w-5 text-amber-600" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-gray-400" />
                       )}
-                      <div className="flex gap-2">
-                        {skill.advisory_services.map((service, idx) => (
-                          <Badge key={idx} variant="secondary" className="text-xs">
-                            {service}
-                          </Badge>
-                        ))}
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="flex items-end justify-between">
+                        <div>
+                          <p className="text-3xl font-bold text-gray-900">{cat.average_level.toFixed(1)}</p>
+                          <p className="text-xs text-gray-500">Average Level</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xl font-semibold text-gray-700">{cat.skill_count}</p>
+                          <p className="text-xs text-gray-500">Skills</p>
+                        </div>
                       </div>
+                      
+                      {cat.skills_below_target > 0 && (
+                        <Badge variant="destructive" className="w-full justify-center">
+                          {cat.skills_below_target} below target
+                        </Badge>
+                      )}
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="sm">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleDeleteSkill(skill.skill_id, skill.skill_name)}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </Button>
-                    </div>
-                  </div>
+                  </CardContent>
+                </Card>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Top 2 Performers */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <TrendingUp className="h-5 w-5 text-green-600" />
-                        <h4 className="font-bold text-gray-900">Top Performers</h4>
-                      </div>
-                      <div className="space-y-2">
-                        {skill.performers.slice(0, 2).map((performer, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
-                            <span className="text-sm font-medium text-gray-900">{performer.name}</span>
-                            <div className={`w-12 h-12 rounded-lg ${getHeatmapColor(performer.level, true)} flex items-center justify-center`}>
-                              <span className="text-white font-bold text-lg">{performer.level}</span>
+                {/* Expanded Skills - Appears directly below this category */}
+                {isExpanded && (
+                  <div className="mt-4 space-y-4 pl-4 border-l-4 border-amber-500">
+                            {categorySkills.map((skill) => (
+                      <Card key={skill.skill_id} className="overflow-hidden">
+                        <CardContent className="p-6">
+                          {/* Skill Header */}
+                          <div className="flex items-start justify-between mb-6">
+                            <div className="flex-1">
+                              <h3 className="text-xl font-bold text-gray-900 mb-1">{skill.skill_name}</h3>
+                              {skill.skill_description && (
+                                <p className="text-sm text-gray-600 mb-3">{skill.skill_description}</p>
+                              )}
+                              <div className="flex gap-2">
+                                {skill.advisory_services.map((service, idx) => (
+                                  <Badge key={idx} variant="secondary" className="text-xs">
+                                    {service}
+                                  </Badge>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                        {skill.performers.length < 2 && (
-                          <p className="text-sm text-gray-500 italic">Not enough assessments</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Required Level - Center Column */}
-                    <div>
-                      <h4 className="font-bold text-gray-900 mb-3 text-center">Firm Required Level</h4>
-                      <div className="flex flex-col items-center gap-4">
-                        {editingRequiredLevel === skill.skill_id ? (
-                          <div className="flex flex-col items-center gap-2">
-                            <Input
-                              type="number"
-                              min="1"
-                              max="5"
-                              value={tempRequiredLevel}
-                              onChange={(e) => setTempRequiredLevel(Number(e.target.value))}
-                              className="w-20 text-center text-lg font-bold"
-                            />
                             <div className="flex gap-2">
-                              <Button 
-                                size="sm" 
-                                onClick={() => handleUpdateRequiredLevel(skill.skill_id, tempRequiredLevel)}
-                                className="bg-green-600"
-                              >
-                                <Save className="h-3 w-3" />
+                              <Button variant="ghost" size="sm">
+                                <Edit className="h-4 w-4" />
                               </Button>
                               <Button 
-                                size="sm" 
-                                variant="outline"
-                                onClick={() => setEditingRequiredLevel(null)}
+                                variant="ghost" 
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSkill(skill.skill_id, skill.skill_name);
+                                }}
                               >
-                                <X className="h-3 w-3" />
+                                <Trash2 className="h-4 w-4 text-red-600" />
                               </Button>
                             </div>
                           </div>
-                        ) : (
-                          <div 
-                            className={`w-20 h-20 rounded-lg ${getHeatmapColor(skill.firm_required_level, true)} flex items-center justify-center cursor-pointer hover:opacity-80`}
-                            onClick={() => {
-                              setEditingRequiredLevel(skill.skill_id);
-                              setTempRequiredLevel(skill.firm_required_level);
-                            }}
-                          >
-                            <span className="text-white font-bold text-2xl">{skill.firm_required_level}</span>
-                          </div>
-                        )}
-                        
-                        {/* Gap Display */}
-                        <div className="text-center">
-                          <p className="text-xs text-gray-600 mb-1">Gap</p>
-                          <Badge className={`
-                            ${skill.gap <= 0 ? 'bg-green-100 text-green-800' : ''}
-                            ${skill.gap > 0 && skill.gap <= 0.5 ? 'bg-yellow-100 text-yellow-800' : ''}
-                            ${skill.gap > 0.5 && skill.gap <= 1 ? 'bg-orange-100 text-orange-800' : ''}
-                            ${skill.gap > 1 ? 'bg-red-100 text-red-800' : ''}
-                          `}>
-                            {skill.gap > 0 ? `+${skill.gap.toFixed(1)}` : skill.gap.toFixed(1)}
-                          </Badge>
-                        </div>
 
-                        {/* Firm Average */}
-                        <div className="text-center">
-                          <p className="text-xs text-gray-600 mb-1">Firm Average</p>
-                          <div className={`w-16 h-16 rounded-lg ${getHeatmapColor(skill.average_level)} flex items-center justify-center`}>
-                            <span className="text-white font-bold text-xl">{skill.average_level.toFixed(1)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Top 2 Performers */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-3">
+                                <TrendingUp className="h-5 w-5 text-green-600" />
+                                <h4 className="font-bold text-gray-900">Top Performers</h4>
+                              </div>
+                              <div className="space-y-2">
+                                {skill.performers.slice(0, 2).map((performer, idx) => (
+                                  <div key={idx} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
+                                    <span className="text-sm font-medium text-gray-900">{performer.name}</span>
+                                    <div className={`w-12 h-12 rounded-lg ${getHeatmapColor(performer.level, true)} flex items-center justify-center`}>
+                                      <span className="text-white font-bold text-lg">{performer.level}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                                {skill.performers.length < 2 && (
+                                  <p className="text-sm text-gray-500 italic">Not enough assessments</p>
+                                )}
+                              </div>
+                            </div>
 
-                    {/* Bottom 2 Performers */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <TrendingDown className="h-5 w-5 text-red-600" />
-                        <h4 className="font-bold text-gray-900">Lowest Performers</h4>
-                      </div>
-                      <div className="space-y-2">
-                        {skill.performers.slice(-2).reverse().map((performer, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
-                            <span className="text-sm font-medium text-gray-900">{performer.name}</span>
-                            <div className={`w-12 h-12 rounded-lg ${getHeatmapColor(performer.level, true)} flex items-center justify-center`}>
-                              <span className="text-white font-bold text-lg">{performer.level}</span>
+                            {/* Required Level - Center Column */}
+                            <div>
+                              <h4 className="font-bold text-gray-900 mb-3 text-center">Firm Required Level</h4>
+                              <div className="flex flex-col items-center gap-4">
+                                {editingRequiredLevel === skill.skill_id ? (
+                                  <div className="flex flex-col items-center gap-2">
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      max="5"
+                                      value={tempRequiredLevel}
+                                      onChange={(e) => setTempRequiredLevel(Number(e.target.value))}
+                                      className="w-20 text-center text-lg font-bold"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                    <div className="flex gap-2">
+                                      <Button 
+                                        size="sm" 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleUpdateRequiredLevel(skill.skill_id, tempRequiredLevel);
+                                        }}
+                                        className="bg-green-600"
+                                      >
+                                        <Save className="h-3 w-3" />
+                                      </Button>
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingRequiredLevel(null);
+                                        }}
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div 
+                                    className={`w-20 h-20 rounded-lg ${getHeatmapColor(skill.firm_required_level, true)} flex items-center justify-center cursor-pointer hover:opacity-80`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingRequiredLevel(skill.skill_id);
+                                      setTempRequiredLevel(skill.firm_required_level);
+                                    }}
+                                  >
+                                    <span className="text-white font-bold text-2xl">{skill.firm_required_level}</span>
+                                  </div>
+                                )}
+                                
+                                {/* Gap Display */}
+                                <div className="text-center">
+                                  <p className="text-xs text-gray-600 mb-1">Gap</p>
+                                  <Badge className={`
+                                    ${skill.gap <= 0 ? 'bg-green-100 text-green-800' : ''}
+                                    ${skill.gap > 0 && skill.gap <= 0.5 ? 'bg-yellow-100 text-yellow-800' : ''}
+                                    ${skill.gap > 0.5 && skill.gap <= 1 ? 'bg-orange-100 text-orange-800' : ''}
+                                    ${skill.gap > 1 ? 'bg-red-100 text-red-800' : ''}
+                                  `}>
+                                    {skill.gap > 0 ? `+${skill.gap.toFixed(1)}` : skill.gap.toFixed(1)}
+                                  </Badge>
+                                </div>
+
+                                {/* Firm Average */}
+                                <div className="text-center">
+                                  <p className="text-xs text-gray-600 mb-1">Firm Average</p>
+                                  <div className={`w-16 h-16 rounded-lg ${getHeatmapColor(skill.average_level)} flex items-center justify-center`}>
+                                    <span className="text-white font-bold text-xl">{skill.average_level.toFixed(1)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Bottom 2 Performers */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-3">
+                                <TrendingDown className="h-5 w-5 text-red-600" />
+                                <h4 className="font-bold text-gray-900">Lowest Performers</h4>
+                              </div>
+                              <div className="space-y-2">
+                                {skill.performers.slice(-2).reverse().map((performer, idx) => (
+                                  <div key={idx} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
+                                    <span className="text-sm font-medium text-gray-900">{performer.name}</span>
+                                    <div className={`w-12 h-12 rounded-lg ${getHeatmapColor(performer.level, true)} flex items-center justify-center`}>
+                                      <span className="text-white font-bold text-lg">{performer.level}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                                {skill.performers.length < 2 && (
+                                  <p className="text-sm text-gray-500 italic">Not enough assessments</p>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        ))}
-                        {skill.performers.length < 2 && (
-                          <p className="text-sm text-gray-500 italic">Not enough assessments</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Stats Footer */}
-                  <div className="mt-6 pt-4 border-t flex items-center justify-between">
-                    <div className="flex gap-6 text-sm text-gray-600">
-                      <span>Total Assessments: <strong>{skill.total_assessments}</strong></span>
-                      <span>Avg Interest: <strong>{skill.average_interest.toFixed(1)}/5</strong></span>
-                    </div>
+                          {/* Stats Footer */}
+                          <div className="mt-6 pt-4 border-t flex items-center justify-between">
+                            <div className="flex gap-6 text-sm text-gray-600">
+                              <span>Total Assessments: <strong>{skill.total_assessments}</strong></span>
+                              <span>Avg Interest: <strong>{skill.average_interest.toFixed(1)}/5</strong></span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                )}
+              </div>
+            );
+          })}
+        </div>
 
         {/* Add Skill Dialog */}
         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
