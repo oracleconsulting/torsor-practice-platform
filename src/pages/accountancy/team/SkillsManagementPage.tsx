@@ -62,6 +62,10 @@ export default function SkillsManagementPage() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingRequiredLevel, setEditingRequiredLevel] = useState<string | null>(null);
   const [tempRequiredLevel, setTempRequiredLevel] = useState<number>(3);
+  const [editingSkill, setEditingSkill] = useState<SkillAnalytics | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showTeamDialog, setShowTeamDialog] = useState(false);
+  const [selectedSkillForTeam, setSelectedSkillForTeam] = useState<SkillAnalytics | null>(null);
   
   const [newSkill, setNewSkill] = useState({
     name: '',
@@ -335,6 +339,36 @@ export default function SkillsManagementPage() {
     }
   };
 
+  const handleEditSkill = async () => {
+    if (!editingSkill) return;
+
+    try {
+      const { error } = await supabase
+        .from('skills')
+        .update({
+          name: editingSkill.skill_name,
+          description: editingSkill.skill_description,
+          category: editingSkill.category
+        })
+        .eq('id', editingSkill.skill_id);
+
+      if (error) throw error;
+
+      await loadSkillsData();
+      setShowEditDialog(false);
+      setEditingSkill(null);
+      alert('Skill updated successfully!');
+    } catch (error) {
+      console.error('Error updating skill:', error);
+      alert('Failed to update skill. Please try again.');
+    }
+  };
+
+  const handleViewTeam = (skill: SkillAnalytics) => {
+    setSelectedSkillForTeam(skill);
+    setShowTeamDialog(true);
+  };
+
   const categorySkills = expandedCategory 
     ? skillsAnalytics.filter(s => s.category === expandedCategory)
     : [];
@@ -442,11 +476,32 @@ export default function SkillsManagementPage() {
                                 </div>
                               </div>
                               {skill.skill_description && (
-                                <p className="text-xs text-gray-600 line-clamp-1">{skill.skill_description}</p>
+                                <p className="text-xs text-gray-600 line-clamp-3">{skill.skill_description}</p>
                               )}
                             </div>
                             <div className="flex gap-1 ml-4">
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-7 px-2 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewTeam(skill);
+                                }}
+                              >
+                                <Users className="h-3 w-3 mr-1" />
+                                Team
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-7 w-7 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingSkill(skill);
+                                  setShowEditDialog(true);
+                                }}
+                              >
                                 <Edit className="h-3 w-3" />
                               </Button>
                               <Button 
@@ -465,17 +520,17 @@ export default function SkillsManagementPage() {
 
                           {/* Compact Single Row Layout */}
                           <div className="flex items-center gap-4">
-                            {/* Top 2 Performers - Compact */}
-                            <div className="flex-1">
+                            {/* Top 2 Performers - Stacked Vertically */}
+                            <div className="flex-1 min-w-[140px]">
                               <div className="flex items-center gap-1.5 mb-1.5">
                                 <TrendingUp className="h-3.5 w-3.5 text-green-600" />
-                                <span className="text-xs font-semibold text-gray-700">Top</span>
+                                <span className="text-xs font-semibold text-gray-700">Top Performers</span>
                               </div>
-                              <div className="flex gap-1.5">
+                              <div className="space-y-1.5">
                                 {skill.performers.slice(0, 2).map((performer, idx) => (
-                                  <div key={idx} className="flex items-center gap-1.5 px-2 py-1 bg-green-50 rounded border border-green-200">
-                                    <span className="text-xs font-medium text-gray-900 truncate max-w-[80px]">{performer.name}</span>
-                                    <div className={`w-8 h-8 rounded ${getHeatmapColor(performer.level, true)} flex items-center justify-center flex-shrink-0`}>
+                                  <div key={idx} className="flex items-center justify-between px-2 py-1 bg-green-50 rounded border border-green-200">
+                                    <span className="text-xs font-medium text-gray-900 truncate">{performer.name}</span>
+                                    <div className={`w-7 h-7 rounded ${getHeatmapColor(performer.level, true)} flex items-center justify-center flex-shrink-0 ml-2`}>
                                       <span className="text-white font-bold text-sm">{performer.level}</span>
                                     </div>
                                   </div>
@@ -573,19 +628,19 @@ export default function SkillsManagementPage() {
                               )}
                             </div>
 
-                            {/* Bottom 2 Performers - Compact */}
-                            <div className="flex-1">
+                            {/* Bottom 2 Performers - Stacked Vertically */}
+                            <div className="flex-1 min-w-[140px]">
                               <div className="flex items-center gap-1.5 mb-1.5 justify-end">
-                                <span className="text-xs font-semibold text-gray-700">Lowest</span>
+                                <span className="text-xs font-semibold text-gray-700">Lowest Performers</span>
                                 <TrendingDown className="h-3.5 w-3.5 text-red-600" />
                               </div>
-                              <div className="flex gap-1.5 justify-end">
+                              <div className="space-y-1.5">
                                 {skill.performers.slice(-2).reverse().map((performer, idx) => (
-                                  <div key={idx} className="flex items-center gap-1.5 px-2 py-1 bg-red-50 rounded border border-red-200">
-                                    <div className={`w-8 h-8 rounded ${getHeatmapColor(performer.level, true)} flex items-center justify-center flex-shrink-0`}>
+                                  <div key={idx} className="flex items-center justify-between px-2 py-1 bg-red-50 rounded border border-red-200">
+                                    <div className={`w-7 h-7 rounded ${getHeatmapColor(performer.level, true)} flex items-center justify-center flex-shrink-0 mr-2`}>
                                       <span className="text-white font-bold text-sm">{performer.level}</span>
                                     </div>
-                                    <span className="text-xs font-medium text-gray-900 truncate max-w-[80px]">{performer.name}</span>
+                                    <span className="text-xs font-medium text-gray-900 truncate">{performer.name}</span>
                                   </div>
                                 ))}
                                 {skill.performers.length < 2 && (
@@ -609,6 +664,170 @@ export default function SkillsManagementPage() {
             );
           })}
         </div>
+
+        {/* Edit Skill Dialog */}
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit Skill</DialogTitle>
+            </DialogHeader>
+            
+            {editingSkill && (
+              <div className="space-y-4 py-4">
+                <div>
+                  <Label htmlFor="edit-skill-name">Skill Name *</Label>
+                  <Input
+                    id="edit-skill-name"
+                    value={editingSkill.skill_name}
+                    onChange={(e) => setEditingSkill({...editingSkill, skill_name: e.target.value})}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="edit-skill-description">Description</Label>
+                  <Textarea
+                    id="edit-skill-description"
+                    value={editingSkill.skill_description || ''}
+                    onChange={(e) => setEditingSkill({...editingSkill, skill_description: e.target.value})}
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="edit-skill-category">Category *</Label>
+                  <Select 
+                    value={editingSkill.category}
+                    onValueChange={(value) => setEditingSkill({...editingSkill, category: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categoryStats.map(cat => (
+                        <SelectItem key={cat.category} value={cat.category}>
+                          {cat.category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleEditSkill}
+                disabled={!editingSkill?.skill_name}
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                <Save className="h-4 w-4 mr-2" />
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Team View Dialog */}
+        <Dialog open={showTeamDialog} onOpenChange={setShowTeamDialog}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Team Analysis: {selectedSkillForTeam?.skill_name}</DialogTitle>
+            </DialogHeader>
+            
+            {selectedSkillForTeam && (
+              <div className="space-y-6 py-4">
+                {/* Scatter Plot */}
+                <div className="relative h-96 border rounded-lg p-6 bg-gray-50">
+                  <div className="absolute left-4 top-1/2 -rotate-90 text-sm font-semibold text-gray-700">
+                    Interest Level
+                  </div>
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-sm font-semibold text-gray-700">
+                    Skill Level
+                  </div>
+                  
+                  {/* Grid */}
+                  <div className="ml-8 mb-8 h-full relative border-l-2 border-b-2 border-gray-300">
+                    {/* Y-axis labels */}
+                    {[5, 4, 3, 2, 1].map(level => (
+                      <div key={level} className="absolute left-0 text-xs text-gray-500" style={{ bottom: `${(level - 1) * 20}%`, transform: 'translateX(-100%) translateY(50%)' }}>
+                        {level}
+                      </div>
+                    ))}
+                    
+                    {/* X-axis labels */}
+                    {[1, 2, 3, 4, 5].map(level => (
+                      <div key={level} className="absolute bottom-0 text-xs text-gray-500" style={{ left: `${(level - 1) * 20}%`, transform: 'translateY(100%) translateX(-50%)' }}>
+                        {level}
+                      </div>
+                    ))}
+                    
+                    {/* Data points */}
+                    {selectedSkillForTeam.performers.map((performer, idx) => {
+                      // Find interest level for this performer
+                      const interestLevel = 3; // TODO: Get actual interest level from data
+                      const left = ((performer.level - 0.5) / 5) * 100;
+                      const bottom = ((interestLevel - 0.5) / 5) * 100;
+                      
+                      return (
+                        <div
+                          key={idx}
+                          className="absolute w-3 h-3 rounded-full cursor-pointer hover:ring-2 ring-amber-500 transition-all"
+                          style={{ 
+                            left: `${left}%`, 
+                            bottom: `${bottom}%`,
+                            transform: 'translate(-50%, 50%)'
+                          }}
+                          title={`${performer.name}: Skill ${performer.level}, Interest ${interestLevel}`}
+                        >
+                          <div className={`w-full h-full rounded-full ${getHeatmapColor(performer.level)}`}></div>
+                        </div>
+                      );
+                    })}
+                    
+                    {/* Quadrant lines */}
+                    <div className="absolute left-0 w-full border-t border-dashed border-gray-300" style={{ bottom: '50%' }}></div>
+                    <div className="absolute top-0 h-full border-l border-dashed border-gray-300" style={{ left: '50%' }}></div>
+                  </div>
+                </div>
+
+                {/* Team Members Table */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">All Team Members</h4>
+                  <div className="space-y-2">
+                    {selectedSkillForTeam.performers.map((performer, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                        <span className="font-medium text-gray-900">{performer.name}</span>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-600">Skill:</span>
+                            <div className={`w-10 h-10 rounded ${getHeatmapColor(performer.level, true)} flex items-center justify-center`}>
+                              <span className="text-white font-bold">{performer.level}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-600">Interest:</span>
+                            <div className="w-10 h-10 rounded bg-blue-500 flex items-center justify-center">
+                              <span className="text-white font-bold">3</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowTeamDialog(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Add Skill Dialog */}
         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
