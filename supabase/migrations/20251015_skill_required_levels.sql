@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS public.skill_required_levels (
 -- Enable RLS
 ALTER TABLE public.skill_required_levels ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Allow all read access to skill_required_levels" ON public.skill_required_levels;
+DROP POLICY IF EXISTS "Allow practice members to manage their practice skill requirements" ON public.skill_required_levels;
+
 -- RLS Policies
 CREATE POLICY "Allow all read access to skill_required_levels" 
 ON public.skill_required_levels
@@ -48,6 +52,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Drop existing trigger if it exists
+DROP TRIGGER IF EXISTS handle_updated_at ON public.skill_required_levels;
+
 -- Trigger to update updated_at timestamp
 CREATE TRIGGER handle_updated_at 
 BEFORE UPDATE ON public.skill_required_levels 
@@ -55,6 +62,8 @@ FOR EACH ROW
 EXECUTE FUNCTION public.update_skill_required_levels_updated_at();
 
 -- Create index for faster lookups
+DROP INDEX IF EXISTS idx_skill_required_levels_practice;
+DROP INDEX IF EXISTS idx_skill_required_levels_skill;
 CREATE INDEX idx_skill_required_levels_practice ON public.skill_required_levels(practice_id);
 CREATE INDEX idx_skill_required_levels_skill ON public.skill_required_levels(skill_id);
 
