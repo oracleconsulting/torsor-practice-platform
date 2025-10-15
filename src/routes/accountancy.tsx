@@ -38,6 +38,7 @@ import Analytics from '../pages/accountancy/outreach/Analytics';
 // Import new page components
 import ClientRescues from '../pages/accountancy/ClientRescues';
 import AdvisoryServices from '../pages/accountancy/AdvisoryServices';
+import ServiceDetailPage from '../pages/ServiceDetailPage';
 import PracticeHealth from '../pages/accountancy/PracticeHealth';
 import ClientVaultPage from '../pages/accountancy/ClientVaultPage';
 import SystemsAuditPage from '../pages/accountancy/SystemsAuditPage';
@@ -134,6 +135,7 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="team-portal/mobile-assessment" element={<MobileAssessmentPage />} />
       <Route path="client-rescues" element={<ClientRescues />} />
       <Route path="advisory-services" element={<AdvisoryServices />} />
+      <Route path="advisory-services/:serviceId" element={<ServiceDetailPage />} />
       
       {/* Advisory Sub-Pages */}
       <Route path="portal/advisory/forecasting" element={<ForecastingPage />} />
