@@ -14,7 +14,7 @@ import AdminDashboardPage from './team/AdminDashboardPage';
 import TrainingRecommendationsPage from './team/TrainingRecommendationsPage';
 import MentoringHubPage from './team/MentoringHubPage';
 import AnalyticsDashboardPage from './team/AnalyticsDashboardPage';
-import OnboardingAdminPage from './team/OnboardingAdminPage';
+import SkillsManagementPage from './team/SkillsManagementPage';
 
 // Visual Pattern Components
 const DiagonalPattern = () => (
@@ -109,10 +109,10 @@ const TeamManagementPage: React.FC = () => {
       badge: 'NEW',
     },
     {
-      value: 'onboarding',
-      label: 'ONBOARDING',
-      icon: CheckCircle,
-      component: OnboardingAdminPage,
+      value: 'skills',
+      label: 'SKILLS MANAGEMENT',
+      icon: Target,
+      component: SkillsManagementPage,
       badge: 'NEW',
     },
     {
