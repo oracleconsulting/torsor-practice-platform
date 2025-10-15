@@ -39,11 +39,20 @@ WITH CHECK (
     )
 );
 
+-- Create trigger function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION public.update_skill_required_levels_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Trigger to update updated_at timestamp
 CREATE TRIGGER handle_updated_at 
 BEFORE UPDATE ON public.skill_required_levels 
 FOR EACH ROW 
-EXECUTE FUNCTION moddatetime('updated_at');
+EXECUTE FUNCTION public.update_skill_required_levels_updated_at();
 
 -- Create index for faster lookups
 CREATE INDEX idx_skill_required_levels_practice ON public.skill_required_levels(practice_id);
