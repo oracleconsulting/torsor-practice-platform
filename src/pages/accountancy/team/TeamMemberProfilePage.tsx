@@ -9,7 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { 
   ArrowLeft, User, BookOpen, TrendingUp, Award, 
   Target, Calendar, Mail, MessageSquare, AlertCircle,
-  CheckCircle, Clock, Users, Brain, Lightbulb
+  CheckCircle, Clock, Users, Brain, Lightbulb, Edit, Save, X
 } from 'lucide-react';
 import { getMentoringRelationships } from '@/lib/api/mentoring';
 
@@ -91,6 +91,17 @@ export default function TeamMemberProfilePage() {
   const [profile, setProfile] = useState<TeamMemberProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hasAccess, setHasAccess] = useState(false);
+  const [isEditingPermissions, setIsEditingPermissions] = useState(false);
+  const [permissions, setPermissions] = useState({
+    canAccessTeamManagement: false,
+    canAccessUserAdmin: false,
+    canAccessSkillsAssessment: true,
+    canAccessCPD: true,
+    canAccessAssignments: true,
+    canAccessMentoring: true,
+    canAccessKnowledgeBase: true,
+    canAccessAdvisoryServices: false
+  });
 
   useEffect(() => {
     checkAccessAndLoadProfile();
@@ -317,6 +328,20 @@ export default function TeamMemberProfilePage() {
       };
 
       setProfile(profileData);
+      
+      // Set permissions based on role
+      const isAdminRole = ['owner', 'admin', 'partner', 'director'].includes(memberData.role.toLowerCase());
+      setPermissions({
+        canAccessTeamManagement: isAdminRole,
+        canAccessUserAdmin: isAdminRole,
+        canAccessSkillsAssessment: true,
+        canAccessCPD: true,
+        canAccessAssignments: true,
+        canAccessMentoring: true,
+        canAccessKnowledgeBase: true,
+        canAccessAdvisoryServices: isAdminRole
+      });
+      
       setLoading(false);
     } catch (error: any) {
       console.error('[TeamMemberProfile] Error loading profile:', error);
@@ -324,6 +349,18 @@ export default function TeamMemberProfilePage() {
       setLoading(false);
     }
   }
+
+  const handleSavePermissions = async () => {
+    try {
+      // Here you would save permissions to a database table
+      // For now, we'll just update the UI
+      setIsEditingPermissions(false);
+      alert('Permissions saved! (Note: This would save to database in production)');
+    } catch (error) {
+      console.error('Error saving permissions:', error);
+      alert('Failed to save permissions');
+    }
+  };
 
   if (loading) {
     return (
@@ -439,54 +476,143 @@ export default function TeamMemberProfilePage() {
         {/* Portal Access Card */}
         <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex-1">
                 <h3 className="font-bold text-gray-900 mb-1">What They See & Can Access</h3>
                 <p className="text-sm text-gray-600 mb-3">
-                  {profile.role === 'owner' || profile.role === 'admin' || profile.role === 'partner' || profile.role === 'director'
+                  {permissions.canAccessTeamManagement
                     ? '✨ Full admin access to Team Management Portal (all features)'
                     : '📊 Team Member Portal (personal development only)'}
                 </p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                  <div className={`p-2 rounded ${
-                    ['owner', 'admin', 'partner', 'director'].includes(profile.role.toLowerCase())
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {['owner', 'admin', 'partner', 'director'].includes(profile.role.toLowerCase()) ? '✅' : '❌'} Team Management
-                  </div>
-                  <div className={`p-2 rounded ${
-                    ['owner', 'admin', 'partner', 'director'].includes(profile.role.toLowerCase())
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {['owner', 'admin', 'partner', 'director'].includes(profile.role.toLowerCase()) ? '✅' : '❌'} User Administration
-                  </div>
-                  <div className="p-2 rounded bg-green-100 text-green-800">
-                    ✅ Skills Assessment
-                  </div>
-                  <div className="p-2 rounded bg-green-100 text-green-800">
-                    ✅ CPD Tracking
-                  </div>
-                  <div className="p-2 rounded bg-green-100 text-green-800">
-                    ✅ My Assignments
-                  </div>
-                  <div className="p-2 rounded bg-green-100 text-green-800">
-                    ✅ Mentoring
-                  </div>
-                  <div className="p-2 rounded bg-green-100 text-green-800">
-                    ✅ Knowledge Base
-                  </div>
-                  <div className={`p-2 rounded ${
-                    ['owner', 'admin', 'partner', 'director'].includes(profile.role.toLowerCase())
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {['owner', 'admin', 'partner', 'director'].includes(profile.role.toLowerCase()) ? '✅' : '❌'} Advisory Services
-                  </div>
+              </div>
+              <Button
+                onClick={() => setIsEditingPermissions(!isEditingPermissions)}
+                variant="outline"
+                size="sm"
+                className="bg-white hover:bg-gray-50"
+              >
+                {isEditingPermissions ? (
+                  <>
+                    <X className="w-4 h-4 mr-2" />
+                    Cancel
+                  </>
+                ) : (
+                  <>
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit Permissions
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {isEditingPermissions ? (
+              // Edit Mode
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {[
+                    { key: 'canAccessTeamManagement', label: 'Team Management', adminOnly: true },
+                    { key: 'canAccessUserAdmin', label: 'User Administration', adminOnly: true },
+                    { key: 'canAccessSkillsAssessment', label: 'Skills Assessment', adminOnly: false },
+                    { key: 'canAccessCPD', label: 'CPD Tracking', adminOnly: false },
+                    { key: 'canAccessAssignments', label: 'My Assignments', adminOnly: false },
+                    { key: 'canAccessMentoring', label: 'Mentoring', adminOnly: false },
+                    { key: 'canAccessKnowledgeBase', label: 'Knowledge Base', adminOnly: false },
+                    { key: 'canAccessAdvisoryServices', label: 'Advisory Services', adminOnly: true }
+                  ].map((perm) => (
+                    <label
+                      key={perm.key}
+                      className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
+                    >
+                      <span className="text-sm font-medium text-gray-900">{perm.label}</span>
+                      <input
+                        type="checkbox"
+                        checked={permissions[perm.key as keyof typeof permissions]}
+                        onChange={(e) => setPermissions({
+                          ...permissions,
+                          [perm.key]: e.target.checked
+                        })}
+                        className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                    </label>
+                  ))}
+                </div>
+                <div className="flex justify-end gap-2 pt-3 border-t">
+                  <Button
+                    onClick={() => setIsEditingPermissions(false)}
+                    variant="outline"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSavePermissions}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Permissions
+                  </Button>
                 </div>
               </div>
-            </div>
+            ) : (
+              // View Mode
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                <div className={`p-2 rounded ${
+                  permissions.canAccessTeamManagement
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {permissions.canAccessTeamManagement ? '✅' : '❌'} Team Management
+                </div>
+                <div className={`p-2 rounded ${
+                  permissions.canAccessUserAdmin
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {permissions.canAccessUserAdmin ? '✅' : '❌'} User Administration
+                </div>
+                <div className={`p-2 rounded ${
+                  permissions.canAccessSkillsAssessment
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {permissions.canAccessSkillsAssessment ? '✅' : '❌'} Skills Assessment
+                </div>
+                <div className={`p-2 rounded ${
+                  permissions.canAccessCPD
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {permissions.canAccessCPD ? '✅' : '❌'} CPD Tracking
+                </div>
+                <div className={`p-2 rounded ${
+                  permissions.canAccessAssignments
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {permissions.canAccessAssignments ? '✅' : '❌'} My Assignments
+                </div>
+                <div className={`p-2 rounded ${
+                  permissions.canAccessMentoring
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {permissions.canAccessMentoring ? '✅' : '❌'} Mentoring
+                </div>
+                <div className={`p-2 rounded ${
+                  permissions.canAccessKnowledgeBase
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {permissions.canAccessKnowledgeBase ? '✅' : '❌'} Knowledge Base
+                </div>
+                <div className={`p-2 rounded ${
+                  permissions.canAccessAdvisoryServices
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {permissions.canAccessAdvisoryServices ? '✅' : '❌'} Advisory Services
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

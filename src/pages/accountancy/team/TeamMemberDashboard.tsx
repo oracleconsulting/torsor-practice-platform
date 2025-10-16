@@ -57,11 +57,11 @@ export default function TeamMemberDashboard() {
     if (viewAsParam) {
       // Admin is viewing another user's dashboard
       checkAdminAndLoadMember(viewAsParam);
-    } else if (practiceMember?.id) {
-      // Regular user viewing their own dashboard
+    } else if (practiceMember?.id && !viewingAsMemberId) {
+      // Regular user viewing their own dashboard (only if not viewing as someone else)
       loadDashboardData();
     }
-  }, [practiceMember?.id, searchParams]);
+  }, [practiceMember?.id, searchParams, viewingAsMemberId]);
 
   const checkAdminAndLoadMember = async (memberId: string) => {
     try {
