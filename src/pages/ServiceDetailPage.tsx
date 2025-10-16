@@ -34,6 +34,16 @@ import {
   removeSkillFromService,
   type ServiceSkillAssignment
 } from '../lib/api/service-skills';
+import {
+  getServiceDeliveryRoles,
+  getDeliveryRoleSkills,
+  upsertDeliveryRole,
+  bulkAssignSkillsToRole,
+  syncRoleSkillsToService,
+  getAggregatedSkillsFromRoles,
+  type ServiceDeliveryRole,
+  type DeliveryRoleSkill
+} from '../lib/api/delivery-roles';
 import type { Database } from '../lib/supabase/types';
 
 type Workflow = Database['public']['Tables']['workflows']['Row'];
@@ -52,6 +62,7 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
   // State
   const [service, setService] = useState<ServiceLine | null>(null);
   const [customSkillAssignments, setCustomSkillAssignments] = useState<ServiceSkillAssignment[]>([]);
+  const [deliveryRoles, setDeliveryRoles] = useState<ServiceDeliveryRole[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [skillsCapability, setSkillsCapability] = useState<any>({});
   const [allSkills, setAllSkills] = useState<any[]>([]);
@@ -63,6 +74,9 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
   const [isExecutorOpen, setIsExecutorOpen] = useState(false);
   const [isEditSkillsOpen, setIsEditSkillsOpen] = useState(false);
+  const [isEditRoleSkillsOpen, setIsEditRoleSkillsOpen] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<ServiceDeliveryRole | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const [newWorkflowName, setNewWorkflowName] = useState('');
   const [newWorkflowDescription, setNewWorkflowDescription] = useState('');
 
@@ -108,6 +122,15 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
         console.log('[ServiceDetailPage] Loaded', customAssignments.length, 'custom skill assignments');
       } catch (error) {
         console.error('Error loading custom skill assignments:', error);
+      }
+
+      // Load delivery roles for this service
+      try {
+        const roles = await getServiceDeliveryRoles(practiceId!, serviceId!);
+        setDeliveryRoles(roles);
+        console.log('[ServiceDetailPage] Loaded', roles.length, 'delivery roles');
+      } catch (error) {
+        console.error('Error loading delivery roles:', error);
       }
 
       // Load team members and their skills
@@ -227,6 +250,53 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
     if (cap.available === 0) return { status: 'Not Available', color: 'red' };
     if (cap.available >= 2) return { status: 'Ready', color: 'green' };
     return { status: 'Limited', color: 'amber' };
+  };
+
+  // Handler to sync role skills to service skills
+  const handleSyncRoleSkills = async () => {
+    if (!practiceId || !serviceId) return;
+
+    try {
+      setSyncing(true);
+      await syncRoleSkillsToService(practiceId, serviceId);
+      // Reload service data to show updated skills
+      await loadServiceAndWorkflows();
+      alert('Successfully synced role skills to service!');
+    } catch (error) {
+      console.error('Error syncing skills:', error);
+      alert('Failed to sync skills. Please try again.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Handler to open role skills editor
+  const handleEditRoleSkills = (role: ServiceDeliveryRole) => {
+    setSelectedRole(role);
+    setIsEditRoleSkillsOpen(true);
+  };
+
+  // Get effective delivery team (custom or default)
+  const getEffectiveDeliveryTeam = () => {
+    if (!service) return [];
+
+    // If we have custom delivery roles, use those
+    if (deliveryRoles.length > 0) {
+      return deliveryRoles.map(role => ({
+        seniority: role.seniority,
+        responsibilities: role.responsibilities,
+        hoursEstimate: role.estimated_hours ? `${role.estimated_hours}h` : 'TBD',
+        roleId: role.id
+      }));
+    }
+
+    // Otherwise, use defaults from service mapping
+    return service.deliveryTeam.map(team => ({
+      seniority: team.seniority,
+      responsibilities: team.responsibilities,
+      hoursEstimate: team.hoursEstimate,
+      roleId: null
+    }));
   };
 
   const handleCreateWorkflow = async () => {
@@ -599,24 +669,62 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
         {/* Delivery Team Structure Tab */}
         <TabsContent value="delivery-team" className="mt-6">
           <Card>
-            <CardHeader>
-              <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Delivery Team Structure</CardTitle>
-              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
-                Roles and responsibilities for delivering {service.name}
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Delivery Team Structure</CardTitle>
+                <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
+                  Roles and responsibilities for delivering {service.name}
+                  {deliveryRoles.length > 0 && " (customized)"}
+                </CardDescription>
+              </div>
+              {deliveryRoles.length > 0 && (
+                <Button 
+                  onClick={handleSyncRoleSkills}
+                  disabled={syncing}
+                  variant="default"
+                  size="sm"
+                  className="bg-amber-600 hover:bg-amber-700"
+                >
+                  {syncing ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Syncing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircleIcon className="w-4 h-4 mr-2" />
+                      Sync to Service Skills
+                    </>
+                  )}
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                {service.deliveryTeam.map((team, idx) => (
+                {getEffectiveDeliveryTeam().map((team, idx) => {
+                  const matchingRole = deliveryRoles.find(r => r.id === team.roleId);
+                  return (
                   <div key={idx} className="border rounded-lg p-5 bg-gray-50">
                     <div className="flex justify-between items-start mb-4">
-                      <div>
+                      <div className="flex-1">
                         <h3 className="text-lg font-bold text-gray-900">{team.seniority}</h3>
                         <p className="text-sm text-gray-600 mt-1">Est. Hours: {team.hoursEstimate}</p>
                       </div>
-                      <Badge variant="outline" className="text-xs">
-                        {teamMembers.filter(m => m.role === team.seniority).length} Available
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {teamMembers.filter(m => m.role === team.seniority).length} Available
+                        </Badge>
+                        {matchingRole && (
+                          <Button
+                            onClick={() => handleEditRoleSkills(matchingRole)}
+                            variant="outline"
+                            size="sm"
+                          >
+                            <Cog6ToothIcon className="w-4 h-4 mr-1" />
+                            Edit Skills
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     
                     <div className="mb-3">
@@ -627,6 +735,37 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
                         ))}
                       </ul>
                     </div>
+
+                    {/* Initialize Role Button (if not customized yet) */}
+                    {!matchingRole && (
+                      <div className="mt-4 pt-4 border-t">
+                        <Button
+                          onClick={async () => {
+                            try {
+                              const newRole = await upsertDeliveryRole(
+                                practiceId!,
+                                service.id,
+                                team.seniority,
+                                team.responsibilities,
+                                undefined,
+                                idx
+                              );
+                              await loadServiceAndWorkflows();
+                              handleEditRoleSkills(newRole);
+                            } catch (error) {
+                              console.error('Error creating role:', error);
+                              alert('Failed to initialize role. Please try again.');
+                            }
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                        >
+                          <PlusIcon className="w-4 h-4 mr-2" />
+                          Initialize & Assign Skills
+                        </Button>
+                      </div>
+                    )}
 
                     {teamMembers.filter(m => m.role === team.seniority).length > 0 ? (
                       <div className="mt-4 pt-4 border-t">
@@ -652,7 +791,8 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -840,6 +980,31 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
           onExecutionComplete={(executionId) => {
             console.log('Workflow execution completed:', executionId);
             loadServiceAndWorkflows(); // Refresh to show new execution
+          }}
+        />
+      )}
+
+      {/* Edit Role Skills Dialog */}
+      {selectedRole && (
+        <EditRoleSkillsDialog
+          isOpen={isEditRoleSkillsOpen}
+          onClose={() => {
+            setIsEditRoleSkillsOpen(false);
+            setSelectedRole(null);
+          }}
+          role={selectedRole}
+          allSkills={allSkills}
+          onSave={async (assignments) => {
+            try {
+              await bulkAssignSkillsToRole(selectedRole.id, assignments);
+              // Reload data to show updated role skills
+              await loadServiceAndWorkflows();
+              setIsEditRoleSkillsOpen(false);
+              setSelectedRole(null);
+            } catch (error) {
+              console.error('Error saving role skills:', error);
+              alert('Failed to save role skills. Please try again.');
+            }
           }}
         />
       )}
@@ -1152,6 +1317,249 @@ const EditSkillsDialog: React.FC<EditSkillsDialogProps> = ({
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving...' : `Save ${selectedSkills.size} Skills`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Edit Role Skills Dialog Component
+interface EditRoleSkillsDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  role: ServiceDeliveryRole;
+  allSkills: any[];
+  onSave: (assignments: Array<{
+    skill_id: string;
+    minimum_level: number;
+    ideal_level: number;
+    is_critical: boolean;
+  }>) => Promise<void>;
+}
+
+const EditRoleSkillsDialog: React.FC<EditRoleSkillsDialogProps> = ({
+  isOpen,
+  onClose,
+  role,
+  allSkills,
+  onSave
+}) => {
+  const [selectedSkills, setSelectedSkills] = useState<Map<string, any>>(new Map());
+  const [roleSkills, setRoleSkills] = useState<DeliveryRoleSkill[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Load current role skills when dialog opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const loadRoleSkills = async () => {
+      try {
+        setLoading(true);
+        const skills = await getDeliveryRoleSkills(role.id);
+        setRoleSkills(skills);
+
+        const initialSkills = new Map();
+        skills.forEach(skill => {
+          initialSkills.set(skill.skill_id, {
+            skillId: skill.skill_id,
+            skillName: skill.skill?.name || '',
+            minimumLevel: skill.minimum_level,
+            idealLevel: skill.ideal_level,
+            isCritical: skill.is_critical,
+          });
+        });
+        setSelectedSkills(initialSkills);
+      } catch (error) {
+        console.error('Error loading role skills:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadRoleSkills();
+  }, [isOpen, role.id]);
+
+  const categories = ['all', ...Array.from(new Set(allSkills.map(s => s.category)))];
+
+  const filteredSkills = allSkills.filter(skill => {
+    const matchesSearch = skill.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         skill.category.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = filterCategory === 'all' || skill.category === filterCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const toggleSkill = (skill: any) => {
+    const newSelected = new Map(selectedSkills);
+    if (newSelected.has(skill.id)) {
+      newSelected.delete(skill.id);
+    } else {
+      newSelected.set(skill.id, {
+        skillId: skill.id,
+        skillName: skill.name,
+        minimumLevel: 3,
+        idealLevel: 4,
+        isCritical: false,
+      });
+    }
+    setSelectedSkills(newSelected);
+  };
+
+  const updateSkillConfig = (skillId: string, updates: Partial<any>) => {
+    const newSelected = new Map(selectedSkills);
+    const existing = newSelected.get(skillId);
+    if (existing) {
+      newSelected.set(skillId, { ...existing, ...updates });
+      setSelectedSkills(newSelected);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const assignments = Array.from(selectedSkills.values()).map(s => ({
+      skill_id: s.skillId,
+      minimum_level: s.minimumLevel,
+      ideal_level: s.idealLevel,
+      is_critical: s.isCritical,
+    }));
+    await onSave(assignments);
+    setSaving(false);
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="text-2xl">Edit Skills for {role.seniority} Role</DialogTitle>
+          <DialogDescription>
+            Assign skills that {role.seniority} level team members need for this service
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600 mx-auto mb-2"></div>
+              <p className="text-sm text-gray-600">Loading role skills...</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto space-y-4">
+            {/* Search and Filter */}
+            <div className="flex gap-4 sticky top-0 bg-white z-10 pb-4">
+              <Input
+                placeholder="Search skills..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1"
+              />
+              <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map(cat => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat === 'all' ? 'All Categories' : cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="text-sm text-gray-600 flex items-center">
+                {selectedSkills.size} selected
+              </div>
+            </div>
+
+            {/* Skills List */}
+            <div className="space-y-2">
+              {filteredSkills.map(skill => {
+                const isSelected = selectedSkills.has(skill.id);
+                const config = selectedSkills.get(skill.id);
+
+                return (
+                  <div key={skill.id} className="border rounded-lg p-3">
+                    {/* Skill Checkbox */}
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSkill(skill)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-gray-900 text-sm">{skill.name}</h4>
+                          <Badge variant="outline" className="text-xs">{skill.category}</Badge>
+                        </div>
+                        {skill.description && (
+                          <p className="text-xs text-gray-600 mt-1">{skill.description}</p>
+                        )}
+
+                        {/* Configuration (only show if selected) */}
+                        {isSelected && config && (
+                          <div className="mt-2 grid grid-cols-3 gap-3 pt-2 border-t">
+                            <div>
+                              <Label className="text-xs">Minimum Level</Label>
+                              <Select
+                                value={String(config.minimumLevel)}
+                                onValueChange={(v) => updateSkillConfig(skill.id, { minimumLevel: Number(v) })}
+                              >
+                                <SelectTrigger className="mt-1 h-8 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[1,2,3,4,5].map(l => (
+                                    <SelectItem key={l} value={String(l)}>Level {l}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label className="text-xs">Ideal Level</Label>
+                              <Select
+                                value={String(config.idealLevel)}
+                                onValueChange={(v) => updateSkillConfig(skill.id, { idealLevel: Number(v) })}
+                              >
+                                <SelectTrigger className="mt-1 h-8 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[1,2,3,4,5].map(l => (
+                                    <SelectItem key={l} value={String(l)}>Level {l}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex items-end">
+                              <label className="flex items-center gap-1 text-xs cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={config.isCritical}
+                                  onChange={(e) => updateSkillConfig(skill.id, { isCritical: e.target.checked })}
+                                />
+                                <span className="font-semibold text-red-600">Critical</span>
+                              </label>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={saving || loading}>
             {saving ? 'Saving...' : `Save ${selectedSkills.size} Skills`}
           </Button>
         </DialogFooter>
