@@ -22,6 +22,7 @@ import { ClientManagementPage } from '../components/accountancy/client-managemen
 import TeamManagementPage from '../pages/accountancy/TeamManagementPage';
 import SkillsAssessmentPage from '../pages/accountancy/team/SkillsAssessmentPage';
 import TeamMemberProfilePage from '../pages/accountancy/team/TeamMemberProfilePage';
+import TeamMemberDashboard from '../pages/accountancy/team/TeamMemberDashboard';
 import { AlternateAuditorPage } from '../pages/accountancy/AlternateAuditorPage';
 import { MTDCapacityPage } from '../pages/accountancy/MTDCapacityPage';
 import { ESGReportingPage } from '../pages/accountancy/ESGReportingPage';
@@ -231,6 +232,22 @@ const TorsorRoutes: React.FC = () => {
               <Route path="*" element={<Navigate to="/team-portal/dashboard" replace />} />
             </Routes>
           </Suspense>
+        </ProtectedRoute>
+      } />
+      
+      {/* Team Member Portal Routes - WITHOUT Admin Layout */}
+      <Route path="/team-member/*" element={
+        <ProtectedRoute>
+          <Routes>
+            <Route path="dashboard" element={
+              <>
+                {console.log('[Route] Team Member Dashboard matched - viewAs:', new URLSearchParams(window.location.search).get('viewAs'))}
+                <TeamMemberDashboard />
+              </>
+            } />
+            <Route path="cpd" element={<Navigate to="/team" replace />} />
+            <Route path="assignments" element={<Navigate to="/team" replace />} />
+          </Routes>
         </ProtectedRoute>
       } />
       
