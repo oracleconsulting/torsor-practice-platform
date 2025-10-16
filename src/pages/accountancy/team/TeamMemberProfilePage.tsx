@@ -462,7 +462,7 @@ export default function TeamMemberProfilePage() {
                 <span>Joined {new Date(profile.joinedDate).toLocaleDateString()}</span>
               </div>
               <Button
-                onClick={() => navigate(`/accountancy/team-member/dashboard?viewAs=${profile.id}`)}
+                onClick={() => navigate(`/team-member/dashboard?viewAs=${profile.id}`)}
                 variant="outline"
                 className="bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100"
               >
