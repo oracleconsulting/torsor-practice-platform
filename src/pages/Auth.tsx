@@ -140,57 +140,10 @@ export default function Auth() {
         if (!result.error) {
           toast.success('Welcome back!');
           
-          // Wait a moment for the auth context to update
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
-          // Check user metadata first
-          const metadata = result.user?.user_metadata || {};
-          
-          // If client-only user, redirect to client portal
-          if (metadata.is_client_only === true) {
-            console.log('[Auth] Client user, redirecting to client portal');
-            const clientId = metadata.client_id || metadata.portal_id;
-            if (clientId) {
-              navigate(`/client-portal/${clientId}/dashboard`, { replace: true });
-            } else {
-              navigate('/auth?portal=client', { replace: true });
-            }
-            return;
-          }
-          
-          // For all other users, check their role in practice_members
-          console.log('[Auth] Checking user role for redirect...');
-          
-          // Use the authenticated supabase client from lib
-          const { supabase } = await import('@/lib/supabase/client');
-          
-          // Get user's role from practice_members
-          const { data: member, error: memberError } = await supabase
-            .from('practice_members')
-            .select('role')
-            .eq('user_id', result.user?.id)
-            .single();
-          
-          console.log('[Auth] Query result:', { member, memberError });
-          
-          console.log('[Auth] User role:', member?.role);
-          
-          if (!member) {
-            console.log('[Auth] No practice member found, using default redirect');
-            navigate(location.state?.from?.pathname || '/team', { replace: true });
-            return;
-          }
-          
-          const adminRoles = ['owner', 'admin', 'partner', 'director'];
-          const isAdmin = member && adminRoles.includes(member.role.toLowerCase());
-          
-          if (isAdmin) {
-            console.log('[Auth] Admin user - redirecting to admin dashboard');
-            navigate('/accountancy/team', { replace: true });
-          } else {
-            console.log('[Auth] Regular user - redirecting to team member portal');
-            navigate('/team-member/dashboard', { replace: true });
-          }
+          // Don't redirect here - let the useEffect handle it after auth state updates
+          // This prevents race conditions and double redirects
+          console.log('[Auth] Sign in successful, waiting for auth state to update...');
+          setFormLoading(false);
         } else {
           setFormLoading(false);
         }
