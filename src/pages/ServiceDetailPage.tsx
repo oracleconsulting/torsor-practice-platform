@@ -276,27 +276,38 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
     setIsEditRoleSkillsOpen(true);
   };
 
-  // Get effective delivery team (custom or default)
+  // Get effective delivery team (merge custom with defaults)
   const getEffectiveDeliveryTeam = () => {
     if (!service) return [];
 
-    // If we have custom delivery roles, use those
-    if (deliveryRoles.length > 0) {
-      return deliveryRoles.map(role => ({
-        seniority: role.seniority,
-        responsibilities: role.responsibilities,
-        hoursEstimate: role.estimated_hours ? `${role.estimated_hours}h` : 'TBD',
-        roleId: role.id
-      }));
-    }
-
-    // Otherwise, use defaults from service mapping
-    return service.deliveryTeam.map(team => ({
+    // Start with default roles from service mapping
+    const defaultTeam = service.deliveryTeam.map(team => ({
       seniority: team.seniority,
       responsibilities: team.responsibilities,
       hoursEstimate: team.hoursEstimate,
       roleId: null
     }));
+
+    // If we have no custom roles, return defaults
+    if (deliveryRoles.length === 0) {
+      return defaultTeam;
+    }
+
+    // Merge: Use custom role if exists, otherwise use default
+    return defaultTeam.map(defaultRole => {
+      const customRole = deliveryRoles.find(r => r.seniority === defaultRole.seniority);
+      
+      if (customRole) {
+        return {
+          seniority: customRole.seniority,
+          responsibilities: customRole.responsibilities,
+          hoursEstimate: customRole.estimated_hours ? `${customRole.estimated_hours}h` : 'TBD',
+          roleId: customRole.id
+        };
+      }
+      
+      return defaultRole;
+    });
   };
 
   const handleCreateWorkflow = async () => {
