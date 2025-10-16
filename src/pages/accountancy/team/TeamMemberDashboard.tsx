@@ -79,34 +79,37 @@ export default function TeamMemberDashboard() {
   const checkAdminAndLoadMember = async (memberId: string) => {
     try {
       console.log('[Dashboard] checkAdminAndLoadMember called for:', memberId);
+      console.log('[Dashboard] Current user.id:', user?.id);
       
       // Immediately set viewing state to prevent override
       setViewingAsMemberId(memberId);
       
       // Check if current user is admin
-      const { data: currentUser } = await supabase
+      const { data: currentUser, error: userError } = await supabase
         .from('practice_members')
         .select('role')
         .eq('user_id', user?.id)
         .single();
 
+      console.log('[Dashboard] Current user query result:', { currentUser, userError });
       console.log('[Dashboard] Current user role:', currentUser?.role);
 
       const allowedRoles = ['owner', 'admin', 'partner', 'director'];
       const hasAccess = currentUser && allowedRoles.includes(currentUser.role.toLowerCase());
+      console.log('[Dashboard] Has access:', hasAccess, 'Role check:', currentUser?.role?.toLowerCase(), 'in', allowedRoles);
       setIsAdmin(hasAccess);
 
       if (!hasAccess) {
-        console.log('[Dashboard] Access denied, redirecting');
-        navigate('/accountancy/team-member/dashboard');
+        console.log('[Dashboard] ❌ Access denied, redirecting to /team');
+        navigate('/team');
         return;
       }
 
-      console.log('[Dashboard] Access granted, loading member data');
+      console.log('[Dashboard] ✅ Access granted, loading member data');
       await loadDashboardDataForMember(memberId);
     } catch (error) {
-      console.error('[Dashboard] Error checking admin access:', error);
-      navigate('/accountancy/team-member/dashboard');
+      console.error('[Dashboard] ❌ Error checking admin access:', error);
+      navigate('/team');
     }
   };
 
