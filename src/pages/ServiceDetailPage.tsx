@@ -27,7 +27,13 @@ import { WorkflowBuilder } from '../components/workflows/WorkflowBuilder';
 import { WorkflowExecutionList } from '../components/workflows/WorkflowExecutionList';
 import { WorkflowExecutor } from '../components/workflows/WorkflowExecutor';
 import { getTemplateByServiceType } from '../data/workflowTemplates';
-import { advisoryServicesMap, type ServiceLine } from '../lib/advisory-services-skills-mapping';
+import { advisoryServicesMap, type ServiceLine, type SeniorityLevel } from '../lib/advisory-services-skills-mapping';
+import {
+  getServiceSkillAssignments,
+  assignSkillToService,
+  removeSkillFromService,
+  type ServiceSkillAssignment
+} from '../lib/api/service-skills';
 import type { Database } from '../lib/supabase/types';
 
 type Workflow = Database['public']['Tables']['workflows']['Row'];
@@ -45,8 +51,10 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
 
   // State
   const [service, setService] = useState<ServiceLine | null>(null);
+  const [customSkillAssignments, setCustomSkillAssignments] = useState<ServiceSkillAssignment[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [skillsCapability, setSkillsCapability] = useState<any>({});
+  const [allSkills, setAllSkills] = useState<any[]>([]);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [executions, setExecutions] = useState<WorkflowExecution[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +62,7 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
   const [isCreateWorkflowOpen, setIsCreateWorkflowOpen] = useState(false);
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
   const [isExecutorOpen, setIsExecutorOpen] = useState(false);
+  const [isEditSkillsOpen, setIsEditSkillsOpen] = useState(false);
   const [newWorkflowName, setNewWorkflowName] = useState('');
   const [newWorkflowDescription, setNewWorkflowDescription] = useState('');
 
@@ -78,6 +87,28 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
       
       setService(foundService);
       console.log('[ServiceDetailPage] Service loaded:', foundService.name);
+
+      // Load all skills from database
+      const { data: skillsData, error: skillsError } = await supabase
+        .from('skills')
+        .select('*')
+        .order('category', { ascending: true })
+        .order('name', { ascending: true });
+
+      if (skillsError) {
+        console.error('Error loading skills:', skillsError);
+      } else {
+        setAllSkills(skillsData || []);
+      }
+
+      // Load custom skill assignments for this service
+      try {
+        const customAssignments = await getServiceSkillAssignments(practiceId!, serviceId!);
+        setCustomSkillAssignments(customAssignments);
+        console.log('[ServiceDetailPage] Loaded', customAssignments.length, 'custom skill assignments');
+      } catch (error) {
+        console.error('Error loading custom skill assignments:', error);
+      }
 
       // Load team members and their skills
       const { data: membersData, error: membersError } = await supabase
@@ -167,6 +198,25 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper to get effective skills (custom or default)
+  const getEffectiveSkills = () => {
+    if (!service) return [];
+
+    // If we have custom assignments, use those
+    if (customSkillAssignments.length > 0) {
+      return customSkillAssignments.map(assignment => ({
+        skillName: assignment.skill?.name || '',
+        minimumLevel: assignment.minimum_level,
+        idealLevel: assignment.ideal_level,
+        criticalToDelivery: assignment.is_critical,
+        recommendedSeniority: assignment.required_seniority as SeniorityLevel[]
+      }));
+    }
+
+    // Otherwise, use default from the service mapping
+    return service.requiredSkills;
   };
 
   // Helper to get readiness status for a skill
@@ -399,10 +449,17 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
             <div className="mt-4 flex gap-4 text-sm">
               <span className="text-gray-500">Price: <strong className="text-gray-900">{service.priceRange}</strong></span>
               <span className="text-gray-500">Delivery: <strong className="text-gray-900">{service.deliveryTime}</strong></span>
-              <span className="text-gray-500">Required Skills: <strong className="text-gray-900">{service.requiredSkills.length}</strong></span>
+              <span className="text-gray-500">Required Skills: <strong className="text-gray-900">{getEffectiveSkills().length}</strong></span>
+              {customSkillAssignments.length > 0 && (
+                <Badge variant="outline" className="text-xs">Customized</Badge>
+              )}
             </div>
           </div>
           <div className="flex gap-2">
+            <Button onClick={() => setIsEditSkillsOpen(true)} variant="outline">
+              <Cog6ToothIcon className="w-4 h-4 mr-2" />
+              Edit Skills
+            </Button>
             <Button onClick={() => handleLoadTemplate()} variant="outline">
               <DocumentDuplicateIcon className="w-4 h-4 mr-2" />
               Load Template
@@ -474,12 +531,13 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
             <CardHeader>
               <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Required Skills Breakdown</CardTitle>
               <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
-                {service.requiredSkills.length} skills required to deliver this service
+                {getEffectiveSkills().length} skills required to deliver this service
+                {customSkillAssignments.length > 0 && " (customized)"}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {service.requiredSkills.map((skill, idx) => {
+                {getEffectiveSkills().map((skill, idx) => {
                   const status = getSkillStatus(skill.skillName);
                   const cap = skillsCapability[skill.skillName];
                   
@@ -785,7 +843,320 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
           }}
         />
       )}
+
+      {/* Edit Skills Dialog */}
+      {service && (
+        <EditSkillsDialog
+          isOpen={isEditSkillsOpen}
+          onClose={() => setIsEditSkillsOpen(false)}
+          service={service}
+          practiceId={practiceId!}
+          allSkills={allSkills}
+          currentAssignments={customSkillAssignments}
+          onSave={async (assignments) => {
+            // Save all assignments
+            try {
+              for (const assignment of assignments) {
+                await assignSkillToService(
+                  practiceId!,
+                  service.id,
+                  assignment.skillId,
+                  assignment.minimumLevel,
+                  assignment.idealLevel,
+                  assignment.isCritical,
+                  assignment.requiredSeniority
+                );
+              }
+
+              // Remove unselected skills
+              const assignedSkillIds = assignments.map(a => a.skillId);
+              const toRemove = customSkillAssignments.filter(
+                ca => !assignedSkillIds.includes(ca.skill_id)
+              );
+              
+              for (const ca of toRemove) {
+                await removeSkillFromService(practiceId!, service.id, ca.skill_id);
+              }
+
+              // Reload data
+              await loadServiceAndWorkflows();
+              setIsEditSkillsOpen(false);
+            } catch (error) {
+              console.error('Error saving skill assignments:', error);
+              alert('Failed to save skill assignments. Please try again.');
+            }
+          }}
+        />
+      )}
     </div>
+  );
+};
+
+// Edit Skills Dialog Component
+interface EditSkillsDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  service: ServiceLine;
+  practiceId: string;
+  allSkills: any[];
+  currentAssignments: ServiceSkillAssignment[];
+  onSave: (assignments: Array<{
+    skillId: string;
+    minimumLevel: number;
+    idealLevel: number;
+    isCritical: boolean;
+    requiredSeniority: string[];
+  }>) => Promise<void>;
+}
+
+const EditSkillsDialog: React.FC<EditSkillsDialogProps> = ({
+  isOpen,
+  onClose,
+  service,
+  practiceId,
+  allSkills,
+  currentAssignments,
+  onSave
+}) => {
+  const [selectedSkills, setSelectedSkills] = useState<Map<string, any>>(new Map());
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [saving, setSaving] = useState(false);
+
+  // Initialize selected skills from current assignments or defaults
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const initialSkills = new Map();
+    
+    // If we have custom assignments, use those
+    if (currentAssignments.length > 0) {
+      currentAssignments.forEach(assignment => {
+        initialSkills.set(assignment.skill_id, {
+          skillId: assignment.skill_id,
+          skillName: assignment.skill?.name || '',
+          minimumLevel: assignment.minimum_level,
+          idealLevel: assignment.ideal_level,
+          isCritical: assignment.is_critical,
+          requiredSeniority: assignment.required_seniority || []
+        });
+      });
+    } else {
+      // Otherwise, use defaults from service mapping
+      service.requiredSkills.forEach(skill => {
+        const dbSkill = allSkills.find(s => s.name === skill.skillName);
+        if (dbSkill) {
+          initialSkills.set(dbSkill.id, {
+            skillId: dbSkill.id,
+            skillName: skill.skillName,
+            minimumLevel: skill.minimumLevel,
+            idealLevel: skill.idealLevel,
+            isCritical: skill.criticalToDelivery,
+            requiredSeniority: skill.recommendedSeniority || []
+          });
+        }
+      });
+    }
+
+    setSelectedSkills(initialSkills);
+  }, [isOpen, currentAssignments, service, allSkills]);
+
+  const categories = ['all', ...Array.from(new Set(allSkills.map(s => s.category)))];
+
+  const filteredSkills = allSkills.filter(skill => {
+    const matchesSearch = skill.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         skill.category.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = filterCategory === 'all' || skill.category === filterCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const toggleSkill = (skill: any) => {
+    const newSelected = new Map(selectedSkills);
+    if (newSelected.has(skill.id)) {
+      newSelected.delete(skill.id);
+    } else {
+      newSelected.set(skill.id, {
+        skillId: skill.id,
+        skillName: skill.name,
+        minimumLevel: 3,
+        idealLevel: 4,
+        isCritical: false,
+        requiredSeniority: []
+      });
+    }
+    setSelectedSkills(newSelected);
+  };
+
+  const updateSkillConfig = (skillId: string, updates: Partial<any>) => {
+    const newSelected = new Map(selectedSkills);
+    const existing = newSelected.get(skillId);
+    if (existing) {
+      newSelected.set(skillId, { ...existing, ...updates });
+      setSelectedSkills(newSelected);
+    }
+  };
+
+  const toggleSeniority = (skillId: string, seniority: string) => {
+    const existing = selectedSkills.get(skillId);
+    if (existing) {
+      const currentSeniorities = existing.requiredSeniority || [];
+      const newSeniorities = currentSeniorities.includes(seniority)
+        ? currentSeniorities.filter((s: string) => s !== seniority)
+        : [...currentSeniorities, seniority];
+      updateSkillConfig(skillId, { requiredSeniority: newSeniorities });
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const assignments = Array.from(selectedSkills.values());
+    await onSave(assignments);
+    setSaving(false);
+  };
+
+  const seniorityLevels: SeniorityLevel[] = ['Partner', 'Director', 'Senior', 'Intermediate', 'Junior', 'Admin'];
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="text-2xl">Edit Skills for {service.name}</DialogTitle>
+          <DialogDescription>
+            Select which skills are required for this service and configure their requirements
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto space-y-4">
+          {/* Search and Filter */}
+          <div className="flex gap-4 sticky top-0 bg-white z-10 pb-4">
+            <Input
+              placeholder="Search skills..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="flex-1"
+            />
+            <Select value={filterCategory} onValueChange={setFilterCategory}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map(cat => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat === 'all' ? 'All Categories' : cat}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="text-sm text-gray-600 flex items-center">
+              {selectedSkills.size} selected
+            </div>
+          </div>
+
+          {/* Skills List */}
+          <div className="space-y-2">
+            {filteredSkills.map(skill => {
+              const isSelected = selectedSkills.has(skill.id);
+              const config = selectedSkills.get(skill.id);
+
+              return (
+                <div key={skill.id} className="border rounded-lg p-4">
+                  {/* Skill Checkbox */}
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSkill(skill)}
+                      className="mt-1"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-semibold text-gray-900">{skill.name}</h4>
+                        <Badge variant="outline" className="text-xs">{skill.category}</Badge>
+                      </div>
+                      {skill.description && (
+                        <p className="text-sm text-gray-600 mt-1">{skill.description}</p>
+                      )}
+
+                      {/* Configuration (only show if selected) */}
+                      {isSelected && config && (
+                        <div className="mt-3 grid grid-cols-2 gap-4 pt-3 border-t">
+                          <div>
+                            <Label className="text-xs">Minimum Level</Label>
+                            <Select
+                              value={String(config.minimumLevel)}
+                              onValueChange={(v) => updateSkillConfig(skill.id, { minimumLevel: Number(v) })}
+                            >
+                              <SelectTrigger className="mt-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[1,2,3,4,5].map(l => (
+                                  <SelectItem key={l} value={String(l)}>Level {l}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-xs">Ideal Level</Label>
+                            <Select
+                              value={String(config.idealLevel)}
+                              onValueChange={(v) => updateSkillConfig(skill.id, { idealLevel: Number(v) })}
+                            >
+                              <SelectTrigger className="mt-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[1,2,3,4,5].map(l => (
+                                  <SelectItem key={l} value={String(l)}>Level {l}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="col-span-2">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={config.isCritical}
+                                onChange={(e) => updateSkillConfig(skill.id, { isCritical: e.target.checked })}
+                              />
+                              <Label className="text-xs font-semibold text-red-600">Critical Skill (must-have)</Label>
+                            </div>
+                          </div>
+                          <div className="col-span-2">
+                            <Label className="text-xs mb-2 block">Required Seniority Levels</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {seniorityLevels.map(level => (
+                                <label key={level} className="flex items-center gap-1 text-xs cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={(config.requiredSeniority || []).includes(level)}
+                                    onChange={() => toggleSeniority(skill.id, level)}
+                                  />
+                                  {level}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving...' : `Save ${selectedSkills.size} Skills`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

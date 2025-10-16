@@ -28,7 +28,7 @@ import {
 
 interface TeamMemberWithSkills {
   id: string;
-  name: string;
+  full_name: string;
   email: string;
   role: string;
   skills: { skillName: string; level: number; interest: number }[];
@@ -57,7 +57,7 @@ export default function AdvisoryCapabilityMatrix() {
       // Load all team members
       const { data: members, error: membersError } = await supabase
         .from('practice_members')
-        .select('id, name, email, role')
+        .select('id, full_name, email, role')
         .eq('practice_id', practice?.id);
 
       if (membersError) throw membersError;
