@@ -137,7 +137,7 @@ export default function TeamMemberProfilePage() {
       // 1. Basic member info
       const { data: memberData, error: memberError } = await supabase
         .from('practice_members')
-        .select('id, name, email, role, department, joined_date, vark_assessment_completed, vark_result')
+        .select('id, full_name, email, role, created_at, vark_assessment_completed, vark_result')
         .eq('id', memberId)
         .single();
 
@@ -156,8 +156,8 @@ export default function TeamMemberProfilePage() {
       const { data: cpdActivities, error: cpdError } = await supabase
         .from('cpd_activities')
         .select('*')
-        .eq('team_member_id', memberId)
-        .order('date_completed', { ascending: false })
+        .eq('practice_member_id', memberId)
+        .order('activity_date', { ascending: false })
         .limit(10);
 
       if (cpdError) throw cpdError;
@@ -238,10 +238,10 @@ export default function TeamMemberProfilePage() {
       // CPD stats
       const currentYear = new Date().getFullYear();
       const cpdThisYear = cpdActivities
-        ?.filter(cpd => new Date(cpd.date_completed).getFullYear() === currentYear)
-        .reduce((sum, cpd) => sum + (cpd.hours || 0), 0) || 0;
+        ?.filter(cpd => new Date(cpd.activity_date).getFullYear() === currentYear)
+        .reduce((sum, cpd) => sum + (cpd.hours_claimed || 0), 0) || 0;
       const totalCPDHours = cpdActivities
-        ?.reduce((sum, cpd) => sum + (cpd.hours || 0), 0) || 0;
+        ?.reduce((sum, cpd) => sum + (cpd.hours_claimed || 0), 0) || 0;
 
       // Process mentoring relationships
       const mentoringRelationships = await Promise.all(
@@ -252,7 +252,7 @@ export default function TeamMemberProfilePage() {
           // Get partner name
           const { data: partner } = await supabase
             .from('practice_members')
-            .select('name')
+            .select('full_name')
             .eq('id', partnerId)
             .single();
 
@@ -266,7 +266,7 @@ export default function TeamMemberProfilePage() {
           return {
             id: rel.id,
             type: isMentor ? 'mentor' : 'mentee',
-            partnerName: partner?.name || 'Unknown',
+            partnerName: partner?.full_name || 'Unknown',
             status: rel.status,
             matchedSkills: rel.matched_skills || [],
             startDate: rel.start_date,
@@ -277,11 +277,11 @@ export default function TeamMemberProfilePage() {
 
       const profileData: TeamMemberProfile = {
         id: memberData.id,
-        name: memberData.name,
+        name: memberData.full_name,
         email: memberData.email,
         role: memberData.role,
-        department: memberData.department,
-        joinedDate: memberData.joined_date,
+        department: undefined, // Department field doesn't exist in schema
+        joinedDate: memberData.created_at,
         
         totalSkills: totalSkills,
         assessedSkills: totalSkills,
@@ -293,10 +293,10 @@ export default function TeamMemberProfilePage() {
         
         recentCPD: cpdActivities?.map(cpd => ({
           id: cpd.id,
-          title: cpd.activity_type,
-          category: cpd.category,
-          hours: cpd.hours,
-          completedAt: cpd.date_completed,
+          title: cpd.title || cpd.activity_type,
+          category: cpd.category || 'General',
+          hours: cpd.hours_claimed,
+          completedAt: cpd.activity_date,
           notes: cpd.notes
         })) || [],
         totalCPDHours,
