@@ -54,56 +54,56 @@ export default function Auth() {
       console.log('[Auth Debug] User authenticated, checking redirect');
       
       const handleRedirect = async () => {
-        if (portalType === 'accountancy') {
-          // Check if user has accountancy access
-          const metadata = user.user_metadata || {};
-          console.log('[Auth Debug] Accountancy portal check:', {
-            isClientOnly: metadata.is_client_only,
-            portalType: metadata.portal_type,
-            hasAccountancyAccess: !metadata.is_client_only
-          });
-          
-          if (metadata.is_client_only === true) {
-            console.log('[Auth Debug] Client user trying to access accountancy, redirecting to client portal');
-            // Client users should go to client portal
-            const clientId = metadata.client_id || metadata.portal_id;
-            if (clientId) {
-              navigate(`/client-portal/${clientId}/dashboard`, { replace: true });
-            } else {
-              navigate('/auth?portal=client', { replace: true });
-            }
+        // Check if user has accountancy access (check metadata or practice_members)
+        const metadata = user.user_metadata || {};
+        console.log('[Auth Debug] User metadata:', metadata);
+        
+        // If it's a client-only user, redirect to client portal
+        if (metadata.is_client_only === true) {
+          console.log('[Auth Debug] Client user, redirecting to client portal');
+          const clientId = metadata.client_id || metadata.portal_id;
+          if (clientId) {
+            navigate(`/client-portal/${clientId}/dashboard`, { replace: true });
           } else {
-            console.log('[Auth Debug] Checking user role for redirect...');
-            
-            // Import supabase to check user role
-            const { createClient } = await import('@supabase/supabase-js');
-            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-            const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-            const supabase = createClient(supabaseUrl, supabaseKey);
-            
-            // Get user's role from practice_members
-            const { data: member } = await supabase
-              .from('practice_members')
-              .select('role')
-              .eq('user_id', user.id)
-              .single();
-            
-            console.log('[Auth Debug] User role:', member?.role);
-            
-            const adminRoles = ['owner', 'admin', 'partner', 'director'];
-            const isAdmin = member && adminRoles.includes(member.role.toLowerCase());
-            
-            if (isAdmin) {
-              console.log('[Auth Debug] Admin user - redirecting to admin dashboard');
-              navigate('/accountancy/team', { replace: true });
-            } else {
-              console.log('[Auth Debug] Regular user - redirecting to team member portal');
-              navigate('/team-member/dashboard', { replace: true });
-            }
+            navigate('/auth?portal=client', { replace: true });
           }
-        } else {
-          const from = location.state?.from?.pathname || '/dashboard';
+          return;
+        }
+        
+        // For all other users, check their role in practice_members
+        console.log('[Auth Debug] Checking user role for redirect...');
+        
+        // Import supabase to check user role
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        
+        // Get user's role from practice_members
+        const { data: member } = await supabase
+          .from('practice_members')
+          .select('role')
+          .eq('user_id', user.id)
+          .single();
+        
+        console.log('[Auth Debug] User role:', member?.role);
+        
+        if (!member) {
+          console.log('[Auth Debug] No practice member found, using default redirect');
+          const from = location.state?.from?.pathname || '/team';
           navigate(from, { replace: true });
+          return;
+        }
+        
+        const adminRoles = ['owner', 'admin', 'partner', 'director'];
+        const isAdmin = member && adminRoles.includes(member.role.toLowerCase());
+        
+        if (isAdmin) {
+          console.log('[Auth Debug] Admin user - redirecting to admin dashboard');
+          navigate('/accountancy/team', { replace: true });
+        } else {
+          console.log('[Auth Debug] Regular user - redirecting to team member portal');
+          navigate('/team-member/dashboard', { replace: true });
         }
       };
       
@@ -144,37 +144,54 @@ export default function Auth() {
           // Wait a moment for the auth context to update
           await new Promise(resolve => setTimeout(resolve, 500));
           
-          // Add portal-specific redirect using React Router (no hard reload)
-          if (portalType === 'accountancy' || isAccountancyPortal) {
-            console.log('[Auth] Checking user role for redirect...');
-            
-            // Import supabase to check user role
-            const { createClient } = await import('@supabase/supabase-js');
-            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-            const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-            const supabase = createClient(supabaseUrl, supabaseKey);
-            
-            // Get user's role from practice_members
-            const { data: member, error: memberError } = await supabase
-              .from('practice_members')
-              .select('role')
-              .eq('user_id', result.user?.id)
-              .single();
-            
-            console.log('[Auth] User role:', member?.role);
-            
-            const adminRoles = ['owner', 'admin', 'partner', 'director'];
-            const isAdmin = member && adminRoles.includes(member.role.toLowerCase());
-            
-            if (isAdmin) {
-              console.log('[Auth] Admin user - redirecting to admin dashboard');
-              navigate('/accountancy/team', { replace: true });
+          // Check user metadata first
+          const metadata = result.user?.user_metadata || {};
+          
+          // If client-only user, redirect to client portal
+          if (metadata.is_client_only === true) {
+            console.log('[Auth] Client user, redirecting to client portal');
+            const clientId = metadata.client_id || metadata.portal_id;
+            if (clientId) {
+              navigate(`/client-portal/${clientId}/dashboard`, { replace: true });
             } else {
-              console.log('[Auth] Regular user - redirecting to team member portal');
-              navigate('/team-member/dashboard', { replace: true });
+              navigate('/auth?portal=client', { replace: true });
             }
-          } else {
+            return;
+          }
+          
+          // For all other users, check their role in practice_members
+          console.log('[Auth] Checking user role for redirect...');
+          
+          // Import supabase to check user role
+          const { createClient } = await import('@supabase/supabase-js');
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+          const supabase = createClient(supabaseUrl, supabaseKey);
+          
+          // Get user's role from practice_members
+          const { data: member, error: memberError } = await supabase
+            .from('practice_members')
+            .select('role')
+            .eq('user_id', result.user?.id)
+            .single();
+          
+          console.log('[Auth] User role:', member?.role);
+          
+          if (!member) {
+            console.log('[Auth] No practice member found, using default redirect');
             navigate(location.state?.from?.pathname || '/team', { replace: true });
+            return;
+          }
+          
+          const adminRoles = ['owner', 'admin', 'partner', 'director'];
+          const isAdmin = member && adminRoles.includes(member.role.toLowerCase());
+          
+          if (isAdmin) {
+            console.log('[Auth] Admin user - redirecting to admin dashboard');
+            navigate('/accountancy/team', { replace: true });
+          } else {
+            console.log('[Auth] Regular user - redirecting to team member portal');
+            navigate('/team-member/dashboard', { replace: true });
           }
         } else {
           setFormLoading(false);
