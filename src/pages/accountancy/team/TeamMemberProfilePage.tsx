@@ -137,7 +137,7 @@ export default function TeamMemberProfilePage() {
       // 1. Basic member info
       const { data: memberData, error: memberError } = await supabase
         .from('practice_members')
-        .select('id, full_name, email, role, created_at, vark_assessment_completed, vark_result')
+        .select('id, name, email, role, created_at, vark_assessment_completed, vark_result')
         .eq('id', memberId)
         .single();
 
@@ -252,7 +252,7 @@ export default function TeamMemberProfilePage() {
           // Get partner name
           const { data: partner } = await supabase
             .from('practice_members')
-            .select('full_name')
+            .select('name')
             .eq('id', partnerId)
             .single();
 
@@ -266,7 +266,7 @@ export default function TeamMemberProfilePage() {
           return {
             id: rel.id,
             type: isMentor ? 'mentor' : 'mentee',
-            partnerName: partner?.full_name || 'Unknown',
+            partnerName: partner?.name || 'Unknown',
             status: rel.status,
             matchedSkills: rel.matched_skills || [],
             startDate: rel.start_date,
@@ -277,7 +277,7 @@ export default function TeamMemberProfilePage() {
 
       const profileData: TeamMemberProfile = {
         id: memberData.id,
-        name: memberData.full_name,
+        name: memberData.name,
         email: memberData.email,
         role: memberData.role,
         department: undefined, // Department field doesn't exist in schema

@@ -96,11 +96,11 @@ export default function TeamMemberDashboard() {
       // Get member info
       const { data: memberData } = await supabase
         .from('practice_members')
-        .select('full_name')
+        .select('name')
         .eq('id', memberId)
         .single();
 
-      setViewingAsMemberName(memberData?.full_name || 'Team Member');
+      setViewingAsMemberName(memberData?.name || 'Team Member');
 
       // Get skill assessments
       const { data: assessments } = await supabase
