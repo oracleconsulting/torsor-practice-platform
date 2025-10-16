@@ -109,6 +109,8 @@ const AccountancyRoutesWrapper: React.FC = () => {
     return <Navigate to="/accountancy/select-practice" replace />;
   }
 
+  console.log('[AccountancyRoutesWrapper] Rendering routes');
+  
   return (
     <Routes>
       <Route index element={<Navigate to="/accountancy/dashboard" replace />} />
@@ -124,7 +126,12 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="team-member/dashboard" element={<TeamMemberDashboard />} />
       <Route path="team-member/cpd" element={<CPDSkillsBridgePage />} />
       <Route path="team-member/cpd/log" element={<CPDSkillsBridgePage />} />
-      <Route path="team" element={<TeamManagementPage />} />
+      <Route path="team" element={
+        <>
+          {console.log('[Route] Team Management page matched')}
+          <TeamManagementPage />
+        </>
+      } />
       <Route path="team-portal/vark-assessment" element={<VARKAssessmentPage />} />
       <Route path="team-portal/mentoring" element={<MentoringHubPage />} />
       <Route path="team-portal/onboarding" element={<OnboardingHubPage />} />
@@ -134,8 +141,18 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="team-portal/cpd-skills-impact" element={<CPDSkillsBridgePage />} />
       <Route path="team-portal/mobile-assessment" element={<MobileAssessmentPage />} />
       <Route path="client-rescues" element={<ClientRescues />} />
-      <Route path="advisory-services" element={<AdvisoryServices />} />
-      <Route path="advisory-services/:serviceId" element={<ServiceDetailPage />} />
+      <Route path="advisory-services" element={
+        <>
+          {console.log('[Route] Advisory Services list page matched')}
+          <AdvisoryServices />
+        </>
+      } />
+      <Route path="advisory-services/:serviceId" element={
+        <>
+          {console.log('[Route] Advisory Services detail page matched')}
+          <ServiceDetailPage />
+        </>
+      } />
       
       {/* Advisory Sub-Pages */}
       <Route path="portal/advisory/forecasting" element={<ForecastingPage />} />
