@@ -73,18 +73,17 @@ export default function Auth() {
         // For all other users, check their role in practice_members
         console.log('[Auth Debug] Checking user role for redirect...');
         
-        // Import supabase to check user role
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        const supabase = createClient(supabaseUrl, supabaseKey);
+        // Use the authenticated supabase client from lib
+        const { supabase } = await import('@/lib/supabase/client');
         
         // Get user's role from practice_members
-        const { data: member } = await supabase
+        const { data: member, error: memberError } = await supabase
           .from('practice_members')
           .select('role')
           .eq('user_id', user.id)
           .single();
+        
+        console.log('[Auth Debug] Query result:', { member, memberError });
         
         console.log('[Auth Debug] User role:', member?.role);
         
@@ -162,11 +161,8 @@ export default function Auth() {
           // For all other users, check their role in practice_members
           console.log('[Auth] Checking user role for redirect...');
           
-          // Import supabase to check user role
-          const { createClient } = await import('@supabase/supabase-js');
-          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-          const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-          const supabase = createClient(supabaseUrl, supabaseKey);
+          // Use the authenticated supabase client from lib
+          const { supabase } = await import('@/lib/supabase/client');
           
           // Get user's role from practice_members
           const { data: member, error: memberError } = await supabase
@@ -174,6 +170,8 @@ export default function Auth() {
             .select('role')
             .eq('user_id', result.user?.id)
             .single();
+          
+          console.log('[Auth] Query result:', { member, memberError });
           
           console.log('[Auth] User role:', member?.role);
           
