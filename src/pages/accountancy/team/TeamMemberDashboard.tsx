@@ -186,7 +186,41 @@ export default function TeamMemberDashboard() {
         </div>
 
         {/* Main Action Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* My Assignments */}
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-green-100 p-3 rounded-lg">
+                    <BookOpen className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div>
+                    <CardTitle>My Assignments</CardTitle>
+                    <CardDescription>
+                      View your client work and log hours
+                    </CardDescription>
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span className="text-sm text-gray-700">Active Projects</span>
+                  <span className="font-bold text-green-600">Track work</span>
+                </div>
+                <Button 
+                  onClick={() => navigate('/accountancy/team-member/assignments')}
+                  className="w-full bg-green-600 hover:bg-green-700"
+                >
+                  <BookOpen className="h-4 w-4 mr-2" />
+                  View Assignments
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* My Skills */}
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>

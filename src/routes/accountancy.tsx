@@ -61,6 +61,7 @@ import SkillsAssessmentPage from '../pages/accountancy/team/SkillsAssessmentPage
 import AdvisoryCapabilityMatrix from '../pages/accountancy/team/AdvisoryCapabilityMatrix';
 import KnowledgeBasePage from '../pages/accountancy/team/KnowledgeBasePage';
 import TeamMemberDashboard from '../pages/accountancy/team/TeamMemberDashboard';
+import MyAssignmentsPage from '../pages/accountancy/team/MyAssignmentsPage';
 
 // Add this component for practice selection
 const PracticeSelection = () => {
@@ -124,6 +125,7 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="team/advisory-capability" element={<AdvisoryCapabilityMatrix />} />
       <Route path="team/knowledge-base" element={<KnowledgeBasePage />} />
       <Route path="team-member/dashboard" element={<TeamMemberDashboard />} />
+      <Route path="team-member/assignments" element={<MyAssignmentsPage />} />
       <Route path="team-member/cpd" element={<CPDSkillsBridgePage />} />
       <Route path="team-member/cpd/log" element={<CPDSkillsBridgePage />} />
       <Route path="team" element={
