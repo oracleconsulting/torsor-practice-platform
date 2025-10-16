@@ -124,10 +124,7 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="team/skills-assessment" element={<SkillsAssessmentPage />} />
       <Route path="team/advisory-capability" element={<AdvisoryCapabilityMatrix />} />
       <Route path="team/knowledge-base" element={<KnowledgeBasePage />} />
-      <Route path="team-member/dashboard" element={<TeamMemberDashboard />} />
-      <Route path="team-member/assignments" element={<MyAssignmentsPage />} />
-      <Route path="team-member/cpd" element={<CPDSkillsBridgePage />} />
-      <Route path="team-member/cpd/log" element={<CPDSkillsBridgePage />} />
+      {/* team-member routes moved outside AccountancyLayout - see AccountancyRoute component */}
       <Route path="team" element={
         <>
           {console.log('[Route] Team Management page matched')}
@@ -234,6 +231,25 @@ const AccountancyRoute: React.FC = () => {
       <Route path="/auth" element={
         user ? <Navigate to="/accountancy/dashboard" replace /> : <Navigate to="/auth?portal=accountancy" replace />
       } />
+      
+      {/* Team Member Portal Routes - WITHOUT Admin Layout */}
+      <Route path="/team-member/*" element={
+        <ProtectedRoute>
+          <Routes>
+            <Route path="dashboard" element={
+              <>
+                {console.log('[Route] Team Member Dashboard matched - viewAs:', new URLSearchParams(window.location.search).get('viewAs'))}
+                <TeamMemberDashboard />
+              </>
+            } />
+            <Route path="assignments" element={<MyAssignmentsPage />} />
+            <Route path="cpd" element={<CPDSkillsBridgePage />} />
+            <Route path="cpd/log" element={<CPDSkillsBridgePage />} />
+          </Routes>
+        </ProtectedRoute>
+      } />
+      
+      {/* Admin Routes - WITH Admin Layout */}
       <Route path="/*" element={
         <ProtectedRoute>
           <AccountancyLayout>
