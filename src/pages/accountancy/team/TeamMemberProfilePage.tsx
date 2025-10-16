@@ -419,14 +419,76 @@ export default function TeamMemberProfilePage() {
               </div>
             </div>
             
-            <div className="text-right text-sm text-gray-600">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2">
+              <div className="text-sm text-gray-600 flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
                 <span>Joined {new Date(profile.joinedDate).toLocaleDateString()}</span>
               </div>
+              <Button
+                onClick={() => navigate(`/accountancy/team-member/dashboard?viewAs=${profile.id}`)}
+                variant="outline"
+                className="bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100"
+              >
+                <User className="w-4 h-4 mr-2" />
+                View Their Portal
+              </Button>
             </div>
           </div>
         </div>
+
+        {/* Portal Access Card */}
+        <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <h3 className="font-bold text-gray-900 mb-1">What They See & Can Access</h3>
+                <p className="text-sm text-gray-600 mb-3">
+                  {profile.role === 'owner' || profile.role === 'admin' || profile.role === 'partner' || profile.role === 'director'
+                    ? '✨ Full admin access to Team Management Portal (all features)'
+                    : '📊 Team Member Portal (personal development only)'}
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                  <div className={`p-2 rounded ${
+                    ['owner', 'admin', 'partner', 'director'].includes(profile.role.toLowerCase())
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {['owner', 'admin', 'partner', 'director'].includes(profile.role.toLowerCase()) ? '✅' : '❌'} Team Management
+                  </div>
+                  <div className={`p-2 rounded ${
+                    ['owner', 'admin', 'partner', 'director'].includes(profile.role.toLowerCase())
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {['owner', 'admin', 'partner', 'director'].includes(profile.role.toLowerCase()) ? '✅' : '❌'} User Administration
+                  </div>
+                  <div className="p-2 rounded bg-green-100 text-green-800">
+                    ✅ Skills Assessment
+                  </div>
+                  <div className="p-2 rounded bg-green-100 text-green-800">
+                    ✅ CPD Tracking
+                  </div>
+                  <div className="p-2 rounded bg-green-100 text-green-800">
+                    ✅ My Assignments
+                  </div>
+                  <div className="p-2 rounded bg-green-100 text-green-800">
+                    ✅ Mentoring
+                  </div>
+                  <div className="p-2 rounded bg-green-100 text-green-800">
+                    ✅ Knowledge Base
+                  </div>
+                  <div className={`p-2 rounded ${
+                    ['owner', 'admin', 'partner', 'director'].includes(profile.role.toLowerCase())
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {['owner', 'admin', 'partner', 'director'].includes(profile.role.toLowerCase()) ? '✅' : '❌'} Advisory Services
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAccountancyContext } from '@/contexts/AccountancyContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,8 @@ interface TeamMemberStats {
 
 export default function TeamMemberDashboard() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   const { practiceMember } = useAccountancyContext();
   
   const [stats, setStats] = useState<TeamMemberStats>({
@@ -44,12 +47,101 @@ export default function TeamMemberDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [recentCPD, setRecentCPD] = useState<any[]>([]);
+  const [viewingAsMemberId, setViewingAsMemberId] = useState<string | null>(null);
+  const [viewingAsMemberName, setViewingAsMemberName] = useState<string>('');
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    if (practiceMember?.id) {
+    const viewAsParam = searchParams.get('viewAs');
+    
+    if (viewAsParam) {
+      // Admin is viewing another user's dashboard
+      checkAdminAndLoadMember(viewAsParam);
+    } else if (practiceMember?.id) {
+      // Regular user viewing their own dashboard
       loadDashboardData();
     }
-  }, [practiceMember?.id]);
+  }, [practiceMember?.id, searchParams]);
+
+  const checkAdminAndLoadMember = async (memberId: string) => {
+    try {
+      // Check if current user is admin
+      const { data: currentUser } = await supabase
+        .from('practice_members')
+        .select('role')
+        .eq('user_id', user?.id)
+        .single();
+
+      const allowedRoles = ['owner', 'admin', 'partner', 'director'];
+      const hasAccess = currentUser && allowedRoles.includes(currentUser.role.toLowerCase());
+      setIsAdmin(hasAccess);
+
+      if (!hasAccess) {
+        navigate('/accountancy/team-member/dashboard');
+        return;
+      }
+
+      setViewingAsMemberId(memberId);
+      await loadDashboardDataForMember(memberId);
+    } catch (error) {
+      console.error('Error checking admin access:', error);
+      navigate('/accountancy/team-member/dashboard');
+    }
+  };
+
+  const loadDashboardDataForMember = async (memberId: string) => {
+    try {
+      setLoading(true);
+
+      // Get member info
+      const { data: memberData } = await supabase
+        .from('practice_members')
+        .select('full_name')
+        .eq('id', memberId)
+        .single();
+
+      setViewingAsMemberName(memberData?.full_name || 'Team Member');
+
+      // Get skill assessments
+      const { data: assessments } = await supabase
+        .from('skill_assessments')
+        .select('current_level, skill_id')
+        .eq('team_member_id', memberId);
+
+      // Get total skills count
+      const { count: totalSkillsCount } = await supabase
+        .from('skills')
+        .select('*', { count: 'exact', head: true });
+
+      // Get CPD activities
+      const { data: cpdData } = await supabase
+        .from('cpd_activities')
+        .select('hours_claimed, activity_date, title, activity_type')
+        .eq('practice_member_id', memberId)
+        .order('activity_date', { ascending: false })
+        .limit(5);
+
+      // Calculate stats
+      const assessedCount = assessments?.length || 0;
+      const avgLevel = assessments?.reduce((sum, a) => sum + (a.current_level || 0), 0) / (assessedCount || 1);
+      const totalHours = cpdData?.reduce((sum, cpd) => sum + (cpd.hours_claimed || 0), 0) || 0;
+
+      setStats({
+        totalSkills: totalSkillsCount || 0,
+        assessedSkills: assessedCount,
+        averageLevel: avgLevel,
+        cpdHours: totalHours,
+        cpdActivities: cpdData?.length || 0,
+        mentoringActive: false
+      });
+
+      setRecentCPD(cpdData || []);
+    } catch (error) {
+      console.error('Error loading dashboard for member:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadDashboardData = async () => {
     try {
@@ -112,13 +204,44 @@ export default function TeamMemberDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
+        {/* Admin Viewing Banner */}
+        {viewingAsMemberId && (
+          <Card className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 border-amber-300">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-amber-500 p-2 rounded-full">
+                    <User className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-900">
+                      Admin View: Viewing {viewingAsMemberName}'s Portal
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      You're seeing exactly what {viewingAsMemberName} sees and has access to
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => navigate('/accountancy/team?tab=admin')}
+                  variant="outline"
+                  className="bg-white hover:bg-gray-50"
+                >
+                  <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
+                  Back to Admin
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Welcome back, {practiceMember?.name || 'Team Member'}!
+            Welcome back, {viewingAsMemberName || practiceMember?.name || 'Team Member'}!
           </h1>
           <p className="text-gray-600">
-            Here's your personal development overview
+            Here's {viewingAsMemberId ? 'their' : 'your'} personal development overview
           </p>
         </div>
 
