@@ -38,12 +38,23 @@ import {
   getServiceDeliveryRoles,
   getDeliveryRoleSkills,
   upsertDeliveryRole,
+  deleteDeliveryRole,
   bulkAssignSkillsToRole,
   syncRoleSkillsToService,
   getAggregatedSkillsFromRoles,
   type ServiceDeliveryRole,
   type DeliveryRoleSkill
 } from '../lib/api/delivery-roles';
+import {
+  getWorkflowInstances,
+  getWorkflowInstance,
+  createWorkflowInstance,
+  assignTeamMember,
+  updateAssignment,
+  removeAssignment,
+  type WorkflowInstance,
+  type WorkflowInstanceAssignment
+} from '../lib/api/workflow-instances';
 import type { Database } from '../lib/supabase/types';
 
 type Workflow = Database['public']['Tables']['workflows']['Row'];
@@ -63,6 +74,7 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
   const [service, setService] = useState<ServiceLine | null>(null);
   const [customSkillAssignments, setCustomSkillAssignments] = useState<ServiceSkillAssignment[]>([]);
   const [deliveryRoles, setDeliveryRoles] = useState<ServiceDeliveryRole[]>([]);
+  const [workflowInstances, setWorkflowInstances] = useState<WorkflowInstance[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [skillsCapability, setSkillsCapability] = useState<any>({});
   const [allSkills, setAllSkills] = useState<any[]>([]);
@@ -75,7 +87,11 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
   const [isExecutorOpen, setIsExecutorOpen] = useState(false);
   const [isEditSkillsOpen, setIsEditSkillsOpen] = useState(false);
   const [isEditRoleSkillsOpen, setIsEditRoleSkillsOpen] = useState(false);
+  const [isEditRoleOpen, setIsEditRoleOpen] = useState(false);
+  const [isCreateInstanceOpen, setIsCreateInstanceOpen] = useState(false);
+  const [isAssignTeamOpen, setIsAssignTeamOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<ServiceDeliveryRole | null>(null);
+  const [selectedInstance, setSelectedInstance] = useState<WorkflowInstance | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [newWorkflowName, setNewWorkflowName] = useState('');
   const [newWorkflowDescription, setNewWorkflowDescription] = useState('');
@@ -131,6 +147,15 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
         console.log('[ServiceDetailPage] Loaded', roles.length, 'delivery roles');
       } catch (error) {
         console.error('Error loading delivery roles:', error);
+      }
+
+      // Load workflow instances (active client engagements)
+      try {
+        const instances = await getWorkflowInstances(practiceId!, serviceId!);
+        setWorkflowInstances(instances);
+        console.log('[ServiceDetailPage] Loaded', instances.length, 'workflow instances');
+      } catch (error) {
+        console.error('Error loading workflow instances:', error);
       }
 
       // Load team members and their skills
@@ -558,6 +583,7 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
         <TabsList>
           <TabsTrigger value="skills">Skills & Capability</TabsTrigger>
           <TabsTrigger value="delivery-team">Delivery Team Structure</TabsTrigger>
+          <TabsTrigger value="engagements">Active Engagements ({workflowInstances.length})</TabsTrigger>
           <TabsTrigger value="workflows">Workflows ({workflows.length})</TabsTrigger>
           <TabsTrigger value="executions">Recent Executions ({executions.length})</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -805,6 +831,105 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
                   );
                 })}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Active Engagements Tab */}
+        <TabsContent value="engagements" className="mt-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Active Client Engagements</CardTitle>
+                <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
+                  Track real client work and team assignments
+                </CardDescription>
+              </div>
+              <Button onClick={() => setIsCreateInstanceOpen(true)}>
+                <PlusIcon className="w-4 h-4 mr-2" />
+                New Engagement
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {workflowInstances.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-600 mb-4">No client engagements yet</p>
+                  <Button onClick={() => setIsCreateInstanceOpen(true)}>
+                    <PlusIcon className="w-4 h-4 mr-2" />
+                    Create First Engagement
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {workflowInstances.map((instance) => (
+                    <div key={instance.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-900">{instance.client_name}</h3>
+                          <p className="text-sm text-gray-600">{service?.name}</p>
+                        </div>
+                        <Badge 
+                          variant={
+                            instance.status === 'completed' ? 'default' :
+                            instance.status === 'in_progress' ? 'secondary' :
+                            instance.status === 'on_hold' ? 'destructive' :
+                            'outline'
+                          }
+                        >
+                          {instance.status.replace('_', ' ')}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4 text-sm mb-3">
+                        {instance.start_date && (
+                          <div>
+                            <span className="text-gray-500">Start:</span>
+                            <span className="ml-2 font-medium">{new Date(instance.start_date).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                        {instance.target_completion_date && (
+                          <div>
+                            <span className="text-gray-500">Target:</span>
+                            <span className="ml-2 font-medium">{new Date(instance.target_completion_date).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                        <div>
+                          <span className="text-gray-500">Hours:</span>
+                          <span className="ml-2 font-medium">
+                            {instance.total_actual_hours || 0} / {instance.total_estimated_hours || 0}
+                          </span>
+                        </div>
+                      </div>
+
+                      {instance.notes && (
+                        <p className="text-sm text-gray-600 mb-3">{instance.notes}</p>
+                      )}
+
+                      <div className="flex gap-2 pt-3 border-t">
+                        <Button
+                          onClick={() => {
+                            setSelectedInstance(instance);
+                            setIsAssignTeamOpen(true);
+                          }}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Users className="w-4 h-4 mr-1" />
+                          Assign Team
+                        </Button>
+                        <Button
+                          onClick={() => navigate(`/advisory-services/${service?.id}/instance/${instance.id}`)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <EyeIcon className="w-4 h-4 mr-1" />
+                          View Details
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
