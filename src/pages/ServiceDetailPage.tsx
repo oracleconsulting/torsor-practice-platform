@@ -39,6 +39,8 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
   const { practice } = useAccountancyContext();
   const practiceId = practice?.id;
 
+  console.log('[ServiceDetailPage] Mounted with serviceId:', serviceId, 'practiceId:', practiceId);
+
   // State
   const [service, setService] = useState<any>(null);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
@@ -67,9 +69,11 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
       setService(foundService);
 
       if (!foundService) {
-        console.error('Service not found');
+        console.error('[ServiceDetailPage] Service not found:', serviceId, 'Available services:', allServices.map(s => s.id));
         return;
       }
+      
+      console.log('[ServiceDetailPage] Service loaded:', foundService.name);
 
       // Load workflows from Supabase
       const { data: workflowsData, error: workflowsError } = await supabase
