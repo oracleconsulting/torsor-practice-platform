@@ -233,7 +233,7 @@ const AccountancyRoute: React.FC = () => {
       } />
       
       {/* Team Member Portal Routes - WITHOUT Admin Layout */}
-      <Route path="/team-member/*" element={
+      <Route path="team-member/*" element={
         <ProtectedRoute>
           <Routes>
             <Route path="dashboard" element={
