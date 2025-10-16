@@ -752,14 +752,27 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
                           {teamMembers.filter(m => m.role === team.seniority).length} Available
                         </Badge>
                         {matchingRole && (
-                          <Button
-                            onClick={() => handleEditRoleSkills(matchingRole)}
-                            variant="outline"
-                            size="sm"
-                          >
-                            <Cog6ToothIcon className="w-4 h-4 mr-1" />
-                            Edit Skills
-                          </Button>
+                          <>
+                            <Button
+                              onClick={() => {
+                                setSelectedRole(matchingRole);
+                                setIsEditRoleOpen(true);
+                              }}
+                              variant="outline"
+                              size="sm"
+                            >
+                              <Cog6ToothIcon className="w-4 h-4 mr-1" />
+                              Edit Role
+                            </Button>
+                            <Button
+                              onClick={() => handleEditRoleSkills(matchingRole)}
+                              variant="outline"
+                              size="sm"
+                            >
+                              <Target className="w-4 h-4 mr-1" />
+                              Edit Skills
+                            </Button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -1116,6 +1129,57 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
           onExecutionComplete={(executionId) => {
             console.log('Workflow execution completed:', executionId);
             loadServiceAndWorkflows(); // Refresh to show new execution
+          }}
+        />
+      )}
+
+      {/* Create Engagement Dialog */}
+      <CreateEngagementDialog
+        isOpen={isCreateInstanceOpen}
+        onClose={() => setIsCreateInstanceOpen(false)}
+        serviceId={serviceId!}
+        serviceName={service?.name || ''}
+        practiceId={practiceId!}
+        onSuccess={async () => {
+          await loadServiceAndWorkflows();
+          setIsCreateInstanceOpen(false);
+        }}
+      />
+
+      {/* Assign Team Dialog */}
+      {selectedInstance && (
+        <AssignTeamDialog
+          isOpen={isAssignTeamOpen}
+          onClose={() => {
+            setIsAssignTeamOpen(false);
+            setSelectedInstance(null);
+          }}
+          instance={selectedInstance}
+          teamMembers={teamMembers}
+          deliveryRoles={deliveryRoles}
+          onSuccess={async () => {
+            await loadServiceAndWorkflows();
+            setIsAssignTeamOpen(false);
+            setSelectedInstance(null);
+          }}
+        />
+      )}
+
+      {/* Edit Role Dialog */}
+      {selectedRole && (
+        <EditRoleDialog
+          isOpen={isEditRoleOpen}
+          onClose={() => {
+            setIsEditRoleOpen(false);
+            setSelectedRole(null);
+          }}
+          role={selectedRole}
+          serviceId={serviceId!}
+          practiceId={practiceId!}
+          onSuccess={async () => {
+            await loadServiceAndWorkflows();
+            setIsEditRoleOpen(false);
+            setSelectedRole(null);
           }}
         />
       )}
@@ -1698,6 +1762,475 @@ const EditRoleSkillsDialog: React.FC<EditRoleSkillsDialogProps> = ({
           <Button onClick={handleSave} disabled={saving || loading}>
             {saving ? 'Saving...' : `Save ${selectedSkills.size} Skills`}
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Create Engagement Dialog Component
+interface CreateEngagementDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  serviceId: string;
+  serviceName: string;
+  practiceId: string;
+  onSuccess: () => Promise<void>;
+}
+
+const CreateEngagementDialog: React.FC<CreateEngagementDialogProps> = ({
+  isOpen,
+  onClose,
+  serviceId,
+  serviceName,
+  practiceId,
+  onSuccess
+}) => {
+  const [clientName, setClientName] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [targetDate, setTargetDate] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!clientName.trim()) {
+      alert('Please enter a client name');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await createWorkflowInstance(
+        practiceId,
+        serviceId,
+        clientName,
+        startDate || undefined,
+        targetDate || undefined,
+        notes || undefined
+      );
+      await onSuccess();
+      // Reset form
+      setClientName('');
+      setStartDate('');
+      setTargetDate('');
+      setNotes('');
+    } catch (error) {
+      console.error('Error creating engagement:', error);
+      alert('Failed to create engagement. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="text-2xl">New Client Engagement</DialogTitle>
+          <DialogDescription>
+            Create a new engagement for {serviceName}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          <div>
+            <Label htmlFor="client-name">Client Name *</Label>
+            <Input
+              id="client-name"
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
+              placeholder="e.g., Acme Corporation"
+              className="mt-1"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="start-date">Start Date</Label>
+              <Input
+                id="start-date"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="target-date">Target Completion</Label>
+              <Input
+                id="target-date"
+                type="date"
+                value={targetDate}
+                onChange={(e) => setTargetDate(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="notes">Notes</Label>
+            <Textarea
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Project scope, special requirements, etc."
+              rows={4}
+              className="mt-1"
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? 'Creating...' : 'Create Engagement'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Assign Team Dialog Component
+interface AssignTeamDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  instance: WorkflowInstance;
+  teamMembers: any[];
+  deliveryRoles: ServiceDeliveryRole[];
+  onSuccess: () => Promise<void>;
+}
+
+const AssignTeamDialog: React.FC<AssignTeamDialogProps> = ({
+  isOpen,
+  onClose,
+  instance,
+  teamMembers,
+  deliveryRoles,
+  onSuccess
+}) => {
+  const [assignments, setAssignments] = useState<Map<string, string>>(new Map()); // role -> memberId
+  const [hours, setHours] = useState<Map<string, number>>(new Map()); // role -> hours
+  const [saving, setSaving] = useState(false);
+
+  // Load existing assignments when dialog opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const loadAssignments = async () => {
+      try {
+        const { assignments: existingAssignments } = await getWorkflowInstance(instance.id);
+        const assignmentMap = new Map();
+        const hoursMap = new Map();
+        
+        existingAssignments.forEach(a => {
+          assignmentMap.set(a.role_seniority, a.practice_member_id);
+          if (a.estimated_hours) {
+            hoursMap.set(a.role_seniority, a.estimated_hours);
+          }
+        });
+        
+        setAssignments(assignmentMap);
+        setHours(hoursMap);
+      } catch (error) {
+        console.error('Error loading assignments:', error);
+      }
+    };
+
+    loadAssignments();
+  }, [isOpen, instance.id]);
+
+  const handleAssign = (role: string, memberId: string) => {
+    const newAssignments = new Map(assignments);
+    if (memberId) {
+      newAssignments.set(role, memberId);
+    } else {
+      newAssignments.delete(role);
+    }
+    setAssignments(newAssignments);
+  };
+
+  const handleHours = (role: string, hrs: number) => {
+    const newHours = new Map(hours);
+    newHours.set(role, hrs);
+    setHours(newHours);
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      
+      // Assign each team member
+      for (const [role, memberId] of assignments.entries()) {
+        await assignTeamMember(
+          instance.id,
+          memberId,
+          role,
+          hours.get(role) || undefined
+        );
+      }
+      
+      await onSuccess();
+    } catch (error) {
+      console.error('Error assigning team:', error);
+      alert('Failed to assign team. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-2xl">Assign Team to {instance.client_name}</DialogTitle>
+          <DialogDescription>
+            Select team members for each role in this engagement
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          {deliveryRoles.length === 0 ? (
+            <p className="text-gray-600 text-sm">
+              No delivery roles defined. Please set up delivery team structure first.
+            </p>
+          ) : (
+            deliveryRoles.map((role) => {
+              const eligibleMembers = teamMembers.filter(m => m.role === role.seniority);
+              const assignedMemberId = assignments.get(role.seniority);
+              
+              return (
+                <div key={role.id} className="border rounded-lg p-4 bg-gray-50">
+                  <h4 className="font-semibold text-gray-900 mb-2">{role.seniority}</h4>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Assign Team Member</Label>
+                      <Select
+                        value={assignedMemberId || 'none'}
+                        onValueChange={(value) => handleAssign(role.seniority, value === 'none' ? '' : value)}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select member..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">-- None --</SelectItem>
+                          {eligibleMembers.map(member => (
+                            <SelectItem key={member.id} value={member.id}>
+                              {member.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {eligibleMembers.length === 0 && (
+                        <p className="text-xs text-red-600 mt-1">
+                          No {role.seniority} level members available
+                        </p>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <Label className="text-xs">Estimated Hours</Label>
+                      <Input
+                        type="number"
+                        value={hours.get(role.seniority) || role.estimated_hours || ''}
+                        onChange={(e) => handleHours(role.seniority, parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                        className="mt-1"
+                        min="0"
+                        step="0.5"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={saving || deliveryRoles.length === 0}>
+            {saving ? 'Assigning...' : `Assign ${assignments.size} Team Members`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Edit Role Dialog Component
+interface EditRoleDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  role: ServiceDeliveryRole;
+  serviceId: string;
+  practiceId: string;
+  onSuccess: () => Promise<void>;
+}
+
+const EditRoleDialog: React.FC<EditRoleDialogProps> = ({
+  isOpen,
+  onClose,
+  role,
+  serviceId,
+  practiceId,
+  onSuccess
+}) => {
+  const [responsibilities, setResponsibilities] = useState<string[]>([]);
+  const [hours, setHours] = useState<number>(0);
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setResponsibilities(role.responsibilities || []);
+      setHours(role.estimated_hours || 0);
+      setNotes(role.notes || '');
+    }
+  }, [isOpen, role]);
+
+  const handleAddResponsibility = () => {
+    setResponsibilities([...responsibilities, '']);
+  };
+
+  const handleUpdateResponsibility = (index: number, value: string) => {
+    const newResp = [...responsibilities];
+    newResp[index] = value;
+    setResponsibilities(newResp);
+  };
+
+  const handleRemoveResponsibility = (index: number) => {
+    setResponsibilities(responsibilities.filter((_, i) => i !== index));
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      await upsertDeliveryRole(
+        practiceId,
+        serviceId,
+        role.seniority,
+        responsibilities.filter(r => r.trim()),
+        hours || undefined,
+        role.display_order
+      );
+      await onSuccess();
+    } catch (error) {
+      console.error('Error saving role:', error);
+      alert('Failed to save role. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(`Delete ${role.seniority} role? This will remove all skill assignments for this role.`)) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      await deleteDeliveryRole(role.id);
+      await onSuccess();
+    } catch (error) {
+      console.error('Error deleting role:', error);
+      alert('Failed to delete role. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-2xl">Edit {role.seniority} Role</DialogTitle>
+          <DialogDescription>
+            Modify responsibilities and estimated hours for this delivery role
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          <div>
+            <Label>Estimated Hours</Label>
+            <Input
+              type="number"
+              value={hours}
+              onChange={(e) => setHours(parseFloat(e.target.value) || 0)}
+              placeholder="0"
+              className="mt-1"
+              min="0"
+              step="0.5"
+            />
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <Label>Responsibilities</Label>
+              <Button
+                onClick={handleAddResponsibility}
+                variant="outline"
+                size="sm"
+              >
+                <PlusIcon className="w-4 h-4 mr-1" />
+                Add
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {responsibilities.map((resp, index) => (
+                <div key={index} className="flex gap-2">
+                  <Input
+                    value={resp}
+                    onChange={(e) => handleUpdateResponsibility(index, e.target.value)}
+                    placeholder="Enter responsibility..."
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={() => handleRemoveResponsibility(index)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <XCircleIcon className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <Label>Notes</Label>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Additional notes about this role..."
+              rows={3}
+              className="mt-1"
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="flex justify-between">
+          <Button
+            onClick={handleDelete}
+            variant="destructive"
+            disabled={saving || deleting}
+          >
+            {deleting ? 'Deleting...' : 'Delete Role'}
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose} disabled={saving || deleting}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving || deleting}>
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
