@@ -22,10 +22,12 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Progress } from '../components/ui/progress';
 import { WorkflowBuilder } from '../components/workflows/WorkflowBuilder';
 import { WorkflowExecutionList } from '../components/workflows/WorkflowExecutionList';
 import { WorkflowExecutor } from '../components/workflows/WorkflowExecutor';
 import { getTemplateByServiceType } from '../data/workflowTemplates';
+import { advisoryServicesMap, type ServiceLine } from '../lib/advisory-services-skills-mapping';
 import type { Database } from '../lib/supabase/types';
 
 type Workflow = Database['public']['Tables']['workflows']['Row'];
@@ -42,7 +44,9 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
   console.log('[ServiceDetailPage] Mounted with serviceId:', serviceId, 'practiceId:', practiceId);
 
   // State
-  const [service, setService] = useState<any>(null);
+  const [service, setService] = useState<ServiceLine | null>(null);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [skillsCapability, setSkillsCapability] = useState<any>({});
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [executions, setExecutions] = useState<WorkflowExecution[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,17 +67,70 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
     try {
       setLoading(true);
 
-      // Load service from localStorage (or could be from Supabase later)
-      const allServices = loadAllServices();
-      const foundService = allServices.find(s => s.id === serviceId);
-      setService(foundService);
-
+      // Load service from advisory services map
+      const foundService = advisoryServicesMap.find(s => s.id === serviceId);
+      
       if (!foundService) {
-        console.error('[ServiceDetailPage] Service not found:', serviceId, 'Available services:', allServices.map(s => s.id));
+        console.error('[ServiceDetailPage] Service not found:', serviceId, 'Available services:', advisoryServicesMap.map(s => s.id));
+        setLoading(false);
         return;
       }
       
+      setService(foundService);
       console.log('[ServiceDetailPage] Service loaded:', foundService.name);
+
+      // Load team members and their skills
+      const { data: membersData, error: membersError } = await supabase
+        .from('practice_members')
+        .select('*')
+        .eq('practice_id', practiceId!);
+
+      if (membersError) {
+        console.error('Error loading team members:', membersError);
+      } else {
+        // Load skill assessments for each member
+        const membersWithSkills = await Promise.all((membersData || []).map(async (member) => {
+          const { data: skillsData } = await supabase
+            .from('skill_assessments')
+            .select(`
+              skill_id,
+              current_level,
+              interest_level,
+              skills (
+                name,
+                category
+              )
+            `)
+            .eq('team_member_id', member.id);
+
+          return {
+            ...member,
+            skills: skillsData || []
+          };
+        }));
+
+        setTeamMembers(membersWithSkills);
+
+        // Calculate capability for each required skill
+        const capability: any = {};
+        foundService.requiredSkills.forEach(req => {
+          const membersWithSkill = membersWithSkills.filter(m => 
+            m.skills.some((s: any) => s.skills?.name === req.skillName && s.current_level >= req.minimumLevel)
+          );
+          
+          capability[req.skillName] = {
+            required: req,
+            available: membersWithSkill.length,
+            members: membersWithSkill.map(m => ({
+              name: m.full_name,
+              role: m.role,
+              level: m.skills.find((s: any) => s.skills?.name === req.skillName)?.current_level || 0
+            }))
+          };
+        });
+        
+        setSkillsCapability(capability);
+      }
 
       // Load workflows from Supabase
       const { data: workflowsData, error: workflowsError } = await supabase
@@ -112,143 +169,14 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
     }
   };
 
-  const loadAllServices = () => {
-    // Load from localStorage (same logic as AdvisoryServices page)
-    const customServices = localStorage.getItem(`custom-services-${practiceId}`);
-    const defaultServices = getDefaultServices();
+  // Helper to get readiness status for a skill
+  const getSkillStatus = (skillName: string) => {
+    const cap = skillsCapability[skillName];
+    if (!cap) return { status: 'unknown', color: 'gray' };
     
-    if (customServices) {
-      return [...defaultServices, ...JSON.parse(customServices)];
-    }
-    return defaultServices;
-  };
-
-  const getDefaultServices = () => {
-    // Same default services as in AdvisoryServices.tsx
-    return [
-      {
-        id: 'automation',
-        name: 'Automation',
-        description: 'Data capture, system integration, and finance automation',
-        iconName: 'BriefcaseIcon',
-        basePrice: '£115-£180/hour + setup',
-        deliveryTime: 'Half-day to multi-day',
-        deliveredBy: 'Technical team with system integration expertise',
-        aims: 'Automate finance processes to save time, reduce errors, and improve efficiency',
-        tier: 'all',
-        features: [
-          'Data capture: scan invoices & receipts to electronic format',
-          'System integration: auto-upload to data entry software',
-          'Bank feed setup and troubleshooting',
-          'AI-driven categorisation rules',
-          'Chart of accounts setup',
-          'Link bookkeeping to analytics (Xero → Spotlight/Syft)',
-          'Dashboard setup for monitoring',
-          'Management accounts production',
-          'Forecasting and cashflow facilitation'
-        ]
-      },
-      {
-        id: 'management-accounts',
-        name: 'Management Accounts',
-        description: 'Regular financial reporting with KPI analysis and insights',
-        iconName: 'ChartBarIcon',
-        basePrice: '£650/month or £1,750/quarter',
-        deliveryTime: 'Monthly or quarterly',
-        deliveredBy: 'Senior accountants with analytical expertise',
-        aims: 'Provide reliable financial information throughout the year for better decision-making',
-        tier: 'all',
-        features: [
-          'Completed on suitable software package',
-          'Data check for year-end compatibility',
-          'Monthly, quarterly, or adhoc frequency',
-          'KPI commentary and key findings',
-          'Cash flow waterfall analysis',
-          'Spotlight-derived position and performance analysis'
-        ]
-      },
-      {
-        id: 'advisory-accelerator',
-        name: 'Future Financial Information / Advisory Accelerator',
-        description: 'Budgets, forecasts, valuations, and ongoing advisory support',
-        iconName: 'ArrowTrendingUpIcon',
-        basePrice: '£1,000-£9,000 depending on scope',
-        deliveryTime: 'One-off or recurring',
-        deliveredBy: 'Senior advisors and partners',
-        aims: 'Strategic planning and future-focused financial insights',
-        tier: 'all',
-        features: [
-          'Budgets and forecasts',
-          'Business valuations',
-          'Ongoing advisory support',
-          'Strategic planning assistance'
-        ]
-      },
-      {
-        id: 'benchmarking',
-        name: 'Benchmarking',
-        description: 'Compare performance against industry peers',
-        iconName: 'ChartBarIcon',
-        basePrice: '£450-£1,500',
-        deliveryTime: '2-3 days',
-        deliveredBy: 'Analysts with industry expertise',
-        aims: 'Understand competitive position and identify improvement opportunities',
-        tier: 'all',
-        features: [
-          'Industry comparison analysis',
-          'Performance metrics benchmarking',
-          'Competitive positioning insights'
-        ]
-      },
-      {
-        id: 'restructuring',
-        name: 'Restructuring & Turnaround',
-        description: 'Financial recovery and business restructuring advisory',
-        iconName: 'ScaleIcon',
-        basePrice: '£2,000-£10,000+ depending on complexity',
-        deliveryTime: 'Ongoing project-based',
-        deliveredBy: 'Partners with restructuring expertise',
-        aims: 'Navigate financial challenges and restore business health',
-        tier: 'professional',
-        features: [
-          'Cash flow crisis management',
-          'Debt restructuring negotiations',
-          'Business turnaround planning'
-        ]
-      },
-      {
-        id: 'fractional-cfo',
-        name: 'Fractional CFO',
-        description: 'Part-time CFO services for strategic financial leadership',
-        iconName: 'UserGroupIcon',
-        basePrice: '£2,000-£5,000/month',
-        deliveryTime: 'Ongoing retainer',
-        deliveredBy: 'Experienced CFOs and senior partners',
-        aims: 'Provide strategic financial leadership without full-time CFO cost',
-        tier: 'professional',
-        features: [
-          'Strategic financial planning',
-          'Board-level financial reporting',
-          'Financial system optimization'
-        ]
-      },
-      {
-        id: 'systems-audit',
-        name: 'Systems Audit',
-        description: 'Comprehensive review of financial systems and processes',
-        iconName: 'Cog6ToothIcon',
-        basePrice: 'TBD',
-        deliveryTime: 'Coming Soon',
-        deliveredBy: 'Systems specialists',
-        aims: 'Identify system inefficiencies and improvement opportunities',
-        tier: 'enterprise',
-        features: [
-          'System architecture review',
-          'Process efficiency analysis',
-          'Integration assessment'
-        ]
-      }
-    ];
+    if (cap.available === 0) return { status: 'Not Available', color: 'red' };
+    if (cap.available >= 2) return { status: 'Ready', color: 'green' };
+    return { status: 'Limited', color: 'amber' };
   };
 
   const handleCreateWorkflow = async () => {
@@ -460,12 +388,18 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
         </Button>
 
         <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">{service.name}</h1>
+          <div className="flex-1">
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-gray-900">{service.name}</h1>
+              {service.comingSoon && (
+                <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
+              )}
+            </div>
             <p className="mt-2 text-gray-600">{service.description}</p>
             <div className="mt-4 flex gap-4 text-sm">
-              <span className="text-gray-500">Price: <strong className="text-gray-900">{service.basePrice}</strong></span>
+              <span className="text-gray-500">Price: <strong className="text-gray-900">{service.priceRange}</strong></span>
               <span className="text-gray-500">Delivery: <strong className="text-gray-900">{service.deliveryTime}</strong></span>
+              <span className="text-gray-500">Required Skills: <strong className="text-gray-900">{service.requiredSkills.length}</strong></span>
             </div>
           </div>
           <div className="flex gap-2">
@@ -482,12 +416,189 @@ const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="workflows" className="w-full">
+      <Tabs defaultValue="skills" className="w-full">
         <TabsList>
+          <TabsTrigger value="skills">Skills & Capability</TabsTrigger>
+          <TabsTrigger value="delivery-team">Delivery Team Structure</TabsTrigger>
           <TabsTrigger value="workflows">Workflows ({workflows.length})</TabsTrigger>
           <TabsTrigger value="executions">Recent Executions ({executions.length})</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
+
+        {/* Skills & Capability Tab */}
+        <TabsContent value="skills" className="mt-6 space-y-6">
+          {/* Overall Readiness Summary */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Service Readiness Overview</CardTitle>
+                <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
+                  Team capability to deliver this service based on skills assessment
+                </CardDescription>
+              </div>
+              <Button 
+                onClick={() => navigate('/team/advisory-capability')}
+                variant="outline"
+                size="sm"
+              >
+                <EyeIcon className="w-4 h-4 mr-2" />
+                View Full Matrix
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center p-4 bg-green-50 rounded-lg border-2 border-green-300">
+                  <div className="text-3xl font-bold text-green-700">
+                    {Object.values(skillsCapability).filter((c: any) => c.available >= 2).length}
+                  </div>
+                  <div className="text-sm text-green-700 font-semibold mt-1">Ready Skills</div>
+                </div>
+                <div className="text-center p-4 bg-amber-50 rounded-lg border-2 border-amber-300">
+                  <div className="text-3xl font-bold text-amber-700">
+                    {Object.values(skillsCapability).filter((c: any) => c.available === 1).length}
+                  </div>
+                  <div className="text-sm text-amber-700 font-semibold mt-1">Limited Skills</div>
+                </div>
+                <div className="text-center p-4 bg-red-50 rounded-lg border-2 border-red-300">
+                  <div className="text-3xl font-bold text-red-700">
+                    {Object.values(skillsCapability).filter((c: any) => c.available === 0).length}
+                  </div>
+                  <div className="text-sm text-red-700 font-semibold mt-1">Missing Skills</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Required Skills Breakdown */}
+          <Card>
+            <CardHeader>
+              <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Required Skills Breakdown</CardTitle>
+              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
+                {service.requiredSkills.length} skills required to deliver this service
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {service.requiredSkills.map((skill, idx) => {
+                  const status = getSkillStatus(skill.skillName);
+                  const cap = skillsCapability[skill.skillName];
+                  
+                  return (
+                    <div key={idx} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold text-gray-900">{skill.skillName}</h4>
+                            {skill.criticalToDelivery && (
+                              <Badge variant="destructive" className="text-xs">Critical</Badge>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-600 mt-1">
+                            Min Level: {skill.minimumLevel}/5 • Ideal Level: {skill.idealLevel}/5
+                          </div>
+                        </div>
+                        <Badge 
+                          variant={status.color === 'green' ? 'default' : status.color === 'red' ? 'destructive' : 'secondary'}
+                          className="ml-2"
+                        >
+                          {status.status}
+                        </Badge>
+                      </div>
+                      
+                      {cap && cap.members.length > 0 ? (
+                        <div className="mt-3 pt-3 border-t">
+                          <div className="text-xs font-semibold text-gray-700 mb-2">
+                            Team Members ({cap.members.length})
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {cap.members.map((member: any, mIdx: number) => (
+                              <div 
+                                key={mIdx}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 rounded text-xs"
+                              >
+                                <span className="font-medium text-blue-900">{member.name}</span>
+                                <span className="text-blue-600">({member.role})</span>
+                                <span className="font-bold text-blue-700">L{member.level}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-3 pt-3 border-t">
+                          <p className="text-sm text-red-600 font-semibold">
+                            ⚠️ No team members currently have this skill at the required level
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Delivery Team Structure Tab */}
+        <TabsContent value="delivery-team" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle style={{ color: '#000000', fontWeight: '700' }}>Delivery Team Structure</CardTitle>
+              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
+                Roles and responsibilities for delivering {service.name}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {service.deliveryTeam.map((team, idx) => (
+                  <div key={idx} className="border rounded-lg p-5 bg-gray-50">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">{team.seniority}</h3>
+                        <p className="text-sm text-gray-600 mt-1">Est. Hours: {team.hoursEstimate}</p>
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        {teamMembers.filter(m => m.role === team.seniority).length} Available
+                      </Badge>
+                    </div>
+                    
+                    <div className="mb-3">
+                      <div className="text-sm font-semibold text-gray-700 mb-2">Responsibilities:</div>
+                      <ul className="list-disc list-inside space-y-1">
+                        {team.responsibilities.map((resp, rIdx) => (
+                          <li key={rIdx} className="text-sm text-gray-900">{resp}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {teamMembers.filter(m => m.role === team.seniority).length > 0 ? (
+                      <div className="mt-4 pt-4 border-t">
+                        <div className="text-sm font-semibold text-gray-700 mb-2">Available Team Members:</div>
+                        <div className="flex flex-wrap gap-2">
+                          {teamMembers
+                            .filter(m => m.role === team.seniority)
+                            .map((member, mIdx) => (
+                              <div 
+                                key={mIdx}
+                                className="px-3 py-1 bg-white border-2 border-blue-300 rounded-lg text-sm font-medium text-blue-900"
+                              >
+                                {member.full_name}
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-4 pt-4 border-t">
+                        <p className="text-sm text-red-600 font-semibold">
+                          ⚠️ No {team.seniority} level team members available
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Workflows Tab */}
         <TabsContent value="workflows" className="mt-6">
