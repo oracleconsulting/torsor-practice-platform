@@ -166,7 +166,7 @@ export default function TeamMemberProfilePage() {
       const { data: goals, error: goalsError } = await supabase
         .from('development_goals')
         .select('*')
-        .eq('team_member_id', memberId)
+        .eq('practice_member_id', memberId)
         .in('status', ['in_progress', 'not_started'])
         .order('target_date', { ascending: true });
 
