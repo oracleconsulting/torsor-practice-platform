@@ -54,17 +54,35 @@ export default function TeamMemberDashboard() {
   useEffect(() => {
     const viewAsParam = searchParams.get('viewAs');
     
+    // PRIORITY 1: If viewAs parameter exists, ALWAYS load that user's data
     if (viewAsParam) {
-      // Admin is viewing another user's dashboard
+      console.log('[Dashboard] Loading data for viewAs:', viewAsParam);
       checkAdminAndLoadMember(viewAsParam);
-    } else if (practiceMember?.id && !viewingAsMemberId) {
-      // Regular user viewing their own dashboard (only if not viewing as someone else)
+      return; // Exit early to prevent loading own data
+    }
+    
+    // PRIORITY 2: Only load own data if NOT viewing as someone else
+    if (practiceMember?.id && !viewingAsMemberId && !viewAsParam) {
+      console.log('[Dashboard] Loading own data for:', practiceMember.id);
       loadDashboardData();
     }
-  }, [practiceMember?.id, searchParams, viewingAsMemberId]);
+  }, [searchParams]); // Only depend on searchParams to avoid race conditions
+
+  // Separate effect for initial load when no viewAs
+  useEffect(() => {
+    const viewAsParam = searchParams.get('viewAs');
+    if (!viewAsParam && practiceMember?.id && !viewingAsMemberId) {
+      loadDashboardData();
+    }
+  }, [practiceMember?.id]);
 
   const checkAdminAndLoadMember = async (memberId: string) => {
     try {
+      console.log('[Dashboard] checkAdminAndLoadMember called for:', memberId);
+      
+      // Immediately set viewing state to prevent override
+      setViewingAsMemberId(memberId);
+      
       // Check if current user is admin
       const { data: currentUser } = await supabase
         .from('practice_members')
@@ -72,19 +90,22 @@ export default function TeamMemberDashboard() {
         .eq('user_id', user?.id)
         .single();
 
+      console.log('[Dashboard] Current user role:', currentUser?.role);
+
       const allowedRoles = ['owner', 'admin', 'partner', 'director'];
       const hasAccess = currentUser && allowedRoles.includes(currentUser.role.toLowerCase());
       setIsAdmin(hasAccess);
 
       if (!hasAccess) {
+        console.log('[Dashboard] Access denied, redirecting');
         navigate('/accountancy/team-member/dashboard');
         return;
       }
 
-      setViewingAsMemberId(memberId);
+      console.log('[Dashboard] Access granted, loading member data');
       await loadDashboardDataForMember(memberId);
     } catch (error) {
-      console.error('Error checking admin access:', error);
+      console.error('[Dashboard] Error checking admin access:', error);
       navigate('/accountancy/team-member/dashboard');
     }
   };
@@ -145,6 +166,14 @@ export default function TeamMemberDashboard() {
 
   const loadDashboardData = async () => {
     try {
+      // Safety check: Don't load own data if viewing as someone else
+      const viewAsParam = searchParams.get('viewAs');
+      if (viewAsParam || viewingAsMemberId) {
+        console.log('[Dashboard] Skipping loadDashboardData - viewing as another user');
+        return;
+      }
+      
+      console.log('[Dashboard] Loading own dashboard data');
       setLoading(true);
 
       // Get skill assessments
