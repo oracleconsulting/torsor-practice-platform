@@ -53,6 +53,14 @@ export default function Auth() {
     if (pageLoaded && !loading && user) {
       console.log('[Auth Debug] User authenticated, checking redirect');
       
+      // Guard: Only run once per user session to prevent double redirects
+      const redirectKey = `redirect_processed_${user.id}`;
+      if (sessionStorage.getItem(redirectKey)) {
+        console.log('[Auth Debug] Redirect already processed for this session, skipping');
+        return;
+      }
+      sessionStorage.setItem(redirectKey, 'true');
+      
       const handleRedirect = async () => {
         // Check if user has accountancy access (check metadata or practice_members)
         const metadata = user.user_metadata || {};
