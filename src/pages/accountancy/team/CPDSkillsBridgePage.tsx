@@ -1,28 +1,64 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import CPDSkillsBridge from '@/components/accountancy/team/CPDSkillsBridge';
+import QuickCPDLogger from '@/components/accountancy/team/QuickCPDLogger';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Activity, TrendingUp, ArrowLeft, Info } from 'lucide-react';
+import { Activity, TrendingUp, ArrowLeft, Info, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase/client';
 
 const CPDSkillsBridgePage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const memberId = user?.id || '';
+  const [memberId, setMemberId] = useState<string>('');
+  const [isLogCPDOpen, setIsLogCPDOpen] = useState(false);
+
+  useEffect(() => {
+    if (user?.id) {
+      loadMemberId();
+    }
+  }, [user?.id]);
+
+  const loadMemberId = async () => {
+    try {
+      const { data: member } = await supabase
+        .from('practice_members')
+        .select('id')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (member) {
+        setMemberId(member.id);
+      }
+    } catch (error) {
+      console.error('Error loading member ID:', error);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Back Button */}
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/accountancy/team')}
-          className="text-white font-medium hover:text-white"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Team Management
-        </Button>
+        {/* Header with Back Button and Log CPD Button */}
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/team-member/dashboard')}
+            className="text-white font-medium hover:text-white"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Dashboard
+          </Button>
+
+          <Button
+            onClick={() => setIsLogCPDOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Log CPD Activity
+          </Button>
+        </div>
 
         {/* Header */}
         <Card className="bg-gray-800 border-gray-700">
@@ -81,6 +117,25 @@ const CPDSkillsBridgePage: React.FC = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Log CPD Dialog */}
+        <Dialog open={isLogCPDOpen} onOpenChange={setIsLogCPDOpen}>
+          <DialogContent className="max-w-2xl bg-gray-800 text-white border-gray-700">
+            <DialogHeader>
+              <DialogTitle className="text-white text-2xl">Log CPD Activity</DialogTitle>
+            </DialogHeader>
+            {memberId && (
+              <QuickCPDLogger
+                memberId={memberId}
+                onComplete={() => {
+                  setIsLogCPDOpen(false);
+                  // Optionally refresh the CPD data
+                  window.location.reload();
+                }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

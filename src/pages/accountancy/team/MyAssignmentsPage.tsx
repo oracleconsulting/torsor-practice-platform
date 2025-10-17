@@ -35,27 +35,46 @@ import {
 } from 'lucide-react';
 
 export default function MyAssignmentsPage() {
-  const { practice, practiceMember } = useAccountancyContext();
+  const { practice } = useAccountancyContext();
   const { user } = useAuth();
 
   const [assignments, setAssignments] = useState<(WorkflowInstanceAssignment & {
     workflow_instance?: any;
   })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [practiceMemberId, setPracticeMemberId] = useState<string | null>(null);
   const [selectedAssignment, setSelectedAssignment] = useState<WorkflowInstanceAssignment | null>(null);
   const [isLogHoursOpen, setIsLogHoursOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
 
   useEffect(() => {
-    if (practiceMember?.id) {
-      loadAssignments();
+    if (user?.id) {
+      loadMyData();
     }
-  }, [practiceMember?.id]);
+  }, [user?.id]);
 
-  const loadAssignments = async () => {
+  const loadMyData = async () => {
     try {
       setLoading(true);
-      const data = await getMemberAssignments(practiceMember!.id);
+
+      // Get practice member for this user
+      const { data: member } = await supabase
+        .from('practice_members')
+        .select('id')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (!member) {
+        console.log('[MyAssignments] No practice member found for user');
+        setLoading(false);
+        return;
+      }
+
+      console.log('[MyAssignments] Found practice member:', member.id);
+      setPracticeMemberId(member.id);
+
+      // Load assignments
+      const data = await getMemberAssignments(member.id);
       setAssignments(data as any);
     } catch (error) {
       console.error('Error loading assignments:', error);

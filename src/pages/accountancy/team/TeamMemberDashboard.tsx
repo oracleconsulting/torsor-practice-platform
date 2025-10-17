@@ -390,8 +390,8 @@ export default function TeamMemberDashboard() {
                     <BookOpen className="h-6 w-6 text-green-600" />
                   </div>
                   <div>
-                    <CardTitle>My Assignments</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="text-black">My Assignments</CardTitle>
+                    <CardDescription className="text-black">
                       View your client work and log hours
                     </CardDescription>
                   </div>
@@ -424,8 +424,8 @@ export default function TeamMemberDashboard() {
                     <Target className="h-6 w-6 text-amber-600" />
                   </div>
                   <div>
-                    <CardTitle>My Skills Assessment</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="text-black">My Skills Assessment</CardTitle>
+                    <CardDescription className="text-black">
                       View and update your skill levels
                     </CardDescription>
                   </div>
@@ -466,8 +466,8 @@ export default function TeamMemberDashboard() {
                     <Award className="h-6 w-6 text-blue-600" />
                   </div>
                   <div>
-                    <CardTitle>My CPD</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="text-black">My CPD</CardTitle>
+                    <CardDescription className="text-black">
                       Log and track your professional development
                     </CardDescription>
                   </div>
@@ -508,8 +508,8 @@ export default function TeamMemberDashboard() {
                     <Users className="h-6 w-6 text-purple-600" />
                   </div>
                   <div>
-                    <CardTitle>Mentoring</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="text-black">Mentoring</CardTitle>
+                    <CardDescription className="text-black">
                       Connect with mentors and peers
                     </CardDescription>
                   </div>
@@ -544,8 +544,8 @@ export default function TeamMemberDashboard() {
                     <BookOpen className="h-6 w-6 text-green-600" />
                   </div>
                   <div>
-                    <CardTitle>Knowledge Base</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="text-black">Knowledge Base</CardTitle>
+                    <CardDescription className="text-black">
                       Access resources and leadership library
                     </CardDescription>
                   </div>
