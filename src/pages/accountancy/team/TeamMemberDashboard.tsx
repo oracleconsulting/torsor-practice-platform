@@ -50,6 +50,7 @@ export default function TeamMemberDashboard() {
   const [viewingAsMemberId, setViewingAsMemberId] = useState<string | null>(null);
   const [viewingAsMemberName, setViewingAsMemberName] = useState<string>('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [memberName, setMemberName] = useState<string>('Team Member');
 
   // Debug logging
   useEffect(() => {
@@ -214,6 +215,9 @@ export default function TeamMemberDashboard() {
 
       console.log('[Dashboard] Found practice member:', member.name, member.id);
 
+      // Set member name for UI
+      setMemberName(member.name);
+
       // Get skill assessments
       const { data: assessments } = await supabase
         .from('skill_assessments')
@@ -305,7 +309,7 @@ export default function TeamMemberDashboard() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Welcome back, {viewingAsMemberName || practiceMember?.name || 'Team Member'}!
+            Welcome back, {viewingAsMemberName || memberName}!
           </h1>
           <p className="text-gray-600">
             Here's {viewingAsMemberId ? 'their' : 'your'} personal development overview
