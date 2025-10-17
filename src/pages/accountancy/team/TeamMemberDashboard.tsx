@@ -405,7 +405,7 @@ export default function TeamMemberDashboard() {
                   <span className="font-bold text-green-600">Track work</span>
                 </div>
                 <Button 
-                  onClick={() => navigate('/accountancy/team-member/assignments')}
+                  onClick={() => navigate('/team-member/assignments')}
                   className="w-full bg-green-600 hover:bg-green-700"
                 >
                   <BookOpen className="h-4 w-4 mr-2" />
@@ -440,14 +440,14 @@ export default function TeamMemberDashboard() {
                 </div>
                 <div className="flex gap-2">
                   <Button 
-                    onClick={() => navigate('/accountancy/team/skills-assessment')}
+                    onClick={() => navigate('/team-member/skills-assessment')}
                     className="flex-1 bg-amber-600 hover:bg-amber-700"
                   >
                     <Edit className="h-4 w-4 mr-2" />
                     Edit Assessment
                   </Button>
                   <Button 
-                    onClick={() => navigate('/accountancy/team/skills-dashboard')}
+                    onClick={() => navigate('/team-member/skills-heatmap')}
                     variant="outline"
                   >
                     <ArrowRight className="h-4 w-4" />
@@ -482,14 +482,14 @@ export default function TeamMemberDashboard() {
                 </div>
                 <div className="flex gap-2">
                   <Button 
-                    onClick={() => navigate('/accountancy/team-member/cpd/log')}
+                    onClick={() => navigate('/team-member/cpd')}
                     className="flex-1 bg-blue-600 hover:bg-blue-700"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Log CPD
                   </Button>
                   <Button 
-                    onClick={() => navigate('/accountancy/team-member/cpd')}
+                    onClick={() => navigate('/team-member/cpd')}
                     variant="outline"
                   >
                     <ArrowRight className="h-4 w-4" />
@@ -525,7 +525,7 @@ export default function TeamMemberDashboard() {
                   </Badge>
                 </div>
                 <Button 
-                  onClick={() => navigate('/accountancy/team-portal/mentoring')}
+                  onClick={() => navigate('/team-member/mentoring')}
                   className="w-full bg-purple-600 hover:bg-purple-700"
                 >
                   View Opportunities
@@ -558,7 +558,7 @@ export default function TeamMemberDashboard() {
                   Books, guides, articles, and training materials
                 </div>
                 <Button 
-                  onClick={() => navigate('/accountancy/team/knowledge-base')}
+                  onClick={() => navigate('/team-member/knowledge-base')}
                   className="w-full bg-green-600 hover:bg-green-700"
                 >
                   Browse Resources

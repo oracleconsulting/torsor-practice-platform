@@ -23,6 +23,11 @@ import TeamManagementPage from '../pages/accountancy/TeamManagementPage';
 import SkillsAssessmentPage from '../pages/accountancy/team/SkillsAssessmentPage';
 import TeamMemberProfilePage from '../pages/accountancy/team/TeamMemberProfilePage';
 import TeamMemberDashboard from '../pages/accountancy/team/TeamMemberDashboard';
+import MySkillsHeatmap from '../pages/accountancy/team/MySkillsHeatmap';
+import MyAssignmentsPage from '../pages/accountancy/team/MyAssignmentsPage';
+import KnowledgeBasePage from '../pages/accountancy/team/KnowledgeBasePage';
+import MentoringHubPage from '../pages/accountancy/team/MentoringHubPage';
+import CPDSkillsBridge from '../pages/accountancy/team/CPDSkillsBridge';
 import { AlternateAuditorPage } from '../pages/accountancy/AlternateAuditorPage';
 import { MTDCapacityPage } from '../pages/accountancy/MTDCapacityPage';
 import { ESGReportingPage } from '../pages/accountancy/ESGReportingPage';
@@ -245,8 +250,12 @@ const TorsorRoutes: React.FC = () => {
                 <TeamMemberDashboard />
               </>
             } />
-            <Route path="cpd" element={<Navigate to="/team" replace />} />
-            <Route path="assignments" element={<Navigate to="/team" replace />} />
+            <Route path="skills-heatmap" element={<MySkillsHeatmap />} />
+            <Route path="skills-assessment" element={<SkillsAssessmentPage />} />
+            <Route path="cpd" element={<CPDSkillsBridge />} />
+            <Route path="assignments" element={<MyAssignmentsPage />} />
+            <Route path="mentoring" element={<MentoringHubPage />} />
+            <Route path="knowledge-base" element={<KnowledgeBasePage />} />
           </Routes>
         </ProtectedRoute>
       } />
