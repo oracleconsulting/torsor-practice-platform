@@ -27,7 +27,7 @@ import MySkillsHeatmap from '../pages/accountancy/team/MySkillsHeatmap';
 import MyAssignmentsPage from '../pages/accountancy/team/MyAssignmentsPage';
 import KnowledgeBasePage from '../pages/accountancy/team/KnowledgeBasePage';
 import MentoringHubPage from '../pages/accountancy/team/MentoringHubPage';
-import CPDSkillsBridge from '../pages/accountancy/team/CPDSkillsBridge';
+import CPDSkillsBridgePage from '../pages/accountancy/team/CPDSkillsBridgePage';
 import { AlternateAuditorPage } from '../pages/accountancy/AlternateAuditorPage';
 import { MTDCapacityPage } from '../pages/accountancy/MTDCapacityPage';
 import { ESGReportingPage } from '../pages/accountancy/ESGReportingPage';
@@ -252,7 +252,7 @@ const TorsorRoutes: React.FC = () => {
             } />
             <Route path="skills-heatmap" element={<MySkillsHeatmap />} />
             <Route path="skills-assessment" element={<SkillsAssessmentPage />} />
-            <Route path="cpd" element={<CPDSkillsBridge />} />
+            <Route path="cpd" element={<CPDSkillsBridgePage />} />
             <Route path="assignments" element={<MyAssignmentsPage />} />
             <Route path="mentoring" element={<MentoringHubPage />} />
             <Route path="knowledge-base" element={<KnowledgeBasePage />} />
