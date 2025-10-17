@@ -54,12 +54,17 @@ export default function Auth() {
       console.log('[Auth Debug] User authenticated, checking redirect');
       
       // Guard: Only run once per user session to prevent double redirects
+      // Use a timestamp to ensure freshness
       const redirectKey = `redirect_processed_${user.id}`;
-      if (sessionStorage.getItem(redirectKey)) {
-        console.log('[Auth Debug] Redirect already processed for this session, skipping');
+      const lastRedirect = sessionStorage.getItem(redirectKey);
+      const now = Date.now();
+      
+      // Skip if redirect happened in the last 5 seconds
+      if (lastRedirect && (now - parseInt(lastRedirect)) < 5000) {
+        console.log('[Auth Debug] Redirect already processed recently, skipping');
         return;
       }
-      sessionStorage.setItem(redirectKey, 'true');
+      sessionStorage.setItem(redirectKey, now.toString());
       
       const handleRedirect = async () => {
         // Check if user has accountancy access (check metadata or practice_members)
