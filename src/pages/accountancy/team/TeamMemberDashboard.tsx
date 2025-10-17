@@ -35,7 +35,7 @@ export default function TeamMemberDashboard() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const { practiceMember } = useAccountancyContext();
+  const { practiceId } = useAccountancyContext();
   
   const [stats, setStats] = useState<TeamMemberStats>({
     totalSkills: 0,
@@ -56,18 +56,17 @@ export default function TeamMemberDashboard() {
     console.log('[TeamMemberDashboard] State:', {
       user: user?.email,
       userId: user?.id,
-      practiceMember: practiceMember?.name,
-      practiceMemberId: practiceMember?.id,
+      practiceId,
       loading
     });
-  }, [user, practiceMember, loading]);
+  }, [user, practiceId, loading]);
 
   useEffect(() => {
     const viewAsParam = searchParams.get('viewAs');
     
     console.log('[TeamMemberDashboard] useEffect triggered:', {
       viewAsParam,
-      practiceMemberId: practiceMember?.id,
+      userId: user?.id,
       viewingAsMemberId
     });
     
@@ -79,32 +78,17 @@ export default function TeamMemberDashboard() {
     }
     
     // PRIORITY 2: Only load own data if NOT viewing as someone else
-    if (practiceMember?.id && !viewingAsMemberId && !viewAsParam) {
-      console.log('[Dashboard] Loading own data for:', practiceMember.id);
+    if (user?.id && !viewingAsMemberId && !viewAsParam) {
+      console.log('[Dashboard] Loading own data for user:', user.id);
       loadDashboardData();
     } else {
       console.log('[Dashboard] NOT loading data. Conditions:', {
-        hasPracticeMemberId: !!practiceMember?.id,
+        hasUserId: !!user?.id,
         isViewingAsOther: !!viewingAsMemberId,
         hasViewAsParam: !!viewAsParam
       });
     }
-  }, [searchParams]); // Only depend on searchParams to avoid race conditions
-
-  // Separate effect for initial load when no viewAs
-  useEffect(() => {
-    const viewAsParam = searchParams.get('viewAs');
-    console.log('[TeamMemberDashboard] Second useEffect:', {
-      viewAsParam,
-      practiceMemberId: practiceMember?.id,
-      viewingAsMemberId
-    });
-    
-    if (!viewAsParam && practiceMember?.id && !viewingAsMemberId) {
-      console.log('[Dashboard] Loading dashboard data from second useEffect');
-      loadDashboardData();
-    }
-  }, [practiceMember?.id]);
+  }, [searchParams, user?.id]); // Depend on searchParams and user.id
 
   const checkAdminAndLoadMember = async (memberId: string) => {
     try {
@@ -206,14 +190,35 @@ export default function TeamMemberDashboard() {
         return;
       }
       
-      console.log('[Dashboard] Loading own dashboard data');
+      if (!user?.id) {
+        console.log('[Dashboard] No user ID, cannot load data');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('[Dashboard] Loading own dashboard data for user:', user.id);
       setLoading(true);
 
+      // First, get the practice_member record for this user
+      const { data: member } = await supabase
+        .from('practice_members')
+        .select('id, name')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!member) {
+        console.log('[Dashboard] No practice member found for user');
+        setLoading(false);
+        return;
+      }
+
+      console.log('[Dashboard] Found practice member:', member.name, member.id);
+
       // Get skill assessments
-      const { data: assessments, error: assessError } = await supabase
+      const { data: assessments } = await supabase
         .from('skill_assessments')
         .select('current_level, skill_id')
-        .eq('team_member_id', practiceMember?.id);
+        .eq('team_member_id', member.id);
 
       // Get total skills count
       const { count: totalSkillsCount } = await supabase
@@ -221,10 +226,10 @@ export default function TeamMemberDashboard() {
         .select('*', { count: 'exact', head: true });
 
       // Get CPD activities
-      const { data: cpdData, error: cpdError } = await supabase
+      const { data: cpdData } = await supabase
         .from('cpd_activities')
         .select('hours_claimed, activity_date, title, activity_type')
-        .eq('practice_member_id', practiceMember?.id)
+        .eq('practice_member_id', member.id)
         .order('activity_date', { ascending: false })
         .limit(5);
 
