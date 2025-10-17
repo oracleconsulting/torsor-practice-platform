@@ -51,8 +51,25 @@ export default function TeamMemberDashboard() {
   const [viewingAsMemberName, setViewingAsMemberName] = useState<string>('');
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // Debug logging
+  useEffect(() => {
+    console.log('[TeamMemberDashboard] State:', {
+      user: user?.email,
+      userId: user?.id,
+      practiceMember: practiceMember?.name,
+      practiceMemberId: practiceMember?.id,
+      loading
+    });
+  }, [user, practiceMember, loading]);
+
   useEffect(() => {
     const viewAsParam = searchParams.get('viewAs');
+    
+    console.log('[TeamMemberDashboard] useEffect triggered:', {
+      viewAsParam,
+      practiceMemberId: practiceMember?.id,
+      viewingAsMemberId
+    });
     
     // PRIORITY 1: If viewAs parameter exists, ALWAYS load that user's data
     if (viewAsParam) {
@@ -65,13 +82,26 @@ export default function TeamMemberDashboard() {
     if (practiceMember?.id && !viewingAsMemberId && !viewAsParam) {
       console.log('[Dashboard] Loading own data for:', practiceMember.id);
       loadDashboardData();
+    } else {
+      console.log('[Dashboard] NOT loading data. Conditions:', {
+        hasPracticeMemberId: !!practiceMember?.id,
+        isViewingAsOther: !!viewingAsMemberId,
+        hasViewAsParam: !!viewAsParam
+      });
     }
   }, [searchParams]); // Only depend on searchParams to avoid race conditions
 
   // Separate effect for initial load when no viewAs
   useEffect(() => {
     const viewAsParam = searchParams.get('viewAs');
+    console.log('[TeamMemberDashboard] Second useEffect:', {
+      viewAsParam,
+      practiceMemberId: practiceMember?.id,
+      viewingAsMemberId
+    });
+    
     if (!viewAsParam && practiceMember?.id && !viewingAsMemberId) {
+      console.log('[Dashboard] Loading dashboard data from second useEffect');
       loadDashboardData();
     }
   }, [practiceMember?.id]);
