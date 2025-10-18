@@ -982,22 +982,22 @@ const CPDTrackerPage: React.FC = () => {
 
         {/* Recommendations Tab */}
         <TabsContent value="recommendations" className="space-y-6">
-          <Card className="border-gray-700">
+          <Card className="bg-white border-gray-200">
             <CardHeader>
-              <CardTitle>External CPD Resources</CardTitle>
-              <CardDescription>Curated training and development opportunities</CardDescription>
+              <CardTitle className="text-gray-900">External CPD Resources</CardTitle>
+              <CardDescription className="text-gray-600">Curated training and development opportunities</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {externalResources.length === 0 ? (
-                  <p className="text-center text-white font-medium py-8">No external resources available yet.</p>
+                  <p className="text-center text-gray-900 font-medium py-8">No external resources available yet.</p>
                 ) : (
                   externalResources.slice(0, 10).map((resource) => (
-                    <div key={resource.id} className="p-4 bg-gray-800 rounded-lg">
+                    <div key={resource.id} className="p-4 bg-gray-800 rounded-lg border border-gray-700">
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1">
-                          <h4 className="font-medium">{resource.title}</h4>
-                          <p className="text-sm text-white font-medium">
+                          <h4 className="font-medium text-white">{resource.title}</h4>
+                          <p className="text-sm text-gray-300 font-medium">
                             {resource.provider}
                             {resource.cpd_hours && ` • ${resource.cpd_hours} hours`}
                             {resource.accredited_by && ` • Accredited by ${resource.accredited_by}`}
@@ -1008,10 +1008,10 @@ const CPDTrackerPage: React.FC = () => {
                         </Badge>
                       </div>
                       {resource.description && (
-                        <p className="text-sm text-gray-100 font-medium mb-3">{resource.description}</p>
+                        <p className="text-sm text-gray-200 font-medium mb-3">{resource.description}</p>
                       )}
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4 text-sm text-white font-medium">
+                        <div className="flex items-center gap-4 text-sm text-gray-300 font-medium">
                           {resource.duration && (
                             <span className="flex items-center gap-1">
                               <Clock className="h-4 w-4" />
@@ -1050,57 +1050,57 @@ const CPDTrackerPage: React.FC = () => {
           </Card>
 
           {/* Learning Paths */}
-          <Card className="border-gray-700">
+          <Card className="bg-white border-gray-200">
             <CardHeader>
-              <CardTitle>Suggested Learning Paths</CardTitle>
-              <CardDescription>Structured development programs for career progression</CardDescription>
+              <CardTitle className="text-gray-900">Suggested Learning Paths</CardTitle>
+              <CardDescription className="text-gray-600">Structured development programs for career progression</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="border border-gray-700 rounded-lg p-4">
-                  <h4 className="font-medium mb-2">Advisory Excellence Path</h4>
-                  <p className="text-sm text-white font-medium mb-3">
+                <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                  <h4 className="font-medium mb-2 text-gray-900">Advisory Excellence Path</h4>
+                  <p className="text-sm text-gray-700 font-medium mb-3">
                     Transform from compliance to advisory professional
                   </p>
                   <div className="space-y-2 mb-4">
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2 text-sm text-gray-900">
                       <CheckCircle className="h-4 w-4 text-green-500" />
                       <span>Business Advisory Fundamentals</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="h-4 w-4 rounded-full border border-gray-500" />
+                    <div className="flex items-center gap-2 text-sm text-gray-700">
+                      <div className="h-4 w-4 rounded-full border border-gray-400" />
                       <span>Financial Modeling & Analysis</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="h-4 w-4 rounded-full border border-gray-500" />
+                    <div className="flex items-center gap-2 text-sm text-gray-700">
+                      <div className="h-4 w-4 rounded-full border border-gray-400" />
                       <span>Strategic Planning Workshop</span>
                     </div>
                   </div>
-                  <Button variant="outline" size="sm" className="w-full">
+                  <Button variant="outline" size="sm" className="w-full border-gray-300 text-gray-900 hover:bg-gray-100">
                     View Path
                   </Button>
                 </div>
 
-                <div className="border border-gray-700 rounded-lg p-4">
-                  <h4 className="font-medium mb-2">Digital Transformation Path</h4>
-                  <p className="text-sm text-white font-medium mb-3">
+                <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                  <h4 className="font-medium mb-2 text-gray-900">Digital Transformation Path</h4>
+                  <p className="text-sm text-gray-700 font-medium mb-3">
                     Master technology and automation tools
                   </p>
                   <div className="space-y-2 mb-4">
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="h-4 w-4 rounded-full border border-gray-500" />
+                    <div className="flex items-center gap-2 text-sm text-gray-700">
+                      <div className="h-4 w-4 rounded-full border border-gray-400" />
                       <span>Cloud Accounting Mastery</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="h-4 w-4 rounded-full border border-gray-500" />
+                    <div className="flex items-center gap-2 text-sm text-gray-700">
+                      <div className="h-4 w-4 rounded-full border border-gray-400" />
                       <span>Data Analytics for Accountants</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="h-4 w-4 rounded-full border border-gray-500" />
+                    <div className="flex items-center gap-2 text-sm text-gray-700">
+                      <div className="h-4 w-4 rounded-full border border-gray-400" />
                       <span>Process Automation Tools</span>
                     </div>
                   </div>
-                  <Button variant="outline" size="sm" className="w-full">
+                  <Button variant="outline" size="sm" className="w-full border-gray-300 text-gray-900 hover:bg-gray-100">
                     View Path
                   </Button>
                 </div>
