@@ -56,7 +56,7 @@ export const MySkillsComparison: React.FC = () => {
       const { data: myAssessments, error: assessError } = await supabase
         .from('skill_assessments')
         .select('skill_id, current_level')
-        .eq('practice_member_id', member.id);
+        .eq('team_member_id', member.id);
 
       console.log('[SkillsComparison] My assessments:', myAssessments, 'Error:', assessError);
 
