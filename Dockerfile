@@ -1,9 +1,9 @@
 # Use Node 20 to avoid Docker Hub rate limiting issues
 FROM node:20-alpine AS deps
 # Install dependencies needed for node-gyp
-# BUILD: 2025-10-11-v1.0.3 - FORCE CACHE CLEAR
-# Problem: Railway was caching Vite build, causing unchanged file hashes
-# Solution: Added explicit Vite cache clearing before build
+# BUILD: 2025-10-18-v1.0.4 - FORCE REBUILD FOR SKILLS FIX
+# Problem: Supabase query syntax fixed but Railway cached old build
+# Solution: Increment cache bust to force complete rebuild
 RUN apk add --no-cache python3 make g++ git curl wget nano
 
 WORKDIR /app
@@ -29,7 +29,7 @@ COPY package*.json ./
 COPY --from=deps /app/node_modules ./node_modules
 
 # Force cache invalidation - MUST be after node_modules copy
-ARG CACHEBUST=1
+ARG CACHEBUST=2
 RUN echo "Builder cache bust: $CACHEBUST" && \
     echo "Timestamp: $(date)" && \
     rm -rf dist .vite node_modules/.vite
