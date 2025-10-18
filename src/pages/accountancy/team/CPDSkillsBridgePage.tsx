@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import CPDSkillsBridge from '@/components/accountancy/team/CPDSkillsBridge';
 import QuickCPDLogger from '@/components/accountancy/team/QuickCPDLogger';
+import CPDSkillReassessment from '@/components/accountancy/team/CPDSkillReassessment';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Activity, TrendingUp, ArrowLeft, Info, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,13 @@ const CPDSkillsBridgePage: React.FC = () => {
   const { user } = useAuth();
   const [memberId, setMemberId] = useState<string>('');
   const [isLogCPDOpen, setIsLogCPDOpen] = useState(false);
+  const [isReassessmentOpen, setIsReassessmentOpen] = useState(false);
+  const [cpdActivityData, setCpdActivityData] = useState<{
+    id: string;
+    skillIds: string[];
+    hours: number;
+    title: string;
+  } | null>(null);
 
   useEffect(() => {
     if (user?.id) {
@@ -30,7 +38,7 @@ const CPDSkillsBridgePage: React.FC = () => {
         .single();
 
       if (member) {
-        setMemberId(member.id);
+        setMemberId((member as any).id);
       }
     } catch (error) {
       console.error('Error loading member ID:', error);
@@ -127,17 +135,54 @@ const CPDSkillsBridgePage: React.FC = () => {
             {memberId && (
               <QuickCPDLogger
                 memberId={memberId}
-                onComplete={async () => {
-                  // Wait a moment to ensure database save completes
-                  await new Promise(resolve => setTimeout(resolve, 500));
+                onComplete={async (cpdActivityId: string, selectedSkills: string[]) => {
+                  // Close CPD dialog
                   setIsLogCPDOpen(false);
-                  // Navigate back to dashboard instead of reload
-                  navigate('/team-member/dashboard');
+                  
+                  // Get CPD details for reassessment
+                  const { data: cpdActivity } = await supabase
+                    .from('cpd_activities')
+                    .select('title, hours_claimed')
+                    .eq('id', cpdActivityId)
+                    .single();
+
+                  if (cpdActivity && selectedSkills.length > 0) {
+                    const activityData = cpdActivity as any;
+                    // Open reassessment dialog
+                    setCpdActivityData({
+                      id: cpdActivityId,
+                      skillIds: selectedSkills,
+                      hours: activityData.hours_claimed,
+                      title: activityData.title
+                    });
+                    setIsReassessmentOpen(true);
+                  } else {
+                    // No skills selected, just refresh
+                    window.location.reload();
+                  }
                 }}
               />
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Skill Reassessment Dialog */}
+        {cpdActivityData && (
+          <CPDSkillReassessment
+            isOpen={isReassessmentOpen}
+            onClose={() => {
+              setIsReassessmentOpen(false);
+              setCpdActivityData(null);
+              // Refresh the page to show updated data
+              window.location.reload();
+            }}
+            memberId={memberId}
+            cpdActivityId={cpdActivityData.id}
+            selectedSkillIds={cpdActivityData.skillIds}
+            cpdHours={cpdActivityData.hours}
+            cpdTitle={cpdActivityData.title}
+          />
+        )}
       </div>
     </div>
   );

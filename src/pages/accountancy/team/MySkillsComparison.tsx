@@ -50,13 +50,13 @@ export const MySkillsComparison: React.FC = () => {
         return;
       }
 
-      console.log('[SkillsComparison] Loading for member:', member.id);
+      console.log('[SkillsComparison] Loading for member:', (member as any).id);
 
       // Get MY assessments first - simple query
       const { data: myAssessments, error: assessError } = await supabase
         .from('skill_assessments')
         .select('skill_id, current_level')
-        .eq('team_member_id', member.id);
+        .eq('team_member_id', (member as any).id);
 
       console.log('[SkillsComparison] My assessments:', myAssessments, 'Error:', assessError);
 
@@ -67,7 +67,7 @@ export const MySkillsComparison: React.FC = () => {
       }
 
       // Get skill details separately
-      const mySkillIds = myAssessments.map(a => a.skill_id);
+      const mySkillIds = (myAssessments as any).map((a: any) => a.skill_id);
       const { data: skillsData } = await supabase
         .from('skills')
         .select('id, name, category_id')
@@ -79,22 +79,22 @@ export const MySkillsComparison: React.FC = () => {
       }
 
       // Get categories
-      const categoryIds = [...new Set(skillsData.map(s => s.category_id))];
+      const categoryIds = [...new Set((skillsData as any).map((s: any) => s.category_id))];
       const { data: categoriesData } = await supabase
         .from('skill_categories')
         .select('id, name')
         .in('id', categoryIds);
 
       // Create maps
-      const skillsMap = new Map(skillsData.map(s => [s.id, s]));
-      const categoriesMap = new Map(categoriesData?.map(c => [c.id, c.name]) || []);
+      const skillsMap = new Map((skillsData as any).map((s: any) => [s.id, s]));
+      const categoriesMap = new Map((categoriesData as any)?.map((c: any) => [c.id, c.name]) || []);
 
       // Get ALL assessments for these specific skills
       const { data: allAssessments } = await supabase
         .from('skill_assessments')
         .select(`
           skill_id,
-          practice_member_id,
+          team_member_id,
           current_level,
           practice_members!inner(name)
         `)
@@ -106,34 +106,34 @@ export const MySkillsComparison: React.FC = () => {
       const comparisonData: SkillComparison[] = [];
       const categorySet = new Set<string>();
 
-      for (const myAssessment of myAssessments) {
-        const skill = skillsMap.get(myAssessment.skill_id);
+      for (const myAssessment of (myAssessments as any)) {
+        const skill = skillsMap.get((myAssessment as any).skill_id);
         if (!skill) continue;
 
-        const category = categoriesMap.get(skill.category_id) || 'Uncategorized';
+        const category = categoriesMap.get((skill as any).category_id) || 'Uncategorized';
         categorySet.add(category);
 
-        const skillAssessments = allAssessments?.filter(a => a.skill_id === myAssessment.skill_id) || [];
+        const skillAssessments = (allAssessments as any)?.filter((a: any) => a.skill_id === (myAssessment as any).skill_id) || [];
         
         if (skillAssessments.length === 0) continue;
 
         // Calculate team average
-        const teamAverage = skillAssessments.reduce((sum, a) => sum + (a.current_level || 0), 0) / skillAssessments.length;
+        const teamAverage = skillAssessments.reduce((sum: number, a: any) => sum + (a.current_level || 0), 0) / skillAssessments.length;
 
         // Find top and lowest performers
-        const sortedByLevel = [...skillAssessments].sort((a, b) => (b.current_level || 0) - (a.current_level || 0));
-        const topPerformer = sortedByLevel[0];
-        const lowestPerformer = sortedByLevel[sortedByLevel.length - 1];
+        const sortedByLevel = [...skillAssessments].sort((a: any, b: any) => (b.current_level || 0) - (a.current_level || 0));
+        const topPerformer = sortedByLevel[0] as any;
+        const lowestPerformer = sortedByLevel[sortedByLevel.length - 1] as any;
 
         comparisonData.push({
-          id: skill.id,
-          name: skill.name,
+          id: (skill as any).id,
+          name: (skill as any).name,
           category,
-          myLevel: myAssessment.current_level || 0,
+          myLevel: (myAssessment as any).current_level || 0,
           teamAverage: teamAverage,
-          topPerformer: (topPerformer?.practice_members as any)?.name || 'Unknown',
+          topPerformer: topPerformer?.practice_members?.name || 'Unknown',
           topPerformerLevel: topPerformer?.current_level || 0,
-          lowestPerformer: (lowestPerformer?.practice_members as any)?.name || 'Unknown',
+          lowestPerformer: lowestPerformer?.practice_members?.name || 'Unknown',
           lowestPerformerLevel: lowestPerformer?.current_level || 0
         });
       }
