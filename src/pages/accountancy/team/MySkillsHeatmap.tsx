@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft, Download, Award } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface SkillAssessment {
@@ -12,6 +12,11 @@ interface SkillAssessment {
   category: string;
   current_level: number;
   interest_level: number;
+  description?: string;
+  team_average?: number;
+  target_average?: number;
+  top_performer?: string;
+  top_performer_level?: number;
 }
 
 export default function MySkillsHeatmap() {
@@ -45,13 +50,13 @@ export default function MySkillsHeatmap() {
         return;
       }
 
-      console.log('[MySkillsHeatmap] Loading skills for member:', member.id);
+      console.log('[MySkillsHeatmap] Loading skills for member:', (member as any).id);
 
       // Get all skill assessments for this member
       const { data: assessmentsData, error: assessError } = await supabase
         .from('skill_assessments')
         .select('skill_id, current_level, interest_level')
-        .eq('team_member_id', member.id);
+        .eq('team_member_id', (member as any).id);
 
       console.log('[MySkillsHeatmap] Assessments data:', assessmentsData, 'Error:', assessError);
 
@@ -62,12 +67,12 @@ export default function MySkillsHeatmap() {
       }
 
       // Get skill IDs
-      const skillIds = assessmentsData.map(a => a.skill_id);
+      const skillIds = (assessmentsData as any).map((a: any) => a.skill_id);
 
-      // Get skill details separately
+      // Get skill details with descriptions
       const { data: skillsData, error: skillsError } = await supabase
         .from('skills')
-        .select('id, name, category')
+        .select('id, name, category, description, target_level')
         .in('id', skillIds);
 
       console.log('[MySkillsHeatmap] Skills data:', skillsData, 'Error:', skillsError);
@@ -77,9 +82,19 @@ export default function MySkillsHeatmap() {
         return;
       }
 
-      console.log('[MySkillsHeatmap] Categories data:', skillsData);
+      // Get ALL team assessments for comparison
+      const { data: allTeamAssessments } = await supabase
+        .from('skill_assessments')
+        .select(`
+          skill_id,
+          current_level,
+          practice_members!inner(name)
+        `)
+        .in('skill_id', skillIds);
 
-      // Create lookup maps - skills table has category directly
+      console.log('[MySkillsHeatmap] Team assessments:', allTeamAssessments);
+
+      // Create lookup maps
       const skillsMap = new Map(skillsData.map((s: any) => [s.id, s]));
 
       if (assessmentsData) {
@@ -87,13 +102,29 @@ export default function MySkillsHeatmap() {
           .map((a: any) => {
             const skill = skillsMap.get(a.skill_id);
             if (!skill) return null;
+
+            // Calculate team stats for this skill
+            const teamAssessmentsForSkill = (allTeamAssessments as any)?.filter((ta: any) => ta.skill_id === a.skill_id) || [];
+            const teamLevels = teamAssessmentsForSkill.map((ta: any) => ta.current_level || 0);
+            const teamAverage = teamLevels.length > 0 
+              ? teamLevels.reduce((sum: number, level: number) => sum + level, 0) / teamLevels.length 
+              : 0;
+            
+            // Find top performer
+            const sortedByLevel = [...teamAssessmentsForSkill].sort((a: any, b: any) => (b.current_level || 0) - (a.current_level || 0));
+            const topPerformer = sortedByLevel[0] as any;
             
             return {
               skill_id: a.skill_id,
               skill_name: (skill as any).name,
               category: (skill as any).category || 'Uncategorized',
               current_level: a.current_level,
-              interest_level: a.interest_level
+              interest_level: a.interest_level,
+              description: (skill as any).description || 'No description available',
+              team_average: teamAverage,
+              target_average: (skill as any).target_level || 3,
+              top_performer: topPerformer?.practice_members?.name || 'N/A',
+              top_performer_level: topPerformer?.current_level || 0
             };
           })
           .filter(Boolean) as SkillAssessment[];
@@ -183,131 +214,170 @@ export default function MySkillsHeatmap() {
           ))}
         </div>
 
-        {/* Legend */}
+        {/* Compact Visual Heatmap */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="text-lg">Color Guide</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="font-semibold mb-2 text-black">Skill Levels (background color):</p>
-                <div className="space-y-1 text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-gray-200 border border-gray-300 rounded"></div>
-                    <span className="text-black">0 - Not Assessed</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-red-300 border border-gray-300 rounded"></div>
-                    <span className="text-black">1 - Beginner</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-orange-300 border border-gray-300 rounded"></div>
-                    <span className="text-black">2 - Basic</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-yellow-300 border border-gray-300 rounded"></div>
-                    <span className="text-black">3 - Competent</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-lime-300 border border-gray-300 rounded"></div>
-                    <span className="text-black">4 - Proficient</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-green-400 border border-gray-300 rounded"></div>
-                    <span className="text-black">5 - Expert</span>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <p className="font-semibold mb-2 text-black">Interest Levels (border color):</p>
-                <div className="space-y-1 text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-gray-100 border-2 border-gray-300 rounded"></div>
-                    <span className="text-black">0 - No Interest</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-gray-100 border-2 border-red-400 rounded"></div>
-                    <span className="text-black">1 - Low Interest</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-gray-100 border-2 border-orange-400 rounded"></div>
-                    <span className="text-black">2 - Some Interest</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-gray-100 border-2 border-yellow-400 rounded"></div>
-                    <span className="text-black">3 - Moderate Interest</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-gray-100 border-2 border-lime-400 rounded"></div>
-                    <span className="text-black">4 - High Interest</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-gray-100 border-2 border-green-500 rounded"></div>
-                    <span className="text-black">5 - Very High Interest</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Skills Heatmap */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-black">
-              {selectedCategory === 'All' ? 'All Skills' : selectedCategory}
-            </CardTitle>
-            <CardDescription className="text-black">
-              {filteredAssessments.length} skills assessed
+            <CardTitle className="text-lg">Visual Overview</CardTitle>
+            <CardDescription>
+              Quick glance at your skills portfolio - {filteredAssessments.length} skills assessed
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            <div className="flex flex-wrap gap-2">
               {filteredAssessments.map(skill => (
                 <div
                   key={skill.skill_id}
                   className={`
                     ${getSkillLevelColor(skill.current_level)}
-                    border-2 ${getInterestBorderColor(skill.interest_level)}
-                    rounded-lg p-3 hover:shadow-lg transition-shadow cursor-pointer
+                    w-12 h-12 rounded-md hover:scale-110 transition-transform cursor-pointer
                     group relative
                   `}
-                  title={`${skill.skill_name}\nSkill Level: ${skill.current_level}/5\nInterest: ${skill.interest_level}/5`}
+                  title={skill.skill_name}
                 >
-                  <p className="text-xs font-medium text-gray-900 line-clamp-2 mb-1">
-                    {skill.skill_name}
-                  </p>
-                  <div className="flex items-center justify-between text-xs text-gray-700">
-                    <span className="font-bold">{skill.current_level}/5</span>
-                    <span className="text-gray-600">❤️ {skill.interest_level}</span>
-                  </div>
-                  
                   {/* Hover tooltip */}
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10">
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
                     <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 whitespace-nowrap shadow-lg">
                       <p className="font-semibold">{skill.skill_name}</p>
-                      <p>Skill Level: {skill.current_level}/5</p>
-                      <p>Interest: {skill.interest_level}/5</p>
+                      <p>Level: {skill.current_level}/5</p>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-
-            {filteredAssessments.length === 0 && (
-              <div className="text-center py-12 text-gray-500">
-                <p className="text-black">No skills assessed in this category yet.</p>
-                <Button
-                  onClick={() => navigate('/team-member/skills-assessment')}
-                  className="mt-4"
-                >
-                  Start Skills Assessment
-                </Button>
+            
+            {/* Color Legend - Compact */}
+            <div className="mt-4 flex flex-wrap gap-3 text-xs">
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 bg-red-300 rounded"></div>
+                <span>Beginner</span>
               </div>
-            )}
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 bg-orange-300 rounded"></div>
+                <span>Basic</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 bg-yellow-300 rounded"></div>
+                <span>Competent</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 bg-lime-300 rounded"></div>
+                <span>Proficient</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 bg-green-400 rounded"></div>
+                <span>Expert</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
+
+        {/* Detailed Skills List by Category */}
+        <div className="space-y-4">
+          {categories.filter(cat => cat !== 'All').map(category => {
+            const categorySkills = selectedCategory === 'All' 
+              ? assessments.filter(a => a.category === category)
+              : filteredAssessments.filter(a => a.category === category);
+            
+            if (categorySkills.length === 0) return null;
+
+            return (
+              <Card key={category}>
+                <CardHeader>
+                  <CardTitle className="text-xl">{category}</CardTitle>
+                  <CardDescription>{categorySkills.length} skills in this category</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {categorySkills.map(skill => (
+                      <div
+                        key={skill.skill_id}
+                        className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-lg text-gray-900">{skill.skill_name}</h4>
+                            <p className="text-sm text-gray-600 mt-1">{skill.description}</p>
+                          </div>
+                          <div className={`
+                            ${getSkillLevelColor(skill.current_level)}
+                            px-4 py-2 rounded-lg font-bold text-gray-900 min-w-[60px] text-center
+                          `}>
+                            {skill.current_level}/5
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <div className="text-gray-600 font-medium">Your Level</div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-lg font-bold text-gray-900">{skill.current_level}/5</span>
+                              {skill.current_level >= skill.target_average! && (
+                                <Award className="w-4 h-4 text-green-600" />
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-gray-600 font-medium">Team Average</div>
+                            <div className="text-lg font-bold text-gray-900 mt-1">
+                              {skill.team_average?.toFixed(1) || '0.0'}/5
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-gray-600 font-medium">Target Average</div>
+                            <div className="text-lg font-bold text-blue-600 mt-1">
+                              {skill.target_average}/5
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-gray-600 font-medium">Top Performer</div>
+                            <div className="mt-1">
+                              <div className="font-semibold text-gray-900">{skill.top_performer}</div>
+                              <div className="text-xs text-gray-600">Level {skill.top_performer_level}/5</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="mt-3">
+                          <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                            <span>Progress to Target</span>
+                            <span>{Math.round((skill.current_level / skill.target_average!) * 100)}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full ${
+                                skill.current_level >= skill.target_average!
+                                  ? 'bg-green-500'
+                                  : 'bg-blue-500'
+                              }`}
+                              style={{ width: `${Math.min((skill.current_level / skill.target_average!) * 100, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {filteredAssessments.length === 0 && (
+          <Card>
+            <CardContent className="text-center py-12">
+              <p className="text-gray-600 mb-4">No skills assessed yet.</p>
+              <Button
+                onClick={() => navigate('/team-member/skills-assessment')}
+              >
+                Start Skills Assessment
+              </Button>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
