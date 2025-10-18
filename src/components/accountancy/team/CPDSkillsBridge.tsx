@@ -124,7 +124,7 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
               x={x}
               y={y}
               textAnchor="middle"
-              className="text-xs fill-muted-foreground"
+              className="text-xs fill-white"
             >
               {item.skill}
             </text>
@@ -187,21 +187,21 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
                     {improvement.change_amount > 0 ? '+' : ''}{improvement.change_amount} level
                     {Math.abs(improvement.change_amount) !== 1 ? 's' : ''}
                   </Badge>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-sm text-white">
                     {new Date(improvement.changed_at).toLocaleDateString()}
                   </span>
                 </div>
                 
                 <div className="grid grid-cols-3 gap-4 mb-2">
                   <div>
-                    <div className="text-xs text-muted-foreground">Before</div>
+                    <div className="text-xs text-white">Before</div>
                     <div className="text-lg font-bold">{improvement.level_before}</div>
                   </div>
                   <div className="flex items-center justify-center">
                     <ArrowRight className="w-6 h-6 text-primary" />
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground">After</div>
+                    <div className="text-xs text-white">After</div>
                     <div className="text-lg font-bold text-green-400">{improvement.level_after}</div>
                   </div>
                 </div>
@@ -209,13 +209,13 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
                 <div className="flex items-center gap-2 text-sm">
                   <Badge variant="outline">{improvement.change_reason.replace('_', ' ')}</Badge>
                   {improvement.investment_hours && (
-                    <span className="text-muted-foreground">
+                    <span className="text-white">
                       <Clock className="w-3 h-3 inline mr-1" />
                       {improvement.investment_hours}h
                     </span>
                   )}
                   {improvement.investment_cost && (
-                    <span className="text-muted-foreground">
+                    <span className="text-white">
                       <DollarSign className="w-3 h-3 inline mr-1" />
                       £{improvement.investment_cost}
                     </span>
@@ -237,7 +237,7 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
   // Render ROI dashboard
   const renderROI = () => {
     if (!roiData) {
-      return <div className="text-center text-muted-foreground py-8">No ROI data available yet</div>;
+      return <div className="text-center text-white py-8">No ROI data available yet</div>;
     }
 
     return (
@@ -250,7 +250,7 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
                 <Award className="w-5 h-5 text-blue-400" />
                 <div className="flex-1">
                   <div className="text-2xl font-bold">{roiData.total_cpd_activities}</div>
-                  <div className="text-xs text-muted-foreground">CPD Activities</div>
+                  <div className="text-xs text-white">CPD Activities</div>
                 </div>
               </div>
             </CardContent>
@@ -262,7 +262,7 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
                 <Target className="w-5 h-5 text-purple-400" />
                 <div className="flex-1">
                   <div className="text-2xl font-bold">{roiData.skills_targeted}</div>
-                  <div className="text-xs text-muted-foreground">Skills Targeted</div>
+                  <div className="text-xs text-white">Skills Targeted</div>
                 </div>
               </div>
             </CardContent>
@@ -274,7 +274,7 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
                 <Clock className="w-5 h-5 text-green-400" />
                 <div className="flex-1">
                   <div className="text-2xl font-bold">{roiData.total_cpd_hours.toFixed(0)}</div>
-                  <div className="text-xs text-muted-foreground">Total Hours</div>
+                  <div className="text-xs text-white">Total Hours</div>
                 </div>
               </div>
             </CardContent>
@@ -288,7 +288,7 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
                   <div className="text-2xl font-bold">
                     {roiData.avg_effectiveness_percentage?.toFixed(0) || 0}%
                   </div>
-                  <div className="text-xs text-muted-foreground">Effectiveness</div>
+                  <div className="text-xs text-white">Effectiveness</div>
                 </div>
               </div>
             </CardContent>
@@ -304,7 +304,7 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
           <CardContent>
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <div className="text-sm text-muted-foreground mb-2">Cost per Skill Level</div>
+                <div className="text-sm text-white mb-2">Cost per Skill Level</div>
                 <div className="text-3xl font-bold text-purple-400">
                   £{roiData.cost_per_skill_level?.toFixed(0) || 0}
                 </div>
@@ -312,7 +312,7 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
                   value={Math.min(100, (1000 / (roiData.cost_per_skill_level || 1)) * 100)} 
                   className="mt-2"
                 />
-                <div className="text-xs text-muted-foreground mt-1">
+                <div className="text-xs text-white mt-1">
                   {roiData.cost_per_skill_level < 500 ? 'Excellent efficiency' : 
                    roiData.cost_per_skill_level < 1000 ? 'Good efficiency' : 
                    'Room for improvement'}
@@ -320,7 +320,7 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
               </div>
 
               <div>
-                <div className="text-sm text-muted-foreground mb-2">Hours per Skill Level</div>
+                <div className="text-sm text-white mb-2">Hours per Skill Level</div>
                 <div className="text-3xl font-bold text-blue-400">
                   {roiData.hours_per_skill_level?.toFixed(1) || 0}h
                 </div>
@@ -328,7 +328,7 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
                   value={Math.min(100, (20 / (roiData.hours_per_skill_level || 1)) * 100)} 
                   className="mt-2"
                 />
-                <div className="text-xs text-muted-foreground mt-1">
+                <div className="text-xs text-white mt-1">
                   {roiData.hours_per_skill_level < 10 ? 'Very efficient' : 
                    roiData.hours_per_skill_level < 20 ? 'Efficient' : 
                    'Takes longer than average'}
@@ -339,11 +339,11 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
             <div className="mt-6 pt-6 border-t border-border">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm text-muted-foreground">Average Skill Level</div>
+                  <div className="text-sm text-white">Average Skill Level</div>
                   <div className="text-2xl font-bold">{roiData.current_avg_skill_level?.toFixed(1) || 0} / 5</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm text-muted-foreground">Improvement Achieved</div>
+                  <div className="text-sm text-white">Improvement Achieved</div>
                   <div className="text-2xl font-bold text-green-400">
                     +{roiData.avg_improvement_achieved?.toFixed(1) || 0}
                   </div>
@@ -364,17 +364,17 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Total Investment</span>
+                <span className="text-white">Total Investment</span>
                 <span className="text-xl font-bold">£{roiData.total_cpd_cost?.toFixed(2) || 0}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Average per Activity</span>
+                <span className="text-white">Average per Activity</span>
                 <span className="font-semibold">
                   £{(roiData.total_cpd_cost / Math.max(1, roiData.total_cpd_activities))?.toFixed(2) || 0}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Hours Invested</span>
+                <span className="text-white">Hours Invested</span>
                 <span className="font-semibold">{roiData.total_cpd_hours?.toFixed(1) || 0} hours</span>
               </div>
             </div>
@@ -441,7 +441,7 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
           {improvementHistory.length === 0 ? (
             <Card className="bg-card/50 border-border">
               <CardContent className="p-8 text-center">
-                <div className="text-muted-foreground">
+                <div className="text-white">
                   No skill improvements tracked yet. Complete CPD activities and reassess your skills!
                 </div>
               </CardContent>
@@ -455,7 +455,7 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
           {spiderData.length === 0 ? (
             <Card className="bg-card/50 border-border">
               <CardContent className="p-8 text-center">
-                <div className="text-muted-foreground">
+                <div className="text-white">
                   Need at least 5 skill assessments to generate spider chart
                 </div>
               </CardContent>
@@ -495,19 +495,19 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
           <CardContent>
             <div className="grid grid-cols-3 gap-4">
               <div className="p-4 bg-card rounded-lg">
-                <div className="text-sm text-muted-foreground mb-1">If you invest 10 more hours:</div>
+                <div className="text-sm text-white mb-1">If you invest 10 more hours:</div>
                 <div className="text-2xl font-bold text-emerald-400">
                   +{((10 / (roiData.hours_per_skill_level || 10))).toFixed(1)} skill levels
                 </div>
               </div>
               <div className="p-4 bg-card rounded-lg">
-                <div className="text-sm text-muted-foreground mb-1">To reach target (4.5 avg):</div>
+                <div className="text-sm text-white mb-1">To reach target (4.5 avg):</div>
                 <div className="text-2xl font-bold text-blue-400">
                   {(((4.5 - (roiData.current_avg_skill_level || 0)) * (roiData.hours_per_skill_level || 10))).toFixed(0)}h needed
                 </div>
               </div>
               <div className="p-4 bg-card rounded-lg">
-                <div className="text-sm text-muted-foreground mb-1">Estimated cost:</div>
+                <div className="text-sm text-white mb-1">Estimated cost:</div>
                 <div className="text-2xl font-bold text-purple-400">
                   £{(((4.5 - (roiData.current_avg_skill_level || 0)) * (roiData.cost_per_skill_level || 500))).toFixed(0)}
                 </div>
