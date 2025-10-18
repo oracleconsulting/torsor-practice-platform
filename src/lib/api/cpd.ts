@@ -58,7 +58,7 @@ export async function getCPDActivities(practiceId?: string) {
     // First get all member IDs for this practice
     const { data: members, error: membersError } = await supabase
       .from('practice_members')
-      .select('id')
+      .select('id, name, email')
       .eq('practice_id', practiceId);
 
     if (membersError) {
@@ -66,9 +66,12 @@ export async function getCPDActivities(practiceId?: string) {
       throw membersError;
     }
 
+    console.log('[getCPDActivities] Practice members:', members);
     const memberIds = (members || []).map(m => m.id);
+    console.log('[getCPDActivities] Member IDs to query:', memberIds);
 
     if (memberIds.length === 0) {
+      console.log('[getCPDActivities] No members found for practice');
       return [];
     }
 
@@ -87,6 +90,7 @@ export async function getCPDActivities(practiceId?: string) {
       throw error;
     }
 
+    console.log('[getCPDActivities] Found activities:', data?.length || 0, data);
     return data as CPDActivity[];
   } else {
     // If no practice ID, get all activities
@@ -103,6 +107,7 @@ export async function getCPDActivities(practiceId?: string) {
       throw error;
     }
 
+    console.log('[getCPDActivities] Found activities (no filter):', data?.length || 0);
     return data as CPDActivity[];
   }
 }
