@@ -45,7 +45,7 @@ export const QuickCPDLogger: React.FC<QuickCPDLoggerProps> = ({ memberId, onSucc
           hours_claimed: parseFloat(formData.hours),
           activity_date: formData.date,
           description: formData.notes || null,
-          status: 'approved'
+          status: 'completed'
         });
 
       if (error) throw error;
