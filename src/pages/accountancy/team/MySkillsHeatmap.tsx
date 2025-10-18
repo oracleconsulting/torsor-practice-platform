@@ -45,8 +45,10 @@ export default function MySkillsHeatmap() {
         return;
       }
 
+      console.log('[MySkillsHeatmap] Loading skills for member:', member.id);
+
       // Get all skill assessments with skill details
-      const { data: assessmentsData } = await supabase
+      const { data: assessmentsData, error } = await supabase
         .from('skill_assessments')
         .select(`
           skill_id,
@@ -60,7 +62,9 @@ export default function MySkillsHeatmap() {
             )
           )
         `)
-        .eq('team_member_id', member.id);
+        .eq('practice_member_id', member.id);
+
+      console.log('[MySkillsHeatmap] Assessments data:', assessmentsData, 'Error:', error);
 
       if (assessmentsData) {
         const formattedAssessments: SkillAssessment[] = assessmentsData.map((a: any) => ({

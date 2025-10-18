@@ -5,13 +5,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import MentoringHub from '@/components/accountancy/team/MentoringHub';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import type { TeamMemberForMatching } from '@/services/mentoring/matchingAlgorithm';
 
 const MentoringHubPage: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [teamMembers, setTeamMembers] = useState<TeamMemberForMatching[]>([]);
   const [currentMemberId, setCurrentMemberId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -138,6 +142,16 @@ const MentoringHubPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
+        {/* Back Button */}
+        <Button 
+          variant="ghost" 
+          onClick={() => navigate('/team-member/dashboard')}
+          className="mb-4"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Dashboard
+        </Button>
+
         <MentoringHub
           teamMembers={teamMembers}
           currentUserId={currentMemberId}

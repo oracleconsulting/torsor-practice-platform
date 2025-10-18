@@ -45,26 +45,37 @@ export const MySkillsComparison: React.FC = () => {
         .single();
 
       if (!member) {
+        console.log('[SkillsComparison] No member found');
         setLoading(false);
         return;
       }
 
-      // Get all skills with assessments
-      const { data: skills } = await supabase
-        .from('skills')
+      console.log('[SkillsComparison] Loading for member:', member.id);
+
+      // Get MY assessments first
+      const { data: myAssessments } = await supabase
+        .from('skill_assessments')
         .select(`
-          id,
-          name,
-          skill_categories!inner(name)
+          skill_id,
+          current_level,
+          skills!inner(
+            id,
+            name,
+            skill_categories!inner(name)
+          )
         `)
-        .order('name');
+        .eq('practice_member_id', member.id);
 
-      if (!skills) {
+      console.log('[SkillsComparison] My assessments:', myAssessments);
+
+      if (!myAssessments || myAssessments.length === 0) {
+        console.log('[SkillsComparison] No assessments found');
         setLoading(false);
         return;
       }
 
-      // Get all assessments for the practice
+      // Get ALL assessments for these specific skills
+      const mySkillIds = myAssessments.map(a => a.skill_id);
       const { data: allAssessments } = await supabase
         .from('skill_assessments')
         .select(`
@@ -72,20 +83,23 @@ export const MySkillsComparison: React.FC = () => {
           practice_member_id,
           current_level,
           practice_members!inner(name)
-        `);
+        `)
+        .in('skill_id', mySkillIds);
+
+      console.log('[SkillsComparison] All team assessments:', allAssessments);
 
       // Process comparisons
       const comparisonData: SkillComparison[] = [];
       const categorySet = new Set<string>();
 
-      for (const skill of skills) {
-        const category = (skill.skill_categories as any).name;
+      for (const myAssessment of myAssessments) {
+        const skill = (myAssessment.skills as any);
+        const category = skill.skill_categories.name;
         categorySet.add(category);
 
-        const skillAssessments = allAssessments?.filter(a => a.skill_id === skill.id) || [];
-        const myAssessment = skillAssessments.find(a => a.practice_member_id === member.id);
+        const skillAssessments = allAssessments?.filter(a => a.skill_id === myAssessment.skill_id) || [];
         
-        if (!myAssessment || skillAssessments.length === 0) continue;
+        if (skillAssessments.length === 0) continue;
 
         // Calculate team average
         const teamAverage = skillAssessments.reduce((sum, a) => sum + (a.current_level || 0), 0) / skillAssessments.length;
@@ -108,6 +122,7 @@ export const MySkillsComparison: React.FC = () => {
         });
       }
 
+      console.log('[SkillsComparison] Final comparisons:', comparisonData);
       setComparisons(comparisonData);
       setCategories(['all', ...Array.from(categorySet).sort()]);
     } catch (error) {
