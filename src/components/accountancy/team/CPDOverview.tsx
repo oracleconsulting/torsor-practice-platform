@@ -25,8 +25,8 @@ interface CPDActivity {
   id: string;
   title: string;
   hours_claimed: number;
-  completed_at: string;
-  cpd_type: string;
+  activity_date: string;
+  type: string;
   status: string;
   learnings_captured?: string;
 }
@@ -139,10 +139,10 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
     try {
       const { data, error } = await supabase
         .from('cpd_activities')
-        .select('id, title, hours_claimed, completed_at, cpd_type, status, learnings_captured')
-        .eq('member_id', memberId)
+        .select('id, title, hours_claimed, activity_date, type, status, learnings_captured')
+        .eq('practice_member_id', memberId)
         .eq('status', 'completed')
-        .order('completed_at', { ascending: false })
+        .order('activity_date', { ascending: false })
         .limit(10);
 
       if (error) throw error;
@@ -223,17 +223,17 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
   return (
     <div className="space-y-6">
       {/* CPD Hours Overview */}
-      <Card className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 border-blue-700">
-        <CardHeader>
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader className="bg-gray-800">
           <CardTitle className="text-2xl text-white flex items-center gap-2">
             <Clock className="w-6 h-6 text-blue-400" />
             CPD Hours Tracker
           </CardTitle>
-          <CardDescription className="text-white font-medium">
+          <CardDescription className="text-gray-300 font-medium">
             Monitor your progress towards annual CPD requirements
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="bg-gray-800">
           {/* Main Progress Bar */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
@@ -246,7 +246,7 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
               value={stats.percentageComplete} 
               className="h-4 bg-gray-700"
             />
-            <p className="text-sm text-white mt-2">
+            <p className="text-sm text-gray-300 mt-2">
               {stats.hoursRemaining > 0 
                 ? `${stats.hoursRemaining.toFixed(1)} hours remaining to meet your target`
                 : '🎉 Target achieved! Keep up the great work!'}
@@ -359,16 +359,16 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
 
       {/* Recent CPD Activities */}
       <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
+        <CardHeader className="bg-gray-800">
           <CardTitle className="text-xl text-white flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-green-400" />
             Recent CPD Activities
           </CardTitle>
-          <CardDescription className="text-white font-medium">
+          <CardDescription className="text-gray-300 font-medium">
             Your logged CPD activities and learning outcomes
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="bg-gray-800">
           {activities.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
               <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-50" />
@@ -394,13 +394,13 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
                           </span>
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
-                            {new Date(activity.completed_at).toLocaleDateString()}
+                            {new Date(activity.activity_date).toLocaleDateString()}
                           </span>
                           <Badge 
                             variant="outline" 
-                            className={getCPDTypeColor(activity.cpd_type)}
+                            className={getCPDTypeColor(activity.type)}
                           >
-                            {activity.cpd_type}
+                            {activity.type}
                           </Badge>
                         </div>
 
@@ -421,17 +421,17 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
       </Card>
 
       {/* Recommended CPD */}
-      <Card className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 border-purple-700">
-        <CardHeader>
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader className="bg-gray-800">
           <CardTitle className="text-xl text-white flex items-center gap-2">
             <Award className="w-5 h-5 text-purple-400" />
             Recommended CPD Activities
           </CardTitle>
-          <CardDescription className="text-white font-medium">
+          <CardDescription className="text-gray-300 font-medium">
             Personalized recommendations based on your skill gaps and development goals
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="bg-gray-800">
           {recommendations.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
               <Award className="w-12 h-12 mx-auto mb-3 opacity-50" />
