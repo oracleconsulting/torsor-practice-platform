@@ -266,8 +266,8 @@ export default function MySkillsHeatmap() {
         {/* Compact Visual Heatmap */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="text-lg">Visual Overview</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-lg text-gray-900">Visual Overview</CardTitle>
+            <CardDescription className="text-gray-700 font-medium">
               Quick glance at your skills portfolio - {filteredAssessments.length} skills assessed
             </CardDescription>
           </CardHeader>
@@ -334,8 +334,10 @@ export default function MySkillsHeatmap() {
             return (
               <Card key={category}>
                 <CardHeader>
-                  <CardTitle className="text-xl">{category}</CardTitle>
-                  <CardDescription>{categorySkills.length} skills in this category</CardDescription>
+                  <CardTitle className="text-xl text-gray-900">{category}</CardTitle>
+                  <CardDescription className="text-gray-700 font-medium">
+                    {categorySkills.length} skills in this category
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
