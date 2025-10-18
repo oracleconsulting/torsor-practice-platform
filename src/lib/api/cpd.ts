@@ -415,6 +415,44 @@ export interface TeamCPDSummary {
 }
 
 export async function getTeamCPDSummary(practiceId: string): Promise<TeamCPDSummary[]> {
+  try {
+    // Use the admin_cpd_overview view for consistent data
+    const { data, error } = await supabase
+      .from('admin_cpd_overview')
+      .select('*')
+      .eq('practice_id', practiceId);
+
+    if (error) {
+      console.error('Error fetching CPD overview:', error);
+      // Fallback to manual calculation if view doesn't exist
+      return getTeamCPDSummaryFallback(practiceId);
+    }
+
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    // Map the view data to TeamCPDSummary interface
+    return (data as any).map((row: any) => ({
+      member_id: row.member_id,
+      member_name: row.member_name,
+      member_role: row.role,
+      required_hours: row.hours_required,
+      completed_hours: row.hours_completed,
+      verifiable_hours: row.determined_completed, // Verifiable ~ Determined for now
+      planned_hours: 0, // Not tracked in view yet
+      progress_percentage: row.progress_percentage,
+      last_activity_date: row.last_cpd_date
+    }));
+  } catch (error) {
+    console.error('Error in getTeamCPDSummary:', error);
+    // Fallback to manual calculation
+    return getTeamCPDSummaryFallback(practiceId);
+  }
+}
+
+// Fallback function using manual calculation (original logic)
+async function getTeamCPDSummaryFallback(practiceId: string): Promise<TeamCPDSummary[]> {
   // Get all practice members
   const { data: members, error: membersError } = await supabase
     .from('practice_members')
