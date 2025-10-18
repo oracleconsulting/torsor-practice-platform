@@ -706,23 +706,23 @@ const CPDTrackerPage: React.FC = () => {
 
         {/* Team Tab */}
         <TabsContent value="team" className="space-y-6">
-          <Card className="border-gray-700">
+          <Card className="bg-white border-gray-200">
             <CardHeader>
-              <CardTitle>Team CPD Overview</CardTitle>
-              <CardDescription>Monitor and manage team development</CardDescription>
+              <CardTitle className="text-gray-900 font-bold">Team CPD Overview</CardTitle>
+              <CardDescription className="text-gray-600 font-medium">Monitor and manage team development</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-gray-700">
-                      <th className="text-left py-3 text-white font-bold">Team Member</th>
-                      <th className="text-center py-3 text-white font-bold">Required</th>
-                      <th className="text-center py-3 text-white font-bold">Completed</th>
-                      <th className="text-center py-3 text-white font-bold">Verifiable</th>
-                      <th className="text-center py-3 text-white font-bold">Progress</th>
-                      <th className="text-center py-3 text-white font-bold">Status</th>
-                      <th className="text-center py-3 text-white font-bold">Actions</th>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 text-gray-900 font-bold">Team Member</th>
+                      <th className="text-center py-3 text-gray-900 font-bold">Required</th>
+                      <th className="text-center py-3 text-gray-900 font-bold">Completed</th>
+                      <th className="text-center py-3 text-gray-900 font-bold">Verifiable</th>
+                      <th className="text-center py-3 text-gray-900 font-bold">Progress</th>
+                      <th className="text-center py-3 text-gray-900 font-bold">Status</th>
+                      <th className="text-center py-3 text-gray-900 font-bold">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -731,20 +731,20 @@ const CPDTrackerPage: React.FC = () => {
                       const status = progress >= 100 ? 'compliant' : progress >= 70 ? 'on-track' : 'at-risk';
                       
                       return (
-                        <tr key={member.member_id} className="border-b border-gray-800">
+                        <tr key={member.member_id} className="border-b border-gray-100">
                           <td className="py-4">
                             <div>
-                              <p className="font-bold text-white">{member.member_name}</p>
-                              <p className="text-sm text-white font-medium">{member.member_role}</p>
+                              <p className="font-bold text-gray-900">{member.member_name}</p>
+                              <p className="text-sm text-gray-600 font-medium">{member.member_role}</p>
                             </div>
                           </td>
-                          <td className="text-center py-4 text-white font-medium">{member.required_hours}</td>
-                          <td className="text-center py-4 text-white font-medium">{member.completed_hours}</td>
-                          <td className="text-center py-4 text-white font-medium">{member.verifiable_hours}</td>
+                          <td className="text-center py-4 text-gray-900 font-medium">{member.required_hours}</td>
+                          <td className="text-center py-4 text-gray-900 font-medium">{member.completed_hours}</td>
+                          <td className="text-center py-4 text-gray-900 font-medium">{member.verifiable_hours}</td>
                           <td className="py-4">
                             <div className="w-full max-w-[100px] mx-auto">
                               <Progress value={progress} className="h-2" />
-                              <p className="text-xs text-center mt-1 text-white font-medium">{Math.round(progress)}%</p>
+                              <p className="text-xs text-center mt-1 text-gray-900 font-medium">{Math.round(progress)}%</p>
                             </div>
                           </td>
                           <td className="text-center py-4">
@@ -760,6 +760,7 @@ const CPDTrackerPage: React.FC = () => {
                               variant="ghost" 
                               size="sm"
                               onClick={() => setSelectedMember(member.member_id)}
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                             >
                               View Activities
                             </Button>
@@ -775,9 +776,10 @@ const CPDTrackerPage: React.FC = () => {
 
           {/* Team Analytics */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="border-gray-700">
+            <Card className="bg-white border-gray-200">
               <CardHeader>
-                <CardTitle>CPD by Category</CardTitle>
+                <CardTitle className="text-gray-900 font-bold">CPD by Category</CardTitle>
+                <CardDescription className="text-gray-600 font-medium">Distribution of completed CPD hours</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -788,9 +790,9 @@ const CPDTrackerPage: React.FC = () => {
                     
                     return (
                       <div key={category} className="flex items-center justify-between">
-                        <span className="text-sm">{category}</span>
+                        <span className="text-sm text-gray-900 font-medium">{category}</span>
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">{categoryHours} hrs</span>
+                          <span className="text-sm font-medium text-gray-900">{categoryHours} hrs</span>
                           <div className="w-24">
                             <Progress value={(categoryHours / 40) * 100} className="h-2" />
                           </div>
@@ -802,9 +804,10 @@ const CPDTrackerPage: React.FC = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-gray-700">
+            <Card className="bg-white border-gray-200">
               <CardHeader>
-                <CardTitle>Monthly Trend</CardTitle>
+                <CardTitle className="text-gray-900 font-bold">Monthly Trend</CardTitle>
+                <CardDescription className="text-gray-600 font-medium">CPD hours logged over time</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-end justify-between h-[200px]">
@@ -816,7 +819,7 @@ const CPDTrackerPage: React.FC = () => {
                           className="w-8 bg-orange-500 rounded-t"
                           style={{ height: `${height}px` }}
                         />
-                        <span className="text-xs text-white font-medium">
+                        <span className="text-xs text-gray-900 font-medium">
                           {new Date(2024, i).toLocaleString('default', { month: 'short' })}
                         </span>
                       </div>
