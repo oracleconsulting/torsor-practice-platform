@@ -324,83 +324,89 @@ export default function TeamMemberDashboard() {
           </p>
         </div>
 
-        {/* Stats Overview */}
+        {/* Stats Overview - Clickable Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-shadow"
+            className="cursor-pointer hover:shadow-lg transition-shadow bg-white"
             onClick={() => navigate('/team-member/skills-heatmap')}
           >
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Skills Assessed</p>
+                  <p className="text-sm font-medium text-gray-900 mb-1">Skills Assessed</p>
                   <p className="text-3xl font-bold text-gray-900">
                     {stats.assessedSkills}
-                    <span className="text-lg text-gray-500">/{stats.totalSkills}</span>
+                    <span className="text-lg text-gray-600">/{stats.totalSkills}</span>
                   </p>
                 </div>
                 <Target className="h-10 w-10 text-amber-600" />
               </div>
               <Progress value={completionPercentage} className="mt-3" />
+              <p className="text-xs text-gray-600 mt-2">Click to view and edit skills</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-shadow"
+            className="cursor-pointer hover:shadow-lg transition-shadow bg-white"
             onClick={() => navigate('/team-member/skills-comparison')}
           >
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Average Level</p>
+                  <p className="text-sm font-medium text-gray-900 mb-1">Average Level</p>
                   <p className="text-3xl font-bold text-gray-900">
                     {stats.averageLevel.toFixed(1)}
-                    <span className="text-lg text-gray-500">/5</span>
+                    <span className="text-lg text-gray-600">/5</span>
                   </p>
                 </div>
                 <TrendingUp className="h-10 w-10 text-green-600" />
               </div>
+              <p className="text-xs text-gray-600 mt-2">Click to compare with team</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-shadow"
+            className="cursor-pointer hover:shadow-lg transition-shadow bg-white"
             onClick={() => navigate('/team-member/cpd')}
           >
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">CPD Hours</p>
+                  <p className="text-sm font-medium text-gray-900 mb-1">CPD Hours</p>
                   <p className="text-3xl font-bold text-gray-900">{stats.cpdHours}</p>
                 </div>
                 <Award className="h-10 w-10 text-blue-600" />
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                {stats.cpdActivities} activities logged
+              <p className="text-xs text-gray-600 mt-2">
+                {stats.cpdActivities} activities • Click to log more
               </p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-shadow"
+            className="cursor-pointer hover:shadow-lg transition-shadow bg-white"
             onClick={() => navigate('/team-member/mentoring')}
           >
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Mentoring</p>
-                  <Badge variant={stats.mentoringActive ? 'default' : 'secondary'}>
+                  <p className="text-sm font-medium text-gray-900 mb-1">Mentoring</p>
+                  <Badge 
+                    variant={stats.mentoringActive ? 'default' : 'secondary'}
+                    className="text-sm"
+                  >
                     {stats.mentoringActive ? 'Active' : 'Not Active'}
                   </Badge>
                 </div>
                 <Users className="h-10 w-10 text-purple-600" />
               </div>
+              <p className="text-xs text-gray-600 mt-2">Click to find mentors</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Main Action Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           {/* My Assignments */}
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
@@ -430,126 +436,6 @@ export default function TeamMemberDashboard() {
                 >
                   <BookOpen className="h-4 w-4 mr-2" />
                   View Assignments
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* My Skills */}
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-amber-100 p-3 rounded-lg">
-                    <Target className="h-6 w-6 text-amber-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-black">My Skills Assessment</CardTitle>
-                    <CardDescription className="text-black">
-                      View and update your skill levels
-                    </CardDescription>
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="text-sm text-gray-700">Completion</span>
-                  <span className="font-bold text-gray-900">{completionPercentage.toFixed(0)}%</span>
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={() => navigate('/team-member/skills-assessment')}
-                    className="flex-1 bg-amber-600 hover:bg-amber-700"
-                  >
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit Assessment
-                  </Button>
-                  <Button 
-                    onClick={() => navigate('/team-member/skills-heatmap')}
-                    variant="outline"
-                  >
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* My CPD */}
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-100 p-3 rounded-lg">
-                    <Award className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-black">My CPD</CardTitle>
-                    <CardDescription className="text-black">
-                      Log and track your professional development
-                    </CardDescription>
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="text-sm text-gray-700">Total Hours</span>
-                  <span className="font-bold text-gray-900">{stats.cpdHours} hrs</span>
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={() => navigate('/team-member/cpd')}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Log CPD
-                  </Button>
-                  <Button 
-                    onClick={() => navigate('/team-member/cpd')}
-                    variant="outline"
-                  >
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Mentoring */}
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-purple-100 p-3 rounded-lg">
-                    <Users className="h-6 w-6 text-purple-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-black">Mentoring</CardTitle>
-                    <CardDescription className="text-black">
-                      Connect with mentors and peers
-                    </CardDescription>
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="text-sm text-gray-700">Status</span>
-                  <Badge variant={stats.mentoringActive ? 'default' : 'secondary'}>
-                    {stats.mentoringActive ? 'Active' : 'Available'}
-                  </Badge>
-                </div>
-                <Button 
-                  onClick={() => navigate('/team-member/mentoring')}
-                  className="w-full bg-purple-600 hover:bg-purple-700"
-                >
-                  View Opportunities
-                  <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               </div>
             </CardContent>
