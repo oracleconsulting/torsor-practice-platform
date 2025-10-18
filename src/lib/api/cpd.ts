@@ -54,27 +54,57 @@ export interface CPDActivityInput {
 }
 
 export async function getCPDActivities(practiceId?: string) {
-  let query = supabase
-    .from('cpd_activities')
-    .select(`
-      *,
-      practice_member:practice_members(name, email, role, practice_id)
-    `)
-    .order('activity_date', { ascending: false });
-
   if (practiceId) {
-    // Filter by practice via the practice_member relationship
-    query = query.filter('practice_member.practice_id', 'eq', practiceId);
+    // First get all member IDs for this practice
+    const { data: members, error: membersError } = await supabase
+      .from('practice_members')
+      .select('id')
+      .eq('practice_id', practiceId);
+
+    if (membersError) {
+      console.error('Error fetching practice members:', membersError);
+      throw membersError;
+    }
+
+    const memberIds = (members || []).map(m => m.id);
+
+    if (memberIds.length === 0) {
+      return [];
+    }
+
+    // Then get all activities for those members
+    const { data, error } = await supabase
+      .from('cpd_activities')
+      .select(`
+        *,
+        practice_member:practice_members(name, email, role, practice_id)
+      `)
+      .in('practice_member_id', memberIds)
+      .order('activity_date', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching CPD activities:', error);
+      throw error;
+    }
+
+    return data as CPDActivity[];
+  } else {
+    // If no practice ID, get all activities
+    const { data, error } = await supabase
+      .from('cpd_activities')
+      .select(`
+        *,
+        practice_member:practice_members(name, email, role, practice_id)
+      `)
+      .order('activity_date', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching CPD activities:', error);
+      throw error;
+    }
+
+    return data as CPDActivity[];
   }
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error('Error fetching CPD activities:', error);
-    throw error;
-  }
-
-  return data as CPDActivity[];
 }
 
 export async function getCPDActivitiesByMember(memberId: string) {
@@ -95,7 +125,7 @@ export async function getCPDActivitiesByMember(memberId: string) {
 export async function createCPDActivity(activity: CPDActivityInput) {
   const { data, error } = await supabase
     .from('cpd_activities')
-    .insert(activity)
+    .insert(activity as any)
     .select()
     .single();
 
@@ -110,7 +140,7 @@ export async function createCPDActivity(activity: CPDActivityInput) {
 export async function updateCPDActivity(id: string, updates: Partial<CPDActivityInput>) {
   const { data, error } = await supabase
     .from('cpd_activities')
-    .update(updates)
+    .update(updates as any)
     .eq('id', id)
     .select()
     .single();
@@ -240,7 +270,7 @@ export async function createCPDExternalResource(resource: CPDExternalResourceInp
     .insert({
       ...resource,
       added_by: userData?.user?.id
-    })
+    } as any)
     .select()
     .single();
 
@@ -323,7 +353,7 @@ export async function getKnowledgeDocuments(practiceId?: string) {
 export async function createKnowledgeDocument(document: KnowledgeDocumentInput) {
   const { data, error } = await supabase
     .from('knowledge_documents')
-    .insert(document)
+    .insert(document as any)
     .select()
     .single();
 
@@ -368,7 +398,7 @@ export async function linkCPDToDevelopmentPlan(
       is_recommended: isRecommended,
       recommended_by: isRecommended ? userData?.user?.id : null,
       notes
-    })
+    } as any)
     .select()
     .single();
 
@@ -480,13 +510,15 @@ async function getTeamCPDSummaryFallback(practiceId: string): Promise<TeamCPDSum
   };
   
   const uniqueMembers = members.reduce((acc, member) => {
-    const existing = acc.find(m => m.email === member.email);
+    const memberData = member as any;
+    const existing = acc.find((m: any) => m.email === memberData.email);
     if (!existing) {
       acc.push(member);
     } else {
       // Keep the member with higher priority role
-      const existingPriority = rolesPriority[existing.role?.toLowerCase() || ''] || 0;
-      const newPriority = rolesPriority[member.role?.toLowerCase() || ''] || 0;
+      const existingData = existing as any;
+      const existingPriority = rolesPriority[existingData.role?.toLowerCase() || ''] || 0;
+      const newPriority = rolesPriority[memberData.role?.toLowerCase() || ''] || 0;
       if (newPriority > existingPriority) {
         // Replace with higher priority role
         const index = acc.indexOf(existing);
@@ -511,28 +543,28 @@ async function getTeamCPDSummaryFallback(practiceId: string): Promise<TeamCPDSum
   const { data: activities } = await supabase
     .from('cpd_activities')
     .select('*')
-    .in('practice_member_id', uniqueMembers.map(m => m.id));
+    .in('practice_member_id', uniqueMembers.map((m: any) => m.id));
 
   // Calculate summary for each member
-  const summary: TeamCPDSummary[] = uniqueMembers.map(member => {
+  const summary: TeamCPDSummary[] = uniqueMembers.map((member: any) => {
     const memberActivities = (activities || []).filter(
-      a => a.practice_member_id === member.id
+      (a: any) => a.practice_member_id === member.id
     );
 
-    const completedActivities = memberActivities.filter(a => a.status === 'completed');
-    const plannedActivities = memberActivities.filter(a => a.status === 'planned');
+    const completedActivities = memberActivities.filter((a: any) => a.status === 'completed');
+    const plannedActivities = memberActivities.filter((a: any) => a.status === 'planned');
 
-    const completedHours = completedActivities.reduce((sum, a) => sum + (a.hours_verified || a.hours_claimed), 0);
+    const completedHours = completedActivities.reduce((sum: number, a: any) => sum + (a.hours_verified || a.hours_claimed), 0);
     const verifiableHours = completedActivities
-      .filter(a => a.verifiable)
-      .reduce((sum, a) => sum + (a.hours_verified || a.hours_claimed), 0);
-    const plannedHours = plannedActivities.reduce((sum, a) => sum + a.hours_claimed, 0);
+      .filter((a: any) => a.verifiable)
+      .reduce((sum: number, a: any) => sum + (a.hours_verified || a.hours_claimed), 0);
+    const plannedHours = plannedActivities.reduce((sum: number, a: any) => sum + a.hours_claimed, 0);
 
     const requirement = requirementsMap.get(member.role?.toLowerCase() || '');
     const requiredHours = requirement?.annual_hours_required || 40;
 
     const lastActivity = memberActivities.length > 0
-      ? memberActivities.sort((a, b) => 
+      ? memberActivities.sort((a: any, b: any) => 
           new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime()
         )[0].activity_date
       : null;

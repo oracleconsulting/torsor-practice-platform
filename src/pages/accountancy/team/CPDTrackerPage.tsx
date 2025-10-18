@@ -45,6 +45,8 @@ const CPDTrackerPage: React.FC = () => {
   const [externalResources, setExternalResources] = useState<CPDExternalResource[]>([]);
   
   const [selectedMember, setSelectedMember] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
@@ -354,13 +356,13 @@ const CPDTrackerPage: React.FC = () => {
 
         {/* Activities Tab */}
         <TabsContent value="activities" className="space-y-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
               <Select value={selectedMember} onValueChange={setSelectedMember}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-[200px] bg-gray-800 text-white border-gray-700">
                   <SelectValue placeholder="Filter by member" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-gray-800 text-white border-gray-700">
                   <SelectItem value="all">All Members</SelectItem>
                   {teamSummary.map((member) => (
                     <SelectItem key={member.member_id} value={member.member_id}>
@@ -369,6 +371,58 @@ const CPDTrackerPage: React.FC = () => {
                   ))}
                 </SelectContent>
               </Select>
+
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="w-[200px] bg-gray-800 text-white border-gray-700">
+                  <SelectValue placeholder="Filter by category" />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 text-white border-gray-700">
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="w-[200px] bg-gray-800 text-white border-gray-700">
+                  <SelectValue placeholder="Filter by month" />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 text-white border-gray-700">
+                  <SelectItem value="all">All Months</SelectItem>
+                  <SelectItem value="2024-10">October 2024</SelectItem>
+                  <SelectItem value="2024-11">November 2024</SelectItem>
+                  <SelectItem value="2024-12">December 2024</SelectItem>
+                  <SelectItem value="2025-01">January 2025</SelectItem>
+                  <SelectItem value="2025-02">February 2025</SelectItem>
+                  <SelectItem value="2025-03">March 2025</SelectItem>
+                  <SelectItem value="2025-04">April 2025</SelectItem>
+                  <SelectItem value="2025-05">May 2025</SelectItem>
+                  <SelectItem value="2025-06">June 2025</SelectItem>
+                  <SelectItem value="2025-07">July 2025</SelectItem>
+                  <SelectItem value="2025-08">August 2025</SelectItem>
+                  <SelectItem value="2025-09">September 2025</SelectItem>
+                  <SelectItem value="2025-10">October 2025</SelectItem>
+                  <SelectItem value="2025-11">November 2025</SelectItem>
+                  <SelectItem value="2025-12">December 2025</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {(selectedMember !== 'all' || selectedCategory !== 'all' || selectedMonth !== 'all') && (
+                <Button 
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedMember('all');
+                    setSelectedCategory('all');
+                    setSelectedMonth('all');
+                  }}
+                  className="text-white border-gray-700"
+                >
+                  Clear Filters
+                </Button>
+              )}
             </div>
             <Button 
               onClick={() => setShowAddActivity(true)}
@@ -543,17 +597,56 @@ const CPDTrackerPage: React.FC = () => {
           <Card className="bg-gray-800 border-gray-700">
             <CardHeader>
               <CardTitle className="text-white font-bold">CPD Activities Log</CardTitle>
-              <CardDescription className="text-gray-300 font-medium">Complete record of all CPD activities</CardDescription>
+              <CardDescription className="text-gray-300 font-medium">
+                Complete record of all CPD activities
+                {activities.length > 0 && (
+                  <span className="ml-2 text-blue-400">
+                    ({activities.length} total {activities.length === 1 ? 'activity' : 'activities'})
+                  </span>
+                )}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {activities.length === 0 ? (
                   <p className="text-center text-white font-medium py-8">No activities found. Add your first CPD activity above.</p>
                 ) : (
-                  activities
-                    .filter(a => selectedMember === 'all' || a.practice_member_id === selectedMember)
-                    .sort((a, b) => new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime())
-                    .map((activity) => {
+                  (() => {
+                    // Apply all filters
+                    let filteredActivities = activities;
+                    
+                    // Filter by member
+                    if (selectedMember !== 'all') {
+                      filteredActivities = filteredActivities.filter(a => a.practice_member_id === selectedMember);
+                    }
+                    
+                    // Filter by category
+                    if (selectedCategory !== 'all') {
+                      filteredActivities = filteredActivities.filter(a => a.category === selectedCategory);
+                    }
+                    
+                    // Filter by month (YYYY-MM format)
+                    if (selectedMonth !== 'all') {
+                      filteredActivities = filteredActivities.filter(a => {
+                        const activityMonth = a.activity_date.substring(0, 7); // Get YYYY-MM from date
+                        return activityMonth === selectedMonth;
+                      });
+                    }
+                    
+                    // Sort by date
+                    filteredActivities = filteredActivities.sort(
+                      (a, b) => new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime()
+                    );
+                    
+                    if (filteredActivities.length === 0) {
+                      return (
+                        <p className="text-center text-white font-medium py-8">
+                          No activities match your filters. Try adjusting your filter settings.
+                        </p>
+                      );
+                    }
+                    
+                    return filteredActivities.map((activity) => {
                       // Find the member name from team summary
                       const memberName = teamSummary.find(m => m.member_id === activity.practice_member_id)?.member_name || 'Unknown';
                       
@@ -603,7 +696,8 @@ const CPDTrackerPage: React.FC = () => {
                         </div>
                       </div>
                       );
-                    })
+                    });
+                  })()
                 )}
               </div>
             </CardContent>
