@@ -41,7 +41,7 @@ export const QuickCPDLogger: React.FC<QuickCPDLoggerProps> = ({ memberId, onSucc
         .insert({
           practice_member_id: memberId,
           title: formData.title,
-          activity_type: 'other',
+          type: 'other',
           hours_claimed: parseFloat(formData.hours),
           activity_date: formData.date,
           description: formData.notes || null,
