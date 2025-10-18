@@ -72,7 +72,7 @@ export default function MySkillsHeatmap() {
       // Get skill details with descriptions
       const { data: skillsData, error: skillsError } = await supabase
         .from('skills')
-        .select('id, name, category, description, target_level')
+        .select('id, name, category, description')
         .in('id', skillIds);
 
       console.log('[MySkillsHeatmap] Skills data:', skillsData, 'Error:', skillsError);
@@ -122,7 +122,7 @@ export default function MySkillsHeatmap() {
               interest_level: a.interest_level,
               description: (skill as any).description || 'No description available',
               team_average: teamAverage,
-              target_average: (skill as any).target_level || 3,
+              target_average: 3, // Default target for all skills
               top_performer: topPerformer?.practice_members?.name || 'N/A',
               top_performer_level: topPerformer?.current_level || 0
             };
