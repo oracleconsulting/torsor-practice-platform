@@ -82,33 +82,22 @@ export default function TeamMemberDashboard() {
     if (user?.id && !viewingAsMemberId && !viewAsParam) {
       console.log('[Dashboard] Loading own data for user:', user.id);
       loadDashboardData();
-    } else {
-      console.log('[Dashboard] NOT loading data. Conditions:', {
-        hasUserId: !!user?.id,
-        isViewingAsOther: !!viewingAsMemberId,
-        hasViewAsParam: !!viewAsParam
-      });
-      
-      // If no user ID and not loading, redirect to login
-      if (!user?.id && !loading) {
-        console.log('[Dashboard] No user found after loading, redirecting to login');
-        navigate('/auth?portal=accountancy');
-      }
+    } else if (!user?.id) {
+      console.log('[Dashboard] No user ID available');
     }
-  }, [searchParams, user?.id, loading]); // Depend on searchParams, user.id, and loading
+  }, [searchParams, user?.id]); // Removed 'loading' to prevent infinite loop
 
   // Separate effect to handle timeout if user is not loaded
   useEffect(() => {
-    if (!user?.id && loading) {
+    if (!user?.id) {
       const timeout = setTimeout(() => {
-        console.log('[Dashboard] User not loaded after 3 seconds, stopping loading');
-        setLoading(false);
+        console.log('[Dashboard] User not loaded after 3 seconds, redirecting to login');
         navigate('/auth?portal=accountancy');
       }, 3000);
 
       return () => clearTimeout(timeout);
     }
-  }, [user?.id, loading, navigate]);
+  }, [user?.id, navigate]); // Only depend on user?.id, not loading
 
   const checkAdminAndLoadMember = async (memberId: string) => {
     try {
