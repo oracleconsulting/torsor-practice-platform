@@ -52,19 +52,10 @@ export const MySkillsComparison: React.FC = () => {
 
       console.log('[SkillsComparison] Loading for member:', member.id);
 
-      // Get MY assessments first
+      // Get MY assessments first - simple query
       const { data: myAssessments, error: assessError } = await supabase
         .from('skill_assessments')
-        .select(`
-          skill_id,
-          current_level,
-          skills!inner(
-            id,
-            name,
-            category_id,
-            skill_categories!inner(name)
-          )
-        `)
+        .select('skill_id, current_level')
         .eq('practice_member_id', member.id);
 
       console.log('[SkillsComparison] My assessments:', myAssessments, 'Error:', assessError);
@@ -75,8 +66,30 @@ export const MySkillsComparison: React.FC = () => {
         return;
       }
 
-      // Get ALL assessments for these specific skills
+      // Get skill details separately
       const mySkillIds = myAssessments.map(a => a.skill_id);
+      const { data: skillsData } = await supabase
+        .from('skills')
+        .select('id, name, category_id')
+        .in('id', mySkillIds);
+
+      if (!skillsData) {
+        setLoading(false);
+        return;
+      }
+
+      // Get categories
+      const categoryIds = [...new Set(skillsData.map(s => s.category_id))];
+      const { data: categoriesData } = await supabase
+        .from('skill_categories')
+        .select('id, name')
+        .in('id', categoryIds);
+
+      // Create maps
+      const skillsMap = new Map(skillsData.map(s => [s.id, s]));
+      const categoriesMap = new Map(categoriesData?.map(c => [c.id, c.name]) || []);
+
+      // Get ALL assessments for these specific skills
       const { data: allAssessments } = await supabase
         .from('skill_assessments')
         .select(`
@@ -94,8 +107,10 @@ export const MySkillsComparison: React.FC = () => {
       const categorySet = new Set<string>();
 
       for (const myAssessment of myAssessments) {
-        const skill = (myAssessment.skills as any);
-        const category = skill.skill_categories.name;
+        const skill = skillsMap.get(myAssessment.skill_id);
+        if (!skill) continue;
+
+        const category = categoriesMap.get(skill.category_id) || 'Uncategorized';
         categorySet.add(category);
 
         const skillAssessments = allAssessments?.filter(a => a.skill_id === myAssessment.skill_id) || [];

@@ -47,35 +47,66 @@ export default function MySkillsHeatmap() {
 
       console.log('[MySkillsHeatmap] Loading skills for member:', member.id);
 
-      // Get all skill assessments with skill details
-      const { data: assessmentsData, error } = await supabase
+      // Get all skill assessments for this member
+      const { data: assessmentsData, error: assessError } = await supabase
         .from('skill_assessments')
-        .select(`
-          skill_id,
-          current_level,
-          interest_level,
-          skills!inner (
-            id,
-            name,
-            category_id,
-            skill_categories!inner (
-              name
-            )
-          )
-        `)
+        .select('skill_id, current_level, interest_level')
         .eq('practice_member_id', member.id);
 
-      console.log('[MySkillsHeatmap] Assessments data:', assessmentsData, 'Error:', error);
+      console.log('[MySkillsHeatmap] Assessments data:', assessmentsData, 'Error:', assessError);
+
+      if (!assessmentsData || assessmentsData.length === 0) {
+        console.log('[MySkillsHeatmap] No assessments found');
+        setLoading(false);
+        return;
+      }
+
+      // Get skill IDs
+      const skillIds = assessmentsData.map(a => a.skill_id);
+
+      // Get skill details separately
+      const { data: skillsData, error: skillsError } = await supabase
+        .from('skills')
+        .select('id, name, category_id')
+        .in('id', skillIds);
+
+      console.log('[MySkillsHeatmap] Skills data:', skillsData, 'Error:', skillsError);
+
+      if (!skillsData) {
+        setLoading(false);
+        return;
+      }
+
+      // Get categories separately
+      const categoryIds = [...new Set(skillsData.map(s => s.category_id))];
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('skill_categories')
+        .select('id, name')
+        .in('id', categoryIds);
+
+      console.log('[MySkillsHeatmap] Categories data:', categoriesData, 'Error:', categoriesError);
+
+      // Create lookup maps
+      const skillsMap = new Map(skillsData.map(s => [s.id, s]));
+      const categoriesMap = new Map(categoriesData?.map(c => [c.id, c.name]) || []);
 
       if (assessmentsData) {
-        const formattedAssessments: SkillAssessment[] = assessmentsData.map((a: any) => ({
-          skill_id: a.skill_id,
-          skill_name: a.skills.name,
-          category: a.skills.skill_categories?.name || 'Uncategorized',
-          current_level: a.current_level,
-          interest_level: a.interest_level
-        }));
+        const formattedAssessments: SkillAssessment[] = assessmentsData
+          .map((a: any) => {
+            const skill = skillsMap.get(a.skill_id);
+            if (!skill) return null;
+            
+            return {
+              skill_id: a.skill_id,
+              skill_name: skill.name,
+              category: categoriesMap.get(skill.category_id) || 'Uncategorized',
+              current_level: a.current_level,
+              interest_level: a.interest_level
+            };
+          })
+          .filter(Boolean) as SkillAssessment[];
 
+        console.log('[MySkillsHeatmap] Formatted assessments:', formattedAssessments.length);
         setAssessments(formattedAssessments);
 
         // Extract unique categories
