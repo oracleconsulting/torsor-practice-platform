@@ -54,10 +54,11 @@ export default function MySkillsHeatmap() {
           skill_id,
           current_level,
           interest_level,
-          skills (
+          skills!inner (
             id,
             name,
-            skill_categories (
+            category_id,
+            skill_categories!inner (
               name
             )
           )

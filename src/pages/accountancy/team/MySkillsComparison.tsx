@@ -53,7 +53,7 @@ export const MySkillsComparison: React.FC = () => {
       console.log('[SkillsComparison] Loading for member:', member.id);
 
       // Get MY assessments first
-      const { data: myAssessments } = await supabase
+      const { data: myAssessments, error: assessError } = await supabase
         .from('skill_assessments')
         .select(`
           skill_id,
@@ -61,12 +61,13 @@ export const MySkillsComparison: React.FC = () => {
           skills!inner(
             id,
             name,
+            category_id,
             skill_categories!inner(name)
           )
         `)
         .eq('practice_member_id', member.id);
 
-      console.log('[SkillsComparison] My assessments:', myAssessments);
+      console.log('[SkillsComparison] My assessments:', myAssessments, 'Error:', assessError);
 
       if (!myAssessments || myAssessments.length === 0) {
         console.log('[SkillsComparison] No assessments found');
