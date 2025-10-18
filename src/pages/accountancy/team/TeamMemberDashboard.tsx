@@ -88,8 +88,27 @@ export default function TeamMemberDashboard() {
         isViewingAsOther: !!viewingAsMemberId,
         hasViewAsParam: !!viewAsParam
       });
+      
+      // If no user ID and not loading, redirect to login
+      if (!user?.id && !loading) {
+        console.log('[Dashboard] No user found after loading, redirecting to login');
+        navigate('/auth?portal=accountancy');
+      }
     }
-  }, [searchParams, user?.id]); // Depend on searchParams and user.id
+  }, [searchParams, user?.id, loading]); // Depend on searchParams, user.id, and loading
+
+  // Separate effect to handle timeout if user is not loaded
+  useEffect(() => {
+    if (!user?.id && loading) {
+      const timeout = setTimeout(() => {
+        console.log('[Dashboard] User not loaded after 3 seconds, stopping loading');
+        setLoading(false);
+        navigate('/auth?portal=accountancy');
+      }, 3000);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [user?.id, loading, navigate]);
 
   const checkAdminAndLoadMember = async (memberId: string) => {
     try {
