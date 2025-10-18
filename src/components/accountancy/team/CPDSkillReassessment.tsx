@@ -73,26 +73,17 @@ export const CPDSkillReassessment: React.FC<CPDSkillReassessmentProps> = ({
       // Get skill details
       const { data: skillsData } = await supabase
         .from('skills')
-        .select('id, name, category_id')
+        .select('id, name, category')
         .in('id', selectedSkillIds);
 
-      // Get categories
-      const categoryIds = [...new Set(skillsData?.map(s => s.category_id) || [])];
-      const { data: categories } = await supabase
-        .from('skill_categories')
-        .select('id, name')
-        .in('id', categoryIds);
-
-      const categoryMap = new Map(categories?.map(c => [c.id, c.name]) || []);
-
-      // Combine data
-      const skillsList: Skill[] = (skillsData || []).map(skill => {
-        const assessment = assessments.find(a => a.skill_id === skill.id);
-        const currentLevel = assessment?.current_level || 0;
+      // Combine data - skills table has category directly
+      const skillsList: Skill[] = ((skillsData as any) || []).map((skill: any) => {
+        const assessment = assessments.find((a: any) => a.skill_id === skill.id);
+        const currentLevel = (assessment as any)?.current_level || 0;
         return {
           id: skill.id,
           name: skill.name,
-          category: categoryMap.get(skill.category_id) || 'General',
+          category: skill.category || 'General',
           current_level: currentLevel
         };
       });

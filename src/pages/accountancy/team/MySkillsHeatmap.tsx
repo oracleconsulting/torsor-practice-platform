@@ -67,7 +67,7 @@ export default function MySkillsHeatmap() {
       // Get skill details separately
       const { data: skillsData, error: skillsError } = await supabase
         .from('skills')
-        .select('id, name, category_id')
+        .select('id, name, category')
         .in('id', skillIds);
 
       console.log('[MySkillsHeatmap] Skills data:', skillsData, 'Error:', skillsError);
@@ -77,18 +77,10 @@ export default function MySkillsHeatmap() {
         return;
       }
 
-      // Get categories separately
-      const categoryIds = [...new Set(skillsData.map(s => s.category_id))];
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from('skill_categories')
-        .select('id, name')
-        .in('id', categoryIds);
+      console.log('[MySkillsHeatmap] Categories data:', skillsData);
 
-      console.log('[MySkillsHeatmap] Categories data:', categoriesData, 'Error:', categoriesError);
-
-      // Create lookup maps
-      const skillsMap = new Map(skillsData.map(s => [s.id, s]));
-      const categoriesMap = new Map(categoriesData?.map(c => [c.id, c.name]) || []);
+      // Create lookup maps - skills table has category directly
+      const skillsMap = new Map(skillsData.map((s: any) => [s.id, s]));
 
       if (assessmentsData) {
         const formattedAssessments: SkillAssessment[] = assessmentsData
@@ -98,8 +90,8 @@ export default function MySkillsHeatmap() {
             
             return {
               skill_id: a.skill_id,
-              skill_name: skill.name,
-              category: categoriesMap.get(skill.category_id) || 'Uncategorized',
+              skill_name: (skill as any).name,
+              category: (skill as any).category || 'Uncategorized',
               current_level: a.current_level,
               interest_level: a.interest_level
             };

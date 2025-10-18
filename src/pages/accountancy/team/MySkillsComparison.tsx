@@ -70,7 +70,7 @@ export const MySkillsComparison: React.FC = () => {
       const mySkillIds = (myAssessments as any).map((a: any) => a.skill_id);
       const { data: skillsData } = await supabase
         .from('skills')
-        .select('id, name, category_id')
+        .select('id, name, category')
         .in('id', mySkillIds);
 
       if (!skillsData) {
@@ -78,16 +78,8 @@ export const MySkillsComparison: React.FC = () => {
         return;
       }
 
-      // Get categories
-      const categoryIds = [...new Set((skillsData as any).map((s: any) => s.category_id))];
-      const { data: categoriesData } = await supabase
-        .from('skill_categories')
-        .select('id, name')
-        .in('id', categoryIds);
-
-      // Create maps
+      // Create maps - skills table has category directly
       const skillsMap = new Map((skillsData as any).map((s: any) => [s.id, s]));
-      const categoriesMap = new Map((categoriesData as any)?.map((c: any) => [c.id, c.name]) || []);
 
       // Get ALL assessments for these specific skills
       const { data: allAssessments } = await supabase
@@ -110,7 +102,7 @@ export const MySkillsComparison: React.FC = () => {
         const skill = skillsMap.get((myAssessment as any).skill_id);
         if (!skill) continue;
 
-        const category = categoriesMap.get((skill as any).category_id) || 'Uncategorized';
+        const category = (skill as any).category || 'Uncategorized';
         categorySet.add(category);
 
         const skillAssessments = (allAssessments as any)?.filter((a: any) => a.skill_id === (myAssessment as any).skill_id) || [];

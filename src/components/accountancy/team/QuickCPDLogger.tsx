@@ -60,25 +60,16 @@ export const QuickCPDLogger: React.FC<QuickCPDLoggerProps> = ({ memberId, onSucc
       const skillIds = (assessments as any).map((a: any) => a.skill_id);
       const { data: skillsData } = await supabase
         .from('skills')
-        .select('id, name, category_id')
+        .select('id, name, category')
         .in('id', skillIds);
 
-      // Get categories
-      const categoryIds = [...new Set((skillsData as any)?.map((s: any) => s.category_id) || [])];
-      const { data: categories } = await supabase
-        .from('skill_categories')
-        .select('id, name')
-        .in('id', categoryIds);
-
-      const categoryMap = new Map((categories as any)?.map((c: any) => [c.id, c.name]) || []);
-
-      // Combine data
+      // Combine data - skills table has category directly
       const skillsList: Skill[] = ((skillsData as any) || []).map((skill: any) => {
         const assessment = (assessments as any).find((a: any) => a.skill_id === skill.id);
         return {
           id: skill.id,
           name: skill.name,
-          category: categoryMap.get(skill.category_id) || 'General',
+          category: skill.category || 'General',
           current_level: assessment?.current_level || 0
         };
       });
