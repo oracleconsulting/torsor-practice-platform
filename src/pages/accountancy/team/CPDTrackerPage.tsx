@@ -861,21 +861,21 @@ const CPDTrackerPage: React.FC = () => {
                           <Award className="h-6 w-6 text-gray-700" />
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="bg-gray-800 rounded-lg p-4">
-                            <p className="text-sm text-white font-medium mb-1">Annual Requirement</p>
-                            <p className="text-2xl font-bold">{req.annual_hours_required} hours</p>
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <p className="text-sm text-gray-700 font-medium mb-1">Annual Requirement</p>
+                            <p className="text-2xl font-bold text-gray-900">{req.annual_hours_required} hours</p>
                           </div>
-                          <div className="bg-gray-800 rounded-lg p-4">
-                            <p className="text-sm text-white font-medium mb-1">Verifiable CPD</p>
-                            <p className="text-2xl font-bold">{req.verifiable_hours_minimum} hrs</p>
-                            <p className="text-xs text-gray-100 font-medium">({verifiablePercentage}% minimum)</p>
+                          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                            <p className="text-sm text-gray-700 font-medium mb-1">Verifiable CPD</p>
+                            <p className="text-2xl font-bold text-gray-900">{req.verifiable_hours_minimum} hrs</p>
+                            <p className="text-xs text-gray-600 font-medium">({verifiablePercentage}% minimum)</p>
                           </div>
-                          <div className="bg-gray-800 rounded-lg p-4">
-                            <p className="text-sm text-white font-medium mb-1">Members Affected</p>
-                            <p className="text-2xl font-bold">
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <p className="text-sm text-gray-700 font-medium mb-1">Members Affected</p>
+                            <p className="text-2xl font-bold text-gray-900">
                               {teamSummary.filter(m => m.member_role?.toLowerCase() === req.role.toLowerCase()).length}
                             </p>
-                            <p className="text-xs text-gray-100 font-medium">team members</p>
+                            <p className="text-xs text-gray-600 font-medium">team members</p>
                           </div>
                         </div>
                         <div className="mt-4">
