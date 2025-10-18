@@ -67,7 +67,8 @@ export async function getCPDActivities(practiceId?: string) {
     }
 
     console.log('[getCPDActivities] Practice members:', members);
-    const memberIds = (members || []).map(m => m.id);
+    console.table(members); // Better visualization
+    const memberIds = (members || []).map((m: any) => m.id);
     console.log('[getCPDActivities] Member IDs to query:', memberIds);
 
     if (memberIds.length === 0) {
@@ -90,7 +91,17 @@ export async function getCPDActivities(practiceId?: string) {
       throw error;
     }
 
-    console.log('[getCPDActivities] Found activities:', data?.length || 0, data);
+    console.log('[getCPDActivities] Found activities:', data?.length || 0);
+    console.table(data); // Better visualization
+    
+    // Also query ALL activities to see if any were missed
+    const { data: allActivities } = await supabase
+      .from('cpd_activities')
+      .select('id, title, practice_member_id, activity_date, status');
+    
+    console.log('[getCPDActivities] ALL activities in database:', allActivities?.length || 0);
+    console.table(allActivities);
+    
     return data as CPDActivity[];
   } else {
     // If no practice ID, get all activities
