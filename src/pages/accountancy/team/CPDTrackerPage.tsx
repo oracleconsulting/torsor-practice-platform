@@ -553,7 +553,11 @@ const CPDTrackerPage: React.FC = () => {
                   activities
                     .filter(a => selectedMember === 'all' || a.practice_member_id === selectedMember)
                     .sort((a, b) => new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime())
-                    .map((activity) => (
+                    .map((activity) => {
+                      // Find the member name from team summary
+                      const memberName = teamSummary.find(m => m.member_id === activity.practice_member_id)?.member_name || 'Unknown';
+                      
+                      return (
                       <div key={activity.id} className="flex items-center justify-between p-4 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-1">
@@ -577,13 +581,13 @@ const CPDTrackerPage: React.FC = () => {
                             )}
                           </div>
                           <p className="text-sm text-white font-medium">
-                            {activity.practice_member?.name || 'Unknown'} • {activity.provider || 'No provider'} • {activity.category || 'Uncategorized'} • {formatDate(new Date(activity.activity_date))}
+                            {memberName} • {activity.provider || activity.type || 'No provider'} • {activity.category || activity.type} • {formatDate(new Date(activity.activity_date))}
                           </p>
                           {activity.description && (
-                            <p className="text-sm text-gray-100 font-medium mt-1">{activity.description}</p>
+                            <p className="text-sm text-white font-medium mt-1">{activity.description}</p>
                           )}
                           {activity.cost && (
-                            <p className="text-xs text-gray-100 font-medium mt-1">Cost: £{activity.cost.toFixed(2)}</p>
+                            <p className="text-xs text-white font-medium mt-1">Cost: £{activity.cost.toFixed(2)}</p>
                           )}
                         </div>
                         <div className="flex items-center gap-4">
@@ -598,8 +602,9 @@ const CPDTrackerPage: React.FC = () => {
                           </div>
                         </div>
                       </div>
-                    ))
-                )}
+                      );
+                    })
+                }}
               </div>
             </CardContent>
           </Card>
