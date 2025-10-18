@@ -800,6 +800,27 @@ const CPDTrackerPage: React.FC = () => {
                       </div>
                     );
                   })}
+                  {/* Show uncategorized activities */}
+                  {(() => {
+                    const uncategorizedHours = activities
+                      .filter(a => !a.category && a.status === 'completed')
+                      .reduce((sum, a) => sum + a.hours_claimed, 0);
+                    
+                    if (uncategorizedHours > 0) {
+                      return (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-900 font-medium">Other / Uncategorized</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-900">{uncategorizedHours} hrs</span>
+                            <div className="w-24">
+                              <Progress value={(uncategorizedHours / 40) * 100} className="h-2" />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </CardContent>
             </Card>
@@ -807,24 +828,87 @@ const CPDTrackerPage: React.FC = () => {
             <Card className="bg-white border-gray-200">
               <CardHeader>
                 <CardTitle className="text-gray-900 font-bold">Monthly Trend</CardTitle>
-                <CardDescription className="text-gray-600 font-medium">CPD hours logged over time</CardDescription>
+                <CardDescription className="text-gray-600 font-medium">CPD hours by month (current year)</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-end justify-between h-[200px]">
-                  {[...Array(6)].map((_, i) => {
-                    const height = Math.random() * 100 + 20;
+                <div className="flex items-end justify-between gap-1 h-[200px] px-2">
+                  {[...Array(12)].map((_, monthIndex) => {
+                    const currentYear = new Date().getFullYear();
+                    const monthActivities = activities.filter(a => {
+                      if (a.status !== 'completed') return false;
+                      const activityDate = new Date(a.activity_date);
+                      return activityDate.getMonth() === monthIndex && activityDate.getFullYear() === currentYear;
+                    });
+                    
+                    // Calculate determined vs self-allocated hours
+                    const determinedHours = monthActivities
+                      .filter(a => a.type === 'course' || a.type === 'seminar' || a.type === 'webinar' || a.type === 'certification')
+                      .reduce((sum, a) => sum + a.hours_claimed, 0);
+                    
+                    const selfAllocatedHours = monthActivities
+                      .reduce((sum, a) => sum + a.hours_claimed, 0) - determinedHours;
+                    
+                    const totalHours = determinedHours + selfAllocatedHours;
+                    const maxHeight = 160; // max bar height in pixels
+                    const determinedHeight = (determinedHours / 10) * maxHeight; // scale: 10 hours = full height
+                    const selfAllocatedHeight = (selfAllocatedHours / 10) * maxHeight;
+                    
                     return (
-                      <div key={i} className="flex flex-col items-center gap-2">
-                        <div 
-                          className="w-8 bg-orange-500 rounded-t"
-                          style={{ height: `${height}px` }}
-                        />
+                      <div key={monthIndex} className="flex flex-col items-center gap-1 flex-1">
+                        <div className="flex flex-col-reverse items-center w-full relative group">
+                          {/* Tooltip */}
+                          {totalHours > 0 && (
+                            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-10">
+                              <div>Determined: {determinedHours}h</div>
+                              <div>Self: {selfAllocatedHours}h</div>
+                              <div className="font-bold">Total: {totalHours}h</div>
+                            </div>
+                          )}
+                          
+                          {/* Determined hours (purple) */}
+                          {determinedHeight > 0 && (
+                            <div 
+                              className="w-full bg-purple-500 rounded-t transition-all hover:bg-purple-600"
+                              style={{ height: `${Math.max(determinedHeight, 4)}px` }}
+                            />
+                          )}
+                          
+                          {/* Self-allocated hours (orange) */}
+                          {selfAllocatedHeight > 0 && (
+                            <div 
+                              className="w-full bg-orange-500 transition-all hover:bg-orange-600"
+                              style={{ 
+                                height: `${Math.max(selfAllocatedHeight, 4)}px`,
+                                borderTopLeftRadius: determinedHeight > 0 ? '0' : '0.25rem',
+                                borderTopRightRadius: determinedHeight > 0 ? '0' : '0.25rem'
+                              }}
+                            />
+                          )}
+                          
+                          {/* Empty state */}
+                          {totalHours === 0 && (
+                            <div className="w-full h-1 bg-gray-200 rounded" />
+                          )}
+                        </div>
+                        
                         <span className="text-xs text-gray-900 font-medium">
-                          {new Date(2024, i).toLocaleString('default', { month: 'short' })}
+                          {new Date(currentYear, monthIndex).toLocaleString('default', { month: 'short' })}
                         </span>
                       </div>
                     );
                   })}
+                </div>
+                
+                {/* Legend */}
+                <div className="flex items-center justify-center gap-4 mt-4 text-xs">
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-purple-500 rounded"></div>
+                    <span className="text-gray-700">Determined</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-orange-500 rounded"></div>
+                    <span className="text-gray-700">Self-Allocated</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
