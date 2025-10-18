@@ -127,10 +127,12 @@ const CPDSkillsBridgePage: React.FC = () => {
             {memberId && (
               <QuickCPDLogger
                 memberId={memberId}
-                onComplete={() => {
+                onComplete={async () => {
+                  // Wait a moment to ensure database save completes
+                  await new Promise(resolve => setTimeout(resolve, 500));
                   setIsLogCPDOpen(false);
-                  // Optionally refresh the CPD data
-                  window.location.reload();
+                  // Navigate back to dashboard instead of reload
+                  navigate('/team-member/dashboard');
                 }}
               />
             )}

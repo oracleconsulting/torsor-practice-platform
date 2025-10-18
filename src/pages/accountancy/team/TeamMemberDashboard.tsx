@@ -163,7 +163,7 @@ export default function TeamMemberDashboard() {
       // Get CPD activities
       const { data: cpdData } = await supabase
         .from('cpd_activities')
-        .select('hours_claimed, activity_date, title, activity_type')
+        .select('hours_claimed, activity_date, title, type')
         .eq('practice_member_id', memberId)
         .order('activity_date', { ascending: false })
         .limit(5);
@@ -240,7 +240,7 @@ export default function TeamMemberDashboard() {
       // Get CPD activities
       const { data: cpdData } = await supabase
         .from('cpd_activities')
-        .select('hours_claimed, activity_date, title, activity_type')
+        .select('hours_claimed, activity_date, title, type')
         .eq('practice_member_id', member.id)
         .order('activity_date', { ascending: false })
         .limit(5);
@@ -603,7 +603,7 @@ export default function TeamMemberDashboard() {
                     <div className="text-right">
                       <p className="font-bold text-gray-900">{cpd.hours_claimed} hrs</p>
                       <Badge variant="outline" className="text-xs">
-                        {cpd.activity_type || 'Training'}
+                        {cpd.type || 'Training'}
                       </Badge>
                     </div>
                   </div>
