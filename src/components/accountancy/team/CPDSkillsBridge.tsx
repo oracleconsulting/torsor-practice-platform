@@ -407,14 +407,14 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <Card className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 border-purple-700">
+      {/* Header - Dark background for contrast */}
+      <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-2xl">
+          <CardTitle className="flex items-center gap-2 text-2xl text-white">
             <Sparkles className="w-6 h-6 text-yellow-400" />
             CPD ↔ Skills Integration Bridge
           </CardTitle>
-          <CardDescription className="text-base">
+          <CardDescription className="text-base text-white">
             Track how your CPD activities translate into tangible skill improvements
           </CardDescription>
         </CardHeader>

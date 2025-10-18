@@ -77,8 +77,8 @@ const CPDSkillsBridgePage: React.FC = () => {
           </CardHeader>
         </Card>
 
-        {/* Info Card */}
-        <Card className="bg-gradient-to-br from-blue-900/20 to-green-900/20 border-blue-700/50">
+        {/* Info Card - Dark background for contrast */}
+        <Card className="bg-gray-800 border-gray-700">
           <CardContent className="pt-6">
             <div className="flex items-start gap-3">
               <Info className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
