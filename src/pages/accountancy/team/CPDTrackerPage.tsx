@@ -604,7 +604,7 @@ const CPDTrackerPage: React.FC = () => {
                       </div>
                       );
                     })
-                }}
+                )}
               </div>
             </CardContent>
           </Card>
