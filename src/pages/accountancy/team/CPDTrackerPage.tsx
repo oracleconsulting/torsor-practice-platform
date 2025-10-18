@@ -540,10 +540,10 @@ const CPDTrackerPage: React.FC = () => {
           )}
 
           {/* Activities List */}
-          <Card className="bg-gray-50 border-gray-300">
+          <Card className="bg-gray-800 border-gray-700">
             <CardHeader>
-              <CardTitle style={{ color: '#000000', fontWeight: '700' }}>CPD Activities Log</CardTitle>
-              <CardDescription style={{ color: '#000000', fontWeight: '600' }}>Complete record of all CPD activities</CardDescription>
+              <CardTitle className="text-white font-bold">CPD Activities Log</CardTitle>
+              <CardDescription className="text-gray-300 font-medium">Complete record of all CPD activities</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -558,7 +558,7 @@ const CPDTrackerPage: React.FC = () => {
                       const memberName = teamSummary.find(m => m.member_id === activity.practice_member_id)?.member_name || 'Unknown';
                       
                       return (
-                      <div key={activity.id} className="flex items-center justify-between p-4 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
+                      <div key={activity.id} className="flex items-center justify-between p-4 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors border border-gray-600">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-1">
                             <h4 className="font-bold text-white">{activity.title}</h4>
@@ -575,7 +575,7 @@ const CPDTrackerPage: React.FC = () => {
                                 rel="noopener noreferrer"
                                 className="text-orange-500 hover:text-orange-400 text-xs flex items-center gap-1"
                               >
-                                <FileText className="h-3 w-3" />
+                                <FileText className="h-3 h-3" />
                                 Link
                               </a>
                             )}
@@ -583,7 +583,7 @@ const CPDTrackerPage: React.FC = () => {
                           <p className="text-sm text-white font-medium">
                             {memberName} • {activity.provider || activity.type || 'No provider'} • {activity.category || activity.type} • {formatDate(new Date(activity.activity_date))}
                           </p>
-                          {activity.description && (
+                          {activity.description && activity.description !== '0' && (
                             <p className="text-sm text-white font-medium mt-1">{activity.description}</p>
                           )}
                           {activity.cost && (
