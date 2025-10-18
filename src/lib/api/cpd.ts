@@ -60,7 +60,7 @@ export async function getCPDActivities(practiceId?: string) {
     // First get all member IDs for this practice  
     const { data: members, error: membersError } = await supabase
       .from('practice_members')
-      .select('id, name, practice_id')
+      .select('id, name, practice_id, cpd_completed_hours, cpd_determined_completed, cpd_self_allocated_completed')
       .eq('practice_id', practiceId);
 
     if (membersError) {
@@ -69,6 +69,7 @@ export async function getCPDActivities(practiceId?: string) {
     }
 
     console.log('[getCPDActivities] Found members for practice:', members);
+    console.table(members);
     const memberIds = (members || []).map((m: any) => m.id);
 
     if (memberIds.length === 0) {
