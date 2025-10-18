@@ -147,7 +147,7 @@ SELECT
 
 FROM practice_members pm
 LEFT JOIN practices p ON pm.practice_id = p.id
-WHERE pm.active = true
+WHERE pm.is_active = true
 ORDER BY pm.name;
 
 COMMENT ON VIEW admin_cpd_overview IS 'Admin dashboard view of all team member CPD progress';
