@@ -3,7 +3,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Download, Award } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, Download, Award, Edit } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface SkillAssessment {
@@ -15,8 +16,7 @@ interface SkillAssessment {
   description?: string;
   team_average?: number;
   target_average?: number;
-  top_performer?: string;
-  top_performer_level?: number;
+  top_performers?: Array<{ name: string; level: number }>;
 }
 
 export default function MySkillsHeatmap() {
@@ -26,6 +26,8 @@ export default function MySkillsHeatmap() {
   const [assessments, setAssessments] = useState<SkillAssessment[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [editingSkill, setEditingSkill] = useState<string | null>(null);
+  const [editingLevel, setEditingLevel] = useState<number>(0);
 
   useEffect(() => {
     if (user?.id) {
@@ -110,9 +112,12 @@ export default function MySkillsHeatmap() {
               ? teamLevels.reduce((sum: number, level: number) => sum + level, 0) / teamLevels.length 
               : 0;
             
-            // Find top performer
+            // Find top 2 performers
             const sortedByLevel = [...teamAssessmentsForSkill].sort((a: any, b: any) => (b.current_level || 0) - (a.current_level || 0));
-            const topPerformer = sortedByLevel[0] as any;
+            const topPerformers = sortedByLevel.slice(0, 2).map((performer: any) => ({
+              name: performer?.practice_members?.name || 'Unknown',
+              level: performer?.current_level || 0
+            }));
             
             return {
               skill_id: a.skill_id,
@@ -123,8 +128,7 @@ export default function MySkillsHeatmap() {
               description: (skill as any).description || 'No description available',
               team_average: teamAverage,
               target_average: 3, // Default target for all skills
-              top_performer: topPerformer?.practice_members?.name || 'N/A',
-              top_performer_level: topPerformer?.current_level || 0
+              top_performers: topPerformers
             };
           })
           .filter(Boolean) as SkillAssessment[];
@@ -146,6 +150,51 @@ export default function MySkillsHeatmap() {
   const filteredAssessments = selectedCategory === 'All'
     ? assessments
     : assessments.filter(a => a.category === selectedCategory);
+
+  const scrollToSkill = (skillId: string) => {
+    const element = document.getElementById(`skill-${skillId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Highlight the card briefly
+      element.classList.add('ring-4', 'ring-blue-500', 'ring-opacity-50');
+      setTimeout(() => {
+        element.classList.remove('ring-4', 'ring-blue-500', 'ring-opacity-50');
+      }, 2000);
+    }
+  };
+
+  const handleEditSkill = async (skillId: string, newLevel: number) => {
+    try {
+      // Get member ID
+      const { data: member } = await supabase
+        .from('practice_members')
+        .select('id')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (!member) return;
+
+      // Update skill assessment
+      const { error } = await supabase
+        .from('skill_assessments')
+        .update({ current_level: newLevel })
+        .eq('team_member_id', (member as any).id)
+        .eq('skill_id', skillId);
+
+      if (error) throw error;
+
+      // Update local state
+      setAssessments(prev => prev.map(skill => 
+        skill.skill_id === skillId 
+          ? { ...skill, current_level: newLevel }
+          : skill
+      ));
+
+      setEditingSkill(null);
+    } catch (error) {
+      console.error('Error updating skill:', error);
+    }
+  };
 
   const getSkillLevelColor = (level: number) => {
     if (level === 0) return 'bg-gray-200';
@@ -227,10 +276,11 @@ export default function MySkillsHeatmap() {
               {filteredAssessments.map(skill => (
                 <div
                   key={skill.skill_id}
+                  onClick={() => scrollToSkill(skill.skill_id)}
                   className={`
                     ${getSkillLevelColor(skill.current_level)}
                     w-12 h-12 rounded-md hover:scale-110 transition-transform cursor-pointer
-                    group relative
+                    group relative hover:ring-2 hover:ring-blue-500
                   `}
                   title={skill.skill_name}
                 >
@@ -239,6 +289,7 @@ export default function MySkillsHeatmap() {
                     <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 whitespace-nowrap shadow-lg">
                       <p className="font-semibold">{skill.skill_name}</p>
                       <p>Level: {skill.current_level}/5</p>
+                      <p className="text-blue-300 text-[10px]">Click to view details</p>
                     </div>
                   </div>
                 </div>
@@ -291,18 +342,61 @@ export default function MySkillsHeatmap() {
                     {categorySkills.map(skill => (
                       <div
                         key={skill.skill_id}
-                        className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                        id={`skill-${skill.skill_id}`}
+                        className="border rounded-lg p-4 hover:shadow-md transition-all"
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">
                             <h4 className="font-semibold text-lg text-gray-900">{skill.skill_name}</h4>
                             <p className="text-sm text-gray-600 mt-1">{skill.description}</p>
                           </div>
-                          <div className={`
-                            ${getSkillLevelColor(skill.current_level)}
-                            px-4 py-2 rounded-lg font-bold text-gray-900 min-w-[60px] text-center
-                          `}>
-                            {skill.current_level}/5
+                          <div className="flex items-center gap-2">
+                            {editingSkill === skill.skill_id ? (
+                              <>
+                                <select
+                                  value={editingLevel}
+                                  onChange={(e) => setEditingLevel(Number(e.target.value))}
+                                  className="border rounded px-2 py-1 text-sm"
+                                >
+                                  {[0, 1, 2, 3, 4, 5].map(level => (
+                                    <option key={level} value={level}>{level}/5</option>
+                                  ))}
+                                </select>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleEditSkill(skill.skill_id, editingLevel)}
+                                  className="bg-green-600 hover:bg-green-700"
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setEditingSkill(null)}
+                                >
+                                  Cancel
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <div className={`
+                                  ${getSkillLevelColor(skill.current_level)}
+                                  px-4 py-2 rounded-lg font-bold text-gray-900 min-w-[60px] text-center
+                                `}>
+                                  {skill.current_level}/5
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditingSkill(skill.skill_id);
+                                    setEditingLevel(skill.current_level);
+                                  }}
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </div>
 
@@ -332,10 +426,16 @@ export default function MySkillsHeatmap() {
                           </div>
 
                           <div>
-                            <div className="text-gray-600 font-medium">Top Performer</div>
-                            <div className="mt-1">
-                              <div className="font-semibold text-gray-900">{skill.top_performer}</div>
-                              <div className="text-xs text-gray-600">Level {skill.top_performer_level}/5</div>
+                            <div className="text-gray-600 font-medium">Top Performers</div>
+                            <div className="mt-1 space-y-1">
+                              {skill.top_performers?.map((performer, idx) => (
+                                <div key={idx} className="flex items-center justify-between">
+                                  <span className="text-xs font-semibold text-gray-900">{performer.name}</span>
+                                  <Badge variant="outline" className="text-xs ml-2">
+                                    {performer.level}/5
+                                  </Badge>
+                                </div>
+                              ))}
                             </div>
                           </div>
                         </div>
