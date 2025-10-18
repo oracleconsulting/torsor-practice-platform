@@ -10,9 +10,10 @@ import { supabase } from '@/lib/supabase/client';
 interface QuickCPDLoggerProps {
   memberId: string;
   onSuccess?: () => void;
+  onComplete?: () => void;
 }
 
-export const QuickCPDLogger: React.FC<QuickCPDLoggerProps> = ({ memberId, onSuccess }) => {
+export const QuickCPDLogger: React.FC<QuickCPDLoggerProps> = ({ memberId, onSuccess, onComplete }) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -38,12 +39,13 @@ export const QuickCPDLogger: React.FC<QuickCPDLoggerProps> = ({ memberId, onSucc
       const { error } = await (supabase as any)
         .from('cpd_activities')
         .insert({
-          member_id: memberId,
-          activity_title: formData.title,
-          hours: parseFloat(formData.hours),
+          practice_member_id: memberId,
+          title: formData.title,
+          activity_type: 'other',
+          hours_claimed: parseFloat(formData.hours),
           activity_date: formData.date,
-          notes: formData.notes || null,
-          created_at: new Date().toISOString()
+          description: formData.notes || null,
+          status: 'approved'
         });
 
       if (error) throw error;
@@ -62,6 +64,7 @@ export const QuickCPDLogger: React.FC<QuickCPDLoggerProps> = ({ memberId, onSucc
       });
 
       if (onSuccess) onSuccess();
+      if (onComplete) onComplete();
     } catch (error) {
       console.error('Error logging CPD:', error);
       toast({
