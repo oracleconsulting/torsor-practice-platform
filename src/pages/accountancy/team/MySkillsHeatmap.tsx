@@ -151,6 +151,16 @@ export default function MySkillsHeatmap() {
     ? assessments
     : assessments.filter(a => a.category === selectedCategory);
 
+  // Sort assessments: Red (level 1) on left to Green (level 5) on right
+  // Primary sort: by current_level (ascending)
+  // Secondary sort: by skill_name (alphabetical) for consistency
+  const sortedAssessments = [...filteredAssessments].sort((a, b) => {
+    if (a.current_level !== b.current_level) {
+      return a.current_level - b.current_level; // Lower levels first (red -> green)
+    }
+    return a.skill_name.localeCompare(b.skill_name); // Alphabetical within same level
+  });
+
   const scrollToSkill = (skillId: string) => {
     const element = document.getElementById(`skill-${skillId}`);
     if (element) {
@@ -268,12 +278,12 @@ export default function MySkillsHeatmap() {
           <CardHeader>
             <CardTitle className="text-lg text-gray-900">Visual Overview</CardTitle>
             <CardDescription className="text-gray-700 font-medium">
-              Quick glance at your skills portfolio - {filteredAssessments.length} skills assessed
+              Quick glance at your skills portfolio - {sortedAssessments.length} skills assessed
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {filteredAssessments.map(skill => (
+              {sortedAssessments.map(skill => (
                 <div
                   key={skill.skill_id}
                   onClick={() => scrollToSkill(skill.skill_id)}
@@ -325,9 +335,16 @@ export default function MySkillsHeatmap() {
         {/* Detailed Skills List by Category */}
         <div className="space-y-4">
           {categories.filter(cat => cat !== 'All').map(category => {
-            const categorySkills = selectedCategory === 'All' 
+            const categorySkills = (selectedCategory === 'All' 
               ? assessments.filter(a => a.category === category)
-              : filteredAssessments.filter(a => a.category === category);
+              : sortedAssessments.filter(a => a.category === category))
+              // Sort within category: red to green (level 1 to 5), then alphabetically
+              .sort((a, b) => {
+                if (a.current_level !== b.current_level) {
+                  return a.current_level - b.current_level;
+                }
+                return a.skill_name.localeCompare(b.skill_name);
+              });
             
             if (categorySkills.length === 0) return null;
 
@@ -468,7 +485,7 @@ export default function MySkillsHeatmap() {
           })}
         </div>
 
-        {filteredAssessments.length === 0 && (
+        {sortedAssessments.length === 0 && (
           <Card>
             <CardContent className="text-center py-12">
               <p className="text-gray-600 mb-4">No skills assessed yet.</p>
