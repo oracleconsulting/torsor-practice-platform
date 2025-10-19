@@ -283,35 +283,38 @@ export default function MySkillsHeatmap() {
           </CardHeader>
           <CardContent>
             {/* Grid layout that fills COLUMNS first (top to bottom), then moves right */}
-            <div 
-              className="grid gap-2"
-              style={{
-                gridTemplateRows: 'repeat(5, minmax(0, 1fr))',
-                gridAutoFlow: 'column',
-                gridAutoColumns: '3rem' // w-12 equivalent
-              }}
-            >
-              {sortedByLevel.map(skill => (
-                <div
-                  key={skill.skill_id}
-                  onClick={() => scrollToSkill(skill.skill_id)}
-                  className={`
-                    ${getSkillLevelColor(skill.current_level)}
-                    w-12 h-12 rounded-md hover:scale-110 transition-transform cursor-pointer
-                    group relative hover:ring-2 hover:ring-blue-500
-                  `}
-                  title={skill.skill_name}
-                >
-                  {/* Hover tooltip */}
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
-                    <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 whitespace-nowrap shadow-lg">
-                      <p className="font-semibold">{skill.skill_name}</p>
-                      <p>Level: {skill.current_level}/5</p>
-                      <p className="text-blue-300 text-[10px]">Click to view details</p>
+            {/* Overflow-x-auto allows horizontal scrolling on small screens, but prevents items from escaping viewport */}
+            <div className="overflow-x-auto">
+              <div 
+                className="grid gap-2 w-fit"
+                style={{
+                  gridTemplateRows: 'repeat(5, minmax(0, 1fr))',
+                  gridAutoFlow: 'column',
+                  gridAutoColumns: '3rem' // w-12 equivalent (48px)
+                }}
+              >
+                {sortedByLevel.map(skill => (
+                  <div
+                    key={skill.skill_id}
+                    onClick={() => scrollToSkill(skill.skill_id)}
+                    className={`
+                      ${getSkillLevelColor(skill.current_level)}
+                      w-12 h-12 rounded-md hover:scale-110 transition-transform cursor-pointer
+                      group relative hover:ring-2 hover:ring-blue-500
+                    `}
+                    title={skill.skill_name}
+                  >
+                    {/* Hover tooltip */}
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
+                      <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 whitespace-nowrap shadow-lg">
+                        <p className="font-semibold">{skill.skill_name}</p>
+                        <p>Level: {skill.current_level}/5</p>
+                        <p className="text-blue-300 text-[10px]">Click to view details</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
             
             {/* Color Legend - Compact */}
