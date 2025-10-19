@@ -152,39 +152,14 @@ export default function MySkillsHeatmap() {
     : assessments.filter(a => a.category === selectedCategory);
 
   // Sort assessments: Red (level 1) on left to Green (level 5) on right - COLUMN-WISE
-  // We want columns of reds on the left, then oranges, yellows, limes, then greens on the right
-  // Group by level, then arrange in column layout
+  // CSS Grid with gridAutoFlow: 'column' will handle the column layout
+  // We just need to sort by level, then alphabetically
   const sortedByLevel = [...filteredAssessments].sort((a, b) => {
     if (a.current_level !== b.current_level) {
       return a.current_level - b.current_level; // Lower levels first (red -> green)
     }
     return a.skill_name.localeCompare(b.skill_name); // Alphabetical within same level
   });
-
-  // Calculate grid layout: we want ~20-25 items per row for visual balance
-  // But arrange so same colors group in columns (vertical stacking by level)
-  const ITEMS_PER_ROW = 24;
-  const sortedAssessments = rearrangeIntoColumns(sortedByLevel, ITEMS_PER_ROW);
-
-  // Helper function to rearrange skills into column-based layout
-  function rearrangeIntoColumns(skills: SkillAssessment[], itemsPerRow: number): SkillAssessment[] {
-    if (skills.length === 0) return [];
-    
-    const numRows = Math.ceil(skills.length / itemsPerRow);
-    const result: SkillAssessment[] = [];
-    
-    // Fill column by column (top to bottom, left to right)
-    for (let col = 0; col < itemsPerRow; col++) {
-      for (let row = 0; row < numRows; row++) {
-        const index = col * numRows + row;
-        if (index < skills.length) {
-          result.push(skills[index]);
-        }
-      }
-    }
-    
-    return result;
-  }
 
   const scrollToSkill = (skillId: string) => {
     const element = document.getElementById(`skill-${skillId}`);
@@ -303,12 +278,20 @@ export default function MySkillsHeatmap() {
           <CardHeader>
             <CardTitle className="text-lg text-gray-900">Visual Overview</CardTitle>
             <CardDescription className="text-gray-700 font-medium">
-              Quick glance at your skills portfolio - {sortedAssessments.length} skills assessed
+              Quick glance at your skills portfolio - {sortedByLevel.length} skills assessed
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {sortedAssessments.map(skill => (
+            {/* Grid layout that fills COLUMNS first (top to bottom), then moves right */}
+            <div 
+              className="grid gap-2"
+              style={{
+                gridTemplateRows: 'repeat(5, minmax(0, 1fr))',
+                gridAutoFlow: 'column',
+                gridAutoColumns: '3rem' // w-12 equivalent
+              }}
+            >
+              {sortedByLevel.map(skill => (
                 <div
                   key={skill.skill_id}
                   onClick={() => scrollToSkill(skill.skill_id)}
@@ -362,7 +345,7 @@ export default function MySkillsHeatmap() {
           {categories.filter(cat => cat !== 'All').map(category => {
             const categorySkills = (selectedCategory === 'All' 
               ? assessments.filter(a => a.category === category)
-              : sortedAssessments.filter(a => a.category === category))
+              : sortedByLevel.filter(a => a.category === category))
               // Sort within category: red to green (level 1 to 5), then alphabetically
               .sort((a, b) => {
                 if (a.current_level !== b.current_level) {
@@ -510,7 +493,7 @@ export default function MySkillsHeatmap() {
           })}
         </div>
 
-        {sortedAssessments.length === 0 && (
+        {sortedByLevel.length === 0 && (
           <Card>
             <CardContent className="text-center py-12">
               <p className="text-gray-600 mb-4">No skills assessed yet.</p>
