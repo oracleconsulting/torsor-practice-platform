@@ -4,7 +4,8 @@ import { supabase } from '@/lib/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Download, Award, Edit } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { ArrowLeft, Download, Award, Edit, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface SkillAssessment {
@@ -259,18 +260,65 @@ export default function MySkillsHeatmap() {
           </Button>
         </div>
 
-        {/* Category Filter */}
-        <div className="mb-6 flex flex-wrap gap-2">
-          {categories.map(cat => (
+        {/* Category Filter Buttons with Mini Heatmaps */}
+        <div className="mb-6">
+          <h3 className="text-sm font-medium text-gray-700 mb-3">Filter by Category</h3>
+          <div className="flex flex-wrap gap-3">
             <Button
-              key={cat}
-              variant={selectedCategory === cat ? 'default' : 'outline'}
-              onClick={() => setSelectedCategory(cat)}
+              key="All"
+              variant={selectedCategory === 'All' ? 'default' : 'outline'}
+              onClick={() => setSelectedCategory('All')}
               size="sm"
+              className="flex items-center gap-2"
             >
-              {cat}
+              <span>All Categories</span>
+              <div className="flex gap-0.5">
+                {/* Show mini heatmap for all skills */}
+                {[1, 2, 3, 4, 5].map(level => {
+                  const count = assessments.filter(a => a.current_level === level).length;
+                  if (count === 0) return null;
+                  return (
+                    <div 
+                      key={level}
+                      className={`w-2 h-6 ${getSkillLevelColor(level)} rounded-sm`}
+                      title={`Level ${level}: ${count} skills`}
+                      style={{ width: `${Math.max(8, count * 2)}px` }}
+                    />
+                  );
+                })}
+              </div>
             </Button>
-          ))}
+            
+            {categories.filter(cat => cat !== 'All').map(cat => {
+              const catSkills = assessments.filter(a => a.category === cat);
+              return (
+                <Button
+                  key={cat}
+                  variant={selectedCategory === cat ? 'default' : 'outline'}
+                  onClick={() => setSelectedCategory(cat)}
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  <span>{cat}</span>
+                  <div className="flex gap-0.5">
+                    {/* Show mini heatmap for this category */}
+                    {[1, 2, 3, 4, 5].map(level => {
+                      const count = catSkills.filter(s => s.current_level === level).length;
+                      if (count === 0) return null;
+                      return (
+                        <div 
+                          key={level}
+                          className={`w-2 h-6 ${getSkillLevelColor(level)} rounded-sm`}
+                          title={`Level ${level}: ${count} skills`}
+                          style={{ width: `${Math.max(8, count * 2)}px` }}
+                        />
+                      );
+                    })}
+                  </div>
+                </Button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Compact Visual Heatmap */}
@@ -343,8 +391,8 @@ export default function MySkillsHeatmap() {
           </CardContent>
         </Card>
 
-        {/* Detailed Skills List by Category */}
-        <div className="space-y-4">
+        {/* Detailed Skills List by Category - Accordion Style */}
+        <Accordion type="multiple" className="space-y-2">
           {categories.filter(cat => cat !== 'All').map(category => {
             const categorySkills = (selectedCategory === 'All' 
               ? assessments.filter(a => a.category === category)
@@ -360,20 +408,42 @@ export default function MySkillsHeatmap() {
             if (categorySkills.length === 0) return null;
 
             return (
-              <Card key={category}>
-                <CardHeader>
-                  <CardTitle className="text-xl text-gray-900">{category}</CardTitle>
-                  <CardDescription className="text-gray-700 font-medium">
-                    {categorySkills.length} skills in this category
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
+              <AccordionItem key={category} value={category} className="border rounded-lg bg-white">
+                <AccordionTrigger className="px-6 py-4 hover:no-underline">
+                  <div className="flex items-center justify-between w-full pr-4">
+                    <div className="flex items-center gap-4">
+                      <div className="text-left">
+                        <h3 className="text-lg font-bold text-gray-900">{category}</h3>
+                        <p className="text-sm text-gray-600 font-medium">{categorySkills.length} skills in this category</p>
+                      </div>
+                    </div>
+                    
+                    {/* Mini heatmap showing skill level distribution */}
+                    <div className="flex gap-1 ml-4">
+                      {[1, 2, 3, 4, 5].map(level => {
+                        const count = categorySkills.filter(s => s.current_level === level).length;
+                        if (count === 0) return null;
+                        return (
+                          <div key={level} className="flex flex-col items-center">
+                            <div 
+                              className={`w-8 ${getSkillLevelColor(level)} rounded`}
+                              style={{ height: `${Math.max(20, count * 8)}px` }}
+                              title={`${count} skill${count > 1 ? 's' : ''} at level ${level}`}
+                            />
+                            <span className="text-xs text-gray-600 mt-1">{count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-6 pb-4">
+                  <div className="space-y-3 mt-2">
                     {categorySkills.map(skill => (
                       <div
                         key={skill.skill_id}
                         id={`skill-${skill.skill_id}`}
-                        className="border rounded-lg p-4 hover:shadow-md transition-all"
+                        className="border rounded-lg p-4 hover:shadow-md transition-all bg-gray-50"
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">
@@ -490,11 +560,11 @@ export default function MySkillsHeatmap() {
                       </div>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
+                </AccordionContent>
+              </AccordionItem>
             );
           })}
-        </div>
+        </Accordion>
 
         {sortedByLevel.length === 0 && (
           <Card>
