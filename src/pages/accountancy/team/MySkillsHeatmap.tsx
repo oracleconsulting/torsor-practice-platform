@@ -419,13 +419,13 @@ export default function MySkillsHeatmap() {
                     </div>
                     
                     {/* Mini heatmap grid - squares flowing left to right (red to green) */}
-                    <div className="flex flex-wrap gap-1 max-w-xs ml-4">
+                    <div className="flex gap-1 ml-4">
                       {categorySkills.map(skill => (
                         <div
                           key={skill.skill_id}
                           className={`
                             ${getSkillLevelColor(skill.current_level)}
-                            w-6 h-6 rounded
+                            w-6 h-6 rounded flex-shrink-0
                           `}
                           title={`${skill.skill_name}: ${skill.current_level}/5`}
                         />
