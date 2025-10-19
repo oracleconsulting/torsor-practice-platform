@@ -418,22 +418,18 @@ export default function MySkillsHeatmap() {
                       </div>
                     </div>
                     
-                    {/* Mini heatmap showing skill level distribution */}
-                    <div className="flex gap-1 ml-4">
-                      {[1, 2, 3, 4, 5].map(level => {
-                        const count = categorySkills.filter(s => s.current_level === level).length;
-                        if (count === 0) return null;
-                        return (
-                          <div key={level} className="flex flex-col items-center">
-                            <div 
-                              className={`w-8 ${getSkillLevelColor(level)} rounded`}
-                              style={{ height: `${Math.max(20, count * 8)}px` }}
-                              title={`${count} skill${count > 1 ? 's' : ''} at level ${level}`}
-                            />
-                            <span className="text-xs text-gray-600 mt-1">{count}</span>
-                          </div>
-                        );
-                      })}
+                    {/* Mini heatmap grid - squares flowing left to right (red to green) */}
+                    <div className="flex flex-wrap gap-1 max-w-xs ml-4">
+                      {categorySkills.map(skill => (
+                        <div
+                          key={skill.skill_id}
+                          className={`
+                            ${getSkillLevelColor(skill.current_level)}
+                            w-6 h-6 rounded
+                          `}
+                          title={`${skill.skill_name}: ${skill.current_level}/5`}
+                        />
+                      ))}
                     </div>
                   </div>
                 </AccordionTrigger>
