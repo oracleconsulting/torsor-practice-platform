@@ -151,15 +151,40 @@ export default function MySkillsHeatmap() {
     ? assessments
     : assessments.filter(a => a.category === selectedCategory);
 
-  // Sort assessments: Red (level 1) on left to Green (level 5) on right
-  // Primary sort: by current_level (ascending)
-  // Secondary sort: by skill_name (alphabetical) for consistency
-  const sortedAssessments = [...filteredAssessments].sort((a, b) => {
+  // Sort assessments: Red (level 1) on left to Green (level 5) on right - COLUMN-WISE
+  // We want columns of reds on the left, then oranges, yellows, limes, then greens on the right
+  // Group by level, then arrange in column layout
+  const sortedByLevel = [...filteredAssessments].sort((a, b) => {
     if (a.current_level !== b.current_level) {
       return a.current_level - b.current_level; // Lower levels first (red -> green)
     }
     return a.skill_name.localeCompare(b.skill_name); // Alphabetical within same level
   });
+
+  // Calculate grid layout: we want ~20-25 items per row for visual balance
+  // But arrange so same colors group in columns (vertical stacking by level)
+  const ITEMS_PER_ROW = 24;
+  const sortedAssessments = rearrangeIntoColumns(sortedByLevel, ITEMS_PER_ROW);
+
+  // Helper function to rearrange skills into column-based layout
+  function rearrangeIntoColumns(skills: SkillAssessment[], itemsPerRow: number): SkillAssessment[] {
+    if (skills.length === 0) return [];
+    
+    const numRows = Math.ceil(skills.length / itemsPerRow);
+    const result: SkillAssessment[] = [];
+    
+    // Fill column by column (top to bottom, left to right)
+    for (let col = 0; col < itemsPerRow; col++) {
+      for (let row = 0; row < numRows; row++) {
+        const index = col * numRows + row;
+        if (index < skills.length) {
+          result.push(skills[index]);
+        }
+      }
+    }
+    
+    return result;
+  }
 
   const scrollToSkill = (skillId: string) => {
     const element = document.getElementById(`skill-${skillId}`);
