@@ -264,7 +264,15 @@ export async function getCPDRecommendations(memberId: string): Promise<CPDRecomm
  */
 export async function generateCPDRecommendations(
   memberId: string,
-  skillGaps: Array<{ skillId: string; currentLevel: number; targetLevel: number; interestLevel: number; businessImpact: string }>
+  skillGaps: Array<{ 
+    skillId: string; 
+    skillName?: string;
+    category?: string;
+    currentLevel: number; 
+    targetLevel: number; 
+    interestLevel: number; 
+    businessImpact: string 
+  }>
 ): Promise<boolean> {
   try {
     // First, delete existing recommendations for this member
@@ -278,20 +286,26 @@ export async function generateCPDRecommendations(
       // Continue anyway - might be first time generating
     }
 
-    const recommendations = skillGaps.map(gap => ({
-      member_id: memberId,
-      skill_id: gap.skillId,
-      current_skill_level: gap.currentLevel,
-      target_skill_level: gap.targetLevel,
-      interest_level: gap.interestLevel,
-      business_impact: gap.businessImpact,
-      recommended_cpd_type: suggestCPDType(gap.targetLevel - gap.currentLevel),
-      estimated_hours: estimateHours(gap.targetLevel - gap.currentLevel),
-      estimated_cost: estimateCost(gap.targetLevel - gap.currentLevel),
-      expected_improvement: Math.min(gap.targetLevel - gap.currentLevel, 2), // Max 2 levels per activity
-      priority_score: calculatePriorityScore(gap),
-      urgency: determineUrgency(gap.businessImpact)
-    }));
+    const recommendations = skillGaps.map(gap => {
+      const skillGap = gap.targetLevel - gap.currentLevel;
+      const skillName = gap.skillName || 'Unknown Skill';
+      const category = gap.category || 'General';
+      
+      return {
+        member_id: memberId,
+        skill_id: gap.skillId,
+        current_skill_level: gap.currentLevel,
+        target_skill_level: gap.targetLevel,
+        interest_level: gap.interestLevel,
+        business_impact: gap.businessImpact,
+        recommended_cpd_type: suggestCPDTypeForSkill(skillName, category, skillGap),
+        estimated_hours: estimateHours(skillGap),
+        estimated_cost: estimateCost(skillGap),
+        expected_improvement: Math.min(gap.targetLevel - gap.currentLevel, 2), // Max 2 levels per activity
+        priority_score: calculatePriorityScore(gap),
+        urgency: determineUrgency(gap.businessImpact)
+      };
+    });
 
     // Insert new recommendations
     const { error } = await (supabase
@@ -318,7 +332,7 @@ export async function autoGenerateCPDRecommendations(memberId: string): Promise<
   try {
     console.log('[CPD] Auto-generating recommendations for member:', memberId);
 
-    // Get all skill assessments for this member
+    // Get all skill assessments for this member with skill details
     const { data: assessments, error: assessError } = await supabase
       .from('skill_assessments')
       .select(`
@@ -328,7 +342,8 @@ export async function autoGenerateCPDRecommendations(memberId: string): Promise<
         skills:skill_id (
           id,
           name,
-          category
+          category,
+          description
         )
       `)
       .eq('team_member_id', memberId);
@@ -354,6 +369,7 @@ export async function autoGenerateCPDRecommendations(memberId: string): Promise<
       })
       .map(assessment => {
         const ass = assessment as any;
+        const skill = ass.skills;
         const currentLevel = ass.current_level || 0;
         const targetLevel = 4; // Default target: Proficient
         const gap = targetLevel - currentLevel;
@@ -366,6 +382,8 @@ export async function autoGenerateCPDRecommendations(memberId: string): Promise<
 
         return {
           skillId: ass.skill_id,
+          skillName: skill?.name || 'Unknown Skill',
+          category: skill?.category || 'General',
           currentLevel,
           targetLevel,
           interestLevel: 3, // Default interest level (could be customized later)
@@ -553,6 +571,59 @@ function suggestCPDType(skillGap: number): string {
   if (skillGap <= 1) return 'Online Course';
   if (skillGap === 2) return 'Workshop';
   return 'Formal Training Program';
+}
+
+/**
+ * Suggest specific CPD type based on skill name, category, and gap level
+ */
+function suggestCPDTypeForSkill(skillName: string, category: string, skillGap: number): string {
+  const lowerSkill = skillName.toLowerCase();
+  const lowerCategory = category.toLowerCase();
+  
+  // Technical/software skills - favor practical learning
+  if (lowerSkill.includes('xero') || lowerSkill.includes('quickbooks') || 
+      lowerSkill.includes('sage') || lowerSkill.includes('software') ||
+      lowerCategory.includes('cloud') || lowerCategory.includes('digital')) {
+    if (skillGap <= 1) return `${skillName} - Online Tutorial`;
+    if (skillGap === 2) return `${skillName} - Hands-on Workshop`;
+    return `${skillName} - Comprehensive Training Course`;
+  }
+  
+  // Tax/compliance skills - formal structured learning
+  if (lowerCategory.includes('tax') || lowerCategory.includes('compliance') ||
+      lowerSkill.includes('tax') || lowerSkill.includes('hmrc')) {
+    if (skillGap <= 1) return `${skillName} - CPD Webinar`;
+    if (skillGap === 2) return `${skillName} - Professional Workshop`;
+    return `${skillName} - Accredited Training Program`;
+  }
+  
+  // Advisory/consulting skills - mentoring and practice
+  if (lowerCategory.includes('advisory') || lowerCategory.includes('consulting') ||
+      lowerSkill.includes('advisory') || lowerSkill.includes('forecasting')) {
+    if (skillGap <= 1) return `${skillName} - Shadowing & Mentoring`;
+    if (skillGap === 2) return `${skillName} - Case Study Workshop`;
+    return `${skillName} - Advisory Skills Program`;
+  }
+  
+  // Communication/soft skills - interactive learning
+  if (lowerCategory.includes('communication') || lowerCategory.includes('soft skills') ||
+      lowerCategory.includes('leadership') || lowerCategory.includes('client management')) {
+    if (skillGap <= 1) return `${skillName} - Interactive Workshop`;
+    if (skillGap === 2) return `${skillName} - Skills Development Program`;
+    return `${skillName} - Professional Development Course`;
+  }
+  
+  // Management/reporting skills - practical application
+  if (lowerCategory.includes('management') || lowerCategory.includes('reporting')) {
+    if (skillGap <= 1) return `${skillName} - Practical Workshop`;
+    if (skillGap === 2) return `${skillName} - Applied Training Course`;
+    return `${skillName} - Management Accounting Program`;
+  }
+  
+  // Default recommendations with skill name
+  if (skillGap <= 1) return `${skillName} - CPD Course`;
+  if (skillGap === 2) return `${skillName} - Professional Workshop`;
+  return `${skillName} - Training Program`;
 }
 
 function estimateHours(skillGap: number): number {
