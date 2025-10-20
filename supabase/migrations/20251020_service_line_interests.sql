@@ -91,10 +91,11 @@ EXECUTE FUNCTION update_service_line_interests_updated_at();
 -- Coming Soon: Systems Audit
 
 -- View for service line coverage analysis
+-- Note: Simplified to avoid column existence issues across different schema versions
 CREATE OR REPLACE VIEW service_line_coverage AS
 SELECT 
   pm.id as member_id,
-  COALESCE(pm.full_name, pm.name, pm.email) as member_name,
+  pm.name as member_name,
   pm.role,
   sli.service_line,
   sli.interest_rank,
@@ -118,9 +119,9 @@ FROM practice_members pm
 LEFT JOIN service_line_interests sli ON pm.id = sli.practice_member_id
 LEFT JOIN skill_assessments sa ON pm.id = sa.team_member_id
 LEFT JOIN skills s ON sa.skill_id = s.id AND s.service_line = sli.service_line
-GROUP BY pm.id, pm.full_name, pm.name, pm.email, pm.role, sli.service_line, sli.interest_rank, 
+GROUP BY pm.id, pm.name, pm.role, sli.service_line, sli.interest_rank, 
          sli.current_experience_level, sli.desired_involvement_pct
-ORDER BY COALESCE(pm.full_name, pm.name, pm.email), sli.interest_rank;
+ORDER BY pm.name, sli.interest_rank;
 
 COMMENT ON VIEW service_line_coverage IS 'Strategic view combining member interests, experience, and skills for service line deployment planning';
 
