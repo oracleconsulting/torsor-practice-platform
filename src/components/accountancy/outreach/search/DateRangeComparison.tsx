@@ -76,14 +76,15 @@ export const DateRangeComparison: React.FC = () => {
 
         // Transform the results to match the ComparisonResults interface
         setComparisonResults({
-          range1_only: results.companies_left,
-          range2_only: results.companies_arrived,
-          left_firms: results.companies_left,
-          new_firms: results.companies_arrived,
+          range1_only: results.companies_left || [],
+          range2_only: results.companies_arrived || [],
+          in_both: results.companies_stable || [],
+          left_firms: results.companies_left || [],
+          new_firms: results.companies_arrived || [],
         });
         
         toast.success(
-          `Found ${results.companies_left.length} companies that left and ${results.companies_arrived.length} that arrived`
+          `Found ${(results.companies_left || []).length} companies that left and ${(results.companies_arrived || []).length} that arrived`
         );
       } catch (error: any) {
         console.error('Timeline comparison failed:', error);
