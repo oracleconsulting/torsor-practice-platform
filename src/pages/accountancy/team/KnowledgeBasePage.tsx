@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, FileText, Search, Plus, Tag, Clock, Eye, Loader2, AlertCircle,
   Video, Newspaper, Globe, GraduationCap, BookMarked, Users, Star, ExternalLink,
-  TrendingUp, Target, Award
+  TrendingUp, Target, Award, ArrowLeft
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useNavigate } from 'react-router-dom';
 import { useAccountancyContext } from '@/contexts/AccountancyContext';
 import { 
   getKnowledgeDocuments, 
@@ -57,6 +58,7 @@ interface KnowledgeDocumentForm {
 }
 
 const KnowledgeBasePage: React.FC = () => {
+  const navigate = useNavigate();
   const accountancyContext = useAccountancyContext();
   const practice = accountancyContext?.practice;
   const practiceMember = accountancyContext?.practiceMember;
@@ -295,6 +297,16 @@ const KnowledgeBasePage: React.FC = () => {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
+      {/* Back Button */}
+      <Button 
+        variant="ghost" 
+        onClick={() => navigate('/team-member/dashboard')}
+        className="mb-4"
+      >
+        <ArrowLeft className="w-4 h-4 mr-2" />
+        Back to Dashboard
+      </Button>
+
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
