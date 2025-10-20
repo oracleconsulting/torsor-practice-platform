@@ -177,14 +177,66 @@ const ServiceLineInterestRanking: React.FC<ServiceLineInterestRankingProps> = ({
     const icons: Record<string, string> = {
       'Automation': '🔄',
       'Management Accounts': '📊',
-      'Advisory/Forecasting': '💼',
-      '365 Alignment': '🎯',
-      'Systems Audit': '🔍',
-      'Client Vault': '🔐',
-      'Compliance': '✅',
-      'Core Capability': '⭐'
+      'Future Financial Information / Advisory Accelerator': '💼',
+      'Benchmarking - External and Internal': '⚖️',
+      'Profit Extraction / Remuneration Strategies': '💰',
+      '365 Alignment Programme': '🎯'
     };
     return icons[serviceLine] || '📌';
+  };
+
+  const getServiceLineDescription = (serviceLine: string) => {
+    const descriptions: Record<string, { short: string; features: string[] }> = {
+      'Automation': {
+        short: 'Data capture, system integration, and finance automation',
+        features: [
+          'Scan invoices & receipts to electronic format',
+          'Auto-upload to data entry software',
+          'Bank feed setup and troubleshooting'
+        ]
+      },
+      'Management Accounts': {
+        short: 'Regular financial reporting with KPI analysis and insights',
+        features: [
+          'Completed on suitable software package',
+          'Data check for year-end compatibility',
+          'Monthly, quarterly, or adhoc frequency'
+        ]
+      },
+      'Future Financial Information / Advisory Accelerator': {
+        short: 'Budgets, forecasts, valuations, and ongoing advisory support',
+        features: [
+          'Budgets, forecasts, and cashflow projections',
+          'Business valuations',
+          'Historic financial information analysis'
+        ]
+      },
+      'Benchmarking - External and Internal': {
+        short: 'Comparative financial analysis across industry',
+        features: [
+          'Comparative financial data across industry/country',
+          'KPI measurement vs same-industry companies',
+          'Follow-up consultation to interpret data'
+        ]
+      },
+      'Profit Extraction / Remuneration Strategies': {
+        short: 'Tax-efficient director remuneration planning',
+        features: [
+          'Optimal profit extraction tool',
+          'Company vs personal tax optimization',
+          'Salary vs dividend analysis'
+        ]
+      },
+      '365 Alignment Programme': {
+        short: 'Structured personal-business planning with AI-generated execution plans',
+        features: [
+          'Tiered diagnostics (Lite/Growth/Partner)',
+          'AI-generated plan: outcomes, constraints, resources, risks',
+          'Quarterly accountability reviews'
+        ]
+      }
+    };
+    return descriptions[serviceLine] || { short: 'Business growth service', features: [] };
   };
 
   const getServiceLineColor = (rank: number) => {
@@ -302,12 +354,20 @@ const ServiceLineInterestRanking: React.FC<ServiceLineInterestRankingProps> = ({
 
                   {/* Content */}
                   <div className="flex-1 space-y-4">
-                    {/* Service Line Title */}
+                    {/* Service Line Title & Description */}
                     <div>
-                      <h3 className="text-lg font-bold flex items-center gap-2">
+                      <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
                         <span className="text-2xl">{getServiceLineIcon(ranking.serviceLine)}</span>
                         {ranking.serviceLine}
                       </h3>
+                      <p className="text-sm opacity-80 mb-2">
+                        {getServiceLineDescription(ranking.serviceLine).short}
+                      </p>
+                      <ul className="text-xs opacity-70 space-y-1 ml-4">
+                        {getServiceLineDescription(ranking.serviceLine).features.map((feature, idx) => (
+                          <li key={idx} className="list-disc">{feature}</li>
+                        ))}
+                      </ul>
                     </div>
 
                     {/* Experience & Involvement */}
