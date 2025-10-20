@@ -99,6 +99,18 @@ export default function TeamMemberDashboard() {
     }
   }, [user?.id, navigate]); // Only depend on user?.id, not loading
 
+  // Safety timeout to prevent infinite loading
+  useEffect(() => {
+    const loadingTimeout = setTimeout(() => {
+      if (loading) {
+        console.warn('[Dashboard] Loading timeout after 10 seconds - forcing loading state to false');
+        setLoading(false);
+      }
+    }, 10000); // 10 second timeout
+
+    return () => clearTimeout(loadingTimeout);
+  }, [loading]);
+
   const checkAdminAndLoadMember = async (memberId: string) => {
     try {
       console.log('[Dashboard] checkAdminAndLoadMember called for:', memberId);
@@ -209,11 +221,17 @@ export default function TeamMemberDashboard() {
       setLoading(true);
 
       // First, get the practice_member record for this user
-      const { data: member } = await supabase
+      const { data: member, error: memberError } = await supabase
         .from('practice_members')
         .select('id, name')
         .eq('user_id', user.id)
         .single();
+
+      if (memberError) {
+        console.error('[Dashboard] Error fetching practice member:', memberError);
+        setLoading(false);
+        return;
+      }
 
       if (!member) {
         console.log('[Dashboard] No practice member found for user');
@@ -224,31 +242,51 @@ export default function TeamMemberDashboard() {
       console.log('[Dashboard] Found practice member:', member.name, member.id);
 
       // Set member name for UI
-      setMemberName(member.name);
+      setMemberName(member.name || 'Team Member');
 
       // Get skill assessments
-      const { data: assessments } = await supabase
+      const { data: assessments, error: assessmentsError } = await supabase
         .from('skill_assessments')
         .select('current_level, skill_id')
         .eq('team_member_id', member.id);
 
+      if (assessmentsError) {
+        console.error('[Dashboard] Error fetching assessments:', assessmentsError);
+      }
+
       // Get total skills count
-      const { count: totalSkillsCount } = await supabase
+      const { count: totalSkillsCount, error: skillsCountError } = await supabase
         .from('skills')
         .select('*', { count: 'exact', head: true });
 
+      if (skillsCountError) {
+        console.error('[Dashboard] Error fetching skills count:', skillsCountError);
+      }
+
       // Get CPD activities
-      const { data: cpdData } = await supabase
+      const { data: cpdData, error: cpdError } = await supabase
         .from('cpd_activities')
         .select('hours_claimed, activity_date, title, type')
         .eq('practice_member_id', member.id)
         .order('activity_date', { ascending: false })
         .limit(5);
 
+      if (cpdError) {
+        console.error('[Dashboard] Error fetching CPD data:', cpdError);
+      }
+
       // Calculate stats
       const assessedCount = assessments?.length || 0;
       const avgLevel = assessments?.reduce((sum, a) => sum + (a.current_level || 0), 0) / (assessedCount || 1);
       const totalHours = cpdData?.reduce((sum, cpd) => sum + (cpd.hours_claimed || 0), 0) || 0;
+
+      console.log('[Dashboard] Stats calculated:', {
+        totalSkills: totalSkillsCount,
+        assessedSkills: assessedCount,
+        averageLevel: avgLevel,
+        cpdHours: totalHours,
+        cpdActivities: cpdData?.length || 0
+      });
 
       setStats({
         totalSkills: totalSkillsCount || 0,
@@ -260,9 +298,12 @@ export default function TeamMemberDashboard() {
       });
 
       setRecentCPD(cpdData || []);
+      
+      console.log('[Dashboard] Data loading complete');
     } catch (error) {
-      console.error('Error loading dashboard:', error);
+      console.error('[Dashboard] Error loading dashboard:', error);
     } finally {
+      console.log('[Dashboard] Setting loading to false');
       setLoading(false);
     }
   };
