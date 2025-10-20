@@ -19,7 +19,8 @@ import {
   Target,
   Calendar,
   Clock,
-  CheckCircle2
+  CheckCircle2,
+  Brain
 } from 'lucide-react';
 
 interface TeamMemberStats {
@@ -388,21 +389,20 @@ export default function TeamMemberDashboard() {
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-shadow bg-white"
-            onClick={() => navigate('/team-member/skills-comparison')}
+            className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-purple-50 to-blue-50 border-2 border-purple-200"
+            onClick={() => navigate('/team-member/assessments')}
           >
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-900 mb-1">Average Level</p>
-                  <p className="text-3xl font-bold text-gray-900">
-                    {stats.averageLevel.toFixed(1)}
-                    <span className="text-lg text-gray-600">/5</span>
+                  <p className="text-sm font-medium text-gray-900 mb-1">Assessments</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    VARK + OCEAN
                   </p>
                 </div>
-                <TrendingUp className="h-10 w-10 text-green-600" />
+                <Brain className="h-10 w-10 text-purple-600" />
               </div>
-              <p className="text-xs text-gray-600 mt-2">Click to compare with team</p>
+              <p className="text-xs text-gray-600 mt-2">Complete your profile</p>
             </CardContent>
           </Card>
 

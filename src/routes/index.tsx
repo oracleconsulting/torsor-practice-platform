@@ -65,6 +65,8 @@ import ClientVaultPage from '../pages/accountancy/ClientVaultPage';
 import SystemsAuditPage from '../pages/accountancy/SystemsAuditPage';
 import AlignmentProgrammePage from '../pages/accountancy/AlignmentProgrammePage';
 import VARKAssessmentPage from '../pages/accountancy/team/VARKAssessmentPage';
+import CombinedAssessmentPage from '../pages/accountancy/team/CombinedAssessmentPage';
+import ServiceLineInterestRanking from '../components/accountancy/team/ServiceLineInterestRanking';
 
 // Advisory sub-pages
 import ForecastingPage from '../pages/accountancy/advisory/ForecastingPage';
@@ -254,6 +256,7 @@ const TorsorRoutes: React.FC = () => {
             <Route path="skills-heatmap" element={<MySkillsHeatmap />} />
             <Route path="skills-comparison" element={<MySkillsComparison />} />
             <Route path="skills-assessment" element={<SkillsAssessmentPage />} />
+            <Route path="assessments" element={<CombinedAssessmentPage />} />
             <Route path="cpd" element={<CPDSkillsBridgePage />} />
             <Route path="assignments" element={<MyAssignmentsPage />} />
             <Route path="mentoring" element={<MentoringHubPage />} />
