@@ -3,9 +3,11 @@ import CPDSkillsBridge from '@/components/accountancy/team/CPDSkillsBridge';
 import CPDOverview from '@/components/accountancy/team/CPDOverview';
 import QuickCPDLogger from '@/components/accountancy/team/QuickCPDLogger';
 import CPDSkillReassessment from '@/components/accountancy/team/CPDSkillReassessment';
+import ServiceLineInterestRanking from '@/components/accountancy/team/ServiceLineInterestRanking';
+import VARKAssessment from '@/components/accountancy/team/VARKAssessment';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Activity, TrendingUp, ArrowLeft, Info, Plus, Clock, Target } from 'lucide-react';
+import { Activity, TrendingUp, ArrowLeft, Info, Plus, Clock, Target, Brain, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useNavigate } from 'react-router-dom';
@@ -18,7 +20,7 @@ const CPDSkillsBridgePage: React.FC = () => {
   const { user } = useAuth();
   const { practice } = useAccountancyContext();
   const [memberId, setMemberId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'impact'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'impact' | 'service-lines' | 'vark'>('overview');
   const [isLogCPDOpen, setIsLogCPDOpen] = useState(false);
   const [isReassessmentOpen, setIsReassessmentOpen] = useState(false);
   const [cpdActivityData, setCpdActivityData] = useState<{
@@ -92,14 +94,22 @@ const CPDSkillsBridgePage: React.FC = () => {
 
         {/* Tabs for different views */}
         <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
-          <TabsList className="grid w-full grid-cols-2 bg-gray-800 border border-gray-700">
+          <TabsList className="grid w-full grid-cols-4 bg-gray-800 border border-gray-700">
             <TabsTrigger value="overview" className="data-[state=active]:bg-blue-600">
               <Clock className="w-4 h-4 mr-2" />
               CPD Overview
             </TabsTrigger>
             <TabsTrigger value="impact" className="data-[state=active]:bg-purple-600">
-              <Target className="w-4 h-4 mr-2" />
+              <TrendingUp className="w-4 h-4 mr-2" />
               Skills Impact
+            </TabsTrigger>
+            <TabsTrigger value="service-lines" className="data-[state=active]:bg-green-600">
+              <Briefcase className="w-4 h-4 mr-2" />
+              Service Lines
+            </TabsTrigger>
+            <TabsTrigger value="vark" className="data-[state=active]:bg-orange-600">
+              <Brain className="w-4 h-4 mr-2" />
+              Learning Style
             </TabsTrigger>
           </TabsList>
 
@@ -155,6 +165,32 @@ const CPDSkillsBridgePage: React.FC = () => {
               <Card className="bg-gray-800 border-gray-700">
                 <CardContent className="pt-6">
                   <p className="text-white font-medium text-center">Please log in to view your CPD skills impact.</p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Service Lines Tab */}
+          <TabsContent value="service-lines" className="space-y-6">
+            {memberId ? (
+              <ServiceLineInterestRanking memberId={memberId} />
+            ) : (
+              <Card className="bg-gray-800 border-gray-700">
+                <CardContent className="pt-6">
+                  <p className="text-white font-medium text-center">Please log in to manage your service line preferences.</p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* VARK Learning Style Tab */}
+          <TabsContent value="vark" className="space-y-6">
+            {memberId ? (
+              <VARKAssessment teamMemberId={memberId} />
+            ) : (
+              <Card className="bg-gray-800 border-gray-700">
+                <CardContent className="pt-6">
+                  <p className="text-white font-medium text-center">Please log in to take your learning style assessment.</p>
                 </CardContent>
               </Card>
             )}
