@@ -1509,7 +1509,7 @@ export const outreachService = {
     return data;
   },
 
-  // Timeline Snapshot Comparison - TRUE address tracking with filing history
+  // Timeline Snapshot Comparison - CSV-based (THE CORRECT METHOD!)
   async compareTimelineSnapshots(
     address: string,
     historicalDate: string,
@@ -1517,24 +1517,31 @@ export const outreachService = {
     maxCompanies: number = 500
   ): Promise<{
     companies_left: CompanySearchResult[];
-    companies_arrived: CompanySearchResult[];
-    companies_stable: CompanySearchResult[];
+    companies_arrived?: CompanySearchResult[];
+    companies_stable?: CompanySearchResult[];
+    companies_still_there?: CompanySearchResult[];
+    companies_dissolved?: CompanySearchResult[];
     summary: {
       companies_left: number;
-      companies_arrived: number;
-      companies_stable: number;
-      total_movement: number;
+      companies_arrived?: number;
+      companies_stable?: number;
+      companies_still_there?: number;
+      companies_dissolved?: number;
+      companies_in_snapshot?: number;
+      total_movement?: number;
     };
-    historical_date: string;
-    today_date: string;
+    historical_date?: string;
+    today_date?: string;
+    snapshot_date?: string;
+    csv_date?: string;
   }> {
-    const response = await makeAuthenticatedRequest(`${API_BASE_URL}/api/outreach/timeline/compare-snapshots`, {
+    // Use CSV-based endpoint for accurate historical comparison
+    const response = await makeAuthenticatedRequest(`${API_BASE_URL}/api/outreach/timeline-csv/compare-with-snapshot`, {
       method: 'POST',
       body: JSON.stringify({ 
         address,
-        historical_date: historicalDate,
-        similarity_threshold: similarityThreshold,
-        max_companies: maxCompanies
+        csv_date: "2025-02-01",  // CSV snapshot date
+        similarity_threshold: similarityThreshold / 100  // Convert 80 to 0.8
       }),
     });
 

@@ -75,16 +75,22 @@ export const DateRangeComparison: React.FC = () => {
         );
 
         // Transform the results to match the ComparisonResults interface
+        // CSV endpoint returns: companies_left, companies_still_there, companies_dissolved
         setComparisonResults({
           range1_only: results.companies_left || [],
-          range2_only: results.companies_arrived || [],
-          in_both: results.companies_stable || [],
+          range2_only: results.companies_still_there || [],  // Companies still there = "arrived" in UI context
+          in_both: results.companies_still_there || [],
           left_firms: results.companies_left || [],
-          new_firms: results.companies_arrived || [],
+          new_firms: [],  // CSV doesn't track arrivals yet
         });
         
+        const leftCount = (results.companies_left || []).length;
+        const stillThereCount = (results.companies_still_there || []).length;
+        const dissolvedCount = (results.companies_dissolved || []).length;
+        
         toast.success(
-          `Found ${(results.companies_left || []).length} companies that left and ${(results.companies_arrived || []).length} that arrived`
+          `Found ${leftCount} companies that left (active firms that moved away)! ${stillThereCount} still there, ${dissolvedCount} dissolved.`,
+          { duration: 5000 }
         );
       } catch (error: any) {
         console.error('Timeline comparison failed:', error);
