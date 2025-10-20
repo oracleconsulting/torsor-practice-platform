@@ -429,3 +429,4 @@ COMMENT ON TABLE personality_assessments IS 'OCEAN (Big Five) personality assess
 COMMENT ON TABLE team_member_profiles IS 'Combined VARK + OCEAN profiles with work preferences and role affinities';
 COMMENT ON TABLE team_compositions IS 'Team-level analysis of personality diversity, balance, and predicted dynamics';
 
+
