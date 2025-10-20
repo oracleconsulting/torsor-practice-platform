@@ -240,8 +240,22 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-full max-w-md px-4">
         <div className="bg-white shadow-lg rounded-lg px-8 py-10">
+          {/* Torsor Logo */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">{getPortalTitle()}</h1>
+            <div className="flex justify-center mb-4">
+              <img 
+                src="/torsor-logo.png" 
+                alt="Torsor" 
+                className="h-16 w-auto"
+                onError={(e) => {
+                  // Fallback to text if logo doesn't exist yet
+                  e.currentTarget.style.display = 'none';
+                  const textFallback = e.currentTarget.nextElementSibling;
+                  if (textFallback) textFallback.classList.remove('hidden');
+                }}
+              />
+              <h1 className="text-3xl font-bold text-gray-900 hidden">TORSOR</h1>
+            </div>
             <p className="text-gray-600 mt-2">
               {isSignUp ? 'Create your account' : 'Sign in to your account'}
             </p>
@@ -305,45 +319,10 @@ export default function Auth() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center space-y-2">
-            <button
-              type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm text-blue-600 hover:text-blue-500"
-            >
-              {isSignUp
-                ? 'Already have an account? Sign in'
-                : "Don't have an account? Sign up"}
-            </button>
-            
-            <div className="text-sm text-gray-500">
-              <Link 
-                to={portalType === 'accountancy' ? '/?portal=accountancy' : '/'}
-                className="text-blue-600 hover:text-blue-500 block"
-              >
-                Back to Portal Selection
-              </Link>
-            </div>
-          </div>
-
-          {/* TEMPORARY ADMIN BYPASS FOR TESTING */}
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={handleAdminBypass}
-              className="w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm"
-            >
-              🚨 EMERGENCY ACCESS - Admin Bypass
-            </button>
-            <p className="text-xs text-gray-500 mt-1 text-center">
-              Use this only for testing - bypasses authentication
-            </p>
-          </div>
-
           {isSignUp && (
             <div className="mt-4 p-4 bg-blue-50 rounded-md">
               <p className="text-sm text-blue-800">
-                <strong>Note:</strong> You're signing up for the {getPortalTitle()}.
+                <strong>Note:</strong> You're signing up for Torsor.
                 {portalType === 'client' && ' Your accountant will need to approve your access.'}
               </p>
             </div>
