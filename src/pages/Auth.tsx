@@ -237,26 +237,30 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#1a0b2e] via-[#2d1b4e] to-[#1a0b2e]">
       <div className="w-full max-w-md px-4">
-        <div className="bg-white shadow-lg rounded-lg px-8 py-10">
-          {/* Torsor Logo */}
+        {/* Logo on dark background - outside the card */}
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <img 
+              src="/torsor-logo.png" 
+              alt="Torsor" 
+              className="h-20 w-auto"
+              onError={(e) => {
+                // Fallback to text if logo doesn't exist yet
+                e.currentTarget.style.display = 'none';
+                const textFallback = e.currentTarget.nextElementSibling;
+                if (textFallback) textFallback.classList.remove('hidden');
+              }}
+            />
+            <h1 className="text-3xl font-bold text-white hidden">TORSOR</h1>
+          </div>
+        </div>
+
+        {/* White card for the form */}
+        <div className="bg-white shadow-2xl rounded-lg px-8 py-10">
           <div className="text-center mb-8">
-            <div className="flex justify-center mb-4">
-              <img 
-                src="/torsor-logo.png" 
-                alt="Torsor" 
-                className="h-16 w-auto"
-                onError={(e) => {
-                  // Fallback to text if logo doesn't exist yet
-                  e.currentTarget.style.display = 'none';
-                  const textFallback = e.currentTarget.nextElementSibling;
-                  if (textFallback) textFallback.classList.remove('hidden');
-                }}
-              />
-              <h1 className="text-3xl font-bold text-gray-900 hidden">TORSOR</h1>
-            </div>
-            <p className="text-gray-600 mt-2">
+            <p className="text-gray-900 text-lg font-semibold">
               {isSignUp ? 'Create your account' : 'Sign in to your account'}
             </p>
             <p className="mt-1 text-sm text-gray-500">{getPortalDescription()}</p>
