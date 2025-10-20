@@ -1,0 +1,14 @@
+# Railway Configuration - Bypass Docker Hub outage
+# Using Nixpacks instead of Dockerfile during Docker Hub downtime
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm ci && npm run build"
+
+[deploy]
+startCommand = "npm run preview -- --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
