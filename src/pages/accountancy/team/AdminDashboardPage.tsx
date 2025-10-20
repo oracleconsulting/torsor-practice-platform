@@ -18,6 +18,8 @@ import {
   Settings,
   Save,
   Shield,
+  Brain,
+  ArrowRight,
 } from 'lucide-react';
 import RoleManagement from '@/components/accountancy/team/RoleManagement';
 import UserManagement from '@/components/accountancy/team/UserManagement';
@@ -37,6 +39,7 @@ import {
 } from 'recharts';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Admin Dashboard for Skills Portal
@@ -49,6 +52,7 @@ import { useAuth } from '@/contexts/AuthContext';
  */
 export default function AdminDashboardPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>({});
   const [cpdConfig, setCpdConfig] = useState({
@@ -294,6 +298,33 @@ export default function AdminDashboardPage() {
         </TabsList>
 
         <TabsContent value="dashboard" className="space-y-6">
+      {/* Team Assessments Link Card */}
+      <Card className="border-purple-300 bg-gradient-to-br from-purple-50 to-indigo-50">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-purple-600 rounded-lg">
+                <Brain className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Team VARK & OCEAN Assessments</h3>
+                <p className="text-gray-600 mt-1">
+                  View comprehensive team personality profiles, learning styles, and work preferences
+                </p>
+              </div>
+            </div>
+            <Button 
+              size="lg"
+              onClick={() => navigate('/team/assessments')}
+              className="bg-purple-600 hover:bg-purple-700 text-white gap-2"
+            >
+              View Team Assessments
+              <ArrowRight className="w-5 h-5" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* CPD Configuration Section */}
       <Card className="border-blue-200 bg-blue-50/50">
         <CardHeader>

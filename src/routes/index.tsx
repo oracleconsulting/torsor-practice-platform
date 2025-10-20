@@ -67,6 +67,7 @@ import AlignmentProgrammePage from '../pages/accountancy/AlignmentProgrammePage'
 import VARKAssessmentPage from '../pages/accountancy/team/VARKAssessmentPage';
 import CombinedAssessmentPage from '../pages/accountancy/team/CombinedAssessmentPage';
 import ServiceLineInterestRanking from '../components/accountancy/team/ServiceLineInterestRanking';
+import TeamAssessmentDashboard from '../components/accountancy/team/TeamAssessmentDashboard';
 
 // Advisory sub-pages
 import ForecastingPage from '../pages/accountancy/advisory/ForecastingPage';
@@ -130,6 +131,7 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="health" element={<PracticeHealth />} />
       <Route path="team/skills-assessment" element={<SkillsAssessmentPage />} />
       <Route path="team/profile/:memberId" element={<TeamMemberProfilePage />} />
+      <Route path="team/assessments" element={<TeamAssessmentDashboard practiceId={practiceId} />} />
       <Route path="team-portal/vark-assessment" element={<VARKAssessmentPage />} />
       <Route path="team" element={<TeamManagementPage />} />
       <Route path="client-rescues" element={<ClientRescues />} />
