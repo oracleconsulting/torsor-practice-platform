@@ -375,7 +375,7 @@ export default function MySkillsHeatmap() {
           <CardContent>
             {/* Grid layout that fills COLUMNS first (top to bottom), then moves right */}
             {/* Overflow-x-auto allows horizontal scrolling on small screens, but prevents items from escaping viewport */}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-visible pb-20">
               <div 
                 className="grid gap-2 w-fit"
                 style={{
@@ -395,12 +395,14 @@ export default function MySkillsHeatmap() {
                     `}
                     title={skill.skill_name}
                   >
-                    {/* Hover tooltip */}
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
-                      <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 whitespace-nowrap shadow-lg">
-                        <p className="font-semibold">{skill.skill_name}</p>
-                        <p>Level: {skill.current_level}/5</p>
-                        <p className="text-blue-300 text-[10px]">Click to view details</p>
+                    {/* Hover tooltip - improved positioning */}
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 hidden group-hover:block z-50 pointer-events-none whitespace-nowrap">
+                      <div className="bg-gray-900 text-white text-sm rounded-lg py-2 px-4 shadow-xl border border-gray-700">
+                        <p className="font-semibold mb-0.5">{skill.skill_name}</p>
+                        <p className="text-gray-300 text-xs">Level: {skill.current_level}/5</p>
+                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                          <div className="border-4 border-transparent border-t-gray-900"></div>
+                        </div>
                       </div>
                     </div>
                   </div>
