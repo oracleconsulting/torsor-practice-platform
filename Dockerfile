@@ -1,10 +1,11 @@
-# Use Node 20 LTS - Alternative: node:20.11-alpine if 20-alpine fails
-FROM node:20.11-alpine AS deps
+# Use Node 20 LTS from GitHub Container Registry (fallback if Docker Hub is down)
+# Alternative registries: ghcr.io/library/node:20-alpine or docker.io/library/node:20.11-alpine
+FROM node:20-slim AS deps
 # Install dependencies needed for node-gyp
-# BUILD: 2025-10-21-v1.0.5 - STRATEGIC PLANNING FEATURES + CLEAN THEME
+# BUILD: 2025-10-21-v1.0.6 - STRATEGIC PLANNING FEATURES + CLEAN THEME (Debian base for reliability)
 # Features: Service Line Rankings, VARK Assessment, Strategic Matching
 # Theme: Clean white theme matching Skills Heatmap
-RUN apk add --no-cache python3 make g++ git curl wget nano
+RUN apt-get update && apt-get install -y python3 make g++ git curl wget nano && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -16,9 +17,9 @@ RUN npm config set legacy-peer-deps true && \
     npm ci --include=dev --force
 
 # Builder stage
-FROM node:20.11-alpine AS builder
+FROM node:20-slim AS builder
 
-RUN apk add --no-cache python3 make g++
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -63,10 +64,10 @@ RUN echo "Clearing Vite cache..." && \
 RUN npm run build
 
 # Runner stage
-FROM node:20.11-alpine
+FROM node:20-slim
 
 # Force cache invalidation for runner stage
-ARG CACHEBUST=2
+ARG CACHEBUST=3
 RUN echo "Runner cache bust: $CACHEBUST"
 
 WORKDIR /app
