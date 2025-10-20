@@ -299,6 +299,90 @@ export async function generateCPDRecommendations(
 }
 
 /**
+ * Auto-generate CPD recommendations based on member's skill assessments
+ * Identifies skill gaps and creates recommendations for improvement
+ */
+export async function autoGenerateCPDRecommendations(memberId: string): Promise<boolean> {
+  try {
+    console.log('[CPD] Auto-generating recommendations for member:', memberId);
+
+    // Get all skill assessments for this member
+    const { data: assessments, error: assessError } = await supabase
+      .from('skill_assessments')
+      .select(`
+        id,
+        skill_id,
+        current_level,
+        skills:skill_id (
+          id,
+          name,
+          category
+        )
+      `)
+      .eq('team_member_id', memberId);
+
+    if (assessError) {
+      console.error('[CPD] Error fetching skill assessments:', assessError);
+      return false;
+    }
+
+    if (!assessments || assessments.length === 0) {
+      console.log('[CPD] No skill assessments found for member');
+      return false;
+    }
+
+    console.log(`[CPD] Found ${assessments.length} skill assessments`);
+
+    // Identify skills that need improvement (level < 4)
+    // Target level is 4 (Proficient) for most skills
+    const skillGaps = assessments
+      .filter(assessment => {
+        const currentLevel = (assessment as any).current_level || 0;
+        return currentLevel < 4; // Skills below "Proficient"
+      })
+      .map(assessment => {
+        const ass = assessment as any;
+        const currentLevel = ass.current_level || 0;
+        const targetLevel = 4; // Default target: Proficient
+        const gap = targetLevel - currentLevel;
+        
+        // Determine business impact based on skill level gap
+        let businessImpact = 'medium';
+        if (gap >= 3) businessImpact = 'critical'; // Beginner → Proficient
+        else if (gap === 2) businessImpact = 'high';
+        else if (gap === 1) businessImpact = 'low';
+
+        return {
+          skillId: ass.skill_id,
+          currentLevel,
+          targetLevel,
+          interestLevel: 3, // Default interest level (could be customized later)
+          businessImpact
+        };
+      });
+
+    if (skillGaps.length === 0) {
+      console.log('[CPD] No skill gaps found - member is proficient in all skills!');
+      return true; // Success, but no recommendations needed
+    }
+
+    console.log(`[CPD] Identified ${skillGaps.length} skill gaps, generating recommendations...`);
+
+    // Generate recommendations using existing function
+    const success = await generateCPDRecommendations(memberId, skillGaps);
+
+    if (success) {
+      console.log(`[CPD] Successfully generated ${skillGaps.length} recommendations`);
+    }
+
+    return success;
+  } catch (error) {
+    console.error('[CPD] Error auto-generating recommendations:', error);
+    return false;
+  }
+}
+
+/**
  * Get ROI dashboard data
  */
 export async function getROIDashboardData(practiceId?: string): Promise<ROIDashboardData[]> {

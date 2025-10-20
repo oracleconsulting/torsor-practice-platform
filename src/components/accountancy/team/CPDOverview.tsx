@@ -17,9 +17,12 @@ import {
   CheckCircle,
   Calendar,
   ExternalLink,
-  Lightbulb
+  Lightbulb,
+  Sparkles
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
+import { autoGenerateCPDRecommendations } from '@/lib/api/cpd-skills-bridge';
+import { toast } from 'sonner';
 
 interface CPDActivity {
   id: string;
@@ -74,6 +77,7 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
   const [activities, setActivities] = useState<CPDActivity[]>([]);
   const [recommendations, setRecommendations] = useState<CPDRecommendation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generatingRecommendations, setGeneratingRecommendations] = useState(false);
 
   useEffect(() => {
     loadCPDData();
@@ -178,6 +182,27 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
     } catch (error) {
       console.error('Error loading CPD recommendations:', error);
       setRecommendations([]);
+    }
+  };
+
+  const handleGenerateRecommendations = async () => {
+    setGeneratingRecommendations(true);
+    try {
+      console.log('[CPD Overview] Generating recommendations for member:', memberId);
+      const success = await autoGenerateCPDRecommendations(memberId);
+      
+      if (success) {
+        toast.success('Recommendations generated successfully!');
+        // Reload recommendations
+        await loadCPDRecommendations();
+      } else {
+        toast.error('Could not generate recommendations. Please ensure your skills assessment is complete.');
+      }
+    } catch (error) {
+      console.error('Error generating recommendations:', error);
+      toast.error('Failed to generate recommendations');
+    } finally {
+      setGeneratingRecommendations(false);
     }
   };
 
@@ -423,20 +448,44 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
       {/* Recommended CPD */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader className="bg-gray-800">
-          <CardTitle className="text-xl text-white flex items-center gap-2">
-            <Award className="w-5 h-5 text-purple-400" />
-            Recommended CPD Activities
-          </CardTitle>
-          <CardDescription className="text-gray-300 font-medium">
-            Personalized recommendations based on your skill gaps and development goals
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl text-white flex items-center gap-2">
+                <Award className="w-5 h-5 text-purple-400" />
+                Recommended CPD Activities
+              </CardTitle>
+              <CardDescription className="text-gray-300 font-medium">
+                Personalized recommendations based on your skill gaps and development goals
+              </CardDescription>
+            </div>
+            {recommendations.length === 0 && (
+              <Button
+                onClick={handleGenerateRecommendations}
+                disabled={generatingRecommendations}
+                size="sm"
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                {generatingRecommendations ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Generate Recommendations
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="bg-gray-800">
           {recommendations.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
               <Award className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p>No recommendations available yet</p>
-              <p className="text-sm mt-1">Complete your skills assessment to get personalized CPD recommendations!</p>
+              <p className="text-sm mt-1">Click "Generate Recommendations" to get personalized CPD suggestions!</p>
             </div>
           ) : (
             <div className="space-y-3">
