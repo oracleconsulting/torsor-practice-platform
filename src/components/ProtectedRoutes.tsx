@@ -57,11 +57,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
   const location = useLocation();
   const [loadingTimeout, setLoadingTimeout] = useState(false);
 
-  // AGGRESSIVE EMERGENCY BYPASS - Always allow access
-  console.log('[ProtectedRoute] Using aggressive bypass - allowing access');
-  return <>{children}</>;
-
-  // TEMPORARY EMERGENCY BYPASS
+  // TEMPORARY EMERGENCY BYPASS - only if explicitly set
   const emergencyBypass = localStorage.getItem('oracle-auth-token');
   if (emergencyBypass === 'temp-admin-bypass') {
     console.log('[ProtectedRoute] Emergency bypass detected, allowing access');

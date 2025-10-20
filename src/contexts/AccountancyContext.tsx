@@ -225,30 +225,15 @@ export const AccountancyProvider: React.FC<{ children: ReactNode }> = ({ childre
 
     } catch (error: any) {
       console.error('[AccountancyContext] Unexpected error:', error);
-      setError('Unable to load practice data. Please try refreshing the page.');
+      setError('Unable to load practice data. Please try refreshing the page or contact support.');
       
-      // Create mock practice as fallback even on error
-      const mockPractice: Practice = {
-        id: '6d0a4f47-1a98-4bba-be4e-26c439b1358d',
-        name: 'IVC Accounting - Demo',
-        email: 'james@ivcaccounting.co.uk',
-        contactName: 'James Howard',
-        teamSize: 5,
-        subscription: 'enterprise',
-        subscription_tier: 'enterprise',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      
-      setPractice(mockPractice);
-      setPracticeId(mockPractice.id);
-      setMemberRole('owner');
+      // Don't create mock practice as fallback - require real authentication
+      setPractice(null);
+      setPracticeId(null);
+      setMemberRole(null);
       setLoading(false);
       
-      // Store in cache for persistence
-      AccountancyStorage.savePractice(mockPractice);
-      
-      console.log('[AccountancyContext] Mock practice created as fallback:', mockPractice);
+      console.log('[AccountancyContext] No practice data available - user must authenticate properly');
     } finally {
       setLoading(false);
     }
