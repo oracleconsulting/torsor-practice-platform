@@ -70,7 +70,7 @@ export const DateRangeComparison: React.FC = () => {
         const results = await outreachService.compareTimelineSnapshots(
           targetAddress,
           historicalDate,
-          80,
+          0.8,  // Changed from 80 to 0.8 (similarity_threshold must be between 0.0 and 1.0)
           500
         );
 
