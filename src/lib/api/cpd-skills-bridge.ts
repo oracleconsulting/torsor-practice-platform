@@ -267,6 +267,17 @@ export async function generateCPDRecommendations(
   skillGaps: Array<{ skillId: string; currentLevel: number; targetLevel: number; interestLevel: number; businessImpact: string }>
 ): Promise<boolean> {
   try {
+    // First, delete existing recommendations for this member
+    const { error: deleteError } = await supabase
+      .from('cpd_recommendations')
+      .delete()
+      .eq('member_id', memberId);
+
+    if (deleteError) {
+      console.error('Error deleting old recommendations:', deleteError);
+      // Continue anyway - might be first time generating
+    }
+
     const recommendations = skillGaps.map(gap => ({
       member_id: memberId,
       skill_id: gap.skillId,
@@ -282,9 +293,10 @@ export async function generateCPDRecommendations(
       urgency: determineUrgency(gap.businessImpact)
     }));
 
+    // Insert new recommendations
     const { error } = await (supabase
       .from('cpd_recommendations') as any)
-      .upsert(recommendations, { onConflict: 'member_id,skill_id' });
+      .insert(recommendations);
 
     if (error) {
       console.error('Error generating CPD recommendations:', error);
