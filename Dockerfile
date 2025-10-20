@@ -1,44 +1,34 @@
-# Use Node 20 LTS from GitHub Container Registry (fallback if Docker Hub is down)
-# Alternative registries: ghcr.io/library/node:20-alpine or docker.io/library/node:20.11-alpine
-FROM node:20-slim AS deps
-# Install dependencies needed for node-gyp
-# BUILD: 2025-10-21-v1.0.6 - STRATEGIC PLANNING FEATURES + CLEAN THEME (Debian base for reliability)
-# Features: Service Line Rankings, VARK Assessment, Strategic Matching
-# Theme: Clean white theme matching Skills Heatmap
-RUN apt-get update && apt-get install -y python3 make g++ git curl wget nano && rm -rf /var/lib/apt/lists/*
+# TEMPORARY: Single-stage build due to Docker Hub outage (503 errors)
+# Docker Hub authentication is completely down - using single FROM to minimize registry calls
+# Will revert to optimized multi-stage build when Docker Hub recovers
+# BUILD: 2025-10-21-v1.0.7 - STRATEGIC PLANNING + DOCKER HUB WORKAROUND
+
+FROM node:20-slim
+
+# Install all dependencies needed for build and runtime
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    git \
+    curl \
+    wget \
+    nano \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-# Clean install with legacy peer deps
+# Install all dependencies (including dev for build)
 RUN npm config set legacy-peer-deps true && \
-    npm ci --include=dev --force
+    npm ci --include=dev
 
-# Builder stage
-FROM node:20-slim AS builder
-
-RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
-
-# Force cache invalidation - MUST be after node_modules copy
-ARG CACHEBUST=2
-RUN echo "Builder cache bust: $CACHEBUST" && \
-    echo "Timestamp: $(date)" && \
-    rm -rf dist .vite node_modules/.vite
-
-# Copy source code (this layer should now be invalidated)
+# Copy source code
 COPY . .
 
-# Accept build arguments for environment variables
+# Build arguments for environment variables
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
 ARG VITE_RESEND_API_KEY
@@ -55,34 +45,15 @@ RUN echo "Creating .env file for build..." && \
     echo "Environment variables set:" && \
     cat .env | sed 's/\(VITE_SUPABASE_ANON_KEY=\).*/\1***hidden***/' | sed 's/\(VITE_RESEND_API_KEY=\).*/\1***hidden***/'
 
-# Clear Vite cache to force fresh build
-RUN echo "Clearing Vite cache..." && \
-    rm -rf node_modules/.vite .vite dist && \
-    echo "Cache cleared, starting fresh build..."
-
-# Build the application (fresh, no cache)
+# Build the application
 RUN npm run build
 
-# Runner stage
-FROM node:20-slim
+# Expose port
+EXPOSE 5173
 
-# Force cache invalidation for runner stage
-ARG CACHEBUST=3
-RUN echo "Runner cache bust: $CACHEBUST"
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:5173/ || exit 1
 
-WORKDIR /app
-
-# Copy package files and server
-COPY package*.json ./
-COPY server.js ./
-
-# Install production dependencies only
-RUN npm config set legacy-peer-deps true && \
-    npm ci --omit=dev --force
-
-# Copy built application (this should NOT be cached)
-COPY --from=builder /app/dist ./dist
-
-EXPOSE 3000
-
-CMD ["node", "server.js"]
+# Start the application with preview server (serves built dist folder)
+CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5173"]
