@@ -36,16 +36,35 @@ export default function MySkillsHeatmap() {
     }
   }, [user?.id]);
 
+  // Safety timeout to prevent infinite loading
+  useEffect(() => {
+    const loadingTimeout = setTimeout(() => {
+      if (loading) {
+        console.warn('[MySkillsHeatmap] Loading timeout after 10 seconds - forcing loading state to false');
+        setLoading(false);
+      }
+    }, 10000); // 10 second timeout
+
+    return () => clearTimeout(loadingTimeout);
+  }, [loading]);
+
   const loadMySkills = async () => {
     try {
+      console.log('[MySkillsHeatmap] Starting to load skills for user:', user?.id);
       setLoading(true);
 
       // Get practice member
-      const { data: member } = await supabase
+      const { data: member, error: memberError } = await supabase
         .from('practice_members')
         .select('id')
         .eq('user_id', user?.id)
         .single();
+
+      if (memberError) {
+        console.error('[MySkillsHeatmap] Error fetching practice member:', memberError);
+        setLoading(false);
+        return;
+      }
 
       if (!member) {
         console.log('[MySkillsHeatmap] No practice member found');
@@ -61,10 +80,18 @@ export default function MySkillsHeatmap() {
         .select('skill_id, current_level, interest_level')
         .eq('team_member_id', (member as any).id);
 
-      console.log('[MySkillsHeatmap] Assessments data:', assessmentsData, 'Error:', assessError);
+      console.log('[MySkillsHeatmap] Assessments data:', assessmentsData?.length || 0, 'records', 'Error:', assessError);
+
+      if (assessError) {
+        console.error('[MySkillsHeatmap] Error fetching assessments:', assessError);
+        setLoading(false);
+        return;
+      }
 
       if (!assessmentsData || assessmentsData.length === 0) {
-        console.log('[MySkillsHeatmap] No assessments found');
+        console.log('[MySkillsHeatmap] No assessments found - setting empty state');
+        setAssessments([]);
+        setCategories(['All']);
         setLoading(false);
         return;
       }
@@ -78,15 +105,22 @@ export default function MySkillsHeatmap() {
         .select('id, name, category, description')
         .in('id', skillIds);
 
-      console.log('[MySkillsHeatmap] Skills data:', skillsData, 'Error:', skillsError);
+      console.log('[MySkillsHeatmap] Skills data:', skillsData?.length || 0, 'records', 'Error:', skillsError);
+
+      if (skillsError) {
+        console.error('[MySkillsHeatmap] Error fetching skills:', skillsError);
+        setLoading(false);
+        return;
+      }
 
       if (!skillsData) {
+        console.log('[MySkillsHeatmap] No skills data returned');
         setLoading(false);
         return;
       }
 
       // Get ALL team assessments for comparison
-      const { data: allTeamAssessments } = await supabase
+      const { data: allTeamAssessments, error: teamError } = await supabase
         .from('skill_assessments')
         .select(`
           skill_id,
@@ -95,7 +129,11 @@ export default function MySkillsHeatmap() {
         `)
         .in('skill_id', skillIds);
 
-      console.log('[MySkillsHeatmap] Team assessments:', allTeamAssessments);
+      if (teamError) {
+        console.error('[MySkillsHeatmap] Error fetching team assessments:', teamError);
+      }
+
+      console.log('[MySkillsHeatmap] Team assessments:', allTeamAssessments?.length || 0, 'records');
 
       // Create lookup maps
       const skillsMap = new Map(skillsData.map((s: any) => [s.id, s]));
@@ -140,10 +178,15 @@ export default function MySkillsHeatmap() {
         // Extract unique categories
         const uniqueCategories = Array.from(new Set(formattedAssessments.map(a => a.category)));
         setCategories(['All', ...uniqueCategories.sort()]);
+        
+        console.log('[MySkillsHeatmap] Categories set:', uniqueCategories.length);
       }
+      
+      console.log('[MySkillsHeatmap] Data loading complete');
     } catch (error) {
-      console.error('Error loading skills:', error);
+      console.error('[MySkillsHeatmap] Error loading skills:', error);
     } finally {
+      console.log('[MySkillsHeatmap] Setting loading to false');
       setLoading(false);
     }
   };
