@@ -1509,6 +1509,43 @@ export const outreachService = {
     return data;
   },
 
+  // Timeline Snapshot Comparison - TRUE address tracking with filing history
+  async compareTimelineSnapshots(
+    address: string,
+    historicalDate: string,
+    similarityThreshold: number = 80,
+    maxCompanies: number = 500
+  ): Promise<{
+    companies_left: CompanySearchResult[];
+    companies_arrived: CompanySearchResult[];
+    companies_stable: CompanySearchResult[];
+    summary: {
+      companies_left: number;
+      companies_arrived: number;
+      companies_stable: number;
+      total_movement: number;
+    };
+    historical_date: string;
+    today_date: string;
+  }> {
+    const response = await makeAuthenticatedRequest(`${API_BASE_URL}/api/outreach/timeline/compare-snapshots`, {
+      method: 'POST',
+      body: JSON.stringify({ 
+        address,
+        historical_date: historicalDate,
+        similarity_threshold: similarityThreshold,
+        max_companies: maxCompanies
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Timeline comparison failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  },
+
   // SEARCH HISTORY FEATURES
   async saveSearchHistory(searchData: {
     search_type: 'address_match' | 'date_range' | 'date_comparison';

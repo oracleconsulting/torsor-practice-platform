@@ -39,12 +39,14 @@ interface ComparisonResults {
 export const DateRangeComparison: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [targetAddress, setTargetAddress] = useState('');
+  const [historicalDate, setHistoricalDate] = useState('2024-07-09'); // Default to July 9, 2024
+  const [useSimpleMode, setUseSimpleMode] = useState(true); // Toggle between simple and advanced modes
   
-  // Date Range 1
+  // Advanced mode: Date Range 1
   const [dateRange1Start, setDateRange1Start] = useState('');
   const [dateRange1End, setDateRange1End] = useState('');
   
-  // Date Range 2
+  // Advanced mode: Date Range 2
   const [dateRange2Start, setDateRange2Start] = useState('');
   const [dateRange2End, setDateRange2End] = useState('');
   
@@ -56,30 +58,67 @@ export const DateRangeComparison: React.FC = () => {
       return;
     }
 
-    if (!dateRange1Start || !dateRange1End || !dateRange2Start || !dateRange2End) {
-      toast.error('Please enter both date ranges');
-      return;
-    }
+    if (useSimpleMode) {
+      // Simple mode: Compare historical date to today
+      if (!historicalDate) {
+        toast.error('Please enter a historical date');
+        return;
+      }
 
-    setLoading(true);
-    try {
-      const results = await outreachService.compareDateRanges(
-        targetAddress,
-        { start: dateRange1Start, end: dateRange1End },
-        { start: dateRange2Start, end: dateRange2End }
-      );
+      setLoading(true);
+      try {
+        const results = await outreachService.compareTimelineSnapshots(
+          targetAddress,
+          historicalDate,
+          80,
+          500
+        );
 
-      setComparisonResults(results);
-      
-      toast.success(
-        `Found ${results.new_firms.length} new firms and ${results.left_firms.length} firms that left`
-      );
-    } catch (error: any) {
-      console.error('Date range comparison failed:', error);
-      toast.error('Comparison failed. Please try again.');
-      setComparisonResults(null);
-    } finally {
-      setLoading(false);
+        // Transform the results to match the ComparisonResults interface
+        setComparisonResults({
+          range1_only: results.companies_left,
+          range2_only: results.companies_arrived,
+          left_firms: results.companies_left,
+          new_firms: results.companies_arrived,
+        });
+        
+        toast.success(
+          `Found ${results.companies_left.length} companies that left and ${results.companies_arrived.length} that arrived`
+        );
+      } catch (error: any) {
+        console.error('Timeline comparison failed:', error);
+        toast.error('Comparison failed. Please try again.');
+        setComparisonResults(null);
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      // Advanced mode: Compare two date ranges (old behavior)
+      if (!dateRange1Start || !dateRange1End || !dateRange2Start || !dateRange2End) {
+        toast.error('Please enter both date ranges');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const results = await outreachService.compareDateRanges(
+          targetAddress,
+          { start: dateRange1Start, end: dateRange1End },
+          { start: dateRange2Start, end: dateRange2End }
+        );
+
+        setComparisonResults(results);
+        
+        toast.success(
+          `Found ${results.new_firms.length} new firms and ${results.left_firms.length} firms that left`
+        );
+      } catch (error: any) {
+        console.error('Date range comparison failed:', error);
+        toast.error('Comparison failed. Please try again.');
+        setComparisonResults(null);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -135,11 +174,27 @@ export const DateRangeComparison: React.FC = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ArrowLeftRight className="w-5 h-5 text-purple-600" />
-            Date Range Comparison
+            Timeline Address Tracker
           </CardTitle>
           <p className="text-sm text-gray-600">
-            Compare two date ranges to track client registrations, identify firms that have left, or find new acquisitions
+            Find companies that were at an address on a specific date and track who left or arrived since then
           </p>
+          
+          {/* Mode Toggle */}
+          <div className="flex items-center gap-2 mt-4">
+            <button
+              onClick={() => setUseSimpleMode(true)}
+              className={`px-3 py-1 rounded text-sm ${useSimpleMode ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+            >
+              Simple (Historical Date)
+            </button>
+            <button
+              onClick={() => setUseSimpleMode(false)}
+              className={`px-3 py-1 rounded text-sm ${!useSimpleMode ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+            >
+              Advanced (Date Ranges)
+            </button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -156,18 +211,51 @@ export const DateRangeComparison: React.FC = () => {
               />
             </div>
 
-            {/* Date Ranges */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Date Range 1 */}
-              <Card className="border-blue-200 bg-blue-50">
-                <CardHeader>
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-blue-600" />
-                    Period 1 (Earlier)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
+            {useSimpleMode ? (
+              /* Simple Mode: Single Historical Date */
+              <div className="space-y-4">
+                <Card className="border-purple-200 bg-purple-50">
+                  <CardContent className="pt-4">
+                    <div className="space-y-3">
+                      <div>
+                        <Label htmlFor="historical-date" className="text-sm font-medium">
+                          Historical Snapshot Date
+                        </Label>
+                        <p className="text-xs text-gray-600 mb-2">
+                          The date you want to compare against today (e.g., July 9, 2024)
+                        </p>
+                        <Input
+                          id="historical-date"
+                          type="date"
+                          value={historicalDate}
+                          onChange={(e) => setHistoricalDate(e.target.value)}
+                          max={new Date().toISOString().split('T')[0]}
+                        />
+                      </div>
+                      <div className="text-xs text-gray-500 bg-white p-3 rounded border">
+                        <strong>How it works:</strong> The system will find companies at this address on <strong>{historicalDate || 'your selected date'}</strong> and compare to today ({new Date().toISOString().split('T')[0]}), showing you:
+                        <ul className="list-disc ml-4 mt-1">
+                          <li><strong>Companies that left</strong> - were there then, not there now</li>
+                          <li><strong>Companies that arrived</strong> - are there now, weren't there then</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              /* Advanced Mode: Two Date Ranges */
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Date Range 1 */}
+                <Card className="border-blue-200 bg-blue-50">
+                  <CardHeader>
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-blue-600" />
+                      Period 1 (Earlier)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
                     <Label htmlFor="range1-start">Start Date</Label>
                     <Input
                       id="range1-start"
@@ -222,6 +310,7 @@ export const DateRangeComparison: React.FC = () => {
                 </CardContent>
               </Card>
             </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex gap-2">
@@ -235,7 +324,7 @@ export const DateRangeComparison: React.FC = () => {
                 ) : (
                   <ArrowLeftRight className="w-4 h-4 mr-2" />
                 )}
-                Compare Periods
+                {useSimpleMode ? 'Find Companies That Left' : 'Compare Periods'}
               </Button>
               
               {comparisonResults && (
