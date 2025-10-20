@@ -245,7 +245,7 @@ export default function Auth() {
             <img 
               src="/torsor-logo.png" 
               alt="Torsor" 
-              className="h-20 w-auto"
+              className="w-full max-w-md h-auto px-8"
               onError={(e) => {
                 // Fallback to text if logo doesn't exist yet
                 e.currentTarget.style.display = 'none';
