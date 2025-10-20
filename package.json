@@ -12,8 +12,7 @@
     "preview": "vite preview",
     "start": "node server.js",
     "typecheck": "tsc --noEmit",
-    "migrate": "node scripts/apply-migrations.mjs",
-    "postinstall": "npm run migrate || true"
+    "migrate": "node scripts/apply-migrations.mjs"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.18",
