@@ -81,15 +81,14 @@ FOR EACH ROW
 EXECUTE FUNCTION update_service_line_interests_updated_at();
 
 -- Seed BSG Service Lines (as reference comments)
--- Service lines from BSG Skills Matrix:
+-- Active service lines from BSG Skills Matrix:
 -- 1. Automation
 -- 2. Management Accounts
--- 3. Advisory/Forecasting
--- 4. 365 Alignment
--- 5. Systems Audit
--- 6. Client Vault
--- 7. Compliance
--- 8. Core Capability
+-- 3. Future Financial Information / Advisory Accelerator
+-- 4. Benchmarking - External and Internal
+-- 5. Profit Extraction / Remuneration Strategies
+-- 6. 365 Alignment Programme
+-- Coming Soon: Systems Audit
 
 -- View for service line coverage analysis
 CREATE OR REPLACE VIEW service_line_coverage AS

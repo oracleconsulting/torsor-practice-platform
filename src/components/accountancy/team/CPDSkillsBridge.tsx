@@ -441,7 +441,7 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
           {improvementHistory.length === 0 ? (
             <Card className="bg-card/50 border-border">
               <CardContent className="p-8 text-center">
-                <div className="text-white">
+                <div className="text-gray-900">
                   No skill improvements tracked yet. Complete CPD activities and reassess your skills!
                 </div>
               </CardContent>
@@ -484,11 +484,11 @@ const CPDSkillsBridge: React.FC<CPDSkillsBridgeProps> = ({
       {showPredictive && roiData && (
         <Card className="bg-gradient-to-br from-green-900/20 to-emerald-900/20 border-green-700">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-emerald-400" />
+            <CardTitle className="flex items-center gap-2 text-gray-900">
+              <Sparkles className="w-5 h-5 text-emerald-600" />
               Predictive Improvement Modeling
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-gray-700">
               Based on your current CPD efficiency
             </CardDescription>
           </CardHeader>
