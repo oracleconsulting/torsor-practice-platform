@@ -372,12 +372,11 @@ export default function MySkillsHeatmap() {
               Quick glance at your skills portfolio - {sortedByLevel.length} skills assessed
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="relative">
             {/* Grid layout that fills COLUMNS first (top to bottom), then moves right */}
-            {/* Overflow-x-auto allows horizontal scrolling on small screens, but prevents items from escaping viewport */}
-            <div className="overflow-x-auto overflow-y-visible pb-20">
+            <div className="overflow-x-auto pb-2">
               <div 
-                className="grid gap-2 w-fit"
+                className="grid gap-2 w-fit relative"
                 style={{
                   gridTemplateRows: 'repeat(5, minmax(0, 1fr))',
                   gridAutoFlow: 'column',
@@ -388,21 +387,27 @@ export default function MySkillsHeatmap() {
                   <div
                     key={skill.skill_id}
                     onClick={() => scrollToSkill(skill.skill_id)}
-                    className={`
-                      ${getSkillLevelColor(skill.current_level)}
-                      w-12 h-12 rounded-md hover:scale-110 transition-transform cursor-pointer
-                      group relative hover:ring-2 hover:ring-blue-500
-                    `}
-                    title={skill.skill_name}
+                    className="group relative"
                   >
-                    {/* Hover tooltip - improved positioning */}
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 hidden group-hover:block z-50 pointer-events-none whitespace-nowrap">
-                      <div className="bg-gray-900 text-white text-sm rounded-lg py-2 px-4 shadow-xl border border-gray-700">
-                        <p className="font-semibold mb-0.5">{skill.skill_name}</p>
-                        <p className="text-gray-300 text-xs">Level: {skill.current_level}/5</p>
-                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                          <div className="border-4 border-transparent border-t-gray-900"></div>
-                        </div>
+                    {/* The colored square */}
+                    <div
+                      className={`
+                        ${getSkillLevelColor(skill.current_level)}
+                        w-12 h-12 rounded-md hover:scale-110 transition-transform cursor-pointer
+                        hover:ring-2 hover:ring-blue-500 hover:z-[100]
+                      `}
+                      title={skill.skill_name}
+                    />
+                    
+                    {/* Tooltip - appears on hover with fixed positioning */}
+                    <div className="invisible group-hover:visible absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-[200] pointer-events-none">
+                      <div className="bg-gray-900 text-white text-sm rounded-lg py-2 px-3 shadow-xl whitespace-nowrap">
+                        <div className="font-semibold">{skill.skill_name}</div>
+                        <div className="text-xs text-gray-300">Level: {skill.current_level}/5</div>
+                      </div>
+                      {/* Arrow pointing down */}
+                      <div className="absolute left-1/2 -translate-x-1/2 top-full">
+                        <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-gray-900"></div>
                       </div>
                     </div>
                   </div>
