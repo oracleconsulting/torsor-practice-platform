@@ -4,7 +4,6 @@ import CPDOverview from '@/components/accountancy/team/CPDOverview';
 import QuickCPDLogger from '@/components/accountancy/team/QuickCPDLogger';
 import CPDSkillReassessment from '@/components/accountancy/team/CPDSkillReassessment';
 import ServiceLineInterestRanking from '@/components/accountancy/team/ServiceLineInterestRanking';
-import VARKAssessment from '@/components/accountancy/team/VARKAssessment';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Activity, TrendingUp, ArrowLeft, Info, Plus, Clock, Target, Brain, Briefcase } from 'lucide-react';
@@ -20,7 +19,7 @@ const CPDSkillsBridgePage: React.FC = () => {
   const { user } = useAuth();
   const { practice } = useAccountancyContext();
   const [memberId, setMemberId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'impact' | 'service-lines' | 'vark'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'impact' | 'service-lines'>('overview');
   const [isLogCPDOpen, setIsLogCPDOpen] = useState(false);
   const [isReassessmentOpen, setIsReassessmentOpen] = useState(false);
   const [cpdActivityData, setCpdActivityData] = useState<{
@@ -94,7 +93,7 @@ const CPDSkillsBridgePage: React.FC = () => {
 
         {/* Tabs for different views */}
         <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4 bg-white border border-gray-200 p-1 rounded-lg shadow-sm">
+          <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200 p-1 rounded-lg shadow-sm">
             <TabsTrigger 
               value="overview" 
               className="data-[state=active]:bg-blue-600 data-[state=active]:text-white transition-all"
@@ -115,13 +114,6 @@ const CPDSkillsBridgePage: React.FC = () => {
             >
               <Briefcase className="w-4 h-4 mr-2" />
               Service Lines
-            </TabsTrigger>
-            <TabsTrigger 
-              value="vark" 
-              className="data-[state=active]:bg-orange-600 data-[state=active]:text-white transition-all"
-            >
-              <Brain className="w-4 h-4 mr-2" />
-              Learning Style
             </TabsTrigger>
           </TabsList>
 
@@ -196,19 +188,6 @@ const CPDSkillsBridgePage: React.FC = () => {
               <Card className="bg-gray-800 border-gray-700">
                 <CardContent className="pt-6">
                   <p className="text-white font-medium text-center">Please log in to manage your service line preferences.</p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* VARK Learning Style Tab */}
-          <TabsContent value="vark" className="space-y-6">
-            {memberId ? (
-              <VARKAssessment teamMemberId={memberId} />
-            ) : (
-              <Card className="bg-gray-800 border-gray-700">
-                <CardContent className="pt-6">
-                  <p className="text-white font-medium text-center">Please log in to take your learning style assessment.</p>
                 </CardContent>
               </Card>
             )}
