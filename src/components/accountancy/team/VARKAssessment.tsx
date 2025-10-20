@@ -454,99 +454,101 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
 
       {/* Question Card */}
       <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
+        <CardHeader className="pb-6">
           <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <Badge variant="secondary" className="mb-2">
+            <div className="space-y-2">
+              <Badge variant="secondary" className="mb-3 text-sm px-3 py-1">
                 Question {currentQuestion + 1} of {questions.length}
               </Badge>
-              <CardTitle className="text-white text-lg leading-relaxed">{currentQ.question_text}</CardTitle>
+              <CardTitle className="text-white text-2xl leading-relaxed">{currentQ.question_text}</CardTitle>
               {currentQ.category && (
-                <CardDescription className="text-xs uppercase tracking-wide">
+                <CardDescription className="text-sm uppercase tracking-wide mt-2">
                   {currentQ.category}
                 </CardDescription>
               )}
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pb-8">
           <RadioGroup
             value={answers[currentQ.question_number]?.selected_option || ''}
             onValueChange={(value) => handleAnswerSelect(value as 'a' | 'b' | 'c' | 'd')}
             className="space-y-4"
           >
             {/* Option A */}
-            <div className="flex items-start space-x-3 p-4 rounded-lg border-2 border-gray-700 hover:border-gray-600 transition-colors cursor-pointer">
-              <RadioGroupItem value="a" id={`q${currentQ.question_number}-a`} className="mt-1" />
+            <div className="flex items-start space-x-4 p-5 rounded-lg border-2 border-gray-700 hover:border-gray-600 transition-colors cursor-pointer">
+              <RadioGroupItem value="a" id={`q${currentQ.question_number}-a`} className="mt-1.5" />
               <Label
                 htmlFor={`q${currentQ.question_number}-a`}
-                className="text-white font-medium cursor-pointer flex-1"
+                className="text-white text-lg font-medium cursor-pointer flex-1 leading-relaxed"
               >
                 {currentQ.option_a}
               </Label>
             </div>
 
             {/* Option B */}
-            <div className="flex items-start space-x-3 p-4 rounded-lg border-2 border-gray-700 hover:border-gray-600 transition-colors cursor-pointer">
-              <RadioGroupItem value="b" id={`q${currentQ.question_number}-b`} className="mt-1" />
+            <div className="flex items-start space-x-4 p-5 rounded-lg border-2 border-gray-700 hover:border-gray-600 transition-colors cursor-pointer">
+              <RadioGroupItem value="b" id={`q${currentQ.question_number}-b`} className="mt-1.5" />
               <Label
                 htmlFor={`q${currentQ.question_number}-b`}
-                className="text-white font-medium cursor-pointer flex-1"
+                className="text-white text-lg font-medium cursor-pointer flex-1 leading-relaxed"
               >
                 {currentQ.option_b}
               </Label>
             </div>
 
             {/* Option C */}
-            <div className="flex items-start space-x-3 p-4 rounded-lg border-2 border-gray-700 hover:border-gray-600 transition-colors cursor-pointer">
-              <RadioGroupItem value="c" id={`q${currentQ.question_number}-c`} className="mt-1" />
+            <div className="flex items-start space-x-4 p-5 rounded-lg border-2 border-gray-700 hover:border-gray-600 transition-colors cursor-pointer">
+              <RadioGroupItem value="c" id={`q${currentQ.question_number}-c`} className="mt-1.5" />
               <Label
                 htmlFor={`q${currentQ.question_number}-c`}
-                className="text-white font-medium cursor-pointer flex-1"
+                className="text-white text-lg font-medium cursor-pointer flex-1 leading-relaxed"
               >
                 {currentQ.option_c}
               </Label>
             </div>
 
             {/* Option D */}
-            <div className="flex items-start space-x-3 p-4 rounded-lg border-2 border-gray-700 hover:border-gray-600 transition-colors cursor-pointer">
-              <RadioGroupItem value="d" id={`q${currentQ.question_number}-d`} className="mt-1" />
+            <div className="flex items-start space-x-4 p-5 rounded-lg border-2 border-gray-700 hover:border-gray-600 transition-colors cursor-pointer">
+              <RadioGroupItem value="d" id={`q${currentQ.question_number}-d`} className="mt-1.5" />
               <Label
                 htmlFor={`q${currentQ.question_number}-d`}
-                className="text-white font-medium cursor-pointer flex-1"
+                className="text-white text-lg font-medium cursor-pointer flex-1 leading-relaxed"
               >
                 {currentQ.option_d}
               </Label>
             </div>
           </RadioGroup>
         </CardContent>
-        <CardFooter className="flex justify-between">
+        <CardFooter className="flex justify-between pt-6">
           <Button
             variant="outline"
             onClick={handlePrevious}
             disabled={currentQuestion === 0 || isSubmitting}
+            className="text-base px-6 py-3 h-auto"
           >
-            <ChevronLeft className="w-4 h-4 mr-2" />
+            <ChevronLeft className="w-5 h-5 mr-2" />
             Previous
           </Button>
           <Button
             onClick={handleNext}
             disabled={!isCurrentQuestionAnswered() || isSubmitting}
+            className="text-base px-6 py-3 h-auto"
           >
             {isSubmitting ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                 Saving...
               </>
             ) : currentQuestion === questions.length - 1 ? (
               <>
-                <Save className="w-4 h-4 mr-2" />
+                <Save className="w-5 h-5 mr-2" />
                 Submit Assessment
               </>
             ) : (
               <>
                 Next
-                <ChevronRight className="w-4 h-4 ml-2" />
+                <ChevronRight className="w-5 h-5 ml-2" />
               </>
             )}
           </Button>
