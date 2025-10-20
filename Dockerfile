@@ -1,9 +1,9 @@
-# Use Node 20 to avoid Docker Hub rate limiting issues
-FROM node:20-alpine AS deps
+# Use Node 20 LTS - Alternative: node:20.11-alpine if 20-alpine fails
+FROM node:20.11-alpine AS deps
 # Install dependencies needed for node-gyp
-# BUILD: 2025-10-18-v1.0.4 - FORCE REBUILD FOR SKILLS FIX
-# Problem: Supabase query syntax fixed but Railway cached old build
-# Solution: Increment cache bust to force complete rebuild
+# BUILD: 2025-10-21-v1.0.5 - STRATEGIC PLANNING FEATURES + CLEAN THEME
+# Features: Service Line Rankings, VARK Assessment, Strategic Matching
+# Theme: Clean white theme matching Skills Heatmap
 RUN apk add --no-cache python3 make g++ git curl wget nano
 
 WORKDIR /app
@@ -16,7 +16,7 @@ RUN npm config set legacy-peer-deps true && \
     npm ci --include=dev --force
 
 # Builder stage
-FROM node:20-alpine AS builder
+FROM node:20.11-alpine AS builder
 
 RUN apk add --no-cache python3 make g++
 
@@ -63,10 +63,10 @@ RUN echo "Clearing Vite cache..." && \
 RUN npm run build
 
 # Runner stage
-FROM node:20-alpine
+FROM node:20.11-alpine
 
 # Force cache invalidation for runner stage
-ARG CACHEBUST=1
+ARG CACHEBUST=2
 RUN echo "Runner cache bust: $CACHEBUST"
 
 WORKDIR /app
