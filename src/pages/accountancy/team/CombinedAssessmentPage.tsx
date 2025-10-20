@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Brain, BookOpen, CheckCircle, Clock, ArrowRight, 
-  TrendingUp, Users, Target, Sparkles
+  TrendingUp, Users, Target, Sparkles, ArrowLeft
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -183,6 +183,16 @@ export const CombinedAssessmentPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
+      {/* Back Button */}
+      <Button 
+        variant="ghost" 
+        onClick={() => navigate('/team-member/dashboard')}
+        className="mb-4"
+      >
+        <ArrowLeft className="w-4 h-4 mr-2" />
+        Back to Dashboard
+      </Button>
+
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-50 via-purple-50 to-green-50 rounded-lg p-8 border-2">
         <div className="flex items-center justify-between">
@@ -212,16 +222,16 @@ export const CombinedAssessmentPage: React.FC = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="dashboard">
+        <TabsList className="grid w-full grid-cols-3 bg-white">
+          <TabsTrigger value="dashboard" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
             <Target className="w-4 h-4 mr-2" />
             Dashboard
           </TabsTrigger>
-          <TabsTrigger value="vark-results" disabled={!varkCompleted}>
+          <TabsTrigger value="vark-results" disabled={!varkCompleted} className="data-[state=active]:bg-green-600 data-[state=active]:text-white">
             <BookOpen className="w-4 h-4 mr-2" />
             VARK Results
           </TabsTrigger>
-          <TabsTrigger value="ocean-results" disabled={!oceanCompleted}>
+          <TabsTrigger value="ocean-results" disabled={!oceanCompleted} className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
             <Brain className="w-4 h-4 mr-2" />
             Personality Results
           </TabsTrigger>
@@ -232,13 +242,13 @@ export const CombinedAssessmentPage: React.FC = () => {
           {/* Assessment Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* VARK Assessment Card */}
-            <Card className={`border-2 ${varkCompleted ? 'bg-green-50 border-green-200' : 'border-blue-200'}`}>
+            <Card className={`border-2 ${varkCompleted ? 'bg-green-50 border-green-200' : 'bg-white border-blue-200'}`}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-gray-900">
                   <BookOpen className="w-6 h-6 text-blue-600" />
                   VARK Learning Style
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-gray-600">
                   Discover how you learn best
                 </CardDescription>
               </CardHeader>
@@ -292,13 +302,13 @@ export const CombinedAssessmentPage: React.FC = () => {
             </Card>
 
             {/* OCEAN Assessment Card */}
-            <Card className={`border-2 ${oceanCompleted ? 'bg-green-50 border-green-200' : 'border-purple-200'}`}>
+            <Card className={`border-2 ${oceanCompleted ? 'bg-green-50 border-green-200' : 'bg-white border-purple-200'}`}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-gray-900">
                   <Brain className="w-6 h-6 text-purple-600" />
                   Personality Profile (OCEAN)
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-gray-600">
                   Understand your work style and strengths
                 </CardDescription>
               </CardHeader>
@@ -369,7 +379,7 @@ export const CombinedAssessmentPage: React.FC = () => {
           {!varkCompleted || !oceanCompleted ? (
             <Card className="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-200">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-gray-900">
                   <Sparkles className="w-6 h-6 text-yellow-600" />
                   Why Complete Both Assessments?
                 </CardTitle>
@@ -417,11 +427,11 @@ export const CombinedAssessmentPage: React.FC = () => {
           ) : (
             <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-gray-900">
                   <CheckCircle className="w-6 h-6 text-green-600" />
                   Profile Complete! 🎉
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-gray-600">
                   You've unlocked all insights and recommendations
                 </CardDescription>
               </CardHeader>
@@ -448,10 +458,10 @@ export const CombinedAssessmentPage: React.FC = () => {
         {/* VARK Results Tab */}
         <TabsContent value="vark-results">
           {varkCompleted && varkData ? (
-            <Card>
+            <Card className="bg-white">
               <CardHeader>
-                <CardTitle>Your VARK Learning Style Results</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-gray-900">Your VARK Learning Style Results</CardTitle>
+                <CardDescription className="text-gray-600">
                   Primary Style: {varkData.primary_style.replace('_', ' ').toUpperCase()}
                 </CardDescription>
               </CardHeader>
@@ -479,7 +489,7 @@ export const CombinedAssessmentPage: React.FC = () => {
               </CardContent>
             </Card>
           ) : (
-            <Card>
+            <Card className="bg-white">
               <CardContent className="p-12 text-center">
                 <p className="text-gray-500">VARK assessment not completed yet</p>
               </CardContent>
@@ -497,7 +507,7 @@ export const CombinedAssessmentPage: React.FC = () => {
               memberName={memberName}
             />
           ) : (
-            <Card>
+            <Card className="bg-white">
               <CardContent className="p-12 text-center">
                 <p className="text-gray-500">Personality assessment not completed yet</p>
               </CardContent>
