@@ -372,9 +372,9 @@ export default function MySkillsHeatmap() {
               Quick glance at your skills portfolio - {sortedByLevel.length} skills assessed
             </CardDescription>
           </CardHeader>
-          <CardContent className="relative">
+          <CardContent className="relative pt-16 pb-2">
             {/* Grid layout that fills COLUMNS first (top to bottom), then moves right */}
-            <div className="overflow-x-auto pb-2">
+            <div className="overflow-x-auto">
               <div 
                 className="grid gap-2 w-fit relative"
                 style={{
@@ -383,35 +383,41 @@ export default function MySkillsHeatmap() {
                   gridAutoColumns: '3rem' // w-12 equivalent (48px)
                 }}
               >
-                {sortedByLevel.map(skill => (
-                  <div
-                    key={skill.skill_id}
-                    onClick={() => scrollToSkill(skill.skill_id)}
-                    className="group relative"
-                  >
-                    {/* The colored square */}
+                {sortedByLevel.map((skill, index) => {
+                  // Calculate which row this skill is in (0-4)
+                  const row = index % 5;
+                  const isTopRow = row === 0;
+                  
+                  return (
                     <div
-                      className={`
-                        ${getSkillLevelColor(skill.current_level)}
-                        w-12 h-12 rounded-md hover:scale-110 transition-transform cursor-pointer
-                        hover:ring-2 hover:ring-blue-500 hover:z-[100]
-                      `}
-                      title={skill.skill_name}
-                    />
-                    
-                    {/* Tooltip - appears on hover with fixed positioning */}
-                    <div className="invisible group-hover:visible absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-[200] pointer-events-none">
-                      <div className="bg-gray-900 text-white text-sm rounded-lg py-2 px-3 shadow-xl whitespace-nowrap">
-                        <div className="font-semibold">{skill.skill_name}</div>
-                        <div className="text-xs text-gray-300">Level: {skill.current_level}/5</div>
-                      </div>
-                      {/* Arrow pointing down */}
-                      <div className="absolute left-1/2 -translate-x-1/2 top-full">
-                        <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-gray-900"></div>
+                      key={skill.skill_id}
+                      onClick={() => scrollToSkill(skill.skill_id)}
+                      className="group relative"
+                    >
+                      {/* The colored square */}
+                      <div
+                        className={`
+                          ${getSkillLevelColor(skill.current_level)}
+                          w-12 h-12 rounded-md hover:scale-110 transition-transform cursor-pointer
+                          hover:ring-2 hover:ring-blue-500 hover:z-[100]
+                        `}
+                        title={skill.skill_name}
+                      />
+                      
+                      {/* Tooltip - appears above for rows 1-4, below for row 0 (top row) */}
+                      <div className={`invisible group-hover:visible absolute left-1/2 -translate-x-1/2 ${isTopRow ? 'top-full mt-2' : 'bottom-full mb-2'} z-[200] pointer-events-none`}>
+                        <div className="bg-gray-900 text-white text-sm rounded-lg py-2 px-3 shadow-xl whitespace-nowrap">
+                          <div className="font-semibold">{skill.skill_name}</div>
+                          <div className="text-xs text-gray-300">Level: {skill.current_level}/5</div>
+                        </div>
+                        {/* Arrow pointing to the square - direction changes based on position */}
+                        <div className={`absolute left-1/2 -translate-x-1/2 ${isTopRow ? 'bottom-full' : 'top-full'}`}>
+                          <div className={`w-0 h-0 border-l-4 border-r-4 ${isTopRow ? 'border-b-4 border-b-gray-900' : 'border-t-4 border-t-gray-900'} border-l-transparent border-r-transparent`}></div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
             
