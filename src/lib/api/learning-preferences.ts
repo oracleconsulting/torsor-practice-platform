@@ -32,15 +32,17 @@ export interface LearningPreference {
   team_member_id: string;
   visual_score: number;
   auditory_score: number;
-  reading_writing_score: number;
+  read_write_score: number;
   kinesthetic_score: number;
-  primary_style: 'visual' | 'auditory' | 'reading_writing' | 'kinesthetic' | 'multimodal';
-  is_multimodal: boolean;
-  assessment_answers: VARKAnswer[];
-  assessed_at: string;
-  completed_by: string;
-  assessment_version: string;
-  learning_recommendations: string[];
+  visual_percentage: number;
+  auditory_percentage: number;
+  read_write_percentage: number;
+  kinesthetic_percentage: number;
+  learning_type: string;
+  dominant_styles: string[];
+  responses: VARKAnswer[];
+  assessment_date: string;
+  created_at: string;
   updated_at: string;
 }
 
@@ -250,15 +252,12 @@ export const saveLearningPreference = async (
     team_member_id: teamMemberId,
     visual_score: scores.visual,
     auditory_score: scores.auditory,
-    reading_writing_score: scores.reading_writing,
+    read_write_score: scores.reading_writing,
     kinesthetic_score: scores.kinesthetic,
-    primary_style,
-    is_multimodal,
-    assessment_answers: answers,
-    completed_by: userId,
-    assessment_version: '1.0',
-    learning_recommendations: recommendations,
-    assessed_at: new Date().toISOString(),
+    learning_type: primary_style,
+    dominant_styles: is_multimodal ? ['visual', 'auditory', 'reading_writing', 'kinesthetic'] : [primary_style],
+    responses: answers,
+    assessment_date: new Date().toISOString(),
   };
 
   // Upsert (insert or update if exists)
