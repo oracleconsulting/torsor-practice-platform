@@ -132,6 +132,7 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="team/skills-assessment" element={<SkillsAssessmentPage />} />
       <Route path="team/profile/:memberId" element={<TeamMemberProfilePage />} />
       <Route path="team/assessments" element={<TeamAssessmentDashboard practiceId={practiceId} />} />
+      <Route path="my-assessments" element={<CombinedAssessmentPage />} />
       <Route path="team-portal/vark-assessment" element={<VARKAssessmentPage />} />
       <Route path="team" element={<TeamManagementPage />} />
       <Route path="client-rescues" element={<ClientRescues />} />

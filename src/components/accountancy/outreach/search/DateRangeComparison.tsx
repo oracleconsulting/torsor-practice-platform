@@ -76,11 +76,26 @@ export const DateRangeComparison: React.FC = () => {
 
         // Transform the results to match the ComparisonResults interface
         // CSV endpoint returns: companies_left, companies_still_there, companies_dissolved
+        // Each company has: company_number, company_name, current_status, current_address, address_in_snapshot
+        
+        // Transform CSV response to match CompanySearchResult format
+        const transformCompany = (company: any): CompanySearchResult => ({
+          company_number: company.company_number || '',
+          company_name: company.company_name || '',
+          company_status: company.current_status || company.company_status_in_snapshot || '',
+          company_type: 'ltd', // Default, CSV doesn't have this
+          date_of_creation: company.incorporation_date || '',
+          registered_office_address: {
+            address_line_1: company.current_address || company.address_in_snapshot || ''
+          },
+          sic_codes: company.sic_codes || []
+        });
+        
         setComparisonResults({
-          range1_only: results.companies_left || [],
-          range2_only: results.companies_still_there || [],  // Companies still there = "arrived" in UI context
-          in_both: results.companies_still_there || [],
-          left_firms: results.companies_left || [],
+          range1_only: (results.companies_left || []).map(transformCompany),
+          range2_only: [],  // Not tracking arrivals yet in CSV mode
+          in_both: (results.companies_still_there || []).map(transformCompany),
+          left_firms: (results.companies_left || []).map(transformCompany),
           new_firms: [],  // CSV doesn't track arrivals yet
         });
         

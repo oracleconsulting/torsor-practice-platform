@@ -325,6 +325,33 @@ export default function AdminDashboardPage() {
         </CardContent>
       </Card>
 
+      {/* My Personal Assessments Card */}
+      <Card className="border-blue-300 bg-gradient-to-br from-blue-50 to-cyan-50">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-blue-600 rounded-lg">
+                <CheckCircle className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Complete Your Own Assessments</h3>
+                <p className="text-gray-600 mt-1">
+                  Take your VARK learning style and OCEAN personality assessments (16 + 30 questions)
+                </p>
+              </div>
+            </div>
+            <Button 
+              size="lg"
+              onClick={() => navigate('/my-assessments')}
+              className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+            >
+              Take Assessments
+              <ArrowRight className="w-5 h-5" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* CPD Configuration Section */}
       <Card className="border-blue-200 bg-blue-50/50">
         <CardHeader>
