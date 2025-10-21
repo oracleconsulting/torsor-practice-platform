@@ -43,11 +43,19 @@ app.use((req, res, next) => {
 
 // Email sending endpoint
 app.post('/api/send-email', async (req, res) => {
+  console.log('📧 [Email API] Request received');
   try {
     const { to, subject, html, text, from } = req.body;
     
     // Get Resend API key from environment
     const RESEND_API_KEY = process.env.VITE_RESEND_API_KEY || process.env.RESEND_API_KEY;
+    
+    console.log('🔑 [Email API] API Key status:', {
+      hasVITE_KEY: !!process.env.VITE_RESEND_API_KEY,
+      hasRESEND_KEY: !!process.env.RESEND_API_KEY,
+      keyPrefix: RESEND_API_KEY?.substring(0, 8) + '...',
+      keyLength: RESEND_API_KEY?.length,
+    });
     
     if (!RESEND_API_KEY || RESEND_API_KEY === 'your-resend-api-key-here') {
       console.error('❌ Resend API key not configured on server');
