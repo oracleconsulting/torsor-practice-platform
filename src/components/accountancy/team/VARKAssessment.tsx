@@ -160,11 +160,11 @@ const VARKAssessment: React.FC<VARKAssessmentProps> = ({
       // Mark VARK assessment as complete in practice_members
       console.log('[VARKAssessment] Marking VARK as complete for member:', teamMemberId);
       const varkResult = {
-        visual: newProfile?.visual_score || 0,
-        auditory: newProfile?.auditory_score || 0,
-        reading_writing: newProfile?.reading_writing_score || 0,
-        kinesthetic: newProfile?.kinesthetic_score || 0,
-        primary_style: newProfile?.primary_learning_style || 'multimodal',
+        visual: newProfile?.scores?.visual || 0,
+        auditory: newProfile?.scores?.auditory || 0,
+        reading_writing: newProfile?.scores?.reading_writing || 0,
+        kinesthetic: newProfile?.scores?.kinesthetic || 0,
+        primary_style: newProfile?.primary_style || 'multimodal',
         completed_at: new Date().toISOString()
       };
 

@@ -299,21 +299,51 @@ export const getLearningStyleProfile = async (
     return null;
   }
 
+  // Determine primary style from learning_type (e.g., "Strong Visual", "Bimodal", "Multimodal")
+  const primaryStyle = determinePrimaryStyleFromType(preference.learning_type, preference.dominant_styles);
+  const isMultimodal = preference.dominant_styles ? preference.dominant_styles.length > 1 : false;
+
   const profile: LearningStyleProfile = {
-    primary_style: preference.primary_style,
-    is_multimodal: preference.is_multimodal,
+    primary_style: primaryStyle,
+    is_multimodal: isMultimodal,
     scores: {
       visual: preference.visual_score,
       auditory: preference.auditory_score,
-      reading_writing: preference.reading_writing_score,
+      reading_writing: preference.read_write_score,
       kinesthetic: preference.kinesthetic_score,
     },
-    recommendations: preference.learning_recommendations,
-    strengths: getStyleStrengths(preference.primary_style),
-    learning_tips: getStyleLearningTips(preference.primary_style),
+    recommendations: generateLearningRecommendations(primaryStyle, isMultimodal, {
+      visual: preference.visual_score,
+      auditory: preference.auditory_score,
+      reading_writing: preference.read_write_score,
+      kinesthetic: preference.kinesthetic_score,
+    }),
+    strengths: getStyleStrengths(primaryStyle),
+    learning_tips: getStyleLearningTips(primaryStyle),
   };
 
   return profile;
+};
+
+/**
+ * Helper to determine primary style from learning_type string
+ */
+const determinePrimaryStyleFromType = (learningType: string, dominantStyles?: string[]): string => {
+  if (!learningType) return 'multimodal';
+  
+  const lowerType = learningType.toLowerCase();
+  
+  if (lowerType.includes('visual')) return 'visual';
+  if (lowerType.includes('auditory')) return 'auditory';
+  if (lowerType.includes('read') || lowerType.includes('write')) return 'reading_writing';
+  if (lowerType.includes('kinesthetic')) return 'kinesthetic';
+  
+  // If multimodal, return the first dominant style or 'multimodal'
+  if (dominantStyles && dominantStyles.length > 0) {
+    return dominantStyles[0];
+  }
+  
+  return 'multimodal';
 };
 
 /**
