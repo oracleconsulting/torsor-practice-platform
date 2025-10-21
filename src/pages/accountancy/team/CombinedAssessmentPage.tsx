@@ -28,6 +28,7 @@ export const CombinedAssessmentPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [memberId, setMemberId] = useState<string>('');
   const [memberName, setMemberName] = useState<string>('');
+  const [memberRole, setMemberRole] = useState<string>('');
   
   // Assessment status
   const [varkCompleted, setVarkCompleted] = useState(false);
@@ -51,14 +52,19 @@ export const CombinedAssessmentPage: React.FC = () => {
       // Get member info
       const { data: member, error: memberError } = await supabase
         .from('practice_members')
-        .select('id, name, vark_assessment_completed, learning_style, vark_result')
+        .select('id, name, role, vark_assessment_completed, learning_style, vark_result')
         .eq('user_id', user.id)
-        .single();
+        .single() as { data: any; error: any };
 
       if (memberError) throw memberError;
+      if (!member) {
+        toast.error('Member profile not found');
+        return;
+      }
 
       setMemberId(member.id);
-      setMemberName(member.name);
+      setMemberName(member.name || '');
+      setMemberRole(member.role?.toLowerCase() || '');
       setVarkCompleted(member.vark_assessment_completed);
 
       // Load VARK data if completed
@@ -127,6 +133,12 @@ export const CombinedAssessmentPage: React.FC = () => {
     return { text: 'Not Started', color: 'bg-gray-600', icon: Clock };
   };
 
+  // Determine correct back navigation based on user role
+  const getBackPath = () => {
+    const isAdmin = memberRole && ['owner', 'admin', 'manager', 'director', 'partner'].includes(memberRole);
+    return isAdmin ? '/dashboard' : '/team-member/dashboard';
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -186,7 +198,7 @@ export const CombinedAssessmentPage: React.FC = () => {
       {/* Back Button */}
       <Button 
         variant="ghost" 
-        onClick={() => navigate('/team-member/dashboard')}
+        onClick={() => navigate(getBackPath())}
         className="mb-4"
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
