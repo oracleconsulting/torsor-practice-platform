@@ -63,9 +63,9 @@ export default defineConfig({
           'data-vendor': ['@supabase/supabase-js', '@tanstack/react-query'],
         },
         // Enhanced cache busting with timestamp
-        entryFileNames: `assets/[name]-[hash].js`,
-        chunkFileNames: `assets/[name]-[hash].js`,
-        assetFileNames: `assets/[name]-[hash].[ext]`
+        entryFileNames: `assets/[name]-[hash]-v${Date.now()}.js`,
+        chunkFileNames: `assets/[name]-[hash]-v${Date.now()}.js`,
+        assetFileNames: `assets/[name]-[hash]-v${Date.now()}.[ext]`
       },
       external: [
         '**/tests/**',
