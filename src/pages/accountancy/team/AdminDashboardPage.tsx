@@ -20,6 +20,10 @@ import {
   Shield,
   Brain,
   ArrowRight,
+  UserCircle,
+  BookOpen,
+  GraduationCap,
+  MessageSquare,
 } from 'lucide-react';
 import RoleManagement from '@/components/accountancy/team/RoleManagement';
 import UserManagement from '@/components/accountancy/team/UserManagement';
@@ -298,6 +302,69 @@ export default function AdminDashboardPage() {
         </TabsList>
 
         <TabsContent value="dashboard" className="space-y-6">
+          {/* My Personal Development Section */}
+          <Card className="border-blue-300 bg-gradient-to-br from-blue-50 to-cyan-50">
+            <CardContent className="p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <UserCircle className="w-6 h-6 text-blue-600" />
+                My Personal Development
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Access your personal skills, CPD, and development tracking
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Button
+                  variant="outline"
+                  className="h-auto py-4 flex-col gap-2 hover:bg-blue-50 hover:border-blue-300"
+                  onClick={() => navigate('/team-member/skills-heatmap')}
+                >
+                  <Target className="w-6 h-6 text-blue-600" />
+                  <div className="text-center">
+                    <div className="font-semibold text-gray-900">My Skills</div>
+                    <div className="text-xs text-gray-600">View & assess</div>
+                  </div>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="h-auto py-4 flex-col gap-2 hover:bg-purple-50 hover:border-purple-300"
+                  onClick={() => navigate('/team-member/cpd-log')}
+                >
+                  <BookOpen className="w-6 h-6 text-purple-600" />
+                  <div className="text-center">
+                    <div className="font-semibold text-gray-900">My CPD</div>
+                    <div className="text-xs text-gray-600">Log & track hours</div>
+                  </div>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="h-auto py-4 flex-col gap-2 hover:bg-green-50 hover:border-green-300"
+                  onClick={() => navigate('/team-member/assessments')}
+                >
+                  <GraduationCap className="w-6 h-6 text-green-600" />
+                  <div className="text-center">
+                    <div className="font-semibold text-gray-900">My Assessments</div>
+                    <div className="text-xs text-gray-600">VARK & OCEAN</div>
+                  </div>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="h-auto py-4 flex-col gap-2 hover:bg-amber-50 hover:border-amber-300"
+                  onClick={() => navigate('/team-member/mentoring')}
+                >
+                  <MessageSquare className="w-6 h-6 text-amber-600" />
+                  <div className="text-center">
+                    <div className="font-semibold text-gray-900">Mentoring</div>
+                    <div className="text-xs text-gray-600">Find & connect</div>
+                  </div>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
       {/* Team Assessments Link Card */}
       <Card className="border-purple-300 bg-gradient-to-br from-purple-50 to-indigo-50">
         <CardContent className="p-6">
