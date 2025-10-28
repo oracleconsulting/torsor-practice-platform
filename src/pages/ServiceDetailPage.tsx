@@ -11,6 +11,7 @@ import {
   DocumentDuplicateIcon,
   EyeIcon
 } from '@heroicons/react/24/outline';
+import { Target } from 'lucide-react';
 import { useAccountancyContext } from '../contexts/AccountancyContext';
 import { supabase } from '../lib/supabase/client';
 import { Button } from '../components/ui/button';
