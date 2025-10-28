@@ -102,7 +102,7 @@ BEGIN
           SET 
             current_level = current_lvl,
             interest_level = interest_lvl,
-            last_assessed = COALESCE(invitation_record.accepted_at, NOW())
+            assessed_at = COALESCE(invitation_record.accepted_at, NOW())
           WHERE team_member_id = member_id 
             AND skill_id = skill_uuid;
           
@@ -114,7 +114,7 @@ BEGIN
             skill_id,
             current_level,
             interest_level,
-            last_assessed
+            assessed_at
           ) VALUES (
             member_id,
             skill_uuid,
@@ -155,7 +155,7 @@ SELECT
   pm.role,
   COUNT(sa.id) as total_skills_assessed,
   ROUND(AVG(sa.current_level), 1) as avg_skill_level,
-  MAX(sa.last_assessed) as last_assessment_date
+  MAX(sa.assessed_at) as last_assessment_date
 FROM practice_members pm
 LEFT JOIN skill_assessments sa ON sa.team_member_id = pm.id
 WHERE pm.practice_id = (SELECT id FROM practices WHERE name = 'RPGCC')
