@@ -30,14 +30,15 @@ export interface ServiceLineCoverage {
   match_score: number;
 }
 
-// BSG Service Lines (Active - Systems Audit is coming soon)
+// BSG Service Lines - All 7 Active Services
 export const BSG_SERVICE_LINES = [
   'Automation',
   'Management Accounts',
   'Future Financial Information / Advisory Accelerator',
   'Benchmarking - External and Internal',
-  'Profit Extraction / Remuneration Strategies',
-  '365 Alignment Programme'
+  '365 Alignment Programme',
+  'Systems Audit',
+  'Profit Extraction / Remuneration Strategies'
 ] as const;
 
 export type BSGServiceLine = typeof BSG_SERVICE_LINES[number];

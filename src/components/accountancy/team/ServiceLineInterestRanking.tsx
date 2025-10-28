@@ -234,6 +234,14 @@ const ServiceLineInterestRanking: React.FC<ServiceLineInterestRankingProps> = ({
           'AI-generated plan: outcomes, constraints, resources, risks',
           'Quarterly accountability reviews'
         ]
+      },
+      'Systems Audit': {
+        short: 'Independent review of finance workflows to find root-causes of issues',
+        features: [
+          'Process & controls mapping',
+          'Efficiency diagnostics and tech-stack review',
+          'Remediation plan with effort/owner/time/£ benefit'
+        ]
       }
     };
     return descriptions[serviceLine] || { short: 'Business growth service', features: [] };
