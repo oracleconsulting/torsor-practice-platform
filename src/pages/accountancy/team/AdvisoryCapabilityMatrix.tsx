@@ -54,18 +54,25 @@ export default function AdvisoryCapabilityMatrix() {
 
   const loadTeamData = async () => {
     try {
+      console.log('[AdvisoryCapabilityMatrix] Loading team data for practice:', practice?.id);
+      
       // Load all team members
       const { data: members, error: membersError } = await supabase
         .from('practice_members')
         .select('id, name, email, role')
         .eq('practice_id', practice?.id);
 
-      if (membersError) throw membersError;
+      if (membersError) {
+        console.error('[AdvisoryCapabilityMatrix] Error loading members:', membersError);
+        throw membersError;
+      }
+      
+      console.log('[AdvisoryCapabilityMatrix] Loaded members:', members?.length, members);
 
       // Load skills for each member
       const membersWithSkills: TeamMemberWithSkills[] = await Promise.all(
         (members || []).map(async (member) => {
-          const { data: assessments } = await supabase
+          const { data: assessments, error: assessmentsError } = await supabase
             .from('skill_assessments')
             .select(`
               current_level,
@@ -73,6 +80,12 @@ export default function AdvisoryCapabilityMatrix() {
               skills!inner(name, category)
             `)
             .eq('team_member_id', member.id);
+
+          if (assessmentsError) {
+            console.error(`[AdvisoryCapabilityMatrix] Error loading skills for ${member.name}:`, assessmentsError);
+          }
+          
+          console.log(`[AdvisoryCapabilityMatrix] ${member.name} (${member.email}): ${assessments?.length || 0} skills`);
 
           const skills = (assessments || []).map(a => ({
             skillName: (a as any).skills.name,
@@ -87,9 +100,10 @@ export default function AdvisoryCapabilityMatrix() {
         })
       );
 
+      console.log('[AdvisoryCapabilityMatrix] Final members with skills:', membersWithSkills);
       setTeamMembers(membersWithSkills);
     } catch (error) {
-      console.error('Error loading team data:', error);
+      console.error('[AdvisoryCapabilityMatrix] Error loading team data:', error);
     } finally {
       setLoading(false);
     }
