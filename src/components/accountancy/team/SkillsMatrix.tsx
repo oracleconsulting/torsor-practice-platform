@@ -104,9 +104,14 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
 
   // Filter and prepare data
   const matrixData = useMemo(() => {
+    console.log('[SkillsMatrix] Building matrix data...');
+    console.log('[SkillsMatrix] Team members:', teamMembers.length, teamMembers.slice(0, 2));
+    console.log('[SkillsMatrix] Skill categories:', skillCategories.length);
+    
     const filteredMembers = teamMembers.filter(member => {
       // Filter out null/undefined members
       if (!member || !member.id || !member.role) {
+        console.log('[SkillsMatrix] Filtering out invalid member:', member);
         return false;
       }
       if (filterOptions.role !== 'all' && !member.role.toLowerCase().includes(filterOptions.role)) {
@@ -118,6 +123,8 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
       return true;
     });
 
+    console.log('[SkillsMatrix] Filtered members:', filteredMembers.length);
+
     const filteredSkills = skillCategories
       .flatMap(cat => cat.skills)
       .filter(skill => {
@@ -127,11 +134,25 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
         return true;
       });
 
+    console.log('[SkillsMatrix] Filtered skills:', filteredSkills.length);
+
     const cells: MatrixCell[] = [];
+    
+    // Sample first member to check data structure
+    if (filteredMembers.length > 0) {
+      console.log('[SkillsMatrix] First member skills sample:', filteredMembers[0].name, filteredMembers[0].skills?.slice(0, 3));
+      console.log('[SkillsMatrix] First skill sample:', filteredSkills[0]);
+    }
     
     filteredMembers.forEach(member => {
       filteredSkills.forEach(skill => {
         const assessment = member.skills.find(s => s.skillId === skill.id);
+        
+        // Log if assessment not found for first few members
+        if (!assessment && filteredMembers.indexOf(member) < 3) {
+          console.log(`[SkillsMatrix] No assessment found for ${member.name} - skill ${skill.name} (${skill.id})`);
+        }
+        
         const gap = skill.requiredLevel - (assessment?.currentLevel || 0);
         const interestLevel = assessment?.interestLevel || 0;
         
@@ -144,6 +165,10 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
         });
       });
     });
+
+    console.log('[SkillsMatrix] Total cells created:', cells.length);
+    console.log('[SkillsMatrix] Cells with assessments:', cells.filter(c => c.assessment).length);
+    console.log('[SkillsMatrix] Cells without assessments:', cells.filter(c => !c.assessment).length);
 
     return cells;
   }, [teamMembers, skillCategories, filterOptions, selectedCategory, selectedDepartment]);
