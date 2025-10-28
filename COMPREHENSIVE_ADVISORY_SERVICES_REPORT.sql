@@ -273,7 +273,9 @@ WHERE pm.practice_id = yp.id AND pm.is_active = true
 UNION ALL
 SELECT 
   'Skills Assessment Completion Rate',
-  ROUND(100.0 * COUNT(DISTINCT CASE WHEN pm.skills_assessment_completed THEN pm.id END) 
+  ROUND(100.0 * COUNT(DISTINCT CASE WHEN EXISTS (
+    SELECT 1 FROM skill_assessments sa WHERE sa.team_member_id = pm.id
+  ) THEN pm.id END) 
     / NULLIF(COUNT(DISTINCT pm.id), 0), 1)::text || '%'
 FROM practice_members pm
 CROSS JOIN your_practice yp
