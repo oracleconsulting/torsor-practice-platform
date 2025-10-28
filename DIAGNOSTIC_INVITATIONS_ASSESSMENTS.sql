@@ -31,7 +31,7 @@ ORDER BY email;
 SELECT 
   i.email,
   i.name as invitation_name,
-  pm.full_name as member_name,
+  pm.name as member_name,
   pm.id as member_id,
   jsonb_array_length(i.assessment_data) as invitations_skills,
   (SELECT COUNT(*) FROM skill_assessments sa WHERE sa.team_member_id = pm.id) as migrated_skills

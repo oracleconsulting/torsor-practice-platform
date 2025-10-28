@@ -58,9 +58,9 @@ BEGIN
       INSERT INTO practice_members (
         practice_id,
         email,
-        full_name,
+        name,
         role,
-        is_active
+        active
       ) VALUES (
         v_practice_id,
         invitation_record.email,
@@ -150,7 +150,7 @@ END $$;
 
 -- Show summary by team member
 SELECT 
-  pm.full_name,
+  pm.name,
   pm.email,
   pm.role,
   COUNT(sa.id) as total_skills_assessed,
@@ -159,6 +159,6 @@ SELECT
 FROM practice_members pm
 LEFT JOIN skill_assessments sa ON sa.team_member_id = pm.id
 WHERE pm.practice_id = (SELECT id FROM practices WHERE name = 'RPGCC')
-GROUP BY pm.id, pm.full_name, pm.email, pm.role
-ORDER BY pm.full_name;
+GROUP BY pm.id, pm.name, pm.email, pm.role
+ORDER BY pm.name;
 
