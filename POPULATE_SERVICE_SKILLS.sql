@@ -1,6 +1,7 @@
 -- ==============================================================
 -- POPULATE BSG SERVICE SKILL ASSIGNMENTS
 -- Based on James's assignment specifications
+-- Including 3 separate Fractional services: CFO, COO, Combined
 -- ==============================================================
 
 DO $$
@@ -33,62 +34,50 @@ BEGIN
   -- ==============================================================
   RAISE NOTICE '1. AUTOMATION...';
   
-  -- Xero (Critical, level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'automation', s.id, 3, 4, true, ARRAY['Junior', 'Senior', 'Manager']
   FROM skills s WHERE s.name = 'Xero';
   
-  -- QuickBooks (Critical, level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'automation', s.id, 3, 4, true, ARRAY['Junior', 'Senior', 'Manager']
   FROM skills s WHERE s.name = 'QuickBooks';
   
-  -- Sage (level 2-3)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'automation', s.id, 2, 3, false, ARRAY['Junior', 'Senior']
   FROM skills s WHERE s.name = 'Sage';
   
-  -- Cloud Accounting (Critical, level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'automation', s.id, 3, 4, true, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Cloud Accounting';
   
-  -- Process Automation (Critical, level 3-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'automation', s.id, 3, 5, true, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Process Automation';
   
-  -- API Integration (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'automation', s.id, 3, 4, false, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'API Integration';
   
-  -- Excel (Intermediate) (Critical, level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'automation', s.id, 3, 4, true, ARRAY['Junior', 'Senior', 'Manager']
   FROM skills s WHERE s.name = 'Excel (Intermediate)';
   
-  -- Bank Reconciliation (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'automation', s.id, 3, 4, false, ARRAY['Junior', 'Senior']
   FROM skills s WHERE s.name = 'Bank Reconciliation';
   
-  -- Double Entry Bookkeeping (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'automation', s.id, 3, 4, false, ARRAY['Junior', 'Senior']
   FROM skills s WHERE s.name = 'Double Entry Bookkeeping';
   
-  -- Workflow Design (Critical, level 3-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'automation', s.id, 3, 5, true, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Workflow Design';
   
-  -- Standard Operating Procedures (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'automation', s.id, 3, 4, false, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Standard Operating Procedures';
   
-  -- Data Analytics & Visualization (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'automation', s.id, 3, 4, false, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Data Analytics & Visualization';
@@ -103,72 +92,58 @@ BEGIN
   -- ==============================================================
   RAISE NOTICE '2. MANAGEMENT ACCOUNTS...';
   
-  -- Management Accounting (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'management-accounts', s.id, 4, 5, true, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Management Accounting';
   
-  -- Financial Reporting (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'management-accounts', s.id, 4, 5, true, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Financial Reporting';
   
-  -- Month-End Close (Critical, level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'management-accounts', s.id, 3, 4, true, ARRAY['Junior', 'Senior']
   FROM skills s WHERE s.name = 'Month-End Close';
   
-  -- Accounts Payable (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'management-accounts', s.id, 3, 4, false, ARRAY['Junior', 'Senior']
   FROM skills s WHERE s.name = 'Accounts Payable';
   
-  -- Accounts Receivable (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'management-accounts', s.id, 3, 4, false, ARRAY['Junior', 'Senior']
   FROM skills s WHERE s.name = 'Accounts Receivable';
   
-  -- KPI Analysis (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'management-accounts', s.id, 4, 5, true, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'KPI Analysis';
   
-  -- Excel (Advanced) (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'management-accounts', s.id, 4, 5, true, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Excel (Advanced)';
   
-  -- Report Writing (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'management-accounts', s.id, 4, 5, true, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Report Writing';
   
-  -- UK GAAP (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'management-accounts', s.id, 3, 4, false, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'UK GAAP';
   
-  -- Financial Analysis (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'management-accounts', s.id, 4, 5, true, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Financial Analysis';
   
-  -- Cash Flow Management (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'management-accounts', s.id, 3, 4, false, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Cash Flow Management';
   
-  -- Power BI (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'management-accounts', s.id, 3, 4, false, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Power BI';
   
-  -- Client Communication (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'management-accounts', s.id, 4, 5, true, ARRAY['Manager']
   FROM skills s WHERE s.name = 'Client Communication';
   
-  -- Expectation Management (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'management-accounts', s.id, 3, 4, false, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Expectation Management';
@@ -182,82 +157,66 @@ BEGIN
   -- ==============================================================
   RAISE NOTICE '3. ADVISORY (Future Financial Information)...';
   
-  -- Business Planning & Budgeting (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'advisory-accelerator', s.id, 4, 5, true, ARRAY['Manager', 'Director', 'Partner']
   FROM skills s WHERE s.name = 'Business Planning & Budgeting';
   
-  -- Forecasting & Scenario Planning (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'advisory-accelerator', s.id, 4, 5, true, ARRAY['Senior', 'Manager', 'Director']
   FROM skills s WHERE s.name = 'Forecasting & Scenario Planning';
   
-  -- Business Valuation (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'advisory-accelerator', s.id, 4, 5, true, ARRAY['Manager', 'Director', 'Partner']
   FROM skills s WHERE s.name = 'Business Valuation';
   
-  -- Financial Modeling (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'advisory-accelerator', s.id, 4, 5, true, ARRAY['Senior', 'Manager', 'Director']
   FROM skills s WHERE s.name = 'Financial Modeling';
   
-  -- Strategic Thinking (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'advisory-accelerator', s.id, 4, 5, true, ARRAY['Director', 'Partner']
   FROM skills s WHERE s.name = 'Strategic Thinking';
   
-  -- Commercial Acumen (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'advisory-accelerator', s.id, 4, 5, true, ARRAY['Director', 'Partner']
   FROM skills s WHERE s.name = 'Commercial Acumen';
   
-  -- Cash Flow Management (level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'advisory-accelerator', s.id, 4, 5, false, ARRAY['Senior', 'Manager', 'Director']
   FROM skills s WHERE s.name = 'Cash Flow Management';
   
-  -- Consulting & Advisory (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'advisory-accelerator', s.id, 4, 5, true, ARRAY['Director', 'Partner']
   FROM skills s WHERE s.name = 'Consulting & Advisory';
   
-  -- Deal Structuring (level 3-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'advisory-accelerator', s.id, 3, 5, false, ARRAY['Manager', 'Director']
   FROM skills s WHERE s.name = 'Deal Structuring';
   
-  -- Corporate Finance (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'advisory-accelerator', s.id, 3, 4, false, ARRAY['Manager', 'Director']
   FROM skills s WHERE s.name = 'Corporate Finance';
   
-  -- Fundraising (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'advisory-accelerator', s.id, 3, 4, false, ARRAY['Manager', 'Director']
   FROM skills s WHERE s.name = 'Fundraising';
   
-  -- Exit Planning (level 3-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'advisory-accelerator', s.id, 3, 5, false, ARRAY['Director', 'Partner']
   FROM skills s WHERE s.name = 'Exit Planning';
   
-  -- Presentation Skills (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'advisory-accelerator', s.id, 4, 5, true, ARRAY['Director', 'Partner']
   FROM skills s WHERE s.name = 'Presentation Skills';
   
-  -- Stakeholder Management (level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'advisory-accelerator', s.id, 4, 5, false, ARRAY['Manager', 'Director', 'Partner']
   FROM skills s WHERE s.name = 'Stakeholder Management';
   
-  -- Negotiation Skills (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'advisory-accelerator', s.id, 3, 4, false, ARRAY['Director', 'Partner']
   FROM skills s WHERE s.name = 'Negotiation Skills';
   
-  -- Client Relationship Management (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'advisory-accelerator', s.id, 4, 5, true, ARRAY['Director', 'Partner']
   FROM skills s WHERE s.name = 'Client Relationship Management';
@@ -271,42 +230,34 @@ BEGIN
   -- ==============================================================
   RAISE NOTICE '4. BENCHMARKING...';
   
-  -- KPI Analysis (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'benchmarking', s.id, 4, 5, true, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'KPI Analysis';
   
-  -- Financial Analysis (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'benchmarking', s.id, 4, 5, true, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Financial Analysis';
   
-  -- Data Analytics & Visualization (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'benchmarking', s.id, 4, 5, true, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Data Analytics & Visualization';
   
-  -- Excel (Advanced) (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'benchmarking', s.id, 4, 5, true, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Excel (Advanced)';
   
-  -- Power BI (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'benchmarking', s.id, 3, 4, false, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Power BI';
   
-  -- Tableau (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'benchmarking', s.id, 3, 4, false, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Tableau';
   
-  -- Report Writing (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'benchmarking', s.id, 4, 5, true, ARRAY['Manager']
   FROM skills s WHERE s.name = 'Report Writing';
   
-  -- Presentation Skills (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'benchmarking', s.id, 3, 4, false, ARRAY['Manager']
   FROM skills s WHERE s.name = 'Presentation Skills';
@@ -315,147 +266,145 @@ BEGIN
   v_total_count := v_total_count + 8;
   
   -- ==============================================================
-  -- 5. 365 ALIGNMENT PROGRAMME (12 skills)
+  -- 5. PROFIT EXTRACTION / REMUNERATION STRATEGIES (4 skills)
+  -- Role: Manager (50%), Director (50%)
+  -- ==============================================================
+  RAISE NOTICE '5. PROFIT EXTRACTION / REMUNERATION STRATEGIES...';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'profit-extraction', s.id, 4, 5, true, ARRAY['Manager', 'Director']
+  FROM skills s WHERE s.name = 'Corporation Tax';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'profit-extraction', s.id, 4, 5, true, ARRAY['Manager', 'Director']
+  FROM skills s WHERE s.name = 'Personal Tax';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'profit-extraction', s.id, 4, 5, true, ARRAY['Manager', 'Director']
+  FROM skills s WHERE s.name = 'Tax Planning';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'profit-extraction', s.id, 3, 4, false, ARRAY['Manager', 'Director']
+  FROM skills s WHERE s.name = 'Financial Modeling';
+  
+  RAISE NOTICE '   ✓ Added 4 skills';
+  v_total_count := v_total_count + 4;
+  
+  -- ==============================================================
+  -- 6. 365 ALIGNMENT PROGRAMME (11 skills)
   -- Role: Partner (20%), Director (50%), Manager (30%)
   -- ==============================================================
-  RAISE NOTICE '5. 365 ALIGNMENT PROGRAMME...';
+  RAISE NOTICE '6. 365 ALIGNMENT PROGRAMME...';
   
-  -- Strategic Thinking (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'alignment-365', s.id, 4, 5, true, ARRAY['Director', 'Partner']
   FROM skills s WHERE s.name = 'Strategic Thinking';
   
-  -- Business Planning & Budgeting (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'alignment-365', s.id, 4, 5, true, ARRAY['Manager', 'Director', 'Partner']
   FROM skills s WHERE s.name = 'Business Planning & Budgeting';
   
-  -- Coaching & Mentoring (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'alignment-365', s.id, 4, 5, true, ARRAY['Director', 'Partner']
   FROM skills s WHERE s.name = 'Coaching & Mentoring';
   
-  -- Change Management (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'alignment-365', s.id, 3, 4, false, ARRAY['Manager', 'Director']
   FROM skills s WHERE s.name = 'Change Management';
   
-  -- Performance Management (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'alignment-365', s.id, 3, 4, false, ARRAY['Manager', 'Director']
   FROM skills s WHERE s.name = 'Performance Management';
   
-  -- Succession Planning (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'alignment-365', s.id, 3, 4, false, ARRAY['Director', 'Partner']
   FROM skills s WHERE s.name = 'Succession Planning';
   
-  -- Commercial Acumen (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'alignment-365', s.id, 4, 5, true, ARRAY['Director', 'Partner']
   FROM skills s WHERE s.name = 'Commercial Acumen';
   
-  -- Meeting Facilitation (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'alignment-365', s.id, 3, 4, false, ARRAY['Manager', 'Director']
   FROM skills s WHERE s.name = 'Meeting Facilitation';
   
-  -- Active Listening (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'alignment-365', s.id, 4, 5, true, ARRAY['Director', 'Partner']
   FROM skills s WHERE s.name = 'Active Listening';
   
-  -- Feedback Delivery (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'alignment-365', s.id, 3, 4, false, ARRAY['Director']
   FROM skills s WHERE s.name = 'Feedback Delivery';
   
-  -- Performance Management as Goal Setting (level 3-4) - Note: Using Performance Management as proxy
-  -- Client Relationship Management (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'alignment-365', s.id, 4, 5, true, ARRAY['Director', 'Partner']
   FROM skills s WHERE s.name = 'Client Relationship Management';
   
-  RAISE NOTICE '   ✓ Added 11 skills (12 requested, Performance Management used for Goal Setting)';
+  RAISE NOTICE '   ✓ Added 11 skills';
   v_total_count := v_total_count + 11;
   
   -- ==============================================================
-  -- 6. SYSTEMS AUDIT (15 skills)
+  -- 7. SYSTEMS AUDIT (15 skills)
   -- Role: Director (20%), Manager (50%), Senior (30%)
   -- ==============================================================
-  RAISE NOTICE '6. SYSTEMS AUDIT...';
+  RAISE NOTICE '7. SYSTEMS AUDIT...';
   
-  -- Internal Audit (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'systems-audit', s.id, 4, 5, true, ARRAY['Manager', 'Director']
   FROM skills s WHERE s.name = 'Internal Audit';
   
-  -- Risk Assessment (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'systems-audit', s.id, 4, 5, true, ARRAY['Senior', 'Manager', 'Director']
   FROM skills s WHERE s.name = 'Risk Assessment';
   
-  -- Audit Planning (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'systems-audit', s.id, 4, 5, true, ARRAY['Manager', 'Director']
   FROM skills s WHERE s.name = 'Audit Planning';
   
-  -- Process Improvement (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'systems-audit', s.id, 4, 5, true, ARRAY['Manager', 'Director']
   FROM skills s WHERE s.name = 'Process Improvement';
   
-  -- Business Process Analysis (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'systems-audit', s.id, 4, 5, true, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Business Process Analysis';
   
-  -- Risk Management (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'systems-audit', s.id, 4, 5, true, ARRAY['Manager', 'Director']
   FROM skills s WHERE s.name = 'Risk Management';
   
-  -- Governance (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'systems-audit', s.id, 3, 4, false, ARRAY['Manager', 'Director']
   FROM skills s WHERE s.name = 'Governance';
   
-  -- Quality Control (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'systems-audit', s.id, 3, 4, false, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Quality Control';
   
-  -- Quality Assurance (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'systems-audit', s.id, 3, 4, false, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Quality Assurance';
   
-  -- Regulatory Compliance (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'systems-audit', s.id, 3, 4, false, ARRAY['Manager', 'Director']
   FROM skills s WHERE s.name = 'Regulatory Compliance';
   
-  -- Technical Research (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'systems-audit', s.id, 3, 4, false, ARRAY['Senior', 'Manager']
   FROM skills s WHERE s.name = 'Technical Research';
   
-  -- Audit Documentation (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'systems-audit', s.id, 3, 4, false, ARRAY['Senior']
   FROM skills s WHERE s.name = 'Audit Documentation';
   
-  -- Workflow Design (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'systems-audit', s.id, 3, 4, false, ARRAY['Manager']
   FROM skills s WHERE s.name = 'Workflow Design';
   
-  -- Resource Planning (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'systems-audit', s.id, 3, 4, false, ARRAY['Manager']
   FROM skills s WHERE s.name = 'Resource Planning';
   
-  -- Project Management (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
   SELECT v_practice_id, 'systems-audit', s.id, 4, 5, true, ARRAY['Manager', 'Director']
   FROM skills s WHERE s.name = 'Project Management';
@@ -464,106 +413,237 @@ BEGIN
   v_total_count := v_total_count + 15;
   
   -- ==============================================================
-  -- 7. FRACTIONAL CFO/COO (18 skills) - NEW SERVICE
+  -- 8. FRACTIONAL CFO SERVICES (18 skills)
   -- Role: Partner (60%), Director (40%)
+  -- £3,500-£15,000 depending on engagement
   -- ==============================================================
-  RAISE NOTICE '7. FRACTIONAL CFO/COO...';
+  RAISE NOTICE '8. FRACTIONAL CFO SERVICES...';
   
-  -- Note: Using 'profit-extraction' as service_id for now (closest match)
-  -- You may want to create a new service_id 'fractional-cfo-coo'
-  
-  -- Strategic Thinking (Critical, level 5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  SELECT v_practice_id, 'fractional-cfo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
   FROM skills s WHERE s.name = 'Strategic Thinking';
   
-  -- Commercial Acumen (Critical, level 5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  SELECT v_practice_id, 'fractional-cfo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
   FROM skills s WHERE s.name = 'Commercial Acumen';
   
-  -- Mergers & Acquisitions (level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 4, 5, false, ARRAY['Partner', 'Director']
+  SELECT v_practice_id, 'fractional-cfo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Cash Flow Management';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-cfo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Financial Modeling';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-cfo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Forecasting & Scenario Planning';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-cfo', s.id, 4, 5, false, ARRAY['Partner', 'Director']
   FROM skills s WHERE s.name = 'Mergers & Acquisitions';
   
-  -- Due Diligence (level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 4, 5, false, ARRAY['Partner', 'Director']
+  SELECT v_practice_id, 'fractional-cfo', s.id, 4, 5, false, ARRAY['Partner', 'Director']
   FROM skills s WHERE s.name = 'Due Diligence';
   
-  -- Transaction Services (level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 4, 5, false, ARRAY['Partner', 'Director']
-  FROM skills s WHERE s.name = 'Transaction Services';
-  
-  -- Corporate Finance (level 4-5)
-  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 4, 5, false, ARRAY['Partner', 'Director']
-  FROM skills s WHERE s.name = 'Corporate Finance';
-  
-  -- Equity Analysis (level 3-4)
-  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 3, 4, false, ARRAY['Director']
-  FROM skills s WHERE s.name = 'Equity Analysis';
-  
-  -- Debt Advisory (level 3-4)
-  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 3, 4, false, ARRAY['Director']
-  FROM skills s WHERE s.name = 'Debt Advisory';
-  
-  -- Business Valuation (Critical, level 4-5)
-  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 4, 5, true, ARRAY['Partner', 'Director']
+  SELECT v_practice_id, 'fractional-cfo', s.id, 4, 5, true, ARRAY['Partner', 'Director']
   FROM skills s WHERE s.name = 'Business Valuation';
   
-  -- Governance (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 4, 5, true, ARRAY['Partner', 'Director']
+  SELECT v_practice_id, 'fractional-cfo', s.id, 4, 5, false, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Corporate Finance';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-cfo', s.id, 4, 5, false, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Fundraising';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-cfo', s.id, 4, 5, true, ARRAY['Partner', 'Director']
   FROM skills s WHERE s.name = 'Governance';
   
-  -- Risk Management (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 4, 5, true, ARRAY['Partner', 'Director']
+  SELECT v_practice_id, 'fractional-cfo', s.id, 4, 5, true, ARRAY['Partner', 'Director']
   FROM skills s WHERE s.name = 'Risk Management';
   
-  -- Team Leadership (Critical, level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 4, 5, true, ARRAY['Partner']
-  FROM skills s WHERE s.name = 'Team Leadership';
-  
-  -- Stakeholder Management (Critical, level 5)
-  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  SELECT v_practice_id, 'fractional-cfo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
   FROM skills s WHERE s.name = 'Stakeholder Management';
   
-  -- Report Writing (as Board Reporting proxy) (level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 4, 5, false, ARRAY['Partner', 'Director']
+  SELECT v_practice_id, 'fractional-cfo', s.id, 4, 5, false, ARRAY['Partner', 'Director']
   FROM skills s WHERE s.name = 'Report Writing';
   
-  -- International Tax (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 3, 4, false, ARRAY['Director']
+  SELECT v_practice_id, 'fractional-cfo', s.id, 3, 4, false, ARRAY['Director']
   FROM skills s WHERE s.name = 'International Tax';
   
-  -- Tax Planning (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 3, 4, false, ARRAY['Director']
+  SELECT v_practice_id, 'fractional-cfo', s.id, 3, 4, false, ARRAY['Director']
   FROM skills s WHERE s.name = 'Tax Planning';
   
-  -- Succession Planning (level 4-5)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 4, 5, false, ARRAY['Partner', 'Director']
+  SELECT v_practice_id, 'fractional-cfo', s.id, 4, 5, false, ARRAY['Partner', 'Director']
   FROM skills s WHERE s.name = 'Succession Planning';
   
-  -- Restructuring (level 3-4)
   INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
-  SELECT v_practice_id, 'profit-extraction', s.id, 3, 4, false, ARRAY['Partner', 'Director']
+  SELECT v_practice_id, 'fractional-cfo', s.id, 3, 4, false, ARRAY['Partner', 'Director']
   FROM skills s WHERE s.name = 'Restructuring';
   
-  RAISE NOTICE '   ✓ Added 18 skills (mapped to profit-extraction service_id)';
+  RAISE NOTICE '   ✓ Added 18 skills';
   v_total_count := v_total_count + 18;
+  
+  -- ==============================================================
+  -- 9. FRACTIONAL COO SERVICES (12 skills)
+  -- Role: Partner (40%), Director (60%)
+  -- £3,000-£14,000 depending on engagement
+  -- ==============================================================
+  RAISE NOTICE '9. FRACTIONAL COO SERVICES...';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Strategic Thinking';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Process Improvement';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-coo', s.id, 5, 5, true, ARRAY['Director', 'Partner']
+  FROM skills s WHERE s.name = 'Business Process Analysis';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Performance Management';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-coo', s.id, 4, 5, false, ARRAY['Director', 'Partner']
+  FROM skills s WHERE s.name = 'Workflow Design';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-coo', s.id, 4, 5, false, ARRAY['Director', 'Partner']
+  FROM skills s WHERE s.name = 'Standard Operating Procedures';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Project Management';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-coo', s.id, 4, 5, false, ARRAY['Director', 'Partner']
+  FROM skills s WHERE s.name = 'Resource Planning';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Change Management';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Team Leadership';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-coo', s.id, 4, 5, false, ARRAY['Director', 'Partner']
+  FROM skills s WHERE s.name = 'KPI Analysis';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'fractional-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Stakeholder Management';
+  
+  RAISE NOTICE '   ✓ Added 12 skills';
+  v_total_count := v_total_count + 12;
+  
+  -- ==============================================================
+  -- 10. COMBINED CFO/COO ADVISORY (20 skills)
+  -- Role: Partner (70%), Director (30%)
+  -- £6,000-£28,000 depending on engagement
+  -- ==============================================================
+  RAISE NOTICE '10. COMBINED CFO/COO ADVISORY...';
+  
+  -- Financial leadership skills
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Strategic Thinking';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Commercial Acumen';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Business Planning & Budgeting';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Financial Modeling';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Cash Flow Management';
+  
+  -- Operational leadership skills
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Process Improvement';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Business Process Analysis';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Performance Management';
+  
+  -- Cross-functional skills
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Change Management';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 4, 5, false, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Workflow Design';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Project Management';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 5, 5, true, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Team Leadership';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 5, 5, true, ARRAY['Partner']
+  FROM skills s WHERE s.name = 'Stakeholder Management';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 4, 5, false, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Governance';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 4, 5, false, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Risk Management';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 4, 5, false, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Succession Planning';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 4, 5, false, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Mergers & Acquisitions';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 4, 5, false, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Corporate Finance';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 3, 4, false, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'Restructuring';
+  
+  INSERT INTO service_skill_assignments (practice_id, service_id, skill_id, minimum_level, ideal_level, is_critical, required_seniority)
+  SELECT v_practice_id, 'combined-cfo-coo', s.id, 4, 5, false, ARRAY['Partner', 'Director']
+  FROM skills s WHERE s.name = 'KPI Analysis';
+  
+  RAISE NOTICE '   ✓ Added 20 skills';
+  v_total_count := v_total_count + 20;
   
   -- ==============================================================
   -- SUMMARY
@@ -598,9 +678,12 @@ SELECT
     WHEN 'management-accounts' THEN '2. Management Accounts'
     WHEN 'advisory-accelerator' THEN '3. Advisory / Future Financial'
     WHEN 'benchmarking' THEN '4. Benchmarking'
-    WHEN 'alignment-365' THEN '5. 365 Alignment Programme'
-    WHEN 'systems-audit' THEN '6. Systems Audit'
-    WHEN 'profit-extraction' THEN '7. Fractional CFO/COO (temp ID)'
+    WHEN 'profit-extraction' THEN '5. Profit Extraction'
+    WHEN 'alignment-365' THEN '6. 365 Alignment Programme'
+    WHEN 'systems-audit' THEN '7. Systems Audit'
+    WHEN 'fractional-cfo' THEN '8. Fractional CFO Services'
+    WHEN 'fractional-coo' THEN '9. Fractional COO Services'
+    WHEN 'combined-cfo-coo' THEN '10. Combined CFO/COO Advisory'
     ELSE service_id
   END as service_name,
   COUNT(*) as total_skills,
