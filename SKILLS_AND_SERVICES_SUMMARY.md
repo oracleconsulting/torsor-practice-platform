@@ -137,12 +137,12 @@
 
 ## Advisory Service Lines - Detailed Summary
 
-### 1. Automation
+### 1. Automation (All Tiers)
 **Description:** Data capture, system integration, and finance automation
 
 **Price Range:** £115-£180/hour + setup costs
 
-**Delivery Time:** Half-day to multi-day depending on scope
+**Delivery Time:** Half-day to multi-day
 
 **Key Features:**
 - Data capture: scan invoices & receipts to electronic format
@@ -155,185 +155,116 @@
 - Produce Management Accounts
 - Forecasting and cashflow facilitation
 
-**Benefits:**
-- Time savings through automation
-- Error reduction and improved efficiency
-- Quick access to financial information
-- Improved visibility for decision-making
-- Lower costs through optimised processes
-
-**Typical Duration:** 2-5 days for initial setup, ongoing support available
+**Suggested Skills:** Xero, QuickBooks, Sage, Process Automation, Excel (Advanced), Data Analytics & Visualization, Process Improvement, API Integration, Cloud Accounting
 
 ---
 
-### 2. Management Accounts
+### 2. Management Accounts (All Tiers)
 **Description:** Regular financial reporting with KPI analysis and insights
 
 **Price Range:** £650/month or £1,750/quarter
 
-**Delivery Time:** Monthly or quarterly delivery
+**Delivery Time:** Monthly or quarterly
 
 **Key Features:**
 - Completed on suitable software package
 - Data check for year-end compatibility
-- Monthly, quarterly, or adhoc frequency options
+- Monthly, quarterly, or adhoc frequency
 - KPI commentary and key findings
 - Cash flow waterfall analysis
 - Spotlight-derived position and performance analysis
 
-**Benefits:**
-- Reliable financial information throughout the year
-- Better decision-making with real-time data
-- Early identification of issues and opportunities
-- Improved cash flow visibility
-- Year-end preparation made easier
-
-**Typical Duration:** Ongoing monthly/quarterly service
+**Suggested Skills:** Management Accounting, Financial Reporting, KPI Analysis, Data Analytics & Visualization, Financial Analysis, Excel (Advanced), Report Writing, Client Communication
 
 ---
 
-### 3. Advisory Accelerator / Future Financial Information
+### 3. Future Financial Information / Advisory Accelerator (Professional Tier)
 **Description:** Budgets, forecasts, valuations, and ongoing advisory support
 
 **Price Range:** £1,000-£9,000 depending on scope
 
-**Delivery Time:** One-off or recurring engagement
+**Delivery Time:** One-off or recurring
 
 **Key Features:**
-- Annual budgets and 3-5 year forecasts
-- Business valuations for sale, investment, or succession
-- Scenario modeling (best/worst/likely cases)
+- Budgets, forecasts, and cashflow projections
+- Business valuations
+- Historic financial information analysis
+- Scenario modeling
 - Strategic planning support
-- Growth strategy development
 - Investment appraisal
-- Funding applications support
-- Board-level advisory
 
-**Benefits:**
-- Clarity on business direction and goals
-- Data-driven strategic decisions
-- Improved investor/lender confidence
-- Better resource allocation
-- Risk mitigation through planning
-
-**Typical Duration:** 2-10 days depending on complexity
+**Suggested Skills:** Business Planning & Budgeting, Forecasting & Scenario Planning, Business Valuation, Financial Modeling, Cash Flow Management, Strategic Thinking, Commercial Acumen, Consulting & Advisory, Financial Analysis, Excel (Advanced)
 
 ---
 
-### 4. Transactions
-**Description:** M&A support, due diligence, and deal advisory
+### 4. Benchmarking - External and Internal (All Tiers)
+**Description:** Comparative financial analysis across industry
 
-**Price Range:** £5,000-£50,000+ depending on deal size
+**Price Range:** £450 - £1,500
 
-**Delivery Time:** 2-12 weeks depending on transaction complexity
+**Delivery Time:** 2-3 days
 
 **Key Features:**
-- Buy-side and sell-side advisory
-- Commercial and financial due diligence
-- Business valuations (multiple methodologies)
-- Deal structuring and tax optimization
-- Vendor due diligence reports
-- SPA review and negotiation support
-- Post-acquisition integration planning
-- Earn-out mechanism design
+- Comparative financial data across industry/country
+- KPI measurement vs same-industry companies
+- Follow-up consultation to interpret data
 
-**Benefits:**
-- Maximized transaction value
-- Risk identification and mitigation
-- Smooth deal execution
-- Tax-efficient structuring
-- Protection of client interests
-
-**Typical Duration:** 4-12 weeks per transaction
+**Suggested Skills:** KPI Analysis, Data Analytics & Visualization, Financial Analysis, Industry Knowledge, Presentation Skills, Report Writing, Excel (Advanced), Power BI, Consulting & Advisory
 
 ---
 
-### 5. Technical Compliance
-**Description:** Complex technical accounting and regulatory compliance
+### 5. Profit Extraction / Remuneration Strategies (All Tiers)
+**Description:** Tax-efficient director remuneration planning
 
-**Price Range:** £150-£250/hour
+**Price Range:** Free (compliance) to £500 (advisory)
 
-**Delivery Time:** Project-based, typically 1-4 weeks
+**Delivery Time:** Ongoing or one-off
 
 **Key Features:**
-- UK GAAP and IFRS technical advice
-- Complex accounting treatment guidance
-- Financial reporting standards interpretation
-- Companies Act compliance
-- Audit file review and technical support
-- Revenue recognition (IFRS 15)
-- Lease accounting (IFRS 16)
-- Financial instruments (IFRS 9)
-- Technical research and memorandums
+- Optimal profit extraction tool
+- Company vs personal tax optimization
+- Salary vs dividend analysis
+- Tax planning advice
 
-**Benefits:**
-- Confidence in accounting treatment
-- Reduced audit qualification risk
-- Regulatory compliance assurance
-- Technical knowledge transfer
-- Support for complex transactions
-
-**Typical Duration:** 2-10 days depending on complexity
+**Suggested Skills:** Corporation Tax, Personal Tax, Tax Planning, Financial Modeling, Excel (Advanced), Client Communication, Advisory Skills, HMRC Liaison
 
 ---
 
-### 6. Tax Consultancy
-**Description:** Specialist tax planning and compliance advice
+### 6. 365 Alignment Programme (Professional Tier)
+**Description:** Structured personal-business planning with AI-generated execution plans
 
-**Price Range:** £150-£300/hour
+**Price Range:** £1,500 - £9,000
 
-**Delivery Time:** Project-based, typically 1-6 weeks
+**Delivery Time:** Tiered: Lite/Growth/Partner
 
 **Key Features:**
-- Corporation tax planning and compliance
-- Personal tax planning (income, CGT, IHT)
-- VAT advisory and tribunal representation
-- International tax structuring
-- R&D tax credit claims
-- Transfer pricing documentation
-- Tax-efficient succession planning
-- HMRC enquiry support
-- Employment vs. self-employment status
-- Share schemes and incentives
+- Tiered diagnostics (Lite/Growth/Partner)
+- AI-generated plan: outcomes, constraints, resources, risks
+- Quarterly accountability reviews
+- Personal and business goal alignment
+- Execution roadmap
 
-**Benefits:**
-- Minimized tax liabilities
-- Compliance with tax legislation
-- HMRC dispute resolution
-- Tax-efficient business structures
-- Wealth preservation strategies
-
-**Typical Duration:** Ongoing relationship with project-based work
+**Suggested Skills:** Strategic Thinking, Business Planning & Budgeting, Coaching & Mentoring, Client Relationship Management, Goal Setting, Project Management, Commercial Acumen, Consulting & Advisory, Change Management
 
 ---
 
-### 7. Bookkeeping
-**Description:** Day-to-day transaction processing and record-keeping
+### 7. Systems Audit (Enterprise Tier)
+**Description:** Independent review of finance workflows to find root-causes of issues
 
-**Price Range:** £25-£50/hour or £200-£800/month
+**Price Range:** £7.5k - £25k
 
-**Delivery Time:** Weekly, monthly, or daily depending on volume
+**Delivery Time:** Multi-week engagement
 
 **Key Features:**
-- Sales and purchase ledger management
-- Bank reconciliation
-- VAT return preparation and submission
-- Payroll processing
-- Expense management
-- Invoice generation
-- Payment processing
-- Month-end journals
-- Management reporting
-- Cash flow monitoring
+- Targeted data pull from systems
+- Process walk-throughs with owners
+- Controls mapping (fraud resilience)
+- Issue root-cause analysis
+- Recommendations report
+- Implementation support
+- Follow-up review
 
-**Benefits:**
-- Accurate, up-to-date financial records
-- Time freed for core business activities
-- Compliance with HMRC requirements
-- Better cash flow visibility
-- Foundation for management accounts
-
-**Typical Duration:** Ongoing service with regular touchpoints
+**Suggested Skills:** Internal Audit, Risk Assessment, Process Improvement, Workflow Design, Business Process Analysis, Quality Assurance, Data Analytics & Visualization, Technical Research, Risk Management, Regulatory Compliance, Project Management
 
 ---
 
@@ -342,36 +273,49 @@
 - **Total Skills in Matrix:** 111
 - **Skill Categories:** 10
 - **Advisory Service Lines:** 7
-- **Price Range:** £25/hour (Bookkeeping) to £300/hour (Tax Consultancy)
-- **Service Types:** Transactional, Recurring, Project-Based, Advisory
+- **Price Range:** Free (Profit Extraction - compliance) to £25k (Systems Audit)
+- **Tiers:** All Tiers (5 services), Professional (2 services), Enterprise (1 service)
 
 ---
 
 ## Instructions for James
 
-Please review this document and provide:
+Please review the **suggested skills** for each service line above and confirm/modify as needed.
 
-1. **For each of the 7 service lines** - which skills from the 111 should be assigned (by name or number)
-2. **Skill assignment details** for each:
-   - Minimum skill level (1-5)
-   - Ideal skill level (1-5)
-   - Is it critical to service delivery? (Yes/No)
-   - Recommended seniority levels (Partner, Director, Senior, Intermediate, Junior, Admin)
+For each skill you want to assign, please specify:
+1. **Minimum skill level** (1-5)
+2. **Ideal skill level** (1-5)
+3. **Is it critical** to service delivery? (Yes/No)
+4. **Recommended seniority** levels (Partner, Director, Senior, Intermediate, Junior, Admin)
 
-3. **Unassigned skills** - which skills should remain unassigned to any service line
-
-Example format:
+**Example format:**
 ```
 AUTOMATION:
-- Xero (min: 3, ideal: 4, critical: Yes, seniority: Intermediate, Senior)
-- Process Improvement (min: 3, ideal: 5, critical: Yes, seniority: Senior, Director)
-...
+✅ Xero (min: 3, ideal: 4, critical: Yes, seniority: Intermediate, Senior)
+✅ Process Automation (min: 3, ideal: 5, critical: Yes, seniority: Senior, Director)
+❌ Remove: Sage (we don't use it for automation)
+➕ Add: Cloud Accounting (min: 3, ideal: 4, critical: No, seniority: Intermediate, Senior)
 
-UNASSIGNED:
-- Team Building
+MANAGEMENT ACCOUNTS:
+... (continue for all services)
+
+UNASSIGNED SKILLS:
+- Team Building (we'll assign this to HR/leadership development, not client services)
 - Recruitment & Selection
-...
+- Onboarding
+... (list all skills that should NOT be assigned to any advisory service)
 ```
 
-Once I receive your list, I'll update the SQL script to match your exact requirements.
+**Alternatively**, if you're happy with the suggested skills above, just let me know and I'll:
+1. Assign reasonable min/ideal levels based on service complexity
+2. Flag critical skills appropriately
+3. Set seniority levels based on service tier
+4. Generate the SQL population script
+5. Create the comprehensive report for your presentation
 
+**Quick Questions to Help Me:**
+- Should **all 7 services** be included, or only some?
+- Are there any skills that are **absolutely critical** to certain services?
+- Are there any skills that should **never** be assigned to client-facing services (e.g., internal admin skills)?
+
+Let me know how you'd like to proceed! 🎯
