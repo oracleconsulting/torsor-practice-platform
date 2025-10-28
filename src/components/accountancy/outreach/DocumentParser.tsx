@@ -18,6 +18,7 @@ import {
   FileSearch
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { makeAuthenticatedRequest } from '@/services/accountancy/outreachService';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://oracle-api-server-production.up.railway.app';
 
@@ -65,18 +66,18 @@ export const DocumentParser: React.FC = () => {
     setSingleResult(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/outreach/document-parser/parse-single`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          company_number: companyNumber,
-          company_name: companyName,
-          current_auditor: currentAuditor || null,
-          max_filings: 3
-        }),
-      });
+      const response = await makeAuthenticatedRequest(
+        `${API_BASE_URL}/api/outreach/document-parser/parse-single`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            company_number: companyNumber,
+            company_name: companyName,
+            current_auditor: currentAuditor || null,
+            max_filings: 3
+          }),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
@@ -133,10 +134,13 @@ export const DocumentParser: React.FC = () => {
       const formData = new FormData();
       formData.append('file', uploadedFile);
 
-      const response = await fetch(`${API_BASE_URL}/api/outreach/document-parser/parse-csv`, {
-        method: 'POST',
-        body: formData,
-      });
+      const response = await makeAuthenticatedRequest(
+        `${API_BASE_URL}/api/outreach/document-parser/parse-csv`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
