@@ -60,7 +60,7 @@ HAVING COUNT(*) > 1;
 SELECT 
   email,
   name,
-  jsonb_pretty(assessment_data->>0) as first_assessment_structure
+  jsonb_pretty(assessment_data->0) as first_assessment_structure
 FROM invitations
 WHERE practice_id = (SELECT id FROM practices WHERE name = 'RPGCC')
   AND assessment_data IS NOT NULL
