@@ -8,7 +8,7 @@ SELECT
   name,
   email,
   role,
-  active
+  is_active
 FROM practice_members
 WHERE practice_id = (SELECT id FROM practices WHERE name = 'RPGCC')
   AND email IN (
@@ -74,16 +74,16 @@ SELECT
 FROM pg_policies
 WHERE tablename = 'skill_assessments';
 
--- 5. Check if active column is causing issues
+-- 5. Check if is_active column is causing issues
 SELECT 
   pm.name,
   pm.email,
-  pm.active,
+  pm.is_active,
   COUNT(sa.id) as skill_count
 FROM practice_members pm
 LEFT JOIN skill_assessments sa ON sa.team_member_id = pm.id
 WHERE pm.practice_id = (SELECT id FROM practices WHERE name = 'RPGCC')
-GROUP BY pm.id, pm.name, pm.email, pm.active
+GROUP BY pm.id, pm.name, pm.email, pm.is_active
 HAVING COUNT(sa.id) = 0
 ORDER BY pm.name;
 
