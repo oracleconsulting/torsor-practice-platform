@@ -265,13 +265,14 @@ LEFT JOIN skill_assessments sa ON sk.id = sa.skill_id
 LEFT JOIN practice_members pm ON sa.team_member_id = pm.id AND pm.is_active = true
 WHERE ssa.practice_id = yp.id
   AND ssa.is_critical = true
+GROUP BY ssa.service_id, sk.id, sk.name, sk.category, ssa.minimum_level, ssa.ideal_level
 ORDER BY 
   CASE 
     WHEN COUNT(DISTINCT CASE WHEN sa.current_level >= ssa.minimum_level THEN sa.team_member_id END) = 0 THEN 0
     WHEN COUNT(DISTINCT CASE WHEN sa.current_level >= ssa.minimum_level THEN sa.team_member_id END) = 1 THEN 1
     ELSE 2
   END,
-  service_name,
+  ssa.service_id,
   sk.name;
 
 
