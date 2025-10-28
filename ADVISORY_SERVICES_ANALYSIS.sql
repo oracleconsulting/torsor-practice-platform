@@ -40,7 +40,7 @@ SELECT
   STRING_AGG(DISTINCT 
     CASE WHEN sa.current_level >= 4 
     THEN (SELECT name FROM practice_members WHERE id = sa.team_member_id) 
-    END, ', ' ORDER BY CASE WHEN sa.current_level >= 4 THEN (SELECT name FROM practice_members WHERE id = sa.team_member_id) END
+    END, ', '
   ) as expert_names
 FROM service_skill_assignments ssa
 CROSS JOIN your_practice yp
@@ -108,8 +108,7 @@ SELECT
   MAX(sa.current_level) as highest_level_in_team,
   STRING_AGG(
     DISTINCT pm.name || ' (L' || sa.current_level || ')', 
-    ', ' 
-    ORDER BY sa.current_level DESC, pm.name
+    ', '
   ) as team_members_and_levels
 FROM skills sk
 JOIN skill_assessments sa ON sk.id = sa.skill_id
@@ -194,20 +193,7 @@ SELECT
       WHEN 'payroll' THEN 'Payroll'
       ELSE INITCAP(REPLACE(ssa.service_id, '-', ' '))
     END, 
-    ', ' 
-    ORDER BY CASE ssa.service_id
-      WHEN 'automation' THEN 'Automation'
-      WHEN 'management-accounts' THEN 'Management Accounts'
-      WHEN 'advisory-accelerator' THEN 'Advisory Accelerator'
-      WHEN 'transactions' THEN 'Transactions'
-      WHEN 'technical-compliance' THEN 'Technical Compliance'
-      WHEN 'company-secretarial' THEN 'Company Secretarial'
-      WHEN 'hr-consultancy' THEN 'HR Consultancy'
-      WHEN 'tax-consultancy' THEN 'Tax Consultancy'
-      WHEN 'bookkeeping' THEN 'Bookkeeping'
-      WHEN 'payroll' THEN 'Payroll'
-      ELSE INITCAP(REPLACE(ssa.service_id, '-', ' '))
-    END
+    ', '
   ) as services_requiring_this,
   ROUND(AVG(ssa.ideal_level), 1) as avg_ideal_level_needed,
   COUNT(DISTINCT sa.team_member_id) as team_members_with_skill,
@@ -265,7 +251,6 @@ SELECT
     THEN pm.name || ' (L' || sa.current_level || ')'
     END,
     ', '
-    ORDER BY CASE WHEN sa.current_level >= ssa.minimum_level THEN sa.current_level END DESC
   ) as qualified_team_members,
   CASE 
     WHEN COUNT(DISTINCT CASE WHEN sa.current_level >= ssa.minimum_level THEN sa.team_member_id END) = 0 THEN '🔴 NO COVERAGE'
