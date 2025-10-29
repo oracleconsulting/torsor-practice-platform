@@ -107,15 +107,18 @@ export default function Auth() {
           return;
         }
         
+        // Only redirect to admin if NOT viewing as someone else
+        const viewAsParam = new URLSearchParams(location.search).get('viewAs');
+        
         const adminRoles = ['owner', 'admin', 'partner', 'director'];
         const isAdmin = member && adminRoles.includes(member.role.toLowerCase());
         
-        if (isAdmin) {
+        if (isAdmin && !viewAsParam) {
           console.log('[Auth Debug] Admin user - redirecting to admin dashboard');
           navigate('/accountancy/team', { replace: true });
         } else {
           console.log('[Auth Debug] Regular user - redirecting to team member portal');
-          navigate('/team-member/dashboard', { replace: true });
+          navigate('/accountancy/team-member', { replace: true });
         }
       };
       

@@ -40,15 +40,14 @@ import { supabase } from '@/lib/supabase/client';
 import { useAccountancyContext } from '@/contexts/AccountancyContext';
 import { useAuth } from '@/contexts/AuthContext';
 
-// Define role types
-type UserRole = 'staff' | 'manager' | 'director' | 'partner' | 'admin';
+// Define role types - matching BSG org chart
+type UserRole = 'Junior' | 'Senior' | 'Assistant Manager' | 'Manager' | 'Associate Director' | 'Director' | 'Partner';
 
 interface TeamMemberWithPermissions {
   id: string;
   email: string;
   name: string;
-  role: string; // Job title
-  permission_role: UserRole;
+  role: UserRole; // Job title / Role in organization
   can_manage_team: boolean;
   can_invite_members: boolean;
   can_edit_assessments: boolean;
@@ -67,44 +66,10 @@ interface RoleDefinition {
 
 const roleDefinitions: RoleDefinition[] = [
   {
-    value: 'staff',
-    label: 'Staff',
-    icon: Users,
-    color: 'bg-gray-500',
-    description: 'Standard team member - assessment access only',
-    permissions: ['Complete own assessments', 'View own skill profile'],
-  },
-  {
-    value: 'manager',
-    label: 'Manager',
-    icon: ClipboardList,
-    color: 'bg-blue-500',
-    description: 'Can view team reports and metrics',
-    permissions: [
-      'All Staff permissions',
-      'View team skills matrix',
-      'View team analytics',
-      'View development plans',
-    ],
-  },
-  {
-    value: 'director',
-    label: 'Director',
-    icon: Briefcase,
-    color: 'bg-purple-500',
-    description: 'Can manage team and invite members',
-    permissions: [
-      'All Manager permissions',
-      'Invite team members',
-      'Manage team settings',
-      'Create development plans',
-    ],
-  },
-  {
-    value: 'partner',
+    value: 'Partner',
     label: 'Partner',
     icon: Crown,
-    color: 'bg-amber-500',
+    color: 'bg-purple-600',
     description: 'Full admin access except practice deletion',
     permissions: [
       'All Director permissions',
@@ -115,17 +80,71 @@ const roleDefinitions: RoleDefinition[] = [
     ],
   },
   {
-    value: 'admin',
-    label: 'Admin',
-    icon: ShieldCheck,
-    color: 'bg-red-500',
-    description: 'Full system access including practice deletion',
+    value: 'Director',
+    label: 'Director',
+    icon: Briefcase,
+    color: 'bg-blue-600',
+    description: 'Can manage team and invite members',
     permissions: [
-      'All Partner permissions',
-      'Delete practice data',
-      'Manage billing',
-      'Transfer ownership',
+      'All Manager permissions',
+      'Invite team members',
+      'Manage team settings',
+      'Create development plans',
     ],
+  },
+  {
+    value: 'Associate Director',
+    label: 'Associate Director',
+    icon: UserCog,
+    color: 'bg-indigo-500',
+    description: 'Senior leadership with team oversight',
+    permissions: [
+      'All Manager permissions',
+      'View team analytics',
+      'Manage team settings',
+    ],
+  },
+  {
+    value: 'Manager',
+    label: 'Manager',
+    icon: ClipboardList,
+    color: 'bg-green-600',
+    description: 'Can view team reports and metrics',
+    permissions: [
+      'All Staff permissions',
+      'View team skills matrix',
+      'View team analytics',
+      'View development plans',
+    ],
+  },
+  {
+    value: 'Assistant Manager',
+    label: 'Assistant Manager',
+    icon: ClipboardList,
+    color: 'bg-green-500',
+    description: 'Team lead with direct report oversight',
+    permissions: [
+      'Complete own assessments',
+      'View own skill profile',
+      'View direct reports',
+      'Suggest CPD for reports',
+    ],
+  },
+  {
+    value: 'Senior',
+    label: 'Senior',
+    icon: Users,
+    color: 'bg-amber-500',
+    description: 'Experienced team member',
+    permissions: ['Complete own assessments', 'View own skill profile'],
+  },
+  {
+    value: 'Junior',
+    label: 'Junior',
+    icon: Users,
+    color: 'bg-gray-500',
+    description: 'Standard team member - assessment access only',
+    permissions: ['Complete own assessments', 'View own skill profile'],
   },
 ];
 
@@ -137,7 +156,7 @@ const RoleManagement: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [selectedMember, setSelectedMember] = useState<TeamMemberWithPermissions | null>(null);
-  const [newRole, setNewRole] = useState<UserRole>('staff');
+  const [newRole, setNewRole] = useState<UserRole>('Junior');
   const [changeReason, setChangeReason] = useState('');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
@@ -153,16 +172,28 @@ const RoleManagement: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Query the v_team_permissions view we created
+      // Query practice_members directly
       const { data, error: queryError } = await supabase
-        .from('v_team_permissions')
-        .select('*')
+        .from('practice_members')
+        .select('id, email, name, role')
         .eq('practice_id', practice.id)
-        .order('permission_role', { ascending: true });
+        .eq('is_active', true)
+        .order('role', { ascending: true });
 
       if (queryError) throw queryError;
 
-      setTeamMembers(data || []);
+      // Transform to match interface
+      const transformed = (data || []).map(member => ({
+        ...member,
+        role: member.role as UserRole,
+        can_manage_team: ['Partner', 'Director', 'Associate Director', 'Manager'].includes(member.role),
+        can_invite_members: ['Partner', 'Director'].includes(member.role),
+        can_edit_assessments: ['Partner', 'Director'].includes(member.role),
+        can_delete_data: ['Partner'].includes(member.role),
+        is_admin: ['Partner', 'Director'].includes(member.role),
+      }));
+
+      setTeamMembers(transformed);
     } catch (err: any) {
       console.error('Error loading team permissions:', err);
       setError(err.message || 'Failed to load team permissions');
@@ -181,28 +212,10 @@ const RoleManagement: React.FC = () => {
       // Update the member's role
       const { error: updateError } = await supabase
         .from('practice_members')
-        .update({ permission_role: newRole })
+        .update({ role: newRole })
         .eq('id', selectedMember.id);
 
       if (updateError) throw updateError;
-
-      // Log the change
-      const { error: logError } = await supabase
-        .from('role_changes_log')
-        .insert({
-          practice_id: practice.id,
-          member_email: selectedMember.email,
-          member_name: selectedMember.name,
-          previous_role: selectedMember.permission_role,
-          new_role: newRole,
-          changed_by: user.email,
-          reason: changeReason || 'No reason provided',
-        });
-
-      if (logError) {
-        console.warn('Failed to log role change:', logError);
-        // Don't fail the operation if logging fails
-      }
 
       setSuccess(
         `Successfully updated ${selectedMember.name}'s role to ${
@@ -221,7 +234,7 @@ const RoleManagement: React.FC = () => {
 
   const openRoleDialog = (member: TeamMemberWithPermissions) => {
     setSelectedMember(member);
-    setNewRole(member.permission_role);
+    setNewRole(member.role);
     setChangeReason('');
     setShowConfirmDialog(true);
   };
@@ -371,7 +384,7 @@ const RoleManagement: React.FC = () => {
                     </th>
                     <td className="px-6 py-4 text-muted-foreground">{member.email}</td>
                     <td className="px-6 py-4 text-muted-foreground">{member.role}</td>
-                    <td className="px-6 py-4">{getRoleBadge(member.permission_role)}</td>
+                    <td className="px-6 py-4">{getRoleBadge(member.role)}</td>
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-1">
                         {member.can_manage_team && (
@@ -431,7 +444,7 @@ const RoleManagement: React.FC = () => {
             <div>
               <Label className="text-muted-foreground text-sm">Current Role</Label>
               <div className="mt-1">
-                {selectedMember && getRoleBadge(selectedMember.permission_role)}
+                {selectedMember && getRoleBadge(selectedMember.role)}
               </div>
             </div>
 
@@ -497,7 +510,7 @@ const RoleManagement: React.FC = () => {
               <X className="h-4 w-4 mr-2" />
               Cancel
             </Button>
-            <Button onClick={handleRoleChange} disabled={newRole === selectedMember?.permission_role}>
+            <Button onClick={handleRoleChange} disabled={newRole === selectedMember?.role}>
               <Check className="h-4 w-4 mr-2" />
               Confirm Change
             </Button>
