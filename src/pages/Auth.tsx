@@ -102,7 +102,8 @@ export default function Auth() {
         
         if (!member) {
           console.log('[Auth Debug] No practice member found, using default team member redirect');
-          navigate('/accountancy/team-member', { replace: true });
+          // Use window.location for absolute navigation
+          window.location.href = '/accountancy/team-member';
           return;
         }
         
@@ -114,10 +115,12 @@ export default function Auth() {
         
         if (isAdmin && !viewAsParam) {
           console.log('[Auth Debug] Admin user - redirecting to admin dashboard');
-          navigate('/accountancy/dashboard', { replace: true });
+          // Use window.location for absolute navigation
+          window.location.href = '/accountancy/dashboard';
         } else {
           console.log('[Auth Debug] Regular user - redirecting to team member portal');
-          navigate('/accountancy/team-member', { replace: true });
+          // Use window.location for absolute navigation
+          window.location.href = '/accountancy/team-member';
         }
       };
       
