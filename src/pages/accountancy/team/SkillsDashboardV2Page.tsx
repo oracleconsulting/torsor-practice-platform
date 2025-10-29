@@ -85,6 +85,11 @@ const SkillsDashboardV2Page: React.FC = () => {
       console.log('Loaded categories:', categories);
       console.log('Loaded members:', members);
       console.log('Loaded assessments:', assessments);
+      console.log(`🔍 Assessment count: ${assessments?.length || 0} (should be 1776 for 16 members)`);
+      
+      if (assessments && assessments.length === 1000) {
+        console.error('⚠️ WARNING: Exactly 1000 assessments loaded - limit is still active!');
+      }
 
       // Transform member skills to match expected format
       const transformedMembers = (members || []).map(member => {
