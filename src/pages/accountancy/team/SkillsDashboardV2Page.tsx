@@ -66,43 +66,44 @@ const SkillsDashboardV2Page: React.FC = () => {
         console.error('Error loading members:', membersError);
       }
 
-      // Load ALL skill assessments by fetching in batches to bypass 1000-row limit
-      let allAssessments: any[] = [];
-      let page = 0;
-      const pageSize = 1000;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const start = page * pageSize;
-        const end = start + pageSize - 1;
-        
-        const { data: batch, error: batchError } = await supabase
-          .from('skill_assessments')
-          .select(`
-            team_member_id,
-            skill_id,
-            current_level,
-            interest_level,
-            assessed_at
-          `)
-          .range(start, end);
-        
-        if (batchError) {
-          console.error(`Error loading assessments batch ${page}:`, batchError);
-          break;
-        }
-        
-        if (batch && batch.length > 0) {
-          allAssessments = [...allAssessments, ...batch];
-          hasMore = batch.length === pageSize; // Continue if we got a full page
-          page++;
-        } else {
-          hasMore = false;
-        }
+      // **NEW: Load assessments from invitations table (single source of truth)**
+      const { data: invitations, error: invitationsError } = await supabase
+        .from('invitations')
+        .select('email, assessment_data, status');
+
+      if (invitationsError) {
+        console.error('Error loading invitations:', invitationsError);
       }
+
+      console.log('[SkillsDashboardV2] Loaded invitations:', invitations?.length || 0);
+
+      // Transform JSONB assessment_data into flat assessment records
+      const allAssessments: any[] = [];
+      
+      (invitations || []).forEach(invitation => {
+        if (invitation.status !== 'accepted' || !invitation.assessment_data) return;
+        
+        // Find member by email
+        const member = (members || []).find(m => m.email.toLowerCase() === invitation.email.toLowerCase());
+        if (!member) {
+          console.warn('[SkillsDashboardV2] No member found for invitation:', invitation.email);
+          return;
+        }
+        
+        // Extract assessments from JSONB (using snake_case field names)
+        (invitation.assessment_data as any[]).forEach(skill => {
+          allAssessments.push({
+            team_member_id: member.id, // Map email → member.id
+            skill_id: skill.skill_id, // snake_case
+            current_level: skill.current_level || 0, // snake_case
+            interest_level: skill.interest_level || 3, // snake_case
+            assessed_at: invitation.accepted_at || new Date().toISOString()
+          });
+        });
+      });
       
       const assessments = allAssessments;
-      const assessmentsError = null;
+      const assessmentsError = invitationsError;
 
       if (assessmentsError) {
         console.error('Error loading assessments:', assessmentsError);

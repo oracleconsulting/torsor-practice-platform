@@ -156,17 +156,26 @@ export default function TeamMemberDashboard() {
       // Get member info
       const { data: memberData } = await supabase
         .from('practice_members')
-        .select('name')
+        .select('name, email')
         .eq('id', memberId)
         .single();
 
       setViewingAsMemberName(memberData?.name || 'Team Member');
 
-      // Get skill assessments
-      const { data: assessments } = await supabase
-        .from('skill_assessments')
-        .select('current_level, skill_id')
-        .eq('team_member_id', memberId);
+      // **NEW: Get skill assessments from invitations table**
+      const { data: invitation } = await supabase
+        .from('invitations')
+        .select('assessment_data, email')
+        .eq('email', memberData.email)
+        .eq('practice_id', practiceId)
+        .eq('status', 'accepted')
+        .single();
+
+      // Transform JSONB into assessment-like format
+      const assessments = (invitation?.assessment_data as any[] || []).map(skill => ({
+        current_level: skill.current_level || 0,
+        skill_id: skill.skill_id
+      }));
 
       // Get total skills count
       const { count: totalSkillsCount } = await supabase
@@ -224,7 +233,7 @@ export default function TeamMemberDashboard() {
       // First, get the practice_member record for this user
       const { data: member, error: memberError } = await supabase
         .from('practice_members')
-        .select('id, name')
+        .select('id, name, email')
         .eq('user_id', user.id)
         .single();
 
@@ -245,15 +254,26 @@ export default function TeamMemberDashboard() {
       // Set member name for UI
       setMemberName(member.name || 'Team Member');
 
-      // Get skill assessments
-      const { data: assessments, error: assessmentsError } = await supabase
-        .from('skill_assessments')
-        .select('current_level, skill_id')
-        .eq('team_member_id', member.id);
+      // **NEW: Get skill assessments from invitations table (single source of truth)**
+      const { data: invitation, error: invitationError } = await supabase
+        .from('invitations')
+        .select('assessment_data, email')
+        .eq('email', member.email)
+        .eq('practice_id', practiceId)
+        .eq('status', 'accepted')
+        .single();
 
-      if (assessmentsError) {
-        console.error('[Dashboard] Error fetching assessments:', assessmentsError);
+      if (invitationError) {
+        console.error('[Dashboard] Error fetching invitation:', invitationError);
       }
+
+      console.log('[Dashboard] Invitation assessment_data length:', invitation?.assessment_data?.length || 0);
+
+      // Transform JSONB into assessment-like format
+      const assessments = (invitation?.assessment_data as any[] || []).map(skill => ({
+        current_level: skill.current_level || 0,
+        skill_id: skill.skill_id
+      }));
 
       // Get total skills count
       const { count: totalSkillsCount, error: skillsCountError } = await supabase
