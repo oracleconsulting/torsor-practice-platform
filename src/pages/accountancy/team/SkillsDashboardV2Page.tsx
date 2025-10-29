@@ -66,17 +66,43 @@ const SkillsDashboardV2Page: React.FC = () => {
         console.error('Error loading members:', membersError);
       }
 
-      // Load ALL skill assessments using range to bypass default 1000 row limit
-      const { data: assessments, error: assessmentsError } = await supabase
-        .from('skill_assessments')
-        .select(`
-          team_member_id,
-          skill_id,
-          current_level,
-          interest_level,
-          assessed_at
-        `)
-        .range(0, 9999); // Load up to 10,000 rows (supports ~90 team members × 111 skills)
+      // Load ALL skill assessments by fetching in batches to bypass 1000-row limit
+      let allAssessments: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const start = page * pageSize;
+        const end = start + pageSize - 1;
+        
+        const { data: batch, error: batchError } = await supabase
+          .from('skill_assessments')
+          .select(`
+            team_member_id,
+            skill_id,
+            current_level,
+            interest_level,
+            assessed_at
+          `)
+          .range(start, end);
+        
+        if (batchError) {
+          console.error(`Error loading assessments batch ${page}:`, batchError);
+          break;
+        }
+        
+        if (batch && batch.length > 0) {
+          allAssessments = [...allAssessments, ...batch];
+          hasMore = batch.length === pageSize; // Continue if we got a full page
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      const assessments = allAssessments;
+      const assessmentsError = null;
 
       if (assessmentsError) {
         console.error('Error loading assessments:', assessmentsError);
