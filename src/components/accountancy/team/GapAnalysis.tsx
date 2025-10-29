@@ -17,6 +17,7 @@ import {
   XCircle
 } from 'lucide-react';
 import TrainingRecommendationCards from './TrainingRecommendationCards';
+import SkillsGapScatterPlots from './SkillsGapScatterPlots';
 import { getTrainingRecommendations, getGroupTrainingOpportunities, createLearningPath } from '@/lib/api/training-recommendations';
 import { getLearningPreference } from '@/lib/api/learning-preferences';
 import type { RecommendationAnalysis, TeamMemberProfile, SkillGap } from '@/services/ai/trainingRecommendations';
@@ -645,6 +646,12 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
           Export Analysis
         </Button>
       </div>
+
+      {/* NEW: Refined Scatter Plots */}
+      <SkillsGapScatterPlots 
+        teamMembers={teamMembers}
+        skillCategories={skillCategories}
+      />
 
       {/* Priority Matrix */}
       {showHeatmap && (
