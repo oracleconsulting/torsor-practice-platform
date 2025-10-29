@@ -375,37 +375,37 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
       sample: data.slice(0, 3)
     });
 
-    // Color by quadrant position
+    // Calculate priority score ranges for color mapping
+    const maxPriority = Math.max(...data.map(d => d.priority), 1);
+    const minPriority = Math.min(...data.map(d => d.priority), 0);
+    
+    // Color by PRIORITY SCORE (not just quadrant)
     return {
       datasets: [{
-        label: `Team Skills (${data.length} assessed)`,
+        label: `Top ${data.length} Priority Skills (gap × importance × interest × team size)`,
         data,
         backgroundColor: data.map(d => {
-          // Quadrant-based coloring:
-          // High skill, High interest = Green (keep these strong)
-          // High skill, Low interest = Blue (maintain)
-          // Low skill, High interest = Orange (quick wins!)
-          // Low skill, Low interest = Red (critical gaps)
-          const highSkill = d.x >= 3;
-          const highInterest = d.y >= 3;
+          // Normalize priority to 0-1 scale
+          const normalizedPriority = (d.priority - minPriority) / (maxPriority - minPriority || 1);
           
-          if (highSkill && highInterest) return 'rgba(34, 197, 94, 0.8)'; // Green - Strategic assets
-          if (highSkill && !highInterest) return 'rgba(59, 130, 246, 0.8)'; // Blue - Maintain
-          if (!highSkill && highInterest) return 'rgba(245, 158, 11, 0.8)'; // Orange - Quick wins
-          return 'rgba(239, 68, 68, 0.8)'; // Red - Critical gaps
+          // Color gradient from gray (low priority) to red (high priority)
+          if (normalizedPriority >= 0.8) return 'rgba(239, 68, 68, 0.9)';   // High Priority (≥10)
+          if (normalizedPriority >= 0.5) return 'rgba(245, 158, 11, 0.9)'; // Medium Priority (5-9)
+          if (normalizedPriority >= 0.2) return 'rgba(59, 130, 246, 0.8)'; // Low Priority (2-4)
+          return 'rgba(156, 163, 175, 0.7)'; // Very Low Priority (<2)
         }),
         borderColor: data.map(d => {
-          const highSkill = d.x >= 3;
-          const highInterest = d.y >= 3;
+          const normalizedPriority = (d.priority - minPriority) / (maxPriority - minPriority || 1);
           
-          if (highSkill && highInterest) return 'rgba(34, 197, 94, 1)';
-          if (highSkill && !highInterest) return 'rgba(59, 130, 246, 1)';
-          if (!highSkill && highInterest) return 'rgba(245, 158, 11, 1)';
-          return 'rgba(239, 68, 68, 1)';
+          if (normalizedPriority >= 0.8) return 'rgba(239, 68, 68, 1)';
+          if (normalizedPriority >= 0.5) return 'rgba(245, 158, 11, 1)';
+          if (normalizedPriority >= 0.2) return 'rgba(59, 130, 246, 1)';
+          return 'rgba(156, 163, 175, 1)';
         }),
         borderWidth: 2,
-        pointRadius: 8,
-        pointHoverRadius: 14
+        // SIZE proportional to GAP SEVERITY (bigger = larger gap = more urgent)
+        pointRadius: data.map(d => Math.max(6, Math.min(20, 6 + (d.gap * 3)))),
+        pointHoverRadius: data.map(d => Math.max(10, Math.min(24, 10 + (d.gap * 3))))
       }]
     };
   }, [teamMembers, skillCategories, topNFilter, sortBy]);
@@ -605,16 +605,21 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
               Skills Gap Priority Matrix
             </CardTitle>
             <CardDescription className="text-white font-medium" style={{ color: '#ffffff' }}>
-              <strong className="text-white" style={{ color: '#ffffff' }}>Quadrant Analysis (Skill Level vs Interest Level):</strong>
+              <strong className="text-white" style={{ color: '#ffffff' }}>Top Priority Skills Analysis:</strong>
               <div className="mt-2 space-y-2">
-                <ul className="space-y-1 text-sm text-white" style={{ color: '#ffffff' }}>
-                  <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>🟢 Top-Right</strong> (High Skill, High Interest): Strategic Assets - Keep these strong!</li>
-                  <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>🟠 Top-Left</strong> (Low Skill, High Interest): Quick Wins - Eager to learn, easy to develop</li>
-                  <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>🔴 Bottom-Left</strong> (Low Skill, Low Interest): Critical Gaps - Need motivation & training</li>
-                  <li className="text-white font-medium" style={{ color: '#ffffff' }}>• <strong>🔵 Bottom-Right</strong> (High Skill, Low Interest): Maintain - Competent but not passionate</li>
+                <p className="text-sm text-white font-medium" style={{ color: '#ffffff' }}>
+                  Shows the <strong>top {topNFilter} highest-priority skills</strong> based on gap severity, business importance, team interest, and number of people affected. 
+                  <strong> Point SIZE = Gap Severity</strong> (bigger dots = larger gaps = more urgent).
+                  <strong> Point COLOR = Priority Score</strong> (red = highest priority, gray = lowest).
+                </p>
+                <ul className="space-y-1 text-xs text-white font-medium" style={{ color: '#ffffff' }}>
+                  <li>🔴 <strong>Large Red Dots</strong> = Critical priority: Large gaps affecting many people with high business impact</li>
+                  <li>🟠 <strong>Large Orange Dots</strong> = Medium priority: Significant gaps worth addressing</li>
+                  <li>🔵 <strong>Medium Blue Dots</strong> = Lower priority: Small gaps or lower business impact</li>
+                  <li>⚪ <strong>Small Gray Dots</strong> = Lowest priority: Minimal gaps, monitor only</li>
                 </ul>
                 <p className="text-xs text-white font-medium mt-2" style={{ color: '#ffffff' }}>
-                  <strong>📊 Chart displays top {topNFilter} skills sorted by: {
+                  <strong>📊 Currently sorted by: {
                     sortBy === 'priority' ? 'Priority Score (gap × importance × interest × team size)' :
                     sortBy === 'gap' ? 'Skill Gap Size (required level - current level)' :
                     sortBy === 'members' ? 'Number of Team Members Affected' :
@@ -688,33 +693,40 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
                         },
                         label: (context: any) => {
                           const d = context.raw;
+                          const priorityLevel = d.priority >= 10 ? 'CRITICAL' : 
+                                               d.priority >= 5 ? 'HIGH' : 
+                                               d.priority >= 2 ? 'MEDIUM' : 'LOW';
                           return [
                             `Category: ${d.category}`,
                             ``,
-                            `Current Level: ${d.currentLevel.toFixed(1)}/5 ⭐`,
-                            `Interest Level: ${d.y.toFixed(1)}/5 🎯`,
-                            `Required Level: ${d.requiredLevel}/5`,
-                            `Gap: ${d.gap.toFixed(1)} levels`,
+                            `🎯 Priority Score: ${d.priority.toFixed(1)} (${priorityLevel})`,
+                            `📊 Gap Severity: ${d.gap.toFixed(1)} levels`,
                             ``,
-                            `Team Members Assessed: ${d.members}`,
-                            `Priority Score: ${d.priority.toFixed(1)}`
+                            `Current Level: ${d.currentLevel.toFixed(1)}/5 ⭐`,
+                            `Required Level: ${d.requiredLevel}/5`,
+                            `Interest Level: ${d.y.toFixed(1)}/5 🎯`,
+                            ``,
+                            `Team Members Assessed: ${d.members}`
                           ];
                         },
                         afterLabel: (context: any) => {
                           const d = context.raw;
-                          const highSkill = d.x >= 3;
-                          const highInterest = d.y >= 3;
+                          const priorityLevel = d.priority >= 10 ? '🔴 CRITICAL PRIORITY' : 
+                                               d.priority >= 5 ? '🟠 HIGH PRIORITY' : 
+                                               d.priority >= 2 ? '🔵 MEDIUM PRIORITY' : '⚪ LOW PRIORITY';
                           
-                          if (highSkill && highInterest) {
-                            return '\n\n🟢 STRATEGIC ASSET\nKeep this skill strong!';
+                          let recommendation = '';
+                          if (d.gap >= 2) {
+                            recommendation = 'Large gap - immediate training needed!';
+                          } else if (d.gap >= 1) {
+                            recommendation = 'Significant gap - schedule development soon.';
+                          } else if (d.gap > 0.5) {
+                            recommendation = 'Small gap - can be addressed with focused learning.';
+                          } else {
+                            recommendation = 'Minimal gap - monitor for future needs.';
                           }
-                          if (!highSkill && highInterest) {
-                            return '\n\n🟠 QUICK WIN\nTeam is eager - train now!';
-                          }
-                          if (!highSkill && !highInterest) {
-                            return '\n\n🔴 CRITICAL GAP\nNeeds development & motivation!';
-                          }
-                          return '\n\n🔵 MAINTAIN\nCompetent but not passionate';
+                          
+                          return `\n\n${priorityLevel}\n${recommendation}`;
                         }
                       }
                     }
