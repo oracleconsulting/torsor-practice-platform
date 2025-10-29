@@ -234,30 +234,65 @@ const AccountancyRoute: React.FC = () => {
         user ? <Navigate to="/accountancy/dashboard" replace /> : <Navigate to="/auth?portal=accountancy" replace />
       } />
       
-      {/* Team Member Portal Routes - WITHOUT Admin Layout */}
-      <Route path="team-member/*" element={
+      {/* Team Member Portal Routes - WITHOUT Admin Layout - MUST BE FIRST */}
+      <Route path="team-member" element={
         <ProtectedRoute>
-          <Routes>
-            <Route index element={<TeamMemberDashboard />} />
-            <Route path="dashboard" element={
-              <>
-                {console.log('[Route] Team Member Dashboard matched - viewAs:', new URLSearchParams(window.location.search).get('viewAs'))}
-                <TeamMemberDashboard />
-              </>
-            } />
-            <Route path="skills-heatmap" element={<MySkillsHeatmap />} />
-            <Route path="skills-comparison" element={<MySkillsComparison />} />
-            <Route path="mentoring" element={<MentoringHubPage />} />
-            <Route path="assignments" element={<MyAssignmentsPage />} />
-            <Route path="cpd" element={<CPDSkillsBridgePage />} />
-            <Route path="cpd-log" element={<CPDSkillsBridgePage />} />
-            <Route path="cpd/log" element={<CPDSkillsBridgePage />} />
-            <Route path="knowledge-base" element={<KnowledgeBasePage />} />
-          </Routes>
+          <>
+            {console.log('[Route] Team Member Portal Base Route matched')}
+            <TeamMemberDashboard />
+          </>
+        </ProtectedRoute>
+      } />
+      <Route path="team-member/dashboard" element={
+        <ProtectedRoute>
+          <>
+            {console.log('[Route] Team Member Dashboard matched - viewAs:', new URLSearchParams(window.location.search).get('viewAs'))}
+            <TeamMemberDashboard />
+          </>
+        </ProtectedRoute>
+      } />
+      <Route path="team-member/skills-heatmap" element={
+        <ProtectedRoute>
+          <MySkillsHeatmap />
+        </ProtectedRoute>
+      } />
+      <Route path="team-member/skills-comparison" element={
+        <ProtectedRoute>
+          <MySkillsComparison />
+        </ProtectedRoute>
+      } />
+      <Route path="team-member/mentoring" element={
+        <ProtectedRoute>
+          <MentoringHubPage />
+        </ProtectedRoute>
+      } />
+      <Route path="team-member/assignments" element={
+        <ProtectedRoute>
+          <MyAssignmentsPage />
+        </ProtectedRoute>
+      } />
+      <Route path="team-member/cpd" element={
+        <ProtectedRoute>
+          <CPDSkillsBridgePage />
+        </ProtectedRoute>
+      } />
+      <Route path="team-member/cpd-log" element={
+        <ProtectedRoute>
+          <CPDSkillsBridgePage />
+        </ProtectedRoute>
+      } />
+      <Route path="team-member/cpd/log" element={
+        <ProtectedRoute>
+          <CPDSkillsBridgePage />
+        </ProtectedRoute>
+      } />
+      <Route path="team-member/knowledge-base" element={
+        <ProtectedRoute>
+          <KnowledgeBasePage />
         </ProtectedRoute>
       } />
       
-      {/* Admin Routes - WITH Admin Layout */}
+      {/* Admin Routes - WITH Admin Layout - MUST BE LAST */}
       <Route path="/*" element={
         <ProtectedRoute>
           <AccountancyLayout>
