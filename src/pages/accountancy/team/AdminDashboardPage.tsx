@@ -24,9 +24,11 @@ import {
   BookOpen,
   GraduationCap,
   MessageSquare,
+  Network,
 } from 'lucide-react';
 import RoleManagement from '@/components/accountancy/team/RoleManagement';
 import UserManagement from '@/components/accountancy/team/UserManagement';
+import ReportingLinesManager from '@/components/accountancy/admin/ReportingLinesManager';
 import {
   BarChart,
   Bar,
@@ -284,9 +286,9 @@ export default function AdminDashboardPage() {
         </p>
       </div>
 
-      {/* Tabs for Dashboard vs Role Management vs User Management */}
+      {/* Tabs for Dashboard vs Role Management vs User Management vs Reporting Lines */}
       <Tabs defaultValue="dashboard" className="space-y-6">
-        <TabsList className="grid w-full max-w-2xl grid-cols-3">
+        <TabsList className="grid w-full max-w-3xl grid-cols-4">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Dashboard
@@ -298,6 +300,10 @@ export default function AdminDashboardPage() {
           <TabsTrigger value="users" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             User Management
+          </TabsTrigger>
+          <TabsTrigger value="reporting-lines" className="flex items-center gap-2">
+            <Network className="h-4 w-4" />
+            Reporting Lines
           </TabsTrigger>
         </TabsList>
 
@@ -779,6 +785,11 @@ export default function AdminDashboardPage() {
         {/* User Management Tab */}
         <TabsContent value="users">
           <UserManagement />
+        </TabsContent>
+
+        {/* Reporting Lines Tab */}
+        <TabsContent value="reporting-lines">
+          <ReportingLinesManager practiceId="a1b2c3d4-5678-90ab-cdef-123456789abc" />
         </TabsContent>
       </Tabs>
     </div>
