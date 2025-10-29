@@ -62,6 +62,8 @@ import AdvisoryCapabilityMatrix from '../pages/accountancy/team/AdvisoryCapabili
 import KnowledgeBasePage from '../pages/accountancy/team/KnowledgeBasePage';
 import TeamMemberDashboard from '../pages/accountancy/team/TeamMemberDashboard';
 import MyAssignmentsPage from '../pages/accountancy/team/MyAssignmentsPage';
+import MySkillsHeatmap from '../pages/accountancy/team/MySkillsHeatmap';
+import MySkillsComparison from '../pages/accountancy/team/MySkillsComparison';
 
 // Add this component for practice selection
 const PracticeSelection = () => {
@@ -236,15 +238,21 @@ const AccountancyRoute: React.FC = () => {
       <Route path="team-member/*" element={
         <ProtectedRoute>
           <Routes>
+            <Route index element={<TeamMemberDashboard />} />
             <Route path="dashboard" element={
               <>
                 {console.log('[Route] Team Member Dashboard matched - viewAs:', new URLSearchParams(window.location.search).get('viewAs'))}
                 <TeamMemberDashboard />
               </>
             } />
+            <Route path="skills-heatmap" element={<MySkillsHeatmap />} />
+            <Route path="skills-comparison" element={<MySkillsComparison />} />
+            <Route path="mentoring" element={<MentoringHubPage />} />
             <Route path="assignments" element={<MyAssignmentsPage />} />
             <Route path="cpd" element={<CPDSkillsBridgePage />} />
+            <Route path="cpd-log" element={<CPDSkillsBridgePage />} />
             <Route path="cpd/log" element={<CPDSkillsBridgePage />} />
+            <Route path="knowledge-base" element={<KnowledgeBasePage />} />
           </Routes>
         </ProtectedRoute>
       } />
