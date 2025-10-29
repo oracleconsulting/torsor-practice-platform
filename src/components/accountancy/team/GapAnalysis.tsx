@@ -328,10 +328,11 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
         
         const avgCurrentLevel = skillAssessments.reduce((sum, s) => sum + s.currentLevel, 0) / skillAssessments.length;
         const avgInterest = skillAssessments.reduce((sum, s) => sum + (s.interestLevel || 3), 0) / skillAssessments.length;
-        const gap = Math.max(0, skill.requiredLevel - avgCurrentLevel);
+        const gap = Math.max(0, (skill.requiredLevel || 3) - avgCurrentLevel);
         
-        // Calculate priority
-        const priority = gap * (skill.requiredLevel / 5) * (avgInterest / 5) * skillAssessments.length;
+        // Calculate priority - even skills with 0 gap get a base priority from interest and team size
+        // This ensures the chart always shows data
+        const priority = (gap + 0.5) * ((skill.requiredLevel || 3) / 5) * (avgInterest / 5) * skillAssessments.length;
         
         return {
           skill: skill.name,
@@ -339,7 +340,7 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
           x: avgCurrentLevel,
           y: avgInterest,
           currentLevel: avgCurrentLevel,
-          requiredLevel: skill.requiredLevel,
+          requiredLevel: skill.requiredLevel || 3,
           gap,
           priority,
           members: skillAssessments.length
