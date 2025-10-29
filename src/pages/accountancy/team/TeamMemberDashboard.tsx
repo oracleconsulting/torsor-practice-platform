@@ -39,6 +39,15 @@ export default function TeamMemberDashboard() {
   const { user } = useAuth();
   const { practiceId } = useAccountancyContext();
   
+  // EMERGENCY FIX: If user lands here from wrong URL, redirect to correct one
+  useEffect(() => {
+    const currentPath = window.location.pathname;
+    if (currentPath === '/team' || currentPath === '/accountancy/team') {
+      console.log('[TeamMemberDashboard] EMERGENCY REDIRECT from wrong URL:', currentPath);
+      window.location.href = '/accountancy/team-member';
+    }
+  }, []);
+  
   const [stats, setStats] = useState<TeamMemberStats>({
     totalSkills: 0,
     assessedSkills: 0,
