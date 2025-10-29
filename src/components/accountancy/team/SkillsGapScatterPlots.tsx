@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Scatter } from 'react-chartjs-2';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, User } from 'lucide-react';
 
 interface Skill {
   id: string;
@@ -46,58 +47,55 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
   teamMembers,
   skillCategories
 }) => {
+  const [selectedMemberId, setSelectedMemberId] = useState<string>(teamMembers[0]?.id || '');
   
-  // Plot 1: ALL 1776 individual assessment points
-  const individualPointsData = useMemo(() => {
-    const allAssessments: any[] = [];
+  // Plot 1: Individual member's skill assessments (111 skills for selected member)
+  const individualMemberData = useMemo(() => {
+    const selectedMember = teamMembers.find(m => m.id === selectedMemberId);
+    if (!selectedMember) return { datasets: [] };
     
-    teamMembers.forEach(member => {
-      member.skills.forEach(skill => {
-        const skillInfo = skillCategories
-          .flatMap(cat => cat.skills)
-          .find(s => s.id === skill.skillId);
-        
-        if (skillInfo) {
-          allAssessments.push({
-            x: skill.interestLevel || 3, // Interest on X-axis
-            y: skill.currentLevel,        // Skill on Y-axis
-            member: member.name,
-            skill: skillInfo.name,
-            category: skillInfo.category
-          });
-        }
-      });
+    const memberAssessments: any[] = [];
+    
+    selectedMember.skills.forEach(skill => {
+      const skillInfo = skillCategories
+        .flatMap(cat => cat.skills)
+        .find(s => s.id === skill.skillId);
+      
+      if (skillInfo) {
+        memberAssessments.push({
+          x: skill.currentLevel,           // FLIPPED: Skill on X-axis
+          y: skill.interestLevel || 3,     // FLIPPED: Interest on Y-axis
+          skill: skillInfo.name,
+          category: skillInfo.category
+        });
+      }
     });
     
-    console.log('[SkillsGapScatterPlots] Individual points:', {
-      totalMembers: teamMembers.length,
-      totalPoints: allAssessments.length,
-      samplePoint: allAssessments[0]
+    console.log('[SkillsGapScatterPlots] Individual member points:', {
+      member: selectedMember.name,
+      totalPoints: memberAssessments.length,
+      samplePoint: memberAssessments[0]
     });
     
     return {
       datasets: [{
-        label: `All Individual Assessments (${allAssessments.length} points)`,
-        data: allAssessments,
-        backgroundColor: allAssessments.map(d => {
-          // Color by quadrant:
-          // Top-right (high interest, high skill) = Green
-          // Bottom-right (high interest, low skill) = Orange
-          // Bottom-left (low interest, low skill) = Red
-          // Top-left (low interest, high skill) = Blue
-          const highInterest = d.x >= 3;
-          const highSkill = d.y >= 3;
+        label: `${selectedMember.name}'s Skills (${memberAssessments.length} skills)`,
+        data: memberAssessments,
+        backgroundColor: memberAssessments.map(d => {
+          // Color by quadrant (FLIPPED: X=Skill, Y=Interest):
+          const highInterest = d.y >= 3;
+          const highSkill = d.x >= 3;
           
-          if (highSkill && highInterest) return 'rgba(34, 197, 94, 0.6)'; // Green
-          if (!highSkill && highInterest) return 'rgba(245, 158, 11, 0.6)'; // Orange
-          if (!highSkill && !highInterest) return 'rgba(239, 68, 68, 0.6)'; // Red
-          return 'rgba(59, 130, 246, 0.6)'; // Blue
+          if (highSkill && highInterest) return 'rgba(34, 197, 94, 0.8)';   // Green: High skill, high interest
+          if (!highSkill && highInterest) return 'rgba(245, 158, 11, 0.8)'; // Orange: Low skill, high interest (Quick win)
+          if (highSkill && !highInterest) return 'rgba(59, 130, 246, 0.8)'; // Blue: High skill, low interest
+          return 'rgba(239, 68, 68, 0.8)'; // Red: Low skill, low interest
         }),
-        pointRadius: 4,
-        pointHoverRadius: 8
+        pointRadius: 6,
+        pointHoverRadius: 10
       }]
     };
-  }, [teamMembers, skillCategories]);
+  }, [teamMembers, skillCategories, selectedMemberId]);
   
   // Plot 2: Average scores per skill (111 points)
   const averageSkillData = useMemo(() => {
@@ -113,8 +111,8 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
       const avgInterest = assessments.reduce((sum, s) => sum + (s.interestLevel || 3), 0) / assessments.length;
       
       return {
-        x: avgInterest,
-        y: avgSkillLevel,
+        x: avgSkillLevel,  // FLIPPED: Skill on X-axis
+        y: avgInterest,    // FLIPPED: Interest on Y-axis
         skill: skill.name,
         category: skill.category,
         count: assessments.length
@@ -126,13 +124,14 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
         label: `Average Team Scores per Skill (${skillAverages.length} skills)`,
         data: skillAverages,
         backgroundColor: skillAverages.map(d => {
-          const highInterest = d.x >= 3;
-          const highSkill = d.y >= 3;
+          // FLIPPED: X=Skill, Y=Interest
+          const highInterest = d.y >= 3;
+          const highSkill = d.x >= 3;
           
-          if (highSkill && highInterest) return 'rgba(34, 197, 94, 0.8)';
-          if (!highSkill && highInterest) return 'rgba(245, 158, 11, 0.8)';
-          if (!highSkill && !highInterest) return 'rgba(239, 68, 68, 0.8)';
-          return 'rgba(59, 130, 246, 0.8)';
+          if (highSkill && highInterest) return 'rgba(34, 197, 94, 0.8)';   // Green: High skill, high interest
+          if (!highSkill && highInterest) return 'rgba(245, 158, 11, 0.8)'; // Orange: Low skill, high interest
+          if (!highSkill && !highInterest) return 'rgba(239, 68, 68, 0.8)'; // Red: Low skill, low interest
+          return 'rgba(59, 130, 246, 0.8)'; // Blue: High skill, low interest
         }),
         pointRadius: 8,
         pointHoverRadius: 12
@@ -222,32 +221,48 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
   
   return (
     <div className="space-y-6">
-      {/* Plot 1: All Individual Points */}
+      {/* Plot 1: Individual Member Skills (with dropdown) */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-white">
-            <BarChart3 className="w-5 h-5" />
-            1. Individual Assessment Distribution
+            <User className="w-5 h-5" />
+            1. Individual Member Skills
           </CardTitle>
           <CardDescription className="text-white">
-            All {individualPointsData.datasets[0].data.length} individual skill assessments plotted by Interest (X) vs Current Skill Level (Y).
+            Select a team member to view their {individualMemberData.datasets[0]?.data.length || 0} skill assessments plotted by Current Skill Level (X) vs Interest (Y).
             <br />
-            <strong>Bottom-right (high interest, low skill)</strong> = Development opportunities
+            <strong>Top-right (high skill, high interest)</strong> = Strategic assets
             <br />
-            <strong>Top-right (high interest, high skill)</strong> = Strategic assets
+            <strong>Top-left (low skill, high interest)</strong> = Development opportunities
           </CardDescription>
+          
+          {/* Member Selector Dropdown */}
+          <div className="mt-4">
+            <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
+              <SelectTrigger className="w-64 bg-gray-700 text-white border-gray-600">
+                <SelectValue placeholder="Select a team member" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-700 text-white border-gray-600">
+                {teamMembers.map(member => (
+                  <SelectItem key={member.id} value={member.id} className="text-white hover:bg-gray-600">
+                    {member.name} ({member.role})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="h-96">
             <Scatter 
-              data={individualPointsData}
+              data={individualMemberData}
               options={{
                 ...commonOptions,
                 scales: {
                   x: {
                     title: {
                       display: true,
-                      text: 'Interest Level (1-5)',
+                      text: 'Current Skill Level (1-5)',
                       color: 'white',
                       font: { size: 14, weight: 'bold' as const }
                     },
@@ -262,7 +277,7 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
                   y: {
                     title: {
                       display: true,
-                      text: 'Current Skill Level (1-5)',
+                      text: 'Interest Level (1-5)',
                       color: 'white',
                       font: { size: 14, weight: 'bold' as const }
                     },
@@ -281,16 +296,15 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
                     ...commonOptions.plugins.tooltip,
                     callbacks: {
                       title: (context: any) => {
-                        return context[0].raw.member;
+                        return context[0].raw.skill;
                       },
                       label: (context: any) => {
                         const d = context.raw;
                         return [
-                          `Skill: ${d.skill}`,
                           `Category: ${d.category}`,
                           ``,
-                          `Interest: ${d.x}/5`,
-                          `Skill Level: ${d.y}/5`
+                          `Current Skill: ${d.x.toFixed(1)}/5`,
+                          `Interest: ${d.y.toFixed(1)}/5`
                         ];
                       }
                     }
@@ -302,7 +316,7 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
         </CardContent>
       </Card>
       
-      {/* Plot 2: Team Averages */}
+      {/* Plot 2: Team Average by Skill */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-white">
@@ -325,7 +339,7 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
                   x: {
                     title: {
                       display: true,
-                      text: 'Average Team Interest (1-5)',
+                      text: 'Average Team Skill (1-5)',
                       color: 'white',
                       font: { size: 14, weight: 'bold' as const }
                     },
@@ -340,7 +354,7 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
                   y: {
                     title: {
                       display: true,
-                      text: 'Average Team Skill (1-5)',
+                      text: 'Average Team Interest (1-5)',
                       color: 'white',
                       font: { size: 14, weight: 'bold' as const }
                     },
@@ -366,8 +380,8 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
                         return [
                           `Category: ${d.category}`,
                           ``,
-                          `Average Interest: ${d.x.toFixed(1)}/5`,
-                          `Average Skill: ${d.y.toFixed(1)}/5`,
+                          `Average Skill: ${d.x.toFixed(1)}/5`,
+                          `Average Interest: ${d.y.toFixed(1)}/5`,
                           `Team Members: ${d.count}`
                         ];
                       }
