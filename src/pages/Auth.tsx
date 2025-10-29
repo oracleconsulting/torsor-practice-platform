@@ -101,9 +101,8 @@ export default function Auth() {
         console.log('[Auth Debug] User role:', member?.role);
         
         if (!member) {
-          console.log('[Auth Debug] No practice member found, using default redirect');
-          const from = location.state?.from?.pathname || '/team';
-          navigate(from, { replace: true });
+          console.log('[Auth Debug] No practice member found, using default team member redirect');
+          navigate('/accountancy/team-member', { replace: true });
           return;
         }
         
@@ -115,7 +114,7 @@ export default function Auth() {
         
         if (isAdmin && !viewAsParam) {
           console.log('[Auth Debug] Admin user - redirecting to admin dashboard');
-          navigate('/accountancy/team', { replace: true });
+          navigate('/accountancy/dashboard', { replace: true });
         } else {
           console.log('[Auth Debug] Regular user - redirecting to team member portal');
           navigate('/accountancy/team-member', { replace: true });
