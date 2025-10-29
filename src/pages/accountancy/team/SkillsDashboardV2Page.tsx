@@ -85,12 +85,26 @@ const SkillsDashboardV2Page: React.FC = () => {
       console.log('Loaded members:', members);
       console.log('Loaded assessments:', assessments);
 
+      // Log sample member and assessment IDs to check matching
+      console.log('[Transformation] Sample member IDs:', members?.slice(0, 3).map((m: any) => ({ id: m.id, name: m.name })));
+      console.log('[Transformation] Sample assessment team_member_ids:', [...new Set(assessments?.slice(0, 50).map((a: any) => a.team_member_id))]);
+
       // Transform member skills to match expected format
       const transformedMembers = (members || []).map(member => {
         // Find all assessments for this member
         const memberAssessments = (assessments || []).filter(
           (a: any) => a.team_member_id === member.id
         );
+
+        console.log(`[Transformation] ${member.name} (${member.id}): Found ${memberAssessments.length} assessments`);
+        
+        if (memberAssessments.length === 0) {
+          console.warn(`[Transformation] ⚠️ ${member.name} has ZERO assessments! member.id = ${member.id}, typeof = ${typeof member.id}`);
+          // Sample the first assessment to see its structure
+          if (assessments && assessments.length > 0) {
+            console.log('[Transformation] Sample assessment structure:', assessments[0]);
+          }
+        }
 
         const skills = memberAssessments.map((a: any) => ({
           skillId: a.skill_id,
