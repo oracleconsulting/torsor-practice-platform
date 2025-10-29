@@ -397,7 +397,7 @@ export default function MySkillsHeatmap() {
           </CardHeader>
           <CardContent className="relative pt-16 pb-2">
             {/* Grid layout that fills COLUMNS first (top to bottom), then moves right */}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto pb-20">
               <div 
                 className="grid gap-2 w-fit relative"
                 style={{
@@ -416,6 +416,7 @@ export default function MySkillsHeatmap() {
                       key={skill.skill_id}
                       onClick={() => scrollToSkill(skill.skill_id)}
                       className="group relative"
+                      style={{ overflow: 'visible' }}
                     >
                       {/* The colored square */}
                       <div
@@ -427,14 +428,14 @@ export default function MySkillsHeatmap() {
                         title={skill.skill_name}
                       />
                       
-                      {/* Tooltip - appears above for rows 1-4, below for row 0 (top row) */}
-                      <div className={`invisible group-hover:visible absolute left-1/2 -translate-x-1/2 ${isTopRow ? 'top-full mt-2' : 'bottom-full mb-2'} z-[200] pointer-events-none`}>
-                        <div className="bg-gray-900 text-white text-sm rounded-lg py-2 px-3 shadow-xl whitespace-nowrap">
+                      {/* Tooltip - appears below for top row, above for other rows */}
+                      <div className={`invisible group-hover:visible absolute left-1/2 -translate-x-1/2 ${isTopRow ? 'top-full mt-2' : 'bottom-full mb-2'} z-[200] pointer-events-none whitespace-nowrap`}>
+                        <div className="bg-gray-900 text-white text-sm rounded-lg py-2 px-3 shadow-xl">
                           <div className="font-semibold">{skill.skill_name}</div>
                           <div className="text-xs text-gray-300">Level: {skill.current_level}/5</div>
                         </div>
                         {/* Arrow pointing to the square - direction changes based on position */}
-                        <div className={`absolute left-1/2 -translate-x-1/2 ${isTopRow ? 'bottom-full' : 'top-full'}`}>
+                        <div className={`absolute left-1/2 -translate-x-1/2 ${isTopRow ? '-top-1' : '-bottom-1'}`}>
                           <div className={`w-0 h-0 border-l-4 border-r-4 ${isTopRow ? 'border-b-4 border-b-gray-900' : 'border-t-4 border-t-gray-900'} border-l-transparent border-r-transparent`}></div>
                         </div>
                       </div>

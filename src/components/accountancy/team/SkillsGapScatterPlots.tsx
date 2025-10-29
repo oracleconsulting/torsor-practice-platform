@@ -253,11 +253,19 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
           </div>
         </CardHeader>
         <CardContent>
-          <div className="h-96">
+          <div className="h-96 p-4">
             <Scatter 
               data={individualMemberData}
               options={{
                 ...commonOptions,
+                layout: {
+                  padding: {
+                    top: 20,
+                    right: 20,
+                    bottom: 20,
+                    left: 20
+                  }
+                },
                 scales: {
                   x: {
                     title: {
@@ -330,11 +338,19 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-96">
+          <div className="h-96 p-4">
             <Scatter 
               data={averageSkillData}
               options={{
                 ...commonOptions,
+                layout: {
+                  padding: {
+                    top: 20,
+                    right: 20,
+                    bottom: 20,
+                    left: 20
+                  }
+                },
                 scales: {
                   x: {
                     title: {
@@ -412,11 +428,19 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-96">
+          <div className="h-96 p-4">
             <Scatter 
               data={skillGapData}
               options={{
                 ...commonOptions,
+                layout: {
+                  padding: {
+                    top: 20,
+                    right: 20,
+                    bottom: 20,
+                    left: 20
+                  }
+                },
                 scales: {
                   x: {
                     title: {
