@@ -127,12 +127,14 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="team/advisory-capability" element={<AdvisoryCapabilityMatrix />} />
       <Route path="team/knowledge-base" element={<KnowledgeBasePage />} />
       {/* team-member routes moved outside AccountancyLayout - see AccountancyRoute component */}
-      <Route path="team" element={
+      <Route path="team-management" element={
         <>
           {console.log('[Route] Team Management page matched')}
           <TeamManagementPage />
         </>
       } />
+      {/* Legacy redirect for old /team URL */}
+      <Route path="team" element={<Navigate to="/accountancy/team-management" replace />} />
       <Route path="team-portal/vark-assessment" element={<VARKAssessmentPage />} />
       <Route path="team-portal/mentoring" element={<MentoringHubPage />} />
       <Route path="team-portal/onboarding" element={<OnboardingHubPage />} />
