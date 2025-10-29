@@ -66,7 +66,7 @@ const SkillsDashboardV2Page: React.FC = () => {
         console.error('Error loading members:', membersError);
       }
 
-      // Load skill assessments separately (with explicit limit to handle all team members)
+      // Load ALL skill assessments using range to bypass default 1000 row limit
       const { data: assessments, error: assessmentsError } = await supabase
         .from('skill_assessments')
         .select(`
@@ -76,7 +76,7 @@ const SkillsDashboardV2Page: React.FC = () => {
           interest_level,
           assessed_at
         `)
-        .limit(5000); // Support up to ~45 team members with 111 skills each
+        .range(0, 9999); // Load up to 10,000 rows (supports ~90 team members × 111 skills)
 
       if (assessmentsError) {
         console.error('Error loading assessments:', assessmentsError);
