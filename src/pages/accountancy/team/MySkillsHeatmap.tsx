@@ -173,6 +173,19 @@ export default function MySkillsHeatmap() {
           .filter(Boolean) as SkillAssessment[];
 
         console.log('[MySkillsHeatmap] Formatted assessments:', formattedAssessments.length);
+        
+        // Debug: Check skill level distribution
+        const levelCounts = formattedAssessments.reduce((acc, a) => {
+          acc[a.current_level] = (acc[a.current_level] || 0) + 1;
+          return acc;
+        }, {} as Record<number, number>);
+        console.log('[MySkillsHeatmap] Skill level distribution:', levelCounts);
+        console.log('[MySkillsHeatmap] Sample skills:', formattedAssessments.slice(0, 5).map(a => ({
+          name: a.skill_name,
+          level: a.current_level,
+          interest: a.interest_level
+        })));
+        
         setAssessments(formattedAssessments);
 
         // Extract unique categories
