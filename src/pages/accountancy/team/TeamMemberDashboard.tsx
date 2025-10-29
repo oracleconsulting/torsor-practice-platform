@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import DirectReportsPanel from '@/components/accountancy/team/DirectReportsPanel';
 import {
   User,
   Award,
@@ -52,6 +53,7 @@ export default function TeamMemberDashboard() {
   const [viewingAsMemberName, setViewingAsMemberName] = useState<string>('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [memberName, setMemberName] = useState<string>('Team Member');
+  const [currentMemberId, setCurrentMemberId] = useState<string | null>(null);
 
   // Debug logging
   useEffect(() => {
@@ -251,8 +253,9 @@ export default function TeamMemberDashboard() {
 
       console.log('[Dashboard] Found practice member:', member.name, member.id);
 
-      // Set member name for UI
+      // Set member info for UI and DirectReportsPanel
       setMemberName(member.name || 'Team Member');
+      setCurrentMemberId(member.id);
 
       // **NEW: Get skill assessments from invitations table (single source of truth)**
       const { data: invitation, error: invitationError } = await supabase
@@ -465,6 +468,16 @@ export default function TeamMemberDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Direct Reports Panel - Only show if user has direct reports */}
+        {currentMemberId && practiceId && !viewingAsMemberId && (
+          <div className="mb-8">
+            <DirectReportsPanel 
+              managerId={currentMemberId}
+              practiceId={practiceId}
+            />
+          </div>
+        )}
 
         {/* Main Action Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">

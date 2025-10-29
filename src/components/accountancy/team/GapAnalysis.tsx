@@ -589,6 +589,19 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
     }
   };
 
+  // Prepare bar chart data: Top 20 skills with biggest gaps
+  const barChartData = useMemo(() => {
+    return topPrioritySkills
+      .slice(0, 20) // Top 20 only
+      .sort((a, b) => b.gap - a.gap) // Sort by gap size (biggest first)
+      .map(skill => ({
+        skill: skill.skillName,
+        current: skill.avgCurrentLevel,
+        required: skill.requiredLevel,
+        gap: skill.gap
+      }));
+  }, [topPrioritySkills]);
+
   return (
     <div className="space-y-6">
       {/* NEW: Refined Scatter Plots */}
@@ -597,8 +610,87 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
         skillCategories={skillCategories}
       />
 
-      {/* Priority Matrix */}
+      {/* NEW: Bar Chart - Skills Gap Priority Matrix */}
       {showHeatmap && (
+        <Card className="bg-white border-gray-300 shadow-lg">
+          <CardHeader className="bg-gradient-to-r from-red-50 to-orange-50">
+            <CardTitle className="flex items-center gap-2" style={{ color: '#000000' }}>
+              <BarChart3 className="w-5 h-5 text-red-600" />
+              <span style={{ color: '#000000' }}>Skills Gap Priority Matrix - Top 20</span>
+            </CardTitle>
+            <CardDescription style={{ color: '#000000', fontWeight: '600' }}>
+              Red bars show current team average, orange bars show target team average. Sorted by largest gap first.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="space-y-4">
+              {barChartData.map((data, index) => (
+                <div key={data.skill} className="space-y-2">
+                  {/* Skill Name */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-900 truncate" style={{ color: '#000000' }}>
+                      {index + 1}. {data.skill}
+                    </span>
+                    <span className="text-xs font-bold text-red-600 ml-2">
+                      Gap: {data.gap.toFixed(1)}
+                    </span>
+                  </div>
+                  
+                  {/* Bars Container */}
+                  <div className="relative h-8 bg-gray-100 rounded-lg overflow-hidden">
+                    {/* Current Level Bar (Red) */}
+                    <div 
+                      className="absolute top-0 left-0 h-8 bg-red-500 flex items-center justify-end pr-2 transition-all"
+                      style={{ width: `${(data.current / 5) * 100}%` }}
+                    >
+                      <span className="text-xs font-bold text-white">
+                        {data.current.toFixed(1)}
+                      </span>
+                    </div>
+                    
+                    {/* Target Level Bar (Orange) - positioned behind */}
+                    <div 
+                      className="absolute top-0 left-0 h-8 bg-orange-400 opacity-60 transition-all"
+                      style={{ width: `${(data.required / 5) * 100}%` }}
+                    />
+                    
+                    {/* Target Level Value (on top) */}
+                    <div 
+                      className="absolute top-0 h-8 flex items-center transition-all"
+                      style={{ left: `${(data.required / 5) * 100}%` }}
+                    >
+                      <span className="text-xs font-bold text-orange-700 ml-2">
+                        Target: {data.required}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Legend */}
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <h4 className="text-sm font-semibold text-gray-900 mb-3" style={{ color: '#000000' }}>How to Read This Chart:</h4>
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-4 bg-red-500 rounded"></div>
+                  <span className="text-xs font-medium text-gray-900" style={{ color: '#000000' }}>Current Team Average</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-4 bg-orange-400 rounded"></div>
+                  <span className="text-xs font-medium text-gray-900" style={{ color: '#000000' }}>Target Team Average</span>
+                </div>
+                <div className="text-xs text-gray-700 font-medium" style={{ color: '#000000' }}>
+                  <strong>Larger gaps = Higher priority</strong> for training investment
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* OLD Priority Matrix - KEEP for reference but commented out */}
+      {false && showHeatmap && (
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-white font-bold" style={{ color: '#ffffff' }}>
