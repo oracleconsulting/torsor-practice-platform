@@ -53,10 +53,10 @@ export default function MySkillsHeatmap() {
       console.log('[MySkillsHeatmap] Starting to load skills for user:', user?.id);
       setLoading(true);
 
-      // Get practice member
+      // Get practice member info (for name, email, practice_id)
       const { data: member, error: memberError } = await supabase
         .from('practice_members')
-        .select('id')
+        .select('id, email, name, role, practice_id')
         .eq('user_id', user?.id)
         .single();
 
@@ -72,128 +72,115 @@ export default function MySkillsHeatmap() {
         return;
       }
 
-      console.log('[MySkillsHeatmap] Loading skills for member:', (member as any).id);
+      console.log('[MySkillsHeatmap] Loading skills for:', member.name, member.email);
 
-      // Get all skill assessments for this member
-      const { data: assessmentsData, error: assessError } = await supabase
-        .from('skill_assessments')
-        .select('skill_id, current_level, interest_level')
-        .eq('team_member_id', (member as any).id);
+      // **NEW: Get skills from invitations table (single source of truth)**
+      const { data: invitation, error: invitationError } = await supabase
+        .from('invitations')
+        .select('assessment_data, email, status')
+        .eq('email', member.email)
+        .eq('practice_id', member.practice_id)
+        .eq('status', 'accepted')
+        .single();
 
-      console.log('[MySkillsHeatmap] Assessments data:', assessmentsData?.length || 0, 'records', 'Error:', assessError);
+      console.log('[MySkillsHeatmap] Invitation data:', invitation?.assessment_data?.length || 0, 'skills', 'Error:', invitationError);
 
-      if (assessError) {
-        console.error('[MySkillsHeatmap] Error fetching assessments:', assessError);
+      if (invitationError) {
+        console.error('[MySkillsHeatmap] Error fetching invitation:', invitationError);
         setLoading(false);
         return;
       }
 
-      if (!assessmentsData || assessmentsData.length === 0) {
-        console.log('[MySkillsHeatmap] No assessments found - setting empty state');
+      if (!invitation || !invitation.assessment_data || invitation.assessment_data.length === 0) {
+        console.log('[MySkillsHeatmap] No assessment data found - setting empty state');
         setAssessments([]);
         setCategories(['All']);
         setLoading(false);
         return;
       }
 
-      // Get skill IDs
-      const skillIds = (assessmentsData as any).map((a: any) => a.skill_id);
+      // Get ALL team invitations for team comparison (top performers, average)
+      const { data: allTeamInvitations, error: teamError } = await supabase
+        .from('invitations')
+        .select('email, assessment_data, status')
+        .eq('practice_id', member.practice_id)
+        .eq('status', 'accepted');
 
-      // Get skill details with descriptions
-      const { data: skillsData, error: skillsError } = await supabase
-        .from('skills')
-        .select('id, name, category, description')
-        .in('id', skillIds);
+      console.log('[MySkillsHeatmap] Team invitations:', allTeamInvitations?.length || 0, 'members');
 
-      console.log('[MySkillsHeatmap] Skills data:', skillsData?.length || 0, 'records', 'Error:', skillsError);
+      // Get all practice members for name lookups
+      const { data: allMembers } = await supabase
+        .from('practice_members')
+        .select('email, name')
+        .eq('practice_id', member.practice_id);
 
-      if (skillsError) {
-        console.error('[MySkillsHeatmap] Error fetching skills:', skillsError);
-        setLoading(false);
-        return;
-      }
+      const emailToName = Object.fromEntries(
+        (allMembers || []).map(m => [m.email, m.name])
+      );
 
-      if (!skillsData) {
-        console.log('[MySkillsHeatmap] No skills data returned');
-        setLoading(false);
-        return;
-      }
+      // Transform invitation data to match our interface
+      const formattedAssessments = (invitation.assessment_data as any[])
+        .map(skill => {
+          // Calculate team stats for this skill
+          const teamSkillData = (allTeamInvitations || [])
+            .flatMap(inv => {
+              const invEmail = inv.email;
+              return (inv.assessment_data as any[] || []).map((s: any) => ({
+                ...s,
+                memberEmail: invEmail
+              }));
+            })
+            .filter((s: any) => s.skillName === skill.skillName || s.skillId === skill.skillId);
 
-      // Get ALL team assessments for comparison
-      const { data: allTeamAssessments, error: teamError } = await supabase
-        .from('skill_assessments')
-        .select(`
-          skill_id,
-          current_level,
-          practice_members!inner(name)
-        `)
-        .in('skill_id', skillIds);
+          const teamLevels = teamSkillData.map((s: any) => s.currentLevel || 0);
+          const teamAverage = teamLevels.length > 0 
+            ? teamLevels.reduce((sum, level) => sum + level, 0) / teamLevels.length 
+            : 0;
+          
+          // Find top 2 performers
+          const performersWithNames = teamSkillData
+            .map((s: any) => ({
+              level: s.currentLevel || 0,
+              name: emailToName[s.memberEmail] || s.memberEmail || 'Unknown'
+            }))
+            .sort((a, b) => b.level - a.level)
+            .slice(0, 2);
+          
+          return {
+            skill_id: skill.skillId || skill.id,
+            skill_name: skill.skillName || skill.name,
+            category: skill.category || 'Uncategorized',
+            current_level: skill.currentLevel || 0,
+            interest_level: skill.interestLevel || 3,
+            description: skill.description || 'No description available',
+            team_average: teamAverage,
+            target_average: 3, // Default target
+            top_performers: performersWithNames
+          };
+        })
+        .filter(Boolean) as SkillAssessment[];
 
-      if (teamError) {
-        console.error('[MySkillsHeatmap] Error fetching team assessments:', teamError);
-      }
+      console.log('[MySkillsHeatmap] Formatted assessments:', formattedAssessments.length);
+      
+      // Debug: Check skill level distribution
+      const levelCounts = formattedAssessments.reduce((acc, a) => {
+        acc[a.current_level] = (acc[a.current_level] || 0) + 1;
+        return acc;
+      }, {} as Record<number, number>);
+      console.log('[MySkillsHeatmap] Skill level distribution:', levelCounts);
+      console.log('[MySkillsHeatmap] Sample skills:', formattedAssessments.slice(0, 5).map(a => ({
+        name: a.skill_name,
+        level: a.current_level,
+        interest: a.interest_level
+      })));
+      
+      setAssessments(formattedAssessments);
 
-      console.log('[MySkillsHeatmap] Team assessments:', allTeamAssessments?.length || 0, 'records');
-
-      // Create lookup maps
-      const skillsMap = new Map(skillsData.map((s: any) => [s.id, s]));
-
-      if (assessmentsData) {
-        const formattedAssessments: SkillAssessment[] = assessmentsData
-          .map((a: any) => {
-            const skill = skillsMap.get(a.skill_id);
-            if (!skill) return null;
-
-            // Calculate team stats for this skill
-            const teamAssessmentsForSkill = (allTeamAssessments as any)?.filter((ta: any) => ta.skill_id === a.skill_id) || [];
-            const teamLevels = teamAssessmentsForSkill.map((ta: any) => ta.current_level || 0);
-            const teamAverage = teamLevels.length > 0 
-              ? teamLevels.reduce((sum: number, level: number) => sum + level, 0) / teamLevels.length 
-              : 0;
-            
-            // Find top 2 performers
-            const sortedByLevel = [...teamAssessmentsForSkill].sort((a: any, b: any) => (b.current_level || 0) - (a.current_level || 0));
-            const topPerformers = sortedByLevel.slice(0, 2).map((performer: any) => ({
-              name: performer?.practice_members?.name || 'Unknown',
-              level: performer?.current_level || 0
-            }));
-            
-            return {
-              skill_id: a.skill_id,
-              skill_name: (skill as any).name,
-              category: (skill as any).category || 'Uncategorized',
-              current_level: a.current_level,
-              interest_level: a.interest_level,
-              description: (skill as any).description || 'No description available',
-              team_average: teamAverage,
-              target_average: 3, // Default target for all skills
-              top_performers: topPerformers
-            };
-          })
-          .filter(Boolean) as SkillAssessment[];
-
-        console.log('[MySkillsHeatmap] Formatted assessments:', formattedAssessments.length);
-        
-        // Debug: Check skill level distribution
-        const levelCounts = formattedAssessments.reduce((acc, a) => {
-          acc[a.current_level] = (acc[a.current_level] || 0) + 1;
-          return acc;
-        }, {} as Record<number, number>);
-        console.log('[MySkillsHeatmap] Skill level distribution:', levelCounts);
-        console.log('[MySkillsHeatmap] Sample skills:', formattedAssessments.slice(0, 5).map(a => ({
-          name: a.skill_name,
-          level: a.current_level,
-          interest: a.interest_level
-        })));
-        
-        setAssessments(formattedAssessments);
-
-        // Extract unique categories
-        const uniqueCategories = Array.from(new Set(formattedAssessments.map(a => a.category)));
-        setCategories(['All', ...uniqueCategories.sort()]);
-        
-        console.log('[MySkillsHeatmap] Categories set:', uniqueCategories.length);
-      }
+      // Extract unique categories
+      const uniqueCategories = Array.from(new Set(formattedAssessments.map(a => a.category)));
+      setCategories(['All', ...uniqueCategories.sort()]);
+      
+      console.log('[MySkillsHeatmap] Categories set:', uniqueCategories.length);
       
       console.log('[MySkillsHeatmap] Data loading complete');
     } catch (error) {
