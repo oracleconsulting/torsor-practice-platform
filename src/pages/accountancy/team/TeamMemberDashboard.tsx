@@ -39,11 +39,16 @@ export default function TeamMemberDashboard() {
   const { user } = useAuth();
   const { practiceId } = useAccountancyContext();
   
+  console.log('🔴🔴🔴 [TeamMemberDashboard] COMPONENT RENDERING - This should be Luke\'s portal!');
+  console.log('🔴 Current URL:', window.location.href);
+  console.log('🔴 User:', user?.email);
+  
   // EMERGENCY FIX: If user lands here from wrong URL, redirect to correct one
   useEffect(() => {
     const currentPath = window.location.pathname;
+    console.log('🔴 [TeamMemberDashboard] Path check:', currentPath);
     if (currentPath === '/team' || currentPath === '/accountancy/team') {
-      console.log('[TeamMemberDashboard] EMERGENCY REDIRECT from wrong URL:', currentPath);
+      console.log('🔴🔴🔴 [TeamMemberDashboard] EMERGENCY REDIRECT from wrong URL:', currentPath);
       window.location.href = '/accountancy/team-member';
     }
   }, []);
