@@ -138,8 +138,8 @@ export default function TeamMemberDashboard() {
       setIsAdmin(hasAccess);
 
       if (!hasAccess) {
-        console.log('[Dashboard] ❌ Access denied, redirecting to /team');
-        navigate('/team');
+        console.log('[Dashboard] ❌ Access denied, redirecting to own dashboard');
+        navigate('/accountancy/team-member');
         return;
       }
 
@@ -147,7 +147,7 @@ export default function TeamMemberDashboard() {
       await loadDashboardDataForMember(memberId);
     } catch (error) {
       console.error('[Dashboard] ❌ Error checking admin access:', error);
-      navigate('/team');
+      navigate('/accountancy/team-member');
     }
   };
 
