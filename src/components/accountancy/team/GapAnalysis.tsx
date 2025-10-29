@@ -590,63 +590,6 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
-      <div className="flex gap-4 flex-wrap">
-        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {skillCategories.map(cat => (
-              <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={minGapThreshold.toString()} onValueChange={(value) => setMinGapThreshold(parseInt(value))}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Min gap threshold" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="0">All gaps</SelectItem>
-            <SelectItem value="1">Gap ≥ 1</SelectItem>
-            <SelectItem value="2">Gap ≥ 2</SelectItem>
-            <SelectItem value="3">Gap ≥ 3</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={topNFilter.toString()} onValueChange={(value) => setTopNFilter(parseInt(value))}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Chart display" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="10">Top 10 Skills</SelectItem>
-            <SelectItem value="20">Top 20 Skills</SelectItem>
-            <SelectItem value="30">Top 30 Skills</SelectItem>
-            <SelectItem value="50">Top 50 Skills</SelectItem>
-            <SelectItem value="100">All Skills</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={sortBy} onValueChange={setSortBy}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Sort by" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="priority">Priority Score</SelectItem>
-            <SelectItem value="gap">Skill Gap</SelectItem>
-            <SelectItem value="members">Members Affected</SelectItem>
-            <SelectItem value="interest">Interest Level</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Button variant="outline" size="sm">
-          <Download className="w-4 h-4 mr-2" />
-          Export Analysis
-        </Button>
-      </div>
-
       {/* NEW: Refined Scatter Plots */}
       <SkillsGapScatterPlots 
         teamMembers={teamMembers}

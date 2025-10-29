@@ -69,6 +69,12 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
       });
     });
     
+    console.log('[SkillsGapScatterPlots] Individual points:', {
+      totalMembers: teamMembers.length,
+      totalPoints: allAssessments.length,
+      samplePoint: allAssessments[0]
+    });
+    
     return {
       datasets: [{
         label: `All Individual Assessments (${allAssessments.length} points)`,
@@ -158,6 +164,13 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
         count: assessments.length
       };
     }).filter(s => s !== null && s.y > 0); // Only show skills with gaps
+    
+    console.log('[SkillsGapScatterPlots] Skill gaps:', {
+      totalSkills: allSkills.length,
+      skillsWithGaps: gapPoints.length,
+      sampleGap: gapPoints[0],
+      sampleSkill: allSkills[0]
+    });
     
     return {
       datasets: [{
