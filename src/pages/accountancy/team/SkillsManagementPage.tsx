@@ -86,26 +86,63 @@ export default function SkillsManagementPage() {
     try {
       setLoading(true);
 
-      // Get all skills with their assessments
+      // Get all skills
       const { data: skills, error: skillsError } = await supabase
         .from('skills')
         .select('id, name, description, category');
 
       if (skillsError) throw skillsError;
 
-      // Get all assessments for this practice
-      const { data: assessments, error: assessError } = await supabase
-        .from('skill_assessments')
-        .select(`
-          skill_id,
-          current_level,
-          interest_level,
-          team_member_id,
-          practice_members!inner(name, practice_id)
-        `)
-        .eq('practice_members.practice_id', practice?.id);
+      // Get all team members for this practice
+      const { data: members, error: membersError } = await supabase
+        .from('practice_members')
+        .select('id, email, name')
+        .eq('practice_id', practice?.id)
+        .eq('is_active', true);
 
-      if (assessError) throw assessError;
+      if (membersError) throw membersError;
+
+      // Get all invitations with assessment data for this practice
+      const { data: invitations, error: invitationsError } = await supabase
+        .from('invitations')
+        .select('email, assessment_data')
+        .eq('practice_id', practice?.id)
+        .eq('status', 'accepted');
+
+      if (invitationsError) throw invitationsError;
+
+      console.log('[SkillsManagement] Loaded:', {
+        skills: skills?.length,
+        members: members?.length,
+        invitations: invitations?.length
+      });
+
+      // Create a map of skill_id -> all assessments
+      const skillAssessmentsMap = new Map<string, Array<{ name: string; level: number; interest: number }>>();
+
+      invitations?.forEach((invitation) => {
+        const member = members?.find(m => m.email.toLowerCase() === invitation.email.toLowerCase());
+        if (!member || !invitation.assessment_data) return;
+
+        const assessments = invitation.assessment_data as any[];
+        assessments.forEach((assessment) => {
+          const skillId = assessment.skill_id;
+          const currentLevel = assessment.current_level || 0;
+          const interestLevel = assessment.interest_level || 0;
+
+          if (!skillAssessmentsMap.has(skillId)) {
+            skillAssessmentsMap.set(skillId, []);
+          }
+
+          skillAssessmentsMap.get(skillId)!.push({
+            name: member.name,
+            level: currentLevel,
+            interest: interestLevel
+          });
+        });
+      });
+
+      console.log('[SkillsManagement] Processed assessments for', skillAssessmentsMap.size, 'skills');
 
       // Get firm required levels for this practice
       const { data: requiredLevels, error: requiredError } = await supabase
@@ -122,9 +159,7 @@ export default function SkillsManagementPage() {
 
       // Process each skill
       const analyticsData: SkillAnalytics[] = skills?.map(skill => {
-        const skillAssessments = (assessments || []).filter(
-          (a: any) => a.skill_id === skill.id
-        );
+        const skillAssessments = skillAssessmentsMap.get(skill.id) || [];
 
         if (skillAssessments.length === 0) {
           return {
@@ -136,22 +171,19 @@ export default function SkillsManagementPage() {
             average_interest: 0,
             total_assessments: 0,
             performers: [],
-            firm_required_level: 3,
-            gap: 3,
+            firm_required_level: requiredLevelsMap.get(skill.id) || 3,
+            gap: requiredLevelsMap.get(skill.id) || 3,
             advisory_services: getServicesForSkill(skill.name)
           };
         }
 
         // Calculate averages
-        const avgLevel = skillAssessments.reduce((sum, a) => sum + (a.current_level || 0), 0) / skillAssessments.length;
-        const avgInterest = skillAssessments.reduce((sum, a) => sum + (a.interest_level || 0), 0) / skillAssessments.length;
+        const avgLevel = skillAssessments.reduce((sum, a) => sum + a.level, 0) / skillAssessments.length;
+        const avgInterest = skillAssessments.reduce((sum, a) => sum + a.interest, 0) / skillAssessments.length;
 
         // Get all performers sorted by level
         const sortedPerformers = skillAssessments
-          .map((a: any) => ({
-            name: a.practice_members?.name || 'Unknown',
-            level: a.current_level || 0
-          }))
+          .map(a => ({ name: a.name, level: a.level }))
           .sort((a, b) => b.level - a.level);
 
         const firmRequired = requiredLevelsMap.get(skill.id) || 3; // Default to 3 if not set
@@ -171,6 +203,8 @@ export default function SkillsManagementPage() {
           advisory_services: getServicesForSkill(skill.name)
         };
       }) || [];
+
+      console.log('[SkillsManagement] Sample skill:', analyticsData[0]);
 
       setSkillsAnalytics(analyticsData);
 
