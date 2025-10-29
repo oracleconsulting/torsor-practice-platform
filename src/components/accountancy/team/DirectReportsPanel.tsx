@@ -295,7 +295,7 @@ export default function DirectReportsPanel({ managerId, practiceId }: DirectRepo
             {/* Action Buttons */}
             <div className="flex gap-3">
               <Button
-                onClick={() => navigate(`/team-member?viewAs=${selectedReport.id}`)}
+                onClick={() => navigate(`/accountancy/team-member?viewAs=${selectedReport.id}`)}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <TrendingUp className="w-4 h-4 mr-2" />
@@ -303,7 +303,7 @@ export default function DirectReportsPanel({ managerId, practiceId }: DirectRepo
               </Button>
               
               <Button
-                onClick={() => navigate(`/team-member/cpd-log?viewAs=${selectedReport.id}`)}
+                onClick={() => navigate(`/accountancy/team-member/cpd-log?viewAs=${selectedReport.id}`)}
                 variant="outline"
                 className="flex-1 border-purple-300 text-purple-700 hover:bg-purple-50"
               >
@@ -312,7 +312,7 @@ export default function DirectReportsPanel({ managerId, practiceId }: DirectRepo
               </Button>
               
               <Button
-                onClick={() => navigate(`/team-member/mentoring?viewAs=${selectedReport.id}`)}
+                onClick={() => navigate(`/accountancy/team-member/mentoring?viewAs=${selectedReport.id}`)}
                 variant="outline"
                 className="flex-1 border-green-300 text-green-700 hover:bg-green-50"
               >

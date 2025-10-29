@@ -150,31 +150,32 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
         }
 
         const avgCurrentLevel = skillAssessments.reduce((sum, s) => sum + s.currentLevel, 0) / skillAssessments.length;
-        const gap = Math.max(0, skill.requiredLevel - avgCurrentLevel);
+        const requiredLevel = skill.requiredLevel || 3; // Default to 3 if not set
+        const gap = Math.max(0, requiredLevel - avgCurrentLevel);
         const avgInterest = skillAssessments.reduce((sum, s) => sum + (s.interestLevel || 3), 0) / skillAssessments.length;
         
         // Calculate priority based on algorithm
         let priority: number;
         if (priorityAlgorithm === 'weighted') {
-          priority = gap * (skill.requiredLevel / 5) * (avgInterest / 5) * skillAssessments.length;
+          priority = gap * (requiredLevel / 5) * (avgInterest / 5) * skillAssessments.length;
         } else {
           priority = gap * skillAssessments.length;
         }
 
         // Determine business impact
         let businessImpact: 'high' | 'medium' | 'low' = 'low';
-        if (gap >= 2 || skill.requiredLevel >= 4) businessImpact = 'high';
-        else if (gap >= 1 || skill.requiredLevel >= 3) businessImpact = 'medium';
+        if (gap >= 2 || requiredLevel >= 4) businessImpact = 'high';
+        else if (gap >= 1 || requiredLevel >= 3) businessImpact = 'medium';
 
         const affectedMembers = teamMembers.filter(member =>
-          member.skills.some(s => s.skillId === skill.id && s.currentLevel < skill.requiredLevel)
+          member.skills.some(s => s.skillId === skill.id && s.currentLevel < requiredLevel)
         );
 
         return {
           skillId: skill.id,
           skillName: skill.name,
           category: skill.category,
-          requiredLevel: skill.requiredLevel,
+          requiredLevel,
           avgCurrentLevel,
           gap,
           memberCount: affectedMembers.length,
@@ -228,29 +229,30 @@ const GapAnalysis: React.FC<GapAnalysisProps> = ({
         }
 
         const avgCurrentLevel = skillAssessments.reduce((sum, s) => sum + s.currentLevel, 0) / skillAssessments.length;
-        const gap = Math.max(0, skill.requiredLevel - avgCurrentLevel);
+        const requiredLevel = skill.requiredLevel || 3; // Default to 3 if not set
+        const gap = Math.max(0, requiredLevel - avgCurrentLevel);
         const avgInterest = skillAssessments.reduce((sum, s) => sum + (s.interestLevel || 3), 0) / skillAssessments.length;
         
         let priority: number;
         if (priorityAlgorithm === 'weighted') {
-          priority = gap * (skill.requiredLevel / 5) * (avgInterest / 5) * skillAssessments.length;
+          priority = gap * (requiredLevel / 5) * (avgInterest / 5) * skillAssessments.length;
         } else {
           priority = gap * skillAssessments.length;
         }
 
         let businessImpact: 'high' | 'medium' | 'low' = 'low';
-        if (gap >= 2 || skill.requiredLevel >= 4) businessImpact = 'high';
-        else if (gap >= 1 || skill.requiredLevel >= 3) businessImpact = 'medium';
+        if (gap >= 2 || requiredLevel >= 4) businessImpact = 'high';
+        else if (gap >= 1 || requiredLevel >= 3) businessImpact = 'medium';
 
         const affectedMembers = teamMembers.filter(member =>
-          member.skills.some(s => s.skillId === skill.id && s.currentLevel < skill.requiredLevel)
+          member.skills.some(s => s.skillId === skill.id && s.currentLevel < requiredLevel)
         );
 
         return {
           skillId: skill.id,
           skillName: skill.name,
           category: skill.category,
-          requiredLevel: skill.requiredLevel,
+          requiredLevel,
           avgCurrentLevel,
           gap,
           memberCount: affectedMembers.length,

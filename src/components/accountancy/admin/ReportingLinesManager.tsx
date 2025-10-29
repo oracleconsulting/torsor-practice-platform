@@ -48,14 +48,7 @@ export default function ReportingLinesManager({ practiceId }: ReportingLinesMana
       // Get all team members with their current reporting lines
       const { data, error } = await supabase
         .from('practice_members')
-        .select(`
-          id,
-          name,
-          email,
-          role,
-          reports_to_id,
-          manager:practice_members!practice_members_reports_to_id_fkey(name)
-        `)
+        .select('id, name, email, role, reports_to_id')
         .eq('practice_id', practiceId)
         .eq('is_active', true)
         .order('role')
@@ -67,10 +60,15 @@ export default function ReportingLinesManager({ practiceId }: ReportingLinesMana
         return;
       }
 
+      // Build a map of member IDs to names for manager lookups
+      const memberMap = Object.fromEntries(
+        (data || []).map(m => [m.id, m.name])
+      );
+
       // Transform data to include manager name
       const transformedData = (data || []).map(member => ({
         ...member,
-        reports_to_name: (member as any).manager?.name || null
+        reports_to_name: member.reports_to_id ? memberMap[member.reports_to_id] : null
       }));
 
       setMembers(transformedData);
