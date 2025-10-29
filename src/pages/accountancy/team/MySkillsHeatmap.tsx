@@ -99,6 +99,22 @@ export default function MySkillsHeatmap() {
         return;
       }
 
+      // **Load all skills to get names and categories**
+      const { data: allSkills, error: skillsError } = await supabase
+        .from('skills')
+        .select('id, name, category, description')
+        .eq('practice_id', member.practice_id);
+
+      if (skillsError) {
+        console.error('[MySkillsHeatmap] Error fetching skills:', skillsError);
+      }
+
+      const skillsMap = Object.fromEntries(
+        (allSkills || []).map(s => [s.id, { name: s.name, category: s.category, description: s.description }])
+      );
+
+      console.log('[MySkillsHeatmap] Loaded skills map:', Object.keys(skillsMap).length, 'skills');
+
       // Get ALL team invitations for team comparison (top performers, average)
       const { data: allTeamInvitations, error: teamError } = await supabase
         .from('invitations')
@@ -121,6 +137,14 @@ export default function MySkillsHeatmap() {
       // Transform invitation data to match our interface
       const formattedAssessments = (invitation.assessment_data as any[])
         .map(skill => {
+          // Look up skill info from skills table
+          const skillInfo = skillsMap[skill.skill_id];
+          
+          if (!skillInfo) {
+            console.warn('[MySkillsHeatmap] Skill not found in skills table:', skill.skill_id);
+            return null; // Skip skills that don't exist in the skills table
+          }
+
           // Calculate team stats for this skill
           const teamSkillData = (allTeamInvitations || [])
             .flatMap(inv => {
@@ -130,9 +154,9 @@ export default function MySkillsHeatmap() {
                 memberEmail: invEmail
               }));
             })
-            .filter((s: any) => s.skillName === skill.skillName || s.skillId === skill.skillId);
+            .filter((s: any) => s.skill_id === skill.skill_id); // Match on skill_id (snake_case)
 
-          const teamLevels = teamSkillData.map((s: any) => s.currentLevel || 0);
+          const teamLevels = teamSkillData.map((s: any) => s.current_level || 0); // snake_case
           const teamAverage = teamLevels.length > 0 
             ? teamLevels.reduce((sum, level) => sum + level, 0) / teamLevels.length 
             : 0;
@@ -140,19 +164,19 @@ export default function MySkillsHeatmap() {
           // Find top 2 performers
           const performersWithNames = teamSkillData
             .map((s: any) => ({
-              level: s.currentLevel || 0,
+              level: s.current_level || 0, // snake_case
               name: emailToName[s.memberEmail] || s.memberEmail || 'Unknown'
             }))
             .sort((a, b) => b.level - a.level)
             .slice(0, 2);
           
           return {
-            skill_id: skill.skillId || skill.id,
-            skill_name: skill.skillName || skill.name,
-            category: skill.category || 'Uncategorized',
-            current_level: skill.currentLevel || 0,
-            interest_level: skill.interestLevel || 3,
-            description: skill.description || 'No description available',
+            skill_id: skill.skill_id, // Use snake_case from JSONB
+            skill_name: skillInfo.name, // Get name from skills table
+            category: skillInfo.category, // Get category from skills table
+            current_level: skill.current_level || 0, // snake_case
+            interest_level: skill.interest_level || 3, // snake_case
+            description: skillInfo.description || 'No description available',
             team_average: teamAverage,
             target_average: 3, // Default target
             top_performers: performersWithNames
