@@ -83,7 +83,7 @@ const SkillsDashboardV2Page: React.FC = () => {
       (invitations || []).forEach(invitation => {
         if (invitation.status !== 'accepted' || !invitation.assessment_data) return;
         
-        // Find member by email
+        // Find member by email (case-insensitive)
         const member = (members || []).find(m => m.email.toLowerCase() === invitation.email.toLowerCase());
         if (!member) {
           console.warn('[SkillsDashboardV2] No member found for invitation:', invitation.email);

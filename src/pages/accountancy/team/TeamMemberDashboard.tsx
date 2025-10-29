@@ -166,7 +166,7 @@ export default function TeamMemberDashboard() {
       const { data: invitation } = await supabase
         .from('invitations')
         .select('assessment_data, email')
-        .eq('email', memberData.email)
+        .ilike('email', memberData.email) // Case-insensitive match
         .eq('practice_id', practiceId)
         .eq('status', 'accepted')
         .single();
@@ -258,7 +258,7 @@ export default function TeamMemberDashboard() {
       const { data: invitation, error: invitationError } = await supabase
         .from('invitations')
         .select('assessment_data, email')
-        .eq('email', member.email)
+        .ilike('email', member.email) // Case-insensitive match
         .eq('practice_id', practiceId)
         .eq('status', 'accepted')
         .single();

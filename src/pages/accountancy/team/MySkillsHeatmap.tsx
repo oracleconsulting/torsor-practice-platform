@@ -78,7 +78,7 @@ export default function MySkillsHeatmap() {
       const { data: invitation, error: invitationError } = await supabase
         .from('invitations')
         .select('assessment_data, email, status')
-        .eq('email', member.email)
+        .ilike('email', member.email) // Case-insensitive match
         .eq('practice_id', member.practice_id)
         .eq('status', 'accepted')
         .single();
@@ -102,8 +102,7 @@ export default function MySkillsHeatmap() {
       // **Load all skills to get names and categories**
       const { data: allSkills, error: skillsError } = await supabase
         .from('skills')
-        .select('id, name, category, description')
-        .eq('practice_id', member.practice_id);
+        .select('id, name, category, description');
 
       if (skillsError) {
         console.error('[MySkillsHeatmap] Error fetching skills:', skillsError);
