@@ -134,25 +134,11 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
         return true;
       });
 
-    console.log('[SkillsMatrix] Filtered skills:', filteredSkills.length);
-
     const cells: MatrixCell[] = [];
-    
-    // Sample first member to check data structure
-    if (filteredMembers.length > 0) {
-      console.log('[SkillsMatrix] First member skills sample:', filteredMembers[0].name, filteredMembers[0].skills?.slice(0, 3));
-      console.log('[SkillsMatrix] First skill sample:', filteredSkills[0]);
-    }
     
     filteredMembers.forEach(member => {
       filteredSkills.forEach(skill => {
         const assessment = member.skills.find(s => s.skillId === skill.id);
-        
-        // Log if assessment not found for first few members
-        if (!assessment && filteredMembers.indexOf(member) < 3) {
-          console.log(`[SkillsMatrix] No assessment found for ${member.name} - skill ${skill.name} (${skill.id})`);
-        }
-        
         const gap = skill.requiredLevel - (assessment?.currentLevel || 0);
         const interestLevel = assessment?.interestLevel || 0;
         
@@ -165,10 +151,6 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
         });
       });
     });
-
-    console.log('[SkillsMatrix] Total cells created:', cells.length);
-    console.log('[SkillsMatrix] Cells with assessments:', cells.filter(c => c.assessment).length);
-    console.log('[SkillsMatrix] Cells without assessments:', cells.filter(c => !c.assessment).length);
 
     return cells;
   }, [teamMembers, skillCategories, filterOptions, selectedCategory, selectedDepartment]);
