@@ -140,7 +140,7 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
     };
   }, [teamMembers, skillCategories]);
   
-  // Plot 3: Skill Gap (required vs actual)
+  // Plot 3: Skill Gap (required vs actual) - SHOW ALL SKILLS
   const skillGapData = useMemo(() => {
     const allSkills = skillCategories.flatMap(cat => cat.skills);
     const gapPoints = allSkills.map(skill => {
@@ -151,40 +151,47 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
       if (assessments.length === 0) return null;
       
       const avgActual = assessments.reduce((sum, s) => sum + s.currentLevel, 0) / assessments.length;
-      const gap = Math.max(0, skill.requiredLevel - avgActual);
+      // Use requiredLevel if set, otherwise default to 3
+      const requiredLevel = skill.requiredLevel || 3;
+      // Gap can be NEGATIVE if we exceed the target
+      const gap = requiredLevel - avgActual;
       const avgInterest = assessments.reduce((sum, s) => sum + (s.interestLevel || 3), 0) / assessments.length;
       
       return {
         x: avgInterest,
-        y: gap, // Gap on Y-axis
+        y: gap, // Gap on Y-axis (negative = exceeding target, positive = below target)
         skill: skill.name,
         category: skill.category,
-        required: skill.requiredLevel,
+        required: requiredLevel,
         actual: avgActual,
         count: assessments.length
       };
-    }).filter(s => s !== null && s.y > 0); // Only show skills with gaps
+    }).filter(s => s !== null); // Show ALL skills, not just those with positive gaps
     
     console.log('[SkillsGapScatterPlots] Skill gaps:', {
       totalSkills: allSkills.length,
-      skillsWithGaps: gapPoints.length,
+      pointsShown: gapPoints.length,
+      skillsAboveTarget: gapPoints.filter(s => s.y < 0).length,
+      skillsBelowTarget: gapPoints.filter(s => s.y > 0).length,
+      skillsAtTarget: gapPoints.filter(s => Math.abs(s.y) < 0.1).length,
       sampleGap: gapPoints[0],
       sampleSkill: allSkills[0]
     });
     
     return {
       datasets: [{
-        label: `Skill Gaps (${gapPoints.length} skills need development)`,
+        label: `Skill Gaps (${gapPoints.length} skills)`,
         data: gapPoints,
         backgroundColor: gapPoints.map(d => {
-          // Color by gap severity and interest
           const highInterest = d.x >= 3;
-          const largeGap = d.y >= 2;
+          const belowTarget = d.y > 0.5;  // Significantly below target
+          const aboveTarget = d.y < -0.5; // Significantly above target
           
-          if (largeGap && highInterest) return 'rgba(245, 158, 11, 0.8)'; // Orange - quick win potential
-          if (largeGap && !highInterest) return 'rgba(239, 68, 68, 0.8)'; // Red - critical
-          if (!largeGap && highInterest) return 'rgba(34, 197, 94, 0.8)'; // Green - easy fix
-          return 'rgba(156, 163, 175, 0.8)'; // Gray - low priority
+          // Color by performance vs interest:
+          if (aboveTarget) return 'rgba(34, 197, 94, 0.8)'; // Green - exceeding target, no priority
+          if (belowTarget && highInterest) return 'rgba(245, 158, 11, 0.8)'; // Orange - below target + high interest = PRIORITY
+          if (belowTarget && !highInterest) return 'rgba(239, 68, 68, 0.8)'; // Red - below target + low interest = CRITICAL
+          return 'rgba(156, 163, 175, 0.8)'; // Gray - at target or small gap
         }),
         pointRadius: 10,
         pointHoverRadius: 14
@@ -381,11 +388,13 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
             3. Skill Gap Analysis
           </CardTitle>
           <CardDescription className="text-white">
-            Gap between required and actual skill levels (only showing {skillGapData.datasets[0].data.length} skills with gaps).
+            Gap between required and actual skill levels (showing all {skillGapData.datasets[0].data.length} skills).
             <br />
-            <strong className="text-orange-400">Orange (high interest, large gap)</strong> = Best training opportunities
+            <strong className="text-green-400">Green (above target)</strong> = Skills we already exceed - no priority
             <br />
-            <strong className="text-red-400">Red (low interest, large gap)</strong> = Critical concerns
+            <strong className="text-orange-400">Orange (below target, high interest)</strong> = Best training opportunities
+            <br />
+            <strong className="text-red-400">Red (below target, low interest)</strong> = Critical concerns
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -413,12 +422,12 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
                   y: {
                     title: {
                       display: true,
-                      text: 'Skill Gap (Required - Actual)',
+                      text: 'Skill Gap (negative = exceeding target)',
                       color: 'white',
                       font: { size: 14, weight: 'bold' as const }
                     },
-                    min: 0,
-                    max: 5,
+                    min: -3,
+                    max: 3,
                     ticks: { 
                       color: 'white',
                       stepSize: 0.5
@@ -436,12 +445,13 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
                       },
                       label: (context: any) => {
                         const d = context.raw;
+                        const gapDirection = d.y < 0 ? 'EXCEEDING target by' : 'Behind target by';
                         return [
                           `Category: ${d.category}`,
                           ``,
                           `Required Level: ${d.required}/5`,
                           `Current Level: ${d.actual.toFixed(1)}/5`,
-                          `Gap: ${d.y.toFixed(1)} levels`,
+                          `${gapDirection}: ${Math.abs(d.y).toFixed(1)} levels`,
                           ``,
                           `Team Interest: ${d.x.toFixed(1)}/5`,
                           `Team Members: ${d.count}`
@@ -450,18 +460,19 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
                       afterLabel: (context: any) => {
                         const d = context.raw;
                         const highInterest = d.x >= 3;
-                        const largeGap = d.y >= 2;
+                        const aboveTarget = d.y < -0.5;
+                        const belowTarget = d.y > 0.5;
                         
-                        if (largeGap && highInterest) {
-                          return '\n\n🟠 QUICK WIN\nHigh interest + large gap = best training ROI!';
+                        if (aboveTarget) {
+                          return '\n\n🟢 EXCEEDING TARGET\nNo training priority - maintain current level!';
                         }
-                        if (largeGap && !highInterest) {
-                          return '\n\n🔴 CRITICAL\nLarge gap + low interest = needs attention!';
+                        if (belowTarget && highInterest) {
+                          return '\n\n🟠 QUICK WIN\nHigh interest + gap = best training ROI!';
                         }
-                        if (!largeGap && highInterest) {
-                          return '\n\n🟢 EASY FIX\nSmall gap + high interest = quick improvement!';
+                        if (belowTarget && !highInterest) {
+                          return '\n\n🔴 CRITICAL GAP\nLow interest + gap = requires strategic intervention!';
                         }
-                        return '\n\n⚪ LOW PRIORITY\nSmall gap + low interest';
+                        return '\n\n⚪ AT TARGET\nSkill level meets requirements.';
                       }
                     }
                   }
