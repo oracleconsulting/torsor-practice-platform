@@ -104,14 +104,9 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
 
   // Filter and prepare data
   const matrixData = useMemo(() => {
-    console.log('[SkillsMatrix] Building matrix data...');
-    console.log('[SkillsMatrix] Team members:', teamMembers.length, teamMembers.slice(0, 2));
-    console.log('[SkillsMatrix] Skill categories:', skillCategories.length);
-    
     const filteredMembers = teamMembers.filter(member => {
       // Filter out null/undefined members
       if (!member || !member.id || !member.role) {
-        console.log('[SkillsMatrix] Filtering out invalid member:', member);
         return false;
       }
       if (filterOptions.role !== 'all' && !member.role.toLowerCase().includes(filterOptions.role)) {
@@ -122,8 +117,6 @@ const SkillsMatrix: React.FC<SkillsMatrixProps> = ({
       }
       return true;
     });
-
-    console.log('[SkillsMatrix] Filtered members:', filteredMembers.length);
 
     const filteredSkills = skillCategories
       .flatMap(cat => cat.skills)
