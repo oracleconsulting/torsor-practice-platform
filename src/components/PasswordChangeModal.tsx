@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/lib/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Lock } from 'lucide-react';
 
 interface PasswordChangeModalProps {
@@ -29,6 +30,7 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const { toast } = useToast();
 
   // Password validation
   const validatePassword = (password: string): { valid: boolean; message: string } => {
@@ -79,10 +81,12 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
 
     try {
       setLoading(true);
+      setError('');
       console.log('[PasswordChangeModal] Attempting to change password for:', userEmail);
 
       // Update password in Supabase Auth
-      const { error: updateError } = await supabase.auth.updateUser({
+      console.log('[PasswordChangeModal] Calling supabase.auth.updateUser...');
+      const { data: userData, error: updateError } = await supabase.auth.updateUser({
         password: newPassword
       });
 
@@ -91,7 +95,8 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
         throw updateError;
       }
 
-      console.log('[PasswordChangeModal] Password updated successfully');
+      console.log('[PasswordChangeModal] ✅ Password updated successfully in auth');
+      console.log('[PasswordChangeModal] User data:', userData?.user?.email);
 
       // Mark password as changed in practice_members
       // Try RPC first (if it exists), then fall back to direct update
@@ -127,19 +132,32 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
         console.log('[PasswordChangeModal] ✅ Password change flag updated via RPC');
       }
 
+      console.log('[PasswordChangeModal] Setting success state...');
       setSuccess(true);
+      toast({
+        title: 'Password Changed!',
+        description: 'Your password has been successfully updated.',
+      });
 
       // Close modal after 2 seconds
+      console.log('[PasswordChangeModal] Scheduling modal close...');
       setTimeout(() => {
+        console.log('[PasswordChangeModal] Closing modal...');
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
+        setSuccess(false);
         onClose();
       }, 2000);
 
     } catch (err: any) {
       console.error('[PasswordChangeModal] Error:', err);
       setError(err.message || 'Failed to change password');
+      toast({
+        title: 'Error',
+        description: err.message || 'Failed to change password',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
