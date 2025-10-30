@@ -320,10 +320,13 @@ export default function TeamMemberDashboard() {
         console.error('[Dashboard] Error fetching invitation:', invitationError);
       }
 
-      console.log('[Dashboard] Invitation assessment_data length:', invitation?.assessment_data?.length || 0);
+      console.log('[Dashboard] Invitation assessment_data type:', typeof invitation?.assessment_data);
+      console.log('[Dashboard] Invitation assessment_data keys:', invitation?.assessment_data ? Object.keys(invitation.assessment_data).length : 0);
 
-      // Transform JSONB into assessment-like format
-      const assessments = (invitation?.assessment_data as any[] || []).map(skill => ({
+      // Transform JSONB object into assessment-like format
+      // assessment_data is a JSONB object where keys are skill_ids
+      const assessmentDataObj = invitation?.assessment_data as Record<string, any> || {};
+      const assessments = Object.values(assessmentDataObj).map((skill: any) => ({
         current_level: skill.current_level || 0,
         skill_id: skill.skill_id
       }));
