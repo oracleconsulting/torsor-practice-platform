@@ -95,30 +95,36 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
 
       // Mark password as changed in practice_members
       // Try RPC first (if it exists), then fall back to direct update
+      console.log('[PasswordChangeModal] Updating database flag for email:', userEmail);
+      
       const { error: rpcError } = await supabase.rpc('mark_password_changed', {
         user_email: userEmail
       });
 
       if (rpcError) {
-        console.warn('[PasswordChangeModal] RPC not found, using direct update:', rpcError.message);
+        console.warn('[PasswordChangeModal] RPC failed, using direct update:', rpcError.message);
         
-        // Fallback: Direct update
-        const { error: dbError } = await supabase
+        // Fallback: Direct update with better logging
+        const { data: updateData, error: dbError } = await supabase
           .from('practice_members')
           .update({
             password_change_required: false,
             last_password_change: new Date().toISOString()
           })
-          .eq('email', userEmail);
+          .eq('email', userEmail)
+          .select();
 
         if (dbError) {
-          console.error('[PasswordChangeModal] Error marking password as changed:', dbError);
+          console.error('[PasswordChangeModal] Database update error:', dbError);
           // Don't throw - password was changed successfully, this is just a flag update
+        } else if (updateData && updateData.length > 0) {
+          console.log('[PasswordChangeModal] ✅ Password change flag updated successfully. Rows affected:', updateData.length);
+          console.log('[PasswordChangeModal] Updated member:', updateData[0].name, updateData[0].email);
         } else {
-          console.log('[PasswordChangeModal] Password change flag updated successfully');
+          console.error('[PasswordChangeModal] ❌ No rows updated! Email may not match:', userEmail);
         }
       } else {
-        console.log('[PasswordChangeModal] Password change flag updated via RPC');
+        console.log('[PasswordChangeModal] ✅ Password change flag updated via RPC');
       }
 
       setSuccess(true);
