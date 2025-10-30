@@ -178,32 +178,25 @@ export const MotivationalDriversAssessment: React.FC<MotivationalDriversAssessme
             onValueChange={(value) => handleAnswer(currentQ.id, value)}
           >
             <div className="space-y-3">
-              {currentQ.options.map((option, index) => {
-                const color = getDriverColor(option.value);
-                return (
-                  <div
-                    key={option.value}
-                    className={`flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer hover:border-${color}-300 hover:bg-${color}-50 ${
-                      answers[currentQ.id] === option.value
-                        ? `border-${color}-600 bg-${color}-50`
-                        : 'border-gray-200'
-                    }`}
-                    onClick={() => handleAnswer(currentQ.id, option.value)}
+              {currentQ.options.map((option, index) => (
+                <div
+                  key={option.value}
+                  className={`flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer hover:border-blue-300 hover:bg-blue-50 ${
+                    answers[currentQ.id] === option.value
+                      ? 'border-blue-600 bg-blue-50'
+                      : 'border-gray-200'
+                  }`}
+                  onClick={() => handleAnswer(currentQ.id, option.value)}
+                >
+                  <RadioGroupItem value={option.value} id={`q${currentQ.id}-${index}`} />
+                  <Label
+                    htmlFor={`q${currentQ.id}-${index}`}
+                    className="flex-1 cursor-pointer text-gray-900"
                   >
-                    <RadioGroupItem value={option.value} id={`q${currentQ.id}-${index}`} />
-                    <Label
-                      htmlFor={`q${currentQ.id}-${index}`}
-                      className="flex-1 cursor-pointer text-gray-900"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        {getDriverIcon(option.value)}
-                        <span className="font-medium capitalize">{option.value}</span>
-                      </div>
-                      <p className="text-sm text-gray-600">{option.text}</p>
-                    </Label>
-                  </div>
-                );
-              })}
+                    {option.text}
+                  </Label>
+                </div>
+              ))}
             </div>
           </RadioGroup>
         </CardContent>
