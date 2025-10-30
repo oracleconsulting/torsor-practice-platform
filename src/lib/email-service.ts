@@ -341,6 +341,141 @@ export async function sendWelcomeEmail(
 }
 
 // =====================================================
+// Portal Access Email (for individual portals)
+// =====================================================
+
+export async function sendPortalAccessEmail(
+  to: string,
+  name: string,
+  temporaryPassword: string,
+  loginUrl: string = 'https://torsor.co.uk/auth'
+): Promise<EmailResult> {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #1a2b4a 0%, #2d4a7c 100%); padding: 40px 20px; text-align: center; border-radius: 10px 10px 0 0;">
+    <h1 style="color: white; margin: 0; font-size: 28px;">🔑 Your Portal Access</h1>
+    <p style="color: #ffffff; margin: 10px 0 0 0; font-size: 16px;">Torsor Skills Portal</p>
+  </div>
+  
+  <div style="background: #f5f1e8; padding: 40px 30px;">
+    <p style="font-size: 16px; margin-bottom: 20px;">Hi ${name},</p>
+    
+    <p style="font-size: 16px; margin-bottom: 20px;">
+      Your Torsor Skills Portal account is now active! Here are your login details:
+    </p>
+    
+    <div style="background: white; padding: 25px; border-radius: 8px; margin: 30px 0; border: 2px solid #2196F3;">
+      <h3 style="color: #1a2b4a; margin-top: 0; font-size: 18px;">Login Credentials</h3>
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid #eee;">
+          <td style="padding: 12px 0; color: #666; font-weight: 600;">Login URL:</td>
+          <td style="padding: 12px 0;">
+            <a href="${loginUrl}" style="color: #2196F3; text-decoration: none; font-weight: 600;">${loginUrl}</a>
+          </td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+          <td style="padding: 12px 0; color: #666; font-weight: 600;">Email:</td>
+          <td style="padding: 12px 0; font-family: monospace; color: #1a2b4a;">${to}</td>
+        </tr>
+        <tr>
+          <td style="padding: 12px 0; color: #666; font-weight: 600;">Password:</td>
+          <td style="padding: 12px 0; font-family: monospace; background: #fffde7; padding: 8px; border-radius: 4px; color: #f57c00; font-weight: bold;">${temporaryPassword}</td>
+        </tr>
+      </table>
+    </div>
+    
+    <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 20px 0; border-radius: 5px;">
+      <h3 style="color: #856404; margin-top: 0; font-size: 16px; display: flex; align-items: center;">
+        🔒 Important: Password Change Required
+      </h3>
+      <p style="margin: 0; color: #856404; font-size: 14px; line-height: 1.8;">
+        For security reasons, you'll be prompted to change your password on first login. Please create a strong password containing:
+      </p>
+      <ul style="color: #856404; font-size: 14px; margin: 10px 0 0 20px; padding: 0;">
+        <li>At least 8 characters</li>
+        <li>One uppercase letter</li>
+        <li>One lowercase letter</li>
+        <li>One number</li>
+        <li>One special character (!@#$%^&*)</li>
+      </ul>
+    </div>
+    
+    <div style="background: white; padding: 25px; border-radius: 8px; margin: 30px 0;">
+      <h3 style="color: #1a2b4a; margin-top: 0;">Your Portal Includes:</h3>
+      <ul style="color: #555; line-height: 2;">
+        <li>✅ Skills Heatmap - View and edit your skill levels</li>
+        <li>✅ CPD Tracking - Log and track your professional development</li>
+        <li>✅ Learning Resources - Access curated training materials</li>
+        <li>✅ Mentoring Hub - Connect with mentors and mentees</li>
+        <li>✅ Assessments - Complete VARK and personality assessments</li>
+      </ul>
+    </div>
+    
+    <div style="text-align: center; margin: 40px 0;">
+      <a href="${loginUrl}" 
+         style="display: inline-block; background: #ff6b35; color: white; padding: 16px 40px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(255, 107, 53, 0.3);">
+        Login to Your Portal →
+      </a>
+    </div>
+    
+    <p style="font-size: 14px; color: #666; text-align: center; margin-top: 30px;">
+      If you have any issues logging in, please contact your administrator.
+    </p>
+  </div>
+  
+  <div style="background: #1a2b4a; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
+    <p style="color: #ffffff; margin: 0; font-size: 12px;">
+      © ${new Date().getFullYear()} Torsor Skills Portal
+    </p>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  const text = `
+Hi ${name},
+
+Your Torsor Skills Portal account is now active! Here are your login details:
+
+Login URL: ${loginUrl}
+Email: ${to}
+Temporary Password: ${temporaryPassword}
+
+IMPORTANT: Password Change Required
+For security reasons, you'll be prompted to change your password on first login. Please create a strong password containing:
+- At least 8 characters
+- One uppercase letter
+- One lowercase letter
+- One number
+- One special character (!@#$%^&*)
+
+Your portal includes:
+✅ Skills Heatmap
+✅ CPD Tracking
+✅ Learning Resources
+✅ Mentoring Hub
+✅ Assessments
+
+If you have any issues, please contact your administrator.
+
+© ${new Date().getFullYear()} Torsor Skills Portal
+  `.trim();
+
+  return sendEmail({
+    to,
+    subject: '🔑 Your Torsor Skills Portal Access',
+    html,
+    text,
+  });
+}
+
+// =====================================================
 // Utility Functions
 // =====================================================
 

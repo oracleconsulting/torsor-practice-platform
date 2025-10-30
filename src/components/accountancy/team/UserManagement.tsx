@@ -30,6 +30,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAccountancyContext } from '@/contexts/AccountancyContext';
 import { supabase } from '@/lib/supabase/client';
+import * as EmailService from '@/lib/email-service';
 import {
   Trash2,
   AlertTriangle,
@@ -264,33 +265,61 @@ export default function UserManagement() {
   const handleSendPortalInvite = async () => {
     if (!userToInvite) return;
 
+    const STANDARD_PASSWORD = 'TorsorTeam2025!';
+
     try {
       console.log('[UserManagement] Sending portal invite to:', userToInvite.email);
 
       // Check if user already has an auth account
-      if (userToInvite.user_id) {
+      if (!userToInvite.user_id) {
         toast({
-          title: 'User Already Has Access',
-          description: `${userToInvite.name} already has a portal account. They can login at https://torsor.co.uk/auth`,
+          title: 'Auth Account Required',
+          description: `Please create an auth account for ${userToInvite.name} in Supabase Dashboard first. Use password: ${STANDARD_PASSWORD}`,
+          variant: 'destructive',
         });
-        setInviteSent(true);
         return;
       }
 
-      // If no auth account, show credentials needed message
-      toast({
-        title: 'Auth Account Required',
-        description: `Please create an auth account for ${userToInvite.name} in Supabase Dashboard first. Use password: TorsorTeam2025!`,
-        variant: 'destructive',
-      });
+      // Check if email service is configured
+      if (!EmailService.isEmailConfigured()) {
+        console.warn('[UserManagement] Email not configured, copying to clipboard instead');
+        copyPortalCredentials();
+        return;
+      }
+
+      // Send the portal access email via Resend
+      console.log('[UserManagement] Sending email via Resend...');
+      const result = await EmailService.sendPortalAccessEmail(
+        userToInvite.email,
+        userToInvite.name,
+        STANDARD_PASSWORD
+      );
+
+      if (result.success) {
+        toast({
+          title: 'Invitation Sent! ✅',
+          description: `Portal access email sent to ${userToInvite.name} (${userToInvite.email})`,
+        });
+        setInviteSent(true);
+        console.log('[UserManagement] Email sent successfully:', result.messageId);
+      } else {
+        throw new Error(result.error || 'Failed to send email');
+      }
 
     } catch (error: any) {
       console.error('Failed to send portal invite:', error);
       toast({
-        title: 'Error',
-        description: error.message || 'Failed to send portal invite',
+        title: 'Error Sending Email',
+        description: error.message || 'Failed to send portal invite. Try copying credentials instead.',
         variant: 'destructive',
       });
+      
+      // Fallback: offer to copy credentials
+      setTimeout(() => {
+        if (confirm('Would you like to copy the credentials to clipboard instead?')) {
+          copyPortalCredentials();
+        }
+      }, 1000);
     }
   };
 
@@ -676,15 +705,27 @@ If you have any issues, contact your administrator.`;
                 </Button>
                 <Button
                   onClick={copyPortalCredentials}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                  variant="outline"
+                  className="bg-gray-700 text-white font-bold hover:bg-gray-600 hover:text-white"
                 >
                   <Copy className="w-4 h-4 mr-2" />
-                  Copy Credentials to Clipboard
+                  Copy Credentials
+                </Button>
+                <Button
+                  onClick={handleSendPortalInvite}
+                  disabled={!userToInvite?.user_id}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold disabled:bg-gray-600 disabled:cursor-not-allowed"
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  Send Email Invitation
                 </Button>
               </>
             ) : (
               <Button
-                onClick={() => setUserToInvite(null)}
+                onClick={() => {
+                  setUserToInvite(null);
+                  setInviteSent(false);
+                }}
                 className="bg-green-600 hover:bg-green-700 text-white font-bold"
               >
                 <CheckCircle2 className="w-4 h-4 mr-2" />
