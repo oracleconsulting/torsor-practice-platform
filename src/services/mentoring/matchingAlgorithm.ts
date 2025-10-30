@@ -22,6 +22,21 @@ export interface TeamMemberForMatching {
   availability?: AvailabilitySlot[];
   currentMentees?: number;
   maxMentees?: number;
+  // New assessment data
+  personalityTraits?: {
+    openness: number;
+    conscientiousness: number;
+    extraversion: number;
+    agreeableness: number;
+    emotional_stability: number;
+  };
+  communicationStyle?: string;
+  motivationalDrivers?: {
+    achievement: number;
+    autonomy: number;
+    affiliation: number;
+  };
+  eqScore?: number;
 }
 
 export interface SkillForMatching {
@@ -48,6 +63,8 @@ export interface MentorMatch {
   matchScore: number; // 0-100
   varkCompatibility: number; // 0-100
   availabilityOverlap: number; // 0-100
+  personalityCompatibility?: number; // 0-100
+  communicationStyleMatch?: number; // 0-100
   rationale: string;
   recommendedMeetingTime?: string;
   suggestedGoals: string[];
@@ -231,6 +248,72 @@ export function calculateAvailabilityOverlap(
 }
 
 /**
+ * Calculate personality compatibility based on OCEAN traits
+ * Returns 0-100 score
+ */
+export function calculatePersonalityCompatibility(
+  mentorTraits?: { openness: number; conscientiousness: number; extraversion: number; agreeableness: number; emotional_stability: number },
+  learnerTraits?: { openness: number; conscientiousness: number; extraversion: number; agreeableness: number; emotional_stability: number }
+): number {
+  if (!mentorTraits || !learnerTraits) return 50; // Neutral if data missing
+
+  // Complementary traits for mentoring:
+  // - High mentor conscientiousness + any learner = Good (reliability)
+  // - High mentor agreeableness + any learner = Good (supportiveness)
+  // - High mentor emotional_stability + any learner = Good (patience)
+  // - Moderate openness match = Good (learning style alignment)
+  // - Moderate extraversion match = Good (communication style)
+
+  let score = 0;
+
+  // Mentor conscientiousness (20 points) - reliable, organized mentors are valuable
+  score += (mentorTraits.conscientiousness / 100) * 20;
+
+  // Mentor agreeableness (20 points) - supportive, patient mentors are valuable
+  score += (mentorTraits.agreeableness / 100) * 20;
+
+  // Mentor emotional stability (15 points) - calm, resilient mentors handle challenges well
+  score += (mentorTraits.emotional_stability / 100) * 15;
+
+  // Openness similarity (15 points) - similar openness aids learning style match
+  const opennessDiff = Math.abs(mentorTraits.openness - learnerTraits.openness);
+  score += ((100 - opennessDiff) / 100) * 15;
+
+  // Extraversion balance (15 points) - moderate difference is ideal
+  // Extraverted mentor + introverted learner = good (mentor initiates)
+  // Similar levels also work well
+  const extraversionDiff = Math.abs(mentorTraits.extraversion - learnerTraits.extraversion);
+  const extraversionMatch = mentorTraits.extraversion >= 50 || extraversionDiff <= 30;
+  score += extraversionMatch ? 15 : 5;
+
+  // Learner conscientiousness (15 points) - conscientious learners follow through
+  score += (learnerTraits.conscientiousness / 100) * 15;
+
+  return Math.round(Math.min(100, score));
+}
+
+/**
+ * Calculate communication style match based on working preferences
+ * Returns 0-100 score
+ */
+export function calculateCommunicationStyleMatch(
+  mentorStyle?: string,
+  learnerStyle?: string
+): number {
+  if (!mentorStyle || !learnerStyle) return 50; // Neutral if data missing
+
+  // Communication style matching matrix
+  const compatibilityMatrix: Record<string, Record<string, number>> = {
+    'direct': { 'direct': 90, 'collaborative': 75, 'detailed': 60, 'supportive': 70 },
+    'collaborative': { 'direct': 75, 'collaborative': 95, 'detailed': 80, 'supportive': 85 },
+    'detailed': { 'direct': 60, 'collaborative': 80, 'detailed': 90, 'supportive': 75 },
+    'supportive': { 'direct': 70, 'collaborative': 85, 'detailed': 75, 'supportive': 95 }
+  };
+
+  return compatibilityMatrix[mentorStyle]?.[learnerStyle] || 50;
+}
+
+/**
  * Find best mentor-mentee matches
  */
 export function findMentorMatches(
@@ -268,30 +351,45 @@ export function findMentorMatches(
 
       if (matchedSkills.length === 0) continue;
 
-      // Calculate match score components
-      const skillMatchScore = (matchedSkills.length / learner.learningNeeds.length) * 40;
+      // Calculate match score components (adjusted weights for new factors)
+      const skillMatchScore = (matchedSkills.length / learner.learningNeeds.length) * 30; // Reduced from 40
       const expertiseScore = matchedSkills.reduce((sum, skill) => {
-        return sum + (mentor.expertiseLevels[skill] - 3) * 10; // Level 4 = 10, Level 5 = 20
+        return sum + (mentor.expertiseLevels[skill] - 3) * 8; // Reduced from 10
       }, 0) / matchedSkills.length;
       
       const varkCompatibility = calculateVARKCompatibility(
         mentor.learningStyle,
         learner.learningStyle
       );
-      const varkScore = (varkCompatibility / 100) * 20;
+      const varkScore = (varkCompatibility / 100) * 15; // Reduced from 20
 
       const availabilityOverlap = calculateAvailabilityOverlap(
         mentorMember.availability,
         learnerMember.availability
       );
-      const availabilityScore = (availabilityOverlap / 100) * 20;
+      const availabilityScore = (availabilityOverlap / 100) * 15; // Reduced from 20
 
       const interestScore = matchedSkills.reduce((sum, skill) => {
-        return sum + (learner.interestLevels[skill] / 5) * 20;
+        return sum + (learner.interestLevels[skill] / 5) * 15; // Reduced from 20
       }, 0) / matchedSkills.length;
 
+      // NEW: Calculate personality compatibility
+      const personalityCompatibility = calculatePersonalityCompatibility(
+        mentorMember.personalityTraits,
+        learnerMember.personalityTraits
+      );
+      const personalityScore = (personalityCompatibility / 100) * 15;
+
+      // NEW: Calculate communication style match
+      const communicationStyleMatch = calculateCommunicationStyleMatch(
+        mentorMember.communicationStyle,
+        learnerMember.communicationStyle
+      );
+      const communicationScore = (communicationStyleMatch / 100) * 10;
+
       const matchScore = Math.round(
-        skillMatchScore + expertiseScore + varkScore + availabilityScore + interestScore
+        skillMatchScore + expertiseScore + varkScore + availabilityScore + 
+        interestScore + personalityScore + communicationScore
       );
 
       // Generate rationale
@@ -319,6 +417,8 @@ export function findMentorMatches(
         matchScore,
         varkCompatibility,
         availabilityOverlap,
+        personalityCompatibility,
+        communicationStyleMatch,
         rationale,
         suggestedGoals
       });

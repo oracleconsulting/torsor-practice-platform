@@ -5,6 +5,10 @@
  * - Current skill levels
  * - Experience levels
  * - Learning styles (VARK)
+ * - Personality traits (OCEAN) for team composition
+ * - Working preferences for collaboration effectiveness
+ * - Motivational drivers for engagement
+ * - EQ for client-facing roles
  * - Capacity/availability
  */
 
@@ -18,6 +22,23 @@ export interface TeamMemberProfile {
   role: string;
   learningStyle?: string;
   currentUtilization?: number; // 0-100%
+  // New assessment data
+  personalityTraits?: {
+    openness: number;
+    conscientiousness: number;
+    extraversion: number;
+    agreeableness: number;
+    emotional_stability: number;
+  };
+  belbinRole?: string; // Primary team role
+  communicationStyle?: string;
+  motivationalDrivers?: {
+    achievement: number;
+    autonomy: number;
+    affiliation: number;
+  };
+  eqScore?: number;
+  conflictStyle?: string;
 }
 
 export interface ServiceLineRequirement {
@@ -66,19 +87,21 @@ export interface ServiceLineDeploymentPlan {
 
 /**
  * Calculate match score for a member to a service line
+ * Now includes personality, team role, motivation, and EQ factors
  */
 export function calculateMatchScore(
   coverage: ServiceLineCoverage,
   requirement: ServiceLineRequirement,
-  currentUtilization: number = 50
+  currentUtilization: number = 50,
+  profile?: TeamMemberProfile
 ): DeploymentMatch {
-  // Interest Score (35% weight) - lower rank = higher score
+  // Interest Score (30% weight) - reduced to make room for new factors
   const interestScore = Math.max(0, 100 - (coverage.interest_rank * 12.5));
   
-  // Skill Score (30% weight) - based on avg skill level in service line
+  // Skill Score (25% weight) - based on avg skill level in service line
   const skillScore = (coverage.avg_skill_level_in_service_line / 5) * 100;
   
-  // Experience Score (20% weight)
+  // Experience Score (15% weight)
   const experienceScore = (coverage.current_experience_level / 5) * 100;
   
   // Capacity Score (10% weight) - inverse of current utilization
@@ -87,13 +110,26 @@ export function calculateMatchScore(
   // Learning Style Fit (5% weight) - bonus for matching learning style to service line
   const learningStyleFit = 50; // Default, can be enhanced with VARK data
   
+  // NEW: Team Role Fit (5% weight) - matches Belbin role to service line needs
+  const teamRoleFit = profile?.belbinRole ? calculateTeamRoleFit(profile.belbinRole, requirement.serviceLine) : 50;
+  
+  // NEW: Motivation Fit (5% weight) - aligns motivational drivers with service line
+  const motivationFit = profile?.motivationalDrivers ? 
+    calculateMotivationFit(profile.motivationalDrivers, requirement.serviceLine) : 50;
+  
+  // NEW: EQ Bonus (5% weight) - especially important for client-facing roles
+  const eqBonus = profile?.eqScore || 50;
+  
   // Weighted total score
   const matchScore = 
-    (interestScore * 0.35) +
-    (skillScore * 0.30) +
-    (experienceScore * 0.20) +
+    (interestScore * 0.30) +
+    (skillScore * 0.25) +
+    (experienceScore * 0.15) +
     (capacityScore * 0.10) +
-    (learningStyleFit * 0.05);
+    (learningStyleFit * 0.05) +
+    (teamRoleFit * 0.05) +
+    (motivationFit * 0.05) +
+    (eqBonus * 0.05);
   
   // Determine readiness based on skill and experience scores
   let estimatedReadiness: 'immediate' | 'short_term' | 'medium_term' | 'long_term' = 'medium_term';
@@ -167,6 +203,105 @@ export async function generateServiceLineDeploymentPlan(
     console.error('[Strategic Matching] Error generating deployment plan:', error);
     throw error;
   }
+}
+
+/**
+ * Calculate team role fit for a service line
+ * Different Belbin roles suit different types of projects
+ */
+function calculateTeamRoleFit(belbinRole: string, serviceLine: string): number {
+  // Mapping of Belbin roles to service line types
+  const roleFitMatrix: Record<string, Record<string, number>> = {
+    'Plant': { 
+      'Innovation Consulting': 90, 
+      'Business Transformation': 80, 
+      'Strategy Development': 85,
+      'default': 60 
+    },
+    'Resource Investigator': { 
+      'Business Development': 90, 
+      'Market Research': 85, 
+      'Networking': 90,
+      'default': 65 
+    },
+    'Coordinator': { 
+      'Project Management': 95, 
+      'Team Leadership': 90, 
+      'Change Management': 85,
+      'default': 70 
+    },
+    'Shaper': { 
+      'Business Transformation': 85, 
+      'Turnaround Consulting': 90, 
+      'Strategic Planning': 80,
+      'default': 65 
+    },
+    'Monitor Evaluator': { 
+      'Risk Assessment': 95, 
+      'Audit & Compliance': 90, 
+      'Due Diligence': 90,
+      'default': 70 
+    },
+    'Teamworker': { 
+      'HR Consulting': 85, 
+      'Team Building': 90, 
+      'Conflict Resolution': 85,
+      'default': 75 
+    },
+    'Implementer': { 
+      'Process Implementation': 95, 
+      'Operations Consulting': 90, 
+      'System Deployment': 90,
+      'default': 70 
+    },
+    'Completer Finisher': { 
+      'Quality Assurance': 95, 
+      'Compliance': 90, 
+      'Final Delivery': 95,
+      'default': 70 
+    },
+    'Specialist': { 
+      'Technical Consulting': 95, 
+      'Expert Advisory': 90, 
+      'Specialized Services': 95,
+      'default': 75 
+    }
+  };
+
+  const roleMatrix = roleFitMatrix[belbinRole];
+  if (!roleMatrix) return 50;
+
+  return roleMatrix[serviceLine] || roleMatrix['default'] || 50;
+}
+
+/**
+ * Calculate motivation fit for a service line
+ * Different drivers align with different types of work
+ */
+function calculateMotivationFit(
+  drivers: { achievement: number; autonomy: number; affiliation: number },
+  serviceLine: string
+): number {
+  // Service lines that benefit from high achievement drive
+  const achievementDrivenLines = ['Strategy Development', 'Business Transformation', 'Performance Improvement'];
+  // Service lines that benefit from high autonomy
+  const autonomyDrivenLines = ['Innovation Consulting', 'Research & Development', 'Independent Projects'];
+  // Service lines that benefit from high affiliation
+  const affiliationDrivenLines = ['Team Building', 'HR Consulting', 'Collaborative Projects'];
+
+  let score = 50; // Base score
+
+  if (achievementDrivenLines.includes(serviceLine)) {
+    score += (drivers.achievement - 50) * 0.5; // Bonus for high achievement
+  }
+  if (autonomyDrivenLines.includes(serviceLine)) {
+    score += (drivers.autonomy - 50) * 0.5; // Bonus for high autonomy
+  }
+  if (affiliationDrivenLines.includes(serviceLine)) {
+    score += (drivers.affiliation - 50) * 0.5; // Bonus for high affiliation
+  }
+
+  return Math.max(0, Math.min(100, score));
 }
 
 /**
