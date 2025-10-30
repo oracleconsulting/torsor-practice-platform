@@ -81,31 +81,28 @@ For each team member without an account:
 5. Click **Create User**
 6. **Copy the generated user_id**
 
-### Team Members to Create (if not already existing):
+### ⚠️ IMPORTANT: Get Email Addresses from Database
 
-**LEADERSHIP:**
-- ✅ james@ivcaccounting.co.uk (Already exists - Admin)
-- ❌ wes@ivcaccounting.co.uk
-- ❌ jeremy@ivcaccounting.co.uk
-- ❌ laura@ivcaccounting.co.uk
+**DO NOT use hardcoded email addresses!** Run this query first:
 
-**ASSISTANT MANAGERS:**
-- ❌ luke@ivcaccounting.co.uk
-- ❌ edward@ivcaccounting.co.uk
-- ❌ azalia@ivcaccounting.co.uk
+```sql
+SELECT 
+  pm.name,
+  pm.email,
+  pm.role,
+  CASE 
+    WHEN pm.user_id IS NOT NULL THEN '✅ Has Auth Account'
+    ELSE '❌ Needs Auth Account'
+  END AS "Auth Status"
+FROM practice_members pm
+WHERE pm.practice_id = (SELECT id FROM practices WHERE name = 'Torsor' LIMIT 1)
+  AND pm.is_active = true
+ORDER BY pm.name;
+```
 
-**SENIOR:**
-- ❌ lambros@ivcaccounting.co.uk
-- ❌ shari@ivcaccounting.co.uk
-- ❌ lynley@ivcaccounting.co.uk
+**Use the actual email addresses from the `pm.email` column above.**
 
-**JUNIOR:**
-- ❌ jack@ivcaccounting.co.uk
-- ❌ rizwan@ivcaccounting.co.uk
-- ❌ tanya@ivcaccounting.co.uk
-- ❌ meyanthi@ivcaccounting.co.uk
-- ❌ jaanu@ivcaccounting.co.uk
-- ❌ sarah@ivcaccounting.co.uk
+You'll see approximately 16 team members with their REAL email addresses. Create auth accounts for anyone showing "❌ Needs Auth Account".
 
 ---
 
@@ -115,23 +112,24 @@ For each team member without an account:
 
 ```sql
 -- Template - Replace USER_ID and EMAIL for each person
+-- USE THE ACTUAL EMAIL FROM THE DATABASE QUERY ABOVE!
 UPDATE practice_members
 SET 
   user_id = 'PASTE_USER_ID_HERE',
   password_change_required = true,
   updated_at = NOW()
-WHERE email = 'team.member@ivcaccounting.co.uk'
+WHERE email = 'PASTE_ACTUAL_EMAIL_FROM_DATABASE_HERE'
   AND practice_id = (SELECT id FROM practices WHERE name = 'Torsor' LIMIT 1);
 ```
 
-**Example:**
+**Example (using actual email from database):**
 ```sql
 UPDATE practice_members
 SET 
   user_id = 'a1b2c3d4-5678-90ab-cdef-123456789abc',
   password_change_required = true,
   updated_at = NOW()
-WHERE email = 'luke@ivcaccounting.co.uk'
+WHERE email = 'luke@torsor.co.uk'  -- ⬅️ USE ACTUAL EMAIL FROM DATABASE!
   AND practice_id = (SELECT id FROM practices WHERE name = 'Torsor' LIMIT 1);
 ```
 
@@ -172,10 +170,10 @@ ORDER BY status, pm.name;
 
 ## 📋 STEP 6: Test Login Flow
 
-### Test with Luke (Assistant Manager):
+### Test with a Team Member (e.g., Luke if he's an Assistant Manager):
 
 1. **Go to**: `https://torsor.co.uk/auth`
-2. **Email**: `luke@ivcaccounting.co.uk`
+2. **Email**: `[Luke's actual email from database]`
 3. **Password**: `TorsorTeam2025!`
 4. **Expected Flow**:
    - ✅ Login successful

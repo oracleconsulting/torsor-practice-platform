@@ -51,31 +51,21 @@ For each team member without an account:
 - [ ] Auto-confirm email: ✅ YES
 - [ ] Copy user_id
 
-**Team Members to Create (15 total):**
+**⚠️ IMPORTANT: Get Actual Email Addresses from Database**
+
+Run this query to get the real team member emails:
+
+```sql
+SELECT name, email, role
+FROM practice_members
+WHERE practice_id = (SELECT id FROM practices WHERE name = 'Torsor' LIMIT 1)
+  AND is_active = true
+  AND user_id IS NULL  -- Only show those without auth accounts
+ORDER BY name;
 ```
-LEADERSHIP (3):
-- wes@ivcaccounting.co.uk
-- jeremy@ivcaccounting.co.uk
-- laura@ivcaccounting.co.uk
 
-ASSISTANT MANAGERS (3):
-- luke@ivcaccounting.co.uk
-- edward@ivcaccounting.co.uk
-- azalia@ivcaccounting.co.uk
-
-SENIOR (3):
-- lambros@ivcaccounting.co.uk
-- shari@ivcaccounting.co.uk
-- lynley@ivcaccounting.co.uk
-
-JUNIOR (6):
-- jack@ivcaccounting.co.uk
-- rizwan@ivcaccounting.co.uk
-- tanya@ivcaccounting.co.uk
-- meyanthi@ivcaccounting.co.uk
-- jaanu@ivcaccounting.co.uk
-- sarah@ivcaccounting.co.uk
-```
+**Use the email addresses from the `email` column above!**
+Do NOT use hardcoded `@ivcaccounting.co.uk` addresses.
 
 ### Phase 3: Link Accounts (10 minutes)
 For each created account:
@@ -85,9 +75,9 @@ For each created account:
 
 ### Phase 4: Testing (10 minutes)
 Test login flow with at least 3 team members:
-- [ ] **Luke** (Assistant Manager) - `/team-member` portal
-- [ ] **Edward** (Assistant Manager) - `/team-member` portal
-- [ ] **Azalia** (Assistant Manager) - `/team-member` portal
+- [ ] **Any Assistant Manager** - `/team-member` portal (use actual email from database)
+- [ ] **Any Senior** - `/team-member` portal (use actual email from database)
+- [ ] **Any Junior** - `/team-member` portal (use actual email from database)
 
 **Expected Flow:**
 1. Login with `TorsorTeam2025!`
@@ -116,7 +106,7 @@ Hi [NAME],
 Your Torsor Skills Portal account is now active! Here are your login details:
 
 **Login URL:** https://torsor.co.uk/auth
-**Email:** [THEIR_EMAIL]@ivcaccounting.co.uk
+**Email:** [THEIR_ACTUAL_EMAIL_FROM_DATABASE]
 **Temporary Password:** TorsorTeam2025!
 
 **Important:** You'll be prompted to change your password on first login for security. Please create a strong password containing:

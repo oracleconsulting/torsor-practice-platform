@@ -131,35 +131,27 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ============================================================================
--- QUICK REFERENCE - TEAM MEMBER EMAILS
+-- GET ACTUAL TEAM MEMBER EMAILS FROM DATABASE
 -- ============================================================================
--- Copy these for creating auth accounts:
-/*
-ADMIN/LEADERSHIP:
-- james@ivcaccounting.co.uk (Already has account - Admin)
-- wes@ivcaccounting.co.uk
-- jeremy@ivcaccounting.co.uk
-- laura@ivcaccounting.co.uk
+-- ⚠️ DO NOT USE HARDCODED EMAIL ADDRESSES!
+-- Run this query to get the ACTUAL email addresses from the database:
 
-ASSISTANT MANAGERS:
-- luke@ivcaccounting.co.uk
-- edward@ivcaccounting.co.uk
-- azalia@ivcaccounting.co.uk
+SELECT 
+  pm.name AS "Name",
+  pm.email AS "Email (USE THIS!)",
+  pm.role AS "Role",
+  CASE 
+    WHEN pm.user_id IS NOT NULL THEN '✅ Has Auth Account'
+    ELSE '❌ Needs Auth Account'
+  END AS "Auth Status"
+FROM practice_members pm
+WHERE pm.practice_id = (SELECT id FROM practices WHERE name = 'Torsor' LIMIT 1)
+  AND pm.is_active = true
+ORDER BY pm.name;
 
-SENIOR:
-- lambros@ivcaccounting.co.uk
-- shari@ivcaccounting.co.uk
-- lynley@ivcaccounting.co.uk
-
-JUNIOR:
-- jack@ivcaccounting.co.uk
-- rizwan@ivcaccounting.co.uk
-- tanya@ivcaccounting.co.uk
-- meyanthi@ivcaccounting.co.uk
-- jaanu@ivcaccounting.co.uk
-- sarah@ivcaccounting.co.uk
-
-STANDARD PASSWORD FOR ALL: TorsorTeam2025!
+-- These are the REAL email addresses from YOUR database
+-- Use whatever emails are in the practice_members.email column
+-- STANDARD PASSWORD FOR ALL: TorsorTeam2025!
 */
 
 -- ============================================================================

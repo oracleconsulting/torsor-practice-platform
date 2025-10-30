@@ -321,7 +321,7 @@ Your portal includes:
 ✅ Mentoring Hub
 ✅ Assessments
 
-If you have any issues, contact support.`;
+If you have any issues, contact your administrator.`;
 
     navigator.clipboard.writeText(credentials);
     
