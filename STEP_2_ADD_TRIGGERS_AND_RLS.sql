@@ -280,26 +280,22 @@ SELECT
   pm.practice_id,
   p.name AS practice_name,
   
-  -- VARK Learning Style (handles both old and new schema)
-  COALESCE(lp.primary_style, lp.learning_type) AS vark_primary_style,
-  JSONB_BUILD_OBJECT(
-    'visual', COALESCE(lp.visual_percentage, lp.visual_score),
-    'auditory', COALESCE(lp.auditory_percentage, lp.auditory_score),
-    'read_write', COALESCE(lp.read_write_percentage, lp.reading_writing_score),
-    'kinesthetic', COALESCE(lp.kinesthetic_percentage, lp.kinesthetic_score)
-  ) AS vark_scores,
+  -- VARK Learning Style (simplified)
+  lp.learning_type AS vark_primary_style,
+  lp.visual_percentage AS vark_visual,
+  lp.auditory_percentage AS vark_auditory,
+  lp.read_write_percentage AS vark_read_write,
+  lp.kinesthetic_percentage AS vark_kinesthetic,
   
-  -- OCEAN Personality
-  JSONB_BUILD_OBJECT(
-    'openness', pa.openness_score,
-    'conscientiousness', pa.conscientiousness_score,
-    'extraversion', pa.extraversion_score,
-    'agreeableness', pa.agreeableness_score,
-    'emotional_stability', pa.emotional_stability_score
-  ) AS personality_profile,
+  -- OCEAN Personality (simplified)
+  pa.openness_score,
+  pa.conscientiousness_score,
+  pa.extraversion_score,
+  pa.agreeableness_score,
+  pa.emotional_stability_score,
   pa.work_style,
-  pa.communication_style AS personality_communication,
-  pa.dominant_traits AS personality_traits,
+  pa.communication_style,
+  pa.dominant_traits,
   
   -- Working Preferences
   wp.communication_style AS work_communication,
