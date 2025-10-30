@@ -34,6 +34,7 @@ export const CombinedAssessmentPage: React.FC = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [memberId, setMemberId] = useState<string>('');
+  const [practiceId, setPracticeId] = useState<string>('');
   const [memberName, setMemberName] = useState<string>('');
   const [memberRole, setMemberRole] = useState<string>('');
   
@@ -65,7 +66,7 @@ export const CombinedAssessmentPage: React.FC = () => {
       // Get member info
       const { data: member, error: memberError } = await supabase
         .from('practice_members')
-        .select('id, name, role, vark_assessment_completed, learning_style, vark_result')
+        .select('id, name, role, practice_id, vark_assessment_completed, learning_style, vark_result')
         .eq('user_id', user.id)
         .single() as { data: any; error: any };
 
@@ -76,6 +77,7 @@ export const CombinedAssessmentPage: React.FC = () => {
       }
 
       setMemberId(member.id);
+      setPracticeId(member.practice_id || '');
       setMemberName(member.name || '');
       setMemberRole(member.role?.toLowerCase() || '');
       setVarkCompleted(member.vark_assessment_completed);
@@ -233,7 +235,7 @@ export const CombinedAssessmentPage: React.FC = () => {
         </Button>
         <WorkingPreferencesAssessment
           practiceMemberId={memberId}
-          practiceId=""
+          practiceId={practiceId}
           onComplete={() => {
             toast.success('Working Preferences assessment completed!');
             loadMemberData();
@@ -256,7 +258,7 @@ export const CombinedAssessmentPage: React.FC = () => {
         </Button>
         <BelbinAssessment
           practiceMemberId={memberId}
-          practiceId=""
+          practiceId={practiceId}
           onComplete={() => {
             toast.success('Belbin Team Roles assessment completed!');
             loadMemberData();
@@ -279,7 +281,7 @@ export const CombinedAssessmentPage: React.FC = () => {
         </Button>
         <MotivationalDriversAssessment
           practiceMemberId={memberId}
-          practiceId=""
+          practiceId={practiceId}
           onComplete={() => {
             toast.success('Motivational Drivers assessment completed!');
             loadMemberData();
@@ -302,7 +304,7 @@ export const CombinedAssessmentPage: React.FC = () => {
         </Button>
         <EQAssessment
           practiceMemberId={memberId}
-          practiceId=""
+          practiceId={practiceId}
           onComplete={() => {
             toast.success('Emotional Intelligence assessment completed!');
             loadMemberData();
@@ -325,7 +327,7 @@ export const CombinedAssessmentPage: React.FC = () => {
         </Button>
         <ConflictStyleAssessment
           practiceMemberId={memberId}
-          practiceId=""
+          practiceId={practiceId}
           onComplete={() => {
             toast.success('Conflict Style assessment completed!');
             loadMemberData();
