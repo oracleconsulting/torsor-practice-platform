@@ -16,9 +16,9 @@ SELECT
   id AS practice_id,
   name AS practice_name,
   email AS practice_email,
-  "contactName" AS contact_name
+  contact_name
 FROM practices
-ORDER BY "createdAt" DESC;
+ORDER BY created_at DESC;
 */
 
 -- Copy the practice_id from the results above and paste it below
