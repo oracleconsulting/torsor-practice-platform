@@ -11,7 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Brain, BookOpen, CheckCircle, Clock, ArrowRight, 
-  TrendingUp, Users, Target, Sparkles, ArrowLeft
+  TrendingUp, Users, Target, Sparkles, ArrowLeft, 
+  Briefcase, Zap, Shield
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,6 +20,12 @@ import { supabase } from '@/lib/supabase/client';
 import PersonalityAssessment from '@/components/accountancy/team/PersonalityAssessment';
 import PersonalityResults from '@/components/accountancy/team/PersonalityResults';
 import VARKAssessment from '@/components/accountancy/team/VARKAssessment';
+import WorkingPreferencesAssessment from '@/components/accountancy/team/WorkingPreferencesAssessment';
+import BelbinAssessment from '@/components/accountancy/team/BelbinAssessment';
+import MotivationalDriversAssessment from '@/components/accountancy/team/MotivationalDriversAssessment';
+import EQAssessment from '@/components/accountancy/team/EQAssessment';
+import ConflictStyleAssessment from '@/components/accountancy/team/ConflictStyleAssessment';
+import ComprehensiveAssessmentResults from '@/components/accountancy/team/ComprehensiveAssessmentResults';
 import { getPersonalityAssessment } from '@/lib/api/personality-assessment';
 import { toast } from 'sonner';
 
@@ -33,12 +40,18 @@ export const CombinedAssessmentPage: React.FC = () => {
   // Assessment status
   const [varkCompleted, setVarkCompleted] = useState(false);
   const [oceanCompleted, setOceanCompleted] = useState(false);
+  const [workingPrefsCompleted, setWorkingPrefsCompleted] = useState(false);
+  const [belbinCompleted, setBelbinCompleted] = useState(false);
+  const [motivationalCompleted, setMotivationalCompleted] = useState(false);
+  const [eqCompleted, setEqCompleted] = useState(false);
+  const [conflictCompleted, setConflictCompleted] = useState(false);
+  
   const [varkData, setVarkData] = useState<any>(null);
   const [oceanData, setOceanData] = useState<any>(null);
   
   // Current view
-  const [currentView, setCurrentView] = useState<'overview' | 'vark' | 'ocean' | 'results'>('overview');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'vark-results' | 'ocean-results'>('dashboard');
+  const [currentView, setCurrentView] = useState<'overview' | 'vark' | 'ocean' | 'working' | 'belbin' | 'motivational' | 'eq' | 'conflict' | 'results'>('overview');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'vark-results' | 'ocean-results' | 'comprehensive'>('dashboard');
 
   useEffect(() => {
     loadMemberData();
@@ -95,6 +108,31 @@ export const CombinedAssessmentPage: React.FC = () => {
           communication_style: oceanAssessment.communication_style
         });
       }
+
+      // Load all 5 new assessments
+      const [workingPrefs, belbin, motivational, eq, conflict] = await Promise.all([
+        supabase.from('working_preferences').select('*').eq('practice_member_id', member.id).single(),
+        supabase.from('belbin_assessments').select('*').eq('practice_member_id', member.id).single(),
+        supabase.from('motivational_drivers').select('*').eq('practice_member_id', member.id).single(),
+        supabase.from('eq_assessments').select('*').eq('practice_member_id', member.id).single(),
+        supabase.from('conflict_style_assessments').select('*').eq('practice_member_id', member.id).single()
+      ]);
+
+      setWorkingPrefsCompleted(!!workingPrefs.data);
+      setBelbinCompleted(!!belbin.data);
+      setMotivationalCompleted(!!motivational.data);
+      setEqCompleted(!!eq.data);
+      setConflictCompleted(!!conflict.data);
+
+      console.log('[CombinedAssessment] Assessment status:', {
+        vark: member.vark_assessment_completed,
+        ocean: !!oceanAssessment,
+        workingPrefs: !!workingPrefs.data,
+        belbin: !!belbin.data,
+        motivational: !!motivational.data,
+        eq: !!eq.data,
+        conflict: !!conflict.data
+      });
     } catch (error) {
       console.error('[Combined Assessment] Error loading data:', error);
       toast.error('Failed to load assessment data');
@@ -125,12 +163,6 @@ export const CombinedAssessmentPage: React.FC = () => {
     setOceanCompleted(true);
     setCurrentView('results');
     setActiveTab('ocean-results');
-  };
-
-  const getCompletionStatus = () => {
-    if (varkCompleted && oceanCompleted) return { text: 'Complete', color: 'bg-green-600', icon: CheckCircle };
-    if (varkCompleted || oceanCompleted) return { text: 'Partial', color: 'bg-yellow-600', icon: Clock };
-    return { text: 'Not Started', color: 'bg-gray-600', icon: Clock };
   };
 
   // Determine correct back navigation based on user role
@@ -189,9 +221,156 @@ export const CombinedAssessmentPage: React.FC = () => {
     );
   }
 
+  if (currentView === 'working') {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <Button 
+          variant="ghost" 
+          onClick={() => setCurrentView('overview')}
+          className="mb-6"
+        >
+          ← Back to Overview
+        </Button>
+        <WorkingPreferencesAssessment
+          practiceMemberId={memberId}
+          practiceId=""
+          onComplete={() => {
+            toast.success('Working Preferences assessment completed!');
+            loadMemberData();
+            setCurrentView('overview');
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (currentView === 'belbin') {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <Button 
+          variant="ghost" 
+          onClick={() => setCurrentView('overview')}
+          className="mb-6"
+        >
+          ← Back to Overview
+        </Button>
+        <BelbinAssessment
+          practiceMemberId={memberId}
+          practiceId=""
+          onComplete={() => {
+            toast.success('Belbin Team Roles assessment completed!');
+            loadMemberData();
+            setCurrentView('overview');
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (currentView === 'motivational') {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <Button 
+          variant="ghost" 
+          onClick={() => setCurrentView('overview')}
+          className="mb-6"
+        >
+          ← Back to Overview
+        </Button>
+        <MotivationalDriversAssessment
+          practiceMemberId={memberId}
+          practiceId=""
+          onComplete={() => {
+            toast.success('Motivational Drivers assessment completed!');
+            loadMemberData();
+            setCurrentView('overview');
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (currentView === 'eq') {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <Button 
+          variant="ghost" 
+          onClick={() => setCurrentView('overview')}
+          className="mb-6"
+        >
+          ← Back to Overview
+        </Button>
+        <EQAssessment
+          practiceMemberId={memberId}
+          practiceId=""
+          onComplete={() => {
+            toast.success('Emotional Intelligence assessment completed!');
+            loadMemberData();
+            setCurrentView('overview');
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (currentView === 'conflict') {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <Button 
+          variant="ghost" 
+          onClick={() => setCurrentView('overview')}
+          className="mb-6"
+        >
+          ← Back to Overview
+        </Button>
+        <ConflictStyleAssessment
+          practiceMemberId={memberId}
+          practiceId=""
+          onComplete={() => {
+            toast.success('Conflict Style assessment completed!');
+            loadMemberData();
+            setCurrentView('overview');
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (currentView === 'results') {
+    return (
+      <div className="max-w-7xl mx-auto p-6">
+        <Button 
+          variant="ghost" 
+          onClick={() => setCurrentView('overview')}
+          className="mb-6"
+        >
+          ← Back to Overview
+        </Button>
+        <ComprehensiveAssessmentResults
+          practiceMemberId={memberId}
+          memberName={memberName}
+        />
+      </div>
+    );
+  }
+
+  // Calculate completion percentage (7 total assessments)
+  const totalAssessments = 7;
+  const completedAssessments = [
+    varkCompleted, oceanCompleted, workingPrefsCompleted, 
+    belbinCompleted, motivationalCompleted, eqCompleted, conflictCompleted
+  ].filter(Boolean).length;
+  const completionPercentage = (completedAssessments / totalAssessments) * 100;
+
+  const getCompletionStatus = () => {
+    if (completedAssessments === totalAssessments) return { text: 'Complete', color: 'bg-green-600', icon: CheckCircle };
+    if (completedAssessments >= 5) return { text: 'Mostly Complete', color: 'bg-blue-600', icon: TrendingUp };
+    if (completedAssessments >= 2) return { text: 'In Progress', color: 'bg-yellow-600', icon: Clock };
+    return { text: 'Getting Started', color: 'bg-gray-600', icon: Clock };
+  };
+
   const status = getCompletionStatus();
   const StatusIcon = status.icon;
-  const completionPercentage = ((varkCompleted ? 50 : 0) + (oceanCompleted ? 50 : 0));
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
@@ -213,17 +392,17 @@ export const CombinedAssessmentPage: React.FC = () => {
               Professional Profile Assessment
             </h1>
             <p className="text-gray-700 mb-4">
-              Complete your learning style and personality assessments to unlock personalized insights
+              Complete 7 comprehensive assessments to unlock your full professional profile
             </p>
             <div className="flex items-center gap-4">
               <Badge className={`${status.color} text-white px-4 py-2`}>
                 <StatusIcon className="w-4 h-4 mr-2 inline" />
-                {status.text}
+                {completedAssessments} of {totalAssessments} Complete
               </Badge>
               <div className="flex-1 max-w-md">
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-gray-600">Overall Progress</span>
-                  <span className="font-semibold text-gray-900">{completionPercentage}%</span>
+                  <span className="font-semibold text-gray-900">{Math.round(completionPercentage)}%</span>
                 </div>
                 <Progress value={completionPercentage} className="h-3" />
               </div>
@@ -234,18 +413,26 @@ export const CombinedAssessmentPage: React.FC = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 bg-white">
+        <TabsList className="grid w-full grid-cols-4 bg-white">
           <TabsTrigger value="dashboard" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
             <Target className="w-4 h-4 mr-2" />
             Dashboard
           </TabsTrigger>
           <TabsTrigger value="vark-results" disabled={!varkCompleted} className="data-[state=active]:bg-green-600 data-[state=active]:text-white">
             <BookOpen className="w-4 h-4 mr-2" />
-            VARK Results
+            VARK
           </TabsTrigger>
           <TabsTrigger value="ocean-results" disabled={!oceanCompleted} className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
             <Brain className="w-4 h-4 mr-2" />
-            Personality Results
+            Personality
+          </TabsTrigger>
+          <TabsTrigger 
+            value="comprehensive" 
+            disabled={completedAssessments < 5} 
+            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            All Results
           </TabsTrigger>
         </TabsList>
 
@@ -385,15 +572,266 @@ export const CombinedAssessmentPage: React.FC = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* Working Preferences Assessment Card */}
+            <Card className={`border-2 ${workingPrefsCompleted ? 'bg-green-50 border-green-200' : 'bg-white border-blue-200'}`}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-gray-900">
+                  <Briefcase className="w-6 h-6 text-blue-600" />
+                  Working Preferences
+                </CardTitle>
+                <CardDescription className="text-gray-600">
+                  How you prefer to work
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {workingPrefsCompleted ? (
+                  <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Assessment Complete</p>
+                      <p className="text-xl font-bold text-green-600">✓ Completed</p>
+                    </div>
+                    <CheckCircle className="w-8 h-8 text-green-600" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-white rounded-lg p-4 border space-y-2">
+                      <p className="text-sm text-gray-700">13 questions • 5 minutes</p>
+                      <p className="text-xs text-gray-500">Communication, work style, environment</p>
+                    </div>
+                    <Button 
+                      className="w-full bg-blue-600 hover:bg-blue-700"
+                      onClick={() => setCurrentView('working')}
+                      disabled={!oceanCompleted}
+                    >
+                      {oceanCompleted ? (
+                        <>
+                          Start Assessment
+                          <ArrowRight className="w-4 h-4 ml-2" />
+                        </>
+                      ) : (
+                        'Complete Core Assessments First'
+                      )}
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Belbin Team Roles Assessment Card */}
+            <Card className={`border-2 ${belbinCompleted ? 'bg-green-50 border-green-200' : 'bg-white border-purple-200'}`}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-gray-900">
+                  <Users className="w-6 h-6 text-purple-600" />
+                  Team Roles (Belbin)
+                </CardTitle>
+                <CardDescription className="text-gray-600">
+                  Your natural team contributions
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {belbinCompleted ? (
+                  <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Assessment Complete</p>
+                      <p className="text-xl font-bold text-green-600">✓ Completed</p>
+                    </div>
+                    <CheckCircle className="w-8 h-8 text-green-600" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-white rounded-lg p-4 border space-y-2">
+                      <p className="text-sm text-gray-700">8 questions • 4 minutes</p>
+                      <p className="text-xs text-gray-500">Discover your team role profile</p>
+                    </div>
+                    <Button 
+                      className="w-full bg-purple-600 hover:bg-purple-700"
+                      onClick={() => setCurrentView('belbin')}
+                      disabled={!oceanCompleted}
+                    >
+                      {oceanCompleted ? (
+                        <>
+                          Start Assessment
+                          <ArrowRight className="w-4 h-4 ml-2" />
+                        </>
+                      ) : (
+                        'Complete Core Assessments First'
+                      )}
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Motivational Drivers Assessment Card */}
+            <Card className={`border-2 ${motivationalCompleted ? 'bg-green-50 border-green-200' : 'bg-white border-yellow-200'}`}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-gray-900">
+                  <Zap className="w-6 h-6 text-yellow-600" />
+                  Motivational Drivers
+                </CardTitle>
+                <CardDescription className="text-gray-600">
+                  What energizes you
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {motivationalCompleted ? (
+                  <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Assessment Complete</p>
+                      <p className="text-xl font-bold text-green-600">✓ Completed</p>
+                    </div>
+                    <CheckCircle className="w-8 h-8 text-green-600" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-white rounded-lg p-4 border space-y-2">
+                      <p className="text-sm text-gray-700">10 questions • 5 minutes</p>
+                      <p className="text-xs text-gray-500">Achievement, autonomy, affiliation</p>
+                    </div>
+                    <Button 
+                      className="w-full bg-yellow-600 hover:bg-yellow-700"
+                      onClick={() => setCurrentView('motivational')}
+                      disabled={!oceanCompleted}
+                    >
+                      {oceanCompleted ? (
+                        <>
+                          Start Assessment
+                          <ArrowRight className="w-4 h-4 ml-2" />
+                        </>
+                      ) : (
+                        'Complete Core Assessments First'
+                      )}
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* EQ Assessment Card */}
+            <Card className={`border-2 ${eqCompleted ? 'bg-green-50 border-green-200' : 'bg-white border-blue-200'}`}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-gray-900">
+                  <Brain className="w-6 h-6 text-blue-600" />
+                  Emotional Intelligence
+                </CardTitle>
+                <CardDescription className="text-gray-600">
+                  Your EQ profile
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {eqCompleted ? (
+                  <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Assessment Complete</p>
+                      <p className="text-xl font-bold text-green-600">✓ Completed</p>
+                    </div>
+                    <CheckCircle className="w-8 h-8 text-green-600" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-white rounded-lg p-4 border space-y-2">
+                      <p className="text-sm text-gray-700">27 questions • 10 minutes</p>
+                      <p className="text-xs text-gray-500">Self-awareness, social awareness</p>
+                    </div>
+                    <Button 
+                      className="w-full bg-blue-600 hover:bg-blue-700"
+                      onClick={() => setCurrentView('eq')}
+                      disabled={!oceanCompleted}
+                    >
+                      {oceanCompleted ? (
+                        <>
+                          Start Assessment
+                          <ArrowRight className="w-4 h-4 ml-2" />
+                        </>
+                      ) : (
+                        'Complete Core Assessments First'
+                      )}
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Conflict Style Assessment Card */}
+            <Card className={`border-2 ${conflictCompleted ? 'bg-green-50 border-green-200' : 'bg-white border-orange-200'}`}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-gray-900">
+                  <Shield className="w-6 h-6 text-orange-600" />
+                  Conflict Style
+                </CardTitle>
+                <CardDescription className="text-gray-600">
+                  How you handle conflict
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {conflictCompleted ? (
+                  <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Assessment Complete</p>
+                      <p className="text-xl font-bold text-green-600">✓ Completed</p>
+                    </div>
+                    <CheckCircle className="w-8 h-8 text-green-600" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-white rounded-lg p-4 border space-y-2">
+                      <p className="text-sm text-gray-700">10 questions • 5 minutes</p>
+                      <p className="text-xs text-gray-500">Thomas-Kilmann model</p>
+                    </div>
+                    <Button 
+                      className="w-full bg-orange-600 hover:bg-orange-700"
+                      onClick={() => setCurrentView('conflict')}
+                      disabled={!oceanCompleted}
+                    >
+                      {oceanCompleted ? (
+                        <>
+                          Start Assessment
+                          <ArrowRight className="w-4 h-4 ml-2" />
+                        </>
+                      ) : (
+                        'Complete Core Assessments First'
+                      )}
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
+          {/* View Comprehensive Results Button */}
+          {completedAssessments >= 5 && (
+            <Card className="bg-gradient-to-r from-blue-50 via-purple-50 to-green-50 border-2 border-blue-200">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">
+                      🎉 Comprehensive Profile Available!
+                    </h3>
+                    <p className="text-gray-700">
+                      You've completed 5+ assessments. View your comprehensive professional profile.
+                    </p>
+                  </div>
+                  <Button 
+                    size="lg"
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                    onClick={() => setActiveTab('comprehensive')}
+                  >
+                    <Sparkles className="w-5 h-5 mr-2" />
+                    View Full Profile
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Benefits of Completion */}
-          {!varkCompleted || !oceanCompleted ? (
+          {completedAssessments < totalAssessments ? (
             <Card className="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-200">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-gray-900">
                   <Sparkles className="w-6 h-6 text-yellow-600" />
-                  Why Complete Both Assessments?
+                  Why Complete All Assessments?
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -522,6 +960,23 @@ export const CombinedAssessmentPage: React.FC = () => {
             <Card className="bg-white">
               <CardContent className="p-12 text-center">
                 <p className="text-gray-500">Personality assessment not completed yet</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Comprehensive Results Tab */}
+        <TabsContent value="comprehensive">
+          {completedAssessments >= 5 ? (
+            <ComprehensiveAssessmentResults
+              practiceMemberId={memberId}
+              memberName={memberName}
+            />
+          ) : (
+            <Card className="bg-white">
+              <CardContent className="p-12 text-center">
+                <p className="text-gray-500">Complete at least 5 assessments to unlock comprehensive results</p>
+                <p className="text-sm text-gray-400 mt-2">Progress: {completedAssessments} of {totalAssessments}</p>
               </CardContent>
             </Card>
           )}
