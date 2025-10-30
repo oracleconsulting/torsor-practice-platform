@@ -76,12 +76,13 @@ export const EQAssessment: React.FC<EQAssessmentProps> = ({
           self_management_score: profile.domain_scores.self_management,
           social_awareness_score: profile.domain_scores.social_awareness,
           relationship_management_score: profile.domain_scores.relationship_management,
-          overall_eq_score: profile.overall_eq,
+          overall_eq: profile.overall_eq,
           eq_level: profile.eq_level,
-          domain_scores: profile.domain_scores,
+          summary: profile.summary,
           strengths: profile.strengths,
           development_areas: profile.development_areas,
-          eq_summary: profile.summary,
+          workplace_implications: {},
+          growth_recommendations: [],
           assessed_at: new Date().toISOString()
         }, {
           onConflict: 'practice_member_id'
