@@ -8,7 +8,7 @@ export interface BelbinQuestion {
   statement: string;
   options: {
     text: string;
-    role: BelbinRole;
+    value: BelbinRole;
     score: number;
   }[];
 }
@@ -23,120 +23,120 @@ export const belbinQuestions: BelbinQuestion[] = [
     id: 1,
     statement: "When working on a team project, I tend to:",
     options: [
-      { text: "Generate creative, unconventional ideas", role: 'plant', score: 3 },
-      { text: "Analyze options objectively and spot flaws", role: 'monitor_evaluator', score: 3 },
-      { text: "Provide deep expertise in my specialist area", role: 'specialist', score: 3 },
-      { text: "Coordinate the team and delegate effectively", role: 'coordinator', score: 3 },
-      { text: "Build consensus and maintain harmony", role: 'teamworker', score: 3 },
-      { text: "Network externally and explore opportunities", role: 'resource_investigator', score: 3 },
-      { text: "Challenge the team and drive for results", role: 'shaper', score: 3 },
-      { text: "Turn ideas into practical, workable plans", role: 'implementer', score: 3 },
-      { text: "Perfect details and ensure high quality", role: 'completer_finisher', score: 3 },
+      { text: "Generate creative, unconventional ideas", value: 'plant', score: 3 },
+      { text: "Analyze options objectively and spot flaws", value: 'monitor_evaluator', score: 3 },
+      { text: "Provide deep expertise in my specialist area", value: 'specialist', score: 3 },
+      { text: "Coordinate the team and delegate effectively", value: 'coordinator', score: 3 },
+      { text: "Build consensus and maintain harmony", value: 'teamworker', score: 3 },
+      { text: "Network externally and explore opportunities", value: 'resource_investigator', score: 3 },
+      { text: "Challenge the team and drive for results", value: 'shaper', score: 3 },
+      { text: "Turn ideas into practical, workable plans", value: 'implementer', score: 3 },
+      { text: "Perfect details and ensure high quality", value: 'completer_finisher', score: 3 },
     ]
   },
   {
     id: 2,
     statement: "My colleagues would describe me as someone who:",
     options: [
-      { text: "Thinks outside the box and solves problems creatively", role: 'plant', score: 2 },
-      { text: "Makes strategic, well-judged decisions", role: 'monitor_evaluator', score: 2 },
-      { text: "Is the go-to expert for specific knowledge", role: 'specialist', score: 2 },
-      { text: "Clarifies goals and promotes decision-making", role: 'coordinator', score: 2 },
-      { text: "Listens well and prevents conflicts", role: 'teamworker', score: 2 },
-      { text: "Is enthusiastic and explores new ideas", role: 'resource_investigator', score: 2 },
-      { text: "Has the drive to overcome obstacles", role: 'shaper', score: 2 },
-      { text: "Gets things done reliably and on time", role: 'implementer', score: 2 },
-      { text: "Delivers thorough, polished work", role: 'completer_finisher', score: 2 },
+      { text: "Thinks outside the box and solves problems creatively", value: 'plant', score: 2 },
+      { text: "Makes strategic, well-judged decisions", value: 'monitor_evaluator', score: 2 },
+      { text: "Is the go-to expert for specific knowledge", value: 'specialist', score: 2 },
+      { text: "Clarifies goals and promotes decision-making", value: 'coordinator', score: 2 },
+      { text: "Listens well and prevents conflicts", value: 'teamworker', score: 2 },
+      { text: "Is enthusiastic and explores new ideas", value: 'resource_investigator', score: 2 },
+      { text: "Has the drive to overcome obstacles", value: 'shaper', score: 2 },
+      { text: "Gets things done reliably and on time", value: 'implementer', score: 2 },
+      { text: "Delivers thorough, polished work", value: 'completer_finisher', score: 2 },
     ]
   },
   {
     id: 3,
     statement: "In team meetings, I'm most likely to:",
     options: [
-      { text: "Propose innovative solutions others haven't considered", role: 'plant', score: 3 },
-      { text: "Weigh pros and cons before committing", role: 'monitor_evaluator', score: 3 },
-      { text: "Share specialized knowledge and technical insights", role: 'specialist', score: 3 },
-      { text: "Keep discussion on track and ensure everyone contributes", role: 'coordinator', score: 3 },
-      { text: "Support others' ideas and build on them", role: 'teamworker', score: 3 },
-      { text: "Share external contacts and market intelligence", role: 'resource_investigator', score: 3 },
-      { text: "Push the team to make decisions and take action", role: 'shaper', score: 3 },
-      { text: "Focus on what's realistic and achievable", role: 'implementer', score: 3 },
-      { text: "Highlight potential errors and quality issues", role: 'completer_finisher', score: 3 },
+      { text: "Propose innovative solutions others haven't considered", value: 'plant', score: 3 },
+      { text: "Weigh pros and cons before committing", value: 'monitor_evaluator', score: 3 },
+      { text: "Share specialized knowledge and technical insights", value: 'specialist', score: 3 },
+      { text: "Keep discussion on track and ensure everyone contributes", value: 'coordinator', score: 3 },
+      { text: "Support others' ideas and build on them", value: 'teamworker', score: 3 },
+      { text: "Share external contacts and market intelligence", value: 'resource_investigator', score: 3 },
+      { text: "Push the team to make decisions and take action", value: 'shaper', score: 3 },
+      { text: "Focus on what's realistic and achievable", value: 'implementer', score: 3 },
+      { text: "Highlight potential errors and quality issues", value: 'completer_finisher', score: 3 },
     ]
   },
   {
     id: 4,
     statement: "When facing a difficult challenge, I:",
     options: [
-      { text: "Step back and approach it from a new angle", role: 'plant', score: 2 },
-      { text: "Analyze it thoroughly before acting", role: 'monitor_evaluator', score: 2 },
-      { text: "Apply deep technical knowledge to solve it", role: 'specialist', score: 2 },
-      { text: "Organize resources and delegate appropriately", role: 'coordinator', score: 2 },
-      { text: "Rally the team and maintain morale", role: 'teamworker', score: 2 },
-      { text: "Seek external help and new resources", role: 'resource_investigator', score: 2 },
-      { text: "Confront it head-on with determination", role: 'shaper', score: 2 },
-      { text: "Create a systematic plan and execute it", role: 'implementer', score: 2 },
-      { text: "Work persistently until it's resolved perfectly", role: 'completer_finisher', score: 2 },
+      { text: "Step back and approach it from a new angle", value: 'plant', score: 2 },
+      { text: "Analyze it thoroughly before acting", value: 'monitor_evaluator', score: 2 },
+      { text: "Apply deep technical knowledge to solve it", value: 'specialist', score: 2 },
+      { text: "Organize resources and delegate appropriately", value: 'coordinator', score: 2 },
+      { text: "Rally the team and maintain morale", value: 'teamworker', score: 2 },
+      { text: "Seek external help and new resources", value: 'resource_investigator', score: 2 },
+      { text: "Confront it head-on with determination", value: 'shaper', score: 2 },
+      { text: "Create a systematic plan and execute it", value: 'implementer', score: 2 },
+      { text: "Work persistently until it's resolved perfectly", value: 'completer_finisher', score: 2 },
     ]
   },
   {
     id: 5,
     statement: "My strength in team contributions is:",
     options: [
-      { text: "Imaginative thinking and original ideas", role: 'plant', score: 3 },
-      { text: "Strategic thinking and sound judgment", role: 'monitor_evaluator', score: 3 },
-      { text: "Specialized skills and dedicated focus", role: 'specialist', score: 3 },
-      { text: "Mature, confident leadership", role: 'coordinator', score: 3 },
-      { text: "Flexibility and diplomatic support", role: 'teamworker', score: 3 },
-      { text: "Enthusiasm and external networking", role: 'resource_investigator', score: 3 },
-      { text: "Drive, courage, and overcoming obstacles", role: 'shaper', score: 3 },
-      { text: "Discipline, reliability, and efficiency", role: 'implementer', score: 3 },
-      { text: "Perfectionism and attention to detail", role: 'completer_finisher', score: 3 },
+      { text: "Imaginative thinking and original ideas", value: 'plant', score: 3 },
+      { text: "Strategic thinking and sound judgment", value: 'monitor_evaluator', score: 3 },
+      { text: "Specialized skills and dedicated focus", value: 'specialist', score: 3 },
+      { text: "Mature, confident leadership", value: 'coordinator', score: 3 },
+      { text: "Flexibility and diplomatic support", value: 'teamworker', score: 3 },
+      { text: "Enthusiasm and external networking", value: 'resource_investigator', score: 3 },
+      { text: "Drive, courage, and overcoming obstacles", value: 'shaper', score: 3 },
+      { text: "Discipline, reliability, and efficiency", value: 'implementer', score: 3 },
+      { text: "Perfectionism and attention to detail", value: 'completer_finisher', score: 3 },
     ]
   },
   {
     id: 6,
     statement: "A weakness I sometimes have in teams is:",
     options: [
-      { text: "Being too absorbed in ideas to communicate effectively", role: 'plant', score: 1 },
-      { text: "Over-analyzing and struggling to inspire others", role: 'monitor_evaluator', score: 1 },
-      { text: "Focusing narrowly and missing the bigger picture", role: 'specialist', score: 1 },
-      { text: "Delegating my own workload to others", role: 'coordinator', score: 1 },
-      { text: "Being indecisive in critical situations", role: 'teamworker', score: 1 },
-      { text: "Losing interest once initial enthusiasm fades", role: 'resource_investigator', score: 1 },
-      { text: "Being impatient and potentially offending others", role: 'shaper', score: 1 },
-      { text: "Being inflexible and slow to respond to new opportunities", role: 'implementer', score: 1 },
-      { text: "Worrying unduly and finding it hard to delegate", role: 'completer_finisher', score: 1 },
+      { text: "Being too absorbed in ideas to communicate effectively", value: 'plant', score: 1 },
+      { text: "Over-analyzing and struggling to inspire others", value: 'monitor_evaluator', score: 1 },
+      { text: "Focusing narrowly and missing the bigger picture", value: 'specialist', score: 1 },
+      { text: "Delegating my own workload to others", value: 'coordinator', score: 1 },
+      { text: "Being indecisive in critical situations", value: 'teamworker', score: 1 },
+      { text: "Losing interest once initial enthusiasm fades", value: 'resource_investigator', score: 1 },
+      { text: "Being impatient and potentially offending others", value: 'shaper', score: 1 },
+      { text: "Being inflexible and slow to respond to new opportunities", value: 'implementer', score: 1 },
+      { text: "Worrying unduly and finding it hard to delegate", value: 'completer_finisher', score: 1 },
     ]
   },
   {
     id: 7,
     statement: "I contribute most effectively when:",
     options: [
-      { text: "I can work on complex problems independently", role: 'plant', score: 2 },
-      { text: "I'm evaluating options and providing balanced advice", role: 'monitor_evaluator', score: 2 },
-      { text: "My specialized knowledge is needed", role: 'specialist', score: 2 },
-      { text: "I'm guiding and coordinating diverse contributions", role: 'coordinator', score: 2 },
-      { text: "I'm helping team members work together smoothly", role: 'teamworker', score: 2 },
-      { text: "I'm connecting with people and finding resources", role: 'resource_investigator', score: 2 },
-      { text: "There's a need for drive and urgent action", role: 'shaper', score: 2 },
-      { text: "Plans need to be executed efficiently", role: 'implementer', score: 2 },
-      { text: "Work needs to meet the highest standards", role: 'completer_finisher', score: 2 },
+      { text: "I can work on complex problems independently", value: 'plant', score: 2 },
+      { text: "I'm evaluating options and providing balanced advice", value: 'monitor_evaluator', score: 2 },
+      { text: "My specialized knowledge is needed", value: 'specialist', score: 2 },
+      { text: "I'm guiding and coordinating diverse contributions", value: 'coordinator', score: 2 },
+      { text: "I'm helping team members work together smoothly", value: 'teamworker', score: 2 },
+      { text: "I'm connecting with people and finding resources", value: 'resource_investigator', score: 2 },
+      { text: "There's a need for drive and urgent action", value: 'shaper', score: 2 },
+      { text: "Plans need to be executed efficiently", value: 'implementer', score: 2 },
+      { text: "Work needs to meet the highest standards", value: 'completer_finisher', score: 2 },
     ]
   },
   {
     id: 8,
     statement: "Under pressure, I tend to:",
     options: [
-      { text: "Withdraw to think and innovate", role: 'plant', score: 2 },
-      { text: "Remain objective and analytical", role: 'monitor_evaluator', score: 2 },
-      { text: "Focus on my area of expertise", role: 'specialist', score: 2 },
-      { text: "Stay calm and delegate effectively", role: 'coordinator', score: 2 },
-      { text: "Support stressed team members", role: 'teamworker', score: 2 },
-      { text: "Seek help from external contacts", role: 'resource_investigator', score: 2 },
-      { text: "Take charge and push forward", role: 'shaper', score: 2 },
-      { text: "Focus on delivering what's promised", role: 'implementer', score: 2 },
-      { text: "Worry about details and perfectionism", role: 'completer_finisher', score: 2 },
+      { text: "Withdraw to think and innovate", value: 'plant', score: 2 },
+      { text: "Remain objective and analytical", value: 'monitor_evaluator', score: 2 },
+      { text: "Focus on my area of expertise", value: 'specialist', score: 2 },
+      { text: "Stay calm and delegate effectively", value: 'coordinator', score: 2 },
+      { text: "Support stressed team members", value: 'teamworker', score: 2 },
+      { text: "Seek help from external contacts", value: 'resource_investigator', score: 2 },
+      { text: "Take charge and push forward", value: 'shaper', score: 2 },
+      { text: "Focus on delivering what's promised", value: 'implementer', score: 2 },
+      { text: "Worry about details and perfectionism", value: 'completer_finisher', score: 2 },
     ]
   },
 ];
@@ -255,7 +255,7 @@ export function calculateBelbinProfile(answers: Record<number, BelbinRole>): Bel
   belbinQuestions.forEach(q => {
     const selectedRole = answers[q.id];
     if (selectedRole) {
-      const option = q.options.find(opt => opt.role === selectedRole);
+      const option = q.options.find(opt => opt.value === selectedRole);
       if (option) {
         role_scores[selectedRole] += option.score;
       }

@@ -157,7 +157,7 @@ export const BelbinAssessment: React.FC<BelbinAssessmentProps> = ({
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
             <span>Question {currentQuestion + 1} of {belbinQuestions.length}</span>
           </div>
-          <CardTitle className="text-xl">{currentQ.question}</CardTitle>
+          <CardTitle className="text-xl">{currentQ.statement}</CardTitle>
         </CardHeader>
         <CardContent>
           <RadioGroup
