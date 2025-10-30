@@ -85,13 +85,13 @@ SELECT
 
 FROM practice_members pm
 JOIN practices p ON pm.practice_id = p.id
-LEFT JOIN learning_preferences lp ON pm.id = lp.team_member_id  -- CORRECTED!
-LEFT JOIN personality_assessments pa ON pm.id = pa.practice_member_id
-LEFT JOIN working_preferences wp ON pm.id = wp.practice_member_id
-LEFT JOIN belbin_assessments ba ON pm.id = ba.practice_member_id
-LEFT JOIN motivational_drivers md ON pm.id = md.practice_member_id
-LEFT JOIN eq_assessments eq ON pm.id = eq.practice_member_id
-LEFT JOIN conflict_style_assessments cs ON pm.id = cs.practice_member_id
+LEFT JOIN learning_preferences lp ON pm.id = lp.team_member_id  -- Uses team_member_id
+LEFT JOIN personality_assessments pa ON pm.id = pa.team_member_id  -- Uses team_member_id
+LEFT JOIN working_preferences wp ON pm.id = wp.practice_member_id  -- Uses practice_member_id
+LEFT JOIN belbin_assessments ba ON pm.id = ba.practice_member_id  -- Uses practice_member_id
+LEFT JOIN motivational_drivers md ON pm.id = md.practice_member_id  -- Uses practice_member_id
+LEFT JOIN eq_assessments eq ON pm.id = eq.practice_member_id  -- Uses practice_member_id
+LEFT JOIN conflict_style_assessments cs ON pm.id = cs.practice_member_id  -- Uses practice_member_id
 
 WHERE pm.is_active = TRUE
 ORDER BY pm.name;
@@ -106,8 +106,9 @@ GRANT SELECT ON team_comprehensive_assessments TO authenticated;
 DO $$
 BEGIN
   RAISE NOTICE '✅ View fixed successfully!';
-  RAISE NOTICE '   - learning_preferences now uses team_member_id ✓';
-  RAISE NOTICE '   - All other tables use practice_member_id ✓';
+  RAISE NOTICE '   - learning_preferences uses team_member_id ✓';
+  RAISE NOTICE '   - personality_assessments uses team_member_id ✓';
+  RAISE NOTICE '   - All 5 new assessment tables use practice_member_id ✓';
   RAISE NOTICE '   - View now combines all 7 assessments correctly ✓';
 END $$;
 
