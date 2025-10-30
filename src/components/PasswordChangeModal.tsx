@@ -110,11 +110,13 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
 
       if (dbError) {
         console.error('[PasswordChangeModal] Database update error:', dbError);
+        throw new Error('Failed to update password change flag');
       } else if (updateData && updateData.length > 0) {
         console.log('[PasswordChangeModal] ✅ Password change flag updated BEFORE auth change. Rows affected:', updateData.length);
         console.log('[PasswordChangeModal] Updated member:', updateData[0].name, updateData[0].email);
       } else {
         console.error('[PasswordChangeModal] ❌ No rows updated! Email may not match:', userEmail);
+        throw new Error('Failed to update password change flag - no rows affected');
       }
 
       // Now update password in Supabase Auth
@@ -136,17 +138,18 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
 
       console.log('[PasswordChangeModal] Setting success state...');
       setSuccess(true);
+      
+      // Show success toast
       toast({
-        title: 'Password Changed!',
-        description: 'Your password has been successfully updated. Page will reload.',
+        title: '✅ Password Changed!',
+        description: 'Refreshing your dashboard...',
       });
 
-      // Close modal after 2 seconds and reload page
-      console.log('[PasswordChangeModal] Scheduling page reload...');
+      // Immediately reload page to show updated state
+      console.log('[PasswordChangeModal] Reloading page immediately...');
       setTimeout(() => {
-        console.log('[PasswordChangeModal] Reloading page to apply changes...');
         window.location.reload();
-      }, 2000);
+      }, 1000); // Just 1 second to see the toast
 
     } catch (err: any) {
       console.error('[PasswordChangeModal] Error:', err);
