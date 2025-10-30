@@ -65,6 +65,12 @@ export const ConflictStyleAssessment: React.FC<ConflictStyleAssessmentProps> = (
       const profile = calculateConflictStyleProfile(answers);
       console.log('[ConflictStyle] Profile calculated:', profile);
 
+      // Calculate required metrics
+      const assertiveness_level = profile.assertiveness_score >= 70 ? 'high' : 
+                                   profile.assertiveness_score >= 40 ? 'moderate' : 'low';
+      const cooperativeness_level = profile.cooperativeness_score >= 70 ? 'high' : 
+                                    profile.cooperativeness_score >= 40 ? 'moderate' : 'low';
+
       // Save to database
       const { data, error } = await supabase
         .from('conflict_style_assessments')
@@ -75,12 +81,13 @@ export const ConflictStyleAssessment: React.FC<ConflictStyleAssessmentProps> = (
           primary_style: profile.primary_style,
           secondary_style: profile.secondary_style,
           style_scores: profile.style_scores,
-          competing_score: profile.style_scores.competing,
-          collaborating_score: profile.style_scores.collaborating,
-          compromising_score: profile.style_scores.compromising,
-          avoiding_score: profile.style_scores.avoiding,
-          accommodating_score: profile.style_scores.accommodating,
-          conflict_summary: profile.summary,
+          assertiveness_level: assertiveness_level,
+          cooperativeness_level: cooperativeness_level,
+          flexibility_score: profile.flexibility_score,
+          summary: profile.summary,
+          when_effective: [],
+          when_ineffective: [],
+          growth_recommendations: [],
           assessed_at: new Date().toISOString()
         }, {
           onConflict: 'practice_member_id'
@@ -175,32 +182,25 @@ export const ConflictStyleAssessment: React.FC<ConflictStyleAssessmentProps> = (
             onValueChange={(value) => handleAnswer(currentQ.id, value)}
           >
             <div className="space-y-3">
-              {currentQ.options.map((option, index) => {
-                const color = getStyleColor(option.value);
-                return (
-                  <div
-                    key={option.value}
-                    className={`flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer hover:border-${color}-300 hover:bg-${color}-50 ${
-                      answers[currentQ.id] === option.value
-                        ? `border-${color}-600 bg-${color}-50`
-                        : 'border-gray-200'
-                    }`}
-                    onClick={() => handleAnswer(currentQ.id, option.value)}
+              {currentQ.options.map((option, index) => (
+                <div
+                  key={option.value}
+                  className={`flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer hover:border-blue-300 hover:bg-blue-50 ${
+                    answers[currentQ.id] === option.value
+                      ? 'border-blue-600 bg-blue-50'
+                      : 'border-gray-200'
+                  }`}
+                  onClick={() => handleAnswer(currentQ.id, option.value)}
+                >
+                  <RadioGroupItem value={option.value} id={`q${currentQ.id}-${index}`} />
+                  <Label
+                    htmlFor={`q${currentQ.id}-${index}`}
+                    className="flex-1 cursor-pointer text-gray-900"
                   >
-                    <RadioGroupItem value={option.value} id={`q${currentQ.id}-${index}`} />
-                    <Label
-                      htmlFor={`q${currentQ.id}-${index}`}
-                      className="flex-1 cursor-pointer text-gray-900"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        {getStyleIcon(option.value)}
-                        <span className="font-medium capitalize">{option.value}</span>
-                      </div>
-                      <p className="text-sm text-gray-600">{option.text}</p>
-                    </Label>
-                  </div>
-                );
-              })}
+                    {option.text}
+                  </Label>
+                </div>
+              ))}
             </div>
           </RadioGroup>
         </CardContent>
