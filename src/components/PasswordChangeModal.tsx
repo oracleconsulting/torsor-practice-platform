@@ -152,16 +152,11 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
         description: 'Your password has been successfully updated.',
       });
 
-      // Close modal after 2 seconds
-      console.log('[PasswordChangeModal] Scheduling modal close...');
+      // Close modal after 2 seconds and reload page
+      console.log('[PasswordChangeModal] Scheduling page reload...');
       setTimeout(() => {
-        console.log('[PasswordChangeModal] Closing modal...');
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-        setSuccess(false);
-        isChangingPassword.current = false; // Mark as complete
-        onClose();
+        console.log('[PasswordChangeModal] Reloading page to apply changes...');
+        window.location.reload();
       }, 2000);
 
     } catch (err: any) {
