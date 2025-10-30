@@ -19,7 +19,7 @@ dotenv.config();
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
-const SUPABASE_URL = 'https://nwmzegonrmqzflamcxfd.supabase.co';
+const SUPABASE_URL = 'https://nwmzegonnmqzflamcxfd.supabase.co'; // Fixed: added missing 'n'
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY; // ⚠️ KEEP SECRET!
 const STANDARD_PASSWORD = 'TorsorTeam2025!'; // All users get this password initially
 const PRACTICE_ID = 'a1b2c3d4-5678-90ab-cdef-123456789abc'; // RPGCC practice ID
