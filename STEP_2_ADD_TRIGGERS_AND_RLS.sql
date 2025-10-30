@@ -112,7 +112,8 @@ CREATE POLICY working_prefs_admin_view ON working_preferences
   USING (
     practice_id IN (
       SELECT practice_id FROM practice_members 
-      WHERE user_id = auth.uid() AND is_admin = TRUE
+      WHERE user_id = auth.uid() 
+        AND permission_role IN ('partner', 'admin')
     )
   );
 
@@ -146,7 +147,8 @@ CREATE POLICY belbin_admin_view ON belbin_assessments
   USING (
     practice_id IN (
       SELECT practice_id FROM practice_members 
-      WHERE user_id = auth.uid() AND is_admin = TRUE
+      WHERE user_id = auth.uid() 
+        AND permission_role IN ('partner', 'admin')
     )
   );
 
@@ -180,7 +182,8 @@ CREATE POLICY motiv_admin_view ON motivational_drivers
   USING (
     practice_id IN (
       SELECT practice_id FROM practice_members 
-      WHERE user_id = auth.uid() AND is_admin = TRUE
+      WHERE user_id = auth.uid() 
+        AND permission_role IN ('partner', 'admin')
     )
   );
 
@@ -214,7 +217,8 @@ CREATE POLICY eq_admin_view ON eq_assessments
   USING (
     practice_id IN (
       SELECT practice_id FROM practice_members 
-      WHERE user_id = auth.uid() AND is_admin = TRUE
+      WHERE user_id = auth.uid() 
+        AND permission_role IN ('partner', 'admin')
     )
   );
 
@@ -248,7 +252,8 @@ CREATE POLICY conflict_admin_view ON conflict_style_assessments
   USING (
     practice_id IN (
       SELECT practice_id FROM practice_members 
-      WHERE user_id = auth.uid() AND is_admin = TRUE
+      WHERE user_id = auth.uid() 
+        AND permission_role IN ('partner', 'admin')
     )
   );
 
