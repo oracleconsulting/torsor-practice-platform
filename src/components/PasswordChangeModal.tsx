@@ -95,8 +95,31 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
       isChangingPassword.current = true; // Mark as in progress
       console.log('[PasswordChangeModal] Attempting to change password for:', userEmail);
 
-      // Update password in Supabase Auth
-      console.log('[PasswordChangeModal] Calling supabase.auth.updateUser...');
+      // IMPORTANT: Update database flag BEFORE changing password
+      // This way it happens even if USER_UPDATED event interrupts the flow
+      console.log('[PasswordChangeModal] Updating database flag FIRST (before auth update)...');
+      
+      const { data: updateData, error: dbError } = await supabase
+        .from('practice_members')
+        .update({
+          password_change_required: false,
+          last_password_change: new Date().toISOString()
+        })
+        .eq('email', userEmail)
+        .select();
+
+      if (dbError) {
+        console.error('[PasswordChangeModal] Database update error:', dbError);
+      } else if (updateData && updateData.length > 0) {
+        console.log('[PasswordChangeModal] ✅ Password change flag updated BEFORE auth change. Rows affected:', updateData.length);
+        console.log('[PasswordChangeModal] Updated member:', updateData[0].name, updateData[0].email);
+      } else {
+        console.error('[PasswordChangeModal] ❌ No rows updated! Email may not match:', userEmail);
+      }
+
+      // Now update password in Supabase Auth
+      // This triggers USER_UPDATED and may interrupt remaining code
+      console.log('[PasswordChangeModal] Now calling supabase.auth.updateUser...');
       const { data: userData, error: updateError } = await supabase.auth.updateUser({
         password: newPassword
       });
@@ -111,45 +134,11 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
       console.log('[PasswordChangeModal] ✅ Password updated successfully in auth');
       console.log('[PasswordChangeModal] User data:', userData?.user?.email);
 
-      // Mark password as changed in practice_members
-      // Try RPC first (if it exists), then fall back to direct update
-      console.log('[PasswordChangeModal] Updating database flag for email:', userEmail);
-      
-      const { error: rpcError } = await supabase.rpc('mark_password_changed', {
-        user_email: userEmail
-      });
-
-      if (rpcError) {
-        console.warn('[PasswordChangeModal] RPC failed, using direct update:', rpcError.message);
-        
-        // Fallback: Direct update with better logging
-        const { data: updateData, error: dbError } = await supabase
-          .from('practice_members')
-          .update({
-            password_change_required: false,
-            last_password_change: new Date().toISOString()
-          })
-          .eq('email', userEmail)
-          .select();
-
-        if (dbError) {
-          console.error('[PasswordChangeModal] Database update error:', dbError);
-          // Don't throw - password was changed successfully, this is just a flag update
-        } else if (updateData && updateData.length > 0) {
-          console.log('[PasswordChangeModal] ✅ Password change flag updated successfully. Rows affected:', updateData.length);
-          console.log('[PasswordChangeModal] Updated member:', updateData[0].name, updateData[0].email);
-        } else {
-          console.error('[PasswordChangeModal] ❌ No rows updated! Email may not match:', userEmail);
-        }
-      } else {
-        console.log('[PasswordChangeModal] ✅ Password change flag updated via RPC');
-      }
-
       console.log('[PasswordChangeModal] Setting success state...');
       setSuccess(true);
       toast({
         title: 'Password Changed!',
-        description: 'Your password has been successfully updated.',
+        description: 'Your password has been successfully updated. Page will reload.',
       });
 
       // Close modal after 2 seconds and reload page
