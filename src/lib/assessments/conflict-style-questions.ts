@@ -8,7 +8,7 @@ export interface ConflictStyleQuestion {
   scenario: string;
   options: {
     text: string;
-    style: ConflictStyle;
+    value: ConflictStyle;
     score: number;
   }[];
 }
@@ -25,110 +25,110 @@ export const conflictStyleQuestions: ConflictStyleQuestion[] = [
     id: 1,
     scenario: "When you and a colleague disagree on an important project decision, you typically:",
     options: [
-      { text: "Push for your solution because you believe it's best", style: 'competing', score: 3 },
-      { text: "Work together to find a solution that fully satisfies both", style: 'collaborating', score: 3 },
-      { text: "Suggest a middle-ground solution that partially satisfies both", style: 'compromising', score: 3 },
-      { text: "Let it go and avoid the conflict if possible", style: 'avoiding', score: 3 },
-      { text: "Go along with their preference to maintain harmony", style: 'accommodating', score: 3 },
+      { text: "Push for your solution because you believe it's best", value: 'competing', score: 3 },
+      { text: "Work together to find a solution that fully satisfies both", value: 'collaborating', score: 3 },
+      { text: "Suggest a middle-ground solution that partially satisfies both", value: 'compromising', score: 3 },
+      { text: "Let it go and avoid the conflict if possible", value: 'avoiding', score: 3 },
+      { text: "Go along with their preference to maintain harmony", value: 'accommodating', score: 3 },
     ]
   },
   {
     id: 2,
     scenario: "During a heated team discussion where tensions are rising, you're most likely to:",
     options: [
-      { text: "Stand firm on your position and argue your case", style: 'competing', score: 2 },
-      { text: "Encourage everyone to voice concerns and find common ground", style: 'collaborating', score: 2 },
-      { text: "Propose a quick compromise to move forward", style: 'compromising', score: 2 },
-      { text: "Stay quiet and wait for the tension to subside", style: 'avoiding', score: 2 },
-      { text: "Support others' ideas to reduce conflict", style: 'accommodating', score: 2 },
+      { text: "Stand firm on your position and argue your case", value: 'competing', score: 2 },
+      { text: "Encourage everyone to voice concerns and find common ground", value: 'collaborating', score: 2 },
+      { text: "Propose a quick compromise to move forward", value: 'compromising', score: 2 },
+      { text: "Stay quiet and wait for the tension to subside", value: 'avoiding', score: 2 },
+      { text: "Support others' ideas to reduce conflict", value: 'accommodating', score: 2 },
     ]
   },
   {
     id: 3,
     scenario: "Your manager assigns you a task that conflicts with your current priorities. You:",
     options: [
-      { text: "Explain why your current approach is better and push back", style: 'competing', score: 2 },
-      { text: "Discuss both priorities to find a solution that addresses everything", style: 'collaborating', score: 2 },
-      { text: "Negotiate to adjust both tasks to fit", style: 'compromising', score: 2 },
-      { text: "Accept it without discussion to avoid conflict", style: 'avoiding', score: 2 },
-      { text: "Agree to do it their way even if it's challenging", style: 'accommodating', score: 2 },
+      { text: "Explain why your current approach is better and push back", value: 'competing', score: 2 },
+      { text: "Discuss both priorities to find a solution that addresses everything", value: 'collaborating', score: 2 },
+      { text: "Negotiate to adjust both tasks to fit", value: 'compromising', score: 2 },
+      { text: "Accept it without discussion to avoid conflict", value: 'avoiding', score: 2 },
+      { text: "Agree to do it their way even if it's challenging", value: 'accommodating', score: 2 },
     ]
   },
   {
     id: 4,
     scenario: "Two team members come to you with a dispute. You:",
     options: [
-      { text: "Make a quick decision on who's right", style: 'competing', score: 2 },
-      { text: "Facilitate a discussion to help them find a win-win solution", style: 'collaborating', score: 2 },
-      { text: "Suggest they each give a little to resolve it", style: 'compromising', score: 2 },
-      { text: "Tell them to work it out themselves", style: 'avoiding', score: 2 },
-      { text: "Side with one to resolve it quickly", style: 'accommodating', score: 2 },
+      { text: "Make a quick decision on who's right", value: 'competing', score: 2 },
+      { text: "Facilitate a discussion to help them find a win-win solution", value: 'collaborating', score: 2 },
+      { text: "Suggest they each give a little to resolve it", value: 'compromising', score: 2 },
+      { text: "Tell them to work it out themselves", value: 'avoiding', score: 2 },
+      { text: "Side with one to resolve it quickly", value: 'accommodating', score: 2 },
     ]
   },
   {
     id: 5,
     scenario: "When someone criticizes your work in a meeting, you typically:",
     options: [
-      { text: "Defend your work and challenge their criticism", style: 'competing', score: 3 },
-      { text: "Engage in dialogue to understand their perspective and address concerns", style: 'collaborating', score: 3 },
-      { text: "Acknowledge some points while defending others", style: 'compromising', score: 3 },
-      { text: "Stay silent and address it later or not at all", style: 'avoiding', score: 3 },
-      { text: "Accept the criticism and agree to change", style: 'accommodating', score: 3 },
+      { text: "Defend your work and challenge their criticism", value: 'competing', score: 3 },
+      { text: "Engage in dialogue to understand their perspective and address concerns", value: 'collaborating', score: 3 },
+      { text: "Acknowledge some points while defending others", value: 'compromising', score: 3 },
+      { text: "Stay silent and address it later or not at all", value: 'avoiding', score: 3 },
+      { text: "Accept the criticism and agree to change", value: 'accommodating', score: 3 },
     ]
   },
   {
     id: 6,
     scenario: "You and a peer both want to lead the same high-profile project. You:",
     options: [
-      { text: "Make your case to management for why you should lead", style: 'competing', score: 3 },
-      { text: "Propose co-leading to leverage both your strengths", style: 'collaborating', score: 3 },
-      { text: "Suggest alternating leadership on different phases", style: 'compromising', score: 3 },
-      { text: "Withdraw your interest to avoid the conflict", style: 'avoiding', score: 3 },
-      { text: "Let them lead even though you want to", style: 'accommodating', score: 3 },
+      { text: "Make your case to management for why you should lead", value: 'competing', score: 3 },
+      { text: "Propose co-leading to leverage both your strengths", value: 'collaborating', score: 3 },
+      { text: "Suggest alternating leadership on different phases", value: 'compromising', score: 3 },
+      { text: "Withdraw your interest to avoid the conflict", value: 'avoiding', score: 3 },
+      { text: "Let them lead even though you want to", value: 'accommodating', score: 3 },
     ]
   },
   {
     id: 7,
     scenario: "A client is unhappy with a deliverable and wants major changes. You believe the work meets requirements. You:",
     options: [
-      { text: "Stand by your work and explain why it meets the brief", style: 'competing', score: 2 },
-      { text: "Listen to their concerns and work together on improvements", style: 'collaborating', score: 2 },
-      { text: "Make some requested changes while keeping core elements", style: 'compromising', score: 2 },
-      { text: "Pass it to someone else to handle", style: 'avoiding', score: 2 },
-      { text: "Redo it completely to their specifications", style: 'accommodating', score: 2 },
+      { text: "Stand by your work and explain why it meets the brief", value: 'competing', score: 2 },
+      { text: "Listen to their concerns and work together on improvements", value: 'collaborating', score: 2 },
+      { text: "Make some requested changes while keeping core elements", value: 'compromising', score: 2 },
+      { text: "Pass it to someone else to handle", value: 'avoiding', score: 2 },
+      { text: "Redo it completely to their specifications", value: 'accommodating', score: 2 },
     ]
   },
   {
     id: 8,
     scenario: "In a negotiation where you want outcome A and they want outcome B, you:",
     options: [
-      { text: "Push hard for outcome A", style: 'competing', score: 3 },
-      { text: "Explore creative solutions that achieve both A and B", style: 'collaborating', score: 3 },
-      { text: "Settle on outcome C that's between A and B", style: 'compromising', score: 3 },
-      { text: "Drop your request to avoid the difficult conversation", style: 'avoiding', score: 3 },
-      { text: "Accept outcome B to keep the relationship strong", style: 'accommodating', score: 3 },
+      { text: "Push hard for outcome A", value: 'competing', score: 3 },
+      { text: "Explore creative solutions that achieve both A and B", value: 'collaborating', score: 3 },
+      { text: "Settle on outcome C that's between A and B", value: 'compromising', score: 3 },
+      { text: "Drop your request to avoid the difficult conversation", value: 'avoiding', score: 3 },
+      { text: "Accept outcome B to keep the relationship strong", value: 'accommodating', score: 3 },
     ]
   },
   {
     id: 9,
     scenario: "When you notice a process isn't working well but others seem satisfied, you:",
     options: [
-      { text: "Argue for change and push for your alternative", style: 'competing', score: 2 },
-      { text: "Raise concerns and collaborate on improvements", style: 'collaborating', score: 2 },
-      { text: "Suggest small tweaks that address some concerns", style: 'compromising', score: 2 },
-      { text: "Keep quiet since others seem fine with it", style: 'avoiding', score: 2 },
-      { text: "Go along with the current process", style: 'accommodating', score: 2 },
+      { text: "Argue for change and push for your alternative", value: 'competing', score: 2 },
+      { text: "Raise concerns and collaborate on improvements", value: 'collaborating', score: 2 },
+      { text: "Suggest small tweaks that address some concerns", value: 'compromising', score: 2 },
+      { text: "Keep quiet since others seem fine with it", value: 'avoiding', score: 2 },
+      { text: "Go along with the current process", value: 'accommodating', score: 2 },
     ]
   },
   {
     id: 10,
     scenario: "Under tight deadlines, when conflict arises, you tend to:",
     options: [
-      { text: "Make executive decisions to keep moving", style: 'competing', score: 2 },
-      { text: "Quickly brainstorm solutions that work for everyone", style: 'collaborating', score: 2 },
-      { text: "Find fast compromises to maintain momentum", style: 'compromising', score: 2 },
-      { text: "Table the discussion for later", style: 'avoiding', score: 2 },
-      { text: "Defer to others' preferences to save time", style: 'accommodating', score: 2 },
+      { text: "Make executive decisions to keep moving", value: 'competing', score: 2 },
+      { text: "Quickly brainstorm solutions that work for everyone", value: 'collaborating', score: 2 },
+      { text: "Find fast compromises to maintain momentum", value: 'compromising', score: 2 },
+      { text: "Table the discussion for later", value: 'avoiding', score: 2 },
+      { text: "Defer to others' preferences to save time", value: 'accommodating', score: 2 },
     ]
   },
 ];
@@ -354,7 +354,7 @@ export function calculateConflictStyleProfile(answers: Record<number, ConflictSt
   conflictStyleQuestions.forEach(q => {
     const selectedStyle = answers[q.id];
     if (selectedStyle) {
-      const option = q.options.find(opt => opt.style === selectedStyle);
+      const option = q.options.find(opt => opt.value === selectedStyle);
       if (option) {
         style_scores[selectedStyle] += option.score;
       }

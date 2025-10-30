@@ -167,7 +167,7 @@ export const ConflictStyleAssessment: React.FC<ConflictStyleAssessmentProps> = (
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
             <span>Question {currentQuestion + 1} of {conflictStyleQuestions.length}</span>
           </div>
-          <CardTitle className="text-xl">{currentQ.question}</CardTitle>
+          <CardTitle className="text-xl">{currentQ.scenario}</CardTitle>
         </CardHeader>
         <CardContent>
           <RadioGroup

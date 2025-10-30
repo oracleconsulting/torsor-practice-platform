@@ -178,7 +178,7 @@ export const EQAssessment: React.FC<EQAssessmentProps> = ({
             <span className="capitalize">{currentQ.domain.replace('_', ' ')}</span>
             <span className="ml-auto">Question {currentQuestion + 1} of {eqQuestions.length}</span>
           </div>
-          <CardTitle className="text-xl">{currentQ.question}</CardTitle>
+          <CardTitle className="text-xl">{currentQ.statement}</CardTitle>
         </CardHeader>
         <CardContent>
           <RadioGroup
