@@ -1,498 +1,196 @@
 /**
- * Motivational Drivers Assessment
- * Identifies what motivates individuals at work based on key psychological needs
+ * Motivational Drivers Assessment Questions
+ * Based on motivational theory - identifies what drives and energizes individuals
+ * 6 drivers: Achievement, Autonomy, Affiliation, Power, Security, Recognition
  */
 
-export interface MotivationalDriverQuestion {
+export interface MotivationalQuestion {
   id: number;
   question: string;
   options: {
     text: string;
-    driver: MotivationalDriver;
-    score: number;
+    value: string; // achievement, autonomy, affiliation, power, security, recognition
   }[];
 }
 
-export type MotivationalDriver = 
-  | 'achievement' 
-  | 'affiliation' 
-  | 'power_influence' 
-  | 'autonomy' 
-  | 'security' 
-  | 'variety';
+export interface MotivationalProfile {
+  primary_driver: string;
+  secondary_driver: string;
+  driver_scores: {
+    achievement: number;
+    autonomy: number;
+    affiliation: number;
+    power: number;
+    security: number;
+    recognition: number;
+  };
+  summary: string;
+}
 
-export const motivationalDriverQuestions: MotivationalDriverQuestion[] = [
+export const motivationalDriversQuestions: MotivationalQuestion[] = [
   {
     id: 1,
-    question: "What aspect of work excites you most?",
+    question: "What motivates you most at work?",
     options: [
-      { text: "Setting and achieving ambitious goals", driver: 'achievement', score: 3 },
-      { text: "Building strong relationships with colleagues", driver: 'affiliation', score: 3 },
-      { text: "Leading teams and making impactful decisions", driver: 'power_influence', score: 3 },
-      { text: "Having freedom to work my own way", driver: 'autonomy', score: 3 },
-      { text: "Stable income and reliable work", driver: 'security', score: 3 },
-      { text: "Working on diverse, changing projects", driver: 'variety', score: 3 },
+      { text: "Accomplishing challenging goals and exceeding targets", value: "achievement" },
+      { text: "Having freedom to work independently and make my own decisions", value: "autonomy" },
+      { text: "Building strong relationships and working with a great team", value: "affiliation" },
+      { text: "Leading projects and influencing important decisions", value: "power" },
+      { text: "Having a stable job with predictable responsibilities", value: "security" },
+      { text: "Being acknowledged and praised for my contributions", value: "recognition" }
     ]
   },
   {
     id: 2,
-    question: "When choosing a new role, what matters most?",
+    question: "When choosing a new project, what matters most?",
     options: [
-      { text: "Opportunities for advancement and success", driver: 'achievement', score: 3 },
-      { text: "Collaborative team and positive culture", driver: 'affiliation', score: 3 },
-      { text: "Authority and ability to shape direction", driver: 'power_influence', score: 3 },
-      { text: "Independence and flexible work arrangements", driver: 'autonomy', score: 3 },
-      { text: "Job security and consistent benefits", driver: 'security', score: 3 },
-      { text: "Diverse responsibilities and new challenges", driver: 'variety', score: 3 },
+      { text: "The opportunity to excel and demonstrate my capabilities", value: "achievement" },
+      { text: "Having control over how I approach the work", value: "autonomy" },
+      { text: "Collaborating with people I enjoy working with", value: "affiliation" },
+      { text: "The chance to lead and make strategic decisions", value: "power" },
+      { text: "Clear structure and minimal risk", value: "security" },
+      { text: "Potential for visibility and credit", value: "recognition" }
     ]
   },
   {
     id: 3,
-    question: "You feel most satisfied at work when:",
+    question: "What energizes you during your workday?",
     options: [
-      { text: "You exceed targets and accomplish difficult tasks", driver: 'achievement', score: 2 },
-      { text: "You have strong connections with teammates", driver: 'affiliation', score: 2 },
-      { text: "Your ideas are implemented and you lead change", driver: 'power_influence', score: 2 },
-      { text: "You control your schedule and approach", driver: 'autonomy', score: 2 },
-      { text: "You have a predictable routine and stability", driver: 'security', score: 2 },
-      { text: "Every day brings something different", driver: 'variety', score: 2 },
+      { text: "Making progress toward ambitious objectives", value: "achievement" },
+      { text: "Working without constant oversight or micromanagement", value: "autonomy" },
+      { text: "Positive interactions and camaraderie with colleagues", value: "affiliation" },
+      { text: "Influencing outcomes and driving change", value: "power" },
+      { text: "Knowing my position is stable and my role is clear", value: "security" },
+      { text: "Receiving positive feedback and appreciation", value: "recognition" }
     ]
   },
   {
     id: 4,
-    question: "Which best describes your ideal work environment?",
+    question: "What frustrates you most at work?",
     options: [
-      { text: "Competitive, goal-driven culture", driver: 'achievement', score: 2 },
-      { text: "Warm, friendly, team-oriented atmosphere", driver: 'affiliation', score: 2 },
-      { text: "Place where I can make strategic decisions", driver: 'power_influence', score: 2 },
-      { text: "Minimal supervision, trust-based", driver: 'autonomy', score: 2 },
-      { text: "Structured, established organization", driver: 'security', score: 2 },
-      { text: "Dynamic, ever-changing environment", driver: 'variety', score: 2 },
+      { text: "Not having challenging goals or opportunities to grow", value: "achievement" },
+      { text: "Being told exactly how to do my work", value: "autonomy" },
+      { text: "Working in isolation without team connection", value: "affiliation" },
+      { text: "Not having a voice in important decisions", value: "power" },
+      { text: "Uncertainty about job stability or frequent changes", value: "security" },
+      { text: "My contributions going unnoticed or unappreciated", value: "recognition" }
     ]
   },
   {
     id: 5,
-    question: "What demotivates you most at work?",
+    question: "In performance reviews, what do you most want to hear?",
     options: [
-      { text: "Lack of clear goals or progress metrics", driver: 'achievement', score: 2 },
-      { text: "Isolation or poor team dynamics", driver: 'affiliation', score: 2 },
-      { text: "No voice in decisions or strategic direction", driver: 'power_influence', score: 2 },
-      { text: "Micromanagement and rigid rules", driver: 'autonomy', score: 2 },
-      { text: "Uncertainty and frequent organizational changes", driver: 'security', score: 2 },
-      { text: "Repetitive, monotonous tasks", driver: 'variety', score: 2 },
+      { text: "You've exceeded all targets and achieved exceptional results", value: "achievement" },
+      { text: "You've shown great initiative and independence in your work", value: "autonomy" },
+      { text: "You're a valued team member who enhances collaboration", value: "affiliation" },
+      { text: "You've demonstrated strong leadership and influence", value: "power" },
+      { text: "Your work is consistently reliable and dependable", value: "security" },
+      { text: "Your contributions have been noticed and are highly valued", value: "recognition" }
     ]
   },
   {
     id: 6,
-    question: "In a successful project, what matters most to you?",
+    question: "What type of reward would mean the most to you?",
     options: [
-      { text: "Measurable results and exceeding expectations", driver: 'achievement', score: 3 },
-      { text: "Team collaboration and strong relationships formed", driver: 'affiliation', score: 3 },
-      { text: "Recognition of my leadership and influence", driver: 'power_influence', score: 3 },
-      { text: "Freedom to innovate and work independently", driver: 'autonomy', score: 3 },
-      { text: "Smooth execution without major risks", driver: 'security', score: 3 },
-      { text: "Learning new skills and tackling new challenges", driver: 'variety', score: 3 },
+      { text: "A stretch assignment or promotion based on merit", value: "achievement" },
+      { text: "More flexibility and control over my schedule", value: "autonomy" },
+      { text: "A team celebration or social recognition", value: "affiliation" },
+      { text: "Increased authority and decision-making power", value: "power" },
+      { text: "A long-term contract or permanent position", value: "security" },
+      { text: "Public acknowledgment of my accomplishments", value: "recognition" }
     ]
   },
   {
     id: 7,
-    question: "When considering a career move, you prioritize:",
+    question: "What makes you feel most fulfilled?",
     options: [
-      { text: "Career progression and professional growth", driver: 'achievement', score: 2 },
-      { text: "People you'll work with and company culture", driver: 'affiliation', score: 2 },
-      { text: "Level of responsibility and decision-making power", driver: 'power_influence', score: 2 },
-      { text: "Work-life balance and flexibility", driver: 'autonomy', score: 2 },
-      { text: "Financial stability and job permanence", driver: 'security', score: 2 },
-      { text: "Breadth of experience and learning opportunities", driver: 'variety', score: 2 },
+      { text: "Reaching difficult milestones and proving my capabilities", value: "achievement" },
+      { text: "Being trusted to work in my own way", value: "autonomy" },
+      { text: "Feeling connected and appreciated by my team", value: "affiliation" },
+      { text: "Having impact on organizational direction", value: "power" },
+      { text: "Feeling confident about my future at the organization", value: "security" },
+      { text: "Being recognized as an expert or high performer", value: "recognition" }
     ]
   },
   {
     id: 8,
-    question: "Your ideal workday involves:",
+    question: "When facing a challenge, what keeps you going?",
     options: [
-      { text: "Tackling challenging problems and seeing results", driver: 'achievement', score: 2 },
-      { text: "Collaborating with colleagues throughout", driver: 'affiliation', score: 2 },
-      { text: "Making key decisions that shape outcomes", driver: 'power_influence', score: 2 },
-      { text: "Working independently with minimal interruptions", driver: 'autonomy', score: 2 },
-      { text: "Following established processes reliably", driver: 'security', score: 2 },
-      { text: "Switching between different types of work", driver: 'variety', score: 2 },
+      { text: "The satisfaction of overcoming obstacles", value: "achievement" },
+      { text: "The freedom to try different approaches", value: "autonomy" },
+      { text: "Support and encouragement from colleagues", value: "affiliation" },
+      { text: "The opportunity to demonstrate leadership", value: "power" },
+      { text: "Knowing the challenge won't jeopardize my position", value: "security" },
+      { text: "The potential for recognition if I succeed", value: "recognition" }
     ]
   },
   {
     id: 9,
-    question: "What type of feedback energizes you most?",
+    question: "What would make you consider leaving a job?",
     options: [
-      { text: "Recognition of exceptional performance and results", driver: 'achievement', score: 2 },
-      { text: "Appreciation for being a great team player", driver: 'affiliation', score: 2 },
-      { text: "Acknowledgment of your strategic impact", driver: 'power_influence', score: 2 },
-      { text: "Trust to continue working independently", driver: 'autonomy', score: 2 },
-      { text: "Confirmation that you're doing things correctly", driver: 'security', score: 2 },
-      { text: "Opportunities to try new approaches", driver: 'variety', score: 2 },
+      { text: "Lack of growth opportunities or challenging work", value: "achievement" },
+      { text: "Too much control or restrictive policies", value: "autonomy" },
+      { text: "Poor team dynamics or toxic culture", value: "affiliation" },
+      { text: "No opportunity to influence or lead", value: "power" },
+      { text: "Organizational instability or frequent restructuring", value: "security" },
+      { text: "Feeling undervalued or unappreciated", value: "recognition" }
     ]
   },
   {
     id: 10,
-    question: "Long-term, you want to be known for:",
+    question: "In your ideal work environment, what would be most important?",
     options: [
-      { text: "Outstanding achievements and success record", driver: 'achievement', score: 3 },
-      { text: "Being a valued colleague and team builder", driver: 'affiliation', score: 3 },
-      { text: "Leadership and driving organizational change", driver: 'power_influence', score: 3 },
-      { text: "Innovation and independent contributions", driver: 'autonomy', score: 3 },
-      { text: "Reliability and consistent excellence", driver: 'security', score: 3 },
-      { text: "Versatility and breadth of expertise", driver: 'variety', score: 3 },
-    ]
-  },
-];
-
-export interface MotivationalProfile {
-  primary_driver: MotivationalDriver;
-  secondary_driver: MotivationalDriver | null;
-  driver_scores: Record<MotivationalDriver, number>;
-  motivation_intensity: 'low' | 'moderate' | 'high';
-  summary: string;
-  what_motivates: string[];
-  what_demotivates: string[];
-  ideal_role_characteristics: string[];
-  retention_risks: string[];
-}
-
-const driverDescriptions: Record<MotivationalDriver, {
-  name: string;
-  description: string;
-  motivators: string[];
-  demotivators: string[];
-  ideal_roles: string[];
-  retention_risks: string[];
-}> = {
-  achievement: {
-    name: 'Achievement',
-    description: 'Driven by accomplishment, success, and exceeding goals',
-    motivators: [
-      'Clear, measurable goals and targets',
-      'Recognition of excellent performance',
-      'Opportunities for advancement',
-      'Challenging, complex problems',
-      'Visible progress and results'
-    ],
-    demotivators: [
-      'Vague or undefined goals',
-      'Lack of feedback on performance',
-      'Routine, unchallenging work',
-      'Limited growth opportunities'
-    ],
-    ideal_roles: [
-      'Project manager with clear deliverables',
-      'Sales or business development',
-      'Performance-based roles',
-      'Leadership positions with targets'
-    ],
-    retention_risks: [
-      'Stagnation in role without growth',
-      'Lack of recognition for achievements',
-      'No clear path to promotion',
-      'Work that doesn\'t challenge them'
-    ]
-  },
-  affiliation: {
-    name: 'Affiliation',
-    description: 'Driven by relationships, teamwork, and belonging',
-    motivators: [
-      'Strong team relationships',
-      'Collaborative work environment',
-      'Positive, supportive culture',
-      'Helping and supporting colleagues',
-      'Social recognition and appreciation'
-    ],
-    demotivators: [
-      'Isolation or remote work without connection',
-      'Competitive, individualistic culture',
-      'Conflict or poor team dynamics',
-      'Lack of team interaction'
-    ],
-    ideal_roles: [
-      'HR and people development',
-      'Team coordination',
-      'Client relationship management',
-      'Mentoring and coaching roles'
-    ],
-    retention_risks: [
-      'Toxic team culture',
-      'Isolation in role',
-      'Constant reorganizations disrupting relationships',
-      'Lack of team appreciation'
-    ]
-  },
-  power_influence: {
-    name: 'Power & Influence',
-    description: 'Driven by impact, leadership, and shaping direction',
-    motivators: [
-      'Decision-making authority',
-      'Strategic influence',
-      'Leading teams and initiatives',
-      'Recognition as a leader',
-      'Ability to shape organizational direction'
-    ],
-    demotivators: [
-      'No voice in decisions',
-      'Lack of authority or responsibility',
-      'Being micromanaged',
-      'Limited scope of influence'
-    ],
-    ideal_roles: [
-      'Leadership and management positions',
-      'Strategic advisory roles',
-      'Change management',
-      'Executive positions'
-    ],
-    retention_risks: [
-      'Passed over for promotion',
-      'Ideas consistently ignored',
-      'Reduced scope or responsibility',
-      'No path to leadership'
-    ]
-  },
-  autonomy: {
-    name: 'Autonomy',
-    description: 'Driven by independence, freedom, and self-direction',
-    motivators: [
-      'Control over how work is done',
-      'Flexible schedule and location',
-      'Minimal supervision',
-      'Trust-based management',
-      'Ability to innovate independently'
-    ],
-    demotivators: [
-      'Micromanagement',
-      'Rigid rules and procedures',
-      'Constant oversight and check-ins',
-      'Lack of flexibility'
-    ],
-    ideal_roles: [
-      'Remote/flexible work arrangements',
-      'Independent consultant or specialist',
-      'Research and development',
-      'Entrepreneurial roles'
-    ],
-    retention_risks: [
-      'Increased oversight or micromanagement',
-      'Loss of flexibility',
-      'Rigid return-to-office policies',
-      'Reduced decision-making power'
-    ]
-  },
-  security: {
-    name: 'Security',
-    description: 'Driven by stability, predictability, and safety',
-    motivators: [
-      'Job security and stability',
-      'Clear, established processes',
-      'Predictable income and benefits',
-      'Low-risk environment',
-      'Long-term organizational stability'
-    ],
-    demotivators: [
-      'Frequent organizational changes',
-      'Uncertainty about job security',
-      'High-risk projects',
-      'Unstable leadership'
-    ],
-    ideal_roles: [
-      'Established organizations',
-      'Process-driven roles',
-      'Quality assurance',
-      'Compliance and governance'
-    ],
-    retention_risks: [
-      'Layoffs or restructuring',
-      'Financial instability',
-      'Constant change and uncertainty',
-      'Shift to high-risk strategy'
-    ]
-  },
-  variety: {
-    name: 'Variety',
-    description: 'Driven by novelty, diversity, and new challenges',
-    motivators: [
-      'Diverse, changing responsibilities',
-      'New challenges and learning',
-      'Cross-functional projects',
-      'Exposure to different areas',
-      'Constant innovation'
-    ],
-    demotivators: [
-      'Repetitive, routine tasks',
-      'Narrow, specialized work',
-      'Lack of learning opportunities',
-      'Stagnant role without change'
-    ],
-    ideal_roles: [
-      'Consulting and advisory',
-      'Project-based work',
-      'Innovation and R&D',
-      'Generalist roles'
-    ],
-    retention_risks: [
-      'Role becomes too routine',
-      'Limited exposure to new projects',
-      'Specialization without variety',
-      'Boredom from repetition'
+      { text: "High standards and opportunities for excellence", value: "achievement" },
+      { text: "Trust and minimal bureaucracy", value: "autonomy" },
+      { text: "Strong relationships and collaborative spirit", value: "affiliation" },
+      { text: "Clear paths to leadership and influence", value: "power" },
+      { text: "Stability and predictable career progression", value: "security" },
+      { text: "Regular feedback and appreciation", value: "recognition" }
     ]
   }
-};
+];
 
-export function calculateMotivationalProfile(answers: Record<number, MotivationalDriver>): MotivationalProfile {
-  const driver_scores: Record<MotivationalDriver, number> = {
+export function calculateMotivationalProfile(answers: Record<number, string>): MotivationalProfile {
+  const scores = {
     achievement: 0,
-    affiliation: 0,
-    power_influence: 0,
     autonomy: 0,
+    affiliation: 0,
+    power: 0,
     security: 0,
-    variety: 0
+    recognition: 0
   };
 
-  // Calculate scores
-  motivationalDriverQuestions.forEach(q => {
-    const selectedDriver = answers[q.id];
-    if (selectedDriver) {
-      const option = q.options.find(opt => opt.driver === selectedDriver);
-      if (option) {
-        driver_scores[selectedDriver] += option.score;
-      }
+  // Count selections for each driver
+  Object.values(answers).forEach(value => {
+    if (value in scores) {
+      scores[value as keyof typeof scores]++;
     }
   });
 
-  // Find primary and secondary drivers
-  const sortedDrivers = Object.entries(driver_scores)
-    .sort(([, a], [, b]) => b - a) as [MotivationalDriver, number][];
-  
-  const primary_driver = sortedDrivers[0][0];
-  const secondary_driver = sortedDrivers[1][1] > 0 ? sortedDrivers[1][0] : null;
+  // Sort drivers by score
+  const sortedDrivers = Object.entries(scores)
+    .sort(([, a], [, b]) => b - a)
+    .map(([driver]) => driver);
 
-  // Calculate motivation intensity based on score concentration
-  const totalScore = Object.values(driver_scores).reduce((sum, score) => sum + score, 0);
-  const primaryPercentage = (sortedDrivers[0][1] / totalScore) * 100;
-  
-  let motivation_intensity: 'low' | 'moderate' | 'high';
-  if (primaryPercentage > 50) {
-    motivation_intensity = 'high'; // Very focused motivation
-  } else if (primaryPercentage > 35) {
-    motivation_intensity = 'moderate'; // Balanced motivation
-  } else {
-    motivation_intensity = 'low'; // Diffused motivation across many drivers
-  }
+  const primary_driver = sortedDrivers[0];
+  const secondary_driver = sortedDrivers[1];
 
-  const primaryDesc = driverDescriptions[primary_driver];
-  const secondaryDesc = secondary_driver ? driverDescriptions[secondary_driver] : null;
+  // Generate summary
+  const driverDescriptions: Record<string, string> = {
+    achievement: "You are driven by accomplishment and the pursuit of excellence. You thrive when setting and reaching ambitious goals.",
+    autonomy: "You value independence and self-direction. You work best when trusted to make your own decisions and chart your own course.",
+    affiliation: "You are motivated by relationships and belonging. You thrive in collaborative environments with strong team bonds.",
+    power: "You are energized by leadership and influence. You seek opportunities to shape outcomes and drive organizational direction.",
+    security: "You value stability and predictability. You prefer clear structures and long-term security in your role.",
+    recognition: "You are motivated by acknowledgment and appreciation. You thrive when your contributions are noticed and valued."
+  };
 
-  const summary = secondaryDesc
-    ? `Primarily driven by ${primaryDesc.name} (${primaryDesc.description.toLowerCase()}), with secondary motivation from ${secondaryDesc.name} (${secondaryDesc.description.toLowerCase()}).`
-    : `Strongly driven by ${primaryDesc.name}: ${primaryDesc.description}.`;
-
-  const what_motivates = [...primaryDesc.motivators];
-  if (secondaryDesc) {
-    what_motivates.push(...secondaryDesc.motivators.slice(0, 2));
-  }
-
-  const what_demotivates = [...primaryDesc.demotivators];
-  if (secondaryDesc) {
-    what_demotivates.push(...secondaryDesc.demotivators.slice(0, 2));
-  }
-
-  const ideal_role_characteristics = [...primaryDesc.ideal_roles];
-  if (secondaryDesc) {
-    ideal_role_characteristics.push(...secondaryDesc.ideal_roles.slice(0, 2));
-  }
-
-  const retention_risks = [...primaryDesc.retention_risks];
+  const summary = `${driverDescriptions[primary_driver]} Your secondary motivator is ${secondary_driver}, which complements your primary drive.`;
 
   return {
     primary_driver,
     secondary_driver,
-    driver_scores,
-    motivation_intensity,
-    summary,
-    what_motivates,
-    what_demotivates,
-    ideal_role_characteristics,
-    retention_risks
+    driver_scores: scores,
+    summary
   };
 }
-
-export function getDriverDescription(driver: MotivationalDriver) {
-  return driverDescriptions[driver];
-}
-
-export function getTeamMotivationInsights(profiles: MotivationalProfile[]): {
-  team_balance: string;
-  potential_conflicts: string[];
-  management_recommendations: string[];
-} {
-  const driverCounts: Record<MotivationalDriver, number> = {
-    achievement: 0,
-    affiliation: 0,
-    power_influence: 0,
-    autonomy: 0,
-    security: 0,
-    variety: 0
-  };
-
-  profiles.forEach(p => {
-    driverCounts[p.primary_driver]++;
-  });
-
-  const dominantDriver = Object.entries(driverCounts)
-    .sort(([, a], [, b]) => b - a)[0][0] as MotivationalDriver;
-
-  let team_balance = '';
-  const achievementPct = (driverCounts.achievement / profiles.length) * 100;
-  const affiliationPct = (driverCounts.affiliation / profiles.length) * 100;
-  const powerPct = (driverCounts.power_influence / profiles.length) * 100;
-
-  if (achievementPct > 50) {
-    team_balance = 'Highly achievement-driven team. Competitive, goal-focused culture.';
-  } else if (affiliationPct > 50) {
-    team_balance = 'Relationship-oriented team. Collaborative, supportive culture.';
-  } else if (powerPct > 30) {
-    team_balance = 'Leadership-heavy team. Multiple drivers seeking influence.';
-  } else {
-    team_balance = 'Balanced team with diverse motivational drivers.';
-  }
-
-  const potential_conflicts = [];
-  if (driverCounts.power_influence > 2 && profiles.length < 8) {
-    potential_conflicts.push('Multiple power-driven individuals may compete for leadership');
-  }
-  if (driverCounts.autonomy > 3 && driverCounts.affiliation > 3) {
-    potential_conflicts.push('Tension between autonomy-seekers and collaboration-seekers');
-  }
-  if (driverCounts.variety > 3 && driverCounts.security > 3) {
-    potential_conflicts.push('Conflict between change-seekers and stability-seekers');
-  }
-
-  const management_recommendations = [];
-  if (achievementPct > 40) {
-    management_recommendations.push('Set clear, measurable goals and recognize achievements publicly');
-  }
-  if (affiliationPct > 30) {
-    management_recommendations.push('Invest in team-building and maintain strong social culture');
-  }
-  if (driverCounts.power_influence > 2) {
-    management_recommendations.push('Provide leadership opportunities and influence pathways for multiple individuals');
-  }
-  if (driverCounts.autonomy > 3) {
-    management_recommendations.push('Minimize micromanagement; trust-based delegation essential');
-  }
-  if (driverCounts.security > 3) {
-    management_recommendations.push('Communicate changes clearly and provide stability wherever possible');
-  }
-  if (driverCounts.variety > 3) {
-    management_recommendations.push('Rotate assignments and provide diverse project opportunities');
-  }
-
-  return {
-    team_balance,
-    potential_conflicts,
-    management_recommendations
-  };
-}
-

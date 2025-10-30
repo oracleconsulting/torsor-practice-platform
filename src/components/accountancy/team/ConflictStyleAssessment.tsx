@@ -12,8 +12,8 @@ import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/components/ui/use-toast';
 import { 
   conflictStyleQuestions, 
-  calculateConflictProfile,
-  type ConflictProfile 
+  calculateConflictStyleProfile,
+  type ConflictStyleProfile as ConflictProfile 
 } from '@/lib/assessments/conflict-style-questions';
 import { supabase } from '@/lib/supabase/client';
 import { Shield, Swords, Scale, Users, Handshake } from 'lucide-react';
@@ -62,7 +62,7 @@ export const ConflictStyleAssessment: React.FC<ConflictStyleAssessmentProps> = (
     console.log('[ConflictStyle] Calculating profile from answers:', answers);
 
     try {
-      const profile = calculateConflictProfile(answers);
+      const profile = calculateConflictStyleProfile(answers);
       console.log('[ConflictStyle] Profile calculated:', profile);
 
       // Save to database
