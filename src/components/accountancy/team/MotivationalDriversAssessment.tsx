@@ -65,6 +65,10 @@ export const MotivationalDriversAssessment: React.FC<MotivationalDriversAssessme
       const profile = calculateMotivationalProfile(answers);
       console.log('[Motivational] Profile calculated:', profile);
 
+      // Calculate motivation intensity based on primary driver score
+      const primaryScore = profile.driver_scores[profile.primary_driver as keyof typeof profile.driver_scores];
+      const motivation_intensity = primaryScore >= 20 ? 'high' : primaryScore >= 10 ? 'moderate' : 'low';
+
       // Save to database
       const { data, error } = await supabase
         .from('motivational_drivers')
@@ -75,7 +79,8 @@ export const MotivationalDriversAssessment: React.FC<MotivationalDriversAssessme
           primary_driver: profile.primary_driver,
           secondary_driver: profile.secondary_driver,
           driver_scores: profile.driver_scores,
-          motivation_summary: profile.summary,
+          motivation_intensity: motivation_intensity,
+          summary: profile.summary,
           assessed_at: new Date().toISOString()
         }, {
           onConflict: 'practice_member_id'
