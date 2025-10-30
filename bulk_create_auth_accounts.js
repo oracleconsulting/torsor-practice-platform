@@ -11,6 +11,7 @@
 // ============================================================================
 
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config(); // Load .env file
 
 // ============================================================================
 // CONFIGURATION
