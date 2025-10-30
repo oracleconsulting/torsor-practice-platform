@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +31,16 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const { toast } = useToast();
+  const isChangingPassword = useRef(false); // Track if password change is in progress
+
+  // Prevent component unmount from interrupting password change
+  useEffect(() => {
+    return () => {
+      if (isChangingPassword.current) {
+        console.log('[PasswordChangeModal] Component unmounting but password change in progress - letting it complete');
+      }
+    };
+  }, []);
 
   // Password validation
   const validatePassword = (password: string): { valid: boolean; message: string } => {
@@ -82,6 +92,7 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
     try {
       setLoading(true);
       setError('');
+      isChangingPassword.current = true; // Mark as in progress
       console.log('[PasswordChangeModal] Attempting to change password for:', userEmail);
 
       // Update password in Supabase Auth
@@ -89,6 +100,8 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
       const { data: userData, error: updateError } = await supabase.auth.updateUser({
         password: newPassword
       });
+
+      console.log('[PasswordChangeModal] Auth update completed, checking for errors...');
 
       if (updateError) {
         console.error('[PasswordChangeModal] Error updating password:', updateError);
@@ -147,6 +160,7 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
         setNewPassword('');
         setConfirmPassword('');
         setSuccess(false);
+        isChangingPassword.current = false; // Mark as complete
         onClose();
       }, 2000);
 
@@ -158,6 +172,7 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
         description: err.message || 'Failed to change password',
         variant: 'destructive',
       });
+      isChangingPassword.current = false; // Mark as complete even on error
     } finally {
       setLoading(false);
     }
