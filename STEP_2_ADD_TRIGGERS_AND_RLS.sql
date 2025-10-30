@@ -102,7 +102,7 @@ CREATE POLICY working_prefs_member_view ON working_preferences
   USING (
     practice_member_id IN (
       SELECT id FROM practice_members 
-      WHERE auth_user_id = auth.uid()
+      WHERE user_id = auth.uid()
     )
   );
 
@@ -112,7 +112,7 @@ CREATE POLICY working_prefs_admin_view ON working_preferences
   USING (
     practice_id IN (
       SELECT practice_id FROM practice_members 
-      WHERE auth_user_id = auth.uid() AND is_admin = TRUE
+      WHERE user_id = auth.uid() AND is_admin = TRUE
     )
   );
 
@@ -122,7 +122,7 @@ CREATE POLICY working_prefs_member_manage ON working_preferences
   USING (
     practice_member_id IN (
       SELECT id FROM practice_members 
-      WHERE auth_user_id = auth.uid()
+      WHERE user_id = auth.uid()
     )
   );
 
@@ -136,7 +136,7 @@ CREATE POLICY belbin_member_view ON belbin_assessments
   USING (
     practice_member_id IN (
       SELECT id FROM practice_members 
-      WHERE auth_user_id = auth.uid()
+      WHERE user_id = auth.uid()
     )
   );
 
@@ -146,7 +146,7 @@ CREATE POLICY belbin_admin_view ON belbin_assessments
   USING (
     practice_id IN (
       SELECT practice_id FROM practice_members 
-      WHERE auth_user_id = auth.uid() AND is_admin = TRUE
+      WHERE user_id = auth.uid() AND is_admin = TRUE
     )
   );
 
@@ -156,7 +156,7 @@ CREATE POLICY belbin_member_manage ON belbin_assessments
   USING (
     practice_member_id IN (
       SELECT id FROM practice_members 
-      WHERE auth_user_id = auth.uid()
+      WHERE user_id = auth.uid()
     )
   );
 
@@ -170,7 +170,7 @@ CREATE POLICY motiv_member_view ON motivational_drivers
   USING (
     practice_member_id IN (
       SELECT id FROM practice_members 
-      WHERE auth_user_id = auth.uid()
+      WHERE user_id = auth.uid()
     )
   );
 
@@ -180,7 +180,7 @@ CREATE POLICY motiv_admin_view ON motivational_drivers
   USING (
     practice_id IN (
       SELECT practice_id FROM practice_members 
-      WHERE auth_user_id = auth.uid() AND is_admin = TRUE
+      WHERE user_id = auth.uid() AND is_admin = TRUE
     )
   );
 
@@ -190,7 +190,7 @@ CREATE POLICY motiv_member_manage ON motivational_drivers
   USING (
     practice_member_id IN (
       SELECT id FROM practice_members 
-      WHERE auth_user_id = auth.uid()
+      WHERE user_id = auth.uid()
     )
   );
 
@@ -204,7 +204,7 @@ CREATE POLICY eq_member_view ON eq_assessments
   USING (
     practice_member_id IN (
       SELECT id FROM practice_members 
-      WHERE auth_user_id = auth.uid()
+      WHERE user_id = auth.uid()
     )
   );
 
@@ -214,7 +214,7 @@ CREATE POLICY eq_admin_view ON eq_assessments
   USING (
     practice_id IN (
       SELECT practice_id FROM practice_members 
-      WHERE auth_user_id = auth.uid() AND is_admin = TRUE
+      WHERE user_id = auth.uid() AND is_admin = TRUE
     )
   );
 
@@ -224,7 +224,7 @@ CREATE POLICY eq_member_manage ON eq_assessments
   USING (
     practice_member_id IN (
       SELECT id FROM practice_members 
-      WHERE auth_user_id = auth.uid()
+      WHERE user_id = auth.uid()
     )
   );
 
@@ -238,7 +238,7 @@ CREATE POLICY conflict_member_view ON conflict_style_assessments
   USING (
     practice_member_id IN (
       SELECT id FROM practice_members 
-      WHERE auth_user_id = auth.uid()
+      WHERE user_id = auth.uid()
     )
   );
 
@@ -248,7 +248,7 @@ CREATE POLICY conflict_admin_view ON conflict_style_assessments
   USING (
     practice_id IN (
       SELECT practice_id FROM practice_members 
-      WHERE auth_user_id = auth.uid() AND is_admin = TRUE
+      WHERE user_id = auth.uid() AND is_admin = TRUE
     )
   );
 
@@ -258,7 +258,7 @@ CREATE POLICY conflict_member_manage ON conflict_style_assessments
   USING (
     practice_member_id IN (
       SELECT id FROM practice_members 
-      WHERE auth_user_id = auth.uid()
+      WHERE user_id = auth.uid()
     )
   );
 
