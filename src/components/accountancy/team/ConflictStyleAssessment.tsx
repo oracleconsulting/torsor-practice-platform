@@ -16,7 +16,7 @@ import {
   type ConflictStyleProfile as ConflictProfile 
 } from '@/lib/assessments/conflict-style-questions';
 import { supabase } from '@/lib/supabase/client';
-import { Shield, Swords, Scale, Users, Handshake } from 'lucide-react';
+import { Shield, Swords, Scale, Users, Heart } from 'lucide-react';
 
 interface ConflictStyleAssessmentProps {
   practiceMemberId: string;
@@ -121,7 +121,7 @@ export const ConflictStyleAssessment: React.FC<ConflictStyleAssessmentProps> = (
       'collaborating': <Users className="w-5 h-5 text-green-600" />,
       'compromising': <Scale className="w-5 h-5 text-blue-600" />,
       'avoiding': <Shield className="w-5 h-5 text-gray-600" />,
-      'accommodating': <Handshake className="w-5 h-5 text-purple-600" />
+      'accommodating': <Heart className="w-5 h-5 text-purple-600" />
     };
     return icons[style] || <Shield className="w-5 h-5" />;
   };
