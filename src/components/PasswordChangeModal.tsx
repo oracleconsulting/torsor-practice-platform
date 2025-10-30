@@ -94,13 +94,31 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
       console.log('[PasswordChangeModal] Password updated successfully');
 
       // Mark password as changed in practice_members
-      const { error: dbError } = await supabase.rpc('mark_password_changed', {
+      // Try RPC first (if it exists), then fall back to direct update
+      const { error: rpcError } = await supabase.rpc('mark_password_changed', {
         user_email: userEmail
       });
 
-      if (dbError) {
-        console.error('[PasswordChangeModal] Error marking password as changed:', dbError);
-        // Don't throw - password was changed successfully, this is just a flag update
+      if (rpcError) {
+        console.warn('[PasswordChangeModal] RPC not found, using direct update:', rpcError.message);
+        
+        // Fallback: Direct update
+        const { error: dbError } = await supabase
+          .from('practice_members')
+          .update({
+            password_change_required: false,
+            last_password_change: new Date().toISOString()
+          })
+          .eq('email', userEmail);
+
+        if (dbError) {
+          console.error('[PasswordChangeModal] Error marking password as changed:', dbError);
+          // Don't throw - password was changed successfully, this is just a flag update
+        } else {
+          console.log('[PasswordChangeModal] Password change flag updated successfully');
+        }
+      } else {
+        console.log('[PasswordChangeModal] Password change flag updated via RPC');
       }
 
       setSuccess(true);
