@@ -29,6 +29,7 @@ import {
 import RoleManagement from '@/components/accountancy/team/RoleManagement';
 import UserManagement from '@/components/accountancy/team/UserManagement';
 import ReportingLinesManager from '@/components/accountancy/admin/ReportingLinesManager';
+import TeamAssessmentsOverview from '@/components/accountancy/team/TeamAssessmentsOverview';
 import {
   BarChart,
   Bar,
@@ -286,9 +287,9 @@ export default function AdminDashboardPage() {
         </p>
       </div>
 
-      {/* Tabs for Dashboard vs Role Management vs User Management vs Reporting Lines */}
+      {/* Tabs for Dashboard vs Role Management vs User Management vs Reporting Lines vs Assessments */}
       <Tabs defaultValue="dashboard" className="space-y-6">
-        <TabsList className="grid w-full max-w-3xl grid-cols-4">
+        <TabsList className="grid w-full max-w-4xl grid-cols-5">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Dashboard
@@ -304,6 +305,10 @@ export default function AdminDashboardPage() {
           <TabsTrigger value="reporting-lines" className="flex items-center gap-2">
             <Network className="h-4 w-4" />
             Reporting Lines
+          </TabsTrigger>
+          <TabsTrigger value="assessments" className="flex items-center gap-2">
+            <Brain className="h-4 w-4" />
+            Assessments
           </TabsTrigger>
         </TabsList>
 
@@ -790,6 +795,11 @@ export default function AdminDashboardPage() {
         {/* Reporting Lines Tab */}
         <TabsContent value="reporting-lines">
           <ReportingLinesManager practiceId="a1b2c3d4-5678-90ab-cdef-123456789abc" />
+        </TabsContent>
+
+        {/* Assessments Tab */}
+        <TabsContent value="assessments">
+          <TeamAssessmentsOverview practiceId="a1b2c3d4-5678-90ab-cdef-123456789abc" />
         </TabsContent>
       </Tabs>
     </div>
