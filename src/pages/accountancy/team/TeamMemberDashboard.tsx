@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { PasswordChangeModal } from '@/components/PasswordChangeModal';
 import DirectReportsPanel from '@/components/accountancy/team/DirectReportsPanel';
 import {
   User,
@@ -21,7 +23,9 @@ import {
   Calendar,
   Clock,
   CheckCircle2,
-  Brain
+  Brain,
+  AlertCircle,
+  Lock
 } from 'lucide-react';
 
 interface TeamMemberStats {
@@ -68,6 +72,8 @@ export default function TeamMemberDashboard() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [memberName, setMemberName] = useState<string>('Team Member');
   const [currentMemberId, setCurrentMemberId] = useState<string | null>(null);
+  const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   // Debug logging
   useEffect(() => {
@@ -99,6 +105,7 @@ export default function TeamMemberDashboard() {
     if (user?.id && !viewingAsMemberId && !viewAsParam) {
       console.log('[Dashboard] Loading own data for user:', user.id);
       loadDashboardData();
+      checkPasswordChangeRequired(); // Check if password change is required
     } else if (!user?.id) {
       console.log('[Dashboard] No user ID available');
     }
@@ -225,6 +232,35 @@ export default function TeamMemberDashboard() {
       console.error('Error loading dashboard for member:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkPasswordChangeRequired = async () => {
+    try {
+      if (!user?.email) return;
+      
+      console.log('[Dashboard] Checking password change requirement for:', user.email);
+      
+      const { data, error } = await supabase
+        .from('practice_members')
+        .select('password_change_required')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (error) {
+        console.error('[Dashboard] Error checking password change requirement:', error);
+        return;
+      }
+      
+      console.log('[Dashboard] Password change required:', data?.password_change_required);
+      setPasswordChangeRequired(data?.password_change_required || false);
+      
+      // Auto-show modal if required
+      if (data?.password_change_required) {
+        setShowPasswordModal(true);
+      }
+    } catch (error) {
+      console.error('[Dashboard] Error in checkPasswordChangeRequired:', error);
     }
   };
 
@@ -362,6 +398,29 @@ export default function TeamMemberDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
+        {/* Password Change Required Banner */}
+        {passwordChangeRequired && !showPasswordModal && (
+          <Alert className="mb-6 bg-orange-50 border-2 border-orange-300">
+            <AlertCircle className="h-5 w-5 text-orange-600" />
+            <AlertDescription className="flex items-center justify-between w-full">
+              <div>
+                <p className="font-semibold text-orange-900">Password Change Required</p>
+                <p className="text-sm text-orange-700 mt-1">
+                  For security reasons, please change your default password.
+                </p>
+              </div>
+              <Button 
+                onClick={() => setShowPasswordModal(true)}
+                className="ml-4 bg-orange-600 hover:bg-orange-700"
+                size="sm"
+              >
+                <Lock className="w-4 h-4 mr-2" />
+                Change Password Now
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Admin Viewing Banner */}
         {viewingAsMemberId && (
           <Card className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 border-amber-300">
@@ -599,6 +658,17 @@ export default function TeamMemberDashboard() {
           </Card>
         )}
       </div>
+
+      {/* Password Change Modal */}
+      <PasswordChangeModal
+        isOpen={showPasswordModal}
+        onClose={() => {
+          setShowPasswordModal(false);
+          checkPasswordChangeRequired(); // Recheck after close to update banner
+        }}
+        userEmail={user?.email || ''}
+        isRequired={passwordChangeRequired}
+      />
     </div>
   );
 }
