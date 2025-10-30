@@ -51,8 +51,26 @@ async function deleteUser(email) {
     console.log(`   User ID: ${member.user_id || 'None'}`);
     console.log('');
 
-    // Step 2: Delete related data
-    console.log('📋 Step 2: Deleting related data...');
+    // Step 2: Delete auth user FIRST (if exists)
+    // This prevents foreign key constraint issues
+    if (member.user_id) {
+      console.log('📋 Step 2: Deleting auth user...');
+      const { error: authError } = await supabase.auth.admin.deleteUser(member.user_id);
+      
+      if (authError) {
+        console.error(`❌ Failed to delete auth user: ${authError.message}`);
+        console.log('   Will try to continue with database cleanup...');
+      } else {
+        console.log('✅ Auth user deleted');
+      }
+      console.log('');
+    } else {
+      console.log('⏭️  Step 2: No auth user to delete');
+      console.log('');
+    }
+
+    // Step 3: Delete related data
+    console.log('📋 Step 3: Deleting related data...');
     
     // Delete skill assessments
     const { error: assessmentsError } = await supabase
@@ -90,23 +108,6 @@ async function deleteUser(email) {
     console.log(invitationsError ? `   ⚠️  Invitations: ${invitationsError.message}` : '   ✅ Invitations deleted');
 
     console.log('');
-
-    // Step 3: Delete auth user (if exists)
-    if (member.user_id) {
-      console.log('📋 Step 3: Deleting auth user...');
-      const { error: authError } = await supabase.auth.admin.deleteUser(member.user_id);
-      
-      if (authError) {
-        console.error(`❌ Failed to delete auth user: ${authError.message}`);
-        console.log('   Continuing with practice_members deletion...');
-      } else {
-        console.log('✅ Auth user deleted');
-      }
-      console.log('');
-    } else {
-      console.log('⏭️  Step 3: No auth user to delete');
-      console.log('');
-    }
 
     // Step 4: Delete practice member
     console.log('📋 Step 4: Deleting practice member...');
