@@ -75,12 +75,6 @@ export const MotivationalDriversAssessment: React.FC<MotivationalDriversAssessme
           primary_driver: profile.primary_driver,
           secondary_driver: profile.secondary_driver,
           driver_scores: profile.driver_scores,
-          achievement_score: profile.driver_scores.achievement,
-          autonomy_score: profile.driver_scores.autonomy,
-          affiliation_score: profile.driver_scores.affiliation,
-          power_score: profile.driver_scores.power,
-          security_score: profile.driver_scores.security,
-          recognition_score: profile.driver_scores.recognition,
           motivation_summary: profile.summary,
           assessed_at: new Date().toISOString()
         }, {
