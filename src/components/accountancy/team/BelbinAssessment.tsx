@@ -180,11 +180,7 @@ export const BelbinAssessment: React.FC<BelbinAssessmentProps> = ({
                     htmlFor={`q${currentQ.id}-${index}`}
                     className="flex-1 cursor-pointer text-gray-900"
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      {getRoleIcon(option.value)}
-                      <span className="font-medium">{option.value}</span>
-                    </div>
-                    <p className="text-sm text-gray-600">{option.text}</p>
+                    {option.text}
                   </Label>
                 </div>
               ))}
