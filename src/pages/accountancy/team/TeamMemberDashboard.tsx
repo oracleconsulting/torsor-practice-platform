@@ -74,6 +74,16 @@ export default function TeamMemberDashboard() {
   const [currentMemberId, setCurrentMemberId] = useState<string | null>(null);
   const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [assessmentCompletion, setAssessmentCompletion] = useState({
+    vark: false,
+    ocean: false,
+    workingPrefs: false,
+    belbin: false,
+    motivational: false,
+    eq: false,
+    conflict: false,
+    total: 0
+  });
 
   // Debug logging
   useEffect(() => {
@@ -228,6 +238,9 @@ export default function TeamMemberDashboard() {
       });
 
       setRecentCPD(cpdData || []);
+      
+      // Load assessment completion status
+      await loadAssessmentCompletion(memberId);
     } catch (error) {
       console.error('Error loading dashboard for member:', error);
     } finally {
@@ -261,6 +274,50 @@ export default function TeamMemberDashboard() {
       }
     } catch (error) {
       console.error('[Dashboard] Error in checkPasswordChangeRequired:', error);
+    }
+  };
+
+  const loadAssessmentCompletion = async (memberId: string) => {
+    try {
+      console.log('[Dashboard] Loading assessment completion for:', memberId);
+
+      // Get member info to check VARK completion
+      const { data: member } = await supabase
+        .from('practice_members')
+        .select('vark_assessment_completed')
+        .eq('id', memberId)
+        .single();
+
+      // Check all 7 assessments in parallel
+      const [personality, workingPrefs, belbin, motivational, eq, conflict] = await Promise.all([
+        supabase.from('personality_assessments').select('id').eq('team_member_id', memberId).single(),
+        supabase.from('working_preferences').select('id').eq('practice_member_id', memberId).single(),
+        supabase.from('belbin_assessments').select('id').eq('practice_member_id', memberId).single(),
+        supabase.from('motivational_drivers').select('id').eq('practice_member_id', memberId).single(),
+        supabase.from('eq_assessments').select('id').eq('practice_member_id', memberId).single(),
+        supabase.from('conflict_style_assessments').select('id').eq('practice_member_id', memberId).single()
+      ]);
+
+      const completion = {
+        vark: member?.vark_assessment_completed || false,
+        ocean: !!personality.data,
+        workingPrefs: !!workingPrefs.data,
+        belbin: !!belbin.data,
+        motivational: !!motivational.data,
+        eq: !!eq.data,
+        conflict: !!conflict.data,
+        total: 0
+      };
+
+      completion.total = Object.values(completion).filter((val, idx) => idx < 7 && val === true).length;
+
+      console.log('[Dashboard] Assessment completion:', completion);
+      setAssessmentCompletion(completion);
+
+      return completion;
+    } catch (error) {
+      console.error('[Dashboard] Error loading assessment completion:', error);
+      return assessmentCompletion;
     }
   };
 
@@ -375,6 +432,9 @@ export default function TeamMemberDashboard() {
       });
 
       setRecentCPD(cpdData || []);
+      
+      // Load assessment completion status
+      await loadAssessmentCompletion(member.id);
       
       console.log('[Dashboard] Data loading complete');
     } catch (error) {
@@ -492,16 +552,58 @@ export default function TeamMemberDashboard() {
             onClick={() => navigate('/team-member/assessments')}
           >
             <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-3">
                 <div>
-                  <p className="text-sm font-medium text-gray-900 mb-1">Assessments</p>
-                  <p className="text-lg font-semibold text-gray-900">
-                    VARK + OCEAN
+                  <p className="text-sm font-medium text-gray-900 mb-1">Professional Profile</p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {assessmentCompletion.total}
+                    <span className="text-lg text-gray-600">/7</span>
                   </p>
                 </div>
                 <Brain className="h-10 w-10 text-purple-600" />
               </div>
-              <p className="text-xs text-gray-600 mt-2">Complete your profile</p>
+              <Progress 
+                value={(assessmentCompletion.total / 7) * 100} 
+                className="mb-3"
+              />
+              <div className="space-y-1 mb-3">
+                <div className="flex items-center gap-2 text-xs">
+                  {assessmentCompletion.vark && <CheckCircle2 className="w-3 h-3 text-green-600" />}
+                  {!assessmentCompletion.vark && <div className="w-3 h-3 rounded-full border-2 border-gray-300" />}
+                  <span className="text-gray-700">VARK Learning Style</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  {assessmentCompletion.ocean && <CheckCircle2 className="w-3 h-3 text-green-600" />}
+                  {!assessmentCompletion.ocean && <div className="w-3 h-3 rounded-full border-2 border-gray-300" />}
+                  <span className="text-gray-700">OCEAN Personality</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  {assessmentCompletion.workingPrefs && <CheckCircle2 className="w-3 h-3 text-green-600" />}
+                  {!assessmentCompletion.workingPrefs && <div className="w-3 h-3 rounded-full border-2 border-gray-300" />}
+                  <span className="text-gray-700">Working Preferences</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  {assessmentCompletion.belbin && <CheckCircle2 className="w-3 h-3 text-green-600" />}
+                  {!assessmentCompletion.belbin && <div className="w-3 h-3 rounded-full border-2 border-gray-300" />}
+                  <span className="text-gray-700">Belbin Team Roles</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  {assessmentCompletion.motivational && <CheckCircle2 className="w-3 h-3 text-green-600" />}
+                  {!assessmentCompletion.motivational && <div className="w-3 h-3 rounded-full border-2 border-gray-300" />}
+                  <span className="text-gray-700">Motivational Drivers</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  {assessmentCompletion.eq && <CheckCircle2 className="w-3 h-3 text-green-600" />}
+                  {!assessmentCompletion.eq && <div className="w-3 h-3 rounded-full border-2 border-gray-300" />}
+                  <span className="text-gray-700">Emotional Intelligence</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  {assessmentCompletion.conflict && <CheckCircle2 className="w-3 h-3 text-green-600" />}
+                  {!assessmentCompletion.conflict && <div className="w-3 h-3 rounded-full border-2 border-gray-300" />}
+                  <span className="text-gray-700">Conflict Style</span>
+                </div>
+              </div>
+              <p className="text-xs text-gray-600">Click to view and complete</p>
             </CardContent>
           </Card>
 
