@@ -5,13 +5,16 @@
 // who don't already have user_id set in practice_members table
 //
 // SETUP:
-// 1. npm install @supabase/supabase-js
-// 2. Set your SUPABASE_SERVICE_ROLE_KEY in .env
+// 1. npm install (already done - uses existing dependencies)
+// 2. Ensure .env file exists with SUPABASE_SERVICE_ROLE_KEY
 // 3. Run: node bulk_create_auth_accounts.js
 // ============================================================================
 
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config(); // Load .env file
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+
+// Load .env file
+dotenv.config();
 
 // ============================================================================
 // CONFIGURATION
