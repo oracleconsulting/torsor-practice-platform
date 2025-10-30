@@ -15,13 +15,12 @@
 SELECT 
   id AS practice_id,
   name AS practice_name,
-  email AS practice_email,
-  contact_name
+  email AS practice_email
 FROM practices
 ORDER BY created_at DESC;
 */
 
--- Copy the practice_id from the results above and paste it below
+-- Copy the practice_id (id column) from the results above and paste it below
 
 -- ============================================================================
 -- STEP 2: INSERT TEST USER (REPLACE PRACTICE_ID BELOW!)

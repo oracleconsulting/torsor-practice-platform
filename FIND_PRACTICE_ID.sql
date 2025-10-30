@@ -6,11 +6,10 @@
 SELECT 
   id AS practice_id,
   name AS practice_name,
-  email AS practice_email,
-  contact_name,
-  subscription AS subscription_tier
+  email AS practice_email
 FROM practices
 ORDER BY created_at DESC;
 
 -- Once you find your practice, use its ID in CREATE_TEST_USER_JIMMY.sql
+-- You only need the 'id' column (practice_id) - copy that UUID
 
