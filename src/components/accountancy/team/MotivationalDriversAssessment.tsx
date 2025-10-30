@@ -15,7 +15,7 @@ import {
   calculateMotivationalProfile,
   type MotivationalProfile 
 } from '@/lib/assessments/motivational-drivers-questions';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/client';
 import { Target, Zap, Heart, Crown, Shield, Award } from 'lucide-react';
 
 interface MotivationalDriversAssessmentProps {

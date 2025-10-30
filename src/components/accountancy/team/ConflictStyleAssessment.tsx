@@ -15,7 +15,7 @@ import {
   calculateConflictProfile,
   type ConflictProfile 
 } from '@/lib/assessments/conflict-style-questions';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/client';
 import { Shield, Swords, Scale, Users, Handshake } from 'lucide-react';
 
 interface ConflictStyleAssessmentProps {

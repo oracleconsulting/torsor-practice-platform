@@ -15,7 +15,7 @@ import {
   calculateWorkingPreferences,
   type WorkingPreferencesProfile 
 } from '@/lib/assessments/working-preferences-questions';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/client';
 import { Briefcase, Clock, MessageSquare, Users, Lightbulb } from 'lucide-react';
 
 interface WorkingPreferencesAssessmentProps {

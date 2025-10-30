@@ -15,7 +15,7 @@ import {
   calculateEQProfile,
   type EQProfile 
 } from '@/lib/assessments/eq-questions';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/client';
 import { Brain, Heart, Users, Sparkles } from 'lucide-react';
 
 interface EQAssessmentProps {

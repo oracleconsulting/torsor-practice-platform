@@ -15,7 +15,7 @@ import {
   calculateBelbinProfile,
   type BelbinProfile 
 } from '@/lib/assessments/belbin-questions';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/client';
 import { Users, Lightbulb, Target, Search, Shield, Heart, Cog, CheckCircle, BookOpen } from 'lucide-react';
 
 interface BelbinAssessmentProps {
