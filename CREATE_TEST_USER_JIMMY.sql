@@ -23,9 +23,9 @@ ORDER BY created_at DESC;
 -- Copy the practice_id (id column) from the results above and paste it below
 
 -- ============================================================================
--- STEP 2: INSERT TEST USER (REPLACE PRACTICE_ID BELOW!)
+-- STEP 2: INSERT TEST USER (USING RPGCC PRACTICE ID)
 -- ============================================================================
--- Replace 'YOUR_PRACTICE_ID_HERE' with the actual UUID from Step 1
+-- RPGCC Practice ID: a1b2c3d4-5678-90ab-cdef-123456789abc
 
 INSERT INTO practice_members (
   practice_id,
@@ -38,7 +38,7 @@ INSERT INTO practice_members (
   updated_at
 )
 VALUES (
-  'YOUR_PRACTICE_ID_HERE',  -- ⬅️ PASTE YOUR PRACTICE ID HERE!
+  'a1b2c3d4-5678-90ab-cdef-123456789abc',  -- ✅ RPGCC Practice ID
   'jameshowardivc@gmail.com',
   'Jimmy',
   'Team Member',
@@ -50,8 +50,11 @@ VALUES (
 RETURNING id, name, email, role;
 
 -- ============================================================================
--- EXAMPLE (if your practice_id is a1b2c3d4-5678-90ab-cdef-123456789abc):
+-- EXAMPLE (RPGCC Practice):
 -- ============================================================================
+-- This is already filled in above with the correct practice_id!
+-- Just run the INSERT query in STEP 2
+
 /*
 INSERT INTO practice_members (
   practice_id,
@@ -64,7 +67,7 @@ INSERT INTO practice_members (
   updated_at
 )
 VALUES (
-  'a1b2c3d4-5678-90ab-cdef-123456789abc',  -- ⬅️ YOUR ACTUAL PRACTICE ID
+  'a1b2c3d4-5678-90ab-cdef-123456789abc',  -- ✅ RPGCC Practice ID
   'jameshowardivc@gmail.com',
   'Jimmy',
   'Team Member',
