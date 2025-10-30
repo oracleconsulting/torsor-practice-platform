@@ -1,5 +1,5 @@
 -- ============================================================================
--- CREATE TEMPORARY TEST USER FOR PORTAL INVITE TESTING
+-- CREATE TEMPORARY TEST USER FOR PORTAL INVITE TESTING (FIXED)
 -- ============================================================================
 -- User: Jimmy (Test User)
 -- Email: jameshowardivc@gmail.com
@@ -7,7 +7,27 @@
 -- NOTE: DELETE THIS USER after testing is complete!
 -- ============================================================================
 
--- Step 1: Insert temporary test user into practice_members
+-- ============================================================================
+-- STEP 1: FIND YOUR PRACTICE ID (RUN THIS FIRST!)
+-- ============================================================================
+-- Run this to see all practices and find the correct one:
+/*
+SELECT 
+  id AS practice_id,
+  name AS practice_name,
+  email AS practice_email,
+  "contactName" AS contact_name
+FROM practices
+ORDER BY "createdAt" DESC;
+*/
+
+-- Copy the practice_id from the results above and paste it below
+
+-- ============================================================================
+-- STEP 2: INSERT TEST USER (REPLACE PRACTICE_ID BELOW!)
+-- ============================================================================
+-- Replace 'YOUR_PRACTICE_ID_HERE' with the actual UUID from Step 1
+
 INSERT INTO practice_members (
   practice_id,
   email,
@@ -19,7 +39,7 @@ INSERT INTO practice_members (
   updated_at
 )
 VALUES (
-  (SELECT id FROM practices WHERE name = 'Torsor' LIMIT 1),
+  'YOUR_PRACTICE_ID_HERE',  -- ⬅️ PASTE YOUR PRACTICE ID HERE!
   'jameshowardivc@gmail.com',
   'Jimmy',
   'Team Member',
@@ -31,6 +51,33 @@ VALUES (
 RETURNING id, name, email, role;
 
 -- ============================================================================
+-- EXAMPLE (if your practice_id is a1b2c3d4-5678-90ab-cdef-123456789abc):
+-- ============================================================================
+/*
+INSERT INTO practice_members (
+  practice_id,
+  email,
+  name,
+  role,
+  is_active,
+  password_change_required,
+  created_at,
+  updated_at
+)
+VALUES (
+  'a1b2c3d4-5678-90ab-cdef-123456789abc',  -- ⬅️ YOUR ACTUAL PRACTICE ID
+  'jameshowardivc@gmail.com',
+  'Jimmy',
+  'Team Member',
+  true,
+  false,
+  NOW(),
+  NOW()
+)
+RETURNING id, name, email, role;
+*/
+
+-- ============================================================================
 -- VERIFY TEST USER WAS CREATED
 -- ============================================================================
 SELECT 
@@ -40,32 +87,54 @@ SELECT
   pm.role,
   pm.is_active,
   pm.password_change_required,
+  pm.practice_id,
+  p.name AS practice_name,
   CASE 
     WHEN pm.user_id IS NOT NULL THEN '✅ Has Auth Account'
     ELSE '❌ Needs Auth Account'
   END AS "Auth Status"
 FROM practice_members pm
+LEFT JOIN practices p ON pm.practice_id = p.id
 WHERE pm.email = 'jameshowardivc@gmail.com';
+
+-- ============================================================================
+-- ALTERNATIVE: GET PRACTICE_ID FROM EXISTING USERS
+-- ============================================================================
+-- If you're not sure about the practice name, get it from James Howard:
+/*
+SELECT 
+  pm.practice_id,
+  p.name AS practice_name,
+  COUNT(*) AS team_member_count
+FROM practice_members pm
+LEFT JOIN practices p ON pm.practice_id = p.id
+WHERE pm.email = 'jhoward@rpgcc.co.uk'  -- James Howard's email
+GROUP BY pm.practice_id, p.name;
+
+-- Use the practice_id from this result in the INSERT above
+*/
 
 -- ============================================================================
 -- TESTING WORKFLOW
 -- ============================================================================
--- 1. Run this script to create Jimmy
--- 2. Go to Skills Portal Admin → User Management
--- 3. Find "Jimmy" in the user list
--- 4. Click "Invite to Portal" button
--- 5. Modal should show:
---    - Email: jameshowardivc@gmail.com
---    - Password: TorsorTeam2025!
---    - Orange warning: "Auth Account Required"
--- 6. Follow the instructions to create auth account in Supabase
--- 7. Test the full login flow
--- 8. Delete Jimmy when done (see below)
+-- 1. Run STEP 1 to find your practice_id
+-- 2. Copy the practice_id
+-- 3. Paste it in STEP 2 (replace 'YOUR_PRACTICE_ID_HERE')
+-- 4. Run the INSERT query
+-- 5. Verify with the SELECT query
+-- 6. Go to Skills Portal Admin → User Management
+-- 7. Find "Jimmy" in the user list
+-- 8. Click "Invite to Portal" button
+-- 9. Test the full flow
+-- 10. Delete Jimmy when done using User Management UI
 
 -- ============================================================================
--- DELETE TEST USER WHEN DONE (NUCLEAR DELETE)
+-- DELETE TEST USER WHEN DONE (RECOMMENDED: Use UI)
 -- ============================================================================
--- Run this after testing is complete:
+-- RECOMMENDED: Use the "Delete" button in User Management UI
+-- This handles all foreign key constraints automatically
+
+-- OR Manual SQL:
 /*
 -- Get Jimmy's ID first
 SELECT id FROM practice_members WHERE email = 'jameshowardivc@gmail.com';
@@ -81,11 +150,3 @@ DELETE FROM practice_members WHERE email = 'jameshowardivc@gmail.com';
 SELECT * FROM practice_members WHERE email = 'jameshowardivc@gmail.com';
 -- Should return no rows
 */
-
--- ============================================================================
--- QUICK DELETE (Use User Management UI instead)
--- ============================================================================
--- RECOMMENDED: Use the "Delete" button in User Management UI
--- This handles all foreign key constraints automatically
--- Easier and safer than manual SQL deletion
-
