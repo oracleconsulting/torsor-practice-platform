@@ -236,24 +236,34 @@ export const PersonalityResults: React.FC<PersonalityResultsProps> = ({
         {/* Work Style Insights */}
         <Card className="border-2">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Lightbulb className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-gray-900">
+              <Lightbulb className="w-5 h-5 text-yellow-600" />
               Your Work Style Strengths
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-gray-700">
               Based on your personality profile
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {getWorkStyleInsights().map((insight, index) => (
-              <div key={index} className="flex gap-3 p-4 rounded-lg bg-gray-50 border">
-                <div className="flex-shrink-0">{insight.icon}</div>
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-1">{insight.title}</h4>
-                  <p className="text-sm text-gray-600">{insight.description}</p>
+            {getWorkStyleInsights().length > 0 ? (
+              getWorkStyleInsights().map((insight, index) => (
+                <div key={index} className="flex gap-3 p-4 rounded-lg bg-gray-50 border">
+                  <div className="flex-shrink-0">{insight.icon}</div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-1">{insight.title}</h4>
+                    <p className="text-sm text-gray-700">{insight.description}</p>
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div className="p-8 text-center bg-gray-50 rounded-lg border">
+                <Briefcase className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <h4 className="font-semibold text-gray-900 mb-2">Unique Profile</h4>
+                <p className="text-sm text-gray-700">
+                  Your personality profile is distinctive! Check the "Detailed Trait Analysis" section below for personalized insights about your work style strengths.
+                </p>
               </div>
-            ))}
+            )}
           </CardContent>
         </Card>
       </div>
@@ -261,8 +271,8 @@ export const PersonalityResults: React.FC<PersonalityResultsProps> = ({
       {/* Detailed Trait Breakdown */}
       <Card className="border-2">
         <CardHeader>
-          <CardTitle>Detailed Trait Analysis</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-gray-900">Detailed Trait Analysis</CardTitle>
+          <CardDescription className="text-gray-700">
             Understanding your scores and their workplace implications
           </CardDescription>
         </CardHeader>
@@ -318,11 +328,11 @@ export const PersonalityResults: React.FC<PersonalityResultsProps> = ({
       {/* Recommended Roles */}
       <Card className="border-2">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Briefcase className="w-5 h-5" />
+          <CardTitle className="flex items-center gap-2 text-gray-900">
+            <Briefcase className="w-5 h-5 text-blue-600" />
             Recommended Team Roles
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-gray-700">
             Roles where your personality profile naturally excels
           </CardDescription>
         </CardHeader>
@@ -350,11 +360,11 @@ export const PersonalityResults: React.FC<PersonalityResultsProps> = ({
       {varkData && getCombinedInsights() && (
         <Card className="border-2 bg-gradient-to-r from-green-50 to-blue-50">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Brain className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-gray-900">
+              <Brain className="w-5 h-5 text-blue-600" />
               Combined Profile Insights
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-gray-700">
               How your learning style and personality work together
             </CardDescription>
           </CardHeader>
@@ -400,8 +410,8 @@ export const PersonalityResults: React.FC<PersonalityResultsProps> = ({
       {/* Action Items */}
       <Card className="border-2 bg-gradient-to-r from-green-50 to-yellow-50">
         <CardHeader>
-          <CardTitle>Next Steps</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-gray-900">Next Steps</CardTitle>
+          <CardDescription className="text-gray-700">
             Making the most of your personality insights
           </CardDescription>
         </CardHeader>
