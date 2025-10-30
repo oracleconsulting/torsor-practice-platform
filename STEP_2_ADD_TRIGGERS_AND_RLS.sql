@@ -346,7 +346,7 @@ SELECT
 
 FROM practice_members pm
 JOIN practices p ON pm.practice_id = p.id
-LEFT JOIN learning_preferences lp ON pm.id = lp.practice_member_id
+LEFT JOIN learning_preferences lp ON pm.id = lp.team_member_id
 LEFT JOIN personality_assessments pa ON pm.id = pa.practice_member_id
 LEFT JOIN working_preferences wp ON pm.id = wp.practice_member_id
 LEFT JOIN belbin_assessments ba ON pm.id = ba.practice_member_id
