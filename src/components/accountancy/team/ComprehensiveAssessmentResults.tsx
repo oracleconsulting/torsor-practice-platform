@@ -263,7 +263,7 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                 </CardDescription>
               </div>
               <Button
-                onClick={generateAIProfile}
+                onClick={handleGenerateProfile}
                 disabled={generatingProfile}
                 variant="outline"
                 className="border-purple-300 text-purple-700 hover:bg-purple-50"
