@@ -262,6 +262,24 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                   Generated {new Date(aiProfile.generated_at).toLocaleDateString()}
                 </CardDescription>
               </div>
+              <Button
+                onClick={generateAIProfile}
+                disabled={generatingProfile}
+                variant="outline"
+                className="border-purple-300 text-purple-700 hover:bg-purple-50"
+              >
+                {generatingProfile ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Regenerating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Regenerate Profile
+                  </>
+                )}
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-6">

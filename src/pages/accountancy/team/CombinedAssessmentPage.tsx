@@ -500,14 +500,23 @@ export const CombinedAssessmentPage: React.FC = () => {
                       </div>
                       <CheckCircle className="w-8 h-8 text-green-600" />
                     </div>
-                    <Button 
-                      variant="outline" 
-                      className="w-full"
-                      onClick={() => setActiveTab('vark-results')}
-                    >
-                      View Results
-                      <ArrowRight className="w-4 h-4 ml-2" />
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => setActiveTab('vark-results')}
+                      >
+                        View Results
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        className="flex-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+                        onClick={() => setCurrentView('vark')}
+                      >
+                        Retake Assessment
+                      </Button>
+                    </div>
                   </>
                 ) : (
                   <>
@@ -560,14 +569,23 @@ export const CombinedAssessmentPage: React.FC = () => {
                       </div>
                       <CheckCircle className="w-8 h-8 text-green-600" />
                     </div>
-                    <Button 
-                      variant="outline" 
-                      className="w-full"
-                      onClick={() => setActiveTab('ocean-results')}
-                    >
-                      View Results
-                      <ArrowRight className="w-4 h-4 ml-2" />
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => setActiveTab('ocean-results')}
+                      >
+                        View Results
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        className="flex-1 border-purple-300 text-purple-700 hover:bg-purple-50"
+                        onClick={() => setCurrentView('ocean')}
+                      >
+                        Retake Assessment
+                      </Button>
+                    </div>
                   </>
                 ) : (
                   <>
@@ -623,13 +641,22 @@ export const CombinedAssessmentPage: React.FC = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 {workingPrefsCompleted ? (
-                  <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Assessment Complete</p>
-                      <p className="text-xl font-bold text-green-600">✓ Completed</p>
+                  <>
+                    <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Assessment Complete</p>
+                        <p className="text-xl font-bold text-green-600">✓ Completed</p>
+                      </div>
+                      <CheckCircle className="w-8 h-8 text-green-600" />
                     </div>
-                    <CheckCircle className="w-8 h-8 text-green-600" />
-                  </div>
+                    <Button 
+                      variant="outline"
+                      className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+                      onClick={() => setCurrentView('working')}
+                    >
+                      Retake Assessment
+                    </Button>
+                  </>
                 ) : (
                   <>
                     <div className="bg-white rounded-lg p-4 border space-y-2">
@@ -668,13 +695,22 @@ export const CombinedAssessmentPage: React.FC = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 {belbinCompleted ? (
-                  <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Assessment Complete</p>
-                      <p className="text-xl font-bold text-green-600">✓ Completed</p>
+                  <>
+                    <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Assessment Complete</p>
+                        <p className="text-xl font-bold text-green-600">✓ Completed</p>
+                      </div>
+                      <CheckCircle className="w-8 h-8 text-green-600" />
                     </div>
-                    <CheckCircle className="w-8 h-8 text-green-600" />
-                  </div>
+                    <Button 
+                      variant="outline"
+                      className="w-full border-purple-300 text-purple-700 hover:bg-purple-50"
+                      onClick={() => setCurrentView('belbin')}
+                    >
+                      Retake Assessment
+                    </Button>
+                  </>
                 ) : (
                   <>
                     <div className="bg-white rounded-lg p-4 border space-y-2">
@@ -713,13 +749,22 @@ export const CombinedAssessmentPage: React.FC = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 {motivationalCompleted ? (
-                  <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Assessment Complete</p>
-                      <p className="text-xl font-bold text-green-600">✓ Completed</p>
+                  <>
+                    <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Assessment Complete</p>
+                        <p className="text-xl font-bold text-green-600">✓ Completed</p>
+                      </div>
+                      <CheckCircle className="w-8 h-8 text-green-600" />
                     </div>
-                    <CheckCircle className="w-8 h-8 text-green-600" />
-                  </div>
+                    <Button 
+                      variant="outline"
+                      className="w-full border-yellow-300 text-yellow-700 hover:bg-yellow-50"
+                      onClick={() => setCurrentView('motivational')}
+                    >
+                      Retake Assessment
+                    </Button>
+                  </>
                 ) : (
                   <>
                     <div className="bg-white rounded-lg p-4 border space-y-2">
@@ -758,13 +803,22 @@ export const CombinedAssessmentPage: React.FC = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 {eqCompleted ? (
-                  <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Assessment Complete</p>
-                      <p className="text-xl font-bold text-green-600">✓ Completed</p>
+                  <>
+                    <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Assessment Complete</p>
+                        <p className="text-xl font-bold text-green-600">✓ Completed</p>
+                      </div>
+                      <CheckCircle className="w-8 h-8 text-green-600" />
                     </div>
-                    <CheckCircle className="w-8 h-8 text-green-600" />
-                  </div>
+                    <Button 
+                      variant="outline"
+                      className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+                      onClick={() => setCurrentView('eq')}
+                    >
+                      Retake Assessment
+                    </Button>
+                  </>
                 ) : (
                   <>
                     <div className="bg-white rounded-lg p-4 border space-y-2">
@@ -803,13 +857,22 @@ export const CombinedAssessmentPage: React.FC = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 {conflictCompleted ? (
-                  <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Assessment Complete</p>
-                      <p className="text-xl font-bold text-green-600">✓ Completed</p>
+                  <>
+                    <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Assessment Complete</p>
+                        <p className="text-xl font-bold text-green-600">✓ Completed</p>
+                      </div>
+                      <CheckCircle className="w-8 h-8 text-green-600" />
                     </div>
-                    <CheckCircle className="w-8 h-8 text-green-600" />
-                  </div>
+                    <Button 
+                      variant="outline"
+                      className="w-full border-orange-300 text-orange-700 hover:bg-orange-50"
+                      onClick={() => setCurrentView('conflict')}
+                    >
+                      Retake Assessment
+                    </Button>
+                  </>
                 ) : (
                   <>
                     <div className="bg-white rounded-lg p-4 border space-y-2">
