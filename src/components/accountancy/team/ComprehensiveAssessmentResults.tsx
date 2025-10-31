@@ -105,10 +105,6 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
 
     setGeneratingProfile(true);
     try {
-      // Get current user for generated_by field
-      const { data: { user } } = await supabase.auth.getUser();
-      const userId = user?.id || practiceMemberId;
-
       const result = await generateProfessionalProfile({
         practiceMemberId,
         practiceId,
@@ -117,7 +113,7 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
         motivationalDrivers: assessmentData.motivational,
         eqLevels: assessmentData.eq,
         conflictStyle: assessmentData.conflict,
-        generatedBy: userId
+        generatedBy: undefined  // Auto-generation without user requirement
       });
 
       if (result.success) {

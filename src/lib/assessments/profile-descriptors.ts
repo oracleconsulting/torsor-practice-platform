@@ -10,19 +10,19 @@
 
 export const workingPreferencesDescriptors = {
   communication_style: {
-    'real-time': {
+    'high_sync': {
       title: 'High-Sync Communicator',
       narrative: "You're the person who lights up during face-to-face conversations. Ideas flow best when you can bounce them off others in real-time, reading the room and building on energy as it happens. You think out loud, and that's brilliant – your collaborative approach often sparks innovations that would never emerge from solitary contemplation.",
       superpower: 'Creating immediate connection and momentum. You turn meetings into creative workshops without even trying.',
       worthKnowing: "Sometimes your best insights might come after stepping away from the conversation buzz. Consider capturing those post-meeting 'aha' moments when they strike."
     },
-    'adaptable': {
+    'balanced': {
       title: 'Balanced Communicator',
       narrative: "You're fluent in all languages of workplace communication – equally comfortable with a quick chat or a thoughtful email. This flexibility makes you invaluable as a bridge between different working styles. You instinctively know when to pick up the phone and when to send that detailed document.",
       superpower: "Reading the room and adapting your approach. You're the universal translator of team communication.",
       worthKnowing: "Your adaptability is a gift, but remember it's okay to express your own preferences too. Others appreciate knowing what works best for you."
     },
-    'written': {
+    'async_preferred': {
       title: 'Async-Focused Communicator',
       narrative: "You craft your thoughts best when you have space to think them through. Your emails are clear, your documentation is thorough, and you appreciate the paper trail that written communication provides. You give others the gift of considered responses rather than off-the-cuff reactions.",
       superpower: "Creating clarity through thoughtful communication. Your written words often become the team's reference point.",
@@ -31,19 +31,19 @@ export const workingPreferencesDescriptors = {
   },
   
   work_style: {
-    'independent': {
+    'autonomous': {
       title: 'Autonomous Worker',
       narrative: "You're at your best when trusted with the destination and left to chart your own course. Rules and rigid processes feel like unnecessary speed bumps on your road to excellence. You've got an internal compass that rarely steers you wrong, and micromanagement is your kryptonite.",
       superpower: "Self-direction and ownership. You don't just complete tasks; you own outcomes.",
       worthKnowing: "Your independence is powerful, but occasionally syncing with others ensures everyone's heading in the same direction. Think of it as GPS recalibration rather than asking for directions."
     },
-    'process-oriented': {
+    'structured': {
       title: 'Structured Worker',
       narrative: "You appreciate the elegance of a well-designed system. Clear processes aren't constraints to you – they're the scaffolding that lets you build something remarkable. You know that consistency creates excellence, and you help teams establish the rhythms that lead to success.",
       superpower: 'Creating repeatable excellence. You turn chaos into calm productivity.',
       worthKnowing: 'Your love of structure serves you well, but remember that some of the best discoveries happen when we colour outside the lines occasionally.'
     },
-    'adaptive': {
+    'flexible': {
       title: 'Flexible Worker',
       narrative: "You dance between structure and spontaneity with ease. Some days call for detailed planning, others for intuitive leaps – and you're equally comfortable with both. This adaptability makes you incredibly resilient when projects shift or priorities change.",
       superpower: "Thriving in change. You're the calm in the centre of any organisational storm.",
@@ -52,19 +52,19 @@ export const workingPreferencesDescriptors = {
   },
   
   environment: {
-    'quiet-focused': {
+    'quiet_focused': {
       title: 'Deep Work Specialist',
       narrative: "You do your best thinking in the quiet spaces. Not because you're antisocial, but because your mind needs room to roam without interruption. In silence, you solve problems others don't even see yet. You're the one who emerges from deep focus with the solution everyone's been searching for.",
       superpower: 'Sustained concentration that produces exceptional quality work.',
       worthKnowing: 'While quiet is your productivity zone, brief social interludes can actually refresh your focus. Think of them as mental sorbet between courses.'
     },
-    'social-collaborative': {
+    'social_collaborative': {
       title: 'Team Energiser',
       narrative: "The buzz of a busy office is your creative fuel. You think better when surrounded by the energy of others, and isolation can feel like working with the lights off. Collaboration isn't just how you work – it's how you recharge.",
       superpower: 'Transforming group energy into collective achievement. You make the whole greater than the sum of its parts.',
       worthKnowing: "Your collaborative nature is a gift to any team, but protecting some quiet time ensures you're bringing your best self to those group moments."
     },
-    'hybrid-flexible': {
+    'flexible_adaptive': {
       title: 'Environment Agnostic',
       narrative: "Office? Home? Coffee shop? You're productive anywhere. This adaptability isn't indifference – it's a sophisticated ability to tune your environment to match your task. You're equally at home in solitude or surrounded by activity.",
       superpower: 'Location independence. You carry your productivity zone with you.',
@@ -73,19 +73,19 @@ export const workingPreferencesDescriptors = {
   },
   
   time_management: {
-    'steady-executor': {
-      title: 'Marathon Runner',
+    'early_planner': {
+      title: 'Early Planner',
       narrative: "You start when others are still planning and maintain a pace that would exhaust most sprinters. Slow and steady doesn't win the race for you – consistent and thoughtful does. You're the teammate everyone can count on to deliver quality without the last-minute drama.",
       superpower: 'Sustainable excellence. You deliver consistently without the burnout.',
       worthKnowing: 'Your steady approach is admirable, but occasionally embracing a sprint can be exhilarating and might unlock new capabilities.'
     },
-    'burst-worker': {
-      title: 'Sprint Specialist',
-      narrative: "You work in powerful bursts of intense focus. While others spread their energy evenly, you know how to marshal your resources for maximum impact. Those bursts of productivity aren't procrastination – they're your creative process at work.",
-      superpower: 'Intense focus that produces remarkable results in concentrated timeframes.',
-      worthKnowing: 'Your burst style works brilliantly, but building in recovery time between sprints keeps your energy sustainable.'
+    'steady_executor': {
+      title: 'Marathon Runner',
+      narrative: "You maintain consistent progress with balanced pace throughout the timeline. This steady rhythm allows you to deliver quality work without the stress of last-minute rushes.",
+      superpower: 'Reliable delivery. Your consistency is the backbone of team success.',
+      worthKnowing: 'Your balanced approach serves you well, but staying flexible when urgency truly demands it keeps you adaptable.'
     },
-    'deadline-driven': {
+    'deadline_driven': {
       title: 'Deadline Whisperer',
       narrative: "You've turned what others call procrastination into an art form. That time before the deadline isn't wasted – your subconscious is processing, synthesising, preparing. When you finally act, it's with clarity and decisiveness that comes from that incubation period.",
       superpower: 'Pressure-powered performance. You transform deadlines from stress into fuel.',
@@ -94,20 +94,20 @@ export const workingPreferencesDescriptors = {
   },
   
   feedback_preference: {
-    'immediate-direct': {
+    'frequent_direct': {
       title: 'Fast Iterator',
       narrative: "You want feedback like you want your coffee – strong and immediate. Why wait for a quarterly review when you could course-correct today? This hunger for real-time input isn't neediness; it's efficiency. You'd rather know now than wonder later.",
       superpower: "Rapid improvement cycles. You evolve faster than most because you're always adjusting.",
       worthKnowing: 'Your appetite for immediate feedback is valuable, but sometimes patterns only emerge over time. A bit of patience can reveal deeper insights.'
     },
-    'regular-balanced': {
+    'regular_balanced': {
       title: 'Systematic Improver',
       narrative: "You appreciate the rhythm of regular feedback – not too frequent to be overwhelming, not too sparse to lose relevance. This balanced approach lets you digest feedback properly and implement changes thoughtfully.",
       superpower: 'Steady progression. You turn feedback into lasting improvement rather than reactive changes.',
       worthKnowing: "Your measured approach to feedback is wise, but don't hesitate to ask for input when you need it outside the regular schedule."
     },
-    'positive-focused': {
-      title: 'Recognition-Driven',
+    'autonomous_minimal': {
+      title: 'Recognition-Driven Self-Manager',
       narrative: "You bloom under appreciation. This isn't about needing constant praise – it's about being motivated by acknowledgment of progress and effort. Positive reinforcement doesn't just make you feel good; it makes you perform better.",
       superpower: 'Turning encouragement into excellence. You multiply positive energy into exceptional results.',
       worthKnowing: 'Your response to positive feedback is a strength, but remember that constructive feedback, even when less comfortable, often contains the seeds of your next breakthrough.'
@@ -127,7 +127,7 @@ export const workingPreferencesDescriptors = {
       superpower: 'Catalysing collective brilliance. You help teams achieve what individuals never could.',
       worthKnowing: "Your collaborative spirit enriches any team, but protecting some solo time ensures you're bringing your own unique perspective to the mix."
     },
-    'flexible-hybrid': {
+    'mixed': {
       title: 'Collaboration Adaptive',
       narrative: "You seamlessly shift between solo deep dives and team brainstorms. This isn't indecision – it's sophisticated situational awareness. You know when to go it alone and when to gather the troops.",
       superpower: 'Collaboration intelligence. You instinctively know the right approach for each challenge.',

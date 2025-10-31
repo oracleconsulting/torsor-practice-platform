@@ -289,7 +289,7 @@ export async function generateProfessionalProfile(
         model_used: promptConfig.model_name,
         tokens_used: response.tokensUsed,
         generation_time_ms: response.timeMs,
-        generated_by: params.generatedBy
+        generated_by: params.generatedBy || null  // Allow null for auto-generation
       })
       .select('id')
       .single();
