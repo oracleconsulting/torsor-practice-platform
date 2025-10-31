@@ -12,11 +12,12 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { 
   Save, 
-  GripVertical, 
   Sparkles,
   TrendingUp,
   Award,
-  Info
+  Info,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { 
   BSG_SERVICE_LINES,
@@ -44,7 +45,6 @@ const ServiceLineInterestRanking: React.FC<ServiceLineInterestRankingProps> = ({
   memberName 
 }) => {
   const [rankings, setRankings] = useState<ServiceLineRanking[]>([]);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -100,21 +100,13 @@ const ServiceLineInterestRanking: React.FC<ServiceLineInterestRankingProps> = ({
     }
   };
 
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index);
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex === null || draggedIndex === index) return;
-
-    const newRankings = [...rankings];
-    const draggedItem = newRankings[draggedIndex];
+  // Move item up in ranking (decrease rank number)
+  const moveUp = (index: number) => {
+    if (index === 0) return; // Already at top
     
-    // Remove from old position
-    newRankings.splice(draggedIndex, 1);
-    // Insert at new position
-    newRankings.splice(index, 0, draggedItem);
+    const newRankings = [...rankings];
+    // Swap with previous item
+    [newRankings[index - 1], newRankings[index]] = [newRankings[index], newRankings[index - 1]];
     
     // Update ranks
     newRankings.forEach((item, idx) => {
@@ -122,11 +114,43 @@ const ServiceLineInterestRanking: React.FC<ServiceLineInterestRankingProps> = ({
     });
     
     setRankings(newRankings);
-    setDraggedIndex(index);
   };
 
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
+  // Move item down in ranking (increase rank number)
+  const moveDown = (index: number) => {
+    if (index === rankings.length - 1) return; // Already at bottom
+    
+    const newRankings = [...rankings];
+    // Swap with next item
+    [newRankings[index], newRankings[index + 1]] = [newRankings[index + 1], newRankings[index]];
+    
+    // Update ranks
+    newRankings.forEach((item, idx) => {
+      item.rank = idx + 1;
+    });
+    
+    setRankings(newRankings);
+  };
+
+  // Directly set rank number
+  const setRank = (index: number, newRank: number) => {
+    if (newRank < 1 || newRank > rankings.length) return;
+    if (newRank === rankings[index].rank) return;
+
+    const newRankings = [...rankings];
+    const item = newRankings[index];
+    
+    // Remove from current position
+    newRankings.splice(index, 1);
+    // Insert at new position (newRank - 1 because array is 0-indexed)
+    newRankings.splice(newRank - 1, 0, item);
+    
+    // Update all ranks
+    newRankings.forEach((r, idx) => {
+      r.rank = idx + 1;
+    });
+    
+    setRankings(newRankings);
   };
 
   const handleExperienceChange = (index: number, value: number) => {
@@ -348,7 +372,8 @@ const ServiceLineInterestRanking: React.FC<ServiceLineInterestRankingProps> = ({
               <div className="text-sm text-gray-300 space-y-2">
                 <p className="font-semibold text-blue-300">How to rank your preferences:</p>
                 <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li><strong>Drag to reorder</strong> - Your top interests should be at the top</li>
+                  <li><strong>Use ↑↓ arrows</strong> - Move services up or down one position</li>
+                  <li><strong>Select rank number</strong> - Jump directly to a specific position (1-10)</li>
                   <li><strong>Experience level</strong> - Rate your current experience (0-5)</li>
                   <li><strong>Desired involvement</strong> - What % of your time would you like to spend?</li>
                   <li><strong>Notes</strong> - Add context about your interest or experience</li>
@@ -365,36 +390,51 @@ const ServiceLineInterestRanking: React.FC<ServiceLineInterestRankingProps> = ({
             {rankings.map((ranking, index) => (
               <div
                 key={ranking.serviceLine}
-                draggable
-                onDragStart={() => handleDragStart(index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragEnd={handleDragEnd}
                 className={`
                   ${getServiceLineColor(ranking.rank)}
-                  border-2 rounded-lg p-5 cursor-move transition-all
-                  hover:shadow-lg hover:scale-[1.01]
-                  ${draggedIndex === index ? 'opacity-50 scale-95' : 'opacity-100'}
+                  border-2 rounded-lg p-5 transition-all
                 `}
               >
                 <div className="flex items-start gap-4">
-                  {/* Drag Handle */}
-                  <div className="flex-shrink-0 pt-1">
-                    <GripVertical className="w-5 h-5 opacity-50" />
-                  </div>
-
-                  {/* Rank Badge */}
-                  <div className="flex-shrink-0">
-                    <Badge 
-                      variant="outline" 
-                      className={`
-                        w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold
-                        ${ranking.rank <= 2 ? 'bg-green-600 text-white border-green-700' : 
-                          ranking.rank <= 5 ? 'bg-blue-600 text-white border-blue-700' : 
-                          'bg-gray-600 text-white border-gray-700'}
-                      `}
+                  {/* Rank Controls */}
+                  <div className="flex-shrink-0 flex flex-col items-center gap-2">
+                    {/* Up Arrow */}
+                    <Button
+                      onClick={() => moveUp(index)}
+                      disabled={index === 0}
+                      size="sm"
+                      variant="outline"
+                      className="w-8 h-8 p-0 border-gray-400 hover:bg-white/20"
                     >
-                      {ranking.rank}
-                    </Badge>
+                      <ChevronUp className="w-4 h-4" />
+                    </Button>
+
+                    {/* Rank Number Dropdown */}
+                    <select
+                      value={ranking.rank}
+                      onChange={(e) => setRank(index, parseInt(e.target.value))}
+                      className="w-12 h-12 rounded-full text-center font-bold text-lg border-2 bg-white cursor-pointer hover:shadow-md transition-shadow"
+                      style={{
+                        borderColor: ranking.rank <= 2 ? '#16a34a' : 
+                                    ranking.rank <= 5 ? '#2563eb' : 
+                                    '#6b7280'
+                      }}
+                    >
+                      {Array.from({ length: rankings.length }, (_, i) => i + 1).map(num => (
+                        <option key={num} value={num}>{num}</option>
+                      ))}
+                    </select>
+
+                    {/* Down Arrow */}
+                    <Button
+                      onClick={() => moveDown(index)}
+                      disabled={index === rankings.length - 1}
+                      size="sm"
+                      variant="outline"
+                      className="w-8 h-8 p-0 border-gray-400 hover:bg-white/20"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </Button>
                   </div>
 
                   {/* Content */}
