@@ -519,36 +519,48 @@ const TeamAssessmentInsights: React.FC = () => {
           ) : (
             <>
               {/* Communication Styles */}
-              {teamComposition.communicationStyles && teamComposition.communicationStyles.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <MessageSquare className="w-5 h-5 text-blue-600" />
-                      Communication Style Distribution
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={teamComposition.communicationStyles}
-                          dataKey="count"
-                          nameKey="style"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={100}
-                        >
-                          {teamComposition.communicationStyles.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Legend />
-                        <RechartsTooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              )}
+              {teamComposition.communicationStyles && teamComposition.communicationStyles.length > 0 && (() => {
+                // Validate and sanitize communication styles data for charts
+                const validCommData = teamComposition.communicationStyles
+                  .map(item => ({
+                    style: String(item.style || 'Unknown'),
+                    count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
+                  }))
+                  .filter(item => item.count > 0);
+                
+                if (validCommData.length === 0) return null;
+                
+                return (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <MessageSquare className="w-5 h-5 text-blue-600" />
+                        Communication Style Distribution
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={validCommData}
+                            dataKey="count"
+                            nameKey="style"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={100}
+                          >
+                            {validCommData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Legend />
+                          <RechartsTooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
 
               {/* Belbin Roles */}
               {teamComposition.belbinRoles && teamComposition.belbinRoles.length > 0 && (
@@ -587,30 +599,42 @@ const TeamAssessmentInsights: React.FC = () => {
               )}
 
               {/* EQ Distribution */}
-              {teamComposition.eqDistribution && teamComposition.eqDistribution.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Heart className="w-5 h-5 text-red-600" />
-                      Emotional Intelligence
-                    </CardTitle>
-                    <CardDescription>
-                      Team Average EQ: <span className="font-bold text-lg">{teamComposition.avgEQ}</span>
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={teamComposition.eqDistribution}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="level" />
-                        <YAxis />
-                        <RechartsTooltip />
-                        <Bar dataKey="count" fill="#ef4444" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              )}
+              {teamComposition.eqDistribution && teamComposition.eqDistribution.length > 0 && (() => {
+                // Validate and sanitize EQ data for charts
+                const validEqData = teamComposition.eqDistribution
+                  .map(item => ({
+                    level: String(item.level || 'Unknown'),
+                    count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
+                  }))
+                  .filter(item => item.count > 0);
+                
+                if (validEqData.length === 0) return null;
+                
+                return (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Heart className="w-5 h-5 text-red-600" />
+                        Emotional Intelligence
+                      </CardTitle>
+                      <CardDescription>
+                        Team Average EQ: <span className="font-bold text-lg">{teamComposition.avgEQ}</span>
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={250}>
+                        <BarChart data={validEqData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="level" />
+                          <YAxis />
+                          <RechartsTooltip />
+                          <Bar dataKey="count" fill="#ef4444" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
             </>
           )}
         </TabsContent>
