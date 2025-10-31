@@ -67,14 +67,14 @@ export const theme = {
       mono: ['SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'monospace'],
     },
     fontSize: {
-      xs: '0.75rem',    // 12px - Labels
-      sm: '0.875rem',   // 14px - Body text
-      base: '1rem',     // 16px - Default
-      lg: '1.125rem',   // 18px - Large body
-      xl: '1.25rem',    // 20px - Small headers
-      '2xl': '1.5rem',  // 24px - Medium headers
-      '3xl': '1.875rem', // 30px - Large headers
-      '4xl': '2.25rem', // 36px - Extra large headers
+      xs: '0.8125rem',  // 13px - Labels (was 12px)
+      sm: '0.9375rem',  // 15px - Body text (was 14px)
+      base: '1.0625rem', // 17px - Default (was 16px)
+      lg: '1.1875rem',  // 19px - Large body (was 18px)
+      xl: '1.3125rem',  // 21px - Small headers (was 20px)
+      '2xl': '1.625rem', // 26px - Medium headers (was 24px)
+      '3xl': '2rem',    // 32px - Large headers (was 30px)
+      '4xl': '2.5rem',  // 40px - Extra large headers (was 36px)
     },
     fontWeight: {
       normal: '400',    // Body text
@@ -83,9 +83,9 @@ export const theme = {
       bold: '700',      // Strong emphasis
     },
     lineHeight: {
-      tight: '1.25',    // Headers
-      normal: '1.5',    // Body text
-      relaxed: '1.75',  // Comfortable reading
+      tight: '1.3',     // Headers (slightly more breathing room)
+      normal: '1.6',    // Body text (improved readability)
+      relaxed: '1.8',   // Comfortable reading (more space)
     },
   },
   

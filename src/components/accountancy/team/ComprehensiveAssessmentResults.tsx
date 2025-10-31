@@ -636,10 +636,10 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                     </div>
                   )}
 
-                  {conflict.conflict_summary && (
+                  {conflict.summary && (
                     <div className="pt-4 border-t">
-                      <h4 className="font-medium text-gray-900 mb-2">Summary</h4>
-                      <p className="text-gray-700">{conflict.conflict_summary}</p>
+                      <h4 className="font-medium text-gray-900 mb-2 text-base">Summary</h4>
+                      <p className="text-gray-700 text-base leading-relaxed">{conflict.summary}</p>
                     </div>
                   )}
                 </CardContent>
