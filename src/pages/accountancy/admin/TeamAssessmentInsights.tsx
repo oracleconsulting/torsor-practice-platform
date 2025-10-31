@@ -59,6 +59,18 @@ interface TeamComposition {
   
   // Conflict Styles
   conflictStyles: { style: string; count: number }[];
+  
+  // VARK Learning Styles
+  varkStyles: { style: string; count: number }[];
+  
+  // OCEAN Personality (team averages)
+  avgPersonality: {
+    openness: number;
+    conscientiousness: number;
+    extraversion: number;
+    agreeableness: number;
+    neuroticism: number;
+  };
 }
 
 interface TeamDynamics {
@@ -243,6 +255,40 @@ const TeamAssessmentInsights: React.FC = () => {
       return acc;
     }, {} as Record<string, number>);
 
+    // Aggregate VARK learning styles
+    const { data: vark } = await supabase
+      .from('learning_preferences')
+      .select('primary_style')
+      .in('practice_member_id', members.map(m => m.id));
+
+    const varkStyles = (vark || []).reduce((acc, v) => {
+      const style = v.primary_style || 'Unknown';
+      acc[style] = (acc[style] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Aggregate OCEAN personality traits (average scores)
+    const { data: personality } = await supabase
+      .from('personality_assessments')
+      .select('openness, conscientiousness, extraversion, agreeableness, neuroticism')
+      .in('practice_member_id', members.map(m => m.id));
+
+    const avgPersonality = {
+      openness: 0,
+      conscientiousness: 0,
+      extraversion: 0,
+      agreeableness: 0,
+      neuroticism: 0
+    };
+
+    if (personality && personality.length > 0) {
+      avgPersonality.openness = Math.round(personality.reduce((sum, p) => sum + (p.openness || 0), 0) / personality.length);
+      avgPersonality.conscientiousness = Math.round(personality.reduce((sum, p) => sum + (p.conscientiousness || 0), 0) / personality.length);
+      avgPersonality.extraversion = Math.round(personality.reduce((sum, p) => sum + (p.extraversion || 0), 0) / personality.length);
+      avgPersonality.agreeableness = Math.round(personality.reduce((sum, p) => sum + (p.agreeableness || 0), 0) / personality.length);
+      avgPersonality.neuroticism = Math.round(personality.reduce((sum, p) => sum + (p.neuroticism || 0), 0) / personality.length);
+    }
+
     const finalComposition = {
       communicationStyles: Object.entries(commStyles)
         .map(([style, count]) => ({ 
@@ -287,7 +333,14 @@ const TeamAssessmentInsights: React.FC = () => {
           style: String(style || 'Unknown'), 
           count: Number(count) || 0 
         }))
-        .filter(item => item.count > 0)
+        .filter(item => item.count > 0),
+      varkStyles: Object.entries(varkStyles)
+        .map(([style, count]) => ({ 
+          style: String(style || 'Unknown'), 
+          count: Number(count) || 0 
+        }))
+        .filter(item => item.count > 0),
+      avgPersonality
     };
 
     console.log('[TeamAssessmentInsights] Setting team composition:', finalComposition);
@@ -939,6 +992,139 @@ const TeamAssessmentInsights: React.FC = () => {
                   </Card>
                 );
               })()}
+
+              {/* VARK Learning Styles */}
+              {teamComposition.varkStyles && teamComposition.varkStyles.length > 0 && (() => {
+                const validVarkData = teamComposition.varkStyles
+                  .map(item => ({
+                    style: String(item.style || 'Unknown'),
+                    count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
+                  }))
+                  .filter(item => item.count > 0);
+                
+                if (validVarkData.length === 0) return null;
+                
+                if (validVarkData.length === 1) {
+                  return (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Brain className="w-5 h-5 text-indigo-600" />
+                          VARK Learning Styles
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-center py-8">
+                          <div className="inline-block px-8 py-4 bg-indigo-100 rounded-lg">
+                            <div className="text-3xl font-bold text-indigo-600 mb-2">{validVarkData[0].count}</div>
+                            <div className="text-lg font-medium text-gray-900 capitalize">{validVarkData[0].style}</div>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-4">
+                            All team members share the same learning preference
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                
+                return (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Brain className="w-5 h-5 text-indigo-600" />
+                        VARK Learning Styles
+                      </CardTitle>
+                      <CardDescription>
+                        Distribution of Visual, Auditory, Reading/Writing, and Kinesthetic learners
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={validVarkData}
+                            dataKey="count"
+                            nameKey="style"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={100}
+                          >
+                            {validVarkData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Legend />
+                          <RechartsTooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+
+              {/* OCEAN Personality Profile */}
+              {teamComposition.avgPersonality && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="w-5 h-5 text-teal-600" />
+                      Team Personality Profile (OCEAN)
+                    </CardTitle>
+                    <CardDescription>
+                      Average Big Five personality trait scores across the team
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between mb-2">
+                          <span className="font-medium text-gray-900">Openness to Experience</span>
+                          <span className="text-gray-600">{teamComposition.avgPersonality.openness}%</span>
+                        </div>
+                        <Progress value={teamComposition.avgPersonality.openness} className="h-3" />
+                        <p className="text-xs text-gray-500 mt-1">Creativity, curiosity, and willingness to try new things</p>
+                      </div>
+                      
+                      <div>
+                        <div className="flex justify-between mb-2">
+                          <span className="font-medium text-gray-900">Conscientiousness</span>
+                          <span className="text-gray-600">{teamComposition.avgPersonality.conscientiousness}%</span>
+                        </div>
+                        <Progress value={teamComposition.avgPersonality.conscientiousness} className="h-3" />
+                        <p className="text-xs text-gray-500 mt-1">Organization, dependability, and self-discipline</p>
+                      </div>
+                      
+                      <div>
+                        <div className="flex justify-between mb-2">
+                          <span className="font-medium text-gray-900">Extraversion</span>
+                          <span className="text-gray-600">{teamComposition.avgPersonality.extraversion}%</span>
+                        </div>
+                        <Progress value={teamComposition.avgPersonality.extraversion} className="h-3" />
+                        <p className="text-xs text-gray-500 mt-1">Sociability, assertiveness, and enthusiasm</p>
+                      </div>
+                      
+                      <div>
+                        <div className="flex justify-between mb-2">
+                          <span className="font-medium text-gray-900">Agreeableness</span>
+                          <span className="text-gray-600">{teamComposition.avgPersonality.agreeableness}%</span>
+                        </div>
+                        <Progress value={teamComposition.avgPersonality.agreeableness} className="h-3" />
+                        <p className="text-xs text-gray-500 mt-1">Compassion, cooperation, and trust</p>
+                      </div>
+                      
+                      <div>
+                        <div className="flex justify-between mb-2">
+                          <span className="font-medium text-gray-900">Emotional Stability</span>
+                          <span className="text-gray-600">{100 - teamComposition.avgPersonality.neuroticism}%</span>
+                        </div>
+                        <Progress value={100 - teamComposition.avgPersonality.neuroticism} className="h-3" />
+                        <p className="text-xs text-gray-500 mt-1">Calmness, resilience, and emotional regulation (inverse of neuroticism)</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </>
             );
           })()}
