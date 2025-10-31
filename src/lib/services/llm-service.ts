@@ -299,13 +299,17 @@ export async function generateProfessionalProfile(
       throw saveError;
     }
 
-    // 8. Update API key usage stats
-    await supabase.rpc('increment', {
-      table_name: 'ai_api_keys',
-      row_id: apiKey,
-      column_name: 'total_requests',
-      increment_by: 1
-    }).catch(err => console.warn('[LLM] Could not update usage stats:', err));
+    // 8. Update API key usage stats (non-blocking)
+    try {
+      await supabase.rpc('increment', {
+        table_name: 'ai_api_keys',
+        row_id: apiKey,
+        column_name: 'total_requests',
+        increment_by: 1
+      });
+    } catch (err) {
+      console.warn('[LLM] Could not update usage stats:', err);
+    }
 
     console.log('[LLM] Profile generated successfully:', profile.id);
 

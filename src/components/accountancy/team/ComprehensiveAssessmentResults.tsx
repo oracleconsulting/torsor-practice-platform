@@ -956,19 +956,28 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                   {conflictBarData.length > 0 && (
                     <div className="pt-4">
                       <h4 className="font-medium text-gray-900 mb-4">Conflict Style Distribution</h4>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={conflictBarData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="style" />
-                          <YAxis />
-                          <RechartsTooltip />
-                          <Bar dataKey="score" fill="#f97316">
-                            {conflictBarData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                      {(() => {
+                        try {
+                          return (
+                            <ResponsiveContainer width="100%" height={300}>
+                              <BarChart data={conflictBarData}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="style" />
+                                <YAxis />
+                                <RechartsTooltip />
+                                <Bar dataKey="score" fill="#f97316">
+                                  {conflictBarData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                  ))}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          );
+                        } catch (error) {
+                          console.error('[ComprehensiveResults] Chart render error:', error);
+                          return <p className="text-gray-500 text-sm">Unable to display chart</p>;
+                        }
+                      })()}
                     </div>
                   )}
 
