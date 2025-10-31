@@ -402,7 +402,7 @@ const TeamAssessmentInsights: React.FC = () => {
             <div className="flex items-center gap-6">
               <div className="text-6xl font-bold text-blue-600">{priorities.teamHealthScore}</div>
               <div className="flex-1">
-                <Progress value={priorities.teamHealthScore} className="h-4" />
+                <Progress value={Number(priorities.teamHealthScore) || 0} className="h-4" />
                 <p className="text-sm text-gray-600 mt-2">
                   Based on assessment completion, role diversity, and team balance
                 </p>
@@ -440,7 +440,7 @@ const TeamAssessmentInsights: React.FC = () => {
                   <div key={member.memberId} className="flex items-center gap-4">
                     <div className="w-48 font-medium text-gray-900">{member.name}</div>
                     <div className="flex-1">
-                      <Progress value={member.completionRate} className="h-2" />
+                      <Progress value={Number(member.completionRate) || 0} className="h-2" />
                     </div>
                     <Badge className={getCompletionColor(member.completionRate)}>
                       {member.completionRate}%
