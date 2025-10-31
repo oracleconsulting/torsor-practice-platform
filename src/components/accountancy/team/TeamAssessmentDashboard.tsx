@@ -77,11 +77,11 @@ export const TeamAssessmentDashboard: React.FC<TeamAssessmentDashboardProps> = (
   };
 
   const teamRadarData = [
-    { trait: 'Openness', score: teamAverages.openness, fullMark: 100 },
-    { trait: 'Conscientiousness', score: teamAverages.conscientiousness, fullMark: 100 },
-    { trait: 'Extraversion', score: teamAverages.extraversion, fullMark: 100 },
-    { trait: 'Agreeableness', score: teamAverages.agreeableness, fullMark: 100 },
-    { trait: 'Emotional\nStability', score: teamAverages.emotionalStability, fullMark: 100 }
+    { trait: 'Openness', score: teamAverages.openness || 0, fullMark: 100 },
+    { trait: 'Conscientiousness', score: teamAverages.conscientiousness || 0, fullMark: 100 },
+    { trait: 'Extraversion', score: teamAverages.extraversion || 0, fullMark: 100 },
+    { trait: 'Agreeableness', score: teamAverages.agreeableness || 0, fullMark: 100 },
+    { trait: 'Emotional Stability', score: teamAverages.emotionalStability || 0, fullMark: 100 }
   ];
 
   const getStatusBadge = (status: string) => {

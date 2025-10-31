@@ -243,19 +243,19 @@ export const TeamCompositionAnalyzer: React.FC<TeamCompositionAnalyzerProps> = (
   }
 
   const radarData = [
-    { trait: 'Openness', score: analysis.averages.openness, optimal: 65, fullMark: 100 },
-    { trait: 'Conscientiousness', score: analysis.averages.conscientiousness, optimal: 70, fullMark: 100 },
-    { trait: 'Extraversion', score: analysis.averages.extraversion, optimal: 55, fullMark: 100 },
-    { trait: 'Agreeableness', score: analysis.averages.agreeableness, optimal: 65, fullMark: 100 },
-    { trait: 'Emotional\nStability', score: analysis.averages.emotionalStability, optimal: 70, fullMark: 100 }
+    { trait: 'Openness', score: analysis.averages.openness || 0, optimal: 65, fullMark: 100 },
+    { trait: 'Conscientiousness', score: analysis.averages.conscientiousness || 0, optimal: 70, fullMark: 100 },
+    { trait: 'Extraversion', score: analysis.averages.extraversion || 0, optimal: 55, fullMark: 100 },
+    { trait: 'Agreeableness', score: analysis.averages.agreeableness || 0, optimal: 65, fullMark: 100 },
+    { trait: 'Emotional Stability', score: analysis.averages.emotionalStability || 0, optimal: 70, fullMark: 100 }
   ];
 
   const dynamicsData = [
-    { name: 'Innovation', value: analysis.dynamics.innovationPotential * 100, color: '#3b82f6' },
-    { name: 'Execution', value: analysis.dynamics.executionCapability * 100, color: '#22c55e' },
-    { name: 'Communication', value: analysis.dynamics.communicationEfficiency * 100, color: '#a855f7' },
-    { name: 'Adaptability', value: analysis.dynamics.adaptabilityScore * 100, color: '#f97316' },
-    { name: 'Reliability', value: analysis.dynamics.reliabilityScore * 100, color: '#14b8a6' }
+    { name: 'Innovation', value: (analysis.dynamics.innovationPotential || 0) * 100, color: '#3b82f6' },
+    { name: 'Execution', value: (analysis.dynamics.executionCapability || 0) * 100, color: '#22c55e' },
+    { name: 'Communication', value: (analysis.dynamics.communicationEfficiency || 0) * 100, color: '#a855f7' },
+    { name: 'Adaptability', value: (analysis.dynamics.adaptabilityScore || 0) * 100, color: '#f97316' },
+    { name: 'Reliability', value: (analysis.dynamics.reliabilityScore || 0) * 100, color: '#14b8a6' }
   ];
 
   const priorityColors = {
