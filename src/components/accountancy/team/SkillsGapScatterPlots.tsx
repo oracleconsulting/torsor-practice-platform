@@ -229,7 +229,7 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
             1. Individual Member Skills
           </CardTitle>
           <CardDescription className="text-white">
-            Select a team member to view their {individualMemberData.datasets[0]?.data.length || 0} skill assessments plotted by Current Skill Level (X) vs Interest (Y).
+            Select a team member to view their {individualMemberData?.datasets?.[0]?.data?.length ? individualMemberData.datasets[0].data.length : 0} skill assessments plotted by Current Skill Level (X) vs Interest (Y).
             <br />
             <strong>Top-right (high skill, high interest)</strong> = Strategic assets
             <br />
@@ -304,16 +304,12 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
                     ...commonOptions.plugins.tooltip,
                     callbacks: {
                       title: (context: any) => {
-                        return context[0].raw.skill;
+                        return context[0].raw?.skill || 'Unknown Skill';
                       },
                       label: (context: any) => {
                         const d = context.raw;
-                        return [
-                          `Category: ${d.category}`,
-                          ``,
-                          `Current Skill: ${d.x.toFixed(1)}/5`,
-                          `Interest: ${d.y.toFixed(1)}/5`
-                        ];
+                        if (!d) return '';
+                        return `Category: ${d.category || 'N/A'} | Skill: ${typeof d.x === 'number' ? d.x.toFixed(1) : '0'}/5 | Interest: ${typeof d.y === 'number' ? d.y.toFixed(1) : '0'}/5`;
                       }
                     }
                   }
@@ -332,7 +328,7 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
             2. Team Average by Skill
           </CardTitle>
           <CardDescription className="text-white">
-            Average interest and skill level for each of the {averageSkillData.datasets[0].data.length} assessed skills.
+            Average interest and skill level for each of the {averageSkillData?.datasets?.[0]?.data?.length ? averageSkillData.datasets[0].data.length : 0} assessed skills.
             <br />
             Shows the team's collective strengths and weaknesses.
           </CardDescription>
@@ -389,17 +385,12 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
                     ...commonOptions.plugins.tooltip,
                     callbacks: {
                       title: (context: any) => {
-                        return `📊 ${context[0].raw.skill}`;
+                        return `📊 ${context[0].raw?.skill || 'Unknown Skill'}`;
                       },
                       label: (context: any) => {
                         const d = context.raw;
-                        return [
-                          `Category: ${d.category}`,
-                          ``,
-                          `Average Skill: ${d.x.toFixed(1)}/5`,
-                          `Average Interest: ${d.y.toFixed(1)}/5`,
-                          `Team Members: ${d.count}`
-                        ];
+                        if (!d) return '';
+                        return `Category: ${d.category || 'N/A'} | Avg Skill: ${typeof d.x === 'number' ? d.x.toFixed(1) : '0'}/5 | Avg Interest: ${typeof d.y === 'number' ? d.y.toFixed(1) : '0'}/5 | Members: ${d.count || 0}`;
                       }
                     }
                   }
@@ -418,7 +409,7 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
             3. Skill Gap Analysis
           </CardTitle>
           <CardDescription className="text-white">
-            Gap between required and actual skill levels (showing all {skillGapData.datasets[0].data.length} skills).
+            Gap between required and actual skill levels (showing all {skillGapData?.datasets?.[0]?.data?.length ? skillGapData.datasets[0].data.length : 0} skills).
             <br />
             <strong className="text-green-400">Green (above target)</strong> = Skills we already exceed - no priority
             <br />
@@ -479,38 +470,19 @@ const SkillsGapScatterPlots: React.FC<SkillsGapScatterPlotsProps> = ({
                     ...commonOptions.plugins.tooltip,
                     callbacks: {
                       title: (context: any) => {
-                        return `⚠️ ${context[0].raw.skill}`;
+                        return `⚠️ ${context[0].raw?.skill || 'Unknown Skill'}`;
                       },
                       label: (context: any) => {
                         const d = context.raw;
+                        if (!d) return '';
                         const gapDirection = d.y < 0 ? 'EXCEEDING target by' : 'Behind target by';
-                        return [
-                          `Category: ${d.category}`,
-                          ``,
-                          `Required Level: ${d.required}/5`,
-                          `Current Level: ${d.actual.toFixed(1)}/5`,
-                          `${gapDirection}: ${Math.abs(d.y).toFixed(1)} levels`,
-                          ``,
-                          `Team Interest: ${d.x.toFixed(1)}/5`,
-                          `Team Members: ${d.count}`
-                        ];
-                      },
-                      afterLabel: (context: any) => {
-                        const d = context.raw;
-                        const highInterest = d.x >= 3;
-                        const aboveTarget = d.y < -0.5;
-                        const belowTarget = d.y > 0.5;
+                        const gapValue = typeof d.y === 'number' ? Math.abs(d.y).toFixed(1) : '0';
+                        const required = d.required || 3;
+                        const actual = typeof d.actual === 'number' ? d.actual.toFixed(1) : '0';
+                        const interest = typeof d.x === 'number' ? d.x.toFixed(1) : '0';
+                        const count = d.count || 0;
                         
-                        if (aboveTarget) {
-                          return '\n\n🟢 EXCEEDING TARGET\nNo training priority - maintain current level!';
-                        }
-                        if (belowTarget && highInterest) {
-                          return '\n\n🟠 QUICK WIN\nHigh interest + gap = best training ROI!';
-                        }
-                        if (belowTarget && !highInterest) {
-                          return '\n\n🔴 CRITICAL GAP\nLow interest + gap = requires strategic intervention!';
-                        }
-                        return '\n\n⚪ AT TARGET\nSkill level meets requirements.';
+                        return `Category: ${d.category || 'N/A'} | Required: ${required}/5 | Current: ${actual}/5 | ${gapDirection}: ${gapValue} levels | Interest: ${interest}/5 | Members: ${count}`;
                       }
                     }
                   }
