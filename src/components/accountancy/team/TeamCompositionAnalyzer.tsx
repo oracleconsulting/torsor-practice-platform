@@ -250,6 +250,17 @@ export const TeamCompositionAnalyzer: React.FC<TeamCompositionAnalyzerProps> = (
     { trait: 'Emotional Stability', score: Number(analysis.averages?.emotionalStability) || 0, optimal: 70, fullMark: 100 }
   ];
 
+  // Validate radarData to ensure no NaN, undefined, or invalid values
+  console.log('[TeamComposition] radarData before validation:', radarData);
+  const validRadarData = radarData.map(item => ({
+    ...item,
+    trait: String(item.trait || ''),
+    score: isNaN(item.score) ? 0 : Math.max(0, Math.min(100, item.score)),
+    optimal: isNaN(item.optimal) ? 0 : Math.max(0, Math.min(100, item.optimal)),
+    fullMark: 100
+  }));
+  console.log('[TeamComposition] radarData after validation:', validRadarData);
+
   const dynamicsData = [
     { name: 'Innovation', value: Number((analysis.dynamics?.innovationPotential || 0) * 100) || 0, color: '#3b82f6' },
     { name: 'Execution', value: Number((analysis.dynamics?.executionCapability || 0) * 100) || 0, color: '#22c55e' },
@@ -257,6 +268,16 @@ export const TeamCompositionAnalyzer: React.FC<TeamCompositionAnalyzerProps> = (
     { name: 'Adaptability', value: Number((analysis.dynamics?.adaptabilityScore || 0) * 100) || 0, color: '#f97316' },
     { name: 'Reliability', value: Number((analysis.dynamics?.reliabilityScore || 0) * 100) || 0, color: '#14b8a6' }
   ];
+
+  // Validate dynamicsData
+  console.log('[TeamComposition] dynamicsData before validation:', dynamicsData);
+  const validDynamicsData = dynamicsData.map(item => ({
+    ...item,
+    name: String(item.name || ''),
+    value: isNaN(item.value) ? 0 : Math.max(0, Math.min(100, item.value)),
+    color: item.color || '#000000'
+  }));
+  console.log('[TeamComposition] dynamicsData after validation:', validDynamicsData);
 
   const priorityColors = {
     high: 'bg-red-100 text-red-700 border-red-300',
@@ -340,7 +361,7 @@ export const TeamCompositionAnalyzer: React.FC<TeamCompositionAnalyzerProps> = (
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <RadarChart data={radarData}>
+              <RadarChart data={validRadarData}>
                 <PolarGrid stroke="#e5e7eb" />
                 <PolarAngleAxis 
                   dataKey="trait" 
@@ -379,13 +400,13 @@ export const TeamCompositionAnalyzer: React.FC<TeamCompositionAnalyzerProps> = (
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={dynamicsData}>
+              <BarChart data={validDynamicsData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis domain={[0, 100]} />
                 <Tooltip />
                 <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                  {dynamicsData.map((entry, index) => (
+                  {validDynamicsData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Bar>
