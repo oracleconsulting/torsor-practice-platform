@@ -35,7 +35,7 @@ export const workingPreferencesDescriptors = {
       title: 'Autonomous Worker',
       narrative: "You're at your best when trusted with the destination and left to chart your own course. Rules and rigid processes feel like unnecessary speed bumps on your road to excellence. You've got an internal compass that rarely steers you wrong, and micromanagement is your kryptonite.",
       superpower: "Self-direction and ownership. You don't just complete tasks; you own outcomes.",
-      worthKnowing: 'Your independence is powerful, but occasionally syncing with others ensures everyone's heading in the same direction. Think of it as GPS recalibration rather than asking for directions.'
+      worthKnowing: "Your independence is powerful, but occasionally syncing with others ensures everyone's heading in the same direction. Think of it as GPS recalibration rather than asking for directions."
     },
     'process-oriented': {
       title: 'Structured Worker',
