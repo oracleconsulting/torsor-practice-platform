@@ -572,7 +572,10 @@ const TeamAssessmentInsights: React.FC = () => {
                             <span className="font-medium text-gray-900 capitalize">{role.role}</span>
                             <span className="text-gray-600">{role.count} members</span>
                           </div>
-                          <Progress value={(role.count / teamMembers.length) * 100} className="h-2" />
+                          <Progress 
+                            value={teamMembers.length > 0 ? Math.min(100, (role.count / teamMembers.length) * 100) : 0} 
+                            className="h-2" 
+                          />
                           <div className="text-xs text-gray-500 mt-1">{role.members.join(', ')}</div>
                         </div>
                       ))}
