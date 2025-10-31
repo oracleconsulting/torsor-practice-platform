@@ -96,6 +96,19 @@ const TeamAssessmentInsights: React.FC = () => {
   const [teamDynamics, setTeamDynamics] = useState<TeamDynamics | null>(null);
   const [priorities, setPriorities] = useState<DevelopmentPriorities | null>(null);
 
+  // Belbin role display name mapping
+  const belbinRoleNames: Record<string, string> = {
+    'plant': 'Innovator',
+    'monitor_evaluator': 'Analyst',
+    'specialist': 'Expert',
+    'coordinator': 'Leader',
+    'teamworker': 'Harmoniser',
+    'resource_investigator': 'Explorer',
+    'shaper': 'Driver',
+    'implementer': 'Doer',
+    'completer_finisher': 'Perfectionist'
+  };
+
   useEffect(() => {
     loadTeamData();
   }, []);
@@ -210,7 +223,7 @@ const TeamAssessmentInsights: React.FC = () => {
     });
 
     const belbinRoles = Object.entries(roleMap).map(([role, memberList]) => ({
-      role: role.replace(/_/g, ' '),
+      role: belbinRoleNames[role] || role.replace(/_/g, ' '),
       count: memberList.length,
       members: memberList
     }));
@@ -385,8 +398,8 @@ const TeamAssessmentInsights: React.FC = () => {
     ];
 
     const roleGaps = [
-      { role: 'Innovator (Plant)', current: 2, ideal: 3 },
-      { role: 'Coordinator', current: 1, ideal: 2 }
+      { role: 'Innovator', current: 2, ideal: 3 },
+      { role: 'Leader', current: 1, ideal: 2 }
     ];
 
     const recommendations = [
@@ -394,7 +407,7 @@ const TeamAssessmentInsights: React.FC = () => {
       'Pair high-EQ members with those developing emotional intelligence',
       'Create cross-functional project teams to balance different working styles',
       'Implement peer mentoring for conflict resolution skills',
-      'Consider hiring or developing Coordinator role for better team orchestration'
+      'Consider hiring or developing Leader role for better team orchestration'
     ];
 
     const healthScore = 78; // Based on completion rates, diversity, and balance
