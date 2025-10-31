@@ -190,19 +190,20 @@ export const TeamAssessmentDashboard: React.FC<TeamAssessmentDashboardProps> = (
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="list" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-1">
           <TabsTrigger value="list">
             <Users className="w-4 h-4 mr-2" />
             Team List
           </TabsTrigger>
-          <TabsTrigger value="composition">
+          {/* Temporarily disabled due to chart rendering issues - use Admin Portal > Assessment Insights instead */}
+          {/* <TabsTrigger value="composition">
             <TrendingUp className="w-4 h-4 mr-2" />
             Team Composition
           </TabsTrigger>
           <TabsTrigger value="insights">
             <Brain className="w-4 h-4 mr-2" />
             Insights
-          </TabsTrigger>
+          </TabsTrigger> */}
         </TabsList>
 
         {/* Team List Tab */}
