@@ -204,7 +204,7 @@ export const PersonalityResults: React.FC<PersonalityResultsProps> = ({
                 <PolarGrid stroke="#e5e7eb" />
                 <PolarAngleAxis 
                   dataKey="trait" 
-                  tick={{ fill: '#374151', fontSize: 12, fontWeight: 600 }}
+                  tick={{ fill: '#374151', fontSize: 12, fontWeight: '600' }}
                 />
                 <PolarRadiusAxis 
                   domain={[0, 100]} 

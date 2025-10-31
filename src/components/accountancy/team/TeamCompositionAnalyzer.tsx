@@ -344,7 +344,7 @@ export const TeamCompositionAnalyzer: React.FC<TeamCompositionAnalyzerProps> = (
                 <PolarGrid stroke="#e5e7eb" />
                 <PolarAngleAxis 
                   dataKey="trait" 
-                  tick={{ fill: '#374151', fontSize: 12, fontWeight: 600 }}
+                  tick={{ fill: '#374151', fontSize: 12, fontWeight: '600' }}
                 />
                 <PolarRadiusAxis domain={[0, 100]} tick={{ fill: '#6b7280', fontSize: 10 }} />
                 <Radar 
