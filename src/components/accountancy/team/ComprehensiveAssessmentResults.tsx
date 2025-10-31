@@ -8,11 +8,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/lib/supabase/client';
+import { generateProfessionalProfile, getCurrentProfile } from '@/lib/services/llm-service';
+import { useToast } from '@/components/ui/use-toast';
 import { 
   Briefcase, Users, Zap, Brain, Shield, 
   TrendingUp, AlertCircle, CheckCircle2, Target,
-  MessageSquare, Clock, Lightbulb, Heart
+  MessageSquare, Clock, Lightbulb, Heart, Sparkles, Loader2
 } from 'lucide-react';
 import {
   RadarChart,
@@ -42,10 +46,70 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
 }) => {
   const [loading, setLoading] = useState(true);
   const [assessmentData, setAssessmentData] = useState<any>({});
+  const [aiProfile, setAIProfile] = useState<any>(null);
+  const [generatingProfile, setGeneratingProfile] = useState(false);
+  const { toast } = useToast();
+
+  const practiceId = 'a1b2c3d4-5678-90ab-cdef-123456789abc'; // RPGCC practice ID
 
   useEffect(() => {
     loadAllAssessments();
+    loadAIProfile();
   }, [practiceMemberId]);
+
+  const loadAIProfile = async () => {
+    const profile = await getCurrentProfile(practiceMemberId);
+    setAIProfile(profile);
+  };
+
+  const handleGenerateProfile = async () => {
+    if (!assessmentData.workingPreferences || !assessmentData.belbin || 
+        !assessmentData.motivational || !assessmentData.eq || !assessmentData.conflict) {
+      toast({
+        title: 'Incomplete Assessments',
+        description: 'Please complete all 5 assessments before generating your profile.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setGeneratingProfile(true);
+    try {
+      // Get current user for generated_by field
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id || practiceMemberId;
+
+      const result = await generateProfessionalProfile({
+        practiceMemberId,
+        practiceId,
+        workingPreferences: assessmentData.workingPreferences,
+        belbinRoles: assessmentData.belbin,
+        motivationalDrivers: assessmentData.motivational,
+        eqLevels: assessmentData.eq,
+        conflictStyle: assessmentData.conflict,
+        generatedBy: userId
+      });
+
+      if (result.success) {
+        toast({
+          title: 'Profile Generated!',
+          description: 'Your AI-generated professional profile is ready.',
+        });
+        loadAIProfile(); // Reload to show the new profile
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error: any) {
+      console.error('[ComprehensiveResults] Error generating profile:', error);
+      toast({
+        title: 'Generation Failed',
+        description: error.message || 'Failed to generate profile. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setGeneratingProfile(false);
+    }
+  };
 
   const loadAllAssessments = async () => {
     setLoading(true);
@@ -155,6 +219,153 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
           <Progress value={(completedCount / totalCount) * 100} className="h-2" />
         </CardContent>
       </Card>
+
+      {/* AI-Generated Professional Profile */}
+      {completedCount === totalCount && (
+        <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-blue-50">
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  <Sparkles className="w-6 h-6 text-purple-600" />
+                  AI-Generated Professional Profile
+                </CardTitle>
+                <CardDescription>
+                  {aiProfile 
+                    ? `Generated ${new Date(aiProfile.generated_at).toLocaleDateString()} • Version ${aiProfile.version}`
+                    : 'Create a comprehensive narrative synthesizing all your assessment results'
+                  }
+                </CardDescription>
+              </div>
+              <Button 
+                onClick={handleGenerateProfile} 
+                disabled={generatingProfile}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                {generatingProfile ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    {aiProfile ? 'Regenerate Profile' : 'Generate AI Profile'}
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardHeader>
+          {aiProfile && (
+            <CardContent className="space-y-6">
+              {/* Main Narrative */}
+              <div>
+                <h3 className="text-xl font-bold text-purple-900 mb-3">Your Professional Fingerprint</h3>
+                <p className="text-gray-800 leading-relaxed whitespace-pre-line">{aiProfile.narrative}</p>
+              </div>
+
+              {/* Grid of Key Insights */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* You Thrive When */}
+                {aiProfile.optimal_environment && (
+                  <Card className="bg-white/70">
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Target className="w-5 h-5 text-green-600" />
+                        You Thrive When...
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">
+                        {aiProfile.optimal_environment}
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Others Value You For */}
+                {aiProfile.unique_value_proposition && (
+                  <Card className="bg-white/70">
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Heart className="w-5 h-5 text-red-600" />
+                        Others Value You For...
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">
+                        {aiProfile.unique_value_proposition}
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              {/* Synergies */}
+              {aiProfile.synergies && aiProfile.synergies.length > 0 && (
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    Your Superpowers in Action
+                  </h4>
+                  <ul className="space-y-2">
+                    {aiProfile.synergies.map((synergy: string, index: number) => (
+                      <li key={index} className="text-gray-700 pl-4 border-l-2 border-green-400">
+                        {synergy}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Creative Tensions */}
+              {aiProfile.creative_tensions && aiProfile.creative_tensions.length > 0 && (
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-amber-600" />
+                    Creative Tensions to Navigate
+                  </h4>
+                  <ul className="space-y-2">
+                    {aiProfile.creative_tensions.map((tension: string, index: number) => (
+                      <li key={index} className="text-gray-700 pl-4 border-l-2 border-amber-400">
+                        {tension}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Growth Recommendations */}
+              {aiProfile.growth_recommendations && aiProfile.growth_recommendations.length > 0 && (
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-blue-600" />
+                    Growth Opportunities
+                  </h4>
+                  <ul className="space-y-2">
+                    {aiProfile.growth_recommendations.map((rec: string, index: number) => (
+                      <li key={index} className="text-gray-700 pl-4 border-l-2 border-blue-400">
+                        {rec}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+          )}
+          {!aiProfile && (
+            <CardContent>
+              <Alert>
+                <Sparkles className="w-4 h-4" />
+                <AlertDescription>
+                  Complete all assessments and click "Generate AI Profile" to create your personalized professional narrative.
+                  This uses advanced AI to synthesize your results into actionable insights about your unique working style.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="grid w-full grid-cols-6">
