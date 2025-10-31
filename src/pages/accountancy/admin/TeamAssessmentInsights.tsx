@@ -715,6 +715,230 @@ const TeamAssessmentInsights: React.FC = () => {
                   </Card>
                 );
               })()}
+
+              {/* Work Styles Distribution */}
+              {teamComposition.workStyles && teamComposition.workStyles.length > 0 && (() => {
+                const validWorkData = teamComposition.workStyles
+                  .map(item => ({
+                    style: String(item.style || 'Unknown'),
+                    count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
+                  }))
+                  .filter(item => item.count > 0);
+                
+                if (validWorkData.length === 0) return null;
+                
+                if (validWorkData.length === 1) {
+                  return (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-green-600" />
+                          Work Style Distribution
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-center py-8">
+                          <div className="inline-block px-8 py-4 bg-green-100 rounded-lg">
+                            <div className="text-3xl font-bold text-green-600 mb-2">{validWorkData[0].count}</div>
+                            <div className="text-lg font-medium text-gray-900 capitalize">{validWorkData[0].style}</div>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-4">
+                            All team members prefer the same work style
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                
+                return (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Clock className="w-5 h-5 text-green-600" />
+                        Work Style Distribution
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={validWorkData}
+                            dataKey="count"
+                            nameKey="style"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={100}
+                          >
+                            {validWorkData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Legend />
+                          <RechartsTooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+
+              {/* Work Environment Preferences */}
+              {teamComposition.environments && teamComposition.environments.length > 0 && (() => {
+                const validEnvData = teamComposition.environments
+                  .map(item => ({
+                    env: String(item.env || 'Unknown'),
+                    count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
+                  }))
+                  .filter(item => item.count > 0);
+                
+                if (validEnvData.length === 0) return null;
+                
+                return (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Settings className="w-5 h-5 text-orange-600" />
+                        Work Environment Preferences
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {validEnvData.map((env, index) => (
+                          <div key={index} className="flex items-center gap-4">
+                            <div className="w-32 font-medium text-gray-900 capitalize">{env.env}</div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <Progress 
+                                  value={teamMembers.length > 0 ? (env.count / teamMembers.length) * 100 : 0} 
+                                  className="h-2 flex-1" 
+                                />
+                                <span className="text-sm text-gray-600 w-12 text-right">{env.count}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+
+              {/* Motivational Drivers */}
+              {teamComposition.motivationalDrivers && teamComposition.motivationalDrivers.length > 0 && (() => {
+                const validMotivData = teamComposition.motivationalDrivers
+                  .map(item => ({
+                    driver: String(item.driver || 'Unknown'),
+                    count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
+                  }))
+                  .filter(item => item.count > 0);
+                
+                if (validMotivData.length === 0) return null;
+                
+                if (validMotivData.length === 1) {
+                  return (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Zap className="w-5 h-5 text-yellow-600" />
+                          Motivational Drivers
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-center py-8">
+                          <div className="inline-block px-8 py-4 bg-yellow-100 rounded-lg">
+                            <div className="text-3xl font-bold text-yellow-600 mb-2">{validMotivData[0].count}</div>
+                            <div className="text-lg font-medium text-gray-900 capitalize">{validMotivData[0].driver}</div>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-4">
+                            All team members share the same primary motivational driver
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                
+                return (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Zap className="w-5 h-5 text-yellow-600" />
+                        Motivational Drivers
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={validMotivData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="driver" />
+                          <YAxis />
+                          <RechartsTooltip />
+                          <Bar dataKey="count" fill="#f59e0b" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+
+              {/* Conflict Styles */}
+              {teamComposition.conflictStyles && teamComposition.conflictStyles.length > 0 && (() => {
+                const validConflictData = teamComposition.conflictStyles
+                  .map(item => ({
+                    style: String(item.style || 'Unknown'),
+                    count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
+                  }))
+                  .filter(item => item.count > 0);
+                
+                if (validConflictData.length === 0) return null;
+                
+                if (validConflictData.length === 1) {
+                  return (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Shield className="w-5 h-5 text-purple-600" />
+                          Conflict Resolution Styles
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-center py-8">
+                          <div className="inline-block px-8 py-4 bg-purple-100 rounded-lg">
+                            <div className="text-3xl font-bold text-purple-600 mb-2">{validConflictData[0].count}</div>
+                            <div className="text-lg font-medium text-gray-900 capitalize">{validConflictData[0].style}</div>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-4">
+                            All team members use the same conflict resolution approach
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                
+                return (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Shield className="w-5 h-5 text-purple-600" />
+                        Conflict Resolution Styles
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={validConflictData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="style" />
+                          <YAxis />
+                          <RechartsTooltip />
+                          <Bar dataKey="count" fill="#a855f7" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
             </>
             );
           })()}
