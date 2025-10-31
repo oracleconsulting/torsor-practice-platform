@@ -19,6 +19,7 @@ import {
   getEQDescriptor,
   getConflictStyleDescriptor
 } from '@/lib/assessments/profile-descriptors';
+import { ProfileNarrative } from './ProfileNarrative';
 import { useToast } from '@/components/ui/use-toast';
 import { 
   Briefcase, Users, Zap, Brain, Shield, 
@@ -601,6 +602,61 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                   )}
                 </CardContent>
               </Card>
+
+              {/* Rich Narrative Descriptions */}
+              {workingPreferences.communication_style && (
+                <ProfileNarrative
+                  title={getWorkingPreferenceDescriptor('communication_style', workingPreferences.communication_style)?.title || 'Communication Style'}
+                  narrative={getWorkingPreferenceDescriptor('communication_style', workingPreferences.communication_style)?.narrative || ''}
+                  superpower={getWorkingPreferenceDescriptor('communication_style', workingPreferences.communication_style)?.superpower}
+                  growthEdge={getWorkingPreferenceDescriptor('communication_style', workingPreferences.communication_style)?.worthKnowing}
+                />
+              )}
+
+              {workingPreferences.work_style && (
+                <ProfileNarrative
+                  title={getWorkingPreferenceDescriptor('work_style', workingPreferences.work_style)?.title || 'Work Style'}
+                  narrative={getWorkingPreferenceDescriptor('work_style', workingPreferences.work_style)?.narrative || ''}
+                  superpower={getWorkingPreferenceDescriptor('work_style', workingPreferences.work_style)?.superpower}
+                  growthEdge={getWorkingPreferenceDescriptor('work_style', workingPreferences.work_style)?.worthKnowing}
+                />
+              )}
+
+              {workingPreferences.environment && (
+                <ProfileNarrative
+                  title={getWorkingPreferenceDescriptor('environment', workingPreferences.environment)?.title || 'Environment Preference'}
+                  narrative={getWorkingPreferenceDescriptor('environment', workingPreferences.environment)?.narrative || ''}
+                  superpower={getWorkingPreferenceDescriptor('environment', workingPreferences.environment)?.superpower}
+                  growthEdge={getWorkingPreferenceDescriptor('environment', workingPreferences.environment)?.worthKnowing}
+                />
+              )}
+
+              {workingPreferences.time_management && (
+                <ProfileNarrative
+                  title={getWorkingPreferenceDescriptor('time_management', workingPreferences.time_management)?.title || 'Time Management'}
+                  narrative={getWorkingPreferenceDescriptor('time_management', workingPreferences.time_management)?.narrative || ''}
+                  superpower={getWorkingPreferenceDescriptor('time_management', workingPreferences.time_management)?.superpower}
+                  growthEdge={getWorkingPreferenceDescriptor('time_management', workingPreferences.time_management)?.worthKnowing}
+                />
+              )}
+
+              {workingPreferences.feedback_preference && (
+                <ProfileNarrative
+                  title={getWorkingPreferenceDescriptor('feedback_preference', workingPreferences.feedback_preference)?.title || 'Feedback Preference'}
+                  narrative={getWorkingPreferenceDescriptor('feedback_preference', workingPreferences.feedback_preference)?.narrative || ''}
+                  superpower={getWorkingPreferenceDescriptor('feedback_preference', workingPreferences.feedback_preference)?.superpower}
+                  growthEdge={getWorkingPreferenceDescriptor('feedback_preference', workingPreferences.feedback_preference)?.worthKnowing}
+                />
+              )}
+
+              {workingPreferences.collaboration_preference && (
+                <ProfileNarrative
+                  title={getWorkingPreferenceDescriptor('collaboration_preference', workingPreferences.collaboration_preference)?.title || 'Collaboration Preference'}
+                  narrative={getWorkingPreferenceDescriptor('collaboration_preference', workingPreferences.collaboration_preference)?.narrative || ''}
+                  superpower={getWorkingPreferenceDescriptor('collaboration_preference', workingPreferences.collaboration_preference)?.superpower}
+                  growthEdge={getWorkingPreferenceDescriptor('collaboration_preference', workingPreferences.collaboration_preference)?.worthKnowing}
+                />
+              )}
             </>
           ) : (
             <Card>
@@ -663,6 +719,25 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                   )}
                 </CardContent>
               </Card>
+
+              {/* Rich Narrative Descriptions for Belbin */}
+              {belbin.primary_role && (
+                <ProfileNarrative
+                  title={getBelbinDescriptor(belbin.primary_role)?.title || 'Primary Role'}
+                  narrative={getBelbinDescriptor(belbin.primary_role)?.narrative || ''}
+                  gift={getBelbinDescriptor(belbin.primary_role)?.gift}
+                  growthEdge={getBelbinDescriptor(belbin.primary_role)?.growingEdge}
+                />
+              )}
+
+              {belbin.secondary_role && (
+                <ProfileNarrative
+                  title={`Secondary: ${getBelbinDescriptor(belbin.secondary_role)?.title || belbin.secondary_role}`}
+                  narrative={getBelbinDescriptor(belbin.secondary_role)?.narrative || ''}
+                  gift={getBelbinDescriptor(belbin.secondary_role)?.gift}
+                  growthEdge={getBelbinDescriptor(belbin.secondary_role)?.growingEdge}
+                />
+              )}
             </>
           ) : (
             <Card>
@@ -721,6 +796,25 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                   )}
                 </CardContent>
               </Card>
+
+              {/* Rich Narrative Descriptions for Motivational Drivers */}
+              {motivational.primary_driver && (
+                <ProfileNarrative
+                  title={getMotivationalDescriptor(motivational.primary_driver)?.title || 'Primary Driver'}
+                  narrative={getMotivationalDescriptor(motivational.primary_driver)?.narrative || ''}
+                  energiser={getMotivationalDescriptor(motivational.primary_driver)?.energiser}
+                  growthEdge={getMotivationalDescriptor(motivational.primary_driver)?.growthEdge}
+                />
+              )}
+
+              {motivational.secondary_driver && (
+                <ProfileNarrative
+                  title={`Secondary: ${getMotivationalDescriptor(motivational.secondary_driver)?.title || motivational.secondary_driver}`}
+                  narrative={getMotivationalDescriptor(motivational.secondary_driver)?.narrative || ''}
+                  energiser={getMotivationalDescriptor(motivational.secondary_driver)?.energiser}
+                  growthEdge={getMotivationalDescriptor(motivational.secondary_driver)?.growthEdge}
+                />
+              )}
             </>
           ) : (
             <Card>
@@ -795,6 +889,43 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                   )}
                 </CardContent>
               </Card>
+
+              {/* Rich Narrative Descriptions for EQ Domains */}
+              {eq.self_awareness_score && (
+                <ProfileNarrative
+                  title={`Self-Awareness: ${getEQDescriptor('self_awareness', eq.self_awareness_score)?.title || ''}`}
+                  narrative={getEQDescriptor('self_awareness', eq.self_awareness_score)?.narrative || ''}
+                  strength={getEQDescriptor('self_awareness', eq.self_awareness_score)?.strength}
+                  growthEdge={getEQDescriptor('self_awareness', eq.self_awareness_score)?.growingEdge}
+                />
+              )}
+
+              {eq.self_management_score && (
+                <ProfileNarrative
+                  title={`Self-Management: ${getEQDescriptor('self_management', eq.self_management_score)?.title || ''}`}
+                  narrative={getEQDescriptor('self_management', eq.self_management_score)?.narrative || ''}
+                  strength={getEQDescriptor('self_management', eq.self_management_score)?.strength}
+                  growthEdge={getEQDescriptor('self_management', eq.self_management_score)?.growingEdge}
+                />
+              )}
+
+              {eq.social_awareness_score && (
+                <ProfileNarrative
+                  title={`Social Awareness: ${getEQDescriptor('social_awareness', eq.social_awareness_score)?.title || ''}`}
+                  narrative={getEQDescriptor('social_awareness', eq.social_awareness_score)?.narrative || ''}
+                  strength={getEQDescriptor('social_awareness', eq.social_awareness_score)?.strength}
+                  growthEdge={getEQDescriptor('social_awareness', eq.social_awareness_score)?.growingEdge}
+                />
+              )}
+
+              {eq.relationship_management_score && (
+                <ProfileNarrative
+                  title={`Relationship Management: ${getEQDescriptor('relationship_management', eq.relationship_management_score)?.title || ''}`}
+                  narrative={getEQDescriptor('relationship_management', eq.relationship_management_score)?.narrative || ''}
+                  strength={getEQDescriptor('relationship_management', eq.relationship_management_score)?.strength}
+                  growthEdge={getEQDescriptor('relationship_management', eq.relationship_management_score)?.growingEdge}
+                />
+              )}
             </>
           ) : (
             <Card>
@@ -853,6 +984,25 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                   )}
                 </CardContent>
               </Card>
+
+              {/* Rich Narrative Descriptions for Conflict Style */}
+              {conflict.primary_style && (
+                <ProfileNarrative
+                  title={getConflictStyleDescriptor(conflict.primary_style)?.title || 'Primary Style'}
+                  narrative={getConflictStyleDescriptor(conflict.primary_style)?.narrative || ''}
+                  power={getConflictStyleDescriptor(conflict.primary_style)?.power}
+                  growthEdge={getConflictStyleDescriptor(conflict.primary_style)?.growthEdge}
+                />
+              )}
+
+              {conflict.secondary_style && (
+                <ProfileNarrative
+                  title={`Secondary: ${getConflictStyleDescriptor(conflict.secondary_style)?.title || conflict.secondary_style}`}
+                  narrative={getConflictStyleDescriptor(conflict.secondary_style)?.narrative || ''}
+                  power={getConflictStyleDescriptor(conflict.secondary_style)?.power}
+                  growthEdge={getConflictStyleDescriptor(conflict.secondary_style)?.growthEdge}
+                />
+              )}
             </>
           ) : (
             <Card>
