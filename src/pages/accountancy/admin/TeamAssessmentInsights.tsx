@@ -96,17 +96,75 @@ const TeamAssessmentInsights: React.FC = () => {
   const [teamDynamics, setTeamDynamics] = useState<TeamDynamics | null>(null);
   const [priorities, setPriorities] = useState<DevelopmentPriorities | null>(null);
 
-  // Belbin role display name mapping
-  const belbinRoleNames: Record<string, string> = {
-    'plant': 'Innovator',
-    'monitor_evaluator': 'Analyst',
-    'specialist': 'Expert',
-    'coordinator': 'Leader',
-    'teamworker': 'Harmoniser',
-    'resource_investigator': 'Explorer',
-    'shaper': 'Driver',
-    'implementer': 'Doer',
-    'completer_finisher': 'Perfectionist'
+  // Display name mappings for all assessment types
+  const displayNames = {
+    // Communication Styles
+    communication: {
+      'high_sync': 'High-Sync Communicator',
+      'balanced': 'Balanced Communicator',
+      'async_preferred': 'Async-Focused Communicator'
+    },
+    // Work Styles
+    workStyle: {
+      'autonomous': 'Autonomous Worker',
+      'structured': 'Structured Worker',
+      'flexible': 'Flexible Worker'
+    },
+    // Work Environments
+    environment: {
+      'quiet_focused': 'Deep Work Specialist',
+      'social_collaborative': 'Team Energiser',
+      'flexible_adaptive': 'Environment Agnostic'
+    },
+    // Belbin Roles
+    belbin: {
+      'plant': 'Innovator',
+      'monitor_evaluator': 'Analyst',
+      'specialist': 'Expert',
+      'coordinator': 'Leader',
+      'teamworker': 'Harmoniser',
+      'resource_investigator': 'Explorer',
+      'shaper': 'Driver',
+      'implementer': 'Doer',
+      'completer_finisher': 'Perfectionist'
+    },
+    // Motivational Drivers
+    motivation: {
+      'achievement': 'Achievement-Driven',
+      'autonomy': 'Autonomy-Driven',
+      'affiliation': 'Affiliation-Driven',
+      'influence': 'Influence-Driven',
+      'security': 'Security-Driven',
+      'recognition': 'Recognition-Driven'
+    },
+    // EQ Levels
+    eq: {
+      'high': 'Strong EQ',
+      'moderate': 'Developing EQ',
+      'developing': 'Growing EQ',
+      'strong': 'Strong EQ' // Alternative naming
+    },
+    // Conflict Styles
+    conflict: {
+      'competing': 'Competitor',
+      'collaborating': 'Collaborator',
+      'compromising': 'Compromiser',
+      'avoiding': 'Avoider',
+      'accommodating': 'Accommodator'
+    },
+    // VARK Learning Styles
+    vark: {
+      'visual': 'Visual Learner',
+      'auditory': 'Auditory Learner',
+      'reading': 'Reading/Writing Learner',
+      'kinesthetic': 'Kinesthetic Learner',
+      'multimodal': 'Multimodal Learner'
+    }
+  };
+
+  // Helper function to get friendly name
+  const getFriendlyName = (type: keyof typeof displayNames, value: string): string => {
+    return displayNames[type]?.[value.toLowerCase()] || value.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   };
 
   useEffect(() => {
@@ -223,7 +281,7 @@ const TeamAssessmentInsights: React.FC = () => {
     });
 
     const belbinRoles = Object.entries(roleMap).map(([role, memberList]) => ({
-      role: belbinRoleNames[role] || role.replace(/_/g, ' '),
+      role: getFriendlyName('belbin', role),
       count: memberList.length,
       members: memberList
     }));
@@ -602,7 +660,7 @@ const TeamAssessmentInsights: React.FC = () => {
                 // Validate and sanitize communication styles data for charts
                 const validCommData = teamComposition.communicationStyles
                   .map(item => ({
-                    style: String(item.style || 'Unknown'),
+                    style: getFriendlyName('communication', item.style),
                     count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
                   }))
                   .filter(item => item.count > 0);
@@ -630,7 +688,7 @@ const TeamAssessmentInsights: React.FC = () => {
                         <div className="text-center py-8">
                           <div className="inline-block px-8 py-4 bg-blue-100 rounded-lg">
                             <div className="text-3xl font-bold text-blue-600 mb-2">{validCommData[0].count}</div>
-                            <div className="text-lg font-medium text-gray-900 capitalize">{validCommData[0].style}</div>
+                            <div className="text-lg font-medium text-gray-900">{validCommData[0].style}</div>
                           </div>
                           <p className="text-sm text-gray-600 mt-4">
                             All team members share the same communication style
@@ -714,7 +772,7 @@ const TeamAssessmentInsights: React.FC = () => {
                 // Validate and sanitize EQ data for charts
                 const validEqData = teamComposition.eqDistribution
                   .map(item => ({
-                    level: String(item.level || 'Unknown'),
+                    level: getFriendlyName('eq', item.level),
                     count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
                   }))
                   .filter(item => item.count > 0);
@@ -745,10 +803,10 @@ const TeamAssessmentInsights: React.FC = () => {
                         <div className="text-center py-8">
                           <div className="inline-block px-8 py-4 bg-red-100 rounded-lg">
                             <div className="text-3xl font-bold text-red-600 mb-2">{validEqData[0].count}</div>
-                            <div className="text-lg font-medium text-gray-900 capitalize">{validEqData[0].level} EQ</div>
+                            <div className="text-lg font-medium text-gray-900">{validEqData[0].level}</div>
                           </div>
                           <p className="text-sm text-gray-600 mt-4">
-                            All team members have {validEqData[0].level} emotional intelligence
+                            All team members have {validEqData[0].level.toLowerCase()} emotional intelligence
                           </p>
                         </div>
                       </CardContent>
@@ -786,7 +844,7 @@ const TeamAssessmentInsights: React.FC = () => {
               {teamComposition.workStyles && teamComposition.workStyles.length > 0 && (() => {
                 const validWorkData = teamComposition.workStyles
                   .map(item => ({
-                    style: String(item.style || 'Unknown'),
+                    style: getFriendlyName('workStyle', item.style),
                     count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
                   }))
                   .filter(item => item.count > 0);
@@ -806,7 +864,7 @@ const TeamAssessmentInsights: React.FC = () => {
                         <div className="text-center py-8">
                           <div className="inline-block px-8 py-4 bg-green-100 rounded-lg">
                             <div className="text-3xl font-bold text-green-600 mb-2">{validWorkData[0].count}</div>
-                            <div className="text-lg font-medium text-gray-900 capitalize">{validWorkData[0].style}</div>
+                            <div className="text-lg font-medium text-gray-900">{validWorkData[0].style}</div>
                           </div>
                           <p className="text-sm text-gray-600 mt-4">
                             All team members prefer the same work style
@@ -853,7 +911,7 @@ const TeamAssessmentInsights: React.FC = () => {
               {teamComposition.environments && teamComposition.environments.length > 0 && (() => {
                 const validEnvData = teamComposition.environments
                   .map(item => ({
-                    env: String(item.env || 'Unknown'),
+                    env: getFriendlyName('environment', item.env),
                     count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
                   }))
                   .filter(item => item.count > 0);
@@ -872,7 +930,7 @@ const TeamAssessmentInsights: React.FC = () => {
                       <div className="space-y-3">
                         {validEnvData.map((env, index) => (
                           <div key={index} className="flex items-center gap-4">
-                            <div className="w-32 font-medium text-gray-900 capitalize">{env.env}</div>
+                            <div className="w-48 font-medium text-gray-900">{env.env}</div>
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
                                 <Progress 
@@ -894,7 +952,7 @@ const TeamAssessmentInsights: React.FC = () => {
               {teamComposition.motivationalDrivers && teamComposition.motivationalDrivers.length > 0 && (() => {
                 const validMotivData = teamComposition.motivationalDrivers
                   .map(item => ({
-                    driver: String(item.driver || 'Unknown'),
+                    driver: getFriendlyName('motivation', item.driver),
                     count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
                   }))
                   .filter(item => item.count > 0);
@@ -914,7 +972,7 @@ const TeamAssessmentInsights: React.FC = () => {
                         <div className="text-center py-8">
                           <div className="inline-block px-8 py-4 bg-yellow-100 rounded-lg">
                             <div className="text-3xl font-bold text-yellow-600 mb-2">{validMotivData[0].count}</div>
-                            <div className="text-lg font-medium text-gray-900 capitalize">{validMotivData[0].driver}</div>
+                            <div className="text-lg font-medium text-gray-900">{validMotivData[0].driver}</div>
                           </div>
                           <p className="text-sm text-gray-600 mt-4">
                             All team members share the same primary motivational driver
@@ -952,7 +1010,7 @@ const TeamAssessmentInsights: React.FC = () => {
               {teamComposition.conflictStyles && teamComposition.conflictStyles.length > 0 && (() => {
                 const validConflictData = teamComposition.conflictStyles
                   .map(item => ({
-                    style: String(item.style || 'Unknown'),
+                    style: getFriendlyName('conflict', item.style),
                     count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
                   }))
                   .filter(item => item.count > 0);
@@ -972,7 +1030,7 @@ const TeamAssessmentInsights: React.FC = () => {
                         <div className="text-center py-8">
                           <div className="inline-block px-8 py-4 bg-purple-100 rounded-lg">
                             <div className="text-3xl font-bold text-purple-600 mb-2">{validConflictData[0].count}</div>
-                            <div className="text-lg font-medium text-gray-900 capitalize">{validConflictData[0].style}</div>
+                            <div className="text-lg font-medium text-gray-900">{validConflictData[0].style}</div>
                           </div>
                           <p className="text-sm text-gray-600 mt-4">
                             All team members use the same conflict resolution approach
@@ -1010,7 +1068,7 @@ const TeamAssessmentInsights: React.FC = () => {
               {teamComposition.varkStyles && teamComposition.varkStyles.length > 0 && (() => {
                 const validVarkData = teamComposition.varkStyles
                   .map(item => ({
-                    style: String(item.style || 'Unknown'),
+                    style: getFriendlyName('vark', item.style),
                     count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
                   }))
                   .filter(item => item.count > 0);
@@ -1030,7 +1088,7 @@ const TeamAssessmentInsights: React.FC = () => {
                         <div className="text-center py-8">
                           <div className="inline-block px-8 py-4 bg-indigo-100 rounded-lg">
                             <div className="text-3xl font-bold text-indigo-600 mb-2">{validVarkData[0].count}</div>
-                            <div className="text-lg font-medium text-gray-900 capitalize">{validVarkData[0].style}</div>
+                            <div className="text-lg font-medium text-gray-900">{validVarkData[0].style}</div>
                           </div>
                           <p className="text-sm text-gray-600 mt-4">
                             All team members share the same learning preference
