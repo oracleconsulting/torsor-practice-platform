@@ -569,14 +569,16 @@ const TeamAssessmentInsights: React.FC = () => {
                       {teamComposition.belbinRoles.map((role) => (
                         <div key={role.role}>
                           <div className="flex justify-between mb-1">
-                            <span className="font-medium text-gray-900 capitalize">{role.role}</span>
-                            <span className="text-gray-600">{role.count} members</span>
+                            <span className="font-medium text-gray-900 capitalize">{String(role.role || '')}</span>
+                            <span className="text-gray-600">{Number(role.count) || 0} members</span>
                           </div>
                           <Progress 
-                            value={teamMembers.length > 0 ? Math.min(100, (role.count / teamMembers.length) * 100) : 0} 
+                            value={teamMembers.length > 0 ? Math.min(100, (Number(role.count) / teamMembers.length) * 100) : 0} 
                             className="h-2" 
                           />
-                          <div className="text-xs text-gray-500 mt-1">{role.members.join(', ')}</div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {Array.isArray(role.members) ? role.members.filter(m => m).join(', ') : ''}
+                          </div>
                         </div>
                       ))}
                     </div>
