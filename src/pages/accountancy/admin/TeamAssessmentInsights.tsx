@@ -549,6 +549,32 @@ const TeamAssessmentInsights: React.FC = () => {
                 }
                 
                 console.log('[TeamAssessmentInsights] PieChart - rendering with data');
+                
+                // If only 1 data point, use simple display instead of chart (Recharts crashes with 1 point)
+                if (validCommData.length === 1) {
+                  return (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <MessageSquare className="w-5 h-5 text-blue-600" />
+                          Communication Style Distribution
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-center py-8">
+                          <div className="inline-block px-8 py-4 bg-blue-100 rounded-lg">
+                            <div className="text-3xl font-bold text-blue-600 mb-2">{validCommData[0].count}</div>
+                            <div className="text-lg font-medium text-gray-900 capitalize">{validCommData[0].style}</div>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-4">
+                            All team members share the same communication style
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                
                 return (
                   <Card>
                     <CardHeader>
@@ -635,6 +661,35 @@ const TeamAssessmentInsights: React.FC = () => {
                 }
                 
                 console.log('[TeamAssessmentInsights] BarChart - rendering with data');
+                
+                // If only 1 data point, use simple display instead of chart (Recharts crashes with 1 point)
+                if (validEqData.length === 1) {
+                  return (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Heart className="w-5 h-5 text-red-600" />
+                          Emotional Intelligence
+                        </CardTitle>
+                        <CardDescription>
+                          Team Average EQ: <span className="font-bold text-lg">{teamComposition.avgEQ}</span>
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-center py-8">
+                          <div className="inline-block px-8 py-4 bg-red-100 rounded-lg">
+                            <div className="text-3xl font-bold text-red-600 mb-2">{validEqData[0].count}</div>
+                            <div className="text-lg font-medium text-gray-900 capitalize">{validEqData[0].level} EQ</div>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-4">
+                            All team members have {validEqData[0].level} emotional intelligence
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                
                 return (
                   <Card>
                     <CardHeader>
