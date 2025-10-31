@@ -953,7 +953,8 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                     </div>
                   </div>
 
-                  {conflictBarData.length > 0 && (
+                  {/* Temporarily disabled chart due to rendering issues */}
+                  {/* {conflictBarData.length > 0 && (
                     <div className="pt-4">
                       <h4 className="font-medium text-gray-900 mb-4">Conflict Style Distribution</h4>
                       {(() => {
@@ -979,7 +980,7 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                         }
                       })()}
                     </div>
-                  )}
+                  )} */}
 
                   {conflict.summary && (
                     <div className="pt-4 border-t">
