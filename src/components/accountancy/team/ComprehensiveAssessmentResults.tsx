@@ -362,7 +362,6 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                 </div>
               )}
             </CardContent>
-          )}
         </Card>
       )}
 
