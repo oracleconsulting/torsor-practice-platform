@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Award, BookOpen, TrendingUp, BarChart2, Mail, LayoutDashboard, Target, Users, CheckCircle, Sparkles } from 'lucide-react';
+import { Award, BookOpen, TrendingUp, BarChart2, Mail, LayoutDashboard, Target, Users, CheckCircle, Sparkles, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,6 +15,7 @@ import TrainingRecommendationsPage from './team/TrainingRecommendationsPage';
 import MentoringHubPage from './team/MentoringHubPage';
 import AnalyticsDashboardPage from './team/AnalyticsDashboardPage';
 import SkillsManagementPage from './team/SkillsManagementPage';
+import AISettingsPage from './admin/AISettingsPage';
 
 // Visual Pattern Components
 const DiagonalPattern = () => (
@@ -132,6 +133,13 @@ const TeamManagementPage: React.FC = () => {
       label: 'KNOWLEDGE BASE',
       icon: BookOpen,
       component: KnowledgeBasePage,
+    },
+    {
+      value: 'ai-settings',
+      label: 'AI SETTINGS',
+      icon: Brain,
+      component: AISettingsPage,
+      badge: 'NEW',
     },
   ];
 
