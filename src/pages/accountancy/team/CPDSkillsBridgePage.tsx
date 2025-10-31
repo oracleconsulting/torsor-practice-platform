@@ -3,10 +3,9 @@ import CPDSkillsBridge from '@/components/accountancy/team/CPDSkillsBridge';
 import CPDOverview from '@/components/accountancy/team/CPDOverview';
 import QuickCPDLogger from '@/components/accountancy/team/QuickCPDLogger';
 import CPDSkillReassessment from '@/components/accountancy/team/CPDSkillReassessment';
-import ServiceLineInterestRanking from '@/components/accountancy/team/ServiceLineInterestRanking';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Activity, TrendingUp, ArrowLeft, Info, Plus, Clock, Target, Brain, Briefcase } from 'lucide-react';
+import { Activity, TrendingUp, ArrowLeft, Info, Plus, Clock, Target, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useNavigate } from 'react-router-dom';
@@ -19,7 +18,7 @@ const CPDSkillsBridgePage: React.FC = () => {
   const { user } = useAuth();
   const { practice } = useAccountancyContext();
   const [memberId, setMemberId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'impact' | 'service-lines'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'impact'>('overview');
   const [isLogCPDOpen, setIsLogCPDOpen] = useState(false);
   const [isReassessmentOpen, setIsReassessmentOpen] = useState(false);
   const [cpdActivityData, setCpdActivityData] = useState<{
@@ -108,13 +107,6 @@ const CPDSkillsBridgePage: React.FC = () => {
               <TrendingUp className="w-4 h-4 mr-2" />
               Skills Impact
             </TabsTrigger>
-            <TabsTrigger 
-              value="service-lines" 
-              className="data-[state=active]:bg-green-600 data-[state=active]:text-white transition-all"
-            >
-              <Briefcase className="w-4 h-4 mr-2" />
-              Service Lines
-            </TabsTrigger>
           </TabsList>
 
           {/* CPD Overview Tab */}
@@ -175,19 +167,6 @@ const CPDSkillsBridgePage: React.FC = () => {
               <Card className="bg-gray-800 border-gray-700">
                 <CardContent className="pt-6">
                   <p className="text-white font-medium text-center">Please log in to view your CPD skills impact.</p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* Service Lines Tab */}
-          <TabsContent value="service-lines" className="space-y-6">
-            {memberId ? (
-              <ServiceLineInterestRanking memberId={memberId} />
-            ) : (
-              <Card className="bg-gray-800 border-gray-700">
-                <CardContent className="pt-6">
-                  <p className="text-white font-medium text-center">Please log in to manage your service line preferences.</p>
                 </CardContent>
               </Card>
             )}
