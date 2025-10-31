@@ -180,7 +180,11 @@ const ServiceLineInterestRanking: React.FC<ServiceLineInterestRankingProps> = ({
       'Future Financial Information / Advisory Accelerator': '💼',
       'Benchmarking - External and Internal': '⚖️',
       'Profit Extraction / Remuneration Strategies': '💰',
-      '365 Alignment Programme': '🎯'
+      '365 Alignment Programme': '🎯',
+      'Systems Audit': '🔍',
+      'Fractional CFO Services': '💼',
+      'Fractional COO Services': '⚙️',
+      'Combined CFO/COO Advisory': '🚀'
     };
     return icons[serviceLine] || '📌';
   };
@@ -241,6 +245,39 @@ const ServiceLineInterestRanking: React.FC<ServiceLineInterestRankingProps> = ({
           'Process & controls mapping',
           'Efficiency diagnostics and tech-stack review',
           'Remediation plan with effort/owner/time/£ benefit'
+        ]
+      },
+      'Fractional CFO Services': {
+        short: 'Part-time or interim Chief Financial Officer providing strategic financial leadership',
+        features: [
+          'Financial strategy, planning & forecasting',
+          'Board-level financial reporting',
+          'Capital structure optimization & fundraising',
+          'M&A support and business valuation',
+          'Risk management & internal controls',
+          'Team leadership & CFO-level advisory'
+        ]
+      },
+      'Fractional COO Services': {
+        short: 'Part-time or interim Chief Operating Officer driving operational excellence',
+        features: [
+          'Process improvement & operational efficiency',
+          'Performance management & KPI frameworks',
+          'Workflow design & systems integration',
+          'Resource planning & capacity management',
+          'Change management & transformation',
+          'Stakeholder management & operational leadership'
+        ]
+      },
+      'Combined CFO/COO Advisory': {
+        short: 'Integrated C-suite financial and operational leadership for comprehensive business growth',
+        features: [
+          'End-to-end strategic leadership (finance + operations)',
+          'Business planning, forecasting & execution',
+          'Process optimization with financial discipline',
+          'KPI-driven performance management',
+          'Capital deployment & operational efficiency',
+          'Scalable infrastructure for growth'
         ]
       }
     };

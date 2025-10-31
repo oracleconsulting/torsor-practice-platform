@@ -30,7 +30,7 @@ export interface ServiceLineCoverage {
   match_score: number;
 }
 
-// BSG Service Lines - All 7 Active Services
+// BSG Service Lines - All 10 Active Services (Including Fractional Executive Services)
 export const BSG_SERVICE_LINES = [
   'Automation',
   'Management Accounts',
@@ -38,7 +38,10 @@ export const BSG_SERVICE_LINES = [
   'Benchmarking - External and Internal',
   '365 Alignment Programme',
   'Systems Audit',
-  'Profit Extraction / Remuneration Strategies'
+  'Profit Extraction / Remuneration Strategies',
+  'Fractional CFO Services',
+  'Fractional COO Services',
+  'Combined CFO/COO Advisory'
 ] as const;
 
 export type BSGServiceLine = typeof BSG_SERVICE_LINES[number];

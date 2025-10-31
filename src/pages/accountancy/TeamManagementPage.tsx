@@ -18,6 +18,7 @@ import SkillsManagementPage from './team/SkillsManagementPage';
 import AISettingsPage from './admin/AISettingsPage';
 import TeamAssessmentInsights from './admin/TeamAssessmentInsights';
 import MyAssessmentsPanel from './admin/MyAssessmentsPanel';
+import ServiceLinePreferencesAdmin from './admin/ServiceLinePreferencesAdmin';
 
 // Visual Pattern Components
 const DiagonalPattern = () => (
@@ -156,6 +157,13 @@ const TeamManagementPage: React.FC = () => {
       icon: ActivitySquare,
       component: TeamAssessmentInsights,
       badge: 'NEW',
+    },
+    {
+      value: 'service-lines',
+      label: 'SERVICE LINE PREFERENCES',
+      icon: Sparkles,
+      component: ServiceLinePreferencesAdmin,
+      badge: 'STRATEGY',
     },
   ];
 
