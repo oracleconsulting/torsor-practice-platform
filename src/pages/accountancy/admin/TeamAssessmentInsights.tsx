@@ -206,22 +206,27 @@ const TeamAssessmentInsights: React.FC = () => {
     const completionData: AssessmentCompletion[] = [];
 
     for (const member of members) {
-      const { data: assessments } = await supabase
-        .from('team_comprehensive_assessments')
-        .select('*')
-        .eq('practice_member_id', member.id)
-        .single();
+      // Check each assessment table directly
+      const [vark, ocean, workingPrefs, belbin, motivational, eq, conflict] = await Promise.all([
+        supabase.from('learning_preferences').select('id').eq('practice_member_id', member.id).single(),
+        supabase.from('personality_assessments').select('id').eq('practice_member_id', member.id).single(),
+        supabase.from('working_preferences').select('id').eq('practice_member_id', member.id).single(),
+        supabase.from('belbin_assessments').select('id').eq('practice_member_id', member.id).single(),
+        supabase.from('motivational_drivers').select('id').eq('practice_member_id', member.id).single(),
+        supabase.from('eq_assessments').select('id').eq('practice_member_id', member.id).single(),
+        supabase.from('conflict_style_assessments').select('id').eq('practice_member_id', member.id).single()
+      ]);
 
       const completion = {
         memberId: member.id,
         name: member.name,
-        vark: !!assessments?.vark_completed,
-        ocean: !!assessments?.personality_completed,
-        workingPrefs: !!assessments?.working_prefs_completed,
-        belbin: !!assessments?.belbin_completed,
-        motivational: !!assessments?.motivational_completed,
-        eq: !!assessments?.eq_completed,
-        conflict: !!assessments?.conflict_completed,
+        vark: !!vark.data,
+        ocean: !!ocean.data,
+        workingPrefs: !!workingPrefs.data,
+        belbin: !!belbin.data,
+        motivational: !!motivational.data,
+        eq: !!eq.data,
+        conflict: !!conflict.data,
         completionRate: 0
       };
 

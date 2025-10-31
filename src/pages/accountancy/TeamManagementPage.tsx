@@ -17,6 +17,7 @@ import AnalyticsDashboardPage from './team/AnalyticsDashboardPage';
 import SkillsManagementPage from './team/SkillsManagementPage';
 import AISettingsPage from './admin/AISettingsPage';
 import TeamAssessmentInsights from './admin/TeamAssessmentInsights';
+import MyAssessmentsPanel from './admin/MyAssessmentsPanel';
 
 // Visual Pattern Components
 const DiagonalPattern = () => (
@@ -75,6 +76,13 @@ const TeamManagementPage: React.FC = () => {
       label: 'TEAM INVITATIONS',
       icon: Mail,
       component: InvitationsPage,
+    },
+    {
+      value: 'my-assessments',
+      label: 'MY ASSESSMENTS',
+      icon: CheckCircle2,
+      component: MyAssessmentsPanel,
+      badge: 'YOU',
     },
     {
       value: 'dashboard',
