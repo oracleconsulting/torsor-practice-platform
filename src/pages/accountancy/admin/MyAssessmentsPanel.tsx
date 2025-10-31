@@ -1,6 +1,6 @@
 /**
  * My Assessments Panel
- * Direct access to all assessments for admin users
+ * Direct access to all assessments for admin users with skills heatmap
  */
 
 import React, { useState, useEffect } from 'react';
@@ -10,9 +10,10 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase/client';
 import { 
   Brain, Users, Briefcase, Target, Heart, Shield, 
-  BookOpen, CheckCircle2, Circle, ArrowRight
+  BookOpen, CheckCircle2, Circle, ArrowRight, Grid3x3
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import MySkillsHeatmap from '../team/MySkillsHeatmap';
 
 interface AssessmentStatus {
   vark: boolean;
@@ -219,8 +220,41 @@ const MyAssessmentsPanel: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Skills Heatmap Section */}
+      <Card className="border-2 border-amber-200 bg-white">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <Grid3x3 className="w-6 h-6 text-amber-600" />
+                My Skills Heatmap
+              </CardTitle>
+              <CardDescription className="text-base">
+                Visual overview of your 111 advisory skills across all categories
+              </CardDescription>
+            </div>
+            <Button
+              onClick={() => navigate('/team-member/skills-heatmap')}
+              variant="outline"
+              className="border-amber-300 text-amber-700 hover:bg-amber-50"
+            >
+              Full View
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <MySkillsHeatmap />
+        </CardContent>
+      </Card>
+
       {/* Assessment Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <Brain className="w-5 h-5 text-purple-600" />
+          Professional Development Assessments
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {assessments.map((assessment) => {
           const isCompleted = status[assessment.key];
           const colors = colorClasses[assessment.color as keyof typeof colorClasses];
@@ -284,6 +318,7 @@ const MyAssessmentsPanel: React.FC = () => {
             </Card>
           );
         })}
+        </div>
       </div>
 
       {/* Completion Message */}
