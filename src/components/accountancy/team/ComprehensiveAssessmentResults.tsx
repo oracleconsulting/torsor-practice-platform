@@ -986,7 +986,7 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
               </Card>
 
               {/* Rich Narrative Descriptions for Conflict Style */}
-              {conflict.primary_style && (
+              {conflict.primary_style && getConflictStyleDescriptor(conflict.primary_style) && (
                 <ProfileNarrative
                   title={getConflictStyleDescriptor(conflict.primary_style)?.title || 'Primary Style'}
                   narrative={getConflictStyleDescriptor(conflict.primary_style)?.narrative || ''}
@@ -995,7 +995,7 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                 />
               )}
 
-              {conflict.secondary_style && (
+              {conflict.secondary_style && getConflictStyleDescriptor(conflict.secondary_style) && (
                 <ProfileNarrative
                   title={`Secondary: ${getConflictStyleDescriptor(conflict.secondary_style)?.title || conflict.secondary_style}`}
                   narrative={getConflictStyleDescriptor(conflict.secondary_style)?.narrative || ''}

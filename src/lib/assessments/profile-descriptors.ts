@@ -147,7 +147,7 @@ export const belbinRoleDescriptors = {
     gift: "The spark of innovation that prevents stagnation. You ensure teams never settle for 'good enough.'",
     growingEdge: 'Your brilliant ideas deserve brilliant execution. Partnering with implementers turns your visions into reality.'
   },
-  'monitor evaluator': {
+  'monitor_evaluator': {
     title: 'The Analyst',
     narrative: "You see through the enthusiasm to the reality beneath. This isn't pessimism – it's the valuable ability to spot the cracks others miss in their excitement. Your careful analysis has saved countless projects from beautiful disasters.",
     gift: "The voice of reason that prevents costly mistakes. You're the quality control for team decisions.",
@@ -171,7 +171,7 @@ export const belbinRoleDescriptors = {
     gift: 'Cohesion and trust. You transform groups of individuals into genuine teams.',
     growingEdge: 'Your diplomatic skills are precious, but remember that some conflicts, respectfully handled, lead to breakthrough innovations.'
   },
-  'resource investigator': {
+  'resource_investigator': {
     title: 'The Explorer',
     narrative: "You're plugged into networks others don't even know exist. Your enthusiasm isn't just personality – it's the energy that opens doors and builds connections. You turn conversations into opportunities.",
     gift: 'External perspective and resources. You prevent teams from becoming echo chambers.',
@@ -189,7 +189,7 @@ export const belbinRoleDescriptors = {
     gift: 'Practical achievement. You transform vision into value.',
     growingEdge: 'Your implementation skills are crucial, but staying open to mid-course adjustments keeps your execution excellent.'
   },
-  'completer finisher': {
+  'completer_finisher': {
     title: 'The Perfectionist',
     narrative: "You see the details others miss and care about quality others might compromise. This isn't obsession – it's the standard of excellence that distinguishes good from great. You're why the team's work stands up to scrutiny.",
     gift: "Excellence and reliability. You ensure the team's reputation remains stellar.",
@@ -382,7 +382,9 @@ export function getWorkingPreferenceDescriptor(
 }
 
 export function getBelbinDescriptor(role: string) {
-  return belbinRoleDescriptors[role.toLowerCase()];
+  // Handle both formats: "monitor evaluator" and "monitor_evaluator"
+  const normalizedRole = role.toLowerCase().replace(/ /g, '_');
+  return belbinRoleDescriptors[normalizedRole];
 }
 
 export function getMotivationalDescriptor(driver: string) {
