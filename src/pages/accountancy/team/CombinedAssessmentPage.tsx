@@ -25,6 +25,7 @@ import BelbinAssessment from '@/components/accountancy/team/BelbinAssessment';
 import MotivationalDriversAssessment from '@/components/accountancy/team/MotivationalDriversAssessment';
 import EQAssessment from '@/components/accountancy/team/EQAssessment';
 import ConflictStyleAssessment from '@/components/accountancy/team/ConflictStyleAssessment';
+import ServiceLineInterestRanking from '@/components/accountancy/team/ServiceLineInterestRanking';
 import ComprehensiveAssessmentResults from '@/components/accountancy/team/ComprehensiveAssessmentResults';
 import { getPersonalityAssessment } from '@/lib/api/personality-assessment';
 import { toast } from 'sonner';
@@ -46,12 +47,13 @@ export const CombinedAssessmentPage: React.FC = () => {
   const [motivationalCompleted, setMotivationalCompleted] = useState(false);
   const [eqCompleted, setEqCompleted] = useState(false);
   const [conflictCompleted, setConflictCompleted] = useState(false);
+  const [serviceLineCompleted, setServiceLineCompleted] = useState(false);
   
   const [varkData, setVarkData] = useState<any>(null);
   const [oceanData, setOceanData] = useState<any>(null);
   
   // Current view
-  const [currentView, setCurrentView] = useState<'overview' | 'vark' | 'ocean' | 'working' | 'belbin' | 'motivational' | 'eq' | 'conflict' | 'results'>('overview');
+  const [currentView, setCurrentView] = useState<'overview' | 'vark' | 'ocean' | 'working' | 'belbin' | 'motivational' | 'eq' | 'conflict' | 'serviceline' | 'results'>('overview');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'vark-results' | 'ocean-results' | 'comprehensive'>('dashboard');
 
   useEffect(() => {
@@ -112,12 +114,13 @@ export const CombinedAssessmentPage: React.FC = () => {
       }
 
       // Load all 5 new assessments
-      const [workingPrefs, belbin, motivational, eq, conflict] = await Promise.all([
+      const [workingPrefs, belbin, motivational, eq, conflict, serviceLineInterests] = await Promise.all([
         supabase.from('working_preferences').select('*').eq('practice_member_id', member.id).single(),
         supabase.from('belbin_assessments').select('*').eq('practice_member_id', member.id).single(),
         supabase.from('motivational_drivers').select('*').eq('practice_member_id', member.id).single(),
         supabase.from('eq_assessments').select('*').eq('practice_member_id', member.id).single(),
-        supabase.from('conflict_style_assessments').select('*').eq('practice_member_id', member.id).single()
+        supabase.from('conflict_style_assessments').select('*').eq('practice_member_id', member.id).single(),
+        supabase.from('service_line_interests').select('*').eq('practice_member_id', member.id).limit(1).single()
       ]);
 
       setWorkingPrefsCompleted(!!workingPrefs.data);
@@ -125,6 +128,7 @@ export const CombinedAssessmentPage: React.FC = () => {
       setMotivationalCompleted(!!motivational.data);
       setEqCompleted(!!eq.data);
       setConflictCompleted(!!conflict.data);
+      setServiceLineCompleted(!!serviceLineInterests.data);
 
       console.log('[CombinedAssessment] Assessment status:', {
         vark: member.vark_assessment_completed,
@@ -133,7 +137,8 @@ export const CombinedAssessmentPage: React.FC = () => {
         belbin: !!belbin.data,
         motivational: !!motivational.data,
         eq: !!eq.data,
-        conflict: !!conflict.data
+        conflict: !!conflict.data,
+        serviceLine: !!serviceLineInterests.data
       });
     } catch (error) {
       console.error('[Combined Assessment] Error loading data:', error);
@@ -338,6 +343,36 @@ export const CombinedAssessmentPage: React.FC = () => {
     );
   }
 
+  if (currentView === 'serviceline') {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <Button 
+          variant="ghost" 
+          onClick={() => setCurrentView('overview')}
+          className="mb-6"
+        >
+          ← Back to Overview
+        </Button>
+        <ServiceLineInterestRanking
+          memberId={memberId}
+          memberName={memberName}
+        />
+        <div className="mt-6 flex justify-end">
+          <Button
+            onClick={() => {
+              toast.success('Service line preferences saved! Returning to overview...');
+              loadMemberData();
+              setCurrentView('overview');
+            }}
+            className="bg-purple-600 hover:bg-purple-700"
+          >
+            Done - Return to Overview
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (currentView === 'results') {
     return (
       <div className="max-w-7xl mx-auto p-6">
@@ -356,11 +391,11 @@ export const CombinedAssessmentPage: React.FC = () => {
     );
   }
 
-  // Calculate completion percentage (7 total assessments)
-  const totalAssessments = 7;
+  // Calculate completion percentage (8 total assessments)
+  const totalAssessments = 8;
   const completedAssessments = [
     varkCompleted, oceanCompleted, workingPrefsCompleted, 
-    belbinCompleted, motivationalCompleted, eqCompleted, conflictCompleted
+    belbinCompleted, motivationalCompleted, eqCompleted, conflictCompleted, serviceLineCompleted
   ].filter(Boolean).length;
   const completionPercentage = (completedAssessments / totalAssessments) * 100;
 
@@ -394,7 +429,7 @@ export const CombinedAssessmentPage: React.FC = () => {
               Professional Profile Assessment
             </h1>
             <p className="text-gray-700 mb-4">
-              Complete 7 comprehensive assessments to unlock your full professional profile
+              Complete 8 comprehensive assessments to unlock your full professional profile
             </p>
             <div className="flex items-center gap-4">
               <Badge className={`${status.color} text-white px-4 py-2`}>
@@ -796,6 +831,53 @@ export const CombinedAssessmentPage: React.FC = () => {
                       )}
                     </Button>
                   </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Service Line Preferences Card */}
+            <Card className={`border-2 ${serviceLineCompleted ? 'bg-green-50 border-green-200' : 'bg-white border-purple-200'}`}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-gray-900">
+                  <Sparkles className="w-6 h-6 text-purple-600" />
+                  Service Line Preferences
+                </CardTitle>
+                <CardDescription className="text-gray-600">
+                  Rank your service line interests
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {serviceLineCompleted ? (
+                  <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Assessment Complete</p>
+                      <p className="text-xl font-bold text-green-600">✓ Completed</p>
+                    </div>
+                    <CheckCircle className="w-8 h-8 text-green-600" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-white rounded-lg p-4 border space-y-2">
+                      <p className="text-sm text-gray-700">10 service lines • 10-15 minutes</p>
+                      <p className="text-xs text-gray-500">Rank your interest, experience, and desired involvement</p>
+                    </div>
+                    <Button 
+                      className="w-full bg-purple-600 hover:bg-purple-700"
+                      onClick={() => setCurrentView('serviceline')}
+                    >
+                      Start Ranking
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </>
+                )}
+                {serviceLineCompleted && (
+                  <Button 
+                    variant="outline"
+                    className="w-full border-purple-300 text-purple-700 hover:bg-purple-50"
+                    onClick={() => setCurrentView('serviceline')}
+                  >
+                    Update Preferences
+                  </Button>
                 )}
               </CardContent>
             </Card>
