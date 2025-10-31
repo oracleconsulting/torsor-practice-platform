@@ -982,23 +982,31 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
               </Card>
 
               {/* Rich Narrative Descriptions for Conflict Style */}
-              {conflict.primary_style && getConflictStyleDescriptor(conflict.primary_style) && (
-                <ProfileNarrative
-                  title={getConflictStyleDescriptor(conflict.primary_style)?.title || 'Primary Style'}
-                  narrative={getConflictStyleDescriptor(conflict.primary_style)?.narrative || ''}
-                  power={getConflictStyleDescriptor(conflict.primary_style)?.power}
-                  growthEdge={getConflictStyleDescriptor(conflict.primary_style)?.growthEdge}
-                />
-              )}
+              {conflict.primary_style && (() => {
+                const descriptor = getConflictStyleDescriptor(conflict.primary_style);
+                if (!descriptor) return null;
+                return (
+                  <ProfileNarrative
+                    title={descriptor.title || 'Primary Style'}
+                    narrative={descriptor.narrative || ''}
+                    power={descriptor.power}
+                    growthEdge={descriptor.growthEdge}
+                  />
+                );
+              })()}
 
-              {conflict.secondary_style && getConflictStyleDescriptor(conflict.secondary_style) && (
-                <ProfileNarrative
-                  title={`Secondary: ${getConflictStyleDescriptor(conflict.secondary_style)?.title || conflict.secondary_style}`}
-                  narrative={getConflictStyleDescriptor(conflict.secondary_style)?.narrative || ''}
-                  power={getConflictStyleDescriptor(conflict.secondary_style)?.power}
-                  growthEdge={getConflictStyleDescriptor(conflict.secondary_style)?.growthEdge}
-                />
-              )}
+              {conflict.secondary_style && (() => {
+                const descriptor = getConflictStyleDescriptor(conflict.secondary_style);
+                if (!descriptor) return null;
+                return (
+                  <ProfileNarrative
+                    title={`Secondary: ${descriptor.title || conflict.secondary_style}`}
+                    narrative={descriptor.narrative || ''}
+                    power={descriptor.power}
+                    growthEdge={descriptor.growthEdge}
+                  />
+                );
+              })()}
             </>
           ) : (
             <Card>
