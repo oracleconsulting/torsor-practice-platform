@@ -12,6 +12,13 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/lib/supabase/client';
 import { generateProfessionalProfile, getCurrentProfile } from '@/lib/services/llm-service';
+import {
+  getWorkingPreferenceDescriptor,
+  getBelbinDescriptor,
+  getMotivationalDescriptor,
+  getEQDescriptor,
+  getConflictStyleDescriptor
+} from '@/lib/assessments/profile-descriptors';
 import { useToast } from '@/components/ui/use-toast';
 import { 
   Briefcase, Users, Zap, Brain, Shield, 
@@ -56,6 +63,28 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
     loadAllAssessments();
     loadAIProfile();
   }, [practiceMemberId]);
+
+  // Auto-generate profile when all assessments are complete
+  useEffect(() => {
+    const checkAndGenerateProfile = async () => {
+      // Only proceed if we have all assessments and no existing profile
+      if (!assessmentData.workingPreferences || !assessmentData.belbin || 
+          !assessmentData.motivational || !assessmentData.eq || !assessmentData.conflict) {
+        return;
+      }
+
+      // If profile already exists, don't regenerate
+      if (aiProfile) {
+        return;
+      }
+
+      // Profile doesn't exist, generate it automatically
+      console.log('[ComprehensiveResults] Auto-generating profile...');
+      await handleGenerateProfile();
+    };
+
+    checkAndGenerateProfile();
+  }, [assessmentData, aiProfile]);
 
   const loadAIProfile = async () => {
     const profile = await getCurrentProfile(practiceMemberId);
@@ -186,10 +215,12 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
   })) : [];
 
   // Prepare bar chart data for conflict styles
-  const conflictBarData = conflict ? Object.entries(conflict.style_scores || {}).map(([style, score]) => ({
-    style: style.charAt(0).toUpperCase() + style.slice(1),
-    score: score
-  })) : [];
+  const conflictBarData = conflict && conflict.style_scores && typeof conflict.style_scores === 'object'
+    ? Object.entries(conflict.style_scores).map(([style, score]) => ({
+        style: style.charAt(0).toUpperCase() + style.slice(1),
+        score: Number(score) || 0
+      }))
+    : [];
 
   // Prepare bar chart data for Belbin roles
   const belbinBarData = belbin && belbin.role_scores ? Object.entries(belbin.role_scores).map(([role, score]) => ({
@@ -221,43 +252,22 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
       </Card>
 
       {/* AI-Generated Professional Profile */}
-      {completedCount === totalCount && (
+      {completedCount === totalCount && aiProfile && (
         <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-blue-50">
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <CardTitle className="text-2xl flex items-center gap-2">
                   <Sparkles className="w-6 h-6 text-purple-600" />
-                  AI-Generated Professional Profile
+                  Your Professional Profile
                 </CardTitle>
                 <CardDescription>
-                  {aiProfile 
-                    ? `Generated ${new Date(aiProfile.generated_at).toLocaleDateString()} • Version ${aiProfile.version}`
-                    : 'Create a comprehensive narrative synthesizing all your assessment results'
-                  }
+                  Generated {new Date(aiProfile.generated_at).toLocaleDateString()}
                 </CardDescription>
               </div>
-              <Button 
-                onClick={handleGenerateProfile} 
-                disabled={generatingProfile}
-                className="bg-purple-600 hover:bg-purple-700"
-              >
-                {generatingProfile ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    {aiProfile ? 'Regenerate Profile' : 'Generate AI Profile'}
-                  </>
-                )}
-              </Button>
             </div>
           </CardHeader>
-          {aiProfile && (
-            <CardContent className="space-y-6">
+          <CardContent className="space-y-6">
               {/* Main Narrative */}
               <div>
                 <h3 className="text-xl font-bold text-purple-900 mb-3">Your Professional Fingerprint</h3>
@@ -351,17 +361,6 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                   </ul>
                 </div>
               )}
-            </CardContent>
-          )}
-          {!aiProfile && (
-            <CardContent>
-              <Alert>
-                <Sparkles className="w-4 h-4" />
-                <AlertDescription>
-                  Complete all assessments and click "Generate AI Profile" to create your personalized professional narrative.
-                  This uses advanced AI to synthesize your results into actionable insights about your unique working style.
-                </AlertDescription>
-              </Alert>
             </CardContent>
           )}
         </Card>
