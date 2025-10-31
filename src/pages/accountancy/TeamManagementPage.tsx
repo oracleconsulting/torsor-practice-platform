@@ -204,9 +204,9 @@ const TeamManagementPage: React.FC = () => {
       <div className="relative z-10 container mx-auto px-6 py-8">
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          {/* Tab Buttons - 2 Rows of 5 */}
+          {/* Tab Buttons - 3 Rows */}
           <div className="flex flex-col gap-3 max-w-6xl mx-auto">
-            {/* Row 1 */}
+            {/* Row 1 - First 5 tabs */}
             <TabsList className="grid grid-cols-5 gap-2 bg-[#1a2b4a] p-2 border-2 border-[#ff6b35] h-auto">
               {tabs.slice(0, 5).map((tab) => (
                 <TabsTrigger
@@ -225,7 +225,7 @@ const TeamManagementPage: React.FC = () => {
               ))}
             </TabsList>
 
-            {/* Row 2 */}
+            {/* Row 2 - Next 5 tabs */}
             <TabsList className="grid grid-cols-5 gap-2 bg-[#1a2b4a] p-2 border-2 border-[#ff6b35] h-auto">
               {tabs.slice(5, 10).map((tab) => (
                 <TabsTrigger
@@ -243,6 +243,27 @@ const TeamManagementPage: React.FC = () => {
                 </TabsTrigger>
               ))}
             </TabsList>
+
+            {/* Row 3 - Last 2 tabs (AI Settings & Assessment Insights) */}
+            {tabs.length > 10 && (
+              <TabsList className="grid grid-cols-5 gap-2 bg-[#1a2b4a] p-2 border-2 border-[#ff6b35] h-auto">
+                {tabs.slice(10).map((tab) => (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="flex flex-col items-center justify-center gap-2 p-3 h-20 data-[state=active]:bg-[#ff6b35] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#1a2b4a] font-bold transition-all duration-200 relative rounded hover:bg-[#ff6b35]/90 hover:text-white"
+                  >
+                    {tab.badge && (
+                      <Badge className="absolute -top-1 -right-1 bg-green-500 text-white text-xs px-1.5 py-0.5">
+                        {tab.badge}
+                      </Badge>
+                    )}
+                    <tab.icon className="w-6 h-6" />
+                    <span className="text-xs font-bold uppercase leading-tight text-center">{tab.label}</span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            )}
           </div>
 
           {/* Tab Content Below */}
