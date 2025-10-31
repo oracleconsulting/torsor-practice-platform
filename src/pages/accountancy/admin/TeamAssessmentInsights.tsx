@@ -527,7 +527,6 @@ const TeamAssessmentInsights: React.FC = () => {
                           cx="50%"
                           cy="50%"
                           outerRadius={100}
-                          label={(entry) => `${entry.style}: ${entry.count}`}
                         >
                           {teamComposition.communicationStyles.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
