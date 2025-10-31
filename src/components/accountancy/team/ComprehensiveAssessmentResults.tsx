@@ -264,7 +264,7 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Overall EQ:</span>
-                      <Badge className="bg-blue-600">{eq.overall_eq_score}/100</Badge>
+                      <Badge className="bg-blue-600">{eq.overall_eq}/100</Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Level:</span>
@@ -504,10 +504,10 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                     </div>
                   )}
 
-                  {motivational.motivation_summary && (
+                  {motivational.summary && (
                     <div className="pt-4 border-t">
                       <h4 className="font-medium text-gray-900 mb-2">Summary</h4>
-                      <p className="text-gray-700">{motivational.motivation_summary}</p>
+                      <p className="text-gray-700">{motivational.summary}</p>
                     </div>
                   )}
                 </CardContent>
@@ -534,7 +534,7 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                 <CardContent className="space-y-4">
                   <div className="text-center p-6 bg-blue-50 rounded-lg">
                     <div className="text-sm text-gray-600 mb-1">Overall EQ Score</div>
-                    <div className="text-4xl font-bold text-blue-900">{eq.overall_eq_score}/100</div>
+                    <div className="text-4xl font-bold text-blue-900">{eq.overall_eq}/100</div>
                     <Badge className="mt-2 bg-blue-600">{eq.eq_level}</Badge>
                   </div>
 
@@ -578,10 +578,10 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
                     )}
                   </div>
 
-                  {eq.eq_summary && (
+                  {eq.summary && (
                     <div className="pt-4 border-t">
                       <h4 className="font-medium text-gray-900 mb-2">Summary</h4>
-                      <p className="text-gray-700">{eq.eq_summary}</p>
+                      <p className="text-gray-700">{eq.summary}</p>
                     </div>
                   )}
                 </CardContent>
