@@ -244,15 +244,50 @@ const TeamAssessmentInsights: React.FC = () => {
     }, {} as Record<string, number>);
 
     setTeamComposition({
-      communicationStyles: Object.entries(commStyles).map(([style, count]) => ({ style, count })),
-      workStyles: Object.entries(workStyles).map(([style, count]) => ({ style, count })),
-      environments: Object.entries(environments).map(([env, count]) => ({ env, count })),
-      belbinRoles,
+      communicationStyles: Object.entries(commStyles)
+        .map(([style, count]) => ({ 
+          style: String(style || 'Unknown'), 
+          count: Number(count) || 0 
+        }))
+        .filter(item => item.count > 0),
+      workStyles: Object.entries(workStyles)
+        .map(([style, count]) => ({ 
+          style: String(style || 'Unknown'), 
+          count: Number(count) || 0 
+        }))
+        .filter(item => item.count > 0),
+      environments: Object.entries(environments)
+        .map(([env, count]) => ({ 
+          env: String(env || 'Unknown'), 
+          count: Number(count) || 0 
+        }))
+        .filter(item => item.count > 0),
+      belbinRoles: belbinRoles.map(role => ({
+        ...role,
+        role: String(role.role || 'Unknown'),
+        count: Number(role.count) || 0,
+        members: role.members || []
+      })),
       roleBalance: assessRoleBalance(belbinRoles),
-      motivationalDrivers: Object.entries(drivers).map(([driver, count]) => ({ driver, count })),
-      eqDistribution: Object.entries(eqLevels).map(([level, count]) => ({ level, count })),
-      avgEQ: Math.round(avgEQ),
-      conflictStyles: Object.entries(conflictStyles).map(([style, count]) => ({ style, count }))
+      motivationalDrivers: Object.entries(drivers)
+        .map(([driver, count]) => ({ 
+          driver: String(driver || 'Unknown'), 
+          count: Number(count) || 0 
+        }))
+        .filter(item => item.count > 0),
+      eqDistribution: Object.entries(eqLevels)
+        .map(([level, count]) => ({ 
+          level: String(level || 'Unknown'), 
+          count: Number(count) || 0 
+        }))
+        .filter(item => item.count > 0),
+      avgEQ: Math.round(Number(avgEQ) || 0),
+      conflictStyles: Object.entries(conflictStyles)
+        .map(([style, count]) => ({ 
+          style: String(style || 'Unknown'), 
+          count: Number(count) || 0 
+        }))
+        .filter(item => item.count > 0)
     });
   };
 
@@ -461,7 +496,17 @@ const TeamAssessmentInsights: React.FC = () => {
 
         {/* Team Composition Tab */}
         <TabsContent value="composition" className="space-y-6">
-          {teamComposition && (
+          {!teamComposition || (teamComposition.communicationStyles.length === 0 && teamComposition.belbinRoles.length === 0) ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <Brain className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Assessment Data</h3>
+                <p className="text-gray-600">
+                  Team members need to complete their assessments before composition data can be displayed.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
             <>
               {/* Communication Styles */}
               <Card>
