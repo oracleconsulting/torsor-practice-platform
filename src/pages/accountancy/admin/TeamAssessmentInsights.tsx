@@ -499,25 +499,38 @@ const TeamAssessmentInsights: React.FC = () => {
 
         {/* Team Composition Tab */}
         <TabsContent value="composition" className="space-y-6">
-          {loading ? (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p className="text-gray-600">Loading team composition data...</p>
-              </CardContent>
-            </Card>
-          ) : !teamComposition || (teamComposition.communicationStyles.length === 0 && teamComposition.belbinRoles.length === 0) ? (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <Brain className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Assessment Data</h3>
-                <p className="text-gray-600">
-                  Team members need to complete their assessments before composition data can be displayed.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
+          {(() => {
+            console.log('[TeamAssessmentInsights] Team Composition tab rendering, loading:', loading, 'teamComposition:', teamComposition);
+            
+            if (loading) {
+              return (
+                <Card>
+                  <CardContent className="p-12 text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading team composition data...</p>
+                  </CardContent>
+                </Card>
+              );
+            }
+            
+            if (!teamComposition || (teamComposition.communicationStyles.length === 0 && teamComposition.belbinRoles.length === 0)) {
+              return (
+                <Card>
+                  <CardContent className="p-12 text-center">
+                    <Brain className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No Assessment Data</h3>
+                    <p className="text-gray-600">
+                      Team members need to complete their assessments before composition data can be displayed.
+                    </p>
+                  </CardContent>
+                </Card>
+              );
+            }
+            
+            console.log('[TeamAssessmentInsights] About to render composition charts...');
+            
+            return (
+              <>
               {/* Communication Styles */}
               {teamComposition.communicationStyles && teamComposition.communicationStyles.length > 0 && (() => {
                 // Validate and sanitize communication styles data for charts
@@ -528,8 +541,14 @@ const TeamAssessmentInsights: React.FC = () => {
                   }))
                   .filter(item => item.count > 0);
                 
-                if (validCommData.length === 0) return null;
+                console.log('[TeamAssessmentInsights] PieChart validCommData:', validCommData);
                 
+                if (validCommData.length === 0) {
+                  console.log('[TeamAssessmentInsights] PieChart - no valid data, returning null');
+                  return null;
+                }
+                
+                console.log('[TeamAssessmentInsights] PieChart - rendering with data');
                 return (
                   <Card>
                     <CardHeader>
@@ -608,8 +627,14 @@ const TeamAssessmentInsights: React.FC = () => {
                   }))
                   .filter(item => item.count > 0);
                 
-                if (validEqData.length === 0) return null;
+                console.log('[TeamAssessmentInsights] BarChart validEqData:', validEqData);
                 
+                if (validEqData.length === 0) {
+                  console.log('[TeamAssessmentInsights] BarChart - no valid data, returning null');
+                  return null;
+                }
+                
+                console.log('[TeamAssessmentInsights] BarChart - rendering with data');
                 return (
                   <Card>
                     <CardHeader>
@@ -636,7 +661,8 @@ const TeamAssessmentInsights: React.FC = () => {
                 );
               })()}
             </>
-          )}
+            );
+          })()}
         </TabsContent>
 
         {/* Team Dynamics Tab */}
