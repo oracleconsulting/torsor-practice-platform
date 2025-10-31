@@ -243,7 +243,7 @@ const TeamAssessmentInsights: React.FC = () => {
       return acc;
     }, {} as Record<string, number>);
 
-    setTeamComposition({
+    const finalComposition = {
       communicationStyles: Object.entries(commStyles)
         .map(([style, count]) => ({ 
           style: String(style || 'Unknown'), 
@@ -288,7 +288,10 @@ const TeamAssessmentInsights: React.FC = () => {
           count: Number(count) || 0 
         }))
         .filter(item => item.count > 0)
-    });
+    };
+
+    console.log('[TeamAssessmentInsights] Setting team composition:', finalComposition);
+    setTeamComposition(finalComposition);
   };
 
   const assessRoleBalance = (roles: { role: string; count: number }[]): string => {
@@ -496,7 +499,14 @@ const TeamAssessmentInsights: React.FC = () => {
 
         {/* Team Composition Tab */}
         <TabsContent value="composition" className="space-y-6">
-          {!teamComposition || (teamComposition.communicationStyles.length === 0 && teamComposition.belbinRoles.length === 0) ? (
+          {loading ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading team composition data...</p>
+              </CardContent>
+            </Card>
+          ) : !teamComposition || (teamComposition.communicationStyles.length === 0 && teamComposition.belbinRoles.length === 0) ? (
             <Card>
               <CardContent className="p-12 text-center">
                 <Brain className="w-16 h-16 text-gray-400 mx-auto mb-4" />
