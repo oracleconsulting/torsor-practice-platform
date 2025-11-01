@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/lib/supabase/client';
-import { useAccountancy } from '@/lib/contexts/AccountancyContext';
+import { useAccountancy } from '@/hooks/useAccountancy';
 import { 
   Ticket, MessageSquare, Clock, CheckCircle2, 
   AlertCircle, Lightbulb, HelpCircle, MessageCircle,
