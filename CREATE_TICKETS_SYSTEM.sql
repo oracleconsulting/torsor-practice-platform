@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS support_tickets (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   practice_member_id UUID REFERENCES practice_members(id) ON DELETE SET NULL,
-  practice_id UUID NOT NULL REFERENCES accountancy_practices(id) ON DELETE CASCADE,
+  practice_id UUID NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
   
   -- Ticket details
   category VARCHAR(50) NOT NULL CHECK (category IN ('issue', 'question', 'suggestion', 'feedback', 'other')),
@@ -85,7 +85,7 @@ CREATE POLICY "Admins can view all practice tickets" ON support_tickets
   FOR ALL
   USING (
     practice_id IN (
-      SELECT id FROM accountancy_practices 
+      SELECT id FROM practices 
       WHERE owner_id = auth.uid()
     )
   );
