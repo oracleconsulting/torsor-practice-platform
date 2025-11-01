@@ -4,37 +4,38 @@
 -- Solution: Extend JWT expiry to 7 days, refresh token to 30 days
 -- =====================================================
 
--- Note: This needs to be run in Supabase Dashboard > Settings > Auth
--- Or via Supabase CLI
+-- ⚠️ IMPORTANT: This SQL will NOT work as auth.config table doesn't exist
+-- Instead, you MUST use the Supabase Dashboard UI
 
--- These settings control session persistence:
--- 1. JWT_EXPIRY: How long access tokens last (7 days = 604800 seconds)
--- 2. REFRESH_TOKEN_EXPIRY: How long refresh tokens last (30 days = 2592000 seconds)
+-- CORRECT METHOD - Supabase Dashboard:
+-- ============================================
+-- 1. Go to Supabase Dashboard: https://supabase.com/dashboard
+-- 2. Select your project
+-- 3. Navigate to: Project Settings > Authentication
+-- 4. Scroll down to find these settings:
+--    - "JWT Expiry" → Change to: 604800 (7 days in seconds)
+--    - "Refresh Token Expiry" → Change to: 2592000 (30 days in seconds)
+-- 5. Click "Save" at the bottom
+-- 6. Done! ✅
 
--- To apply these settings:
--- 1. Go to Supabase Dashboard
--- 2. Navigate to: Project Settings > Authentication
--- 3. Scroll to "JWT Expiry" and set to: 604800 (7 days)
--- 4. Scroll to "Refresh Token Expiry" and set to: 2592000 (30 days)
--- 5. Click "Save"
+-- What these settings do:
+-- - JWT_EXPIRY (604800 = 7 days): How long users stay logged in
+-- - REFRESH_TOKEN_EXPIRY (2592000 = 30 days): How long refresh tokens work
 
--- Alternative: Update via SQL (if you have admin access)
--- This updates the auth.config table if it exists
-UPDATE auth.config 
-SET jwt_exp = 604800,           -- 7 days in seconds
-    refresh_token_exp = 2592000  -- 30 days in seconds
-WHERE TRUE;
+-- Default values (before change):
+-- - JWT Expiry: 3600 (1 hour) ❌ Too short!
+-- - Refresh Token: 604800 (7 days)
 
--- Success message
-DO $$
-BEGIN
-  RAISE NOTICE '✅ Session duration settings updated!';
-  RAISE NOTICE '✅ JWT Expiry: 7 days (604800 seconds)';
-  RAISE NOTICE '✅ Refresh Token: 30 days (2592000 seconds)';
-  RAISE NOTICE '';
-  RAISE NOTICE '⚠️ If this failed, manually update in:';
-  RAISE NOTICE '   Supabase Dashboard > Project Settings > Authentication';
-  RAISE NOTICE '   - JWT Expiry: 604800';
-  RAISE NOTICE '   - Refresh Token Expiry: 2592000';
-END $$;
+-- New values (after change):
+-- - JWT Expiry: 604800 (7 days) ✅ Much better!
+-- - Refresh Token: 2592000 (30 days) ✅ Excellent!
+
+-- Benefits:
+-- ✅ Users stay logged in for 7 days (not just 1 hour)
+-- ✅ No more constant "Please log in again" messages
+-- ✅ Sessions persist through browser closes and refreshes
+-- ✅ Better user experience overall
+
+-- DO NOT RUN THIS SQL - It will fail with "relation auth.config does not exist"
+-- USE THE DASHBOARD INSTEAD (instructions above)
 
