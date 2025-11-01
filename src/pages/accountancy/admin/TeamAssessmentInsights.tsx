@@ -312,7 +312,7 @@ const TeamAssessmentInsights: React.FC = () => {
     });
 
     const belbinRoles = Object.entries(roleMap).map(([role, memberList]) => ({
-      role: getFriendlyName('belbin', role),
+      role: String(getFriendlyName('belbin', role) || role || 'Unknown'),
       count: memberList.length,
       members: memberList
     }));
@@ -704,6 +704,7 @@ const TeamAssessmentInsights: React.FC = () => {
                     .filter(item => item.count > 0 && item.style && item.style !== 'Unknown');
                   
                   console.log('[TeamAssessmentInsights] PieChart validCommData:', validCommData);
+                  console.log('[TeamAssessmentInsights] PieChart validCommData stringified:', JSON.stringify(validCommData, null, 2));
                   
                   if (validCommData.length === 0) {
                     console.log('[TeamAssessmentInsights] PieChart - no valid data, returning null');
@@ -755,7 +756,13 @@ const TeamAssessmentInsights: React.FC = () => {
                               cx="50%"
                               cy="50%"
                               outerRadius={100}
-                              label
+                              label={(entry) => {
+                                // Custom label renderer with validation
+                                if (!entry || typeof entry.name !== 'string' || !Number.isFinite(entry.value)) {
+                                  return '';
+                                }
+                                return `${entry.name}: ${entry.value}`;
+                              }}
                             >
                               {validCommData.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -918,14 +925,17 @@ const TeamAssessmentInsights: React.FC = () => {
 
               {/* Work Styles Distribution */}
               {teamComposition.workStyles && teamComposition.workStyles.length > 0 && (() => {
-                const validWorkData = teamComposition.workStyles
-                  .map(item => ({
-                    style: getFriendlyName('workStyle', item.style),
-                    count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
-                  }))
-                  .filter(item => item.count > 0);
-                
-                if (validWorkData.length === 0) return null;
+                try {
+                  const validWorkData = teamComposition.workStyles
+                    .map(item => ({
+                      style: String(getFriendlyName('workStyle', item?.style || 'unknown') || 'Unknown'),
+                      count: Number.isFinite(item?.count) && item.count >= 0 ? Math.floor(item.count) : 0
+                    }))
+                    .filter(item => item.count > 0 && item.style && item.style !== 'Unknown');
+                  
+                  console.log('[TeamAssessmentInsights] Work Styles validWorkData:', JSON.stringify(validWorkData, null, 2));
+                  
+                  if (validWorkData.length === 0) return null;
                 
                 if (validWorkData.length === 1) {
                   return (
@@ -981,18 +991,39 @@ const TeamAssessmentInsights: React.FC = () => {
                     </CardContent>
                   </Card>
                 );
+                } catch (error) {
+                  console.error('[TeamAssessmentInsights] Error rendering work styles chart:', error);
+                  return (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-green-600" />
+                          Work Style Distribution
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-center py-8 text-gray-600">
+                          Unable to display chart. Data may be incomplete.
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                }
               })()}
 
               {/* Work Environment Preferences */}
               {teamComposition.environments && teamComposition.environments.length > 0 && (() => {
-                const validEnvData = teamComposition.environments
-                  .map(item => ({
-                    env: getFriendlyName('environment', item.env),
-                    count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
-                  }))
-                  .filter(item => item.count > 0);
-                
-                if (validEnvData.length === 0) return null;
+                try {
+                  const validEnvData = teamComposition.environments
+                    .map(item => ({
+                      env: String(getFriendlyName('environment', item?.env || 'unknown') || 'Unknown'),
+                      count: Number.isFinite(item?.count) && item.count >= 0 ? Math.floor(item.count) : 0
+                    }))
+                    .filter(item => item.count > 0 && item.env && item.env !== 'Unknown');
+                  
+                  console.log('[TeamAssessmentInsights] Environment validEnvData:', JSON.stringify(validEnvData, null, 2));
+                  
+                  if (validEnvData.length === 0) return null;
                 
                 return (
                   <Card>
@@ -1022,18 +1053,25 @@ const TeamAssessmentInsights: React.FC = () => {
                     </CardContent>
                   </Card>
                 );
+                } catch (error) {
+                  console.error('[TeamAssessmentInsights] Error rendering environment chart:', error);
+                  return null;
+                }
               })()}
 
               {/* Motivational Drivers */}
               {teamComposition.motivationalDrivers && teamComposition.motivationalDrivers.length > 0 && (() => {
-                const validMotivData = teamComposition.motivationalDrivers
-                  .map(item => ({
-                    driver: getFriendlyName('motivation', item.driver),
-                    count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
-                  }))
-                  .filter(item => item.count > 0);
-                
-                if (validMotivData.length === 0) return null;
+                try {
+                  const validMotivData = teamComposition.motivationalDrivers
+                    .map(item => ({
+                      driver: String(getFriendlyName('motivation', item?.driver || 'unknown') || 'Unknown'),
+                      count: Number.isFinite(item?.count) && item.count >= 0 ? Math.floor(item.count) : 0
+                    }))
+                    .filter(item => item.count > 0 && item.driver && item.driver !== 'Unknown');
+                  
+                  console.log('[TeamAssessmentInsights] Motivational validMotivData:', JSON.stringify(validMotivData, null, 2));
+                  
+                  if (validMotivData.length === 0) return null;
                 
                 if (validMotivData.length === 1) {
                   return (
@@ -1080,18 +1118,25 @@ const TeamAssessmentInsights: React.FC = () => {
                     </CardContent>
                   </Card>
                 );
+                } catch (error) {
+                  console.error('[TeamAssessmentInsights] Error rendering motivational chart:', error);
+                  return null;
+                }
               })()}
 
               {/* Conflict Styles */}
               {teamComposition.conflictStyles && teamComposition.conflictStyles.length > 0 && (() => {
-                const validConflictData = teamComposition.conflictStyles
-                  .map(item => ({
-                    style: getFriendlyName('conflict', item.style),
-                    count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
-                  }))
-                  .filter(item => item.count > 0);
-                
-                if (validConflictData.length === 0) return null;
+                try {
+                  const validConflictData = teamComposition.conflictStyles
+                    .map(item => ({
+                      style: String(getFriendlyName('conflict', item?.style || 'unknown') || 'Unknown'),
+                      count: Number.isFinite(item?.count) && item.count >= 0 ? Math.floor(item.count) : 0
+                    }))
+                    .filter(item => item.count > 0 && item.style && item.style !== 'Unknown');
+                  
+                  console.log('[TeamAssessmentInsights] Conflict validConflictData:', JSON.stringify(validConflictData, null, 2));
+                  
+                  if (validConflictData.length === 0) return null;
                 
                 if (validConflictData.length === 1) {
                   return (
@@ -1138,18 +1183,25 @@ const TeamAssessmentInsights: React.FC = () => {
                     </CardContent>
                   </Card>
                 );
+                } catch (error) {
+                  console.error('[TeamAssessmentInsights] Error rendering conflict chart:', error);
+                  return null;
+                }
               })()}
 
               {/* VARK Learning Styles */}
               {teamComposition.varkStyles && teamComposition.varkStyles.length > 0 && (() => {
-                const validVarkData = teamComposition.varkStyles
-                  .map(item => ({
-                    style: getFriendlyName('vark', item.style),
-                    count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
-                  }))
-                  .filter(item => item.count > 0);
-                
-                if (validVarkData.length === 0) return null;
+                try {
+                  const validVarkData = teamComposition.varkStyles
+                    .map(item => ({
+                      style: String(getFriendlyName('vark', item?.style || 'unknown') || 'Unknown'),
+                      count: Number.isFinite(item?.count) && item.count >= 0 ? Math.floor(item.count) : 0
+                    }))
+                    .filter(item => item.count > 0 && item.style && item.style !== 'Unknown');
+                  
+                  console.log('[TeamAssessmentInsights] VARK validVarkData:', JSON.stringify(validVarkData, null, 2));
+                  
+                  if (validVarkData.length === 0) return null;
                 
                 if (validVarkData.length === 1) {
                   return (
@@ -1208,6 +1260,10 @@ const TeamAssessmentInsights: React.FC = () => {
                     </CardContent>
                   </Card>
                 );
+                } catch (error) {
+                  console.error('[TeamAssessmentInsights] Error rendering VARK chart:', error);
+                  return null;
+                }
               })()}
 
               {/* OCEAN Personality Profile */}
