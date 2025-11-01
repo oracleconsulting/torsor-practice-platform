@@ -25,7 +25,8 @@ import {
   CheckCircle2,
   Brain,
   AlertCircle,
-  Lock
+  Lock,
+  Ticket
 } from 'lucide-react';
 
 interface TeamMemberStats {
@@ -721,6 +722,39 @@ export default function TeamMemberDashboard() {
                 >
                   Browse Resources
                   <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Support Tickets */}
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-orange-100 p-3 rounded-lg">
+                    <Ticket className="h-6 w-6 text-orange-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-black">Support Tickets</CardTitle>
+                    <CardDescription className="text-black">
+                      Questions, issues, or suggestions
+                    </CardDescription>
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="text-sm text-gray-600 p-3 bg-gray-50 rounded-lg">
+                  Get help, report issues, or share ideas with your admin
+                </div>
+                <Button 
+                  onClick={() => navigate('/team-member/tickets')}
+                  className="w-full bg-orange-600 hover:bg-orange-700"
+                >
+                  <Ticket className="h-4 w-4 mr-2" />
+                  My Tickets
                 </Button>
               </div>
             </CardContent>

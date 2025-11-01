@@ -27,6 +27,7 @@ import MySkillsHeatmap from '../pages/accountancy/team/MySkillsHeatmap';
 import MySkillsComparison from '../pages/accountancy/team/MySkillsComparison';
 import MyAssignmentsPage from '../pages/accountancy/team/MyAssignmentsPage';
 import KnowledgeBasePage from '../pages/accountancy/team/KnowledgeBasePage';
+import MyTicketsPage from '../pages/accountancy/team/MyTicketsPage';
 import MentoringHubPage from '../pages/accountancy/team/MentoringHubPage';
 import CPDSkillsBridgePage from '../pages/accountancy/team/CPDSkillsBridgePage';
 import { AlternateAuditorPage } from '../pages/accountancy/AlternateAuditorPage';
@@ -301,6 +302,11 @@ const TorsorRoutes: React.FC = () => {
       <Route path="/team-member/knowledge-base" element={
         <ProtectedRoute>
           <KnowledgeBasePage />
+        </ProtectedRoute>
+      } />
+      <Route path="/team-member/tickets" element={
+        <ProtectedRoute>
+          <MyTicketsPage />
         </ProtectedRoute>
       } />
       

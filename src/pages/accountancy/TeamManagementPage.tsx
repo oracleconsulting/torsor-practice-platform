@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Award, BookOpen, TrendingUp, BarChart2, Mail, LayoutDashboard, Target, Users, CheckCircle, CheckCircle2, Sparkles, Brain, ActivitySquare } from 'lucide-react';
+import { Award, BookOpen, TrendingUp, BarChart2, Mail, LayoutDashboard, Target, Users, CheckCircle, CheckCircle2, Sparkles, Brain, ActivitySquare, Ticket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -19,6 +19,7 @@ import AISettingsPage from './admin/AISettingsPage';
 import TeamAssessmentInsights from './admin/TeamAssessmentInsights';
 import MyAssessmentsPanel from './admin/MyAssessmentsPanel';
 import ServiceLinePreferencesAdmin from './admin/ServiceLinePreferencesAdmin';
+import TicketsAdmin from './admin/TicketsAdmin';
 
 // Visual Pattern Components
 const DiagonalPattern = () => (
@@ -164,6 +165,12 @@ const TeamManagementPage: React.FC = () => {
       icon: Sparkles,
       component: ServiceLinePreferencesAdmin,
       badge: 'STRATEGY',
+    },
+    {
+      value: 'tickets',
+      label: 'TICKETS',
+      icon: Ticket,
+      component: TicketsAdmin,
     },
   ];
 
