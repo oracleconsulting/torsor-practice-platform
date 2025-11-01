@@ -495,7 +495,7 @@ export const CombinedAssessmentPage: React.FC = () => {
                       <div>
                         <p className="text-sm font-medium text-gray-600">Your Learning Style</p>
                         <p className="text-xl font-bold text-gray-900 capitalize">
-                          {varkData?.primary_style.replace('_', ' ')}
+                          {varkData?.primary_style?.replace('_', ' ') || 'Not specified'}
                         </p>
                       </div>
                       <CheckCircle className="w-8 h-8 text-green-600" />
@@ -564,7 +564,7 @@ export const CombinedAssessmentPage: React.FC = () => {
                       <div>
                         <p className="text-sm font-medium text-gray-600">Your Work Style</p>
                         <p className="text-xl font-bold text-gray-900 capitalize">
-                          {oceanData?.work_style.replace(/-/g, ' ')}
+                          {oceanData?.work_style?.replace(/-/g, ' ') || 'Not specified'}
                         </p>
                       </div>
                       <CheckCircle className="w-8 h-8 text-green-600" />
