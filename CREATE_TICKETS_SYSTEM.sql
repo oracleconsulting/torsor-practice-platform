@@ -116,7 +116,7 @@ CREATE POLICY "Admins can manage replies" ON ticket_replies
   USING (
     ticket_id IN (
       SELECT st.id FROM support_tickets st
-      INNER JOIN accountancy_practices ap ON st.practice_id = ap.id
+      INNER JOIN practices ap ON st.practice_id = ap.id
       WHERE ap.owner_id = auth.uid()
     )
   );
