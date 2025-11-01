@@ -738,6 +738,31 @@ const TeamAssessmentInsights: React.FC = () => {
                     );
                   }
                   
+                  // Use BarChart instead of PieChart for small datasets (more stable)
+                  if (validCommData.length <= 3) {
+                    return (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <MessageSquare className="w-5 h-5 text-blue-600" />
+                            Communication Style Distribution
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ResponsiveContainer width="100%" height={250}>
+                            <BarChart data={validCommData}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="style" />
+                              <YAxis allowDecimals={false} />
+                              <RechartsTooltip />
+                              <Bar dataKey="count" fill="#3b82f6" isAnimationActive={false} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+                  
                   return (
                     <Card>
                       <CardHeader>
@@ -951,6 +976,31 @@ const TeamAssessmentInsights: React.FC = () => {
                             All team members prefer the same work style
                           </p>
                         </div>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                
+                // Use BarChart for small datasets (PieChart crashes with 2-3 items)
+                if (validWorkData.length <= 3) {
+                  return (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-green-600" />
+                          Work Style Distribution
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={250}>
+                          <BarChart data={validWorkData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="style" />
+                            <YAxis allowDecimals={false} />
+                            <RechartsTooltip />
+                            <Bar dataKey="count" fill="#22c55e" isAnimationActive={false} />
+                          </BarChart>
+                        </ResponsiveContainer>
                       </CardContent>
                     </Card>
                   );
@@ -1219,6 +1269,34 @@ const TeamAssessmentInsights: React.FC = () => {
                             All team members share the same learning preference
                           </p>
                         </div>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                
+                // Use BarChart for small datasets (PieChart crashes with 2-3 items)
+                if (validVarkData.length <= 3) {
+                  return (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Brain className="w-5 h-5 text-indigo-600" />
+                          VARK Learning Styles
+                        </CardTitle>
+                        <CardDescription>
+                          Distribution of Visual, Auditory, Reading/Writing, and Kinesthetic learners
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={250}>
+                          <BarChart data={validVarkData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="style" />
+                            <YAxis allowDecimals={false} />
+                            <RechartsTooltip />
+                            <Bar dataKey="count" fill="#6366f1" isAnimationActive={false} />
+                          </BarChart>
+                        </ResponsiveContainer>
                       </CardContent>
                     </Card>
                   );
