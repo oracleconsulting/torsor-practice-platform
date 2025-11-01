@@ -4,7 +4,7 @@
 -- Main tickets table
 CREATE TABLE IF NOT EXISTS support_tickets (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  practice_member_id UUID REFERENCES practice_team_members(id) ON DELETE SET NULL,
+  practice_member_id UUID REFERENCES practice_members(id) ON DELETE SET NULL,
   practice_id UUID NOT NULL REFERENCES accountancy_practices(id) ON DELETE CASCADE,
   
   -- Ticket details
@@ -62,22 +62,22 @@ ALTER TABLE ticket_replies ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Members can view tickets" ON support_tickets
   FOR SELECT
   USING (
-    practice_member_id = (SELECT id FROM practice_team_members WHERE user_id = auth.uid())
-    OR practice_id = (SELECT practice_id FROM practice_team_members WHERE user_id = auth.uid())
+    practice_member_id = (SELECT id FROM practice_members WHERE user_id = auth.uid())
+    OR practice_id = (SELECT practice_id FROM practice_members WHERE user_id = auth.uid())
   );
 
 -- Team members can insert their own tickets
 CREATE POLICY "Members can create tickets" ON support_tickets
   FOR INSERT
   WITH CHECK (
-    practice_member_id = (SELECT id FROM practice_team_members WHERE user_id = auth.uid())
+    practice_member_id = (SELECT id FROM practice_members WHERE user_id = auth.uid())
   );
 
 -- Team members can update their own tickets (to add follow-up info)
 CREATE POLICY "Members can update own tickets" ON support_tickets
   FOR UPDATE
   USING (
-    practice_member_id = (SELECT id FROM practice_team_members WHERE user_id = auth.uid())
+    practice_member_id = (SELECT id FROM practice_members WHERE user_id = auth.uid())
   );
 
 -- Admin/owner can view all tickets in their practice
@@ -96,7 +96,7 @@ CREATE POLICY "Members can view ticket replies" ON ticket_replies
   USING (
     ticket_id IN (
       SELECT id FROM support_tickets 
-      WHERE practice_member_id = (SELECT id FROM practice_team_members WHERE user_id = auth.uid())
+      WHERE practice_member_id = (SELECT id FROM practice_members WHERE user_id = auth.uid())
     )
   );
 
@@ -106,7 +106,7 @@ CREATE POLICY "Members can reply to own tickets" ON ticket_replies
   WITH CHECK (
     ticket_id IN (
       SELECT id FROM support_tickets 
-      WHERE practice_member_id = (SELECT id FROM practice_team_members WHERE user_id = auth.uid())
+      WHERE practice_member_id = (SELECT id FROM practice_members WHERE user_id = auth.uid())
     )
   );
 
@@ -137,15 +137,17 @@ CREATE TRIGGER update_ticket_timestamp
   EXECUTE FUNCTION update_ticket_timestamp();
 
 -- Sample data (optional - remove in production)
+-- To add sample data, replace the UUIDs and values below with your actual practice and member IDs:
+-- 
 -- INSERT INTO support_tickets (practice_id, practice_member_id, category, subject, description, is_anonymous, submitter_email)
 -- VALUES (
---   'a1b2c3d4-5678-90ab-cdef-123456789abc',
---   (SELECT id FROM practice_team_members WHERE name = 'James Howard' LIMIT 1),
+--   '[YOUR_PRACTICE_ID]',
+--   (SELECT id FROM practice_members WHERE email = 'james.howard@example.com' LIMIT 1),
 --   'question',
 --   'How do I update my VARK assessment?',
 --   'I completed the VARK assessment last month but my learning style has changed. Can I retake it?',
 --   FALSE,
---   'jhoward@rpgcc.co.uk'
+--   'james.howard@example.com'
 -- );
 
 COMMENT ON TABLE support_tickets IS 'Support tickets raised by team members - issues, questions, suggestions';

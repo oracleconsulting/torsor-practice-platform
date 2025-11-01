@@ -98,7 +98,7 @@ const TicketsAdmin: React.FC = () => {
         .from('support_tickets')
         .select(`
           *,
-          practice_team_members!support_tickets_practice_member_id_fkey (
+          practice_members!support_tickets_practice_member_id_fkey (
             name
           )
         `)
@@ -110,7 +110,7 @@ const TicketsAdmin: React.FC = () => {
       // Transform data
       const transformedTickets: SupportTicket[] = (ticketsData || []).map((ticket: any) => ({
         ...ticket,
-        member_name: ticket.is_anonymous ? null : ticket.practice_team_members?.name
+        member_name: ticket.is_anonymous ? null : ticket.practice_members?.name
       }));
 
       setTickets(transformedTickets);
