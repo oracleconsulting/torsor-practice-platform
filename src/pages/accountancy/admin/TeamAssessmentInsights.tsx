@@ -686,25 +686,49 @@ const TeamAssessmentInsights: React.FC = () => {
               <>
               {/* Communication Styles */}
               {teamComposition.communicationStyles && teamComposition.communicationStyles.length > 0 && (() => {
-                // Validate and sanitize communication styles data for charts
-                const validCommData = teamComposition.communicationStyles
-                  .map(item => ({
-                    style: getFriendlyName('communication', item.style),
-                    count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
-                  }))
-                  .filter(item => item.count > 0);
-                
-                console.log('[TeamAssessmentInsights] PieChart validCommData:', validCommData);
-                
-                if (validCommData.length === 0) {
-                  console.log('[TeamAssessmentInsights] PieChart - no valid data, returning null');
-                  return null;
-                }
-                
-                console.log('[TeamAssessmentInsights] PieChart - rendering with data');
-                
-                // If only 1 data point, use simple display instead of chart (Recharts crashes with 1 point)
-                if (validCommData.length === 1) {
+                try {
+                  // Validate and sanitize communication styles data for charts
+                  const validCommData = teamComposition.communicationStyles
+                    .map(item => ({
+                      style: String(getFriendlyName('communication', item?.style || 'unknown') || 'Unknown'),
+                      count: Number.isFinite(item?.count) && item.count >= 0 ? Math.floor(item.count) : 0
+                    }))
+                    .filter(item => item.count > 0 && item.style && item.style !== 'Unknown');
+                  
+                  console.log('[TeamAssessmentInsights] PieChart validCommData:', validCommData);
+                  
+                  if (validCommData.length === 0) {
+                    console.log('[TeamAssessmentInsights] PieChart - no valid data, returning null');
+                    return null;
+                  }
+                  
+                  console.log('[TeamAssessmentInsights] PieChart - rendering with data');
+                  
+                  // If only 1 data point, use simple display instead of chart (Recharts crashes with 1 point)
+                  if (validCommData.length === 1) {
+                    return (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <MessageSquare className="w-5 h-5 text-blue-600" />
+                            Communication Style Distribution
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-center py-8">
+                            <div className="inline-block px-8 py-4 bg-blue-100 rounded-lg">
+                              <div className="text-3xl font-bold text-blue-600 mb-2">{validCommData[0].count}</div>
+                              <div className="text-lg font-medium text-gray-900">{validCommData[0].style}</div>
+                            </div>
+                            <p className="text-sm text-gray-600 mt-4">
+                              All team members share the same communication style
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+                  
                   return (
                     <Card>
                       <CardHeader>
@@ -714,50 +738,46 @@ const TeamAssessmentInsights: React.FC = () => {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="text-center py-8">
-                          <div className="inline-block px-8 py-4 bg-blue-100 rounded-lg">
-                            <div className="text-3xl font-bold text-blue-600 mb-2">{validCommData[0].count}</div>
-                            <div className="text-lg font-medium text-gray-900">{validCommData[0].style}</div>
-                          </div>
-                          <p className="text-sm text-gray-600 mt-4">
-                            All team members share the same communication style
-                          </p>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie
+                              data={validCommData}
+                              dataKey="count"
+                              nameKey="style"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={100}
+                              label
+                            >
+                              {validCommData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Legend />
+                            <RechartsTooltip />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  );
+                } catch (error) {
+                  console.error('[TeamAssessmentInsights] Error rendering communication chart:', error);
+                  return (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <MessageSquare className="w-5 h-5 text-blue-600" />
+                          Communication Style Distribution
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-center py-8 text-gray-600">
+                          Unable to display chart. Data may be incomplete.
                         </div>
                       </CardContent>
                     </Card>
                   );
                 }
-                
-                return (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <MessageSquare className="w-5 h-5 text-blue-600" />
-                        Communication Style Distribution
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={validCommData}
-                            dataKey="count"
-                            nameKey="style"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={100}
-                          >
-                            {validCommData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Legend />
-                          <RechartsTooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                );
               })()}
 
               {/* Belbin Roles */}
@@ -798,25 +818,52 @@ const TeamAssessmentInsights: React.FC = () => {
 
               {/* EQ Distribution */}
               {teamComposition.eqDistribution && teamComposition.eqDistribution.length > 0 && (() => {
-                // Validate and sanitize EQ data for charts
-                const validEqData = teamComposition.eqDistribution
-                  .map(item => ({
-                    level: getFriendlyName('eq', item.level),
-                    count: Number.isFinite(item.count) && item.count >= 0 ? item.count : 0
-                  }))
-                  .filter(item => item.count > 0);
-                
-                console.log('[TeamAssessmentInsights] BarChart validEqData:', validEqData);
-                
-                if (validEqData.length === 0) {
-                  console.log('[TeamAssessmentInsights] BarChart - no valid data, returning null');
-                  return null;
-                }
-                
-                console.log('[TeamAssessmentInsights] BarChart - rendering with data');
-                
-                // If only 1 data point, use simple display instead of chart (Recharts crashes with 1 point)
-                if (validEqData.length === 1) {
+                try {
+                  // Validate and sanitize EQ data for charts
+                  const validEqData = teamComposition.eqDistribution
+                    .map(item => ({
+                      level: String(getFriendlyName('eq', item?.level || 'unknown') || 'Unknown'),
+                      count: Number.isFinite(item?.count) && item.count >= 0 ? Math.floor(item.count) : 0
+                    }))
+                    .filter(item => item.count > 0 && item.level && item.level !== 'Unknown');
+                  
+                  console.log('[TeamAssessmentInsights] BarChart validEqData:', validEqData);
+                  
+                  if (validEqData.length === 0) {
+                    console.log('[TeamAssessmentInsights] BarChart - no valid data, returning null');
+                    return null;
+                  }
+                  
+                  console.log('[TeamAssessmentInsights] BarChart - rendering with data');
+                  
+                  // If only 1 data point, use simple display instead of chart (Recharts crashes with 1 point)
+                  if (validEqData.length === 1) {
+                    return (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Heart className="w-5 h-5 text-red-600" />
+                            Emotional Intelligence
+                          </CardTitle>
+                          <CardDescription>
+                            Team Average EQ: <span className="font-bold text-lg">{Math.round(teamComposition.avgEQ || 0)}</span>
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-center py-8">
+                            <div className="inline-block px-8 py-4 bg-red-100 rounded-lg">
+                              <div className="text-3xl font-bold text-red-600 mb-2">{validEqData[0].count}</div>
+                              <div className="text-lg font-medium text-gray-900">{validEqData[0].level}</div>
+                            </div>
+                            <p className="text-sm text-gray-600 mt-4">
+                              All team members have {validEqData[0].level.toLowerCase()} emotional intelligence
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+                  
                   return (
                     <Card>
                       <CardHeader>
@@ -825,48 +872,40 @@ const TeamAssessmentInsights: React.FC = () => {
                           Emotional Intelligence
                         </CardTitle>
                         <CardDescription>
-                          Team Average EQ: <span className="font-bold text-lg">{teamComposition.avgEQ}</span>
+                          Team Average EQ: <span className="font-bold text-lg">{Math.round(teamComposition.avgEQ || 0)}</span>
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <div className="text-center py-8">
-                          <div className="inline-block px-8 py-4 bg-red-100 rounded-lg">
-                            <div className="text-3xl font-bold text-red-600 mb-2">{validEqData[0].count}</div>
-                            <div className="text-lg font-medium text-gray-900">{validEqData[0].level}</div>
-                          </div>
-                          <p className="text-sm text-gray-600 mt-4">
-                            All team members have {validEqData[0].level.toLowerCase()} emotional intelligence
-                          </p>
+                        <ResponsiveContainer width="100%" height={250}>
+                          <BarChart data={validEqData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="level" />
+                            <YAxis allowDecimals={false} />
+                            <RechartsTooltip />
+                            <Bar dataKey="count" fill="#ef4444" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  );
+                } catch (error) {
+                  console.error('[TeamAssessmentInsights] Error rendering EQ chart:', error);
+                  return (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Heart className="w-5 h-5 text-red-600" />
+                          Emotional Intelligence
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-center py-8 text-gray-600">
+                          Unable to display chart. Data may be incomplete.
                         </div>
                       </CardContent>
                     </Card>
                   );
                 }
-                
-                return (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Heart className="w-5 h-5 text-red-600" />
-                        Emotional Intelligence
-                      </CardTitle>
-                      <CardDescription>
-                        Team Average EQ: <span className="font-bold text-lg">{teamComposition.avgEQ}</span>
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={250}>
-                        <BarChart data={validEqData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="level" />
-                          <YAxis />
-                          <RechartsTooltip />
-                          <Bar dataKey="count" fill="#ef4444" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                );
               })()}
 
               {/* Work Styles Distribution */}
