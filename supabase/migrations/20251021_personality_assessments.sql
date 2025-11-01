@@ -430,3 +430,4 @@ COMMENT ON TABLE team_member_profiles IS 'Combined VARK + OCEAN profiles with wo
 COMMENT ON TABLE team_compositions IS 'Team-level analysis of personality diversity, balance, and predicted dynamics';
 
 
+

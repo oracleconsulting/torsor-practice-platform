@@ -740,27 +740,52 @@ const TeamAssessmentInsights: React.FC = () => {
                   
                   // Use BarChart instead of PieChart for small datasets (more stable)
                   if (validCommData.length <= 3) {
-                    return (
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
-                            <MessageSquare className="w-5 h-5 text-blue-600" />
-                            Communication Style Distribution
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <ResponsiveContainer width="100%" height={250}>
-                            <BarChart data={validCommData}>
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="style" />
-                              <YAxis allowDecimals={false} />
-                              <RechartsTooltip />
-                              <Bar dataKey="count" fill="#3b82f6" isAnimationActive={false} />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </CardContent>
-                      </Card>
-                    );
+                    console.log('[TeamAssessmentInsights] ✅ Using BarChart for Communication Styles (data length:', validCommData.length, ')');
+                    try {
+                      return (
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <MessageSquare className="w-5 h-5 text-blue-600" />
+                              Communication Style Distribution (BarChart)
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <ResponsiveContainer width="100%" height={250}>
+                              <BarChart data={validCommData}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="style" />
+                                <YAxis allowDecimals={false} />
+                                <RechartsTooltip />
+                                <Bar dataKey="count" fill="#3b82f6" isAnimationActive={false} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </CardContent>
+                        </Card>
+                      );
+                    } catch (barError) {
+                      console.error('[TeamAssessmentInsights] ❌ BarChart ALSO crashed:', barError);
+                      return (
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <MessageSquare className="w-5 h-5 text-blue-600" />
+                              Communication Style Distribution
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-center py-8">
+                              <div className="text-gray-900 font-semibold mb-4">Communication Styles</div>
+                              {validCommData.map((item, idx) => (
+                                <div key={idx} className="py-2">
+                                  <span className="font-medium">{item.style}:</span> {item.count} member{item.count > 1 ? 's' : ''}
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    }
                   }
                   
                   return (
@@ -981,8 +1006,9 @@ const TeamAssessmentInsights: React.FC = () => {
                   );
                 }
                 
-                // Use BarChart for small datasets (PieChart crashes with 2-3 items)
+                // Use simple display for small datasets (avoid chart rendering issues)
                 if (validWorkData.length <= 3) {
+                  console.log('[TeamAssessmentInsights] ✅ Using simple display for Work Styles (data length:', validWorkData.length, ')');
                   return (
                     <Card>
                       <CardHeader>
@@ -992,15 +1018,17 @@ const TeamAssessmentInsights: React.FC = () => {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <ResponsiveContainer width="100%" height={250}>
-                          <BarChart data={validWorkData}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="style" />
-                            <YAxis allowDecimals={false} />
-                            <RechartsTooltip />
-                            <Bar dataKey="count" fill="#22c55e" isAnimationActive={false} />
-                          </BarChart>
-                        </ResponsiveContainer>
+                        <div className="space-y-4">
+                          {validWorkData.map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+                              <span className="font-medium text-gray-900">{item.style}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-2xl font-bold text-green-600">{item.count}</span>
+                                <span className="text-sm text-gray-600">member{item.count > 1 ? 's' : ''}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </CardContent>
                     </Card>
                   );
@@ -1274,8 +1302,9 @@ const TeamAssessmentInsights: React.FC = () => {
                   );
                 }
                 
-                // Use BarChart for small datasets (PieChart crashes with 2-3 items)
+                // Use simple display for small datasets (avoid chart rendering issues)
                 if (validVarkData.length <= 3) {
+                  console.log('[TeamAssessmentInsights] ✅ Using simple display for VARK (data length:', validVarkData.length, ')');
                   return (
                     <Card>
                       <CardHeader>
@@ -1288,15 +1317,17 @@ const TeamAssessmentInsights: React.FC = () => {
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <ResponsiveContainer width="100%" height={250}>
-                          <BarChart data={validVarkData}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="style" />
-                            <YAxis allowDecimals={false} />
-                            <RechartsTooltip />
-                            <Bar dataKey="count" fill="#6366f1" isAnimationActive={false} />
-                          </BarChart>
-                        </ResponsiveContainer>
+                        <div className="space-y-4">
+                          {validVarkData.map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-4 bg-indigo-50 rounded-lg">
+                              <span className="font-medium text-gray-900">{item.style}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-2xl font-bold text-indigo-600">{item.count}</span>
+                                <span className="text-sm text-gray-600">member{item.count > 1 ? 's' : ''}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </CardContent>
                     </Card>
                   );
