@@ -281,6 +281,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('[Auth] Attempting sign in for:', email);
       
+      // Clear all caches before signing in to ensure fresh data
+      console.log('[Auth] Clearing caches for fresh session...');
+      
+      // Clear browser caches
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(
+          cacheNames.map(cacheName => caches.delete(cacheName))
+        );
+        console.log('[Auth] ✅ Browser caches cleared');
+      }
+      
+      // Clear localStorage items (except essential Supabase auth)
+      const supabaseKeys = Object.keys(localStorage).filter(key => 
+        key.startsWith('sb-') || key.includes('supabase')
+      );
+      Object.keys(localStorage).forEach(key => {
+        if (!supabaseKeys.includes(key)) {
+          localStorage.removeItem(key);
+        }
+      });
+      console.log('[Auth] ✅ localStorage cleaned');
+      
+      // Clear sessionStorage completely
+      sessionStorage.clear();
+      console.log('[Auth] ✅ sessionStorage cleared');
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -293,6 +320,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log('[Auth] Sign in successful:', data.user?.email);
       console.log('[Auth] Session created:', !!data.session);
+      console.log('[Auth] ✅ Fresh session with cleared caches');
       
       // Immediately set the user and profile
       if (data.user) {

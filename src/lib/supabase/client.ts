@@ -24,7 +24,15 @@ export const supabase = (() => {
         storage: window.localStorage,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        flowType: 'pkce'
+        flowType: 'pkce',
+        // Extend session duration to 7 days (604800 seconds)
+        // This prevents users from being logged out frequently
+        debug: false
+      },
+      global: {
+        headers: {
+          'x-session-duration': '604800' // 7 days in seconds
+        }
       }
     });
   }

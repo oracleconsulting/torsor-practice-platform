@@ -111,6 +111,18 @@ const MyTicketsPage: React.FC = () => {
     }
   }, [practiceId, member?.id]);
 
+  // Safety timeout to prevent infinite loading
+  useEffect(() => {
+    const loadingTimeout = setTimeout(() => {
+      if (loading) {
+        console.warn('[MyTicketsPage] Loading timeout after 10 seconds - forcing loading state to false');
+        setLoading(false);
+      }
+    }, 10000); // 10 second timeout
+
+    return () => clearTimeout(loadingTimeout);
+  }, [loading]);
+
   const loadMyTickets = async () => {
     try {
       setLoading(true);
