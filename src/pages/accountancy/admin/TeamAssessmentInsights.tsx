@@ -207,9 +207,11 @@ const TeamAssessmentInsights: React.FC = () => {
 
     for (const member of members) {
       // Check each assessment table directly
+      // NOTE: learning_preferences and personality_assessments use 'team_member_id'
+      // while newer tables use 'practice_member_id'
       const [vark, ocean, workingPrefs, belbin, motivational, eq, conflict] = await Promise.all([
-        supabase.from('learning_preferences').select('id').eq('practice_member_id', member.id).maybeSingle(),
-        supabase.from('personality_assessments').select('id').eq('practice_member_id', member.id).maybeSingle(),
+        supabase.from('learning_preferences').select('id').eq('team_member_id', member.id).maybeSingle(),
+        supabase.from('personality_assessments').select('id').eq('team_member_id', member.id).maybeSingle(),
         supabase.from('working_preferences').select('id').eq('practice_member_id', member.id).maybeSingle(),
         supabase.from('belbin_assessments').select('id').eq('practice_member_id', member.id).maybeSingle(),
         supabase.from('motivational_drivers').select('id').eq('practice_member_id', member.id).maybeSingle(),
@@ -357,7 +359,7 @@ const TeamAssessmentInsights: React.FC = () => {
     const { data: vark } = await supabase
       .from('learning_preferences')
       .select('primary_style')
-      .in('practice_member_id', members.map(m => m.id));
+      .in('team_member_id', members.map(m => m.id));
 
     const varkStyles = (vark || []).reduce((acc, v) => {
       const style = v.primary_style || 'Unknown';
@@ -369,7 +371,7 @@ const TeamAssessmentInsights: React.FC = () => {
     const { data: personality } = await supabase
       .from('personality_assessments')
       .select('openness, conscientiousness, extraversion, agreeableness, neuroticism')
-      .in('practice_member_id', members.map(m => m.id));
+      .in('team_member_id', members.map(m => m.id));
 
     const avgPersonality = {
       openness: 0,
