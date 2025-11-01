@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/lib/supabase/client';
-import { useAccountancy } from '@/hooks/useAccountancy';
+import { useAccountancyContext } from '@/contexts/AccountancyContext';
 import { 
   Ticket, MessageSquare, Clock, CheckCircle2, 
   AlertCircle, Lightbulb, HelpCircle, MessageCircle,
@@ -65,7 +65,7 @@ interface TicketReply {
 }
 
 const TicketsAdmin: React.FC = () => {
-  const { practice } = useAccountancy();
+  const { practice, practiceId } = useAccountancyContext();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [filteredTickets, setFilteredTickets] = useState<SupportTicket[]>([]);
   const [replies, setReplies] = useState<Record<string, TicketReply[]>>({});
@@ -80,10 +80,10 @@ const TicketsAdmin: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    if (practice?.id) {
+    if (practiceId) {
       loadTickets();
     }
-  }, [practice?.id]);
+  }, [practiceId]);
 
   useEffect(() => {
     applyFilters();
@@ -102,7 +102,7 @@ const TicketsAdmin: React.FC = () => {
             name
           )
         `)
-        .eq('practice_id', practice!.id)
+        .eq('practice_id', practiceId!)
         .order('created_at', { ascending: false });
 
       if (ticketsError) throw ticketsError;

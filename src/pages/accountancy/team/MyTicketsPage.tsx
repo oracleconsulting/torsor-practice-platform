@@ -28,7 +28,8 @@ import {
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/lib/supabase/client';
-import { useAccountancy } from '@/hooks/useAccountancy';
+import { useAccountancyContext } from '@/contexts/AccountancyContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   Ticket, MessageSquare, Clock, CheckCircle2, 
   AlertCircle, Lightbulb, HelpCircle, MessageCircle,
@@ -59,7 +60,9 @@ interface TicketReply {
 }
 
 const MyTicketsPage: React.FC = () => {
-  const { practice, member } = useAccountancy();
+  const { practice, practiceId } = useAccountancyContext();
+  const { user } = useAuth();
+  const [member, setMember] = useState<any>(null);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [replies, setReplies] = useState<Record<string, TicketReply[]>>({});
   const [loading, setLoading] = useState(true);
@@ -75,11 +78,38 @@ const MyTicketsPage: React.FC = () => {
   const [followUpMessage, setFollowUpMessage] = useState('');
   const [sendingFollowUp, setSendingFollowUp] = useState(false);
 
+  // Fetch member data
   useEffect(() => {
-    if (practice?.id && member?.id) {
+    const fetchMember = async () => {
+      if (!user?.id || !practiceId) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('practice_members')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('practice_id', practiceId)
+          .single();
+
+        if (error) {
+          console.error('Error fetching member:', error);
+          return;
+        }
+
+        setMember(data);
+      } catch (error) {
+        console.error('Error fetching member:', error);
+      }
+    };
+
+    fetchMember();
+  }, [user?.id, practiceId]);
+
+  useEffect(() => {
+    if (practiceId && member?.id) {
       loadMyTickets();
     }
-  }, [practice?.id, member?.id]);
+  }, [practiceId, member?.id]);
 
   const loadMyTickets = async () => {
     try {
@@ -137,7 +167,7 @@ const MyTicketsPage: React.FC = () => {
       const { error } = await supabase
         .from('support_tickets')
         .insert({
-          practice_id: practice!.id,
+          practice_id: practiceId!,
           practice_member_id: member!.id,
           category,
           subject: subject.trim(),
