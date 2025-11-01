@@ -100,14 +100,15 @@ export default function Auth() {
         // Only redirect to admin if NOT viewing as someone else
         const viewAsParam = new URLSearchParams(location.search).get('viewAs');
         
-        const adminRoles = ['owner', 'admin', 'partner', 'director'];
-        const isAdmin = member && adminRoles.includes(member.role.toLowerCase());
+        // ONLY James Howard (jhoward@rpgcc.co.uk) has admin access
+        // Everyone else goes to their personal team member portal
+        const isJamesHoward = user.email === 'jhoward@rpgcc.co.uk';
         
-        if (isAdmin && !viewAsParam) {
-          console.log('[Auth Debug] Admin user - redirecting to admin dashboard');
+        if (isJamesHoward && !viewAsParam) {
+          console.log('[Auth Debug] James Howard - redirecting to admin dashboard');
           navigate('/dashboard', { replace: true });
         } else {
-          console.log('[Auth Debug] Regular user - redirecting to team member portal');
+          console.log('[Auth Debug] Regular team member - redirecting to personal portal');
           navigate('/team-member', { replace: true });
         }
       };
