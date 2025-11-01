@@ -56,6 +56,7 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
   const [assessmentData, setAssessmentData] = useState<any>({});
   const [aiProfile, setAIProfile] = useState<any>(null);
   const [generatingProfile, setGeneratingProfile] = useState(false);
+  const [hasAttemptedGeneration, setHasAttemptedGeneration] = useState(false); // NEW: Track if we've already tried to generate
   const { toast } = useToast();
 
   const practiceId = 'a1b2c3d4-5678-90ab-cdef-123456789abc'; // RPGCC practice ID
@@ -79,13 +80,19 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
         return;
       }
 
+      // If we're already generating or have already attempted, don't try again
+      if (generatingProfile || hasAttemptedGeneration) {
+        return;
+      }
+
       // Profile doesn't exist, generate it automatically
       console.log('[ComprehensiveResults] Auto-generating profile...');
+      setHasAttemptedGeneration(true); // Mark that we're attempting generation
       await handleGenerateProfile();
     };
 
     checkAndGenerateProfile();
-  }, [assessmentData, aiProfile]);
+  }, [assessmentData, aiProfile, generatingProfile, hasAttemptedGeneration]);
 
   const loadAIProfile = async () => {
     const profile = await getCurrentProfile(practiceMemberId);
@@ -249,40 +256,63 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
       </Card>
 
       {/* AI-Generated Professional Profile */}
-      {completedCount === totalCount && aiProfile && (
-        <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-blue-50">
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <CardTitle className="text-2xl flex items-center gap-2">
-                  <Sparkles className="w-6 h-6 text-purple-600" />
-                  Your Professional Profile
-                </CardTitle>
-                <CardDescription>
-                  Generated {new Date(aiProfile.generated_at).toLocaleDateString()}
-                </CardDescription>
+      {completedCount === totalCount && (
+        generatingProfile ? (
+          // Loading state while profile is being generated
+          <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-blue-50">
+            <CardHeader>
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <Sparkles className="w-6 h-6 text-purple-600" />
+                Your Professional Profile
+              </CardTitle>
+              <CardDescription>
+                Generating your personalized profile...
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
+              <Loader2 className="w-16 h-16 text-purple-600 animate-spin" />
+              <div className="text-center space-y-2">
+                <p className="text-lg font-medium text-purple-900">Creating Your Professional Fingerprint</p>
+                <p className="text-sm text-gray-600">Analyzing your assessment results to generate personalized insights...</p>
+                <p className="text-xs text-gray-500">This may take 10-20 seconds</p>
               </div>
-              <Button
-                onClick={handleGenerateProfile}
-                disabled={generatingProfile}
-                variant="outline"
-                className="border-purple-300 text-purple-700 hover:bg-purple-50"
-              >
-                {generatingProfile ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Regenerating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Regenerate Profile
-                  </>
-                )}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
+            </CardContent>
+          </Card>
+        ) : aiProfile ? (
+          // Display the generated profile
+          <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-blue-50">
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <CardTitle className="text-2xl flex items-center gap-2">
+                    <Sparkles className="w-6 h-6 text-purple-600" />
+                    Your Professional Profile
+                  </CardTitle>
+                  <CardDescription>
+                    Generated {new Date(aiProfile.generated_at).toLocaleDateString()}
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={handleGenerateProfile}
+                  disabled={generatingProfile}
+                  variant="outline"
+                  className="border-purple-300 text-purple-700 hover:bg-purple-50"
+                >
+                  {generatingProfile ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Regenerating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Regenerate Profile
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
               {/* Main Narrative */}
               <div>
                 <h3 className="text-xl font-bold text-purple-900 mb-3">Your Professional Fingerprint</h3>
@@ -378,6 +408,18 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
               )}
             </CardContent>
         </Card>
+        ) : (
+          // No profile yet and not generating - show message
+          <Card className="border-2 border-gray-200 bg-gray-50">
+            <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
+              <Sparkles className="w-16 h-16 text-gray-400" />
+              <div className="text-center space-y-2">
+                <p className="text-lg font-medium text-gray-900">Profile Generation Starting...</p>
+                <p className="text-sm text-gray-600">Your profile will appear here once generated.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )
       )}
 
       <Tabs defaultValue="overview" className="w-full">
