@@ -120,9 +120,9 @@ export const MotivationalDriversAssessment: React.FC<MotivationalDriversAssessme
       'achievement': <Target className="w-5 h-5 text-green-600" />,
       'autonomy': <Zap className="w-5 h-5 text-blue-600" />,
       'affiliation': <Heart className="w-5 h-5 text-pink-600" />,
-      'power': <Crown className="w-5 h-5 text-purple-600" />,
+      'power_influence': <Crown className="w-5 h-5 text-purple-600" />,
       'security': <Shield className="w-5 h-5 text-gray-600" />,
-      'recognition': <Award className="w-5 h-5 text-yellow-600" />
+      'variety': <Award className="w-5 h-5 text-yellow-600" />
     };
     return icons[driver] || <Target className="w-5 h-5" />;
   };
@@ -132,9 +132,9 @@ export const MotivationalDriversAssessment: React.FC<MotivationalDriversAssessme
       'achievement': 'green',
       'autonomy': 'blue',
       'affiliation': 'pink',
-      'power': 'purple',
+      'power_influence': 'purple',
       'security': 'gray',
-      'recognition': 'yellow'
+      'variety': 'yellow'
     };
     return colors[driver] || 'gray';
   };

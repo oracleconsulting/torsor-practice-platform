@@ -20,9 +20,9 @@ export interface MotivationalProfile {
     achievement: number;
     autonomy: number;
     affiliation: number;
-    power: number;
+    power_influence: number;
     security: number;
-    recognition: number;
+    variety: number;
   };
   summary: string;
 }
@@ -35,9 +35,9 @@ export const motivationalDriversQuestions: MotivationalQuestion[] = [
       { text: "Accomplishing challenging goals and exceeding targets", value: "achievement" },
       { text: "Having freedom to work independently and make my own decisions", value: "autonomy" },
       { text: "Building strong relationships and working with a great team", value: "affiliation" },
-      { text: "Leading projects and influencing important decisions", value: "power" },
+      { text: "Leading projects and influencing important decisions", value: "power_influence" },
       { text: "Having a stable job with predictable responsibilities", value: "security" },
-      { text: "Being acknowledged and praised for my contributions", value: "recognition" }
+      { text: "Experiencing diverse challenges and new opportunities", value: "variety" }
     ]
   },
   {
@@ -47,9 +47,9 @@ export const motivationalDriversQuestions: MotivationalQuestion[] = [
       { text: "The opportunity to excel and demonstrate my capabilities", value: "achievement" },
       { text: "Having control over how I approach the work", value: "autonomy" },
       { text: "Collaborating with people I enjoy working with", value: "affiliation" },
-      { text: "The chance to lead and make strategic decisions", value: "power" },
+      { text: "The chance to lead and make strategic decisions", value: "power_influence" },
       { text: "Clear structure and minimal risk", value: "security" },
-      { text: "Potential for visibility and credit", value: "recognition" }
+      { text: "Trying something different and learning new skills", value: "variety" }
     ]
   },
   {
@@ -59,9 +59,9 @@ export const motivationalDriversQuestions: MotivationalQuestion[] = [
       { text: "Making progress toward ambitious objectives", value: "achievement" },
       { text: "Working without constant oversight or micromanagement", value: "autonomy" },
       { text: "Positive interactions and camaraderie with colleagues", value: "affiliation" },
-      { text: "Influencing outcomes and driving change", value: "power" },
+      { text: "Influencing outcomes and driving change", value: "power_influence" },
       { text: "Knowing my position is stable and my role is clear", value: "security" },
-      { text: "Receiving positive feedback and appreciation", value: "recognition" }
+      { text: "Tackling different types of work and avoiding monotony", value: "variety" }
     ]
   },
   {
@@ -71,9 +71,9 @@ export const motivationalDriversQuestions: MotivationalQuestion[] = [
       { text: "Not having challenging goals or opportunities to grow", value: "achievement" },
       { text: "Being told exactly how to do my work", value: "autonomy" },
       { text: "Working in isolation without team connection", value: "affiliation" },
-      { text: "Not having a voice in important decisions", value: "power" },
+      { text: "Not having a voice in important decisions", value: "power_influence" },
       { text: "Uncertainty about job stability or frequent changes", value: "security" },
-      { text: "My contributions going unnoticed or unappreciated", value: "recognition" }
+      { text: "Repetitive work without variety or stimulation", value: "variety" }
     ]
   },
   {
@@ -83,9 +83,9 @@ export const motivationalDriversQuestions: MotivationalQuestion[] = [
       { text: "You've exceeded all targets and achieved exceptional results", value: "achievement" },
       { text: "You've shown great initiative and independence in your work", value: "autonomy" },
       { text: "You're a valued team member who enhances collaboration", value: "affiliation" },
-      { text: "You've demonstrated strong leadership and influence", value: "power" },
+      { text: "You've demonstrated strong leadership and influence", value: "power_influence" },
       { text: "Your work is consistently reliable and dependable", value: "security" },
-      { text: "Your contributions have been noticed and are highly valued", value: "recognition" }
+      { text: "You bring fresh perspective and adapt well to change", value: "variety" }
     ]
   },
   {
@@ -95,9 +95,9 @@ export const motivationalDriversQuestions: MotivationalQuestion[] = [
       { text: "A stretch assignment or promotion based on merit", value: "achievement" },
       { text: "More flexibility and control over my schedule", value: "autonomy" },
       { text: "A team celebration or social recognition", value: "affiliation" },
-      { text: "Increased authority and decision-making power", value: "power" },
+      { text: "Increased authority and decision-making power", value: "power_influence" },
       { text: "A long-term contract or permanent position", value: "security" },
-      { text: "Public acknowledgment of my accomplishments", value: "recognition" }
+      { text: "Opportunity to work on different projects or roles", value: "variety" }
     ]
   },
   {
@@ -107,9 +107,9 @@ export const motivationalDriversQuestions: MotivationalQuestion[] = [
       { text: "Reaching difficult milestones and proving my capabilities", value: "achievement" },
       { text: "Being trusted to work in my own way", value: "autonomy" },
       { text: "Feeling connected and appreciated by my team", value: "affiliation" },
-      { text: "Having impact on organizational direction", value: "power" },
+      { text: "Having impact on organizational direction", value: "power_influence" },
       { text: "Feeling confident about my future at the organization", value: "security" },
-      { text: "Being recognized as an expert or high performer", value: "recognition" }
+      { text: "Learning new skills and expanding my expertise", value: "variety" }
     ]
   },
   {
@@ -119,9 +119,9 @@ export const motivationalDriversQuestions: MotivationalQuestion[] = [
       { text: "The satisfaction of overcoming obstacles", value: "achievement" },
       { text: "The freedom to try different approaches", value: "autonomy" },
       { text: "Support and encouragement from colleagues", value: "affiliation" },
-      { text: "The opportunity to demonstrate leadership", value: "power" },
+      { text: "The opportunity to demonstrate leadership", value: "power_influence" },
       { text: "Knowing the challenge won't jeopardize my position", value: "security" },
-      { text: "The potential for recognition if I succeed", value: "recognition" }
+      { text: "The novelty and opportunity to try something new", value: "variety" }
     ]
   },
   {
@@ -131,9 +131,9 @@ export const motivationalDriversQuestions: MotivationalQuestion[] = [
       { text: "Lack of growth opportunities or challenging work", value: "achievement" },
       { text: "Too much control or restrictive policies", value: "autonomy" },
       { text: "Poor team dynamics or toxic culture", value: "affiliation" },
-      { text: "No opportunity to influence or lead", value: "power" },
+      { text: "No opportunity to influence or lead", value: "power_influence" },
       { text: "Organizational instability or frequent restructuring", value: "security" },
-      { text: "Feeling undervalued or unappreciated", value: "recognition" }
+      { text: "Monotonous work without change or innovation", value: "variety" }
     ]
   },
   {
@@ -143,9 +143,9 @@ export const motivationalDriversQuestions: MotivationalQuestion[] = [
       { text: "High standards and opportunities for excellence", value: "achievement" },
       { text: "Trust and minimal bureaucracy", value: "autonomy" },
       { text: "Strong relationships and collaborative spirit", value: "affiliation" },
-      { text: "Clear paths to leadership and influence", value: "power" },
+      { text: "Clear paths to leadership and influence", value: "power_influence" },
       { text: "Stability and predictable career progression", value: "security" },
-      { text: "Regular feedback and appreciation", value: "recognition" }
+      { text: "Diverse projects and continuous learning", value: "variety" }
     ]
   }
 ];
@@ -155,9 +155,9 @@ export function calculateMotivationalProfile(answers: Record<number, string>): M
     achievement: 0,
     autonomy: 0,
     affiliation: 0,
-    power: 0,
+    power_influence: 0,
     security: 0,
-    recognition: 0
+    variety: 0
   };
 
   // Count selections for each driver
@@ -180,12 +180,12 @@ export function calculateMotivationalProfile(answers: Record<number, string>): M
     achievement: "You are driven by accomplishment and the pursuit of excellence. You thrive when setting and reaching ambitious goals.",
     autonomy: "You value independence and self-direction. You work best when trusted to make your own decisions and chart your own course.",
     affiliation: "You are motivated by relationships and belonging. You thrive in collaborative environments with strong team bonds.",
-    power: "You are energized by leadership and influence. You seek opportunities to shape outcomes and drive organizational direction.",
+    power_influence: "You are energized by leadership and influence. You seek opportunities to shape outcomes and drive organizational direction.",
     security: "You value stability and predictability. You prefer clear structures and long-term security in your role.",
-    recognition: "You are motivated by acknowledgment and appreciation. You thrive when your contributions are noticed and valued."
+    variety: "You are motivated by change and diversity. You thrive when experiencing new challenges and learning opportunities."
   };
 
-  const summary = `${driverDescriptions[primary_driver]} Your secondary motivator is ${secondary_driver}, which complements your primary drive.`;
+  const summary = `${driverDescriptions[primary_driver]} Your secondary motivator is ${secondary_driver.replace('_', ' ')}, which complements your primary drive.`;
 
   return {
     primary_driver,
