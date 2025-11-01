@@ -756,13 +756,8 @@ const TeamAssessmentInsights: React.FC = () => {
                               cx="50%"
                               cy="50%"
                               outerRadius={100}
-                              label={(entry) => {
-                                // Custom label renderer with validation
-                                if (!entry || typeof entry.name !== 'string' || !Number.isFinite(entry.value)) {
-                                  return '';
-                                }
-                                return `${entry.name}: ${entry.value}`;
-                              }}
+                              isAnimationActive={false}
+                              label={false}
                             >
                               {validCommData.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -897,7 +892,7 @@ const TeamAssessmentInsights: React.FC = () => {
                             <XAxis dataKey="level" />
                             <YAxis allowDecimals={false} />
                             <RechartsTooltip />
-                            <Bar dataKey="count" fill="#ef4444" />
+                            <Bar dataKey="count" fill="#ef4444" isAnimationActive={false} />
                           </BarChart>
                         </ResponsiveContainer>
                       </CardContent>
@@ -979,6 +974,8 @@ const TeamAssessmentInsights: React.FC = () => {
                             cx="50%"
                             cy="50%"
                             outerRadius={100}
+                            isAnimationActive={false}
+                            label={false}
                           >
                             {validWorkData.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -1110,9 +1107,9 @@ const TeamAssessmentInsights: React.FC = () => {
                         <BarChart data={validMotivData}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="driver" />
-                          <YAxis />
+                          <YAxis allowDecimals={false} />
                           <RechartsTooltip />
-                          <Bar dataKey="count" fill="#f59e0b" />
+                          <Bar dataKey="count" fill="#f59e0b" isAnimationActive={false} />
                         </BarChart>
                       </ResponsiveContainer>
                     </CardContent>
@@ -1175,9 +1172,9 @@ const TeamAssessmentInsights: React.FC = () => {
                         <BarChart data={validConflictData}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="style" />
-                          <YAxis />
+                          <YAxis allowDecimals={false} />
                           <RechartsTooltip />
-                          <Bar dataKey="count" fill="#a855f7" />
+                          <Bar dataKey="count" fill="#a855f7" isAnimationActive={false} />
                         </BarChart>
                       </ResponsiveContainer>
                     </CardContent>
@@ -1248,6 +1245,8 @@ const TeamAssessmentInsights: React.FC = () => {
                             cx="50%"
                             cy="50%"
                             outerRadius={100}
+                            isAnimationActive={false}
+                            label={false}
                           >
                             {validVarkData.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
