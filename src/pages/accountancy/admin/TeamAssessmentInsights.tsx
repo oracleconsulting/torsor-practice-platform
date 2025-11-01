@@ -682,9 +682,10 @@ const TeamAssessmentInsights: React.FC = () => {
             
             console.log('[TeamAssessmentInsights] About to render composition charts...');
             
-            return (
-              <>
-              {/* Communication Styles */}
+            try {
+              return (
+                <>
+                {/* Communication Styles */}
               {teamComposition.communicationStyles && teamComposition.communicationStyles.length > 0 && (() => {
                 try {
                   // Validate and sanitize communication styles data for charts
@@ -1266,6 +1267,32 @@ const TeamAssessmentInsights: React.FC = () => {
               )}
             </>
             );
+            } catch (error) {
+              console.error('[TeamAssessmentInsights] Error rendering Team Composition tab:', error);
+              return (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5 text-red-600" />
+                      Unable to Display Team Composition
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-center py-8 space-y-4">
+                      <p className="text-gray-700">
+                        There was an error displaying the team composition data.
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        This may be due to incomplete assessment data. Please ensure team members have completed their assessments.
+                      </p>
+                      <Button onClick={() => window.location.reload()} variant="outline">
+                        Refresh Page
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            }
           })()}
         </TabsContent>
 
