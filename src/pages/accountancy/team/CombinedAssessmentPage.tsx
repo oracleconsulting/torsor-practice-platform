@@ -1059,13 +1059,13 @@ export const CombinedAssessmentPage: React.FC = () => {
               <CardHeader>
                 <CardTitle className="text-gray-900">Your VARK Learning Style Results</CardTitle>
                 <CardDescription className="text-gray-600">
-                  Primary Style: {varkData.primary_style.replace('_', ' ').toUpperCase()}
+                  Primary Style: {varkData?.primary_style?.replace('_', ' ')?.toUpperCase() || 'Not specified'}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <p className="text-gray-700">
-                    You learn best through <strong className="capitalize">{varkData.primary_style.replace('_', ' ')}</strong> methods.
+                    You learn best through <strong className="capitalize">{varkData?.primary_style?.replace('_', ' ') || 'various'}</strong> methods.
                   </p>
                   
                   {/* Score breakdown */}
