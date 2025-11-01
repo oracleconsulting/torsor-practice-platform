@@ -1,98 +1,68 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { AlertCircle } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
+  fallback?: ReactNode;
+  onError?: (error: Error, errorInfo: ErrorInfo) => void;
 }
 
 interface State {
   hasError: boolean;
-  error?: Error;
-  errorInfo?: ErrorInfo;
+  error: Error | null;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
+export class ChartErrorBoundary extends Component<Props, State> {
   public state: State = {
-    hasError: false
+    hasError: false,
+    error: null
   };
 
   public static getDerivedStateFromError(error: Error): State {
-    // Update state so the next render will show the fallback UI
     return { hasError: true, error };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
-    this.setState({ error, errorInfo });
-    
-    // Prevent navigation loops by checking if we're already on an error page
-    if (window.location.pathname.includes('/error')) {
-      return;
-    }
-    
-    // Only redirect to error page if it's a critical error
-    if (error.message.includes('Failed to fetch') || 
-        error.message.includes('NetworkError') ||
-        error.message.includes('404')) {
-      // Don't redirect for resource loading errors
-      console.log('Resource loading error - not redirecting');
-      return;
+    console.error('[ChartErrorBoundary] Uncaught error:', error, errorInfo);
+    if (this.props.onError) {
+      this.props.onError(error, errorInfo);
     }
   }
 
-  private handleRetry = () => {
-    this.setState({ hasError: false, error: undefined, errorInfo: undefined });
-  };
-
-  private handleGoHome = () => {
-    window.location.href = '/';
-  };
-
   public render() {
     if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
+
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
-                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Something went wrong
-              </h3>
-              <p className="text-sm text-gray-500 mb-6">
-                {this.state.error?.message || 'An unexpected error occurred'}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+              Unable to Display Chart
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8 space-y-4">
+              <p className="text-gray-700">
+                There was an error displaying this chart.
               </p>
-              
-              <div className="space-y-3">
-                <button
-                  onClick={this.handleRetry}
-                  className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  Try Again
-                </button>
-                <button
-                  onClick={this.handleGoHome}
-                  className="w-full bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors"
-                >
-                  Go Home
-                </button>
-              </div>
-              
-              {process.env.NODE_ENV === 'development' && this.state.errorInfo && (
-                <details className="mt-4 text-left">
-                  <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-800">
-                    Error Details (Development)
-                  </summary>
-                  <pre className="mt-2 text-xs text-gray-500 bg-gray-100 p-2 rounded overflow-auto max-h-32">
-                    {this.state.errorInfo.componentStack}
-                  </pre>
-                </details>
-              )}
+              <p className="text-sm text-gray-600">
+                This may be due to incomplete or invalid data.
+              </p>
+              <Button 
+                onClick={() => this.setState({ hasError: false, error: null })} 
+                variant="outline"
+                size="sm"
+              >
+                Try Again
+              </Button>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       );
     }
 

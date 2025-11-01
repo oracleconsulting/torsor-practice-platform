@@ -8,7 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase/client';
+import { ChartErrorBoundary } from '@/components/ErrorBoundary';
 import { 
   Users, Brain, TrendingUp, Target, AlertCircle, 
   CheckCircle2, Lightbulb, Award, Activity, Zap,
@@ -682,10 +684,15 @@ const TeamAssessmentInsights: React.FC = () => {
             
             console.log('[TeamAssessmentInsights] About to render composition charts...');
             
-            try {
-              return (
-                <>
-                {/* Communication Styles */}
+            return (
+              <ChartErrorBoundary 
+                onError={(error) => console.error('[TeamAssessmentInsights] Chart rendering error:', error)}
+              >
+                {(() => {
+                  try {
+                    return (
+                      <>
+                      {/* Communication Styles */}
               {teamComposition.communicationStyles && teamComposition.communicationStyles.length > 0 && (() => {
                 try {
                   // Validate and sanitize communication styles data for charts
@@ -1293,6 +1300,9 @@ const TeamAssessmentInsights: React.FC = () => {
                 </Card>
               );
             }
+          })()}
+              </ChartErrorBoundary>
+            );
           })()}
         </TabsContent>
 
