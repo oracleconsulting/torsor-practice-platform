@@ -208,13 +208,13 @@ const TeamAssessmentInsights: React.FC = () => {
     for (const member of members) {
       // Check each assessment table directly
       const [vark, ocean, workingPrefs, belbin, motivational, eq, conflict] = await Promise.all([
-        supabase.from('learning_preferences').select('id').eq('practice_member_id', member.id).single(),
-        supabase.from('personality_assessments').select('id').eq('practice_member_id', member.id).single(),
-        supabase.from('working_preferences').select('id').eq('practice_member_id', member.id).single(),
-        supabase.from('belbin_assessments').select('id').eq('practice_member_id', member.id).single(),
-        supabase.from('motivational_drivers').select('id').eq('practice_member_id', member.id).single(),
-        supabase.from('eq_assessments').select('id').eq('practice_member_id', member.id).single(),
-        supabase.from('conflict_style_assessments').select('id').eq('practice_member_id', member.id).single()
+        supabase.from('learning_preferences').select('id').eq('practice_member_id', member.id).maybeSingle(),
+        supabase.from('personality_assessments').select('id').eq('practice_member_id', member.id).maybeSingle(),
+        supabase.from('working_preferences').select('id').eq('practice_member_id', member.id).maybeSingle(),
+        supabase.from('belbin_assessments').select('id').eq('practice_member_id', member.id).maybeSingle(),
+        supabase.from('motivational_drivers').select('id').eq('practice_member_id', member.id).maybeSingle(),
+        supabase.from('eq_assessments').select('id').eq('practice_member_id', member.id).maybeSingle(),
+        supabase.from('conflict_style_assessments').select('id').eq('practice_member_id', member.id).maybeSingle()
       ]);
 
       const completion = {
@@ -230,6 +230,19 @@ const TeamAssessmentInsights: React.FC = () => {
         completionRate: 0
       };
 
+      // Debug logging for members with assessments
+      if (vark.data || ocean.data || workingPrefs.data || belbin.data || motivational.data) {
+        console.log(`[TeamInsights] ${member.name} assessments:`, {
+          vark: !!vark.data,
+          ocean: !!ocean.data,
+          workingPrefs: !!workingPrefs.data,
+          belbin: !!belbin.data,
+          motivational: !!motivational.data,
+          eq: !!eq.data,
+          conflict: !!conflict.data
+        });
+      }
+
       const total = 7;
       const completed = [
         completion.vark, completion.ocean, completion.workingPrefs,
@@ -239,6 +252,15 @@ const TeamAssessmentInsights: React.FC = () => {
       completion.completionRate = Math.round((completed / total) * 100);
       completionData.push(completion);
     }
+
+    console.log('[TeamInsights] Overall completion summary:', {
+      totalMembers: completionData.length,
+      withVARK: completionData.filter(c => c.vark).length,
+      withOCEAN: completionData.filter(c => c.ocean).length,
+      withWorking: completionData.filter(c => c.workingPrefs).length,
+      withBelbin: completionData.filter(c => c.belbin).length,
+      withMotivational: completionData.filter(c => c.motivational).length
+    });
 
     setCompletionStatus(completionData);
   };
