@@ -738,54 +738,32 @@ const TeamAssessmentInsights: React.FC = () => {
                     );
                   }
                   
-                  // Use BarChart instead of PieChart for small datasets (more stable)
+                  // NO CHARTS for small datasets - they ALL crash with 2-3 items
                   if (validCommData.length <= 3) {
-                    console.log('[TeamAssessmentInsights] ✅ Using BarChart for Communication Styles (data length:', validCommData.length, ')');
-                    try {
-                      return (
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                              <MessageSquare className="w-5 h-5 text-blue-600" />
-                              Communication Style Distribution (BarChart)
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <ResponsiveContainer width="100%" height={250}>
-                              <BarChart data={validCommData}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="style" />
-                                <YAxis allowDecimals={false} />
-                                <RechartsTooltip />
-                                <Bar dataKey="count" fill="#3b82f6" isAnimationActive={false} />
-                              </BarChart>
-                            </ResponsiveContainer>
-                          </CardContent>
-                        </Card>
-                      );
-                    } catch (barError) {
-                      console.error('[TeamAssessmentInsights] ❌ BarChart ALSO crashed:', barError);
-                      return (
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                              <MessageSquare className="w-5 h-5 text-blue-600" />
-                              Communication Style Distribution
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="text-center py-8">
-                              <div className="text-gray-900 font-semibold mb-4">Communication Styles</div>
-                              {validCommData.map((item, idx) => (
-                                <div key={idx} className="py-2">
-                                  <span className="font-medium">{item.style}:</span> {item.count} member{item.count > 1 ? 's' : ''}
+                    console.log('[TeamAssessmentInsights] ✅ Using SIMPLE DISPLAY for Communication Styles (data length:', validCommData.length, ')');
+                    return (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <MessageSquare className="w-5 h-5 text-blue-600" />
+                            Communication Style Distribution
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-4">
+                            {validCommData.map((item, idx) => (
+                              <div key={idx} className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+                                <span className="font-medium text-gray-900">{item.style}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-2xl font-bold text-blue-600">{item.count}</span>
+                                  <span className="text-sm text-gray-600">member{item.count > 1 ? 's' : ''}</span>
                                 </div>
-                              ))}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    }
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
                   }
                   
                   return (
