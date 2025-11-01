@@ -80,14 +80,12 @@ CREATE POLICY "Members can update own tickets" ON support_tickets
     practice_member_id = (SELECT id FROM practice_members WHERE user_id = auth.uid())
   );
 
--- Admin/owner can view all tickets in their practice
+-- Admin can view all tickets (using email whitelist)
 CREATE POLICY "Admins can view all practice tickets" ON support_tickets
   FOR ALL
   USING (
-    practice_id IN (
-      SELECT id FROM practices 
-      WHERE owner_id = auth.uid()
-    )
+    -- Admin is jhoward@rpgcc.co.uk
+    auth.jwt() ->> 'email' = 'jhoward@rpgcc.co.uk'
   );
 
 -- Members can view replies to their tickets
@@ -110,15 +108,12 @@ CREATE POLICY "Members can reply to own tickets" ON ticket_replies
     )
   );
 
--- Admins can manage all replies in their practice
+-- Admins can manage all replies (using email whitelist)
 CREATE POLICY "Admins can manage replies" ON ticket_replies
   FOR ALL
   USING (
-    ticket_id IN (
-      SELECT st.id FROM support_tickets st
-      INNER JOIN practices ap ON st.practice_id = ap.id
-      WHERE ap.owner_id = auth.uid()
-    )
+    -- Admin is jhoward@rpgcc.co.uk
+    auth.jwt() ->> 'email' = 'jhoward@rpgcc.co.uk'
   );
 
 -- Function to update updated_at timestamp
