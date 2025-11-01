@@ -93,8 +93,8 @@ const MyAssessmentsPanel: React.FC = () => {
       description: 'Discover your preferred learning style: Visual, Auditory, Reading/Writing, or Kinesthetic',
       icon: BookOpen,
       color: 'indigo',
-      route: '/accountancy/assessments/vark',
-      resultsRoute: '/accountancy/assessments/vark/results'
+      route: '/team-member/assessments',
+      resultsRoute: '/team-member/assessments?tab=vark-results'
     },
     {
       key: 'ocean' as keyof AssessmentStatus,
@@ -102,8 +102,8 @@ const MyAssessmentsPanel: React.FC = () => {
       description: 'Explore your Big Five personality traits: Openness, Conscientiousness, Extraversion, Agreeableness, Neuroticism',
       icon: Brain,
       color: 'purple',
-      route: '/accountancy/assessments/personality',
-      resultsRoute: '/accountancy/assessments/personality/results'
+      route: '/team-member/assessments',
+      resultsRoute: '/team-member/assessments?tab=ocean-results'
     },
     {
       key: 'working' as keyof AssessmentStatus,
@@ -111,8 +111,8 @@ const MyAssessmentsPanel: React.FC = () => {
       description: 'Understand your communication style, work style, and environment preferences',
       icon: Briefcase,
       color: 'blue',
-      route: '/accountancy/assessments/working-preferences',
-      resultsRoute: '/accountancy/assessments/working-preferences/results'
+      route: '/team-member/assessments',
+      resultsRoute: '/team-member/assessments'
     },
     {
       key: 'belbin' as keyof AssessmentStatus,
@@ -120,8 +120,8 @@ const MyAssessmentsPanel: React.FC = () => {
       description: 'Identify your team role strengths: Innovator, Analyst, Leader, Harmoniser, and more',
       icon: Users,
       color: 'green',
-      route: '/accountancy/assessments/belbin',
-      resultsRoute: '/accountancy/assessments/belbin/results'
+      route: '/team-member/assessments',
+      resultsRoute: '/team-member/assessments'
     },
     {
       key: 'motivational' as keyof AssessmentStatus,
@@ -129,8 +129,8 @@ const MyAssessmentsPanel: React.FC = () => {
       description: 'Discover what drives you: Achievement, Autonomy, Affiliation, Influence, Security, or Recognition',
       icon: Target,
       color: 'yellow',
-      route: '/accountancy/assessments/motivational-drivers',
-      resultsRoute: '/accountancy/assessments/motivational-drivers/results'
+      route: '/team-member/assessments',
+      resultsRoute: '/team-member/assessments'
     },
     {
       key: 'eq' as keyof AssessmentStatus,
@@ -138,8 +138,8 @@ const MyAssessmentsPanel: React.FC = () => {
       description: 'Assess your emotional awareness, self-management, social skills, and relationship abilities',
       icon: Heart,
       color: 'red',
-      route: '/accountancy/assessments/eq',
-      resultsRoute: '/accountancy/assessments/eq/results'
+      route: '/team-member/assessments',
+      resultsRoute: '/team-member/assessments'
     },
     {
       key: 'conflict' as keyof AssessmentStatus,
@@ -147,8 +147,8 @@ const MyAssessmentsPanel: React.FC = () => {
       description: 'Understand your approach to conflict: Competing, Collaborating, Compromising, Avoiding, or Accommodating',
       icon: Shield,
       color: 'pink',
-      route: '/accountancy/assessments/conflict',
-      resultsRoute: '/accountancy/assessments/conflict/results'
+      route: '/team-member/assessments',
+      resultsRoute: '/team-member/assessments'
     }
   ];
 
