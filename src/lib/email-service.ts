@@ -476,6 +476,97 @@ If you have any issues, please contact your administrator.
 }
 
 // =====================================================
+// Ticket Notification Email
+// =====================================================
+
+export async function sendTicketReplyEmail(
+  to: string,
+  ticketSubject: string,
+  replyMessage: string,
+  ticketUrl: string,
+  recipientName?: string
+): Promise<EmailResult> {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); padding: 40px 20px; text-align: center; border-radius: 10px 10px 0 0;">
+    <h1 style="color: white; margin: 0; font-size: 28px;">💬 New Reply to Your Ticket</h1>
+    <p style="color: #ffffff; margin: 10px 0 0 0; font-size: 16px;">TORSOR Support</p>
+  </div>
+  
+  <div style="background: #f5f1e8; padding: 40px 30px;">
+    <p style="font-size: 16px; margin-bottom: 20px;">Hi ${recipientName || 'there'},</p>
+    
+    <p style="font-size: 16px; margin-bottom: 20px;">
+      You have received a new reply to your support ticket:
+    </p>
+    
+    <div style="background: white; padding: 25px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196F3;">
+      <h3 style="color: #1a2b4a; margin-top: 0; font-size: 18px;">📋 ${ticketSubject}</h3>
+    </div>
+    
+    <div style="background: #e3f2fd; padding: 25px; border-radius: 8px; margin: 20px 0;">
+      <h4 style="color: #1565C0; margin-top: 0; font-size: 16px; margin-bottom: 15px;">Admin Reply:</h4>
+      <p style="margin: 0; color: #333; font-size: 15px; line-height: 1.8; white-space: pre-wrap;">${replyMessage}</p>
+    </div>
+    
+    <p style="font-size: 15px; color: #555; margin: 20px 0;">
+      You can view the full conversation and add a follow-up message by visiting your tickets page.
+    </p>
+    
+    <div style="text-align: center; margin: 40px 0;">
+      <a href="${ticketUrl}" 
+         style="display: inline-block; background: #2196F3; color: white; padding: 16px 40px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(33, 150, 243, 0.3);">
+        View Ticket & Reply →
+      </a>
+    </div>
+    
+    <p style="font-size: 14px; color: #666; text-align: center; margin-top: 30px;">
+      This is an automated notification. Please do not reply directly to this email.
+    </p>
+  </div>
+  
+  <div style="background: #1a2b4a; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
+    <p style="color: #ffffff; margin: 0; font-size: 12px;">
+      © ${new Date().getFullYear()} TORSOR Skills Portal
+    </p>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  const text = `
+Hi ${recipientName || 'there'},
+
+You have received a new reply to your support ticket.
+
+TICKET: ${ticketSubject}
+
+ADMIN REPLY:
+${replyMessage}
+
+View the full conversation and add a follow-up message:
+${ticketUrl}
+
+---
+This is an automated notification from TORSOR Skills Portal.
+© ${new Date().getFullYear()} TORSOR Skills Portal
+  `.trim();
+
+  return sendEmail({
+    to,
+    subject: `💬 Reply to your ticket: ${ticketSubject}`,
+    html,
+    text,
+  });
+}
+
+// =====================================================
 // Utility Functions
 // =====================================================
 

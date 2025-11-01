@@ -30,6 +30,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/lib/supabase/client';
 import { useAccountancyContext } from '@/contexts/AccountancyContext';
+import { sendTicketReplyEmail } from '@/lib/email-service';
 import { 
   Ticket, MessageSquare, Clock, CheckCircle2, 
   AlertCircle, Lightbulb, HelpCircle, MessageCircle,
@@ -177,7 +178,7 @@ const TicketsAdmin: React.FC = () => {
       setSending(true);
 
       // Insert reply
-      const { error: replyError } = await supabase
+      const { data: replyData, error: replyError } = await supabase
         .from('ticket_replies')
         .insert({
           ticket_id: selectedTicket.id,
@@ -185,7 +186,9 @@ const TicketsAdmin: React.FC = () => {
           is_admin_reply: true,
           author_name: practice?.contactName || 'Admin',
           email_sent: false
-        });
+        })
+        .select()
+        .single();
 
       if (replyError) throw replyError;
 
@@ -199,13 +202,40 @@ const TicketsAdmin: React.FC = () => {
         if (updateError) throw updateError;
       }
 
-      // TODO: Send email notification
-      // This will be handled by a separate email service
+      // Send email notification to ticket submitter
+      try {
+        const ticketUrl = `${window.location.origin}/team-member/tickets`;
+        const emailResult = await sendTicketReplyEmail(
+          selectedTicket.submitter_email,
+          selectedTicket.subject,
+          replyMessage.trim(),
+          ticketUrl,
+          selectedTicket.member_name
+        );
+
+        if (emailResult.success) {
+          // Update reply to mark email as sent
+          await supabase
+            .from('ticket_replies')
+            .update({ 
+              email_sent: true,
+              email_sent_at: new Date().toISOString()
+            })
+            .eq('id', replyData.id);
+          
+          console.log('✅ Email notification sent to:', selectedTicket.submitter_email);
+        } else {
+          console.warn('⚠️ Email notification failed:', emailResult.error);
+        }
+      } catch (emailError) {
+        console.error('Error sending email notification:', emailError);
+        // Don't fail the whole operation if email fails
+      }
 
       // Reload tickets and replies
       await loadTickets();
       setReplyMessage('');
-      alert('Reply sent successfully! The team member will be notified by email.');
+      alert('Reply sent successfully! The team member has been notified by email.');
     } catch (error) {
       console.error('Error sending reply:', error);
       alert('Failed to send reply. Please try again.');
