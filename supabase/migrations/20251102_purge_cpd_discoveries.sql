@@ -66,51 +66,71 @@ END $$;
 -- Step 2: Delete AI-discovered external courses
 -- =====================================================
 
-DELETE FROM cpd_external_resources
-WHERE type = 'course';
-
-RAISE NOTICE '✅ Deleted all AI-discovered external courses';
+DO $$ 
+DECLARE
+  v_deleted_count INTEGER;
+BEGIN
+  DELETE FROM cpd_external_resources
+  WHERE type = 'course';
+  
+  GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
+  RAISE NOTICE '✅ Deleted % AI-discovered external courses', v_deleted_count;
+END $$;
 
 -- =====================================================
 -- Step 3: Delete AI-discovered knowledge documents
 -- =====================================================
 
-DELETE FROM knowledge_documents
-WHERE 
-  -- AI-discovered documents have URLs in file_path
-  (file_path LIKE 'http%')
-  OR
-  -- AI-discovered documents have specific naming patterns
-  (file_name LIKE '%-article-%' OR file_name LIKE '%-webinar-%' OR 
-   file_name LIKE '%-video-%' OR file_name LIKE '%-podcast-%' OR 
-   file_name LIKE '%-case_study-%')
-  OR
-  -- AI-discovered documents have 'level' in filename
-  (file_name LIKE '%level%');
-
-RAISE NOTICE '✅ Deleted AI-discovered knowledge documents';
+DO $$ 
+DECLARE
+  v_deleted_count INTEGER;
+BEGIN
+  DELETE FROM knowledge_documents
+  WHERE 
+    -- AI-discovered documents have URLs in file_path
+    (file_path LIKE 'http%')
+    OR
+    -- AI-discovered documents have specific naming patterns
+    (file_name LIKE '%-article-%' OR file_name LIKE '%-webinar-%' OR 
+     file_name LIKE '%-video-%' OR file_name LIKE '%-podcast-%' OR 
+     file_name LIKE '%-case_study-%')
+    OR
+    -- AI-discovered documents have 'level' in filename
+    (file_name LIKE '%level%');
+  
+  GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
+  RAISE NOTICE '✅ Deleted % AI-discovered knowledge documents', v_deleted_count;
+END $$;
 
 -- =====================================================
 -- Step 4: Clean up related data
 -- =====================================================
 
--- Delete CPD activities linked to deleted documents
-DELETE FROM cpd_activities
-WHERE knowledge_document_id IS NOT NULL
-  AND knowledge_document_id NOT IN (SELECT id FROM knowledge_documents);
-
-RAISE NOTICE '✅ Cleaned up orphaned CPD activities';
-
--- Delete CPD recommendations linked to deleted resources
-DELETE FROM cpd_recommendations
-WHERE 
-  (linked_knowledge_doc_id IS NOT NULL 
-   AND linked_knowledge_doc_id NOT IN (SELECT id FROM knowledge_documents))
-  OR
-  (linked_external_resource_id IS NOT NULL 
-   AND linked_external_resource_id NOT IN (SELECT id FROM cpd_external_resources));
-
-RAISE NOTICE '✅ Cleaned up orphaned CPD recommendations';
+DO $$ 
+DECLARE
+  v_activities_deleted INTEGER;
+  v_recommendations_deleted INTEGER;
+BEGIN
+  -- Delete CPD activities linked to deleted documents
+  DELETE FROM cpd_activities
+  WHERE knowledge_document_id IS NOT NULL
+    AND knowledge_document_id NOT IN (SELECT id FROM knowledge_documents);
+  
+  GET DIAGNOSTICS v_activities_deleted = ROW_COUNT;
+  RAISE NOTICE '✅ Cleaned up % orphaned CPD activities', v_activities_deleted;
+  
+  -- Delete CPD recommendations linked to deleted resources
+  DELETE FROM cpd_recommendations
+  WHERE 
+    (linked_knowledge_doc_id IS NOT NULL 
+     AND linked_knowledge_doc_id NOT IN (SELECT id FROM knowledge_documents))
+    OR
+    (linked_external_resource_id IS NOT NULL 
+     AND linked_external_resource_id NOT IN (SELECT id FROM cpd_external_resources));
+  
+  GET DIAGNOSTICS v_recommendations_deleted = ROW_COUNT;
+  RAISE NOTICE '✅ Cleaned up % orphaned CPD recommendations', v_recommendations_deleted;
+END $$;
 
 -- =====================================================
 -- Step 5: Verify what remains
