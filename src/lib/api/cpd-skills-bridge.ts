@@ -447,16 +447,16 @@ export async function getMemberROIData(memberId: string): Promise<ROIDashboardDa
       .from('cpd_roi_dashboard')
       .select('*')
       .eq('member_id', memberId)
-      .single();
+      .maybeSingle();
 
     if (error) {
-      console.error('Error fetching member ROI data:', error);
+      console.error('[CPD ROI] Error fetching member ROI data:', error);
       return null;
     }
 
     return data as any;
   } catch (error) {
-    console.error('Error fetching member ROI data:', error);
+    console.error('[CPD ROI] Error fetching member ROI data:', error);
     return null;
   }
 }
