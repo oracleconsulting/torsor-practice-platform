@@ -27,6 +27,8 @@ export interface PerplexityResponse {
 export interface KnowledgeDocumentDiscovery {
   title: string;
   summary: string;
+  contentType: 'article' | 'webinar' | 'video' | 'podcast' | 'case_study';
+  durationMinutes: number;
   sourceUrl: string;
   keyTakeaways: string[];
   relevanceScore: number; // 0-100
@@ -149,20 +151,32 @@ Focus on:
 - Industry best practices
 - Recent updates and changes
 - Practical guides and case studies
+- **PRIORITY: Short-form content (15-60 minutes) - articles, webinars, videos**
+
+Content Type Preferences (in order):
+1. Articles (15-30 min read) - blog posts, guides, technical articles
+2. Webinars (30-60 min watch) - recorded sessions, online seminars
+3. Videos (15-45 min watch) - explainer videos, tutorials
+4. Podcasts (30-60 min listen) - interviews, discussions
+5. Case studies (20-40 min read) - real-world examples
 
 For each resource, provide:
 1. Title (clear, professional)
 2. Summary (150-200 words, UK-focused)
-3. Source URL (must be a real, accessible URL)
-4. Key takeaways (3-5 bullet points)
-5. Relevance score (0-100, how relevant to the skill)
-6. Tags (5-7 keywords)
-7. Skill categories (which accounting skill categories this covers)
+3. Content Type (MUST be one of: "article", "webinar", "video", "podcast", "case_study")
+4. Duration in minutes (estimated time to complete - focus on 15-60 min range)
+5. Source URL (must be a real, accessible URL)
+6. Key takeaways (3-5 bullet points)
+7. Relevance score (0-100, how relevant to the skill)
+8. Tags (5-7 keywords)
+9. Skill categories (which accounting skill categories this covers)
 
 Respond with a JSON array of objects with these exact keys:
 {
   "title": string,
   "summary": string,
+  "contentType": "article" | "webinar" | "video" | "podcast" | "case_study",
+  "durationMinutes": number,
   "sourceUrl": string,
   "keyTakeaways": string[],
   "relevanceScore": number,

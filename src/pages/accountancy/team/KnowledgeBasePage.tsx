@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, FileText, Search, Plus, Tag, Clock, Eye, Loader2, AlertCircle,
   Video, Newspaper, Globe, GraduationCap, BookMarked, Users, Star, ExternalLink,
-  TrendingUp, Target, Award, ArrowLeft
+  TrendingUp, Target, Award, ArrowLeft, CheckCircle
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useNavigate } from 'react-router-dom';
 import { useAccountancyContext } from '@/contexts/AccountancyContext';
+import { supabase } from '@/lib/supabase/client';
 import { 
   getKnowledgeDocuments, 
   createKnowledgeDocument,
@@ -92,6 +93,7 @@ const KnowledgeBasePage: React.FC = () => {
   });
 
   const [activeTab, setActiveTab] = useState('all');
+  const [toast, setToast] = useState<{ title: string; description: string; variant?: 'default' | 'destructive' } | null>(null);
 
   const skillCategories = [
     'technical-accounting-audit',
@@ -180,6 +182,50 @@ const KnowledgeBasePage: React.FC = () => {
     } catch (err) {
       console.error('Error creating document:', err);
       setError('Failed to upload document. Please try again.');
+    }
+  };
+
+  const handleMarkComplete = async (doc: KnowledgeDocument) => {
+    if (!practiceMember?.id || !doc.duration_minutes) return;
+
+    try {
+      // Create CPD activity for this completed resource
+      const activity = {
+        member_id: practiceMember.id,
+        date_completed: new Date().toISOString().split('T')[0],
+        activity_type: 'determined', // Learning resource
+        hours: doc.duration_minutes / 60, // Convert minutes to hours
+        description: `Completed: ${doc.title}`,
+        notes: doc.summary,
+        knowledge_document_id: doc.id,
+        skill_categories: doc.skill_categories || [],
+        verified: true
+      };
+
+      const { data, error } = await supabase
+        .from('cpd_activities')
+        .insert(activity);
+
+      if (error) throw error;
+
+      // Show success message
+      setToast({
+        title: '✅ Marked as Complete!',
+        description: `Added ${doc.duration_minutes} minutes (${(doc.duration_minutes / 60).toFixed(2)} hours) to your CPD record.`
+      });
+
+      // Clear toast after 3 seconds
+      setTimeout(() => setToast(null), 3000);
+
+      console.log('[KnowledgeBase] CPD activity created:', data);
+    } catch (err: any) {
+      console.error('Error marking complete:', err);
+      setToast({
+        title: 'Error',
+        description: 'Failed to record CPD activity. Please try again.',
+        variant: 'destructive'
+      });
+      setTimeout(() => setToast(null), 3000);
     }
   };
 
@@ -688,6 +734,23 @@ const KnowledgeBasePage: React.FC = () => {
                         <CardDescription className="line-clamp-2">{doc.summary}</CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-3">
+                        {/* Content Type and Duration Badge */}
+                        {(doc.content_type || doc.duration_minutes) && (
+                          <div className="flex flex-wrap gap-2">
+                            {doc.content_type && (
+                              <Badge variant="secondary" className="capitalize">
+                                {doc.content_type.replace('_', ' ')}
+                              </Badge>
+                            )}
+                            {doc.duration_minutes && (
+                              <Badge variant="outline" className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {doc.duration_minutes} min
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+
                         {/* Tags */}
                         {doc.tags && doc.tags.length > 0 && (
                           <div className="flex flex-wrap gap-1">
@@ -721,13 +784,40 @@ const KnowledgeBasePage: React.FC = () => {
                           By {doc.uploader?.name || 'AI Discovery'}
                         </p>
 
-                        {/* Link indicator */}
-                        {doc.file_path && (
-                          <div className="flex items-center gap-1 text-xs text-blue-600">
-                            <ExternalLink className="h-3 w-3" />
-                            Click to view resource
-                          </div>
-                        )}
+                        {/* Action Buttons */}
+                        <div className="flex gap-2">
+                          {/* View Resource Button */}
+                          {doc.file_path && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 flex items-center gap-1 text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(doc.file_path, '_blank');
+                              }}
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              View Resource
+                            </Button>
+                          )}
+                          
+                          {/* Mark Complete Button */}
+                          {practiceMember?.id && doc.duration_minutes && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="flex-1 flex items-center gap-1 text-xs"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                await handleMarkComplete(doc);
+                              }}
+                            >
+                              <CheckCircle className="h-3 w-3" />
+                              Mark Complete
+                            </Button>
+                          )}
+                        </div>
 
                         {/* Linked CPD Activity */}
                         {doc.cpd_activity_id && (
@@ -1238,6 +1328,16 @@ const KnowledgeBasePage: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-5">
+          <Alert variant={toast.variant || 'default'} className="shadow-lg">
+            <AlertTitle>{toast.title}</AlertTitle>
+            <AlertDescription>{toast.description}</AlertDescription>
+          </Alert>
+        </div>
+      )}
     </div>
   );
 };

@@ -70,18 +70,16 @@ export async function discoverResourcesForSkill(
     // Insert knowledge documents
     for (const doc of knowledgeDocs) {
       try {
-        // Determine document type based on content
-        let documentType = 'guide';
-        const titleLower = doc.title.toLowerCase();
-        if (titleLower.includes('case study') || titleLower.includes('example')) {
-          documentType = 'case_study';
-        } else if (titleLower.includes('template') || titleLower.includes('framework')) {
-          documentType = 'template';
-        } else if (titleLower.includes('best practice') || titleLower.includes('guidance')) {
-          documentType = 'guide';
-        } else if (titleLower.includes('update') || titleLower.includes('news')) {
-          documentType = 'notes';
-        }
+        // Map content type to document_type (keeping backwards compatibility)
+        const contentTypeMap: Record<string, string> = {
+          'article': 'guide',
+          'webinar': 'other',
+          'video': 'other',
+          'podcast': 'other',
+          'case_study': 'case_study'
+        };
+        
+        const documentType = contentTypeMap[doc.contentType] || 'guide';
 
         const { error } = await (supabase
           .from('knowledge_documents') as any)
@@ -90,7 +88,9 @@ export async function discoverResourcesForSkill(
             title: doc.title,
             summary: doc.summary,
             document_type: documentType,
-            file_name: `${skillName.toLowerCase().replace(/\s+/g, '-')}-${documentType}.md`,
+            content_type: doc.contentType, // New field for proper categorization
+            duration_minutes: doc.durationMinutes, // New field for time tracking
+            file_name: `${skillName.toLowerCase().replace(/\s+/g, '-')}-${doc.contentType}.md`,
             file_path: doc.sourceUrl, // Store source URL in file_path
             tags: doc.tags,
             skill_categories: doc.skillCategories.length > 0 ? doc.skillCategories : [skillCategory],
