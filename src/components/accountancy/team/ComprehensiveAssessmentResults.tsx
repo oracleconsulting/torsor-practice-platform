@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/lib/supabase/client';
 import { generateProfessionalProfile, getCurrentProfile } from '@/lib/services/llm-service';
+import { generateAssessmentSynthesis } from '@/lib/api/advanced-analysis';
 import {
   getWorkingPreferenceDescriptor,
   getBelbinDescriptor,
@@ -56,7 +57,9 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
   const [assessmentData, setAssessmentData] = useState<any>({});
   const [aiProfile, setAIProfile] = useState<any>(null);
   const [generatingProfile, setGeneratingProfile] = useState(false);
-  const [hasAttemptedGeneration, setHasAttemptedGeneration] = useState(false); // NEW: Track if we've already tried to generate
+  const [synthesisReport, setSynthesisReport] = useState<string | null>(null);
+  const [generatingSynthesis, setGeneratingSynthesis] = useState(false);
+  const [hasAttemptedGeneration, setHasAttemptedGeneration] = useState(false); // Track if we've already tried to generate
   const { toast } = useToast();
 
   const practiceId = 'a1b2c3d4-5678-90ab-cdef-123456789abc'; // RPGCC practice ID
@@ -66,33 +69,26 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
     loadAIProfile();
   }, [practiceMemberId]);
 
-  // Auto-generate profile when all assessments are complete
-  useEffect(() => {
-    const checkAndGenerateProfile = async () => {
-      // Only proceed if we have all assessments and no existing profile
-      if (!assessmentData.workingPreferences || !assessmentData.belbin || 
-          !assessmentData.motivational || !assessmentData.eq || !assessmentData.conflict) {
-        return;
-      }
-
-      // If profile already exists, don't regenerate
-      if (aiProfile) {
-        return;
-      }
-
-      // If we're already generating or have already attempted, don't try again
-      if (generatingProfile || hasAttemptedGeneration) {
-        return;
-      }
-
-      // Profile doesn't exist, generate it automatically
-      console.log('[ComprehensiveResults] Auto-generating profile...');
-      setHasAttemptedGeneration(true); // Mark that we're attempting generation
-      await handleGenerateProfile();
-    };
-
-    checkAndGenerateProfile();
-  }, [assessmentData, aiProfile, generatingProfile, hasAttemptedGeneration]);
+  // DISABLED: Auto-generation removed - profiles must be manually triggered
+  // This prevents regeneration every time the page is visited
+  // useEffect(() => {
+  //   const checkAndGenerateProfile = async () => {
+  //     if (!assessmentData.workingPreferences || !assessmentData.belbin || 
+  //         !assessmentData.motivational || !assessmentData.eq || !assessmentData.conflict) {
+  //       return;
+  //     }
+  //     if (aiProfile) {
+  //       return;
+  //     }
+  //     if (generatingProfile || hasAttemptedGeneration) {
+  //       return;
+  //     }
+  //     console.log('[ComprehensiveResults] Auto-generating profile...');
+  //     setHasAttemptedGeneration(true);
+  //     await handleGenerateProfile();
+  //   };
+  //   checkAndGenerateProfile();
+  // }, [assessmentData, aiProfile, generatingProfile, hasAttemptedGeneration]);
 
   const loadAIProfile = async () => {
     const profile = await getCurrentProfile(practiceMemberId);
@@ -141,6 +137,28 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
       });
     } finally {
       setGeneratingProfile(false);
+    }
+  };
+
+  const handleGenerateSynthesis = async () => {
+    setGeneratingSynthesis(true);
+    try {
+      const result = await generateAssessmentSynthesis(practiceMemberId, practiceId);
+      
+      setSynthesisReport(result.synthesis);
+      toast({
+        title: 'Assessment Synthesis Complete!',
+        description: 'Your holistic profile has been generated.',
+      });
+    } catch (error: any) {
+      console.error('[ComprehensiveResults] Error generating synthesis:', error);
+      toast({
+        title: 'Synthesis Failed',
+        description: error.message || 'Failed to generate synthesis. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setGeneratingSynthesis(false);
     }
   };
 
@@ -409,17 +427,91 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
             </CardContent>
         </Card>
         ) : (
-          // No profile yet and not generating - show message
-          <Card className="border-2 border-gray-200 bg-gray-50">
+          // No profile yet - show generation button
+          <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-blue-50">
+            <CardHeader>
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <Sparkles className="w-6 h-6 text-purple-600" />
+                Your Professional Profile
+              </CardTitle>
+              <CardDescription>
+                Generate an AI-powered comprehensive profile based on your assessments
+              </CardDescription>
+            </CardHeader>
             <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
-              <Sparkles className="w-16 h-16 text-gray-400" />
+              <Brain className="w-16 h-16 text-purple-400" />
               <div className="text-center space-y-2">
-                <p className="text-lg font-medium text-gray-900">Profile Generation Starting...</p>
-                <p className="text-sm text-gray-600">Your profile will appear here once generated.</p>
+                <p className="text-lg font-medium text-gray-900">Ready to Generate Your Profile</p>
+                <p className="text-sm text-gray-600">Click the button below to create your personalized professional fingerprint</p>
               </div>
+              <Button
+                onClick={handleGenerateProfile}
+                size="lg"
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                <Sparkles className="w-5 h-5 mr-2" />
+                Generate Profile Now
+              </Button>
             </CardContent>
           </Card>
         )
+      )}
+
+      {/* Assessment Synthesis - NEW Phase 2 Feature */}
+      {completedCount === totalCount && (
+        <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50">
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  <Brain className="w-6 h-6 text-blue-600" />
+                  Holistic Assessment Synthesis
+                </CardTitle>
+                <CardDescription>
+                  AI-powered insights connecting patterns across all your assessments
+                </CardDescription>
+              </div>
+              <Button
+                onClick={handleGenerateSynthesis}
+                disabled={generatingSynthesis}
+                variant="outline"
+                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+              >
+                {generatingSynthesis ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-4 h-4 mr-2" />
+                    {synthesisReport ? 'Regenerate Synthesis' : 'Generate Synthesis'}
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardHeader>
+          {generatingSynthesis ? (
+            <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
+              <Loader2 className="w-16 h-16 text-blue-600 animate-spin" />
+              <div className="text-center space-y-2">
+                <p className="text-lg font-medium text-blue-900">Analyzing Your Assessment Data</p>
+                <p className="text-sm text-gray-600">Identifying patterns and connections across all dimensions...</p>
+                <p className="text-xs text-gray-500">This may take 15-30 seconds</p>
+              </div>
+            </CardContent>
+          ) : synthesisReport ? (
+            <CardContent className="space-y-6">
+              <div className="prose prose-sm max-w-none">
+                <div className="whitespace-pre-wrap text-gray-800 leading-relaxed">{synthesisReport}</div>
+              </div>
+            </CardContent>
+          ) : (
+            <CardContent className="flex flex-col items-center justify-center py-8 space-y-2">
+              <p className="text-sm text-gray-600">Click "Generate Synthesis" to create holistic insights from your assessments</p>
+            </CardContent>
+          )}
+        </Card>
       )}
 
       <Tabs defaultValue="overview" className="w-full">
