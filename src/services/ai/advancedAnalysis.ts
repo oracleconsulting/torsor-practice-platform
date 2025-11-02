@@ -348,18 +348,22 @@ export async function generateServiceLineDeployment(practiceId: string) {
  */
 export async function generateTrainingNarrative(memberId: string, practiceId: string) {
   // Fetch member data
-  const { data: member } = await supabase
+  const { data: member, error: memberError } = await supabase
     .from('practice_members')
     .select(`
-      *,
+      id,
+      name,
+      role,
+      years_experience,
       skill_assessments (skill_name, current_level, target_level),
       learning_preferences (primary_style),
       cpd_activities (activity_type, hours, completed_at)
     `)
     .eq('id', memberId)
-    .single();
+    .maybeSingle();
   
-  if (!member) {
+  if (memberError || !member) {
+    console.error('[TrainingNarrative] Member fetch error:', memberError);
     throw new Error('Member not found');
   }
   
@@ -426,10 +430,12 @@ export async function generateTrainingNarrative(memberId: string, practiceId: st
  */
 export async function generateAssessmentSynthesis(memberId: string, practiceId: string) {
   // Fetch all assessment data for member
-  const { data: member } = await supabase
+  const { data: member, error: memberError } = await supabase
     .from('practice_members')
     .select(`
-      *,
+      id,
+      name,
+      role,
       learning_preferences (*),
       personality_assessments (*),
       working_preferences (*),
@@ -440,9 +446,10 @@ export async function generateAssessmentSynthesis(memberId: string, practiceId: 
       service_line_interests (*)
     `)
     .eq('id', memberId)
-    .single();
+    .maybeSingle();
   
-  if (!member) {
+  if (memberError || !member) {
+    console.error('[AssessmentSynthesis] Member fetch error:', memberError);
     throw new Error('Member not found');
   }
   
