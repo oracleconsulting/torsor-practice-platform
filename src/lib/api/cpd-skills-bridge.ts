@@ -333,19 +333,20 @@ export async function autoGenerateCPDRecommendations(memberId: string): Promise<
     console.log('[CPD] Auto-generating recommendations for member:', memberId);
 
     // Get all skill assessments for this member with skill details
+    // Note: target_level doesn't exist in schema, we'll calculate it as 4 (Proficient) or use required_level from skills
     const { data: assessments, error: assessError } = await supabase
       .from('skill_assessments')
       .select(`
         id,
         skill_id,
         current_level,
-        target_level,
         interest_level,
         skill:skills (
           id,
           name,
           category,
-          description
+          description,
+          required_level
         )
       `)
       .eq('team_member_id', memberId);
@@ -365,7 +366,7 @@ export async function autoGenerateCPDRecommendations(memberId: string): Promise<
     console.log(`[CPD] Found ${assessments.length} skill assessments`);
 
     // Identify skills that need improvement (level < 4)
-    // Target level is 4 (Proficient) for most skills
+    // Target level is skill's required_level or 4 (Proficient) as default
     const skillGaps = assessments
       .filter(assessment => {
         const currentLevel = (assessment as any).current_level || 0;
@@ -373,9 +374,9 @@ export async function autoGenerateCPDRecommendations(memberId: string): Promise<
       })
       .map(assessment => {
         const ass = assessment as any;
-        const skill = ass.skill; // Changed from ass.skills to ass.skill
+        const skill = ass.skill;
         const currentLevel = ass.current_level || 0;
-        const targetLevel = ass.target_level || 4; // Use actual target or default to 4
+        const targetLevel = skill?.required_level || 4; // Use skill's required level or default to 4
         const gap = targetLevel - currentLevel;
         
         // Determine business impact based on skill level gap

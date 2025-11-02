@@ -14,6 +14,7 @@ import { useAccountancyContext } from '@/contexts/AccountancyContext';
 import { supabase } from '@/lib/supabase/client';
 import { generateTrainingNarrative } from '@/lib/api/advanced-analysis';
 import { useToast } from '@/components/ui/use-toast';
+import ReactMarkdown from 'react-markdown';
 
 const CPDSkillsBridgePage: React.FC = () => {
   const navigate = useNavigate();
@@ -270,8 +271,8 @@ const CPDSkillsBridgePage: React.FC = () => {
                 </CardContent>
               ) : trainingNarrative ? (
                 <CardContent className="space-y-6">
-                  <div className="prose prose-sm max-w-none">
-                    <div className="whitespace-pre-wrap text-gray-800 leading-relaxed">{trainingNarrative}</div>
+                  <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-h1:text-xl prose-h1:font-bold prose-h2:text-lg prose-h2:font-semibold prose-h3:text-base prose-h3:font-semibold prose-strong:text-gray-900 prose-strong:font-semibold">
+                    <ReactMarkdown>{trainingNarrative}</ReactMarkdown>
                   </div>
                 </CardContent>
               ) : (
