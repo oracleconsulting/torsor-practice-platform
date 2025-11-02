@@ -275,18 +275,37 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
   };
 
   const handleViewRecommendation = async (rec: CPDRecommendation) => {
-    if (!rec.resource_url && rec.resource_type === 'none') {
-      toast.info('No linked resource available', {
-        description: 'This is a generic recommendation. Check the CPD Library for relevant courses.'
-      });
-      return;
-    }
-
     // Mark as viewed
     await (supabase
       .from('cpd_recommendations') as any)
       .update({ status: 'viewed', viewed_at: new Date().toISOString() })
       .eq('id', rec.id);
+
+    // Check if resource exists
+    if (!rec.resource_url && (!rec.resource_type || rec.resource_type === 'none')) {
+      const skillName = rec.skills ? (rec.skills as any).name : 'this skill';
+      const category = rec.skills ? (rec.skills as any).category : '';
+      
+      // Build search query
+      const searchQuery = `UK accounting CPD ${skillName} ${category} training course 2024`.trim();
+      const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
+      
+      toast.info('🔍 No specific resource found yet', {
+        description: `Searching for "${skillName}" training...`,
+        duration: 5000,
+        action: {
+          label: 'Search Google',
+          onClick: () => window.open(googleSearchUrl, '_blank', 'noopener,noreferrer')
+        }
+      });
+      
+      // Open search in background
+      setTimeout(() => {
+        window.open(googleSearchUrl, '_blank', 'noopener,noreferrer');
+      }, 1000);
+      
+      return;
+    }
 
     // Navigate based on resource type
     if (rec.resource_type === 'internal' && rec.linked_knowledge_doc_id) {
@@ -299,7 +318,8 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
       // Fallback: open any URL
       window.open(rec.resource_url, '_blank', 'noopener,noreferrer');
     } else {
-      toast.info('Resource link not available');
+      // Should never reach here, but just in case
+      toast.info('Resource link not configured correctly');
     }
   };
 
