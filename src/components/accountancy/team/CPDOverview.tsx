@@ -19,10 +19,19 @@ import {
   Calendar,
   ExternalLink,
   Lightbulb,
-  Sparkles
+  Sparkles,
+  Bell,
+  FileText
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { autoGenerateCPDRecommendations } from '@/lib/api/cpd-skills-bridge';
+import { 
+  getUnreadNotifications, 
+  getUnreadNotificationsCount, 
+  markNotificationsAsRead,
+  subscribeToNotifications,
+  type CPDNotification
+} from '@/lib/api/cpd-notifications';
 import { toast } from 'sonner';
 
 interface CPDActivity {
@@ -37,11 +46,17 @@ interface CPDActivity {
 
 interface CPDRecommendation {
   id: string;
+  title: string;
+  description: string;
   recommended_cpd_type: string;
   estimated_hours: number;
   priority_score: number;
   urgency: string;
   skill_id: string;
+  resource_type: 'internal' | 'external' | 'both' | 'none';
+  resource_url?: string;
+  linked_knowledge_doc_id?: string;
+  linked_external_resource_id?: string;
   skills?: {
     name: string;
     category: string;
@@ -78,11 +93,34 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
   });
   const [activities, setActivities] = useState<CPDActivity[]>([]);
   const [recommendations, setRecommendations] = useState<CPDRecommendation[]>([]);
+  const [notifications, setNotifications] = useState<CPDNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [generatingRecommendations, setGeneratingRecommendations] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     loadCPDData();
+    loadNotifications();
+    
+    // Auto-generate recommendations on first load if none exist
+    checkAndGenerateRecommendations();
+
+    // Subscribe to real-time notifications
+    const subscription = subscribeToNotifications(memberId, (notification) => {
+      setNotifications(prev => [notification, ...prev]);
+      setUnreadCount(prev => prev + 1);
+      toast.info(notification.title, {
+        description: notification.message,
+        action: {
+          label: 'View',
+          onClick: () => setShowNotifications(true)
+        }
+      });
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [memberId, practiceId]);
 
   const loadCPDData = async () => {
@@ -165,11 +203,17 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
         .from('cpd_recommendations')
         .select(`
           id,
+          title,
+          description,
           recommended_cpd_type,
           estimated_hours,
           priority_score,
           urgency,
           skill_id,
+          resource_type,
+          resource_url,
+          linked_knowledge_doc_id,
+          linked_external_resource_id,
           skills:skill_id (
             name,
             category
@@ -187,30 +231,95 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
     }
   };
 
-  const handleGenerateRecommendations = async () => {
-    setGeneratingRecommendations(true);
+  const loadNotifications = async () => {
     try {
-      console.log('[CPD Overview] Generating recommendations for member:', memberId);
-      const success = await autoGenerateCPDRecommendations(memberId);
+      const [notifs, count] = await Promise.all([
+        getUnreadNotifications(memberId),
+        getUnreadNotificationsCount(memberId)
+      ]);
       
-      if (success) {
-        toast.success('Recommendations generated successfully!');
-        // Reload recommendations
-        await loadCPDRecommendations();
-      } else {
-        toast.error('❌ No Skills Assessment Found', {
-          description: 'Please complete your Skills Assessment first to generate personalized CPD recommendations.',
-          action: {
-            label: 'Go to Skills Assessment',
-            onClick: () => navigate('/team-member/assessments')
-          },
-        });
+      setNotifications(notifs);
+      setUnreadCount(count);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  };
+
+  const checkAndGenerateRecommendations = async () => {
+    try {
+      // Check if recommendations already exist
+      const { data, error } = await supabase
+        .from('cpd_recommendations')
+        .select('id')
+        .eq('member_id', memberId)
+        .limit(1);
+
+      if (error) {
+        console.error('Error checking recommendations:', error);
+        return;
+      }
+
+      // If no recommendations exist, auto-generate them
+      if (!data || data.length === 0) {
+        console.log('[CPD] No recommendations found, auto-generating...');
+        const success = await autoGenerateCPDRecommendations(memberId);
+        
+        if (success) {
+          console.log('[CPD] Auto-generated recommendations successfully');
+          await loadCPDRecommendations();
+        }
       }
     } catch (error) {
-      console.error('Error generating recommendations:', error);
-      toast.error('Failed to generate recommendations');
-    } finally {
-      setGeneratingRecommendations(false);
+      console.error('Error auto-generating recommendations:', error);
+    }
+  };
+
+  const handleViewRecommendation = async (rec: CPDRecommendation) => {
+    if (!rec.resource_url && rec.resource_type === 'none') {
+      toast.info('No linked resource available', {
+        description: 'This is a generic recommendation. Check the CPD Library for relevant courses.'
+      });
+      return;
+    }
+
+    // Mark as viewed
+    await (supabase
+      .from('cpd_recommendations') as any)
+      .update({ status: 'viewed', viewed_at: new Date().toISOString() })
+      .eq('id', rec.id);
+
+    // Navigate based on resource type
+    if (rec.resource_type === 'internal' && rec.linked_knowledge_doc_id) {
+      // Navigate to knowledge document
+      navigate(`/team-member/cpd/knowledge/${rec.linked_knowledge_doc_id}`);
+    } else if (rec.resource_type === 'external' && rec.resource_url) {
+      // Open external link in new tab
+      window.open(rec.resource_url, '_blank', 'noopener,noreferrer');
+    } else if (rec.resource_url) {
+      // Fallback: open any URL
+      window.open(rec.resource_url, '_blank', 'noopener,noreferrer');
+    } else {
+      toast.info('Resource link not available');
+    }
+  };
+
+  const handleNotificationClick = async (notification: CPDNotification) => {
+    // Mark as read
+    await markNotificationsAsRead(memberId, [notification.id]);
+    setUnreadCount(prev => Math.max(0, prev - 1));
+    setNotifications(prev => 
+      prev.map(n => n.id === notification.id ? { ...n, is_read: true } : n)
+    );
+
+    // Navigate based on notification type
+    if (notification.notification_type === 'new_knowledge_document' && notification.knowledge_document_id) {
+      navigate(`/team-member/cpd/knowledge/${notification.knowledge_document_id}`);
+    } else if (notification.notification_type === 'new_external_resource' && notification.external_resource_url) {
+      window.open(notification.external_resource_url, '_blank', 'noopener,noreferrer');
+    } else if (notification.notification_type === 'recommendations_updated') {
+      // Reload recommendations
+      await loadCPDRecommendations();
+      toast.success('Recommendations refreshed!');
     }
   };
 
@@ -453,6 +562,65 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
         </CardContent>
       </Card>
 
+      {/* Notifications Banner */}
+      {unreadCount > 0 && (
+        <Card className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 border-purple-500">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Bell className="w-5 h-5 text-purple-300 animate-pulse" />
+                <div>
+                  <h4 className="text-white font-semibold">
+                    {unreadCount} New CPD Update{unreadCount > 1 ? 's' : ''}
+                  </h4>
+                  <p className="text-sm text-gray-300">
+                    New learning resources and recommendations available
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="border-purple-500 text-purple-300 hover:bg-purple-500/20"
+              >
+                {showNotifications ? 'Hide' : 'View All'}
+              </Button>
+            </div>
+
+            {showNotifications && (
+              <div className="mt-4 space-y-2 max-h-96 overflow-y-auto">
+                {notifications.map((notif) => (
+                  <Card 
+                    key={notif.id}
+                    className={`bg-gray-800 border-gray-700 hover:border-purple-500 transition-colors cursor-pointer ${
+                      !notif.is_read ? 'border-purple-500/50' : ''
+                    }`}
+                    onClick={() => handleNotificationClick(notif)}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-start gap-2">
+                        <FileText className="w-4 h-4 text-purple-400 mt-1 flex-shrink-0" />
+                        <div className="flex-1">
+                          <h5 className="text-white font-medium text-sm">{notif.title}</h5>
+                          <p className="text-xs text-gray-400 mt-1">{notif.message}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(notif.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                        {!notif.is_read && (
+                          <div className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0 mt-2"></div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Recommended CPD */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader className="bg-gray-800">
@@ -463,28 +631,13 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
                 Recommended CPD Activities
               </CardTitle>
               <CardDescription className="text-gray-300 font-medium">
-                Personalized recommendations based on your skill gaps and development goals
+                Automatically generated based on your skill gaps • Updates when new content is added
               </CardDescription>
             </div>
-            {recommendations.length === 0 && (
-              <Button
-                onClick={handleGenerateRecommendations}
-                disabled={generatingRecommendations}
-                size="sm"
-                className="bg-purple-600 hover:bg-purple-700 text-white"
-              >
-                {generatingRecommendations ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Generate Recommendations
-                  </>
-                )}
-              </Button>
+            {recommendations.length > 0 && (
+              <Badge className="bg-purple-600 text-white">
+                {recommendations.length} Active
+              </Badge>
             )}
           </div>
         </CardHeader>
@@ -492,8 +645,8 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
           {recommendations.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
               <Award className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p className="font-semibold text-lg">No recommendations available yet</p>
-              <p className="text-sm mt-1">Complete your <strong>Skills Assessment</strong> first, then click "Generate Recommendations"!</p>
+              <p className="font-semibold text-lg">Generating recommendations...</p>
+              <p className="text-sm mt-1">Complete your <strong>Skills Assessment</strong> first, then recommendations will be generated automatically!</p>
               <Button
                 variant="outline"
                 size="sm"
@@ -508,7 +661,7 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
               {recommendations.map((rec) => (
                 <Card key={rec.id} className="bg-gray-800 border-gray-700 hover:border-purple-500 transition-colors">
                   <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <Badge 
@@ -517,12 +670,25 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
                           >
                             {rec.urgency?.toUpperCase()}
                           </Badge>
-                          <h4 className="font-semibold text-white">
-                            {rec.recommended_cpd_type}
-                          </h4>
+                          {rec.resource_type !== 'none' && (
+                            <Badge className="bg-green-600 text-white">
+                              <Sparkles className="w-3 h-3 mr-1" />
+                              Resource Available
+                            </Badge>
+                          )}
                         </div>
                         
-                        <div className="flex items-center gap-3 text-sm text-gray-300 mb-2">
+                        <h4 className="font-semibold text-white text-lg mb-1">
+                          {rec.title || rec.recommended_cpd_type}
+                        </h4>
+
+                        {rec.description && (
+                          <p className="text-sm text-gray-300 mb-2">
+                            {rec.description}
+                          </p>
+                        )}
+                        
+                        <div className="flex items-center gap-3 text-sm text-gray-300">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             ~{rec.estimated_hours}h
@@ -547,11 +713,16 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
                       
                       <Button
                         size="sm"
-                        variant="outline"
-                        className="text-purple-300 border-purple-500 hover:bg-purple-500/20"
+                        onClick={() => handleViewRecommendation(rec)}
+                        className={
+                          rec.resource_type === 'none'
+                            ? 'bg-gray-600 hover:bg-gray-700 text-white'
+                            : 'bg-purple-600 hover:bg-purple-700 text-white'
+                        }
                       >
-                        <ExternalLink className="w-3 h-3 mr-1" />
-                        View
+                        {rec.resource_type === 'internal' && <FileText className="w-3 h-3 mr-1" />}
+                        {rec.resource_type === 'external' && <ExternalLink className="w-3 h-3 mr-1" />}
+                        {rec.resource_type === 'none' ? 'Info' : 'View Resource'}
                       </Button>
                     </div>
                   </CardContent>

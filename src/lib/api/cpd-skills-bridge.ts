@@ -260,7 +260,35 @@ export async function getCPDRecommendations(memberId: string): Promise<CPDRecomm
 }
 
 /**
+ * Match resources to a skill using the database function
+ */
+async function matchResourcesToSkill(
+  skillId: string,
+  skillCategory: string,
+  skillName: string
+): Promise<any[]> {
+  try {
+    const { data, error } = await (supabase.rpc as any)('match_resources_to_skill', {
+      p_skill_id: skillId,
+      p_skill_category: skillCategory,
+      p_skill_name: skillName
+    });
+
+    if (error) {
+      console.error('[CPD] Error matching resources:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('[CPD] Error matching resources:', error);
+    return [];
+  }
+}
+
+/**
  * Generate CPD recommendations based on skill gaps
+ * Now with automatic resource linking!
  */
 export async function generateCPDRecommendations(
   memberId: string,
@@ -275,6 +303,8 @@ export async function generateCPDRecommendations(
   }>
 ): Promise<boolean> {
   try {
+    console.log(`[CPD] Generating recommendations for ${skillGaps.length} skill gaps`);
+    
     // First, delete existing recommendations for this member
     const { error: deleteError } = await supabase
       .from('cpd_recommendations')
@@ -286,12 +316,51 @@ export async function generateCPDRecommendations(
       // Continue anyway - might be first time generating
     }
 
-    const recommendations = skillGaps.map(gap => {
+    // Generate recommendations with resource matching
+    const recommendations = [];
+    
+    for (const gap of skillGaps) {
       const skillGap = gap.targetLevel - gap.currentLevel;
       const skillName = gap.skillName || 'Unknown Skill';
       const category = gap.category || 'General';
       
-      return {
+      // Match resources to this skill
+      const matchedResources = await matchResourcesToSkill(
+        gap.skillId,
+        category,
+        skillName
+      );
+
+      console.log(`[CPD] Found ${matchedResources.length} resources for skill: ${skillName}`);
+
+      // Get best matching resource (highest score)
+      const bestMatch = matchedResources.length > 0 ? matchedResources[0] : null;
+      
+      // Determine resource type and IDs
+      let linkedKnowledgeDocId = null;
+      let linkedExternalResourceId = null;
+      let resourceType = 'none';
+      let resourceUrl = null;
+      let title = suggestCPDTypeForSkill(skillName, category, skillGap);
+      let description = `Develop your ${skillName} skills from level ${gap.currentLevel} to ${gap.targetLevel}`;
+      
+      if (bestMatch) {
+        if (bestMatch.resource_type === 'internal') {
+          linkedKnowledgeDocId = bestMatch.resource_id;
+          resourceType = 'internal';
+          resourceUrl = bestMatch.resource_url;
+          title = bestMatch.resource_title;
+          description = `Internal resource: ${bestMatch.resource_title}`;
+        } else if (bestMatch.resource_type === 'external') {
+          linkedExternalResourceId = bestMatch.resource_id;
+          resourceType = 'external';
+          resourceUrl = bestMatch.resource_url;
+          title = bestMatch.resource_title;
+          description = `External course: ${bestMatch.resource_title}`;
+        }
+      }
+      
+      recommendations.push({
         member_id: memberId,
         skill_id: gap.skillId,
         current_skill_level: gap.currentLevel,
@@ -299,13 +368,22 @@ export async function generateCPDRecommendations(
         interest_level: gap.interestLevel,
         business_impact: gap.businessImpact,
         recommended_cpd_type: suggestCPDTypeForSkill(skillName, category, skillGap),
-        estimated_hours: estimateHours(skillGap),
-        estimated_cost: estimateCost(skillGap),
+        estimated_hours: bestMatch?.resource_hours || estimateHours(skillGap),
+        estimated_cost: bestMatch?.resource_cost || estimateCost(skillGap),
         expected_improvement: Math.min(gap.targetLevel - gap.currentLevel, 2), // Max 2 levels per activity
         priority_score: calculatePriorityScore(gap),
-        urgency: determineUrgency(gap.businessImpact)
-      };
-    });
+        urgency: determineUrgency(gap.businessImpact),
+        // NEW: Link to actual resources
+        linked_knowledge_doc_id: linkedKnowledgeDocId,
+        linked_external_resource_id: linkedExternalResourceId,
+        resource_type: resourceType,
+        resource_url: resourceUrl,
+        title: title,
+        description: description
+      });
+    }
+
+    console.log(`[CPD] Inserting ${recommendations.length} recommendations with resource links`);
 
     // Insert new recommendations
     const { error } = await (supabase
@@ -317,6 +395,7 @@ export async function generateCPDRecommendations(
       return false;
     }
 
+    console.log(`[CPD] ✅ Successfully generated ${recommendations.length} recommendations`);
     return true;
   } catch (error) {
     console.error('Error generating CPD recommendations:', error);
@@ -439,7 +518,7 @@ export async function getROIDashboardData(practiceId?: string): Promise<ROIDashb
       // For now, return all
     }
 
-    const { data, error } = await query.order('cost_per_skill_level', { ascending: true, nullsLast: true });
+    const { data, error } = await query.order('cost_per_skill_level', { ascending: true });
 
     if (error) {
       console.error('Error fetching ROI dashboard data:', error);
@@ -581,12 +660,6 @@ export async function calculateEffectivenessScores(): Promise<boolean> {
 }
 
 // Helper functions
-
-function suggestCPDType(skillGap: number): string {
-  if (skillGap <= 1) return 'Online Course';
-  if (skillGap === 2) return 'Workshop';
-  return 'Formal Training Program';
-}
 
 /**
  * Suggest specific CPD type based on skill name, category, and gap level
