@@ -132,61 +132,82 @@ function parseAIJSON<T>(content: string): T {
 }
 
 /**
- * Discover knowledge documents for a skill
+ * Discover knowledge documents for a skill at a specific level
  */
 export async function discoverKnowledgeDocuments(
   skillName: string,
   skillCategory: string,
+  currentLevel: number = 1,
+  targetLevel: number = 2,
   count: number = 3
 ): Promise<KnowledgeDocumentDiscovery[]> {
-  console.log(`[Perplexity] Discovering knowledge documents for: ${skillName} (${skillCategory})`);
+  const levelMap: Record<number, string> = {
+    1: 'beginner',
+    2: 'developing',
+    3: 'competent',
+    4: 'proficient',
+    5: 'expert'
+  };
 
-  const systemPrompt = `You are a CPD research assistant for UK accountants. Your job is to find the latest, most relevant professional development content.
+  const skillLevelMap: Record<string, 'beginner' | 'intermediate' | 'advanced' | 'expert'> = {
+    '1-2': 'beginner',
+    '2-3': 'intermediate',
+    '3-4': 'advanced',
+    '4-5': 'expert'
+  };
 
-IMPORTANT: You must respond ONLY with valid JSON. No other text, no explanations, just the JSON array.`;
+  const currentLevelName = levelMap[currentLevel] || 'beginner';
+  const targetLevelName = levelMap[targetLevel] || 'developing';
+  const skillLevel = skillLevelMap[`${currentLevel}-${targetLevel}`] || 'intermediate';
 
-  const userPrompt = `Find ${count} high-quality, recent (2024-2025) resources for UK accountants to learn about "${skillName}" in the "${skillCategory}" category.
+  console.log(`[Perplexity] Discovering ${skillLevel} resources for: ${skillName} (Level ${currentLevel}→${targetLevel})`);
 
-Focus on:
-- UK accounting regulations (HMRC, FRS102, Companies House)
-- Professional body guidance (ICAEW, ACCA, AAT, CIMA)
-- Industry best practices
-- Recent updates and changes
-- Practical guides and case studies
-- **PRIORITY: Short-form content (15-60 minutes) - articles, webinars, videos**
+  const systemPrompt = `You are a CPD research assistant for UK accountants. Find resources at the EXACT skill level requested.
 
-Content Type Preferences (in order):
-1. Articles (15-30 min read) - blog posts, guides, technical articles
-2. Webinars (30-60 min watch) - recorded sessions, online seminars
-3. Videos (15-45 min watch) - explainer videos, tutorials
-4. Podcasts (30-60 min listen) - interviews, discussions
-5. Case studies (20-40 min read) - real-world examples
+CRITICAL: Resources must match the skill level progression. Respond ONLY with valid JSON.`;
 
-For each resource, provide:
-1. Title (clear, professional)
-2. Summary (150-200 words, UK-focused)
-3. Content Type (MUST be one of: "article", "webinar", "video", "podcast", "case_study")
-4. Duration in minutes (estimated time to complete - focus on 15-60 min range)
-5. Source URL (must be a real, accessible URL)
-6. Key takeaways (3-5 bullet points)
-7. Relevance score (0-100, how relevant to the skill)
-8. Tags (5-7 keywords)
-9. Skill categories (which accounting skill categories this covers)
+  const userPrompt = `Find ${count} ${skillLevel.toUpperCase()}-level resources for UK accountants learning "${skillName}" (${skillCategory}).
 
-Respond with a JSON array of objects with these exact keys:
+**SKILL LEVEL CONTEXT:**
+Current: ${currentLevelName} (Level ${currentLevel}/5)
+Target: ${targetLevelName} (Level ${targetLevel}/5)
+Difficulty: ${skillLevel.toUpperCase()}
+
+**Level Requirements:**
+${currentLevel === 1 ? '- BEGINNER (1→2): Fundamentals, "What is X?", assumes NO prior knowledge, introductory concepts, basic definitions' : ''}
+${currentLevel === 2 ? '- INTERMEDIATE (2→3): Practical application, "How to use X?", common scenarios, building on basics, real-world examples' : ''}
+${currentLevel === 3 ? '- ADVANCED (3→4): Complex scenarios, edge cases, optimization, "Mastering X", assumes strong foundation' : ''}
+${currentLevel === 4 ? '- EXPERT (4→5): Cutting-edge, research, thought leadership, "Future of X", mastery-level, innovation' : ''}
+
+**Content Focus:**
+- UK accounting (HMRC, FRS102, Companies House, UK GAAP)
+- Professional bodies (ICAEW, ACCA, AAT, CIMA)
+- Recent 2024-2025 content
+- **SHORT-FORM: 15-60 minutes**
+
+**Content Types:**
+1. Articles (15-30 min) - Quick reads
+2. Webinars (30-60 min) - Watch & learn
+3. Videos (15-45 min) - Visual content
+4. Podcasts (30-60 min) - Listen on-the-go
+5. Case studies (20-40 min) - Real examples
+
+Return JSON array with these EXACT keys:
 {
   "title": string,
-  "summary": string,
+  "summary": string (150-200 words, level-appropriate),
   "contentType": "article" | "webinar" | "video" | "podcast" | "case_study",
   "durationMinutes": number,
-  "sourceUrl": string,
-  "keyTakeaways": string[],
-  "relevanceScore": number,
-  "tags": string[],
+  "skillLevel": "${skillLevel}",
+  "targetSkillLevels": [${currentLevel}, ${targetLevel}],
+  "sourceUrl": string (real, accessible URL),
+  "keyTakeaways": string[] (3-5 points),
+  "relevanceScore": number (0-100),
+  "tags": string[] (5-7 keywords),
   "skillCategories": string[]
 }
 
-ONLY return the JSON array, nothing else.`;
+ONLY return the JSON array. No markdown, no explanations.`;
 
   try {
     const response = await callPerplexity(systemPrompt, userPrompt);
