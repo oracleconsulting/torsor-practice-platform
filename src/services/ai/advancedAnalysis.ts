@@ -347,6 +347,8 @@ export async function generateServiceLineDeployment(practiceId: string) {
  * Generates personalized training recommendations with narrative
  */
 export async function generateTrainingNarrative(memberId: string, practiceId: string) {
+  console.log('[TrainingNarrative] Starting with memberId:', memberId, 'practiceId:', practiceId);
+  
   // Fetch member data
   const { data: member, error: memberError } = await supabase
     .from('practice_members')
@@ -362,9 +364,16 @@ export async function generateTrainingNarrative(memberId: string, practiceId: st
     .eq('id', memberId)
     .maybeSingle();
   
+  console.log('[TrainingNarrative] Query result - member:', member ? 'found' : 'null', 'error:', memberError);
+  
   if (memberError || !member) {
-    console.error('[TrainingNarrative] Member fetch error:', memberError);
-    throw new Error('Member not found');
+    console.error('[TrainingNarrative] Member fetch failed:', {
+      memberId,
+      practiceId,
+      error: memberError,
+      hasData: !!member
+    });
+    throw new Error(`Member not found: ${memberError?.message || 'No data returned'}`);
   }
   
   // Calculate gaps

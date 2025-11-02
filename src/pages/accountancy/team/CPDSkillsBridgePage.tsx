@@ -43,17 +43,25 @@ const CPDSkillsBridgePage: React.FC = () => {
 
   const loadMemberId = async () => {
     try {
-      const { data: member } = await supabase
+      const { data: member, error } = await supabase
         .from('practice_members')
         .select('id')
         .eq('user_id', user?.id)
-        .single();
+        .maybeSingle();
+
+      if (error) {
+        console.error('[CPDSkillsBridge] Error loading member ID:', error);
+        return;
+      }
 
       if (member) {
+        console.log('[CPDSkillsBridge] Loaded member ID:', (member as any).id);
         setMemberId((member as any).id);
+      } else {
+        console.warn('[CPDSkillsBridge] No member found for user:', user?.id);
       }
     } catch (error) {
-      console.error('Error loading member ID:', error);
+      console.error('[CPDSkillsBridge] Error in loadMemberId:', error);
     }
   };
 
