@@ -25,11 +25,13 @@ import {
   GraduationCap,
   MessageSquare,
   Network,
+  Sparkles,
 } from 'lucide-react';
 import RoleManagement from '@/components/accountancy/team/RoleManagement';
 import UserManagement from '@/components/accountancy/team/UserManagement';
 import ReportingLinesManager from '@/components/accountancy/admin/ReportingLinesManager';
 import TeamAssessmentsOverview from '@/components/accountancy/team/TeamAssessmentsOverview';
+import CPDDiscoveryPanel from '@/components/accountancy/admin/CPDDiscoveryPanel';
 import {
   BarChart,
   Bar,
@@ -287,9 +289,9 @@ export default function AdminDashboardPage() {
         </p>
       </div>
 
-      {/* Tabs for Dashboard vs Role Management vs User Management vs Reporting Lines vs Assessments */}
+      {/* Tabs for Dashboard vs Role Management vs User Management vs Reporting Lines vs Assessments vs CPD Discovery */}
       <Tabs defaultValue="dashboard" className="space-y-6">
-        <TabsList className="grid w-full max-w-4xl grid-cols-5">
+        <TabsList className="grid w-full max-w-6xl grid-cols-6">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Dashboard
@@ -309,6 +311,11 @@ export default function AdminDashboardPage() {
           <TabsTrigger value="assessments" className="flex items-center gap-2">
             <Brain className="h-4 w-4" />
             Assessments
+          </TabsTrigger>
+          <TabsTrigger value="cpd-discovery" className="flex items-center gap-2 relative">
+            <Sparkles className="h-4 w-4" />
+            CPD Discovery
+            <Badge className="absolute -top-1 -right-1 bg-purple-600 text-white text-[10px] px-1">NEW</Badge>
           </TabsTrigger>
         </TabsList>
 
@@ -800,6 +807,11 @@ export default function AdminDashboardPage() {
         {/* Assessments Tab */}
         <TabsContent value="assessments">
           <TeamAssessmentsOverview practiceId="a1b2c3d4-5678-90ab-cdef-123456789abc" />
+        </TabsContent>
+
+        {/* CPD Discovery Tab */}
+        <TabsContent value="cpd-discovery">
+          <CPDDiscoveryPanel />
         </TabsContent>
       </Tabs>
     </div>
