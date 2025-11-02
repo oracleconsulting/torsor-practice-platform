@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -64,6 +65,7 @@ interface CPDOverviewProps {
 }
 
 const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<CPDStats>({
     totalRequiredHours: 0,
     determinedHours: 0,
@@ -196,7 +198,13 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
         // Reload recommendations
         await loadCPDRecommendations();
       } else {
-        toast.error('Could not generate recommendations. Please ensure your skills assessment is complete.');
+        toast.error('❌ No Skills Assessment Found', {
+          description: 'Please complete your Skills Assessment first to generate personalized CPD recommendations.',
+          action: {
+            label: 'Go to Skills Assessment',
+            onClick: () => navigate('/team-member/assessments')
+          },
+        });
       }
     } catch (error) {
       console.error('Error generating recommendations:', error);
@@ -484,8 +492,16 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
           {recommendations.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
               <Award className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>No recommendations available yet</p>
-              <p className="text-sm mt-1">Click "Generate Recommendations" to get personalized CPD suggestions!</p>
+              <p className="font-semibold text-lg">No recommendations available yet</p>
+              <p className="text-sm mt-1">Complete your <strong>Skills Assessment</strong> first, then click "Generate Recommendations"!</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                onClick={() => navigate('/team-member/assessments')}
+              >
+                Go to Skills Assessment
+              </Button>
             </div>
           ) : (
             <div className="space-y-3">

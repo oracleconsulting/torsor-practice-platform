@@ -378,14 +378,17 @@ export async function autoGenerateCPDRecommendations(memberId: string): Promise<
       data: simpleCheck
     });
 
-    if (!assessments || assessments.length === 0) {
-      console.log('[CPD] No skill assessments found for member');
-      console.log('[CPD] Possible reasons:');
-      console.log('  1. Member has no skill assessments in skill_assessments table');
-      console.log('  2. team_member_id does not match practice_members.id');
-      console.log('  3. RLS policy blocking access');
-      return false;
-    }
+      if (!assessments || assessments.length === 0) {
+        console.log('[CPD] No skill assessments found for member');
+        console.log('[CPD] Possible reasons:');
+        console.log('  1. Member has no skill assessments in skill_assessments table');
+        console.log('  2. team_member_id does not match practice_members.id');
+        console.log('  3. RLS policy blocking access');
+        console.log('');
+        console.log('[CPD] ⚠️ USER ACTION REQUIRED: Please complete a Skills Assessment first!');
+        console.log('[CPD] Navigate to: Complete Assessments > Start Skills Assessment');
+        return false;
+      }
 
     console.log(`[CPD] Found ${assessments.length} skill assessments`);
 
