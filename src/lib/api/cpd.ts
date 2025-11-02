@@ -344,6 +344,8 @@ export interface KnowledgeDocumentInput {
 }
 
 export async function getKnowledgeDocuments(practiceId?: string) {
+  console.log('[CPD] getKnowledgeDocuments called with practiceId:', practiceId);
+  
   let query = supabase
     .from('knowledge_documents')
     .select(`
@@ -366,6 +368,7 @@ export async function getKnowledgeDocuments(practiceId?: string) {
   }
 
   console.log('[CPD] Loaded knowledge documents:', data?.length || 0);
+  console.log('[CPD] First doc sample:', data?.[0]);
   return data as KnowledgeDocument[];
 }
 
