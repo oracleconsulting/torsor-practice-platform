@@ -95,10 +95,7 @@ const SkillsDashboardV2Page: React.FC = () => {
       console.log('[SkillsDashboardV2] Loaded assessments:', assessments?.length || 0);
 
       // Already in flat structure - no JSONB transformation needed
-      const allAssessments = assessments || [];
-      
-      const assessments = allAssessments;
-      const assessmentsError = invitationsError;
+      // (assessments variable already contains the data from skill_assessments query above)
 
       if (assessmentsError) {
         console.error('Error loading assessments:', assessmentsError);
@@ -107,7 +104,7 @@ const SkillsDashboardV2Page: React.FC = () => {
       console.log('Loaded categories:', categories);
       console.log('Loaded members:', members);
       console.log('Loaded assessments:', assessments);
-      console.log(`🔍 Assessment count: ${assessments?.length || 0} (should be 1776 for 16 members)`);
+      console.log(`🔍 Assessment count: ${assessments?.length || 0}`);
       
       if (assessments && assessments.length === 1000) {
         console.error('⚠️ WARNING: Exactly 1000 assessments loaded - limit is still active!');
