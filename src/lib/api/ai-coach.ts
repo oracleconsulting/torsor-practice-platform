@@ -89,6 +89,7 @@ export async function savePreferences(
 
 /**
  * Generate skill improvement plan using template
+ * Now reads from ai_prompts table via prompt_key: 'skill_improvement_plan'
  */
 export async function generateSkillImprovementPlan(
   memberId: string,
@@ -97,9 +98,32 @@ export async function generateSkillImprovementPlan(
   targetLevel: number,
   learningStyle: string
 ) {
-  const template = await getCoachingTemplate('skill_improvement');
+  // Get practice ID for the member
+  const { data: memberData } = await supabase
+    .from('practice_members')
+    .select('practice_id')
+    .eq('id', memberId)
+    .single();
   
-  const prompt = applyTemplate(template.prompt_template, {
+  if (!memberData) {
+    throw new Error('Member not found');
+  }
+  
+  // Fetch prompt from database
+  const { data: promptConfig, error: promptError } = await supabase
+    .from('ai_prompts')
+    .select('*')
+    .eq('practice_id', memberData.practice_id)
+    .eq('prompt_key', 'skill_improvement_plan')
+    .eq('is_active', true)
+    .single();
+  
+  if (promptError || !promptConfig) {
+    throw new Error('Skill improvement plan prompt not configured');
+  }
+  
+  // Apply template variables
+  const prompt = applyTemplate(promptConfig.user_prompt_template, {
     skill_name: skillName,
     current_level: currentLevel,
     target_level: targetLevel,
@@ -129,6 +153,7 @@ export async function generateSkillImprovementPlan(
 
 /**
  * Generate interview preparation guide
+ * Now reads from ai_prompts table via prompt_key: 'interview_prep'
  */
 export async function generateInterviewPrep(
   memberId: string,
@@ -136,12 +161,35 @@ export async function generateInterviewPrep(
   strengths: string[],
   gaps: string[]
 ) {
-  const template = await getCoachingTemplate('interview_prep');
+  // Get practice ID for the member
+  const { data: memberData } = await supabase
+    .from('practice_members')
+    .select('practice_id')
+    .eq('id', memberId)
+    .single();
   
-  const prompt = applyTemplate(template.prompt_template, {
+  if (!memberData) {
+    throw new Error('Member not found');
+  }
+  
+  // Fetch prompt from database
+  const { data: promptConfig, error: promptError } = await supabase
+    .from('ai_prompts')
+    .select('*')
+    .eq('practice_id', memberData.practice_id)
+    .eq('prompt_key', 'interview_prep')
+    .eq('is_active', true)
+    .single();
+  
+  if (promptError || !promptConfig) {
+    throw new Error('Interview prep prompt not configured');
+  }
+  
+  // Apply template variables
+  const prompt = applyTemplate(promptConfig.user_prompt_template, {
     role_type: roleType,
-    strengths,
-    gaps
+    strengths: strengths.join(', '),
+    gaps: gaps.join(', ')
   });
   
   const context: CoachContext = {
@@ -165,6 +213,7 @@ export async function generateInterviewPrep(
 
 /**
  * Generate career pathway guidance
+ * Now reads from ai_prompts table via prompt_key: 'career_pathway'
  */
 export async function generateCareerPathway(
   memberId: string,
@@ -173,13 +222,41 @@ export async function generateCareerPathway(
   targetRole: string,
   keySkills: Record<string, number>
 ) {
-  const template = await getCoachingTemplate('career_pathway');
+  // Get practice ID for the member
+  const { data: memberData } = await supabase
+    .from('practice_members')
+    .select('practice_id')
+    .eq('id', memberId)
+    .single();
   
-  const prompt = applyTemplate(template.prompt_template, {
+  if (!memberData) {
+    throw new Error('Member not found');
+  }
+  
+  // Fetch prompt from database
+  const { data: promptConfig, error: promptError } = await supabase
+    .from('ai_prompts')
+    .select('*')
+    .eq('practice_id', memberData.practice_id)
+    .eq('prompt_key', 'career_pathway')
+    .eq('is_active', true)
+    .single();
+  
+  if (promptError || !promptConfig) {
+    throw new Error('Career pathway prompt not configured');
+  }
+  
+  // Format key skills as a readable string
+  const skillsFormatted = Object.entries(keySkills)
+    .map(([skill, level]) => `${skill}: ${level}/5`)
+    .join(', ');
+  
+  // Apply template variables
+  const prompt = applyTemplate(promptConfig.user_prompt_template, {
     current_role: currentRole,
     years_experience: yearsExperience,
     target_role: targetRole,
-    key_skills: keySkills
+    key_skills: skillsFormatted
   });
   
   const context: CoachContext = {
@@ -205,6 +282,7 @@ export async function generateCareerPathway(
 
 /**
  * Generate CPD recommendations
+ * Now reads from ai_prompts table via prompt_key: 'cpd_recommendations'
  */
 export async function generateCPDRecommendations(
   memberId: string,
@@ -213,12 +291,35 @@ export async function generateCPDRecommendations(
   gapAreas: string[],
   learningStyle: string
 ) {
-  const template = await getCoachingTemplate('cpd_recommendation');
+  // Get practice ID for the member
+  const { data: memberData } = await supabase
+    .from('practice_members')
+    .select('practice_id')
+    .eq('id', memberId)
+    .single();
   
-  const prompt = applyTemplate(template.prompt_template, {
+  if (!memberData) {
+    throw new Error('Member not found');
+  }
+  
+  // Fetch prompt from database
+  const { data: promptConfig, error: promptError } = await supabase
+    .from('ai_prompts')
+    .select('*')
+    .eq('practice_id', memberData.practice_id)
+    .eq('prompt_key', 'cpd_recommendations')
+    .eq('is_active', true)
+    .single();
+  
+  if (promptError || !promptConfig) {
+    throw new Error('CPD recommendations prompt not configured');
+  }
+  
+  // Apply template variables
+  const prompt = applyTemplate(promptConfig.user_prompt_template, {
     cpd_hours: cpdHours,
     cpd_target: cpdTarget,
-    gap_areas: gapAreas,
+    gap_areas: gapAreas.join(', '),
     learning_style: learningStyle
   });
   

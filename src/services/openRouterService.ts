@@ -1,10 +1,38 @@
 /**
  * OpenRouter API Integration Service
  * Provides unified access to multiple LLM providers through OpenRouter
+ * Now reads API keys from database (ai_api_keys table) per practice
  */
 
-const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
+import { supabase } from '@/lib/supabase/client';
+
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const FALLBACK_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY; // Fallback for testing
+
+/**
+ * Get OpenRouter API key for a practice from database
+ */
+async function getOpenRouterApiKey(practiceId: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase
+      .from('ai_api_keys')
+      .select('api_key')
+      .eq('practice_id', practiceId)
+      .eq('provider', 'openrouter')
+      .eq('is_active', true)
+      .single();
+    
+    if (error || !data) {
+      console.warn('[OpenRouter] No API key found in database for practice, using fallback');
+      return FALLBACK_API_KEY || null;
+    }
+    
+    return data.api_key;
+  } catch (error) {
+    console.error('[OpenRouter] Error fetching API key:', error);
+    return FALLBACK_API_KEY || null;
+  }
+}
 
 interface OpenRouterMessage {
   role: 'system' | 'user' | 'assistant';
@@ -91,6 +119,7 @@ function interpolatePrompt(template: string, variables: Record<string, any>): st
 
 /**
  * Execute LLM request through OpenRouter
+ * Now accepts practiceId to fetch API key from database
  */
 export async function executeLLMStep(config: {
   model: string;
@@ -99,16 +128,27 @@ export async function executeLLMStep(config: {
   temperature?: number;
   max_tokens?: number;
   systemPrompt?: string;
+  practiceId?: string; // Optional: if provided, fetches API key from database
 }): Promise<LLMExecutionResult> {
   try {
-    if (!OPENROUTER_API_KEY) {
+    // Get API key from database if practiceId provided, otherwise use fallback
+    let apiKey: string | null;
+    
+    if (config.practiceId) {
+      apiKey = await getOpenRouterApiKey(config.practiceId);
+    } else {
+      console.warn('[OpenRouter] No practiceId provided, using fallback API key');
+      apiKey = FALLBACK_API_KEY || null;
+    }
+    
+    if (!apiKey) {
       return {
         success: false,
         output: '',
         tokens_used: 0,
         cost_usd: 0,
         model: config.model,
-        error: 'OpenRouter API key not configured'
+        error: 'OpenRouter API key not configured (check ai_api_keys table or environment variable)'
       };
     }
 
@@ -149,7 +189,7 @@ export async function executeLLMStep(config: {
     const response = await fetch(OPENROUTER_API_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': window.location.origin,
         'X-Title': 'TORSOR Practice Platform'
@@ -216,6 +256,7 @@ export async function* streamLLMStep(config: {
   temperature?: number;
   max_tokens?: number;
   systemPrompt?: string;
+  practiceId?: string;
 }): AsyncGenerator<string, void, unknown> {
   // TODO: Implement streaming when needed
   // For now, yield the complete response
