@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/lib/supabase/client';
 import { useAccountancyContext } from '@/contexts/AccountancyContext';
+import { generateServiceLineDeployment } from '@/lib/api/advanced-analysis';
+import { useToast } from '@/components/ui/use-toast';
 import { 
   TrendingUp, 
   Users, 
@@ -18,7 +20,10 @@ import {
   BarChart3,
   Target,
   Download,
-  RefreshCw
+  RefreshCw,
+  Brain,
+  Loader2,
+  Rocket
 } from 'lucide-react';
 import { 
   BSG_SERVICE_LINES, 
@@ -59,6 +64,11 @@ const ServiceLinePreferencesAdmin: React.FC = () => {
   const [preferences, setPreferences] = useState<MemberPreference[]>([]);
   const [summaries, setSummaries] = useState<ServiceLineSummary[]>([]);
   const [selectedServiceLine, setSelectedServiceLine] = useState<string | null>(null);
+  
+  // Phase 2 AI Feature
+  const [deploymentStrategy, setDeploymentStrategy] = useState<string | null>(null);
+  const [generatingStrategy, setGeneratingStrategy] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (practice?.id) {
@@ -219,6 +229,37 @@ const ServiceLinePreferencesAdmin: React.FC = () => {
     a.download = `service-line-preferences-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // Phase 2 AI Feature - Manual Trigger Handler
+  const handleGenerateDeploymentStrategy = async () => {
+    if (!practice?.id) {
+      toast({
+        title: 'Error',
+        description: 'Practice ID not found',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setGeneratingStrategy(true);
+    try {
+      const result = await generateServiceLineDeployment(practice.id);
+      setDeploymentStrategy(result.strategy);
+      toast({
+        title: 'Deployment Strategy Complete!',
+        description: 'AI-powered go-to-market strategy has been generated.',
+      });
+    } catch (error: any) {
+      console.error('[ServiceLinePreferences] Error generating strategy:', error);
+      toast({
+        title: 'Generation Failed',
+        description: error.message || 'Failed to generate strategy. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setGeneratingStrategy(false);
+    }
   };
 
   if (loading) {
@@ -514,6 +555,61 @@ const ServiceLinePreferencesAdmin: React.FC = () => {
 
         {/* Strategic Insights Tab */}
         <TabsContent value="recommendations" className="space-y-4">
+          {/* Phase 2: AI-Powered Service Line Deployment Strategy */}
+          <Card className="border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-purple-50">
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <CardTitle className="text-2xl flex items-center gap-2">
+                    <Rocket className="w-6 h-6 text-indigo-600" />
+                    AI-Powered Deployment Strategy
+                  </CardTitle>
+                  <CardDescription>
+                    Strategic go-to-market recommendations based on team capacity, skills, and interest
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={handleGenerateDeploymentStrategy}
+                  disabled={generatingStrategy}
+                  variant="outline"
+                  className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                >
+                  {generatingStrategy ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="w-4 h-4 mr-2" />
+                      {deploymentStrategy ? 'Regenerate Strategy' : 'Generate Strategy'}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardHeader>
+            {generatingStrategy ? (
+              <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
+                <Loader2 className="w-16 h-16 text-indigo-600 animate-spin" />
+                <div className="text-center space-y-2">
+                  <p className="text-lg font-medium text-indigo-900">Analyzing Service Line Deployment</p>
+                  <p className="text-sm text-gray-600">Matching team capacity to market opportunities...</p>
+                  <p className="text-xs text-gray-500">This may take 20-40 seconds</p>
+                </div>
+              </CardContent>
+            ) : deploymentStrategy ? (
+              <CardContent className="space-y-6">
+                <div className="prose prose-sm max-w-none">
+                  <div className="whitespace-pre-wrap text-gray-800 leading-relaxed">{deploymentStrategy}</div>
+                </div>
+              </CardContent>
+            ) : (
+              <CardContent className="flex flex-col items-center justify-center py-8 space-y-2">
+                <p className="text-sm text-gray-600">Click "Generate Strategy" to create AI-powered deployment recommendations</p>
+              </CardContent>
+            )}
+          </Card>
+
           <Card className="border-2 border-purple-200">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
