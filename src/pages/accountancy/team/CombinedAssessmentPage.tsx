@@ -172,9 +172,9 @@ export const CombinedAssessmentPage: React.FC = () => {
     setActiveTab('ocean-results');
   };
 
-  // Determine correct back navigation based on user role
+  // Determine correct back navigation based on user email (admin whitelist)
   const getBackPath = () => {
-    const isAdmin = memberRole && ['owner', 'admin', 'manager', 'director', 'partner'].includes(memberRole);
+    const isAdmin = user?.email === 'jhoward@rpgcc.co.uk';
     return isAdmin ? '/dashboard' : '/team-member/dashboard';
   };
 

@@ -438,6 +438,8 @@ export async function generateTrainingNarrative(memberId: string, practiceId: st
  * Creates holistic insights from all assessments
  */
 export async function generateAssessmentSynthesis(memberId: string, practiceId: string) {
+  console.log('[AssessmentSynthesis] Starting with memberId:', memberId, 'practiceId:', practiceId);
+  
   // Fetch all assessment data for member
   const { data: member, error: memberError } = await supabase
     .from('practice_members')
@@ -448,7 +450,7 @@ export async function generateAssessmentSynthesis(memberId: string, practiceId: 
       learning_preferences (*),
       personality_assessments (*),
       working_preferences (*),
-      team_roles (*),
+      belbin_team_roles (*),
       motivational_drivers (*),
       eq_assessments (*),
       conflict_styles (*),
@@ -457,9 +459,16 @@ export async function generateAssessmentSynthesis(memberId: string, practiceId: 
     .eq('id', memberId)
     .maybeSingle();
   
+  console.log('[AssessmentSynthesis] Query result - member:', member ? 'found' : 'null', 'error:', memberError);
+  
   if (memberError || !member) {
-    console.error('[AssessmentSynthesis] Member fetch error:', memberError);
-    throw new Error('Member not found');
+    console.error('[AssessmentSynthesis] Member fetch failed:', {
+      memberId,
+      practiceId,
+      error: memberError,
+      hasData: !!member
+    });
+    throw new Error(`Member not found: ${memberError?.message || 'No data returned'}`);
   }
   
   // Build assessment status
@@ -467,7 +476,7 @@ export async function generateAssessmentSynthesis(memberId: string, practiceId: 
     vark: member.learning_preferences?.length > 0,
     ocean: member.personality_assessments?.length > 0,
     workPrefs: member.working_preferences?.length > 0,
-    belbin: member.team_roles?.length > 0,
+    belbin: (member as any).belbin_team_roles?.length > 0,
     motivational: member.motivational_drivers?.length > 0,
     eq: member.eq_assessments?.length > 0,
     conflict: member.conflict_styles?.length > 0,
@@ -491,8 +500,8 @@ export async function generateAssessmentSynthesis(memberId: string, practiceId: 
     work_environment: member.working_preferences?.[0]?.environment || 'Not specified',
     communication_style: member.working_preferences?.[0]?.communication_style || 'Not specified',
     work_preferences_insights: 'Works well in structured environments',
-    belbin_primary: member.team_roles?.[0]?.primary_role || 'Not assessed',
-    belbin_secondary: member.team_roles?.[0]?.secondary_role || 'Not assessed',
+    belbin_primary: (member as any).belbin_team_roles?.[0]?.primary_role || 'Not assessed',
+    belbin_secondary: (member as any).belbin_team_roles?.[0]?.secondary_role || 'Not assessed',
     motivational_drivers: 'Achievement, autonomy, mastery',
     eq_score: member.eq_assessments?.[0]?.overall_score || 'Not assessed',
     eq_breakdown: 'Strong self-awareness and empathy',
