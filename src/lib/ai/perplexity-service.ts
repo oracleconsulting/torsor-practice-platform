@@ -81,7 +81,7 @@ async function callPerplexity(
           }
         ],
         temperature: 0.2, // Lower temp for more consistent results
-        max_tokens: 4000
+        max_tokens: 8000 // Increased to avoid truncation of JSON responses
       })
     });
 
