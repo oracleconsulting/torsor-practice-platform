@@ -365,119 +365,15 @@ export async function autoGenerateCPDRecommendations(memberId: string): Promise<
     }
 
     console.log('[CPD] Query returned:', assessments?.length || 0, 'assessments');
-    
-    // DIAGNOSTIC: Let's check if assessments exist with a simpler query
-    const { data: simpleCheck, error: simpleError } = await supabase
-      .from('skill_assessments')
-      .select('id, team_member_id')
-      .eq('team_member_id', memberId);
-    
-    console.log('[CPD] Simple check result:', {
-      found: simpleCheck?.length || 0,
-      error: simpleError,
-      data: simpleCheck
-    });
 
-    // FALLBACK: If no assessments in skill_assessments table, check invitations.assessment_data
     if (!assessments || assessments.length === 0) {
-      console.log('[CPD] ⚠️ No data in skill_assessments table');
-      console.log('[CPD] 🔍 Checking fallback source: invitations.assessment_data...');
-      
-      // Get member email to find invitation
-      const { data: memberData } = await supabase
-        .from('practice_members')
-        .select('email')
-        .eq('id', memberId)
-        .maybeSingle();
-
-      if (memberData) {
-        const { data: invitation } = await supabase
-          .from('invitations')
-          .select('assessment_data')
-          .ilike('email', memberData.email)
-          .eq('status', 'accepted')
-          .maybeSingle();
-
-        if (invitation?.assessment_data && Array.isArray(invitation.assessment_data) && invitation.assessment_data.length > 0) {
-          console.log('[CPD] ✅ Found', invitation.assessment_data.length, 'assessments in invitations.assessment_data!');
-          
-          // Transform JSONB data to match skill_assessments structure
-          const transformedAssessments = await Promise.all(
-            (invitation.assessment_data as any[]).map(async (item: any) => {
-              const { data: skill } = await supabase
-                .from('skills')
-                .select('id, name, category, description, required_level')
-                .eq('id', item.skill_id)
-                .maybeSingle();
-
-              return {
-                id: `inv-${item.skill_id}`,
-                skill_id: item.skill_id,
-                current_level: item.current_level || 0,
-                interest_level: item.interest_level || 3,
-                skill: skill
-              };
-            })
-          );
-
-          console.log('[CPD] 🔄 Transformed', transformedAssessments.length, 'assessments from JSONB format');
-          
-          // Use the transformed data as if it came from skill_assessments
-          const transformedAssessmentsFiltered = transformedAssessments.filter(a => a.skill); // Only keep ones where skill was found
-          
-          if (transformedAssessmentsFiltered.length > 0) {
-            // Process the same way as regular assessments
-            const skillGaps = transformedAssessmentsFiltered
-              .filter(assessment => {
-                const currentLevel = assessment.current_level || 0;
-                return currentLevel < 4;
-              })
-              .map(assessment => {
-                const skill = assessment.skill as any;
-                const currentLevel = assessment.current_level || 0;
-                const targetLevel = skill?.required_level || 4;
-                const gap = targetLevel - currentLevel;
-                
-                let businessImpact = 'medium';
-                if (gap >= 3) businessImpact = 'critical';
-                else if (gap === 2) businessImpact = 'high';
-                else if (gap === 1) businessImpact = 'low';
-
-                return {
-                  skillId: assessment.skill_id,
-                  skillName: skill?.name || 'Unknown Skill',
-                  category: skill?.category || 'General',
-                  currentLevel,
-                  targetLevel,
-                  interestLevel: assessment.interest_level || 3,
-                  businessImpact
-                };
-              });
-
-            if (skillGaps.length === 0) {
-              console.log('[CPD] No skill gaps found - member is proficient in all skills!');
-              return true;
-            }
-
-            console.log(`[CPD] Identified ${skillGaps.length} skill gaps from invitations data`);
-            const success = await generateCPDRecommendations(memberId, skillGaps);
-            return success;
-          }
-        }
-      }
-      
-      // If we got here, no data in either source
-      console.log('[CPD] ❌ No skill assessments found in EITHER table!');
-      console.log('[CPD] Checked:');
-      console.log('  1. skill_assessments table (normalized) → 0 rows');
-      console.log('  2. invitations.assessment_data (JSONB) → empty or no invitation');
-      console.log('');
+      console.log('[CPD] ❌ No skill assessments found');
       console.log('[CPD] ⚠️ USER ACTION REQUIRED: Please complete a Skills Assessment first!');
       console.log('[CPD] Navigate to: Complete Assessments > Start Skills Assessment');
       return false;
     }
 
-    console.log(`[CPD] Found ${assessments.length} skill assessments`);
+    console.log(`[CPD] ✅ Found ${assessments.length} skill assessments`);
 
     // Identify skills that need improvement (level < 4)
     // Target level is skill's required_level or 4 (Proficient) as default
