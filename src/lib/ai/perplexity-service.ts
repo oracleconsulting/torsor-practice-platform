@@ -5,8 +5,7 @@
 
 const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-// Use a reliable model that works on OpenRouter - Claude is excellent for structured output
-const MODEL = 'anthropic/claude-3.5-sonnet'; // Using Claude via OpenRouter (excellent for research and structured data)
+const MODEL = 'perplexity/sonar-deep-research'; // Perplexity Deep Research via OpenRouter - live web search!
 
 export interface PerplexityResponse {
   id: string;
