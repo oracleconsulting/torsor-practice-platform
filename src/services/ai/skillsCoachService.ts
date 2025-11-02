@@ -3,6 +3,7 @@
  * 
  * Integrates with OpenRouter for LLM access to provide personalized skills coaching
  * Includes rate limiting, content filtering, and context-aware responses
+ * NOW READS PROMPTS FROM DATABASE (ai_prompts table)
  */
 
 import { supabase } from '@/lib/supabase/client';
@@ -29,18 +30,29 @@ interface OpenRouterResponse {
   };
 }
 
+interface PromptConfig {
+  id: string;
+  system_prompt: string;
+  user_prompt_template: string;
+  model_name: string;
+  temperature: number;
+  max_tokens: number;
+}
+
 // Coach context types
 export type CoachContextType = 'skills' | 'cpd' | 'mentoring' | 'career' | 'general';
 
 export interface CoachContext {
   type: CoachContextType;
   contextId?: string;
+  practiceId?: string; // Added for database lookup
   userData?: {
     memberName: string;
     role?: string;
     learningStyle?: string;
     skillLevels?: Record<string, number>;
     cpdHours?: number;
+    yearsExperience?: number;
     recentActivities?: string[];
   };
 }
@@ -59,86 +71,91 @@ export interface CoachResponse {
 }
 
 /**
- * System prompts for different contexts
+ * Get prompt configuration from database
  */
-const SYSTEM_PROMPTS: Record<CoachContextType, string> = {
-  skills: `You are an expert skills development coach for accounting professionals. 
-Your role is to:
-- Help users assess and improve their technical and soft skills
-- Provide personalized learning paths based on their VARK learning style
-- Suggest specific resources and activities
-- Give constructive, encouraging feedback
-- Break down complex skills into achievable milestones
+async function getPromptConfig(
+  promptKey: string,
+  practiceId: string
+): Promise<PromptConfig | null> {
+  try {
+    const { data, error } = await supabase
+      .from('ai_prompts')
+      .select('*')
+      .eq('prompt_key', promptKey)
+      .eq('practice_id', practiceId)
+      .eq('is_active', true)
+      .single();
 
-Always be supportive, specific, and actionable in your advice. Tailor recommendations to the accounting profession.`,
+    if (error) {
+      console.error('[SkillsCoach] Error fetching prompt config:', error);
+      return null;
+    }
 
-  cpd: `You are a CPD (Continuing Professional Development) advisor for accounting professionals.
-Your role is to:
-- Help users plan and track their CPD activities
-- Recommend relevant courses, events, and learning opportunities
-- Ensure activities align with professional body requirements
-- Track progress toward annual CPD targets
-- Suggest activities that address identified skill gaps
-
-Be practical and aware of time constraints professionals face.`,
-
-  mentoring: `You are a mentoring relationship advisor for accounting teams.
-Your role is to:
-- Help users find appropriate mentors or mentees
-- Provide guidance on effective mentoring sessions
-- Suggest goal-setting frameworks
-- Offer tips for giving and receiving feedback
-- Support both mentors and mentees in their development
-
-Be encouraging and focus on building strong professional relationships.`,
-
-  career: `You are a career development advisor for accounting professionals.
-Your role is to:
-- Help users plan their career progression
-- Identify skills needed for target roles
-- Provide interview preparation guidance
-- Suggest networking opportunities
-- Advise on work-life balance and professional growth
-
-Be realistic about career paths while being supportive of ambitions.`,
-
-  general: `You are a friendly AI coach for accounting professionals.
-Your role is to:
-- Answer questions about professional development
-- Provide motivation and encouragement
-- Help with goal setting and accountability
-- Give practical advice on workplace challenges
-- Support overall career and skills development
-
-Be approachable, positive, and genuinely helpful.`
-};
+    return data;
+  } catch (error) {
+    console.error('[SkillsCoach] Exception fetching prompt config:', error);
+    return null;
+  }
+}
 
 /**
- * Build context-aware system prompt
+ * Get OpenRouter API key from database
  */
-function buildSystemPrompt(context: CoachContext): string {
-  const basePrompt = SYSTEM_PROMPTS[context.type];
-  
-  if (!context.userData) {
-    return basePrompt;
-  }
+async function getOpenRouterKey(practiceId: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase
+      .from('ai_api_keys')
+      .select('encrypted_key')
+      .eq('practice_id', practiceId)
+      .eq('provider', 'openrouter')
+      .eq('is_active', true)
+      .single();
 
-  const { memberName, role, learningStyle, skillLevels, cpdHours } = context.userData;
-  
-  let contextInfo = `\n\nUser Context:\n- Name: ${memberName}`;
-  if (role) contextInfo += `\n- Role: ${role}`;
-  if (learningStyle) contextInfo += `\n- Learning Style: ${learningStyle} (adapt your suggestions accordingly)`;
-  if (skillLevels) {
-    const topSkills = Object.entries(skillLevels)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 5)
-      .map(([skill, level]) => `${skill}: ${level}/5`)
-      .join(', ');
-    contextInfo += `\n- Top Skills: ${topSkills}`;
-  }
-  if (cpdHours !== undefined) contextInfo += `\n- CPD Hours This Year: ${cpdHours}`;
+    if (error) {
+      console.error('[SkillsCoach] Error fetching API key:', error);
+      // Fallback to environment variable
+      return import.meta.env.VITE_OPENROUTER_API_KEY || null;
+    }
 
-  return basePrompt + contextInfo;
+    return data.encrypted_key;
+  } catch (error) {
+    console.error('[SkillsCoach] Exception fetching API key:', error);
+    // Fallback to environment variable
+    return import.meta.env.VITE_OPENROUTER_API_KEY || null;
+  }
+}
+
+/**
+ * Fill template with user data
+ */
+function fillTemplate(template: string, context: CoachContext, userMessage: string): string {
+  const { userData } = context;
+  
+  let filled = template;
+  
+  // Replace {{user_message}}
+  filled = filled.replace(/\{\{user_message\}\}/g, userMessage);
+  
+  if (userData) {
+    filled = filled.replace(/\{\{member_name\}\}/g, userData.memberName || 'there');
+    filled = filled.replace(/\{\{role\}\}/g, userData.role || 'Not specified');
+    filled = filled.replace(/\{\{learning_style\}\}/g, userData.learningStyle || 'Not assessed');
+    filled = filled.replace(/\{\{cpd_hours\}\}/g, String(userData.cpdHours || 0));
+    filled = filled.replace(/\{\{years_experience\}\}/g, String(userData.yearsExperience || 0));
+    
+    if (userData.skillLevels) {
+      const topSkills = Object.entries(userData.skillLevels)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
+        .map(([skill, level]) => `${skill}: ${level}/5`)
+        .join(', ');
+      filled = filled.replace(/\{\{top_skills\}\}/g, topSkills);
+    } else {
+      filled = filled.replace(/\{\{top_skills\}\}/g, 'Not assessed');
+    }
+  }
+  
+  return filled;
 }
 
 /**
@@ -208,17 +225,19 @@ async function incrementRateLimit(memberId: string, tokens: number): Promise<voi
 /**
  * Call OpenRouter LLM API
  */
-async function callOpenRouter(messages: OpenRouterMessage[]): Promise<OpenRouterResponse> {
-  const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+async function callOpenRouter(
+  apiKey: string,
+  model: string,
+  messages: OpenRouterMessage[],
+  temperature: number,
+  maxTokens: number
+): Promise<OpenRouterResponse> {
   const appName = import.meta.env.VITE_APP_NAME || 'Torsor Practice Platform';
-  const appUrl = import.meta.env.VITE_APP_URL || 'https://torsor.app';
+  const appUrl = import.meta.env.VITE_APP_URL || 'https://torsor.co.uk';
   
   if (!apiKey) {
-    throw new Error('OpenRouter API key not configured. Please set VITE_OPENROUTER_API_KEY in your environment variables.');
+    throw new Error('OpenRouter API key not configured. Please set up API key in AI Settings.');
   }
-  
-  // Default to GPT-4 Turbo, but allow override via env var
-  const model = import.meta.env.VITE_OPENROUTER_MODEL || 'openai/gpt-4-turbo';
   
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -231,8 +250,8 @@ async function callOpenRouter(messages: OpenRouterMessage[]): Promise<OpenRouter
     body: JSON.stringify({
       model,
       messages,
-      temperature: 0.7,
-      max_tokens: 500,
+      temperature,
+      max_tokens: maxTokens,
       presence_penalty: 0.6,
       frequency_penalty: 0.3
     })
@@ -309,10 +328,9 @@ async function saveMessage(
   conversationId: string,
   role: 'user' | 'assistant',
   content: string,
-  tokensUsed: number = 0
+  tokensUsed: number = 0,
+  model: string = 'openai/gpt-4-turbo'
 ): Promise<void> {
-  const model = import.meta.env.VITE_OPENROUTER_MODEL || 'openai/gpt-4-turbo';
-  
   await (supabase as any)
     .from('ai_coach_messages')
     .insert({
@@ -333,6 +351,11 @@ export async function sendCoachMessage(
   context: CoachContext,
   conversationId?: string
 ): Promise<CoachResponse> {
+  // Ensure practiceId is provided
+  if (!context.practiceId) {
+    throw new Error('Practice ID is required for database-driven coaching');
+  }
+
   // Content safety check
   const safetyCheck = filterContent(message);
   if (!safetyCheck.safe) {
@@ -345,30 +368,55 @@ export async function sendCoachMessage(
     throw new Error('Daily message limit reached (100 messages/day). Please try again tomorrow.');
   }
   
+  // Get prompt configuration from database
+  const promptKey = `coach_${context.type}`;
+  const promptConfig = await getPromptConfig(promptKey, context.practiceId);
+  
+  if (!promptConfig) {
+    throw new Error(`Prompt configuration not found for ${promptKey}. Please contact your administrator.`);
+  }
+  
+  // Get API key from database
+  const apiKey = await getOpenRouterKey(context.practiceId);
+  if (!apiKey) {
+    throw new Error('OpenRouter API key not configured. Please contact your administrator.');
+  }
+  
   // Get or create conversation
   const convId = conversationId || await getOrCreateConversation(memberId, context);
   
   // Build message history
   const history = await getConversationHistory(convId, 8); // Last 8 messages for context
-  const systemPrompt = buildSystemPrompt(context);
+  
+  // Fill user prompt template
+  const userPrompt = fillTemplate(promptConfig.user_prompt_template, context, message);
   
   const messages: OpenRouterMessage[] = [
-    { role: 'system', content: systemPrompt },
+    { role: 'system', content: promptConfig.system_prompt },
     ...history,
-    { role: 'user', content: message }
+    { role: 'user', content: userPrompt }
   ];
   
-  // Call OpenRouter
-  const response = await callOpenRouter(messages);
+  // Call OpenRouter with config from database
+  const response = await callOpenRouter(
+    apiKey,
+    promptConfig.model_name,
+    messages,
+    promptConfig.temperature,
+    promptConfig.max_tokens
+  );
+  
   const assistantMessage = response.choices[0].message.content;
   const tokensUsed = response.usage.total_tokens;
   
   // Save messages to database
-  await saveMessage(convId, 'user', message);
-  await saveMessage(convId, 'assistant', assistantMessage, tokensUsed);
+  await saveMessage(convId, 'user', message, 0, promptConfig.model_name);
+  await saveMessage(convId, 'assistant', assistantMessage, tokensUsed, promptConfig.model_name);
   
   // Update rate limit
   await incrementRateLimit(memberId, tokensUsed);
+  
+  console.log(`[SkillsCoach] Message sent using ${promptConfig.model_name}, ${tokensUsed} tokens`);
   
   return {
     message: assistantMessage,
