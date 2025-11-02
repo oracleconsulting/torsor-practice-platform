@@ -12,9 +12,14 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase/client';
 import { ChartErrorBoundary } from '@/components/ErrorBoundary';
 import { 
+  generateGapAnalysisInsights,
+  generateTeamCompositionAnalysis
+} from '@/lib/api/advanced-analysis';
+import { useToast } from '@/components/ui/use-toast';
+import { 
   Users, Brain, TrendingUp, Target, AlertCircle, 
   CheckCircle2, Lightbulb, Award, Activity, Zap,
-  Shield, Heart, MessageSquare, Clock, Settings
+  Shield, Heart, MessageSquare, Clock, Settings, Loader2
 } from 'lucide-react';
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
@@ -97,6 +102,13 @@ const TeamAssessmentInsights: React.FC = () => {
   const [teamComposition, setTeamComposition] = useState<TeamComposition | null>(null);
   const [teamDynamics, setTeamDynamics] = useState<TeamDynamics | null>(null);
   const [priorities, setPriorities] = useState<DevelopmentPriorities | null>(null);
+
+  // Phase 2 AI Features
+  const [gapAnalysis, setGapAnalysis] = useState<string | null>(null);
+  const [generatingGapAnalysis, setGeneratingGapAnalysis] = useState(false);
+  const [compositionAnalysis, setCompositionAnalysis] = useState<string | null>(null);
+  const [generatingComposition, setGeneratingComposition] = useState(false);
+  const { toast } = useToast();
 
   // Display name mappings for all assessment types
   const displayNames = {
@@ -509,6 +521,51 @@ const TeamAssessmentInsights: React.FC = () => {
     });
   };
 
+  // Phase 2 AI Features - Manual Trigger Handlers
+  const handleGenerateGapAnalysis = async () => {
+    setGeneratingGapAnalysis(true);
+    try {
+      const practiceId = 'a1b2c3d4-5678-90ab-cdef-123456789abc';
+      const result = await generateGapAnalysisInsights(practiceId);
+      setGapAnalysis(result.insights);
+      toast({
+        title: 'Gap Analysis Complete!',
+        description: 'AI-powered strategic insights have been generated.',
+      });
+    } catch (error: any) {
+      console.error('[TeamInsights] Error generating gap analysis:', error);
+      toast({
+        title: 'Generation Failed',
+        description: error.message || 'Failed to generate analysis. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setGeneratingGapAnalysis(false);
+    }
+  };
+
+  const handleGenerateCompositionAnalysis = async () => {
+    setGeneratingComposition(true);
+    try {
+      const practiceId = 'a1b2c3d4-5678-90ab-cdef-123456789abc';
+      const result = await generateTeamCompositionAnalysis(practiceId);
+      setCompositionAnalysis(result.analysis);
+      toast({
+        title: 'Team Analysis Complete!',
+        description: 'AI-powered team dynamics insights have been generated.',
+      });
+    } catch (error: any) {
+      console.error('[TeamInsights] Error generating composition analysis:', error);
+      toast({
+        title: 'Generation Failed',
+        description: error.message || 'Failed to generate analysis. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setGeneratingComposition(false);
+    }
+  };
+
   const getCompletionColor = (rate: number) => {
     if (rate >= 80) return 'bg-green-500';
     if (rate >= 50) return 'bg-yellow-500';
@@ -654,6 +711,61 @@ const TeamAssessmentInsights: React.FC = () => {
 
         {/* Team Composition Tab */}
         <TabsContent value="composition" className="space-y-6">
+          {/* Phase 2: AI-Powered Team Composition Analysis */}
+          <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50">
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <CardTitle className="text-2xl flex items-center gap-2">
+                    <Users className="w-6 h-6 text-purple-600" />
+                    AI-Powered Team Dynamics Analysis
+                  </CardTitle>
+                  <CardDescription>
+                    Insights on team compatibility, collaboration patterns, and optimal configurations
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={handleGenerateCompositionAnalysis}
+                  disabled={generatingComposition}
+                  variant="outline"
+                  className="border-purple-300 text-purple-700 hover:bg-purple-50"
+                >
+                  {generatingComposition ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Users className="w-4 h-4 mr-2" />
+                      {compositionAnalysis ? 'Regenerate Analysis' : 'Generate Analysis'}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardHeader>
+            {generatingComposition ? (
+              <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
+                <Loader2 className="w-16 h-16 text-purple-600 animate-spin" />
+                <div className="text-center space-y-2">
+                  <p className="text-lg font-medium text-purple-900">Analyzing Team Composition</p>
+                  <p className="text-sm text-gray-600">Identifying dynamics, synergies, and friction points...</p>
+                  <p className="text-xs text-gray-500">This may take 20-40 seconds</p>
+                </div>
+              </CardContent>
+            ) : compositionAnalysis ? (
+              <CardContent className="space-y-6">
+                <div className="prose prose-sm max-w-none">
+                  <div className="whitespace-pre-wrap text-gray-800 leading-relaxed">{compositionAnalysis}</div>
+                </div>
+              </CardContent>
+            ) : (
+              <CardContent className="flex flex-col items-center justify-center py-8 space-y-2">
+                <p className="text-sm text-gray-600">Click "Generate Analysis" to create AI-powered team dynamics insights</p>
+              </CardContent>
+            )}
+          </Card>
+
           {(() => {
             console.log('[TeamAssessmentInsights] Team Composition tab rendering, loading:', loading, 'teamComposition:', teamComposition);
             
@@ -1537,6 +1649,61 @@ const TeamAssessmentInsights: React.FC = () => {
 
         {/* Development Gaps Tab */}
         <TabsContent value="gaps" className="space-y-6">
+          {/* Phase 2: AI-Powered Gap Analysis */}
+          <Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <CardTitle className="text-2xl flex items-center gap-2">
+                    <Brain className="w-6 h-6 text-green-600" />
+                    AI-Powered Gap Analysis
+                  </CardTitle>
+                  <CardDescription>
+                    Strategic insights and prioritized recommendations for skill development
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={handleGenerateGapAnalysis}
+                  disabled={generatingGapAnalysis}
+                  variant="outline"
+                  className="border-green-300 text-green-700 hover:bg-green-50"
+                >
+                  {generatingGapAnalysis ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <TrendingUp className="w-4 h-4 mr-2" />
+                      {gapAnalysis ? 'Regenerate Analysis' : 'Generate Analysis'}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardHeader>
+            {generatingGapAnalysis ? (
+              <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
+                <Loader2 className="w-16 h-16 text-green-600 animate-spin" />
+                <div className="text-center space-y-2">
+                  <p className="text-lg font-medium text-green-900">Analyzing Team Skill Gaps</p>
+                  <p className="text-sm text-gray-600">Identifying critical gaps and priorities...</p>
+                  <p className="text-xs text-gray-500">This may take 15-30 seconds</p>
+                </div>
+              </CardContent>
+            ) : gapAnalysis ? (
+              <CardContent className="space-y-6">
+                <div className="prose prose-sm max-w-none">
+                  <div className="whitespace-pre-wrap text-gray-800 leading-relaxed">{gapAnalysis}</div>
+                </div>
+              </CardContent>
+            ) : (
+              <CardContent className="flex flex-col items-center justify-center py-8 space-y-2">
+                <p className="text-sm text-gray-600">Click "Generate Analysis" to create AI-powered strategic insights</p>
+              </CardContent>
+            )}
+          </Card>
+
           {priorities && (
             <>
               <Card>
