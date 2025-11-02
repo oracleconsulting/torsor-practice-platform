@@ -38,24 +38,21 @@ export async function discoverResourcesForSkill(
   };
 
   try {
-    // Discover knowledge documents
-    console.log(`[CPD Discovery] Searching for knowledge documents...`);
-    const knowledgeDocs = await discoverKnowledgeDocuments(skillName, skillCategory, 2);
-    
-    // Discover training courses
-    console.log(`[CPD Discovery] Searching for training courses...`);
-    const courses = await discoverTrainingCourses(skillName, skillCategory, currentLevel, targetLevel, 3);
+    // Discover resources for ALL 4 skill level progressions
+    const levelProgressions = [
+      { current: 1, target: 2 },  // Beginner
+      { current: 2, target: 3 },  // Intermediate
+      { current: 3, target: 4 },  // Advanced
+      { current: 4, target: 5 }   // Expert
+    ];
 
-    console.log(`[CPD Discovery] Found: ${knowledgeDocs.length} docs, ${courses.length} courses`);
-
-    // Get current user for attribution
+    // Get current user for attribution (do this once, outside the loop)
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       result.errors.push('User not authenticated');
       return result;
     }
 
-    // Get practice member ID
     const { data: member } = await supabase
       .from('practice_members')
       .select('id')
@@ -67,89 +64,123 @@ export async function discoverResourcesForSkill(
       return result;
     }
 
-    // Insert knowledge documents
-    for (const doc of knowledgeDocs) {
-      try {
-        // Map content type to document_type (keeping backwards compatibility)
-        const contentTypeMap: Record<string, string> = {
-          'article': 'guide',
-          'webinar': 'other',
-          'video': 'other',
-          'podcast': 'other',
-          'case_study': 'case_study'
-        };
-        
-        const documentType = contentTypeMap[doc.contentType] || 'guide';
+    // Loop through each skill level progression
+    for (const progression of levelProgressions) {
+      console.log(`[CPD Discovery] Level ${progression.current}→${progression.target} for: ${skillName}`);
+      
+      // Discover knowledge documents for this level
+      console.log(`[CPD Discovery] Searching for knowledge documents...`);
+      const knowledgeDocs = await discoverKnowledgeDocuments(
+        skillName, 
+        skillCategory, 
+        progression.current,
+        progression.target,
+        3  // 3 resources per level
+      );
+      
+      // Discover training courses for this level
+      console.log(`[CPD Discovery] Searching for training courses...`);
+      const courses = await discoverTrainingCourses(
+        skillName, 
+        skillCategory, 
+        progression.current, 
+        progression.target, 
+        3  // 3 courses per level
+      );
 
-        const { error } = await (supabase
-          .from('knowledge_documents') as any)
-          .insert({
-            uploaded_by: (member as any).id,
-            title: doc.title,
-            summary: doc.summary,
-            document_type: documentType,
-            content_type: doc.contentType, // New field for proper categorization
-            duration_minutes: doc.durationMinutes, // New field for time tracking
-            file_name: `${skillName.toLowerCase().replace(/\s+/g, '-')}-${doc.contentType}.md`,
-            file_path: doc.sourceUrl, // Store source URL in file_path
-            tags: doc.tags,
-            skill_categories: doc.skillCategories.length > 0 ? doc.skillCategories : [skillCategory],
-            is_public: true,
-            approved_by: (member as any).id, // Auto-approve AI discoveries
-            approved_at: new Date().toISOString(),
-            created_at: new Date().toISOString()
-          });
+      console.log(`[CPD Discovery] Found: ${knowledgeDocs.length} docs, ${courses.length} courses for Level ${progression.current}→${progression.target}`);
 
-        if (error) {
-          console.error('[CPD Discovery] Error creating knowledge doc:', error);
-          result.errors.push(`Knowledge doc "${doc.title}": ${error.message}`);
-        } else {
-          result.knowledgeDocsCreated++;
-          console.log(`[CPD Discovery] ✅ Created knowledge doc: ${doc.title}`);
+      // Insert knowledge documents
+      for (const doc of knowledgeDocs) {
+        try {
+          // Map content type to document_type (keeping backwards compatibility)
+          const contentTypeMap: Record<string, string> = {
+            'article': 'guide',
+            'webinar': 'other',
+            'video': 'other',
+            'podcast': 'other',
+            'case_study': 'case_study'
+          };
+          
+          const documentType = contentTypeMap[doc.contentType] || 'guide';
+
+          const { error } = await (supabase
+            .from('knowledge_documents') as any)
+            .insert({
+              uploaded_by: (member as any).id,
+              title: doc.title,
+              summary: doc.summary,
+              document_type: documentType,
+              content_type: doc.contentType,
+              duration_minutes: doc.durationMinutes,
+              skill_level: doc.skillLevel,  // NEW: Store skill level
+              target_skill_levels: doc.targetSkillLevels,  // NEW: Store target levels
+              file_name: `${skillName.toLowerCase().replace(/\s+/g, '-')}-${doc.contentType}-level${progression.current}-${progression.target}.md`,
+              file_path: doc.sourceUrl,
+              tags: doc.tags,
+              skill_categories: doc.skillCategories.length > 0 ? doc.skillCategories : [skillCategory],
+              is_public: true,
+              approved_by: (member as any).id,
+              approved_at: new Date().toISOString(),
+              created_at: new Date().toISOString()
+            });
+
+          if (error) {
+            console.error('[CPD Discovery] Error creating knowledge doc:', error);
+            result.errors.push(`Knowledge doc "${doc.title}": ${error.message}`);
+          } else {
+            result.knowledgeDocsCreated++;
+            console.log(`[CPD Discovery] ✅ Created ${doc.skillLevel} doc: ${doc.title}`);
+          }
+        } catch (error: any) {
+          result.errors.push(`Knowledge doc error: ${error.message}`);
         }
-      } catch (error: any) {
-        result.errors.push(`Knowledge doc error: ${error.message}`);
       }
-    }
 
-    // Insert external courses
-    for (const course of courses) {
-      try {
-        const { error } = await (supabase
-          .from('cpd_external_resources') as any)
-          .insert({
-            title: course.title,
-            provider: course.provider,
-            url: course.url,
-            description: course.description,
-            type: 'course',
-            cost: course.cost,
-            currency: course.currency,
-            duration: `${course.durationHours} hours`,
-            skill_categories: course.skillCategories.length > 0 ? course.skillCategories : [skillCategory],
-            recommended_for: [course.skillLevel],
-            accredited_by: course.accreditation,
-            cpd_hours: course.durationHours,
-            is_active: true,
-            added_by: (member as any).id,
-            created_at: new Date().toISOString()
-          });
+      // Insert external courses
+      for (const course of courses) {
+        try {
+          const { error } = await (supabase
+            .from('cpd_external_resources') as any)
+            .insert({
+              title: course.title,
+              provider: course.provider,
+              url: course.url,
+              description: course.description,
+              type: 'course',
+              cost: course.cost,
+              currency: course.currency,
+              duration: `${course.durationHours} hours`,
+              skill_categories: course.skillCategories.length > 0 ? course.skillCategories : [skillCategory],
+              recommended_for: [course.skillLevel],
+              accredited_by: course.accreditation,
+              cpd_hours: course.durationHours,
+              is_active: true,
+              added_by: (member as any).id,
+              created_at: new Date().toISOString()
+            });
 
-        if (error) {
-          console.error('[CPD Discovery] Error creating course:', error);
-          result.errors.push(`Course "${course.title}": ${error.message}`);
-        } else {
-          result.coursesCreated++;
-          console.log(`[CPD Discovery] ✅ Created course: ${course.title}`);
+          if (error) {
+            console.error('[CPD Discovery] Error creating course:', error);
+            result.errors.push(`Course "${course.title}": ${error.message}`);
+          } else {
+            result.coursesCreated++;
+            console.log(`[CPD Discovery] ✅ Created ${course.skillLevel} course: ${course.title}`);
+          }
+        } catch (error: any) {
+          result.errors.push(`Course error: ${error.message}`);
         }
-      } catch (error: any) {
-        result.errors.push(`Course error: ${error.message}`);
       }
-    }
+
+      // Small delay between level progressions to avoid rate limits
+      if (progression.current < 4) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    } // End of level progressions loop
 
     result.success = (result.knowledgeDocsCreated + result.coursesCreated) > 0;
 
-    console.log(`[CPD Discovery] ✅ Complete: ${result.knowledgeDocsCreated} docs, ${result.coursesCreated} courses`);
+    console.log(`[CPD Discovery] ✅ Complete for ${skillName}: ${result.knowledgeDocsCreated} docs, ${result.coursesCreated} courses across all 4 skill levels`);
     
     return result;
   } catch (error: any) {
