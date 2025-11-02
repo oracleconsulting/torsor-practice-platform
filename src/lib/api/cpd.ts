@@ -354,7 +354,8 @@ export async function getKnowledgeDocuments(practiceId?: string) {
     .order('created_at', { ascending: false });
 
   if (practiceId) {
-    query = query.filter('uploader.practice_id', 'eq', practiceId);
+    // Temporarily disabled - show all public documents
+    // query = query.filter('uploader.practice_id', 'eq', practiceId);
   }
 
   const { data, error } = await query;
@@ -364,6 +365,7 @@ export async function getKnowledgeDocuments(practiceId?: string) {
     throw error;
   }
 
+  console.log('[CPD] Loaded knowledge documents:', data?.length || 0);
   return data as KnowledgeDocument[];
 }
 
