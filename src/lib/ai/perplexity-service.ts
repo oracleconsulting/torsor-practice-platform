@@ -1,11 +1,11 @@
 /**
- * Perplexity AI Service for CPD Resource Discovery
+ * Perplexity AI Service for CPD Resource Discovery (via OpenRouter)
  * Automatically sources knowledge documents and courses
  */
 
-const PERPLEXITY_API_KEY = import.meta.env.VITE_PERPLEXITY_API_KEY;
-const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions';
-const MODEL = 'llama-3.1-sonar-large-128k-online'; // Has web search capabilities
+const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const MODEL = 'perplexity/llama-3.1-sonar-large-128k-online'; // Perplexity via OpenRouter
 
 export interface PerplexityResponse {
   id: string;
@@ -49,22 +49,24 @@ export interface CourseDiscovery {
 }
 
 /**
- * Make API call to Perplexity
+ * Make API call to Perplexity via OpenRouter
  */
 async function callPerplexity(
   systemPrompt: string,
   userPrompt: string
 ): Promise<string> {
-  if (!PERPLEXITY_API_KEY) {
-    throw new Error('Perplexity API key not configured. Set VITE_PERPLEXITY_API_KEY environment variable.');
+  if (!OPENROUTER_API_KEY) {
+    throw new Error('OpenRouter API key not configured. Set VITE_OPENROUTER_API_KEY environment variable.');
   }
 
   try {
-    const response = await fetch(PERPLEXITY_API_URL, {
+    const response = await fetch(OPENROUTER_API_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
-        'Content-Type': 'application/json'
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'TORSOR CPD Discovery'
       },
       body: JSON.stringify({
         model: MODEL,
@@ -79,28 +81,26 @@ async function callPerplexity(
           }
         ],
         temperature: 0.2, // Lower temp for more consistent results
-        max_tokens: 4000,
-        return_citations: true,
-        search_recency_filter: '3month' // Only recent content
+        max_tokens: 4000
       })
     });
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`Perplexity API error: ${response.status} - ${error}`);
+      throw new Error(`OpenRouter API error: ${response.status} - ${error}`);
     }
 
     const data: PerplexityResponse = await response.json();
     
     if (!data.choices || data.choices.length === 0) {
-      throw new Error('No response from Perplexity API');
+      throw new Error('No response from OpenRouter API');
     }
 
-    console.log('[Perplexity] API Usage:', data.usage);
+    console.log('[Perplexity via OpenRouter] API Usage:', data.usage);
     
     return data.choices[0].message.content;
   } catch (error: any) {
-    console.error('[Perplexity] API call failed:', error);
+    console.error('[Perplexity via OpenRouter] API call failed:', error);
     throw error;
   }
 }
@@ -313,14 +313,14 @@ Focus on practical, actionable information for UK accountants. Include recent up
 }
 
 /**
- * Check if Perplexity is configured
+ * Check if Perplexity is configured (via OpenRouter)
  */
 export function isPerplexityConfigured(): boolean {
-  return Boolean(PERPLEXITY_API_KEY);
+  return Boolean(OPENROUTER_API_KEY);
 }
 
 /**
- * Get Perplexity API status
+ * Get Perplexity API status (via OpenRouter)
  */
 export async function checkPerplexityStatus(): Promise<{
   configured: boolean;
@@ -331,7 +331,7 @@ export async function checkPerplexityStatus(): Promise<{
     return {
       configured: false,
       working: false,
-      error: 'API key not configured'
+      error: 'OpenRouter API key not configured (VITE_OPENROUTER_API_KEY)'
     };
   }
 
