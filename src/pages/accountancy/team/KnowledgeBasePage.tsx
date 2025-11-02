@@ -670,7 +670,16 @@ const KnowledgeBasePage: React.FC = () => {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {docs.map(doc => (
-                    <Card key={doc.id} className="border-gray-700 hover:border-gray-600 transition-colors">
+                    <Card 
+                      key={doc.id} 
+                      className="border-gray-700 hover:border-gray-600 transition-colors cursor-pointer"
+                      onClick={() => {
+                        // Open the document URL in a new tab
+                        if (doc.file_path) {
+                          window.open(doc.file_path, '_blank');
+                        }
+                      }}
+                    >
                       <CardHeader>
                         <CardTitle className="text-lg flex items-center gap-2">
                           <Icon className={`h-4 w-4 ${color}`} />
@@ -696,7 +705,7 @@ const KnowledgeBasePage: React.FC = () => {
                         )}
 
                         {/* Metadata */}
-                        <div className="flex items-center justify-between text-xs text-white font-medium">
+                        <div className="flex items-center justify-between text-xs text-gray-600">
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
                             {formatDate(new Date(doc.created_at))}
@@ -708,9 +717,17 @@ const KnowledgeBasePage: React.FC = () => {
                         </div>
 
                         {/* Author */}
-                        <p className="text-xs text-gray-100 font-medium">
-                          By {doc.uploader?.name || 'Unknown'}
+                        <p className="text-xs text-gray-700">
+                          By {doc.uploader?.name || 'AI Discovery'}
                         </p>
+
+                        {/* Link indicator */}
+                        {doc.file_path && (
+                          <div className="flex items-center gap-1 text-xs text-blue-600">
+                            <ExternalLink className="h-3 w-3" />
+                            Click to view resource
+                          </div>
+                        )}
 
                         {/* Linked CPD Activity */}
                         {doc.cpd_activity_id && (

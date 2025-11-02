@@ -70,14 +70,27 @@ export async function discoverResourcesForSkill(
     // Insert knowledge documents
     for (const doc of knowledgeDocs) {
       try {
+        // Determine document type based on content
+        let documentType = 'guide';
+        const titleLower = doc.title.toLowerCase();
+        if (titleLower.includes('case study') || titleLower.includes('example')) {
+          documentType = 'case_study';
+        } else if (titleLower.includes('template') || titleLower.includes('framework')) {
+          documentType = 'template';
+        } else if (titleLower.includes('best practice') || titleLower.includes('guidance')) {
+          documentType = 'guide';
+        } else if (titleLower.includes('update') || titleLower.includes('news')) {
+          documentType = 'notes';
+        }
+
         const { error } = await (supabase
           .from('knowledge_documents') as any)
           .insert({
             uploaded_by: (member as any).id,
             title: doc.title,
             summary: doc.summary,
-            document_type: 'guide',
-            file_name: `${skillName.toLowerCase().replace(/\s+/g, '-')}-guide.md`,
+            document_type: documentType,
+            file_name: `${skillName.toLowerCase().replace(/\s+/g, '-')}-${documentType}.md`,
             file_path: doc.sourceUrl, // Store source URL in file_path
             tags: doc.tags,
             skill_categories: doc.skillCategories.length > 0 ? doc.skillCategories : [skillCategory],
