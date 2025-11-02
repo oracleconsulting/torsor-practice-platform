@@ -66,41 +66,36 @@ const SkillsDashboardV2Page: React.FC = () => {
         console.error('Error loading members:', membersError);
       }
 
-      // **NEW: Load assessments from invitations table (single source of truth)**
-      const { data: invitations, error: invitationsError } = await supabase
-        .from('invitations')
-        .select('email, assessment_data, status');
+      /**
+       * DATA SOURCE: skill_assessments table (SINGLE SOURCE OF TRUTH)
+       * Load all assessments for members in this practice
+       */
+      const { data: assessments, error: assessmentsError } = await supabase
+        .from('skill_assessments')
+        .select(`
+          id,
+          team_member_id,
+          skill_id,
+          current_level,
+          interest_level,
+          assessed_at,
+          practice_members!inner(
+            id,
+            name,
+            email,
+            practice_id
+          )
+        `)
+        .eq('practice_members.practice_id', (members?.[0] as any)?.practice_id);
 
-      if (invitationsError) {
-        console.error('Error loading invitations:', invitationsError);
+      if (assessmentsError) {
+        console.error('Error loading assessments:', assessmentsError);
       }
 
-      console.log('[SkillsDashboardV2] Loaded invitations:', invitations?.length || 0);
+      console.log('[SkillsDashboardV2] Loaded assessments:', assessments?.length || 0);
 
-      // Transform JSONB assessment_data into flat assessment records
-      const allAssessments: any[] = [];
-      
-      (invitations || []).forEach(invitation => {
-        if (invitation.status !== 'accepted' || !invitation.assessment_data) return;
-        
-        // Find member by email (case-insensitive)
-        const member = (members || []).find(m => m.email.toLowerCase() === invitation.email.toLowerCase());
-        if (!member) {
-          console.warn('[SkillsDashboardV2] No member found for invitation:', invitation.email);
-          return;
-        }
-        
-        // Extract assessments from JSONB (using snake_case field names)
-        (invitation.assessment_data as any[]).forEach(skill => {
-          allAssessments.push({
-            team_member_id: member.id, // Map email → member.id
-            skill_id: skill.skill_id, // snake_case
-            current_level: skill.current_level || 0, // snake_case
-            interest_level: skill.interest_level || 3, // snake_case
-            assessed_at: invitation.accepted_at || new Date().toISOString()
-          });
-        });
-      });
+      // Already in flat structure - no JSONB transformation needed
+      const allAssessments = assessments || [];
       
       const assessments = allAssessments;
       const assessmentsError = invitationsError;

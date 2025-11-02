@@ -69,18 +69,16 @@ export default function DirectReportsPanel({ managerId, practiceId }: DirectRepo
       // For each report, get their stats
       const reportsWithStats = await Promise.all(
         members.map(async (member) => {
-          // Get assessment data from invitations
-          const { data: invitation } = await supabase
-            .from('invitations')
-            .select('assessment_data')
-            .ilike('email', member.email)
-            .eq('practice_id', practiceId)
-            .eq('status', 'accepted')
-            .single();
+          /**
+           * DATA SOURCE: skill_assessments table (SINGLE SOURCE OF TRUTH)
+           */
+          const { data: assessments } = await supabase
+            .from('skill_assessments')
+            .select('id, skill_id, current_level, interest_level')
+            .eq('team_member_id', member.id);
 
-          const assessments = invitation?.assessment_data as any[] || [];
-          const avgLevel = assessments.length > 0
-            ? assessments.reduce((sum, a) => sum + (a.current_level || 0), 0) / assessments.length
+          const avgLevel = assessments && assessments.length > 0
+            ? assessments.reduce((sum, a) => sum + ((a as any).current_level || 0), 0) / assessments.length
             : 0;
 
           // Get CPD data
@@ -118,16 +116,19 @@ export default function DirectReportsPanel({ managerId, practiceId }: DirectRepo
       const member = reports.find(r => r.id === reportId);
       if (!member) return;
 
-      // Load their skills heatmap data
-      const { data: invitation } = await supabase
-        .from('invitations')
-        .select('assessment_data')
-        .ilike('email', member.email)
-        .eq('practice_id', practiceId)
-        .eq('status', 'accepted')
-        .single();
-
-      const assessments = invitation?.assessment_data as any[] || [];
+      /**
+       * DATA SOURCE: skill_assessments table (SINGLE SOURCE OF TRUTH)
+       */
+      const { data: assessments } = await supabase
+        .from('skill_assessments')
+        .select(`
+          id,
+          skill_id,
+          current_level,
+          interest_level,
+          skill:skills(id, name, category)
+        `)
+        .eq('team_member_id', member.id);
       
       // Get skills metadata
       const { data: skills } = await supabase
