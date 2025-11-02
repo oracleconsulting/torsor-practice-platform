@@ -176,12 +176,31 @@ export async function discoverResourcesForAllSkills(maxSkills: number = 10): Pro
   };
 
   try {
-    // Get all skills
-    const { data: skills, error: skillsError } = await supabase
+    // Get skills that DON'T have resources yet
+    // First, get all skill IDs that have knowledge docs
+    const { data: existingDocs } = await supabase
+      .from('knowledge_documents')
+      .select('skill_categories');
+    
+    const coveredSkillCategories = new Set<string>();
+    existingDocs?.forEach((doc: any) => {
+      doc.skill_categories?.forEach((cat: string) => coveredSkillCategories.add(cat));
+    });
+
+    console.log(`[CPD Discovery] Already covered categories:`, Array.from(coveredSkillCategories));
+
+    // Get skills, excluding those with covered categories
+    let query = supabase
       .from('skills')
       .select('id, name, category, required_level')
-      .order('category')
-      .limit(maxSkills);
+      .order('category');
+
+    // If we have covered categories, exclude them
+    if (coveredSkillCategories.size > 0) {
+      query = query.not('category', 'in', `(${Array.from(coveredSkillCategories).join(',')})`);
+    }
+
+    const { data: skills, error: skillsError } = await query.limit(maxSkills);
 
     if (skillsError) {
       summary.errors.push(`Failed to fetch skills: ${skillsError.message}`);
@@ -189,53 +208,72 @@ export async function discoverResourcesForAllSkills(maxSkills: number = 10): Pro
     }
 
     if (!skills || skills.length === 0) {
-      summary.errors.push('No skills found in database');
-      return summary;
-    }
-
-    console.log(`[CPD Discovery] Found ${skills.length} skills to process`);
-
-    // Process each skill
-    for (const skill of skills as any[]) {
-      try {
-        console.log(`[CPD Discovery] Processing skill: ${skill.name}`);
-
-        const result = await discoverResourcesForSkill(
-          skill.id,
-          skill.name,
-          skill.category,
-          0,
-          skill.required_level || 4
-        );
-
-        summary.processed++;
-        summary.totalResources += result.knowledgeDocsCreated + result.coursesCreated;
-        
-        if (result.errors.length > 0) {
-          summary.errors.push(`${skill.name}: ${result.errors.join(', ')}`);
-        }
-
-        // Rate limiting - wait 2 seconds between API calls
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-      } catch (error: any) {
-        summary.errors.push(`${skill.name}: ${error.message}`);
+      // If no uncovered skills, just get the next batch
+      console.log('[CPD Discovery] All categories covered, getting next batch by name');
+      const { data: nextSkills, error: nextError } = await supabase
+        .from('skills')
+        .select('id, name, category, required_level')
+        .order('name')
+        .limit(maxSkills);
+      
+      if (nextError || !nextSkills || nextSkills.length === 0) {
+        summary.errors.push('No more skills to process');
+        return summary;
       }
+      
+      return processSkillBatch(nextSkills, summary);
     }
 
-    console.log(`[CPD Discovery] ✅ Batch complete: ${summary.processed} skills, ${summary.totalResources} resources`);
-    
-    // Log summary for debugging
-    if (summary.errors.length > 0) {
-      console.warn(`[CPD Discovery] ⚠️ Encountered ${summary.errors.length} errors:`, summary.errors);
-    }
+    console.log(`[CPD Discovery] Found ${skills.length} uncovered skills to process`);
 
-    return summary;
+    return processSkillBatch(skills, summary);
   } catch (error: any) {
     console.error('[CPD Discovery] Batch discovery failed:', error);
     summary.errors.push(`Batch error: ${error.message}`);
     return summary;
   }
+}
+
+/**
+ * Process a batch of skills
+ */
+async function processSkillBatch(skills: any[], summary: { processed: number; totalResources: number; errors: string[] }) {
+  // Process each skill
+  for (const skill of skills as any[]) {
+    try {
+      console.log(`[CPD Discovery] Processing skill: ${skill.name}`);
+
+      const result = await discoverResourcesForSkill(
+        skill.id,
+        skill.name,
+        skill.category,
+        0,
+        skill.required_level || 4
+      );
+
+      summary.processed++;
+      summary.totalResources += result.knowledgeDocsCreated + result.coursesCreated;
+      
+      if (result.errors.length > 0) {
+        summary.errors.push(`${skill.name}: ${result.errors.join(', ')}`);
+      }
+
+      // Rate limiting - wait 2 seconds between API calls
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+    } catch (error: any) {
+      summary.errors.push(`${skill.name}: ${error.message}`);
+    }
+  }
+
+  console.log(`[CPD Discovery] ✅ Batch complete: ${summary.processed} skills, ${summary.totalResources} resources`);
+  
+  // Log summary for debugging
+  if (summary.errors.length > 0) {
+    console.warn(`[CPD Discovery] ⚠️ Encountered ${summary.errors.length} errors:`, summary.errors);
+  }
+
+  return summary;
 }
 
 /**
