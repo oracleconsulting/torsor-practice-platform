@@ -111,13 +111,10 @@ DECLARE
   v_activities_deleted INTEGER;
   v_recommendations_deleted INTEGER;
 BEGIN
-  -- Delete CPD activities linked to deleted documents
-  DELETE FROM cpd_activities
-  WHERE knowledge_document_id IS NOT NULL
-    AND knowledge_document_id NOT IN (SELECT id FROM knowledge_documents);
-  
-  GET DIAGNOSTICS v_activities_deleted = ROW_COUNT;
-  RAISE NOTICE '✅ Cleaned up % orphaned CPD activities', v_activities_deleted;
+  -- Note: cpd_activities references knowledge_documents, not the other way around
+  -- knowledge_documents has cpd_activity_id (optional link)
+  -- When we delete knowledge_documents, cpd_activity_id is set to NULL (ON DELETE SET NULL)
+  -- So we don't need to delete activities
   
   -- Delete CPD recommendations linked to deleted resources
   DELETE FROM cpd_recommendations
