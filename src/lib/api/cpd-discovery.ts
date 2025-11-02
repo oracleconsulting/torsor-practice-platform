@@ -177,56 +177,58 @@ export async function discoverResourcesForAllSkills(maxSkills: number = 10): Pro
 
   try {
     // Get skills that DON'T have resources yet
-    // First, get all skill IDs that have knowledge docs
+    // Track by skill name (stored in knowledge doc titles)
     const { data: existingDocs } = await supabase
       .from('knowledge_documents')
-      .select('skill_categories');
+      .select('title, file_name');
     
-    const coveredSkillCategories = new Set<string>();
+    // Extract skill names from titles (they start with skill name)
+    const coveredSkills = new Set<string>();
     existingDocs?.forEach((doc: any) => {
-      doc.skill_categories?.forEach((cat: string) => coveredSkillCategories.add(cat));
+      // file_name format: "skill-name-contenttype.md"
+      if (doc.file_name) {
+        const skillSlug = doc.file_name.split('-').slice(0, -1).join('-'); // Remove last part (contenttype)
+        coveredSkills.add(skillSlug);
+      }
     });
 
-    console.log(`[CPD Discovery] Already covered categories:`, Array.from(coveredSkillCategories));
+    console.log(`[CPD Discovery] Already covered ${coveredSkills.size} skills`);
+    console.log(`[CPD Discovery] Sample covered:`, Array.from(coveredSkills).slice(0, 5));
 
-    // Get skills, excluding those with covered categories
-    let query = supabase
+    // Get ALL skills first, then filter in JS
+    const { data: allSkills, error: skillsError } = await supabase
       .from('skills')
       .select('id, name, category, required_level')
       .order('category');
-
-    // If we have covered categories, exclude them
-    if (coveredSkillCategories.size > 0) {
-      query = query.not('category', 'in', `(${Array.from(coveredSkillCategories).join(',')})`);
-    }
-
-    const { data: skills, error: skillsError } = await query.limit(maxSkills);
 
     if (skillsError) {
       summary.errors.push(`Failed to fetch skills: ${skillsError.message}`);
       return summary;
     }
 
-    if (!skills || skills.length === 0) {
-      // If no uncovered skills, just get the next batch
-      console.log('[CPD Discovery] All categories covered, getting next batch by name');
-      const { data: nextSkills, error: nextError } = await supabase
-        .from('skills')
-        .select('id, name, category, required_level')
-        .order('name')
-        .limit(maxSkills);
-      
-      if (nextError || !nextSkills || nextSkills.length === 0) {
-        summary.errors.push('No more skills to process');
-        return summary;
-      }
-      
-      return processSkillBatch(nextSkills, summary);
+    if (!allSkills || allSkills.length === 0) {
+      summary.errors.push('No skills found in database');
+      return summary;
     }
 
-    console.log(`[CPD Discovery] Found ${skills.length} uncovered skills to process`);
+    // Filter out skills that are already covered
+    const uncoveredSkills = (allSkills as any[]).filter((skill: any) => {
+      const skillSlug = skill.name.toLowerCase().replace(/\s+/g, '-');
+      return !coveredSkills.has(skillSlug);
+    });
 
-    return processSkillBatch(skills, summary);
+    console.log(`[CPD Discovery] Total skills: ${allSkills.length}, Covered: ${coveredSkills.size}, Uncovered: ${uncoveredSkills.length}`);
+
+    if (uncoveredSkills.length === 0) {
+      summary.errors.push('All skills already have resources! 🎉');
+      return summary;
+    }
+
+    // Take the requested number of uncovered skills
+    const skillsToProcess = uncoveredSkills.slice(0, maxSkills);
+    console.log(`[CPD Discovery] Processing ${skillsToProcess.length} uncovered skills:`, skillsToProcess.map((s: any) => s.name));
+
+    return processSkillBatch(skillsToProcess, summary);
   } catch (error: any) {
     console.error('[CPD Discovery] Batch discovery failed:', error);
     summary.errors.push(`Batch error: ${error.message}`);

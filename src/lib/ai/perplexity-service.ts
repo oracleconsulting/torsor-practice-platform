@@ -5,7 +5,7 @@
 
 const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const MODEL = 'perplexity/sonar-deep-research'; // Perplexity Deep Research via OpenRouter - live web search!
+const MODEL = 'perplexity/sonar-pro'; // Perplexity Sonar Pro via OpenRouter - better at structured output than deep-research
 
 export interface PerplexityResponse {
   id: string;
