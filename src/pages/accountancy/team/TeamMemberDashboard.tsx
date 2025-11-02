@@ -196,20 +196,24 @@ export default function TeamMemberDashboard() {
 
       setViewingAsMemberName(memberData?.name || 'Team Member');
 
-      // **NEW: Get skill assessments from invitations table**
-      const { data: invitation } = await supabase
-        .from('invitations')
-        .select('assessment_data, email')
-        .ilike('email', memberData.email) // Case-insensitive match
-        .eq('practice_id', practiceId)
-        .eq('status', 'accepted')
-        .single();
+      /**
+       * DATA SOURCE: skill_assessments table (SINGLE SOURCE OF TRUTH)
+       * All skill assessment data now stored in normalized skill_assessments table.
+       */
+      const { data: assessments, error: assessError } = await supabase
+        .from('skill_assessments')
+        .select(`
+          id,
+          skill_id,
+          current_level,
+          interest_level,
+          assessed_at
+        `)
+        .eq('team_member_id', memberId);
 
-      // Transform JSONB into assessment-like format
-      const assessments = (invitation?.assessment_data as any[] || []).map(skill => ({
-        current_level: skill.current_level || 0,
-        skill_id: skill.skill_id
-      }));
+      if (assessError) {
+        console.error('[Dashboard] Error loading assessments:', assessError);
+      }
 
       // Get total skills count
       const { count: totalSkillsCount } = await supabase
@@ -365,29 +369,25 @@ export default function TeamMemberDashboard() {
       setMemberName(member.name || 'Team Member');
       setCurrentMemberId(member.id);
 
-      // **NEW: Get skill assessments from invitations table (single source of truth)**
-      const { data: invitation, error: invitationError } = await supabase
-        .from('invitations')
-        .select('assessment_data, email')
-        .ilike('email', member.email) // Case-insensitive match
-        .eq('practice_id', practiceId)
-        .eq('status', 'accepted')
-        .single();
+      /**
+       * DATA SOURCE: skill_assessments table (SINGLE SOURCE OF TRUTH)
+       */
+      const { data: assessments, error: assessError } = await supabase
+        .from('skill_assessments')
+        .select(`
+          id,
+          skill_id,
+          current_level,
+          interest_level,
+          assessed_at
+        `)
+        .eq('team_member_id', member.id);
 
-      if (invitationError) {
-        console.error('[Dashboard] Error fetching invitation:', invitationError);
+      if (assessError) {
+        console.error('[Dashboard] Error loading assessments:', assessError);
       }
 
-      console.log('[Dashboard] Invitation assessment_data type:', typeof invitation?.assessment_data);
-      console.log('[Dashboard] Invitation assessment_data keys:', invitation?.assessment_data ? Object.keys(invitation.assessment_data).length : 0);
-
-      // Transform JSONB object into assessment-like format
-      // assessment_data is a JSONB object where keys are skill_ids
-      const assessmentDataObj = invitation?.assessment_data as Record<string, any> || {};
-      const assessments = Object.values(assessmentDataObj).map((skill: any) => ({
-        current_level: skill.current_level || 0,
-        skill_id: skill.skill_id
-      }));
+      console.log('[Dashboard] Loaded', assessments?.length || 0, 'assessments from skill_assessments table');
 
       // Get total skills count
       const { count: totalSkillsCount, error: skillsCountError } = await supabase
