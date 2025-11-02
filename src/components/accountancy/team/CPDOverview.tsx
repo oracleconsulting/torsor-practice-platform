@@ -176,8 +176,8 @@ const CPDOverview: React.FC<CPDOverviewProps> = ({ memberId, practiceId }) => {
           )
         `)
         .eq('member_id', memberId)
-        .order('priority_score', { ascending: false })
-        .limit(5);
+        .order('priority_score', { ascending: false });
+        // Removed .limit(5) - show all recommendations
 
       if (error) throw error;
       setRecommendations((data as any) || []);
