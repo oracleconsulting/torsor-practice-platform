@@ -115,7 +115,7 @@ export async function generateGapAnalysisInsights(practiceId: string) {
     .from('practice_members')
     .select(`
       id,
-      member_name,
+      name,
       role,
       skill_assessments (skill_name, current_level, target_level)
     `)
@@ -196,7 +196,7 @@ export async function generateTeamCompositionAnalysis(practiceId: string) {
     .from('practice_members')
     .select(`
       id,
-      member_name,
+      name,
       role,
       personality_assessments (work_style, openness, conscientiousness, extraversion, agreeableness, neuroticism),
       learning_preferences (primary_style),
@@ -383,7 +383,7 @@ export async function generateTrainingNarrative(memberId: string, practiceId: st
   
   // Fill template
   const userPrompt = applyTemplate(promptConfig.user_prompt_template, {
-    member_name: member.member_name,
+    member_name: member.name,
     role: member.role || 'Team Member',
     years_experience: member.years_experience || 2,
     learning_style: member.learning_preferences?.[0]?.primary_style || 'Visual',
@@ -411,7 +411,7 @@ export async function generateTrainingNarrative(memberId: string, practiceId: st
     narrative,
     metadata: {
       memberId,
-      memberName: member.member_name,
+      memberName: member.name,
       gapCount: gaps.length,
       strengthCount: strengths.length,
       cpdHours,
@@ -498,7 +498,7 @@ export async function generateAssessmentSynthesis(memberId: string, practiceId: 
     synthesis,
     metadata: {
       memberId,
-      memberName: member.member_name,
+      memberName: member.name,
       assessmentsCompleted: completionCount,
       totalAssessments: 8,
       generatedAt: new Date().toISOString()
