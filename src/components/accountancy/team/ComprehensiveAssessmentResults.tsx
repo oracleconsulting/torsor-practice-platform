@@ -22,6 +22,7 @@ import {
 } from '@/lib/assessments/profile-descriptors';
 import { ProfileNarrative } from './ProfileNarrative';
 import { useToast } from '@/components/ui/use-toast';
+import ReactMarkdown from 'react-markdown';
 import { 
   Briefcase, Users, Zap, Brain, Shield, 
   TrendingUp, AlertCircle, CheckCircle2, Target,
@@ -502,8 +503,8 @@ export const ComprehensiveAssessmentResults: React.FC<ComprehensiveAssessmentRes
             </CardContent>
           ) : synthesisReport ? (
             <CardContent className="space-y-6">
-              <div className="prose prose-sm max-w-none">
-                <div className="whitespace-pre-wrap text-gray-800 leading-relaxed">{synthesisReport}</div>
+              <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-h1:text-xl prose-h1:font-bold prose-h1:mb-4 prose-h1:mt-6 prose-strong:text-gray-900 prose-strong:font-semibold">
+                <ReactMarkdown>{synthesisReport}</ReactMarkdown>
               </div>
             </CardContent>
           ) : (
