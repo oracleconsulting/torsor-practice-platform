@@ -29,6 +29,8 @@ export interface KnowledgeDocumentDiscovery {
   summary: string;
   contentType: 'article' | 'webinar' | 'video' | 'podcast' | 'case_study';
   durationMinutes: number;
+  skillLevel: 'beginner' | 'intermediate' | 'advanced' | 'expert';
+  targetSkillLevels: number[]; // e.g., [2,3] for moving from level 2 to 3
   sourceUrl: string;
   keyTakeaways: string[];
   relevanceScore: number; // 0-100
