@@ -110,36 +110,41 @@ async function callOpenRouter(
  * Analyzes skill gaps across the team and provides strategic recommendations
  */
 export async function generateGapAnalysisInsights(practiceId: string) {
-  // Fetch team data
+  // Fetch team members
   const { data: members } = await supabase
     .from('practice_members')
-    .select(`
-      id,
-      name,
-      role,
-      skill_assessments (skill_name, current_level, target_level)
-    `)
+    .select('id, name, role')
     .eq('practice_id', practiceId);
   
   if (!members || members.length === 0) {
     throw new Error('No team members found');
   }
   
+  // Fetch all skill assessments for these members with skill names
+  const memberIds = members.map(m => m.id);
+  const { data: assessments } = await supabase
+    .from('skill_assessments')
+    .select(`
+      *,
+      skill:skills(name)
+    `)
+    .in('team_member_id', memberIds);
+  
+  console.log('[GapAnalysis] Fetched', assessments?.length || 0, 'skill assessments for', members.length, 'members');
+  
   // Calculate gap statistics
-  const allGaps: Array<{ skill: string; gap: number; count: number }> = [];
   const skillGapMap = new Map<string, { totalGap: number; count: number }>();
   
-  members.forEach((member: any) => {
-    member.skill_assessments?.forEach((assessment: any) => {
-      const gap = assessment.target_level - assessment.current_level;
-      if (gap > 0) {
-        const existing = skillGapMap.get(assessment.skill_name) || { totalGap: 0, count: 0 };
-        skillGapMap.set(assessment.skill_name, {
-          totalGap: existing.totalGap + gap,
-          count: existing.count + 1
-        });
-      }
-    });
+  (assessments || []).forEach((assessment: any) => {
+    const gap = (assessment.target_level || 0) - (assessment.current_level || 0);
+    if (gap > 0 && assessment.skill?.name) {
+      const skillName = assessment.skill.name;
+      const existing = skillGapMap.get(skillName) || { totalGap: 0, count: 0 };
+      skillGapMap.set(skillName, {
+        totalGap: existing.totalGap + gap,
+        count: existing.count + 1
+      });
+    }
   });
   
   const gapList = Array.from(skillGapMap.entries())
@@ -152,6 +157,8 @@ export async function generateGapAnalysisInsights(practiceId: string) {
     .slice(0, 15)
     .map((g, i) => `${i + 1}. ${g.skill}: Avg gap ${g.avgGap.toFixed(1)}/5 (${g.count} members)`)
     .join('\n');
+  
+  console.log('[GapAnalysis] Calculated gaps for', skillGapMap.size, 'unique skills');
   
   // Get prompt and API key
   const promptConfig = await getPromptConfig('gap_analysis_insights', practiceId);
@@ -349,22 +356,19 @@ export async function generateServiceLineDeployment(practiceId: string) {
 export async function generateTrainingNarrative(memberId: string, practiceId: string) {
   console.log('[TrainingNarrative] Starting with memberId:', memberId, 'practiceId:', practiceId);
   
-  // Fetch member data
+  // Fetch member data with proper joins
   const { data: member, error: memberError } = await supabase
     .from('practice_members')
     .select(`
       id,
       name,
       role,
-      years_experience,
-      skill_assessments (skill_name, current_level, target_level),
-      learning_preferences (primary_style),
-      cpd_activities (activity_type, hours, completed_at)
+      years_experience
     `)
     .eq('id', memberId)
     .maybeSingle();
   
-  console.log('[TrainingNarrative] Query result - member:', member ? 'found' : 'null', 'error:', memberError);
+  console.log('[TrainingNarrative] Member query result:', member ? 'found' : 'null', 'error:', memberError);
   
   if (memberError || !member) {
     console.error('[TrainingNarrative] Member fetch failed:', {
@@ -376,18 +380,42 @@ export async function generateTrainingNarrative(memberId: string, practiceId: st
     throw new Error(`Member not found: ${memberError?.message || 'No data returned'}`);
   }
   
+  // Fetch skill assessments separately with proper join
+  const { data: skillAssessments } = await supabase
+    .from('skill_assessments')
+    .select(`
+      *,
+      skill:skills(name)
+    `)
+    .eq('team_member_id', memberId);
+  
+  // Fetch learning preferences separately
+  const { data: learningPrefs } = await supabase
+    .from('learning_preferences')
+    .select('primary_style')
+    .eq('team_member_id', memberId)
+    .maybeSingle();
+  
+  // Fetch CPD activities separately
+  const { data: cpdActivities } = await supabase
+    .from('cpd_activities')
+    .select('activity_type, hours, completed_at')
+    .eq('practice_member_id', memberId);
+  
+  console.log('[TrainingNarrative] Data fetched - skills:', skillAssessments?.length || 0, 'cpd:', cpdActivities?.length || 0);
+  
   // Calculate gaps
-  const gaps = member.skill_assessments
-    ?.filter((s: any) => s.target_level > s.current_level)
-    .map((s: any) => s.skill_name)
+  const gaps = skillAssessments
+    ?.filter((s: any) => (s.target_level || 0) > (s.current_level || 0))
+    .map((s: any) => s.skill?.name || 'Unknown Skill')
     .slice(0, 5) || [];
   
-  const strengths = member.skill_assessments
-    ?.filter((s: any) => s.current_level >= 4)
-    .map((s: any) => s.skill_name)
+  const strengths = skillAssessments
+    ?.filter((s: any) => (s.current_level || 0) >= 4)
+    .map((s: any) => s.skill?.name || 'Unknown Skill')
     .slice(0, 5) || [];
   
-  const cpdHours = member.cpd_activities
+  const cpdHours = cpdActivities
     ?.reduce((sum: number, a: any) => sum + (a.hours || 0), 0) || 0;
   
   // Get prompt and API key
@@ -399,7 +427,7 @@ export async function generateTrainingNarrative(memberId: string, practiceId: st
     member_name: member.name,
     role: member.role || 'Team Member',
     years_experience: member.years_experience || 2,
-    learning_style: member.learning_preferences?.[0]?.primary_style || 'Visual',
+    learning_style: learningPrefs?.primary_style || 'Visual',
     top_skills: strengths.join(', ') || 'Not assessed',
     gap_areas: gaps.join(', ') || 'None identified',
     career_goals: 'Career progression and skill development',
@@ -440,26 +468,14 @@ export async function generateTrainingNarrative(memberId: string, practiceId: st
 export async function generateAssessmentSynthesis(memberId: string, practiceId: string) {
   console.log('[AssessmentSynthesis] Starting with memberId:', memberId, 'practiceId:', practiceId);
   
-  // Fetch all assessment data for member
+  // Fetch member basic data
   const { data: member, error: memberError } = await supabase
     .from('practice_members')
-    .select(`
-      id,
-      name,
-      role,
-      learning_preferences (*),
-      personality_assessments (*),
-      working_preferences (*),
-      belbin_team_roles (*),
-      motivational_drivers (*),
-      eq_assessments (*),
-      conflict_styles (*),
-      service_line_interests (*)
-    `)
+    .select('id, name, role')
     .eq('id', memberId)
     .maybeSingle();
   
-  console.log('[AssessmentSynthesis] Query result - member:', member ? 'found' : 'null', 'error:', memberError);
+  console.log('[AssessmentSynthesis] Member query result:', member ? 'found' : 'null', 'error:', memberError);
   
   if (memberError || !member) {
     console.error('[AssessmentSynthesis] Member fetch failed:', {
@@ -471,16 +487,68 @@ export async function generateAssessmentSynthesis(memberId: string, practiceId: 
     throw new Error(`Member not found: ${memberError?.message || 'No data returned'}`);
   }
   
+  // Fetch each assessment type separately
+  const { data: learningPrefs } = await supabase
+    .from('learning_preferences')
+    .select('*')
+    .eq('team_member_id', memberId);
+  
+  const { data: personalityAssessments } = await supabase
+    .from('personality_assessments')
+    .select('*')
+    .eq('team_member_id', memberId);
+  
+  const { data: workingPrefs } = await supabase
+    .from('working_preferences')
+    .select('*')
+    .eq('practice_member_id', memberId);
+  
+  const { data: belbinRoles } = await supabase
+    .from('belbin_team_roles')
+    .select('*')
+    .eq('practice_member_id', memberId);
+  
+  const { data: motivationalDrivers } = await supabase
+    .from('motivational_drivers')
+    .select('*')
+    .eq('practice_member_id', memberId);
+  
+  const { data: eqAssessments } = await supabase
+    .from('eq_assessments')
+    .select('*')
+    .eq('practice_member_id', memberId);
+  
+  const { data: conflictStyles } = await supabase
+    .from('conflict_styles')
+    .select('*')
+    .eq('practice_member_id', memberId);
+  
+  const { data: serviceLineInterests } = await supabase
+    .from('service_line_interests')
+    .select('*')
+    .eq('practice_member_id', memberId);
+  
+  console.log('[AssessmentSynthesis] Fetched assessments:', {
+    vark: learningPrefs?.length || 0,
+    ocean: personalityAssessments?.length || 0,
+    workingPrefs: workingPrefs?.length || 0,
+    belbin: belbinRoles?.length || 0,
+    motivational: motivationalDrivers?.length || 0,
+    eq: eqAssessments?.length || 0,
+    conflict: conflictStyles?.length || 0,
+    serviceLine: serviceLineInterests?.length || 0
+  });
+  
   // Build assessment status
   const assessmentStatus = {
-    vark: member.learning_preferences?.length > 0,
-    ocean: member.personality_assessments?.length > 0,
-    workPrefs: member.working_preferences?.length > 0,
-    belbin: (member as any).belbin_team_roles?.length > 0,
-    motivational: member.motivational_drivers?.length > 0,
-    eq: member.eq_assessments?.length > 0,
-    conflict: member.conflict_styles?.length > 0,
-    serviceLine: member.service_line_interests?.length > 0
+    vark: (learningPrefs?.length || 0) > 0,
+    ocean: (personalityAssessments?.length || 0) > 0,
+    workPrefs: (workingPrefs?.length || 0) > 0,
+    belbin: (belbinRoles?.length || 0) > 0,
+    motivational: (motivationalDrivers?.length || 0) > 0,
+    eq: (eqAssessments?.length || 0) > 0,
+    conflict: (conflictStyles?.length || 0) > 0,
+    serviceLine: (serviceLineInterests?.length || 0) > 0
   };
   
   const completionCount = Object.values(assessmentStatus).filter(Boolean).length;
@@ -492,20 +560,20 @@ export async function generateAssessmentSynthesis(memberId: string, practiceId: 
   // Fill template
   const userPrompt = applyTemplate(promptConfig.user_prompt_template, {
     assessment_completion_status: `${completionCount}/8 assessments completed`,
-    vark_primary: member.learning_preferences?.[0]?.primary_style || 'Not assessed',
-    vark_secondary: member.learning_preferences?.[0]?.secondary_style || 'Not assessed',
+    vark_primary: learningPrefs?.[0]?.primary_style || 'Not assessed',
+    vark_secondary: learningPrefs?.[0]?.secondary_style || 'Not assessed',
     vark_insights: 'Prefers hands-on and visual learning',
-    ocean_profile: member.personality_assessments?.[0]?.work_style || 'Not assessed',
+    ocean_profile: personalityAssessments?.[0]?.work_style || 'Not assessed',
     ocean_work_style: 'Collaborative and detail-oriented',
-    work_environment: member.working_preferences?.[0]?.environment || 'Not specified',
-    communication_style: member.working_preferences?.[0]?.communication_style || 'Not specified',
+    work_environment: workingPrefs?.[0]?.environment || 'Not specified',
+    communication_style: workingPrefs?.[0]?.communication_style || 'Not specified',
     work_preferences_insights: 'Works well in structured environments',
-    belbin_primary: (member as any).belbin_team_roles?.[0]?.primary_role || 'Not assessed',
-    belbin_secondary: (member as any).belbin_team_roles?.[0]?.secondary_role || 'Not assessed',
+    belbin_primary: belbinRoles?.[0]?.primary_role || 'Not assessed',
+    belbin_secondary: belbinRoles?.[0]?.secondary_role || 'Not assessed',
     motivational_drivers: 'Achievement, autonomy, mastery',
-    eq_score: member.eq_assessments?.[0]?.overall_score || 'Not assessed',
+    eq_score: eqAssessments?.[0]?.overall_score || 'Not assessed',
     eq_breakdown: 'Strong self-awareness and empathy',
-    conflict_style: member.conflict_styles?.[0]?.style || 'Not assessed',
+    conflict_style: conflictStyles?.[0]?.style || 'Not assessed',
     service_line_interests: 'Advisory, tax planning, CFO services'
   });
   
