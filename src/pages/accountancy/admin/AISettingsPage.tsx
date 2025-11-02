@@ -182,6 +182,7 @@ export const AISettingsPage: React.FC = () => {
       case 'generation': return <Brain className="w-4 h-4" />;
       case 'recommendation': return <Zap className="w-4 h-4" />;
       case 'analysis': return <TrendingUp className="w-4 h-4" />;
+      case 'coaching': return <Brain className="w-4 h-4" />;
       default: return <Settings className="w-4 h-4" />;
     }
   };
@@ -191,6 +192,7 @@ export const AISettingsPage: React.FC = () => {
       case 'generation': return 'bg-purple-100 text-purple-800';
       case 'recommendation': return 'bg-blue-100 text-blue-800';
       case 'analysis': return 'bg-green-100 text-green-800';
+      case 'coaching': return 'bg-orange-100 text-orange-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
