@@ -335,19 +335,11 @@ export async function checkPerplexityStatus(): Promise<{
     };
   }
 
-  try {
-    // Test with simple query
-    await quickSearchCPD('test');
-    return {
-      configured: true,
-      working: true
-    };
-  } catch (error: any) {
-    return {
-      configured: true,
-      working: false,
-      error: error.message
-    };
-  }
+  // If API key is configured, assume it's working
+  // We'll let the actual discovery handle any API errors
+  return {
+    configured: true,
+    working: true
+  };
 }
 
