@@ -102,43 +102,54 @@ export default function SkillsManagementPage() {
 
       if (membersError) throw membersError;
 
-      // Get all invitations with assessment data for this practice
-      const { data: invitations, error: invitationsError } = await supabase
-        .from('invitations')
-        .select('email, assessment_data')
-        .eq('practice_id', practice?.id)
-        .eq('status', 'accepted');
+      /**
+       * DATA SOURCE: skill_assessments table (SINGLE SOURCE OF TRUTH)
+       * Get all assessments for this practice with member and skill details
+       */
+      const { data: assessments, error: assessmentsError } = await supabase
+        .from('skill_assessments')
+        .select(`
+          id,
+          skill_id,
+          team_member_id,
+          current_level,
+          interest_level,
+          practice_members!inner(
+            id,
+            name,
+            email,
+            practice_id
+          )
+        `)
+        .eq('practice_members.practice_id', practice?.id);
 
-      if (invitationsError) throw invitationsError;
+      if (assessmentsError) throw assessmentsError;
 
       console.log('[SkillsManagement] Loaded:', {
         skills: skills?.length,
         members: members?.length,
-        invitations: invitations?.length
+        assessments: assessments?.length
       });
 
       // Create a map of skill_id -> all assessments
       const skillAssessmentsMap = new Map<string, Array<{ name: string; level: number; interest: number }>>();
 
-      invitations?.forEach((invitation) => {
-        const member = members?.find(m => m.email.toLowerCase() === invitation.email.toLowerCase());
-        if (!member || !invitation.assessment_data) return;
+      assessments?.forEach((assessment: any) => {
+        const member = assessment.practice_members;
+        if (!member) return;
 
-        const assessments = invitation.assessment_data as any[];
-        assessments.forEach((assessment) => {
-          const skillId = assessment.skill_id;
-          const currentLevel = assessment.current_level || 0;
-          const interestLevel = assessment.interest_level || 0;
+        const skillId = assessment.skill_id;
+        const currentLevel = assessment.current_level || 0;
+        const interestLevel = assessment.interest_level || 0;
 
-          if (!skillAssessmentsMap.has(skillId)) {
-            skillAssessmentsMap.set(skillId, []);
-          }
+        if (!skillAssessmentsMap.has(skillId)) {
+          skillAssessmentsMap.set(skillId, []);
+        }
 
-          skillAssessmentsMap.get(skillId)!.push({
-            name: member.name,
-            level: currentLevel,
-            interest: interestLevel
-          });
+        skillAssessmentsMap.get(skillId)!.push({
+          name: member.name,
+          level: currentLevel,
+          interest: interestLevel
         });
       });
 
