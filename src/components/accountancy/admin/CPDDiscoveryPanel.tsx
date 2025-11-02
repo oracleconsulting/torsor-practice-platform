@@ -69,6 +69,8 @@ export const CPDDiscoveryPanel: React.FC = () => {
 
       const discoveryResult = await discoverResourcesForAllSkills(count);
 
+      console.log('[Discovery Panel] ✅ Discovery complete, result:', discoveryResult);
+
       clearInterval(progressInterval);
       setProgress(100);
       setResult(discoveryResult);
@@ -82,6 +84,14 @@ export const CPDDiscoveryPanel: React.FC = () => {
         });
       } else {
         toast.warning('⚠️ No resources discovered', {
+          description: 'Check console for details'
+        });
+      }
+      
+      // Log any errors
+      if (discoveryResult.errors.length > 0) {
+        console.error('[Discovery Panel] ⚠️ Errors during discovery:', discoveryResult.errors);
+        toast.warning(`Discovery completed with ${discoveryResult.errors.length} errors`, {
           description: 'Check console for details'
         });
       }

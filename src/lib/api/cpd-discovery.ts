@@ -211,6 +211,11 @@ export async function discoverResourcesForAllSkills(maxSkills: number = 10): Pro
     }
 
     console.log(`[CPD Discovery] ✅ Batch complete: ${summary.processed} skills, ${summary.totalResources} resources`);
+    
+    // Log summary for debugging
+    if (summary.errors.length > 0) {
+      console.warn(`[CPD Discovery] ⚠️ Encountered ${summary.errors.length} errors:`, summary.errors);
+    }
 
     return summary;
   } catch (error: any) {
