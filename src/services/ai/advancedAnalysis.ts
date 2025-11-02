@@ -359,12 +359,7 @@ export async function generateTrainingNarrative(memberId: string, practiceId: st
   // Fetch member data with proper joins
   const { data: member, error: memberError } = await supabase
     .from('practice_members')
-    .select(`
-      id,
-      name,
-      role,
-      years_experience
-    `)
+    .select('id, name, role')
     .eq('id', memberId)
     .maybeSingle();
   
@@ -422,11 +417,10 @@ export async function generateTrainingNarrative(memberId: string, practiceId: st
   const promptConfig = await getPromptConfig('training_narrative', practiceId);
   const apiKey = await getApiKey(practiceId);
   
-  // Fill template
+  // Fill template (removed years_experience as it doesn't exist in schema)
   const userPrompt = applyTemplate(promptConfig.user_prompt_template, {
     member_name: member.name,
     role: member.role || 'Team Member',
-    years_experience: member.years_experience || 2,
     learning_style: learningPrefs?.primary_style || 'Visual',
     top_skills: strengths.join(', ') || 'Not assessed',
     gap_areas: gaps.join(', ') || 'None identified',

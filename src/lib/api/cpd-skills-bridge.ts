@@ -339,7 +339,9 @@ export async function autoGenerateCPDRecommendations(memberId: string): Promise<
         id,
         skill_id,
         current_level,
-        skills:skill_id (
+        target_level,
+        interest_level,
+        skill:skills (
           id,
           name,
           category,
@@ -352,6 +354,8 @@ export async function autoGenerateCPDRecommendations(memberId: string): Promise<
       console.error('[CPD] Error fetching skill assessments:', assessError);
       return false;
     }
+
+    console.log('[CPD] Query returned:', assessments?.length || 0, 'assessments');
 
     if (!assessments || assessments.length === 0) {
       console.log('[CPD] No skill assessments found for member');
@@ -369,9 +373,9 @@ export async function autoGenerateCPDRecommendations(memberId: string): Promise<
       })
       .map(assessment => {
         const ass = assessment as any;
-        const skill = ass.skills;
+        const skill = ass.skill; // Changed from ass.skills to ass.skill
         const currentLevel = ass.current_level || 0;
-        const targetLevel = 4; // Default target: Proficient
+        const targetLevel = ass.target_level || 4; // Use actual target or default to 4
         const gap = targetLevel - currentLevel;
         
         // Determine business impact based on skill level gap
@@ -386,7 +390,7 @@ export async function autoGenerateCPDRecommendations(memberId: string): Promise<
           category: skill?.category || 'General',
           currentLevel,
           targetLevel,
-          interestLevel: 3, // Default interest level (could be customized later)
+          interestLevel: ass.interest_level || 3, // Use actual interest level or default
           businessImpact
         };
       });
