@@ -16,7 +16,8 @@ import {
   GraduationCap, 
   AlertCircle,
   CheckCircle,
-  Loader2
+  Loader2,
+  Zap
 } from 'lucide-react';
 import { 
   discoverResourcesForAllSkills,
@@ -206,7 +207,7 @@ export const CPDDiscoveryPanel: React.FC = () => {
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-white">Quick Discovery</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Button
               onClick={() => handleQuickDiscovery(3)}
               disabled={discovering || !apiStatus?.working}
@@ -260,10 +261,31 @@ export const CPDDiscoveryPanel: React.FC = () => {
                 </>
               )}
             </Button>
+
+            <Button
+              onClick={() => handleQuickDiscovery(111)}
+              disabled={discovering || !apiStatus?.working}
+              className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-semibold"
+            >
+              {discovering ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Discovering...
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4 mr-2" />
+                  Discover All (111 skills)
+                </>
+              )}
+            </Button>
           </div>
 
           <p className="text-sm text-gray-400">
-            💡 Tip: Start with "Quick Test" to see how it works. Each skill takes about 10-20 seconds.
+            💡 Tip: Start with "Quick Test" to see how it works. Each skill takes about 90 seconds (4 levels × ~20 sec).
+          </p>
+          <p className="text-xs text-yellow-400">
+            ⚠️ "Discover All" will take 2.5-3 hours and cost ~£3. Run when you have time!
           </p>
         </div>
 
