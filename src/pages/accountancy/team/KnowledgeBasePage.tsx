@@ -114,24 +114,21 @@ const KnowledgeBasePage: React.FC = () => {
         const booksData = await loadLeadershipLibrary();
         setLeadershipBooks(booksData);
 
-        // If no practice, show empty state for practice-specific content
-        if (!practice?.id || !practiceMember?.id) {
-          console.log('[KnowledgeBase] No practice/member, showing library only');
-          setDocuments([]);
+        // Load knowledge documents - no longer requires practice/member
+        console.log('[KnowledgeBase] Loading documents (public access)...');
+        const docsData = await getKnowledgeDocuments(); // No practiceId - show all public docs
+        setDocuments(docsData);
+        
+        // Load CPD activities if we have a practice
+        if (practice?.id) {
+          const activitiesData = await getCPDActivities(practice.id);
+          setCpdActivities(activitiesData);
+        } else {
+          console.log('[KnowledgeBase] No practice, skipping CPD activities');
           setCpdActivities([]);
-          setLoading(false);
-          return;
         }
 
-        const [docsData, activitiesData] = await Promise.all([
-          getKnowledgeDocuments(practice.id),
-          getCPDActivities(practice.id)
-        ]);
-
-        setDocuments(docsData);
-        setCpdActivities(activitiesData);
-
-        // Load checkout status for all books
+        // Load checkout status for all books if we have a member
         if (practiceMember?.id) {
           const checkoutMap = new Map<string, BookCheckout>();
           await Promise.all(
