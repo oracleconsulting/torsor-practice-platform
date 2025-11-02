@@ -331,6 +331,7 @@ export async function generateCPDRecommendations(
 export async function autoGenerateCPDRecommendations(memberId: string): Promise<boolean> {
   try {
     console.log('[CPD] Auto-generating recommendations for member:', memberId);
+    console.log('[CPD] Member ID type:', typeof memberId, 'value:', memberId);
 
     // Get all skill assessments for this member with skill details
     // Note: target_level doesn't exist in schema, we'll calculate it as 4 (Proficient) or use required_level from skills
@@ -351,15 +352,38 @@ export async function autoGenerateCPDRecommendations(memberId: string): Promise<
       `)
       .eq('team_member_id', memberId);
 
+    console.log('[CPD] Query response:', {
+      assessments: assessments,
+      count: assessments?.length || 0,
+      error: assessError,
+      memberId: memberId
+    });
+
     if (assessError) {
       console.error('[CPD] Error fetching skill assessments:', assessError);
       return false;
     }
 
     console.log('[CPD] Query returned:', assessments?.length || 0, 'assessments');
+    
+    // DIAGNOSTIC: Let's check if assessments exist with a simpler query
+    const { data: simpleCheck, error: simpleError } = await supabase
+      .from('skill_assessments')
+      .select('id, team_member_id')
+      .eq('team_member_id', memberId);
+    
+    console.log('[CPD] Simple check result:', {
+      found: simpleCheck?.length || 0,
+      error: simpleError,
+      data: simpleCheck
+    });
 
     if (!assessments || assessments.length === 0) {
       console.log('[CPD] No skill assessments found for member');
+      console.log('[CPD] Possible reasons:');
+      console.log('  1. Member has no skill assessments in skill_assessments table');
+      console.log('  2. team_member_id does not match practice_members.id');
+      console.log('  3. RLS policy blocking access');
       return false;
     }
 
