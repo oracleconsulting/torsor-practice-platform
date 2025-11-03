@@ -213,17 +213,36 @@ export async function discoverResourcesForAllSkills(maxSkills: number = 10): Pro
       .from('knowledge_documents')
       .select('title, file_name');
     
-    // Extract skill names from titles (they start with skill name)
+    // Extract skill names from file_name
     const coveredSkills = new Set<string>();
     existingDocs?.forEach((doc: any) => {
-      // file_name format: "skill-name-contenttype.md"
+      // NEW file_name format: "skill-name-contenttype-levelX-Y.md"
+      // OLD file_name format: "skill-name-contenttype.md"
+      // We need to extract just "skill-name" part
       if (doc.file_name) {
-        const skillSlug = doc.file_name.split('-').slice(0, -1).join('-'); // Remove last part (contenttype)
-        coveredSkills.add(skillSlug);
+        // Split by hyphen and remove everything after the content type
+        // Content types: article, webinar, video, podcast, case_study
+        const parts = doc.file_name.split('-');
+        
+        // Find where content type starts (they're the known types)
+        const contentTypes = ['article', 'webinar', 'video', 'podcast', 'case', 'guide'];
+        let skillParts = [];
+        
+        for (let i = 0; i < parts.length; i++) {
+          if (contentTypes.includes(parts[i])) {
+            break; // Stop before content type
+          }
+          skillParts.push(parts[i]);
+        }
+        
+        if (skillParts.length > 0) {
+          const skillSlug = skillParts.join('-');
+          coveredSkills.add(skillSlug);
+        }
       }
     });
 
-    console.log(`[CPD Discovery] Already covered ${coveredSkills.size} skills`);
+    console.log(`[CPD Discovery] Already covered ${coveredSkills.size} unique skills`);
     console.log(`[CPD Discovery] Sample covered:`, Array.from(coveredSkills).slice(0, 5));
 
     // Get ALL skills first, then filter in JS
