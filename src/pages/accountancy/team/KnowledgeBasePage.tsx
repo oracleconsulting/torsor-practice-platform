@@ -482,7 +482,7 @@ const KnowledgeBasePage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">
-              {documents.filter(d => d.document_type === 'article').length}
+              {documents.filter(d => d.document_type === 'article' || d.content_type === 'article').length}
             </div>
           </CardContent>
         </Card>
@@ -494,7 +494,7 @@ const KnowledgeBasePage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">
-              {documents.filter(d => d.document_type === 'webinar').length}
+              {documents.filter(d => d.document_type === 'webinar' || d.content_type === 'webinar').length}
             </div>
           </CardContent>
         </Card>
@@ -734,8 +734,8 @@ const KnowledgeBasePage: React.FC = () => {
                         <CardDescription className="line-clamp-2">{doc.summary}</CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        {/* Content Type and Duration Badge */}
-                        {(doc.content_type || doc.duration_minutes) && (
+                        {/* Content Type, Duration, and Skill Level Badges */}
+                        {(doc.content_type || doc.duration_minutes || doc.skill_level) && (
                           <div className="flex flex-wrap gap-2">
                             {doc.content_type && (
                               <Badge variant="secondary" className="capitalize">
@@ -746,6 +746,19 @@ const KnowledgeBasePage: React.FC = () => {
                               <Badge variant="outline" className="flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
                                 {doc.duration_minutes} min
+                              </Badge>
+                            )}
+                            {doc.skill_level && (doc as any).target_skill_levels && (
+                              <Badge 
+                                variant="outline" 
+                                className={`capitalize font-semibold ${
+                                  doc.skill_level === 'beginner' ? 'border-green-500 text-green-700 bg-green-50' :
+                                  doc.skill_level === 'intermediate' ? 'border-blue-500 text-blue-700 bg-blue-50' :
+                                  doc.skill_level === 'advanced' ? 'border-purple-500 text-purple-700 bg-purple-50' :
+                                  'border-orange-500 text-orange-700 bg-orange-50'
+                                }`}
+                              >
+                                {doc.skill_level} (Level {(doc as any).target_skill_levels?.[0]}→{(doc as any).target_skill_levels?.[1]})
                               </Badge>
                             )}
                           </div>
