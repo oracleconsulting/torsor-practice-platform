@@ -78,6 +78,7 @@ const KnowledgeBasePage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
   const [selectedSkill, setSelectedSkill] = useState<string>('all');
+  const [selectedLevel, setSelectedLevel] = useState<string>('all'); // NEW: skill level filter
   const [showUploadDialog, setShowUploadDialog] = useState(false);
 
   const [newDocument, setNewDocument] = useState<KnowledgeDocumentForm>({
@@ -235,12 +236,22 @@ const KnowledgeBasePage: React.FC = () => {
       doc.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (doc.tags && doc.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())));
     
-    const matchesTab = activeTab === 'all' || doc.document_type === activeTab;
-    const matchesType = selectedType === 'all' || doc.document_type === selectedType;
+    // Check both document_type (legacy) and content_type (AI-discovered)
+    const matchesTab = activeTab === 'all' || 
+      doc.document_type === activeTab || 
+      doc.content_type === activeTab;
+      
+    const matchesType = selectedType === 'all' || 
+      doc.document_type === selectedType || 
+      doc.content_type === selectedType;
+      
     const matchesCategory = selectedCategory === 'all' || 
       (doc.skill_categories && doc.skill_categories.includes(selectedCategory));
+    
+    // NEW: Skill level filter
+    const matchesLevel = selectedLevel === 'all' || doc.skill_level === selectedLevel;
 
-    return matchesSearch && matchesTab && matchesType && matchesCategory;
+    return matchesSearch && matchesTab && matchesType && matchesCategory && matchesLevel;
   });
 
   // Get all assessed skills (from the 111) that are covered in the library
@@ -394,8 +405,8 @@ const KnowledgeBasePage: React.FC = () => {
       </Tabs>
 
       {/* Search and Filters */}
-      <div className="flex gap-4 mb-6">
-        <div className="relative flex-1">
+      <div className="flex gap-4 mb-6 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white font-medium w-4 h-4" />
           <Input 
             placeholder="Search documents..."
@@ -415,8 +426,10 @@ const KnowledgeBasePage: React.FC = () => {
             <SelectItem value="knowledge_session">🎥 Knowledge Sessions</SelectItem>
             <SelectItem value="article">📰 Articles</SelectItem>
             <SelectItem value="webinar">🌐 Webinars</SelectItem>
-            <SelectItem value="cpd_summary">📄 CPD Summaries</SelectItem>
+            <SelectItem value="video">📹 Videos</SelectItem>
+            <SelectItem value="podcast">🎙️ Podcasts</SelectItem>
             <SelectItem value="case_study">🎓 Case Studies</SelectItem>
+            <SelectItem value="cpd_summary">📄 CPD Summaries</SelectItem>
             <SelectItem value="guide">📖 Guides</SelectItem>
             <SelectItem value="template">📋 Templates</SelectItem>
             <SelectItem value="notes">📝 Notes</SelectItem>
@@ -437,6 +450,50 @@ const KnowledgeBasePage: React.FC = () => {
             ))}
           </SelectContent>
         </Select>
+
+        <Select value={selectedLevel} onValueChange={setSelectedLevel}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="All Levels" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Levels</SelectItem>
+            <SelectItem value="beginner">
+              <span className="flex items-center gap-2">
+                🟢 Beginner (1→2)
+              </span>
+            </SelectItem>
+            <SelectItem value="intermediate">
+              <span className="flex items-center gap-2">
+                🔵 Intermediate (2→3)
+              </span>
+            </SelectItem>
+            <SelectItem value="advanced">
+              <span className="flex items-center gap-2">
+                🟣 Advanced (3→4)
+              </span>
+            </SelectItem>
+            <SelectItem value="expert">
+              <span className="flex items-center gap-2">
+                🟠 Expert (4→5)
+              </span>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+
+        {(selectedType !== 'all' || selectedCategory !== 'all' || selectedLevel !== 'all') && (
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              setSelectedType('all');
+              setSelectedCategory('all');
+              setSelectedLevel('all');
+            }}
+            className="text-gray-900"
+          >
+            Clear Filters
+          </Button>
+        )}
       </div>
 
       {/* Stats */}
@@ -694,10 +751,6 @@ const KnowledgeBasePage: React.FC = () => {
                 </p>
               </>
             )}
-            <Button onClick={() => setShowUploadDialog(true)} className="bg-orange-500 hover:bg-orange-600">
-              <Plus className="h-4 w-4 mr-2" />
-              Add {getTypeLabel(activeTab === 'all' ? 'other' : activeTab)}
-            </Button>
           </CardContent>
         </Card>
       ) : (
