@@ -344,6 +344,21 @@ export async function deleteGoal(goalId: string) {
 // =====================================================
 
 export async function getTeamSkillsOverview() {
+  // First, get non-test member IDs
+  const { data: realMembers, error: membersError } = await supabase
+    .from('practice_members')
+    .select('id')
+    .or('is_test_account.is.null,is_test_account.eq.false');
+  
+  if (membersError) throw membersError;
+  
+  const realMemberIds = realMembers?.map(m => m.id) || [];
+  
+  if (realMemberIds.length === 0) {
+    return []; // No real members, return empty
+  }
+  
+  // Get assessments only for real members
   const { data, error } = await supabase
     .from('skill_assessments')
     .select(`
@@ -351,7 +366,8 @@ export async function getTeamSkillsOverview() {
       current_level,
       interest_level,
       skill:skills(name, category, service_line, required_level)
-    `);
+    `)
+    .in('team_member_id', realMemberIds); // Exclude test accounts
     
   if (error) throw error;
   

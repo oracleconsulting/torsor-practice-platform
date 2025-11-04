@@ -80,20 +80,25 @@ export default function AdminDashboardPage() {
     try {
       console.log('[AdminDashboard] Loading real data from Supabase...');
       
-      // Get all team members
+      // Get all team members (exclude test accounts)
       const { data: members, error: membersError } = await supabase
         .from('practice_members')
-        .select('*');
+        .select('*')
+        .or('is_test_account.is.null,is_test_account.eq.false'); // Exclude test accounts
 
       if (membersError) throw membersError;
 
       const teamSize = members?.length || 0;
-      console.log('[AdminDashboard] Team size:', teamSize);
+      console.log('[AdminDashboard] Team size (excluding test accounts):', teamSize);
 
-      // Get all skill assessments
+      // Get member IDs to filter assessments
+      const memberIds = members?.map(m => m.id) || [];
+
+      // Get all skill assessments (only for real team members)
       const { data: assessments, error: assessmentsError } = await supabase
         .from('skill_assessments')
-        .select('team_member_id, skill_id, current_level, interest_level');
+        .select('team_member_id, skill_id, current_level, interest_level')
+        .in('team_member_id', memberIds); // Only include real team members
 
       if (assessmentsError) throw assessmentsError;
 
