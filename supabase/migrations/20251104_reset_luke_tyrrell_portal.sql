@@ -157,24 +157,33 @@ DECLARE
   v_user_id UUID;
   v_member_id UUID;
   v_email TEXT;
+  v_column_exists BOOLEAN;
 BEGIN
   SELECT id INTO v_user_id FROM auth.users WHERE email = 'ltyrrell@rpgcc.co.uk';
   SELECT id, email INTO v_member_id, v_email FROM practice_members WHERE user_id = v_user_id;
   
-  -- Clear invitations assessment data (VARK, OCEAN, etc.) but keep skills
-  -- Try updating by email since practice_member_id column might not exist
-  UPDATE invitations
-  SET 
-    vark_results = NULL,
-    ocean_results = NULL,
-    strengths_data = NULL,
-    motivations_data = NULL,
-    service_line_preferences = NULL,
-    assessment_complete = false,
-    completed_at = NULL
-  WHERE email = v_email;
+  -- Check if assessment_data column exists in invitations
+  SELECT EXISTS (
+    SELECT FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'invitations'
+    AND column_name = 'assessment_data'
+  ) INTO v_column_exists;
   
-  RAISE NOTICE '✅ Reset assessments (VARK, OCEAN, etc.) - ready to redo';
+  IF v_column_exists THEN
+    -- Reset assessment_data JSONB field
+    UPDATE invitations
+    SET 
+      assessment_data = NULL,
+      assessment_complete = false,
+      completed_at = NULL
+    WHERE email = v_email;
+    
+    RAISE NOTICE '✅ Reset assessment data (VARK, OCEAN, etc.) - ready to redo';
+  ELSE
+    RAISE NOTICE '⏭️  Assessment data columns not found - may already be using different structure';
+  END IF;
+  
   RAISE NOTICE '✅ Skills assessment data preserved';
 END $$;
 
