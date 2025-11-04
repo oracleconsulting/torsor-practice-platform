@@ -210,27 +210,25 @@ CREATE TABLE IF NOT EXISTS reward_rules (
 
 -- =====================================================
 -- INDEXES FOR PERFORMANCE
+-- TEMPORARILY DISABLED - Will add after tables confirmed working
 -- =====================================================
 
--- Note: practice_id indexes removed temporarily
--- CREATE INDEX IF NOT EXISTS idx_achievement_categories_practice ON achievement_categories(practice_id);
--- CREATE INDEX IF NOT EXISTS idx_achievements_practice ON achievements(practice_id);
--- CREATE INDEX IF NOT EXISTS idx_milestones_practice ON milestones(practice_id);
--- CREATE INDEX IF NOT EXISTS idx_reward_rules_practice ON reward_rules(practice_id);
+-- Note: ALL indexes commented out temporarily to isolate table creation issues
+-- Will re-enable in separate migration after confirming tables work
 
-CREATE INDEX IF NOT EXISTS idx_achievements_trigger_type ON achievements(trigger_type);
-CREATE INDEX IF NOT EXISTS idx_achievements_active ON achievements(is_active);
-CREATE INDEX IF NOT EXISTS idx_member_achievements_member ON member_achievements(member_id);
-CREATE INDEX IF NOT EXISTS idx_member_achievements_achievement ON member_achievements(achievement_id);
-CREATE INDEX IF NOT EXISTS idx_member_achievements_viewed ON member_achievements(is_viewed);
-CREATE INDEX IF NOT EXISTS idx_milestones_active ON milestones(is_active);
-CREATE INDEX IF NOT EXISTS idx_member_milestone_progress_member ON member_milestone_progress(member_id);
-CREATE INDEX IF NOT EXISTS idx_member_milestone_progress_status ON member_milestone_progress(status);
-CREATE INDEX IF NOT EXISTS idx_member_points_member ON member_points(member_id);
-CREATE INDEX IF NOT EXISTS idx_member_points_rank ON member_points(current_rank);
-CREATE INDEX IF NOT EXISTS idx_points_history_member ON points_history(member_id);
-CREATE INDEX IF NOT EXISTS idx_points_history_awarded_at ON points_history(awarded_at);
-CREATE INDEX IF NOT EXISTS idx_reward_rules_active ON reward_rules(is_active);
+-- CREATE INDEX IF NOT EXISTS idx_achievements_trigger_type ON achievements(trigger_type);
+-- CREATE INDEX IF NOT EXISTS idx_achievements_active ON achievements(is_active);
+-- CREATE INDEX IF NOT EXISTS idx_member_achievements_member ON member_achievements(member_id);
+-- CREATE INDEX IF NOT EXISTS idx_member_achievements_achievement ON member_achievements(achievement_id);
+-- CREATE INDEX IF NOT EXISTS idx_member_achievements_viewed ON member_achievements(is_viewed);
+-- CREATE INDEX IF NOT EXISTS idx_milestones_active ON milestones(is_active);
+-- CREATE INDEX IF NOT EXISTS idx_member_milestone_progress_member ON member_milestone_progress(member_id);
+-- CREATE INDEX IF NOT EXISTS idx_member_milestone_progress_status ON member_milestone_progress(status);
+-- CREATE INDEX IF NOT EXISTS idx_member_points_member ON member_points(member_id);
+-- CREATE INDEX IF NOT EXISTS idx_member_points_rank ON member_points(current_rank);
+-- CREATE INDEX IF NOT EXISTS idx_points_history_member ON points_history(member_id);
+-- CREATE INDEX IF NOT EXISTS idx_points_history_awarded_at ON points_history(awarded_at);
+-- CREATE INDEX IF NOT EXISTS idx_reward_rules_active ON reward_rules(is_active);
 
 -- =====================================================
 -- ROW LEVEL SECURITY (RLS)
