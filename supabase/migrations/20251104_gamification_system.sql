@@ -250,10 +250,23 @@ ALTER TABLE reward_rules ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow read access to achievement_categories" ON achievement_categories;
 CREATE POLICY "Allow read access to achievement_categories" ON achievement_categories FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Allow insert achievement_categories" ON achievement_categories;
+CREATE POLICY "Allow insert achievement_categories" ON achievement_categories FOR INSERT WITH CHECK (true);
+
 DROP POLICY IF EXISTS "Allow admin write access to achievement_categories" ON achievement_categories;
 CREATE POLICY "Allow admin write access to achievement_categories" ON achievement_categories 
-FOR ALL USING (
+FOR UPDATE USING (
   practice_id IS NULL OR  -- Allow global categories
+  practice_id IN (
+    SELECT practice_id FROM practice_members 
+    WHERE user_id = auth.uid() AND role IN ('Partner', 'Director')
+  )
+);
+
+DROP POLICY IF EXISTS "Allow admin delete access to achievement_categories" ON achievement_categories;
+CREATE POLICY "Allow admin delete access to achievement_categories" ON achievement_categories 
+FOR DELETE USING (
+  practice_id IS NULL OR
   practice_id IN (
     SELECT practice_id FROM practice_members 
     WHERE user_id = auth.uid() AND role IN ('Partner', 'Director')
@@ -264,10 +277,23 @@ FOR ALL USING (
 DROP POLICY IF EXISTS "Allow read access to achievements" ON achievements;
 CREATE POLICY "Allow read access to achievements" ON achievements FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Allow insert achievements" ON achievements;
+CREATE POLICY "Allow insert achievements" ON achievements FOR INSERT WITH CHECK (true);
+
 DROP POLICY IF EXISTS "Allow admin write access to achievements" ON achievements;
 CREATE POLICY "Allow admin write access to achievements" ON achievements 
-FOR ALL USING (
+FOR UPDATE USING (
   practice_id IS NULL OR  -- Allow global achievements
+  practice_id IN (
+    SELECT practice_id FROM practice_members 
+    WHERE user_id = auth.uid() AND role IN ('Partner', 'Director')
+  )
+);
+
+DROP POLICY IF EXISTS "Allow admin delete access to achievements" ON achievements;
+CREATE POLICY "Allow admin delete access to achievements" ON achievements 
+FOR DELETE USING (
+  practice_id IS NULL OR
   practice_id IN (
     SELECT practice_id FROM practice_members 
     WHERE user_id = auth.uid() AND role IN ('Partner', 'Director')
@@ -300,10 +326,23 @@ CREATE POLICY "Allow members to update their achievements" ON member_achievement
 DROP POLICY IF EXISTS "Allow read access to milestones" ON milestones;
 CREATE POLICY "Allow read access to milestones" ON milestones FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Allow insert milestones" ON milestones;
+CREATE POLICY "Allow insert milestones" ON milestones FOR INSERT WITH CHECK (true);
+
 DROP POLICY IF EXISTS "Allow admin write access to milestones" ON milestones;
 CREATE POLICY "Allow admin write access to milestones" ON milestones 
-FOR ALL USING (
+FOR UPDATE USING (
   practice_id IS NULL OR  -- Allow global milestones
+  practice_id IN (
+    SELECT practice_id FROM practice_members 
+    WHERE user_id = auth.uid() AND role IN ('Partner', 'Director')
+  )
+);
+
+DROP POLICY IF EXISTS "Allow admin delete access to milestones" ON milestones;
+CREATE POLICY "Allow admin delete access to milestones" ON milestones 
+FOR DELETE USING (
+  practice_id IS NULL OR
   practice_id IN (
     SELECT practice_id FROM practice_members 
     WHERE user_id = auth.uid() AND role IN ('Partner', 'Director')
@@ -355,10 +394,23 @@ CREATE POLICY "Allow system to insert points history" ON points_history FOR INSE
 DROP POLICY IF EXISTS "Allow read access to reward_rules" ON reward_rules;
 CREATE POLICY "Allow read access to reward_rules" ON reward_rules FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Allow insert reward_rules" ON reward_rules;
+CREATE POLICY "Allow insert reward_rules" ON reward_rules FOR INSERT WITH CHECK (true);
+
 DROP POLICY IF EXISTS "Allow admin write access to reward_rules" ON reward_rules;
 CREATE POLICY "Allow admin write access to reward_rules" ON reward_rules 
-FOR ALL USING (
+FOR UPDATE USING (
   practice_id IS NULL OR  -- Allow global rules
+  practice_id IN (
+    SELECT practice_id FROM practice_members 
+    WHERE user_id = auth.uid() AND role IN ('Partner', 'Director')
+  )
+);
+
+DROP POLICY IF EXISTS "Allow admin delete access to reward_rules" ON reward_rules;
+CREATE POLICY "Allow admin delete access to reward_rules" ON reward_rules 
+FOR DELETE USING (
+  practice_id IS NULL OR
   practice_id IN (
     SELECT practice_id FROM practice_members 
     WHERE user_id = auth.uid() AND role IN ('Partner', 'Director')
