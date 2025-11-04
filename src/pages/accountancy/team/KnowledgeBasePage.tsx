@@ -79,6 +79,7 @@ const KnowledgeBasePage: React.FC = () => {
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
   const [selectedSkill, setSelectedSkill] = useState<string>('all');
   const [selectedLevel, setSelectedLevel] = useState<string>('all'); // NEW: skill level filter
+  const [sortBy, setSortBy] = useState<string>('newest'); // NEW: sorting
   const [showUploadDialog, setShowUploadDialog] = useState(false);
 
   const [newDocument, setNewDocument] = useState<KnowledgeDocumentForm>({
@@ -254,6 +255,36 @@ const KnowledgeBasePage: React.FC = () => {
     return matchesSearch && matchesTab && matchesType && matchesCategory && matchesLevel;
   });
 
+  // NEW: Apply sorting
+  const sortedDocuments = [...filteredDocuments].sort((a, b) => {
+    switch (sortBy) {
+      case 'newest':
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      case 'oldest':
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      case 'level-asc': {
+        const levelOrder = { 'beginner': 1, 'intermediate': 2, 'advanced': 3, 'expert': 4 };
+        const aLevel = levelOrder[a.skill_level as keyof typeof levelOrder] || 0;
+        const bLevel = levelOrder[b.skill_level as keyof typeof levelOrder] || 0;
+        return aLevel - bLevel;
+      }
+      case 'level-desc': {
+        const levelOrder = { 'beginner': 1, 'intermediate': 2, 'advanced': 3, 'expert': 4 };
+        const aLevel = levelOrder[a.skill_level as keyof typeof levelOrder] || 0;
+        const bLevel = levelOrder[b.skill_level as keyof typeof levelOrder] || 0;
+        return bLevel - aLevel;
+      }
+      case 'duration-asc':
+        return (a.duration_minutes || 0) - (b.duration_minutes || 0);
+      case 'duration-desc':
+        return (b.duration_minutes || 0) - (a.duration_minutes || 0);
+      case 'title':
+        return a.title.localeCompare(b.title);
+      default:
+        return 0;
+    }
+  });
+
   // Get all assessed skills (from the 111) that are covered in the library
   const allAssessedSkills = React.useMemo(() => {
     return getAllAssessedSkillsInLibrary();
@@ -277,7 +308,7 @@ const KnowledgeBasePage: React.FC = () => {
   });
 
   // Group documents by type
-  const documentsByType = filteredDocuments.reduce((acc, doc) => {
+  const documentsByType = sortedDocuments.reduce((acc, doc) => {
     const type = doc.document_type || 'other';
     if (!acc[type]) acc[type] = [];
     acc[type].push(doc);
@@ -480,6 +511,21 @@ const KnowledgeBasePage: React.FC = () => {
           </SelectContent>
         </Select>
 
+        <Select value={sortBy} onValueChange={setSortBy}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Sort By" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest">📅 Newest First</SelectItem>
+            <SelectItem value="oldest">📅 Oldest First</SelectItem>
+            <SelectItem value="level-asc">🎓 Level (Low to High)</SelectItem>
+            <SelectItem value="level-desc">🎓 Level (High to Low)</SelectItem>
+            <SelectItem value="duration-asc">⏱️ Duration (Short to Long)</SelectItem>
+            <SelectItem value="duration-desc">⏱️ Duration (Long to Short)</SelectItem>
+            <SelectItem value="title">🔤 Title (A-Z)</SelectItem>
+          </SelectContent>
+        </Select>
+
         {(selectedType !== 'all' || selectedCategory !== 'all' || selectedLevel !== 'all') && (
           <Button 
             variant="outline" 
@@ -496,7 +542,8 @@ const KnowledgeBasePage: React.FC = () => {
         )}
       </div>
 
-      {/* Stats */}
+      {/* Stats - ONLY show on "All" tab */}
+      {activeTab === 'all' && (
       <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-8">
         <Card className="bg-gray-50 border-gray-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -568,6 +615,7 @@ const KnowledgeBasePage: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+      )}
 
       {/* Leadership Books Tab - Special Handling */}
       {activeTab === 'leadership_book' ? (
@@ -712,7 +760,7 @@ const KnowledgeBasePage: React.FC = () => {
             </div>
           )}
         </div>
-      ) : filteredDocuments.length === 0 ? (
+      ) : sortedDocuments.length === 0 ? (
         <Card className="bg-gray-50 border-gray-300">
           <CardContent className="p-12 text-center">
             {activeTab === 'knowledge_session' ? (
