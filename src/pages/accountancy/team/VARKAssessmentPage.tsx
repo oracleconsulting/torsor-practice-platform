@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import VARKAssessmentNew from '@/components/accountancy/team/VARKAssessmentNew';
 import VARKResults from '@/components/accountancy/team/VARKResults';
 import { type VARKProfile } from '@/data/varkQuestions';
+import { onAssessmentComplete } from '@/lib/api/gamification/hooks';
 
 const VARKAssessmentPage: React.FC = () => {
   const navigate = useNavigate();
@@ -126,6 +127,11 @@ const VARKAssessmentPage: React.FC = () => {
       }
 
       console.log('[VARKAssessmentPage] VARK profile saved successfully');
+      
+      // 🎮 Trigger gamification: Assessment complete
+      onAssessmentComplete(teamMemberId, 'vark').catch(err => 
+        console.error('[VARKAssessmentPage] Gamification error:', err)
+      );
       
       // Show results
       setProfile(varkProfile);

@@ -29,6 +29,7 @@ import ServiceLineInterestRanking from '@/components/accountancy/team/ServiceLin
 import ComprehensiveAssessmentResults from '@/components/accountancy/team/ComprehensiveAssessmentResults';
 import { getPersonalityAssessment } from '@/lib/api/personality-assessment';
 import { toast } from 'sonner';
+import { onAssessmentComplete } from '@/lib/api/gamification/hooks';
 
 export const CombinedAssessmentPage: React.FC = () => {
   const navigate = useNavigate();
@@ -160,12 +161,16 @@ export const CombinedAssessmentPage: React.FC = () => {
 
   const handleVARKComplete = () => {
     toast.success('VARK assessment completed!');
+    // 🎮 Trigger gamification
+    onAssessmentComplete(memberId, 'vark').catch(console.error);
     loadMemberData();
     setCurrentView('overview');
   };
 
   const handleOCEANComplete = (profile: any) => {
     toast.success('Personality assessment completed!');
+    // 🎮 Trigger gamification
+    onAssessmentComplete(memberId, 'ocean').catch(console.error);
     setOceanData(profile);
     setOceanCompleted(true);
     setCurrentView('results');
@@ -243,6 +248,7 @@ export const CombinedAssessmentPage: React.FC = () => {
           practiceId={practiceId}
           onComplete={() => {
             toast.success('Working Preferences assessment completed!');
+            onAssessmentComplete(memberId, 'working_preferences').catch(console.error);
             loadMemberData();
             setCurrentView('overview');
           }}
@@ -266,6 +272,7 @@ export const CombinedAssessmentPage: React.FC = () => {
           practiceId={practiceId}
           onComplete={() => {
             toast.success('Belbin Team Roles assessment completed!');
+            onAssessmentComplete(memberId, 'belbin').catch(console.error);
             loadMemberData();
             setCurrentView('overview');
           }}
@@ -289,6 +296,7 @@ export const CombinedAssessmentPage: React.FC = () => {
           practiceId={practiceId}
           onComplete={() => {
             toast.success('Motivational Drivers assessment completed!');
+            onAssessmentComplete(memberId, 'motivations').catch(console.error);
             loadMemberData();
             setCurrentView('overview');
           }}
@@ -312,6 +320,7 @@ export const CombinedAssessmentPage: React.FC = () => {
           practiceId={practiceId}
           onComplete={() => {
             toast.success('Emotional Intelligence assessment completed!');
+            onAssessmentComplete(memberId, 'eq').catch(console.error);
             loadMemberData();
             setCurrentView('overview');
           }}
@@ -335,6 +344,7 @@ export const CombinedAssessmentPage: React.FC = () => {
           practiceId={practiceId}
           onComplete={() => {
             toast.success('Conflict Style assessment completed!');
+            onAssessmentComplete(memberId, 'conflict_style').catch(console.error);
             loadMemberData();
             setCurrentView('overview');
           }}
