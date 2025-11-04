@@ -13,7 +13,7 @@ BEGIN;
 -- Achievement Categories (organize badges by type)
 CREATE TABLE IF NOT EXISTS achievement_categories (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  practice_id UUID REFERENCES practices(id) ON DELETE CASCADE,
+  practice_id UUID REFERENCES practices(id) ON DELETE CASCADE, -- NULL = global/default categories
   name TEXT NOT NULL,
   description TEXT,
   icon TEXT DEFAULT 'Trophy', -- Icon name from lucide-react
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS achievement_categories (
 -- Achievement Definitions (admin-configurable)
 CREATE TABLE IF NOT EXISTS achievements (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  practice_id UUID REFERENCES practices(id) ON DELETE CASCADE,
+  practice_id UUID REFERENCES practices(id) ON DELETE CASCADE, -- NULL = global/default achievements
   category_id UUID REFERENCES achievement_categories(id) ON DELETE SET NULL,
   
   -- Basic Info
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS member_achievements (
 -- Milestones (progress-based goals)
 CREATE TABLE IF NOT EXISTS milestones (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  practice_id UUID REFERENCES practices(id) ON DELETE CASCADE,
+  practice_id UUID REFERENCES practices(id) ON DELETE CASCADE, -- NULL = global/default milestones
   
   -- Basic Info
   name TEXT NOT NULL,
@@ -190,7 +190,7 @@ CREATE TABLE IF NOT EXISTS points_history (
 -- Reward Rules (auto-award configuration)
 CREATE TABLE IF NOT EXISTS reward_rules (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  practice_id UUID REFERENCES practices(id) ON DELETE CASCADE,
+  practice_id UUID REFERENCES practices(id) ON DELETE CASCADE, -- NULL = global rules
   
   -- Rule Definition
   name TEXT NOT NULL,
@@ -253,6 +253,7 @@ CREATE POLICY "Allow read access to achievement_categories" ON achievement_categ
 DROP POLICY IF EXISTS "Allow admin write access to achievement_categories" ON achievement_categories;
 CREATE POLICY "Allow admin write access to achievement_categories" ON achievement_categories 
 FOR ALL USING (
+  practice_id IS NULL OR  -- Allow global categories
   practice_id IN (
     SELECT practice_id FROM practice_members 
     WHERE user_id = auth.uid() AND role IN ('Partner', 'Director')
@@ -266,6 +267,7 @@ CREATE POLICY "Allow read access to achievements" ON achievements FOR SELECT USI
 DROP POLICY IF EXISTS "Allow admin write access to achievements" ON achievements;
 CREATE POLICY "Allow admin write access to achievements" ON achievements 
 FOR ALL USING (
+  practice_id IS NULL OR  -- Allow global achievements
   practice_id IN (
     SELECT practice_id FROM practice_members 
     WHERE user_id = auth.uid() AND role IN ('Partner', 'Director')
@@ -301,6 +303,7 @@ CREATE POLICY "Allow read access to milestones" ON milestones FOR SELECT USING (
 DROP POLICY IF EXISTS "Allow admin write access to milestones" ON milestones;
 CREATE POLICY "Allow admin write access to milestones" ON milestones 
 FOR ALL USING (
+  practice_id IS NULL OR  -- Allow global milestones
   practice_id IN (
     SELECT practice_id FROM practice_members 
     WHERE user_id = auth.uid() AND role IN ('Partner', 'Director')
@@ -355,6 +358,7 @@ CREATE POLICY "Allow read access to reward_rules" ON reward_rules FOR SELECT USI
 DROP POLICY IF EXISTS "Allow admin write access to reward_rules" ON reward_rules;
 CREATE POLICY "Allow admin write access to reward_rules" ON reward_rules 
 FOR ALL USING (
+  practice_id IS NULL OR  -- Allow global rules
   practice_id IN (
     SELECT practice_id FROM practice_members 
     WHERE user_id = auth.uid() AND role IN ('Partner', 'Director')
