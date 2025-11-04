@@ -19,6 +19,32 @@ export interface DiscoveryResult {
 }
 
 /**
+ * Check if we already have resources for a specific skill level
+ */
+async function hasExistingResources(skillName: string, currentLevel: number, targetLevel: number): Promise<boolean> {
+  const skillSlug = skillName.toLowerCase().replace(/\s+/g, '-');
+  const levelKey = `level${currentLevel}-${targetLevel}`;
+  
+  const { data, error } = await supabase
+    .from('knowledge_documents')
+    .select('id')
+    .ilike('file_name', `${skillSlug}%-${levelKey}%`)
+    .limit(1);
+
+  if (error) {
+    console.error(`[CPD Discovery] Error checking existing resources:`, error);
+    return false;
+  }
+
+  const exists = data && data.length > 0;
+  if (exists) {
+    console.log(`[CPD Discovery] ⏭️  Skipping ${skillName} (${currentLevel}→${targetLevel}) - already have resources`);
+  }
+  
+  return exists;
+}
+
+/**
  * Discover and add resources for a specific skill
  */
 export async function discoverResourcesForSkill(
@@ -67,6 +93,12 @@ export async function discoverResourcesForSkill(
     // Loop through each skill level progression
     for (const progression of levelProgressions) {
       console.log(`[CPD Discovery] Level ${progression.current}→${progression.target} for: ${skillName}`);
+      
+      // CHECK: Skip if we already have resources for this level
+      const alreadyHave = await hasExistingResources(skillName, progression.current, progression.target);
+      if (alreadyHave) {
+        continue; // Skip to next level
+      }
       
       // Discover knowledge documents for this level
       console.log(`[CPD Discovery] Searching for knowledge documents...`);

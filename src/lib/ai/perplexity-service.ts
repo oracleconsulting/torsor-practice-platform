@@ -160,11 +160,21 @@ export async function discoverKnowledgeDocuments(
   const targetLevelName = levelMap[targetLevel] || 'developing';
   const skillLevel = skillLevelMap[`${currentLevel}-${targetLevel}`] || 'intermediate';
 
-  console.log(`[Perplexity] Discovering ${skillLevel} resources for: ${skillName} (Level ${currentLevel}→${targetLevel})`);
+  // Define duration expectations per level
+  const durationMap: Record<string, string> = {
+    '1-2': '40-60 minutes', // Beginner - foundations
+    '2-3': '40-60 minutes', // Intermediate - practical application
+    '3-4': '90-120 minutes', // Advanced - complex scenarios (2 hours)
+    '4-5': '60-180 minutes' // Expert - open-ended, thought leadership
+  };
+
+  const expectedDuration = durationMap[`${currentLevel}-${targetLevel}`] || '40-60 minutes';
+
+  console.log(`[Perplexity] Discovering ${skillLevel} resources for: ${skillName} (Level ${currentLevel}→${targetLevel}, Duration: ${expectedDuration})`);
 
   const systemPrompt = `You are a CPD research assistant for UK accountants. Find resources at the EXACT skill level requested.
 
-CRITICAL: Resources must match the skill level progression. Respond ONLY with valid JSON.`;
+CRITICAL: Resources must match the skill level progression AND duration requirements. Respond ONLY with valid JSON.`;
 
   const userPrompt = `Find ${count} ${skillLevel.toUpperCase()}-level resources for UK accountants learning "${skillName}" (${skillCategory}).
 
@@ -172,25 +182,26 @@ CRITICAL: Resources must match the skill level progression. Respond ONLY with va
 Current: ${currentLevelName} (Level ${currentLevel}/5)
 Target: ${targetLevelName} (Level ${targetLevel}/5)
 Difficulty: ${skillLevel.toUpperCase()}
+**DURATION REQUIREMENT: ${expectedDuration}**
 
 **Level Requirements:**
-${currentLevel === 1 ? '- BEGINNER (1→2): Fundamentals, "What is X?", assumes NO prior knowledge, introductory concepts, basic definitions' : ''}
-${currentLevel === 2 ? '- INTERMEDIATE (2→3): Practical application, "How to use X?", common scenarios, building on basics, real-world examples' : ''}
-${currentLevel === 3 ? '- ADVANCED (3→4): Complex scenarios, edge cases, optimization, "Mastering X", assumes strong foundation' : ''}
-${currentLevel === 4 ? '- EXPERT (4→5): Cutting-edge, research, thought leadership, "Future of X", mastery-level, innovation' : ''}
+${currentLevel === 1 ? '- BEGINNER (1→2): Fundamentals, "What is X?", assumes NO prior knowledge, introductory concepts, basic definitions. DURATION: 40-60 min' : ''}
+${currentLevel === 2 ? '- INTERMEDIATE (2→3): Practical application, "How to use X?", common scenarios, building on basics, real-world examples. DURATION: 40-60 min' : ''}
+${currentLevel === 3 ? '- ADVANCED (3→4): Complex scenarios, edge cases, optimization, "Mastering X", assumes strong foundation. DURATION: 90-120 min (2 hours)' : ''}
+${currentLevel === 4 ? '- EXPERT (4→5): Cutting-edge, research, thought leadership, "Future of X", mastery-level, innovation. DURATION: 60-180 min (flexible)' : ''}
 
 **Content Focus:**
 - UK accounting (HMRC, FRS102, Companies House, UK GAAP)
 - Professional bodies (ICAEW, ACCA, AAT, CIMA)
 - Recent 2024-2025 content
-- **SHORT-FORM: 15-60 minutes**
+- **Must match duration requirement: ${expectedDuration}**
 
 **Content Types:**
-1. Articles (15-30 min) - Quick reads
-2. Webinars (30-60 min) - Watch & learn
-3. Videos (15-45 min) - Visual content
-4. Podcasts (30-60 min) - Listen on-the-go
-5. Case studies (20-40 min) - Real examples
+1. Articles - For levels 1-2 and 2-3: 40-60 min; For 3-4: 90-120 min
+2. Webinars - Adjust duration based on level
+3. Videos - Shorter for basics, longer for advanced
+4. Podcasts - Match duration to skill level
+5. Case studies - Deep dives for advanced levels
 
 Return JSON array with these EXACT keys:
 {
