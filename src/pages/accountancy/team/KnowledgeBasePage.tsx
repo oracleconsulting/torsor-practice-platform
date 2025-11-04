@@ -105,8 +105,26 @@ const KnowledgeBasePage: React.FC = () => {
     'digital-technology',
     'client-management',
     'leadership-people-management',
-    'professional-ethics'
+    'professional-ethics',
+    'advisory-consulting' // NEW: for AI-discovered resources
   ];
+
+  // Get unique categories from actual documents (dynamic)
+  const availableCategories = React.useMemo(() => {
+    const categoriesSet = new Set<string>();
+    documents.forEach(doc => {
+      if (doc.skill_categories && Array.isArray(doc.skill_categories)) {
+        doc.skill_categories.forEach((cat: string) => {
+          // Normalize the category name
+          const normalized = cat.toLowerCase().replace(/\s+/g, '-').replace(/&/g, 'and');
+          categoriesSet.add(normalized);
+        });
+      }
+    });
+    // Merge with predefined categories
+    skillCategories.forEach(cat => categoriesSet.add(cat));
+    return Array.from(categoriesSet).sort();
+  }, [documents]);
 
   useEffect(() => {
     async function loadData() {
@@ -246,8 +264,12 @@ const KnowledgeBasePage: React.FC = () => {
       doc.document_type === selectedType || 
       doc.content_type === selectedType;
       
+    // Category filter - check if doc.skill_categories array includes the selected category
     const matchesCategory = selectedCategory === 'all' || 
-      (doc.skill_categories && doc.skill_categories.includes(selectedCategory));
+      (doc.skill_categories && Array.isArray(doc.skill_categories) && 
+       doc.skill_categories.some((cat: string) => 
+         cat.toLowerCase().replace(/\s+/g, '-') === selectedCategory.toLowerCase()
+       ));
     
     // NEW: Skill level filter
     const matchesLevel = selectedLevel === 'all' || doc.skill_level === selectedLevel;
@@ -474,7 +496,7 @@ const KnowledgeBasePage: React.FC = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
-            {skillCategories.map(cat => (
+            {availableCategories.map(cat => (
               <SelectItem key={cat} value={cat}>
                 {cat.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
               </SelectItem>
