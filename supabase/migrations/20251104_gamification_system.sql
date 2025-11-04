@@ -232,134 +232,21 @@ CREATE INDEX IF NOT EXISTS idx_reward_rules_active ON reward_rules(is_active);
 
 -- =====================================================
 -- ROW LEVEL SECURITY (RLS)
+-- TEMPORARILY DISABLED for initial setup
 -- =====================================================
 
--- Enable RLS on all tables
-ALTER TABLE achievement_categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE achievements ENABLE ROW LEVEL SECURITY;
-ALTER TABLE member_achievements ENABLE ROW LEVEL SECURITY;
-ALTER TABLE milestones ENABLE ROW LEVEL SECURITY;
-ALTER TABLE member_milestone_progress ENABLE ROW LEVEL SECURITY;
-ALTER TABLE member_points ENABLE ROW LEVEL SECURITY;
-ALTER TABLE points_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE reward_rules ENABLE ROW LEVEL SECURITY;
+-- Disable RLS on all tables for now
+ALTER TABLE achievement_categories DISABLE ROW LEVEL SECURITY;
+ALTER TABLE achievements DISABLE ROW LEVEL SECURITY;
+ALTER TABLE member_achievements DISABLE ROW LEVEL SECURITY;
+ALTER TABLE milestones DISABLE ROW LEVEL SECURITY;
+ALTER TABLE member_milestone_progress DISABLE ROW LEVEL SECURITY;
+ALTER TABLE member_points DISABLE ROW LEVEL SECURITY;
+ALTER TABLE points_history DISABLE ROW LEVEL SECURITY;
+ALTER TABLE reward_rules DISABLE ROW LEVEL SECURITY;
 
--- RLS Policies: Simple and permissive for initial setup
-
--- Achievement Categories
-DROP POLICY IF EXISTS "Allow read access to achievement_categories" ON achievement_categories;
-CREATE POLICY "Allow read access to achievement_categories" ON achievement_categories FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Allow insert achievement_categories" ON achievement_categories;
-CREATE POLICY "Allow insert achievement_categories" ON achievement_categories FOR INSERT WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Allow admin write access to achievement_categories" ON achievement_categories;
-CREATE POLICY "Allow admin write access to achievement_categories" ON achievement_categories FOR UPDATE USING (true);
-
-DROP POLICY IF EXISTS "Allow admin delete access to achievement_categories" ON achievement_categories;
-CREATE POLICY "Allow admin delete access to achievement_categories" ON achievement_categories FOR DELETE USING (true);
-
--- Achievements
-DROP POLICY IF EXISTS "Allow read access to achievements" ON achievements;
-CREATE POLICY "Allow read access to achievements" ON achievements FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Allow insert achievements" ON achievements;
-CREATE POLICY "Allow insert achievements" ON achievements FOR INSERT WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Allow admin write access to achievements" ON achievements;
-CREATE POLICY "Allow admin write access to achievements" ON achievements FOR UPDATE USING (true);
-
-DROP POLICY IF EXISTS "Allow admin delete access to achievements" ON achievements;
-CREATE POLICY "Allow admin delete access to achievements" ON achievements FOR DELETE USING (true);
-
--- Member Achievements
-DROP POLICY IF EXISTS "Allow members to view their achievements" ON member_achievements;
-CREATE POLICY "Allow members to view their achievements" ON member_achievements FOR SELECT USING (
-  member_id IN (SELECT id FROM practice_members WHERE user_id = auth.uid())
-  OR
-  member_id IN (
-    SELECT pm.id FROM practice_members pm
-    WHERE pm.practice_id IN (
-      SELECT practice_id FROM practice_members 
-      WHERE user_id = auth.uid() AND role IN ('Partner', 'Director', 'Manager')
-    )
-  )
-);
-
-DROP POLICY IF EXISTS "Allow system to insert achievements" ON member_achievements;
-CREATE POLICY "Allow system to insert achievements" ON member_achievements FOR INSERT WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Allow members to update their achievements" ON member_achievements;
-CREATE POLICY "Allow members to update their achievements" ON member_achievements FOR UPDATE USING (
-  member_id IN (SELECT id FROM practice_members WHERE user_id = auth.uid())
-);
-
--- Milestones
-DROP POLICY IF EXISTS "Allow read access to milestones" ON milestones;
-CREATE POLICY "Allow read access to milestones" ON milestones FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Allow insert milestones" ON milestones;
-CREATE POLICY "Allow insert milestones" ON milestones FOR INSERT WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Allow admin write access to milestones" ON milestones;
-CREATE POLICY "Allow admin write access to milestones" ON milestones FOR UPDATE USING (true);
-
-DROP POLICY IF EXISTS "Allow admin delete access to milestones" ON milestones;
-CREATE POLICY "Allow admin delete access to milestones" ON milestones FOR DELETE USING (true);
-
--- Member Milestone Progress
-DROP POLICY IF EXISTS "Allow members to view their milestone progress" ON member_milestone_progress;
-CREATE POLICY "Allow members to view their milestone progress" ON member_milestone_progress FOR SELECT USING (
-  member_id IN (SELECT id FROM practice_members WHERE user_id = auth.uid())
-  OR
-  member_id IN (
-    SELECT pm.id FROM practice_members pm
-    WHERE pm.practice_id IN (
-      SELECT practice_id FROM practice_members 
-      WHERE user_id = auth.uid() AND role IN ('Partner', 'Director', 'Manager')
-    )
-  )
-);
-
-DROP POLICY IF EXISTS "Allow system to manage milestone progress" ON member_milestone_progress;
-CREATE POLICY "Allow system to manage milestone progress" ON member_milestone_progress FOR ALL WITH CHECK (true);
-
--- Member Points
-DROP POLICY IF EXISTS "Allow members to view points" ON member_points;
-CREATE POLICY "Allow members to view points" ON member_points FOR SELECT USING (true); -- Leaderboard visible to all
-
-DROP POLICY IF EXISTS "Allow system to manage points" ON member_points;
-CREATE POLICY "Allow system to manage points" ON member_points FOR ALL WITH CHECK (true);
-
--- Points History
-DROP POLICY IF EXISTS "Allow members to view their points history" ON points_history;
-CREATE POLICY "Allow members to view their points history" ON points_history FOR SELECT USING (
-  member_id IN (SELECT id FROM practice_members WHERE user_id = auth.uid())
-  OR
-  member_id IN (
-    SELECT pm.id FROM practice_members pm
-    WHERE pm.practice_id IN (
-      SELECT practice_id FROM practice_members 
-      WHERE user_id = auth.uid() AND role IN ('Partner', 'Director')
-    )
-  )
-);
-
-DROP POLICY IF EXISTS "Allow system to insert points history" ON points_history;
-CREATE POLICY "Allow system to insert points history" ON points_history FOR INSERT WITH CHECK (true);
-
--- Reward Rules
-DROP POLICY IF EXISTS "Allow read access to reward_rules" ON reward_rules;
-CREATE POLICY "Allow read access to reward_rules" ON reward_rules FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Allow insert reward_rules" ON reward_rules;
-CREATE POLICY "Allow insert reward_rules" ON reward_rules FOR INSERT WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Allow admin write access to reward_rules" ON reward_rules;
-CREATE POLICY "Allow admin write access to reward_rules" ON reward_rules FOR UPDATE USING (true);
-
-DROP POLICY IF EXISTS "Allow admin delete access to reward_rules" ON reward_rules;
-CREATE POLICY "Allow admin delete access to reward_rules" ON reward_rules FOR DELETE USING (true);
+-- Note: RLS policies removed temporarily
+-- Will re-enable with proper policies after initial setup works
 
 -- =====================================================
 -- TRIGGERS
