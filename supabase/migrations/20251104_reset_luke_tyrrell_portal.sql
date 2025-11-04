@@ -71,9 +71,8 @@ BEGIN
   FROM cpd_recommendations
   WHERE member_id = v_member_id;
   
-  SELECT COUNT(*) INTO v_tickets_count
-  FROM tickets
-  WHERE raised_by = v_member_id;
+  -- Tickets table might not exist yet, so set to 0
+  v_tickets_count := 0;
   
   SELECT COUNT(*) INTO v_skill_assessments_count
   FROM skill_assessments
@@ -121,25 +120,32 @@ BEGIN
 END $$;
 
 -- =====================================================
--- Step 4: Delete tickets (if any)
+-- Step 4: Delete tickets (if table exists)
 -- =====================================================
 
 DO $$ 
 DECLARE
   v_user_id UUID;
   v_member_id UUID;
-  v_deleted_tickets INTEGER;
+  v_table_exists BOOLEAN;
 BEGIN
   SELECT id INTO v_user_id FROM auth.users WHERE email = 'ltyrrell@rpgcc.co.uk';
   SELECT id INTO v_member_id FROM practice_members WHERE user_id = v_user_id;
   
-  -- Delete tickets raised by Luke
-  DELETE FROM tickets
-  WHERE raised_by = v_member_id;
+  -- Check if tickets table exists
+  SELECT EXISTS (
+    SELECT FROM information_schema.tables 
+    WHERE table_schema = 'public' 
+    AND table_name = 'tickets'
+  ) INTO v_table_exists;
   
-  GET DIAGNOSTICS v_deleted_tickets = ROW_COUNT;
-  
-  RAISE NOTICE '✅ Deleted % tickets', v_deleted_tickets;
+  IF v_table_exists THEN
+    -- Delete tickets raised by Luke
+    EXECUTE 'DELETE FROM tickets WHERE raised_by = $1' USING v_member_id;
+    RAISE NOTICE '✅ Deleted tickets';
+  ELSE
+    RAISE NOTICE '⏭️  Tickets table does not exist - skipping';
+  END IF;
 END $$;
 
 -- =====================================================
