@@ -157,33 +157,38 @@ DECLARE
   v_user_id UUID;
   v_member_id UUID;
   v_email TEXT;
-  v_column_exists BOOLEAN;
 BEGIN
   SELECT id INTO v_user_id FROM auth.users WHERE email = 'ltyrrell@rpgcc.co.uk';
   SELECT id, email INTO v_member_id, v_email FROM practice_members WHERE user_id = v_user_id;
   
-  -- Check if assessment_data column exists in invitations
-  SELECT EXISTS (
+  -- Reset assessment_data if it exists
+  IF EXISTS (
     SELECT FROM information_schema.columns 
-    WHERE table_schema = 'public' 
-    AND table_name = 'invitations'
-    AND column_name = 'assessment_data'
-  ) INTO v_column_exists;
-  
-  IF v_column_exists THEN
-    -- Reset assessment_data JSONB field
-    UPDATE invitations
-    SET 
-      assessment_data = NULL,
-      assessment_complete = false,
-      completed_at = NULL
-    WHERE email = v_email;
-    
-    RAISE NOTICE '✅ Reset assessment data (VARK, OCEAN, etc.) - ready to redo';
-  ELSE
-    RAISE NOTICE '⏭️  Assessment data columns not found - may already be using different structure';
+    WHERE table_schema = 'public' AND table_name = 'invitations' AND column_name = 'assessment_data'
+  ) THEN
+    EXECUTE 'UPDATE invitations SET assessment_data = NULL WHERE email = $1' USING v_email;
+    RAISE NOTICE '✅ Cleared assessment_data';
   END IF;
   
+  -- Reset assessment_complete if it exists
+  IF EXISTS (
+    SELECT FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'invitations' AND column_name = 'assessment_complete'
+  ) THEN
+    EXECUTE 'UPDATE invitations SET assessment_complete = false WHERE email = $1' USING v_email;
+    RAISE NOTICE '✅ Reset assessment_complete';
+  END IF;
+  
+  -- Reset completed_at if it exists
+  IF EXISTS (
+    SELECT FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'invitations' AND column_name = 'completed_at'
+  ) THEN
+    EXECUTE 'UPDATE invitations SET completed_at = NULL WHERE email = $1' USING v_email;
+    RAISE NOTICE '✅ Cleared completed_at';
+  END IF;
+  
+  RAISE NOTICE '✅ Assessment reset complete - ready to redo';
   RAISE NOTICE '✅ Skills assessment data preserved';
 END $$;
 
