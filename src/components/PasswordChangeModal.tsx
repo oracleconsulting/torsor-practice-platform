@@ -105,7 +105,7 @@ export const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
           password_change_required: false,
           last_password_change: new Date().toISOString()
         })
-        .eq('email', userEmail)
+        .ilike('email', userEmail) // Use ilike for case-insensitive matching
         .select();
 
       if (dbError) {
