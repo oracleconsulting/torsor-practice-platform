@@ -156,11 +156,13 @@ DO $$
 DECLARE
   v_user_id UUID;
   v_member_id UUID;
+  v_email TEXT;
 BEGIN
   SELECT id INTO v_user_id FROM auth.users WHERE email = 'ltyrrell@rpgcc.co.uk';
-  SELECT id INTO v_member_id FROM practice_members WHERE user_id = v_user_id;
+  SELECT id, email INTO v_member_id, v_email FROM practice_members WHERE user_id = v_user_id;
   
   -- Clear invitations assessment data (VARK, OCEAN, etc.) but keep skills
+  -- Try updating by email since practice_member_id column might not exist
   UPDATE invitations
   SET 
     vark_results = NULL,
@@ -170,7 +172,7 @@ BEGIN
     service_line_preferences = NULL,
     assessment_complete = false,
     completed_at = NULL
-  WHERE practice_member_id = v_member_id;
+  WHERE email = v_email;
   
   RAISE NOTICE '✅ Reset assessments (VARK, OCEAN, etc.) - ready to redo';
   RAISE NOTICE '✅ Skills assessment data preserved';
