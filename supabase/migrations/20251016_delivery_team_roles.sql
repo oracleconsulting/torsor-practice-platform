@@ -11,7 +11,7 @@ CREATE TABLE public.service_delivery_roles (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     practice_id uuid NOT NULL REFERENCES public.practices(id) ON DELETE CASCADE,
     service_id text NOT NULL, -- e.g., 'automation', 'management-accounts'
-    seniority text NOT NULL, -- Partner, Director, Senior, Intermediate, Junior, Admin
+    seniority text NOT NULL, -- Partner, Director, Associate Director, Manager, Assistant Manager, Senior, Junior, Admin
     display_order integer DEFAULT 0,
     responsibilities text[] DEFAULT '{}',
     estimated_hours decimal(5,2),

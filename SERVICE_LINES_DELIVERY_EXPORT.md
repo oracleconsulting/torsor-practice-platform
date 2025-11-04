@@ -61,7 +61,7 @@
 
 ---
 
-#### **Intermediate** (Est. Hours: 3-6 hours)
+#### **Manager** (Est. Hours: 3-6 hours)
 **Responsibilities:**
 - Data migration and cleanup
 - Bank feed configuration
@@ -141,7 +141,7 @@
 
 ---
 
-#### **Intermediate** (Est. Hours: 2-3 hours)
+#### **Manager** (Est. Hours: 2-3 hours)
 **Responsibilities:**
 - Data extraction and reconciliation
 - Report generation from software
@@ -237,7 +237,7 @@
 
 ---
 
-#### **Intermediate** (Est. Hours: 2-4 hours)
+#### **Manager** (Est. Hours: 2-4 hours)
 **Responsibilities:**
 - Historical data extraction
 - Comparables research
@@ -298,7 +298,7 @@
 
 ---
 
-#### **Intermediate** (Est. Hours: 2-3 hours)
+#### **Manager** (Est. Hours: 2-3 hours)
 **Responsibilities:**
 - Data extraction from databases
 - Client data normalization
@@ -372,7 +372,7 @@
 
 ---
 
-#### **Intermediate** (Est. Hours: 0.5 hours)
+#### **Manager** (Est. Hours: 0.5 hours)
 **Responsibilities:**
 - Compliance advice letter (standard)
 - Tool/template population
@@ -449,7 +449,7 @@
 
 ---
 
-#### **Intermediate** (Est. Hours: 1-2 hours)
+#### **Manager** (Est. Hours: 1-2 hours)
 **Responsibilities:**
 - Administrative coordination
 - Report generation
@@ -537,7 +537,7 @@
 
 ---
 
-#### **Intermediate** (Est. Hours: 8-15 hours)
+#### **Manager** (Est. Hours: 8-15 hours)
 **Responsibilities:**
 - Data gathering coordination
 - Documentation of current processes

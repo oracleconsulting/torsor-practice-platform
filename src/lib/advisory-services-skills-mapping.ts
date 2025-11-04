@@ -4,7 +4,7 @@
  * Includes seniority levels for task allocation
  */
 
-export type SeniorityLevel = 'Partner' | 'Director' | 'Senior' | 'Intermediate' | 'Junior' | 'Admin';
+export type SeniorityLevel = 'Partner' | 'Director' | 'Associate Director' | 'Manager' | 'Assistant Manager' | 'Senior' | 'Junior' | 'Admin';
 
 export interface ServiceSkillRequirement {
   skillName: string; // From the 111 assessed skills
@@ -72,7 +72,7 @@ export const advisoryServicesMap: ServiceLine[] = [
         minimumLevel: 4,
         idealLevel: 5,
         criticalToDelivery: true,
-        recommendedSeniority: ['Intermediate', 'Senior']
+        recommendedSeniority: ['Manager', 'Senior']
       },
       {
         skillName: 'Process Design & Optimisation',
@@ -86,21 +86,21 @@ export const advisoryServicesMap: ServiceLine[] = [
         minimumLevel: 3,
         idealLevel: 4,
         criticalToDelivery: true,
-        recommendedSeniority: ['Intermediate', 'Senior']
+        recommendedSeniority: ['Manager', 'Senior']
       },
       {
         skillName: 'Software Proficiency',
         minimumLevel: 4,
         idealLevel: 5,
         criticalToDelivery: true,
-        recommendedSeniority: ['Intermediate', 'Senior', 'Junior']
+        recommendedSeniority: ['Manager', 'Senior', 'Junior']
       },
       {
         skillName: 'Data Management & Analysis',
         minimumLevel: 3,
         idealLevel: 4,
         criticalToDelivery: true,
-        recommendedSeniority: ['Intermediate', 'Senior']
+        recommendedSeniority: ['Manager', 'Senior']
       },
       {
         skillName: 'Chart of Accounts Design',
@@ -121,14 +121,14 @@ export const advisoryServicesMap: ServiceLine[] = [
         minimumLevel: 3,
         idealLevel: 4,
         criticalToDelivery: false,
-        recommendedSeniority: ['Intermediate', 'Senior']
+        recommendedSeniority: ['Manager', 'Senior']
       },
       {
         skillName: 'Problem Diagnosis & Troubleshooting',
         minimumLevel: 3,
         idealLevel: 4,
         criticalToDelivery: true,
-        recommendedSeniority: ['Intermediate', 'Senior']
+        recommendedSeniority: ['Manager', 'Senior']
       }
     ],
     deliveryTeam: [
@@ -154,7 +154,7 @@ export const advisoryServicesMap: ServiceLine[] = [
         hoursEstimate: '4-8 hours'
       },
       {
-        seniority: 'Intermediate',
+        seniority: 'Manager',
         responsibilities: [
           'Data migration and cleanup',
           'Bank feed configuration',
@@ -245,14 +245,14 @@ export const advisoryServicesMap: ServiceLine[] = [
         minimumLevel: 3,
         idealLevel: 4,
         criticalToDelivery: true,
-        recommendedSeniority: ['Intermediate', 'Senior']
+        recommendedSeniority: ['Manager', 'Senior']
       },
       {
         skillName: 'Attention to Detail',
         minimumLevel: 4,
         idealLevel: 5,
         criticalToDelivery: true,
-        recommendedSeniority: ['Intermediate', 'Senior', 'Junior']
+        recommendedSeniority: ['Manager', 'Senior', 'Junior']
       },
       {
         skillName: 'Written Communication',
@@ -292,7 +292,7 @@ export const advisoryServicesMap: ServiceLine[] = [
         hoursEstimate: '3-5 hours'
       },
       {
-        seniority: 'Intermediate',
+        seniority: 'Manager',
         responsibilities: [
           'Data extraction and reconciliation',
           'Report generation from software',
@@ -454,7 +454,7 @@ export const advisoryServicesMap: ServiceLine[] = [
         hoursEstimate: '4-8 hours'
       },
       {
-        seniority: 'Intermediate',
+        seniority: 'Manager',
         responsibilities: [
           'Historical data extraction',
           'Comparables research',
@@ -530,7 +530,7 @@ export const advisoryServicesMap: ServiceLine[] = [
         minimumLevel: 3,
         idealLevel: 4,
         criticalToDelivery: false,
-        recommendedSeniority: ['Intermediate', 'Senior']
+        recommendedSeniority: ['Manager', 'Senior']
       },
       {
         skillName: 'Critical Thinking',
@@ -562,7 +562,7 @@ export const advisoryServicesMap: ServiceLine[] = [
         hoursEstimate: '3-4 hours'
       },
       {
-        seniority: 'Intermediate',
+        seniority: 'Manager',
         responsibilities: [
           'Data extraction from databases',
           'Client data normalization',
@@ -688,7 +688,7 @@ export const advisoryServicesMap: ServiceLine[] = [
         hoursEstimate: '1-1.5 hours'
       },
       {
-        seniority: 'Intermediate',
+        seniority: 'Manager',
         responsibilities: [
           'Compliance advice letter (standard)',
           'Tool/template population',
@@ -822,7 +822,7 @@ export const advisoryServicesMap: ServiceLine[] = [
         hoursEstimate: '2-4 hours'
       },
       {
-        seniority: 'Intermediate',
+        seniority: 'Manager',
         responsibilities: [
           'Administrative coordination',
           'Report generation',
@@ -926,7 +926,7 @@ export const advisoryServicesMap: ServiceLine[] = [
         minimumLevel: 4,
         idealLevel: 5,
         criticalToDelivery: true,
-        recommendedSeniority: ['Intermediate', 'Senior']
+        recommendedSeniority: ['Manager', 'Senior']
       },
       {
         skillName: 'Stakeholder Interviewing',
@@ -979,7 +979,7 @@ export const advisoryServicesMap: ServiceLine[] = [
         hoursEstimate: '15-30 hours'
       },
       {
-        seniority: 'Intermediate',
+        seniority: 'Manager',
         responsibilities: [
           'Data gathering coordination',
           'Documentation of current processes',

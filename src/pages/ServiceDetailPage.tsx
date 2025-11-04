@@ -1380,7 +1380,7 @@ const EditSkillsDialog: React.FC<EditSkillsDialogProps> = ({
     setSaving(false);
   };
 
-  const seniorityLevels: SeniorityLevel[] = ['Partner', 'Director', 'Senior', 'Intermediate', 'Junior', 'Admin'];
+  const seniorityLevels: SeniorityLevel[] = ['Partner', 'Director', 'Associate Director', 'Manager', 'Assistant Manager', 'Senior', 'Junior', 'Admin'];
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
