@@ -4,12 +4,13 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Building2, Network, Target, RefreshCw, Download, Zap, FileSearch } from 'lucide-react';
+import { Search, Building2, Network, Target, RefreshCw, Download, Zap, FileSearch, Database } from 'lucide-react';
 import { outreachService } from '@/services/accountancy/outreachService';
 import { toast } from 'sonner';
 import { EnhancedOutreachSearch } from '@/components/accountancy/outreach/search/EnhancedOutreachSearch';
 import EnhancedCompaniesHouseSearch from '@/components/accountancy/outreach/search/EnhancedCompaniesHouseSearch';
 import { DocumentParser } from '@/components/accountancy/outreach/DocumentParser';
+import { BulkCompanyResearch } from '@/components/accountancy/outreach/BulkCompanyResearch';
 
 const Research = () => {
   const [activeTab, setActiveTab] = useState('enhanced');
@@ -104,7 +105,7 @@ const Research = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="enhanced" className="flex items-center gap-2">
             <Zap className="w-4 h-4" />
             Advanced Tools
@@ -112,6 +113,10 @@ const Research = () => {
           <TabsTrigger value="document-parser" className="flex items-center gap-2">
             <FileSearch className="w-4 h-4" />
             Document Parser
+          </TabsTrigger>
+          <TabsTrigger value="bulk-research" className="flex items-center gap-2">
+            <Database className="w-4 h-4" />
+            Bulk Research
           </TabsTrigger>
           <TabsTrigger value="companies-house">Companies House</TabsTrigger>
           <TabsTrigger value="basic">Basic Search</TabsTrigger>
@@ -125,6 +130,10 @@ const Research = () => {
 
         <TabsContent value="document-parser">
           <DocumentParser />
+        </TabsContent>
+
+        <TabsContent value="bulk-research">
+          <BulkCompanyResearch />
         </TabsContent>
 
         <TabsContent value="companies-house">
