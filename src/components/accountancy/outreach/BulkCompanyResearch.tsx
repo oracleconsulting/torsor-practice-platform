@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Upload, Download, Search, Building2, Users, FileText, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { makeAuthenticatedRequest } from '@/services/auth';
+import { makeAuthenticatedRequest } from '@/services/accountancy/outreachService';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://oracle-api-server-production.up.railway.app';
 
