@@ -192,42 +192,41 @@ export const BulkCompanyResearch: React.FC = () => {
 
     const csvRows = [];
     
-    // Header row
+    // Header row - user's requested format
     csvRows.push([
-      'Company Number',
-      'Company Name',
-      'Status',
-      'Registered Office',
-      'Date of Creation',
-      'Number of Officers',
-      'Number of Filings',
-      'Recent Accounts',
-      'Recent Changes',
-      'Identified Accountant',
-      'Confidence',
+      'company_number',
+      'company_name',
+      'Directors_names',
+      'Registered_office_address',
+      'Company_status',
+      'company_type',
+      'incorporation_date',
+      'sic_code',
+      'Number_of_Officers',
+      'Number_of_Filings',
+      'Accounts_Filed',
+      'Recent_Changes',
+      'Filing_Summary',
     ].join(','));
 
     // Data rows
     for (const company of results.results) {
       const profile = company.company_profile;
-      const address = profile?.registered_office_address
-        ? Object.values(profile.registered_office_address).filter(Boolean).join(', ')
-        : '';
-      
-      const parsedFiling = company.parsed_filings?.[0];
       
       csvRows.push([
-        company.company_number,
+        company.company_number || '',
         `"${profile?.company_name || ''}"`,
+        `"${company.directors_formatted || 'No directors'}"`,
+        `"${company.address_formatted || ''}"`,
         profile?.company_status || '',
-        `"${address}"`,
+        profile?.company_type || '',
         profile?.date_of_creation || '',
+        `"${company.sic_codes_formatted || ''}"`,
         company.officers?.length || 0,
         company.filings?.length || 0,
         company.filing_summary?.recent_accounts?.length || 0,
         company.filing_summary?.recent_changes?.length || 0,
-        `"${parsedFiling?.identified_accountant || 'N/A'}"`,
-        parsedFiling?.confidence_score || 0,
+        `"${company.filing_summary_text || ''}"`,
       ].join(','));
     }
 
