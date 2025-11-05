@@ -368,13 +368,24 @@ export async function makeAuthenticatedRequest(url: string, options: RequestInit
   
   console.log('Making request with token:', token ? 'TOKEN_PRESENT' : 'NO_TOKEN');
   
+  // Determine if body is FormData (for file uploads)
+  const isFormData = options.body instanceof FormData;
+  
+  // Build headers
+  const headers: Record<string, string> = {
+    ...options.headers as Record<string, string>,
+    'Authorization': `Bearer ${token}`,
+  };
+  
+  // Only set Content-Type for non-FormData requests
+  // FormData needs the browser to set multipart/form-data with boundary automatically
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json';
+  }
+  
   const response = await fetch(url, {
     ...options,
-    headers: {
-      ...options.headers,
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
   });
   
   console.log('Response status:', response.status, response.statusText);
