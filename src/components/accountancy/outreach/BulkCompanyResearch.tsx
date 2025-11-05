@@ -186,6 +186,23 @@ export const BulkCompanyResearch: React.FC = () => {
     }
   };
 
+  // Helper function to properly escape CSV cell values
+  const escapeCsvCell = (value: string | undefined | null): string => {
+    if (!value) return '';
+    
+    // Replace newlines with spaces for readability in single cell
+    let escaped = value.replace(/\n/g, ' ').replace(/\r/g, '');
+    
+    // Replace multiple spaces with single space
+    escaped = escaped.replace(/\s+/g, ' ');
+    
+    // Escape double quotes by doubling them (CSV standard)
+    escaped = escaped.replace(/"/g, '""');
+    
+    // Wrap in quotes to preserve commas and special characters
+    return `"${escaped}"`;
+  };
+
   // Export results to CSV
   const handleExport = () => {
     if (!results) return;
@@ -215,23 +232,23 @@ export const BulkCompanyResearch: React.FC = () => {
       
       csvRows.push([
         company.company_number || '',
-        `"${profile?.company_name || ''}"`,
-        `"${company.directors_formatted || 'No directors'}"`,
-        `"${company.address_formatted || ''}"`,
+        escapeCsvCell(profile?.company_name || ''),
+        escapeCsvCell(company.directors_formatted || 'No directors'),
+        escapeCsvCell(company.address_formatted || ''),
         profile?.company_status || '',
         profile?.company_type || '',
         profile?.date_of_creation || '',
-        `"${company.sic_codes_formatted || ''}"`,
+        escapeCsvCell(company.sic_codes_formatted || ''),
         company.officers?.length || 0,
         company.filings?.length || 0,
         company.filing_summary?.recent_accounts?.length || 0,
         company.filing_summary?.recent_changes?.length || 0,
-        `"${company.filing_summary_text || ''}"`,
+        escapeCsvCell(company.filing_summary_text || ''),
       ].join(','));
     }
 
     const csvContent = csvRows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
