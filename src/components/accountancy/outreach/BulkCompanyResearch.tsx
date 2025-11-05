@@ -348,6 +348,19 @@ export const BulkCompanyResearch: React.FC = () => {
             )}
           </div>
 
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={parseDocuments}
+                onChange={(e) => setParseDocuments(e.target.checked)}
+                disabled={loading}
+                className="w-4 h-4"
+              />
+              <span className="text-sm">Parse documents (extract accountant info - slower)</span>
+            </label>
+          </div>
+
           <Button
             onClick={handleBulkResearch}
             disabled={loading || !uploadedFile}
