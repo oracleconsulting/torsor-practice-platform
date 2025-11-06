@@ -205,8 +205,12 @@ export const BulkCompanyResearch: React.FC = () => {
       console.log(`Extracted ${totalCompanies} company numbers from CSV`);
       console.log(`First 5 companies:`, allCompanyNumbers.slice(0, 5));
       
-      // Split into batches of 50 companies (safe for timeouts with document parsing)
-      const BATCH_SIZE = 50;
+      // Dynamic batch size based on document parsing
+      // With parsing (LLM calls): 10 companies = ~1 min per batch (safe from timeout)
+      // Without parsing: 50 companies = ~30s per batch
+      const BATCH_SIZE = parseDocuments ? 10 : 50;
+      console.log(`Using batch size: ${BATCH_SIZE} (document parsing: ${parseDocuments})`);
+      
       const batches: string[][] = [];
       for (let i = 0; i < allCompanyNumbers.length; i += BATCH_SIZE) {
         batches.push(allCompanyNumbers.slice(i, i + BATCH_SIZE));
