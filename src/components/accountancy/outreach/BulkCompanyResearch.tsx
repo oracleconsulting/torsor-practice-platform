@@ -357,6 +357,35 @@ export const BulkCompanyResearch: React.FC = () => {
     for (const company of results.results) {
       const profile = company.company_profile;
       
+      // Generate filing summary (either LLM narrative or basic summary)
+      let filingSummary = '';
+      if (company.filing_summary_text) {
+        // Use LLM-generated narrative if available
+        filingSummary = company.filing_summary_text;
+      } else if (company.filing_summary) {
+        // Generate basic summary from filing counts
+        const fs = company.filing_summary;
+        const parts = [];
+        
+        if (fs.total_filings > 0) {
+          parts.push(`${fs.total_filings} filings`);
+        }
+        
+        if (fs.by_category) {
+          const categories = Object.entries(fs.by_category)
+            .map(([cat, count]) => `${count} ${cat}`)
+            .join(', ');
+          if (categories) parts.push(categories);
+        }
+        
+        if (fs.recent_accounts?.length > 0) {
+          const lastAccount = fs.recent_accounts[0];
+          parts.push(`Last accounts: ${lastAccount.date}`);
+        }
+        
+        filingSummary = parts.join(' | ');
+      }
+      
       csvRows.push([
         company.company_number || '',
         escapeCsvCell(profile?.company_name || ''),
@@ -370,7 +399,7 @@ export const BulkCompanyResearch: React.FC = () => {
         company.filings?.length || 0,
         company.filing_summary?.recent_accounts?.length || 0,
         company.filing_summary?.recent_changes?.length || 0,
-        escapeCsvCell(company.filing_summary_text || ''),
+        escapeCsvCell(filingSummary),
       ].join(','));
     }
 
