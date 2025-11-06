@@ -153,30 +153,57 @@ export const BulkCompanyResearch: React.FC = () => {
     try {
       // Read and parse CSV to get company numbers
       const fileText = await uploadedFile.text();
-      const lines = fileText.split('\n');
-      const headers = lines[0].split(',').map(h => h.trim().replace(/^\uFEFF/, ''));
+      const lines = fileText.trim().split('\n').filter(line => line.trim());
       
-      // Find company_number column
-      const companyNumberIndex = headers.findIndex(h => 
-        h.toLowerCase().includes('company') && h.toLowerCase().includes('number')
-      );
-      
-      if (companyNumberIndex === -1) {
-        toast.error('CSV must have a company_number column');
+      if (lines.length < 2) {
+        toast.error('CSV file is empty or invalid');
         setLoading(false);
         return;
       }
       
-      // Extract all company numbers
-      const allCompanyNumbers = lines.slice(1)
-        .filter(line => line.trim())
-        .map(line => {
-          const values = line.split(',');
-          return values[companyNumberIndex]?.trim().replace(/"/g, '');
-        })
-        .filter(num => num && num.length > 0);
+      const headers = lines[0].split(',').map(h => h.trim().replace(/^\uFEFF/, '').replace(/"/g, ''));
+      
+      // Find company_number column (case insensitive)
+      const companyNumberIndex = headers.findIndex(h => {
+        const lower = h.toLowerCase();
+        return lower.includes('company') && lower.includes('number') || 
+               lower === 'company_no' || 
+               lower === 'companyno' ||
+               lower === 'crn';
+      });
+      
+      if (companyNumberIndex === -1) {
+        toast.error(`CSV must have a company_number column. Found columns: ${headers.join(', ')}`);
+        setLoading(false);
+        return;
+      }
+      
+      console.log(`Found company number column at index ${companyNumberIndex}: ${headers[companyNumberIndex]}`);
+      
+      // Extract all company numbers - use a simple CSV parser
+      const allCompanyNumbers: string[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        // Simple CSV parsing - split by comma but handle quotes
+        const values = line.split(',').map(v => v.trim().replace(/^"/, '').replace(/"$/, ''));
+        const companyNum = values[companyNumberIndex];
+        
+        if (companyNum && companyNum.length > 0) {
+          allCompanyNumbers.push(companyNum);
+        }
+      }
+      
+      if (allCompanyNumbers.length === 0) {
+        toast.error('No valid company numbers found in CSV');
+        setLoading(false);
+        return;
+      }
       
       const totalCompanies = allCompanyNumbers.length;
+      console.log(`Extracted ${totalCompanies} company numbers from CSV`);
+      console.log(`First 5 companies:`, allCompanyNumbers.slice(0, 5));
       
       // Split into batches of 50 companies (safe for timeouts with document parsing)
       const BATCH_SIZE = 50;
@@ -198,45 +225,62 @@ export const BulkCompanyResearch: React.FC = () => {
         const batch = batches[batchIndex];
         const batchNum = batchIndex + 1;
         
+        console.log(`Starting batch ${batchNum}/${batches.length} with ${batch.length} companies`);
+        
         toast.info(`Processing batch ${batchNum}/${batches.length} (${batch.length} companies)...`, {
           duration: 3000,
           id: 'batch-progress'
         });
         
-        // Create CSV for this batch
-        const batchCsv = `company_number\n${batch.join('\n')}`;
-        const batchBlob = new Blob([batchCsv], { type: 'text/csv' });
-        const batchFile = new File([batchBlob], `batch_${batchNum}.csv`, { type: 'text/csv' });
-        
-        // Upload and process this batch
-        const formData = new FormData();
-        formData.append('file', batchFile);
-
-        const response = await makeAuthenticatedRequest(
-          `${API_BASE_URL}/api/outreach/bulk-research/research-from-csv?parse_documents=${parseDocuments}&max_filings=${maxFilings}`,
-          {
-            method: 'POST',
-            body: formData,
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Batch ${batchNum} failed: ${response.status}`);
-        }
-
-        const batchData = await response.json();
-        
-        if (batchData.success && batchData.results) {
-          allResults = allResults.concat(batchData.results);
-          totalOfficers += batchData.summary.total_officers || 0;
-          totalFilings += batchData.summary.total_filings || 0;
+        try {
+          // Create CSV for this batch
+          const batchCsv = `company_number\n${batch.join('\n')}`;
+          const batchBlob = new Blob([batchCsv], { type: 'text/csv' });
+          const batchFile = new File([batchBlob], `batch_${batchNum}.csv`, { type: 'text/csv' });
           
-          toast.success(`Batch ${batchNum}/${batches.length} complete! (${allResults.length}/${totalCompanies} companies processed)`, {
-            duration: 2000,
-            id: 'batch-progress'
+          console.log(`Uploading batch ${batchNum}...`);
+          
+          // Upload and process this batch
+          const formData = new FormData();
+          formData.append('file', batchFile);
+
+          const response = await makeAuthenticatedRequest(
+            `${API_BASE_URL}/api/outreach/bulk-research/research-from-csv?parse_documents=${parseDocuments}&max_filings=${maxFilings}`,
+            {
+              method: 'POST',
+              body: formData,
+            }
+          );
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Batch ${batchNum} failed with status ${response.status}:`, errorText);
+            throw new Error(`Batch ${batchNum} failed: ${response.status}`);
+          }
+
+          const batchData = await response.json();
+          console.log(`Batch ${batchNum} response:`, batchData);
+          
+          if (batchData.success && batchData.results) {
+            allResults = allResults.concat(batchData.results);
+            totalOfficers += batchData.summary.total_officers || 0;
+            totalFilings += batchData.summary.total_filings || 0;
+            
+            console.log(`Batch ${batchNum} complete: ${allResults.length}/${totalCompanies} total processed`);
+            
+            toast.success(`Batch ${batchNum}/${batches.length} complete! (${allResults.length}/${totalCompanies} companies processed)`, {
+              duration: 2000,
+              id: 'batch-progress'
+            });
+          } else {
+            throw new Error(batchData.error || `Batch ${batchNum} returned no results`);
+          }
+        } catch (batchError: any) {
+          console.error(`Error processing batch ${batchNum}:`, batchError);
+          toast.error(`Batch ${batchNum} failed: ${batchError.message}. Continuing with remaining batches...`, {
+            duration: 5000
           });
-        } else {
-          throw new Error(batchData.error || `Batch ${batchNum} failed`);
+          // Continue with next batch even if this one fails
         }
       }
       
