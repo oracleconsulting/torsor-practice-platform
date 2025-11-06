@@ -151,36 +151,119 @@ export const BulkCompanyResearch: React.FC = () => {
     setSelectedCompany(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', uploadedFile);
-
-      const response = await makeAuthenticatedRequest(
-        `${API_BASE_URL}/api/outreach/bulk-research/research-from-csv?parse_documents=${parseDocuments}&max_filings=${maxFilings}`,
-        {
-          method: 'POST',
-          body: formData,
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-
-      const data = await response.json();
+      // Read and parse CSV to get company numbers
+      const fileText = await uploadedFile.text();
+      const lines = fileText.split('\n');
+      const headers = lines[0].split(',').map(h => h.trim().replace(/^\uFEFF/, ''));
       
-      if (data.success) {
-        setResults(data);
-        
-        toast.success(
-          `Researched ${data.summary.successful}/${data.summary.total_companies} companies! Found ${data.summary.total_officers} officers and ${data.summary.total_filings} filings.`,
-          { duration: 6000 }
-        );
-      } else {
-        throw new Error(data.error || 'Bulk research failed');
+      // Find company_number column
+      const companyNumberIndex = headers.findIndex(h => 
+        h.toLowerCase().includes('company') && h.toLowerCase().includes('number')
+      );
+      
+      if (companyNumberIndex === -1) {
+        toast.error('CSV must have a company_number column');
+        setLoading(false);
+        return;
       }
+      
+      // Extract all company numbers
+      const allCompanyNumbers = lines.slice(1)
+        .filter(line => line.trim())
+        .map(line => {
+          const values = line.split(',');
+          return values[companyNumberIndex]?.trim().replace(/"/g, '');
+        })
+        .filter(num => num && num.length > 0);
+      
+      const totalCompanies = allCompanyNumbers.length;
+      
+      // Split into batches of 50 companies (safe for timeouts with document parsing)
+      const BATCH_SIZE = 50;
+      const batches: string[][] = [];
+      for (let i = 0; i < allCompanyNumbers.length; i += BATCH_SIZE) {
+        batches.push(allCompanyNumbers.slice(i, i + BATCH_SIZE));
+      }
+      
+      toast.info(`Processing ${totalCompanies} companies in ${batches.length} batches...`, {
+        duration: 5000
+      });
+      
+      // Process each batch sequentially
+      let allResults: any[] = [];
+      let totalOfficers = 0;
+      let totalFilings = 0;
+      
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        const batch = batches[batchIndex];
+        const batchNum = batchIndex + 1;
+        
+        toast.info(`Processing batch ${batchNum}/${batches.length} (${batch.length} companies)...`, {
+          duration: 3000,
+          id: 'batch-progress'
+        });
+        
+        // Create CSV for this batch
+        const batchCsv = `company_number\n${batch.join('\n')}`;
+        const batchBlob = new Blob([batchCsv], { type: 'text/csv' });
+        const batchFile = new File([batchBlob], `batch_${batchNum}.csv`, { type: 'text/csv' });
+        
+        // Upload and process this batch
+        const formData = new FormData();
+        formData.append('file', batchFile);
+
+        const response = await makeAuthenticatedRequest(
+          `${API_BASE_URL}/api/outreach/bulk-research/research-from-csv?parse_documents=${parseDocuments}&max_filings=${maxFilings}`,
+          {
+            method: 'POST',
+            body: formData,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Batch ${batchNum} failed: ${response.status}`);
+        }
+
+        const batchData = await response.json();
+        
+        if (batchData.success && batchData.results) {
+          allResults = allResults.concat(batchData.results);
+          totalOfficers += batchData.summary.total_officers || 0;
+          totalFilings += batchData.summary.total_filings || 0;
+          
+          toast.success(`Batch ${batchNum}/${batches.length} complete! (${allResults.length}/${totalCompanies} companies processed)`, {
+            duration: 2000,
+            id: 'batch-progress'
+          });
+        } else {
+          throw new Error(batchData.error || `Batch ${batchNum} failed`);
+        }
+      }
+      
+      // Combine all results
+      const combinedResults: BulkResearchResponse = {
+        success: true,
+        summary: {
+          total_companies: totalCompanies,
+          successful: allResults.length,
+          failed: totalCompanies - allResults.length,
+          total_officers: totalOfficers,
+          total_filings: totalFilings,
+          processing_time_seconds: 0,
+        },
+        results: allResults,
+      };
+      
+      setResults(combinedResults);
+      
+      toast.success(
+        `✅ All batches complete! Researched ${combinedResults.summary.successful}/${totalCompanies} companies. Found ${totalOfficers} officers and ${totalFilings} filings.`,
+        { duration: 8000 }
+      );
+      
     } catch (error: any) {
       console.error('Bulk research error:', error);
-      toast.error(`Failed to process CSV: ${error.message}`);
+      toast.error(`Failed to process companies: ${error.message}`);
     } finally {
       setLoading(false);
     }
