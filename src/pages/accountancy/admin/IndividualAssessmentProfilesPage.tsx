@@ -513,88 +513,88 @@ export default function IndividualAssessmentProfilesPage() {
                         <div className="grid grid-cols-2 gap-4">
                           
                           {/* EQ Assessment */}
-                          {assessments.eq && (
+                          {profile.assessments.eq && (
                             <div className="bg-white p-3 rounded-lg border border-indigo-200">
                               <h5 className="font-medium text-sm mb-2 text-indigo-900">Emotional Intelligence (EQ)</h5>
                               <div className="space-y-1 text-xs">
                                 <div className="flex justify-between">
                                   <span>Self-Awareness:</span>
-                                  <span className="font-medium">{assessments.eq.self_awareness || 'N/A'}</span>
+                                  <span className="font-medium">{profile.assessments.eq.self_awareness || 'N/A'}</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span>Self-Management:</span>
-                                  <span className="font-medium">{assessments.eq.self_management || 'N/A'}</span>
+                                  <span className="font-medium">{profile.assessments.eq.self_management || 'N/A'}</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span>Social Awareness:</span>
-                                  <span className="font-medium">{assessments.eq.social_awareness || 'N/A'}</span>
+                                  <span className="font-medium">{profile.assessments.eq.social_awareness || 'N/A'}</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span>Relationship Mgmt:</span>
-                                  <span className="font-medium">{assessments.eq.relationship_management || 'N/A'}</span>
+                                  <span className="font-medium">{profile.assessments.eq.relationship_management || 'N/A'}</span>
                                 </div>
                               </div>
                             </div>
                           )}
 
                           {/* Belbin Assessment */}
-                          {assessments.belbin && (
+                          {profile.assessments.belbin && (
                             <div className="bg-white p-3 rounded-lg border border-indigo-200">
                               <h5 className="font-medium text-sm mb-2 text-indigo-900">Belbin Team Roles</h5>
                               <div className="space-y-1 text-xs">
                                 <div>
                                   <span className="text-gray-600">Primary Role:</span>
-                                  <div className="font-medium text-indigo-700 mt-1">{assessments.belbin.primary_role || 'N/A'}</div>
+                                  <div className="font-medium text-indigo-700 mt-1">{profile.assessments.belbin.primary_role || 'N/A'}</div>
                                 </div>
                                 <div className="mt-2">
                                   <span className="text-gray-600">Secondary Role:</span>
-                                  <div className="font-medium text-indigo-700 mt-1">{assessments.belbin.secondary_role || 'N/A'}</div>
+                                  <div className="font-medium text-indigo-700 mt-1">{profile.assessments.belbin.secondary_role || 'N/A'}</div>
                                 </div>
                               </div>
                             </div>
                           )}
 
                           {/* Motivational Drivers */}
-                          {assessments.motivational_drivers && (
+                          {profile.assessments.motivational_drivers && (
                             <div className="bg-white p-3 rounded-lg border border-indigo-200">
                               <h5 className="font-medium text-sm mb-2 text-indigo-900">Motivational Drivers</h5>
                               <div className="space-y-1 text-xs">
                                 <div className="flex justify-between">
                                   <span>Achievement:</span>
-                                  <span className="font-medium">{assessments.motivational_drivers.achievement_score || 'N/A'}</span>
+                                  <span className="font-medium">{profile.assessments.motivational_drivers.achievement_score || 'N/A'}</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span>Affiliation:</span>
-                                  <span className="font-medium">{assessments.motivational_drivers.affiliation_score || 'N/A'}</span>
+                                  <span className="font-medium">{profile.assessments.motivational_drivers.affiliation_score || 'N/A'}</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span>Autonomy:</span>
-                                  <span className="font-medium">{assessments.motivational_drivers.autonomy_score || 'N/A'}</span>
+                                  <span className="font-medium">{profile.assessments.motivational_drivers.autonomy_score || 'N/A'}</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span>Influence:</span>
-                                  <span className="font-medium">{assessments.motivational_drivers.influence_score || 'N/A'}</span>
+                                  <span className="font-medium">{profile.assessments.motivational_drivers.influence_score || 'N/A'}</span>
                                 </div>
                               </div>
                             </div>
                           )}
 
                           {/* Conflict Style */}
-                          {assessments.conflict_style && (
+                          {profile.assessments.conflict_style && (
                             <div className="bg-white p-3 rounded-lg border border-indigo-200">
                               <h5 className="font-medium text-sm mb-2 text-indigo-900">Conflict Management Style</h5>
                               <div className="text-xs">
                                 <div>
                                   <span className="text-gray-600">Primary Style:</span>
                                   <div className="font-medium text-indigo-700 mt-1 capitalize">
-                                    {assessments.conflict_style.primary_style || 'N/A'}
+                                    {profile.assessments.conflict_style.primary_style || 'N/A'}
                                   </div>
                                 </div>
-                                {assessments.conflict_style.secondary_style && (
+                                {profile.assessments.conflict_style.secondary_style && (
                                   <div className="mt-2">
                                     <span className="text-gray-600">Secondary Style:</span>
                                     <div className="font-medium text-indigo-700 mt-1 capitalize">
-                                      {assessments.conflict_style.secondary_style}
+                                      {profile.assessments.conflict_style.secondary_style}
                                     </div>
                                   </div>
                                 )}
@@ -603,20 +603,20 @@ export default function IndividualAssessmentProfilesPage() {
                           )}
 
                           {/* Working Preferences */}
-                          {assessments.working_preferences && (
+                          {profile.assessments.working_preferences && (
                             <div className="bg-white p-3 rounded-lg border border-indigo-200">
                               <h5 className="font-medium text-sm mb-2 text-indigo-900">Working Preferences</h5>
                               <div className="space-y-1 text-xs">
                                 <div>
                                   <span className="text-gray-600">Communication Style:</span>
                                   <div className="font-medium text-indigo-700 mt-1 capitalize">
-                                    {assessments.working_preferences.communication_style || 'N/A'}
+                                    {profile.assessments.working_preferences.communication_style || 'N/A'}
                                   </div>
                                 </div>
                                 <div className="mt-2">
                                   <span className="text-gray-600">Work Environment:</span>
                                   <div className="font-medium text-indigo-700 mt-1 capitalize">
-                                    {assessments.working_preferences.work_environment || 'N/A'}
+                                    {profile.assessments.working_preferences.work_environment || 'N/A'}
                                   </div>
                                 </div>
                               </div>
@@ -624,33 +624,33 @@ export default function IndividualAssessmentProfilesPage() {
                           )}
 
                           {/* VARK Learning Style */}
-                          {assessments.vark && (
+                          {profile.assessments.vark && (
                             <div className="bg-white p-3 rounded-lg border border-indigo-200">
                               <h5 className="font-medium text-sm mb-2 text-indigo-900">VARK Learning Style</h5>
                               <div className="text-xs">
                                 <div>
                                   <span className="text-gray-600">Primary Style:</span>
                                   <div className="font-medium text-indigo-700 mt-1 capitalize">
-                                    {assessments.vark.learning_style || 'N/A'}
+                                    {profile.assessments.vark.learning_style || 'N/A'}
                                   </div>
                                 </div>
-                                {assessments.vark.scores && (
+                                {profile.assessments.vark.scores && (
                                   <div className="mt-2 space-y-1">
                                     <div className="flex justify-between">
                                       <span>Visual:</span>
-                                      <span className="font-medium">{assessments.vark.scores.visual || 0}</span>
+                                      <span className="font-medium">{profile.assessments.vark.scores.visual || 0}</span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span>Auditory:</span>
-                                      <span className="font-medium">{assessments.vark.scores.auditory || 0}</span>
+                                      <span className="font-medium">{profile.assessments.vark.scores.auditory || 0}</span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span>Reading/Writing:</span>
-                                      <span className="font-medium">{assessments.vark.scores.reading || 0}</span>
+                                      <span className="font-medium">{profile.assessments.vark.scores.reading || 0}</span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span>Kinesthetic:</span>
-                                      <span className="font-medium">{assessments.vark.scores.kinesthetic || 0}</span>
+                                      <span className="font-medium">{profile.assessments.vark.scores.kinesthetic || 0}</span>
                                     </div>
                                   </div>
                                 )}
@@ -659,22 +659,22 @@ export default function IndividualAssessmentProfilesPage() {
                           )}
 
                           {/* Skills Assessment Summary */}
-                          {assessments.skills && assessments.skills.length > 0 && (
+                          {profile.assessments.skills && profile.assessments.skills.length > 0 && (
                             <div className="bg-white p-3 rounded-lg border border-indigo-200 col-span-2">
                               <h5 className="font-medium text-sm mb-2 text-indigo-900">
-                                Skills Assessment ({assessments.skills.length} skills evaluated)
+                                Skills Assessment ({profile.assessments.skills.length} skills evaluated)
                               </h5>
                               <div className="text-xs text-gray-600">
                                 <div className="flex items-center gap-2">
                                   <span>Average Skill Level:</span>
                                   <span className="font-medium text-indigo-700">
-                                    {(assessments.skills.reduce((sum: number, s: any) => sum + (s.self_rating || 0), 0) / assessments.skills.length).toFixed(1)} / 5.0
+                                    {(profile.assessments.skills.reduce((sum: number, s: any) => sum + (s.self_rating || 0), 0) / profile.assessments.skills.length).toFixed(1)} / 5.0
                                   </span>
                                 </div>
                                 <div className="mt-2">
                                   <span>Top Skills:</span>
                                   <div className="flex flex-wrap gap-1 mt-1">
-                                    {assessments.skills
+                                    {profile.assessments.skills
                                       .sort((a: any, b: any) => (b.self_rating || 0) - (a.self_rating || 0))
                                       .slice(0, 10)
                                       .map((skill: any, idx: number) => (
