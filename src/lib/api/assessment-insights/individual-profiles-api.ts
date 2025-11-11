@@ -4,7 +4,7 @@
  */
 
 import { supabase } from '@/lib/supabase/client';
-import * as roleFitAnalyzer from './role-fit-analyzer';
+import { roleFitAnalyzer } from './role-fit-analyzer';
 import * as profileCalculator from './profile-calculator';
 import type {
   IndividualAssessmentProfile,
