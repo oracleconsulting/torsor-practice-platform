@@ -33,10 +33,17 @@ export async function calculateIndividualProfile(
         .eq('practice_member_id', practiceMemberId)
         .maybeSingle();
 
-      if (existing && existing.last_calculated) {
-        const daysSinceCalc = (Date.now() - new Date(existing.last_calculated).getTime()) / (1000 * 60 * 60 * 24);
-        if (daysSinceCalc < 7) {
-          console.log('[IndividualProfile] Using cached profile (< 7 days old)');
+      if (existing) {
+        // Profile exists - check if it's recent enough to use cached version
+        if (existing.last_calculated) {
+          const daysSinceCalc = (Date.now() - new Date(existing.last_calculated).getTime()) / (1000 * 60 * 60 * 24);
+          if (daysSinceCalc < 7) {
+            console.log('[IndividualProfile] Using cached profile (< 7 days old)');
+            return await getIndividualProfile(practiceMemberId);
+          }
+        } else {
+          // Profile exists but no last_calculated timestamp - use it anyway
+          console.log('[IndividualProfile] Using existing profile (no timestamp)');
           return await getIndividualProfile(practiceMemberId);
         }
       }
