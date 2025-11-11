@@ -23,7 +23,7 @@ export async function calculateIndividualProfile(
   forceRecalculate: boolean = false
 ): Promise<IndividualProfileData | null> {
   try {
-    console.log(`[IndividualProfile] Calculating profile for member: ${practiceMemberId}`);
+    console.log(`[IndividualProfile] 🎯 Calculating profile for member: ${practiceMemberId}`);
 
     // 1. Check if profile exists and is recent (< 7 days old)
     if (!forceRecalculate) {
@@ -43,6 +43,7 @@ export async function calculateIndividualProfile(
     }
 
     // 2. Fetch member data
+    console.log('[IndividualProfile] Step 1: Fetching member data...');
     const { data: member, error: memberError } = await supabase
       .from('practice_members')
       .select('id, name, email, role, department')
@@ -50,11 +51,13 @@ export async function calculateIndividualProfile(
       .single();
 
     if (memberError || !member) {
-      console.error('[IndividualProfile] Member not found:', memberError);
+      console.error('[IndividualProfile] ❌ Member not found:', memberError);
       return null;
     }
+    console.log(`[IndividualProfile] ✅ Member data loaded: ${member.name}`);
 
     // 3. Fetch all assessment data
+    console.log('[IndividualProfile] Step 2: Fetching all assessment data...');
     const [eqData, belbinData, motivData, conflictData, workingPrefsData, varkData, skillsData] = await Promise.all([
       supabase.from('eq_assessments').select('*').eq('practice_member_id', practiceMemberId).maybeSingle(),
       supabase.from('belbin_assessments').select('*').eq('practice_member_id', practiceMemberId).maybeSingle(),
@@ -64,6 +67,16 @@ export async function calculateIndividualProfile(
       supabase.from('vark_assessments').select('*').eq('practice_member_id', practiceMemberId).maybeSingle(),
       supabase.from('skill_assessments').select('*, skills(name)').eq('team_member_id', practiceMemberId)
     ]);
+    
+    console.log('[IndividualProfile] ✅ Assessment data loaded:', {
+      eq: !!eqData.data,
+      belbin: !!belbinData.data,
+      motivational: !!motivData.data,
+      conflict: !!conflictData.data,
+      workingPrefs: !!workingPrefsData.data,
+      vark: !!varkData.data,
+      skills: skillsData.data?.length || 0
+    });
 
     // Build member data object for analysis
     const memberData = {
@@ -173,6 +186,7 @@ export async function calculateIndividualProfile(
     const nextRoleReadiness = Math.round((leadershipScore + currentRoleMatchScore) / 2);
 
     // 16. Build profile object
+    console.log('[IndividualProfile] Step 3: Building profile object...');
     const profile: Partial<IndividualAssessmentProfile> = {
       practice_member_id: practiceMemberId,
       top_strengths: strengths,
@@ -200,8 +214,10 @@ export async function calculateIndividualProfile(
       last_calculated: new Date().toISOString(),
       calculation_version: '1.0'
     };
+    console.log('[IndividualProfile] ✅ Profile object built');
 
     // 17. Upsert profile to database
+    console.log('[IndividualProfile] Step 4: Saving profile to database...');
     const { data: savedProfile, error: saveError } = await supabase
       .from('individual_assessment_profiles')
       .upsert(profile, { onConflict: 'practice_member_id' })
@@ -209,12 +225,14 @@ export async function calculateIndividualProfile(
       .single();
 
     if (saveError) {
-      console.error('[IndividualProfile] Error saving profile:', saveError);
+      console.error('[IndividualProfile] ❌ Error saving profile to database:', saveError);
       throw saveError;
     }
+    console.log('[IndividualProfile] ✅ Profile saved to database');
 
     // 18. Save role gaps to database (if any)
     if (currentRoleGaps.length > 0 && currentRole) {
+      console.log(`[IndividualProfile] Step 5: Saving ${currentRoleGaps.length} role gaps...`);
       // Delete old gaps
       await supabase
         .from('role_competency_gaps')
@@ -226,10 +244,12 @@ export async function calculateIndividualProfile(
       await supabase
         .from('role_competency_gaps')
         .insert(currentRoleGaps);
+      console.log('[IndividualProfile] ✅ Role gaps saved');
     }
 
     // 19. Update role assignment suitability score
     if (roleAssignment) {
+      console.log('[IndividualProfile] Step 6: Updating role assignment...');
       await supabase
         .from('member_role_assignments')
         .update({
@@ -237,9 +257,10 @@ export async function calculateIndividualProfile(
           last_calculated: new Date().toISOString()
         })
         .eq('id', roleAssignment.id);
+      console.log('[IndividualProfile] ✅ Role assignment updated');
     }
 
-    console.log('[IndividualProfile] ✅ Profile calculated successfully');
+    console.log(`[IndividualProfile] 🎉 Profile calculated successfully for ${member.name}`);
 
     // 20. Return full profile data
     return await getIndividualProfile(practiceMemberId);
@@ -261,27 +282,59 @@ export async function calculateIndividualProfile(
 
 export async function getIndividualProfile(practiceMemberId: string): Promise<IndividualProfileData | null> {
   try {
+    console.log(`[IndividualProfile] 🔍 Fetching profile for member: ${practiceMemberId}`);
+    
     // Fetch member
-    const { data: member } = await supabase
+    const { data: member, error: memberError } = await supabase
       .from('practice_members')
       .select('id, name, email, role, department')
       .eq('id', practiceMemberId)
       .single();
 
-    if (!member) return null;
+    if (memberError) {
+      console.error(`[IndividualProfile] ❌ Error fetching member ${practiceMemberId}:`, memberError);
+      return null;
+    }
+
+    if (!member) {
+      console.warn(`[IndividualProfile] ⚠️ Member ${practiceMemberId} not found`);
+      return null;
+    }
+
+    console.log(`[IndividualProfile] Found member: ${member.name}`);
 
     // Fetch profile
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('individual_assessment_profiles')
       .select('*')
       .eq('practice_member_id', practiceMemberId)
       .maybeSingle();
 
+    if (profileError) {
+      console.error(`[IndividualProfile] ❌ Error fetching profile for ${member.name}:`, profileError);
+      return null;
+    }
+
     if (!profile) {
       // Profile doesn't exist yet - calculate it
-      console.log(`[IndividualProfile] No profile found for ${member.name} - triggering calculation...`);
-      return await calculateIndividualProfile(practiceMemberId);
+      console.log(`[IndividualProfile] 🚀 No profile found for ${member.name} - triggering calculation...`);
+      try {
+        const calculatedProfile = await calculateIndividualProfile(practiceMemberId);
+        console.log(`[IndividualProfile] ✅ Profile calculated successfully for ${member.name}`);
+        return calculatedProfile;
+      } catch (calcError) {
+        console.error(`[IndividualProfile] ❌ Failed to calculate profile for ${member.name}:`, calcError);
+        console.error(`[IndividualProfile] Calculation error details:`, {
+          message: calcError instanceof Error ? calcError.message : 'Unknown',
+          stack: calcError instanceof Error ? calcError.stack : undefined,
+          memberId: practiceMemberId,
+          memberName: member.name
+        });
+        return null;
+      }
     }
+
+    console.log(`[IndividualProfile] 📊 Found existing profile for ${member.name}, fetching related data...`);
 
     // Fetch current role assignment
     const { data: roleAssignment } = await supabase
@@ -470,25 +523,60 @@ async function calculateRoleGaps(
 
 export async function getAllProfilesForPractice(practiceId: string): Promise<IndividualProfileData[]> {
   try {
+    console.log('[IndividualProfile] 🎯 Getting all profiles for practice:', practiceId);
+    
     // Get all active members
-    const { data: members } = await supabase
+    const { data: members, error: membersError } = await supabase
       .from('practice_members')
-      .select('id')
+      .select('id, name')
       .eq('practice_id', practiceId)
       .eq('is_active', true)
       .is('is_test_account', null);
 
-    if (!members || members.length === 0) return [];
+    if (membersError) {
+      console.error('[IndividualProfile] ❌ Error fetching members:', membersError);
+      return [];
+    }
 
-    // Fetch profiles for all members
-    const profiles = await Promise.all(
-      members.map(m => getIndividualProfile(m.id))
-    );
+    if (!members || members.length === 0) {
+      console.warn('[IndividualProfile] ⚠️ No active members found for practice');
+      return [];
+    }
 
-    return profiles.filter(p => p !== null) as IndividualProfileData[];
+    console.log(`[IndividualProfile] Found ${members.length} active members`);
+
+    // Fetch profiles for all members (will auto-calculate if missing)
+    const profiles: (IndividualProfileData | null)[] = [];
+    
+    for (const member of members) {
+      try {
+        console.log(`[IndividualProfile] Processing ${member.name} (${member.id})...`);
+        const profile = await getIndividualProfile(member.id);
+        profiles.push(profile);
+        
+        if (profile) {
+          console.log(`[IndividualProfile] ✅ Profile loaded for ${member.name}`);
+        } else {
+          console.warn(`[IndividualProfile] ⚠️ No profile returned for ${member.name}`);
+        }
+      } catch (error) {
+        console.error(`[IndividualProfile] ❌ Error processing ${member.name}:`, error);
+        profiles.push(null);
+      }
+    }
+
+    const validProfiles = profiles.filter(p => p !== null) as IndividualProfileData[];
+    console.log(`[IndividualProfile] 🎯 Returning ${validProfiles.length} valid profiles`);
+    
+    return validProfiles;
 
   } catch (error) {
-    console.error('[IndividualProfile] Error fetching all profiles:', error);
+    console.error('[IndividualProfile] ❌ Fatal error fetching all profiles:', error);
+    console.error('[IndividualProfile] Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      practiceId
+    });
     return [];
   }
 }
