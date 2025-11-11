@@ -72,10 +72,19 @@ export default function IndividualAssessmentProfilesPage() {
       }
 
       // Fetch all profiles for practice
+      console.log('[IndividualProfiles] Fetching profiles for practice:', member.practice_id);
       const allProfiles = await individualProfilesApi.getAllProfilesForPractice(member.practice_id);
       
-      setProfiles(allProfiles);
       console.log('[IndividualProfiles] Loaded profiles:', allProfiles.length);
+      
+      // If no profiles found, they should have been auto-calculated
+      // Log this for debugging
+      if (allProfiles.length === 0) {
+        console.warn('[IndividualProfiles] ⚠️ No profiles returned - this suggests calculation failed silently');
+        console.warn('[IndividualProfiles] Check browser console for errors during profile calculation');
+      }
+      
+      setProfiles(allProfiles);
 
     } catch (error) {
       console.error('[IndividualProfiles] Error loading profiles:', error);

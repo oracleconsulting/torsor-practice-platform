@@ -246,6 +246,11 @@ export async function calculateIndividualProfile(
 
   } catch (error) {
     console.error('[IndividualProfile] Error calculating profile:', error);
+    console.error('[IndividualProfile] Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      practiceMemberId
+    });
     throw error;
   }
 }
@@ -274,6 +279,7 @@ export async function getIndividualProfile(practiceMemberId: string): Promise<In
 
     if (!profile) {
       // Profile doesn't exist yet - calculate it
+      console.log(`[IndividualProfile] No profile found for ${member.name} - triggering calculation...`);
       return await calculateIndividualProfile(practiceMemberId);
     }
 
