@@ -525,13 +525,13 @@ export async function getAllProfilesForPractice(practiceId: string): Promise<Ind
   try {
     console.log('[IndividualProfile] 🎯 Getting all profiles for practice:', practiceId);
     
-    // Get all active members
+    // Get all active members (excluding test accounts)
     const { data: members, error: membersError } = await supabase
       .from('practice_members')
       .select('id, name')
       .eq('practice_id', practiceId)
       .eq('is_active', true)
-      .is('is_test_account', null);
+      .or('is_test_account.is.null,is_test_account.eq.false');
 
     if (membersError) {
       console.error('[IndividualProfile] ❌ Error fetching members:', membersError);
