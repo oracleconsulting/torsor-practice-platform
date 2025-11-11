@@ -20,38 +20,43 @@ export function identifyStrengths(memberData: any): Strength[] {
   const strengths: Strength[] = [];
 
   // EQ Strengths
+  // Only add EQ strengths if we have REAL data >= 75
   if (memberData.eq_scores) {
-    if (memberData.eq_scores.self_awareness >= 75) {
+    const selfAwareness = memberData.eq_scores.self_awareness;
+    if (selfAwareness !== null && selfAwareness !== undefined && selfAwareness >= 75) {
       strengths.push({
         area: 'Self-Awareness',
-        score: memberData.eq_scores.self_awareness,
+        score: selfAwareness,
         evidence: 'High emotional intelligence - understands personal strengths, limitations, and emotional triggers',
         category: 'interpersonal'
       });
     }
 
-    if (memberData.eq_scores.relationship_management >= 75) {
+    const relationshipMgmt = memberData.eq_scores.relationship_management;
+    if (relationshipMgmt !== null && relationshipMgmt !== undefined && relationshipMgmt >= 75) {
       strengths.push({
         area: 'Relationship Building',
-        score: memberData.eq_scores.relationship_management,
+        score: relationshipMgmt,
         evidence: 'Excels at building rapport, managing conflicts, and maintaining client relationships',
         category: 'interpersonal'
       });
     }
 
-    if (memberData.eq_scores.social_awareness >= 75) {
+    const socialAwareness = memberData.eq_scores.social_awareness;
+    if (socialAwareness !== null && socialAwareness !== undefined && socialAwareness >= 75) {
       strengths.push({
         area: 'Social Awareness',
-        score: memberData.eq_scores.social_awareness,
+        score: socialAwareness,
         evidence: 'Strong ability to read room dynamics, understand client needs, and navigate political situations',
         category: 'interpersonal'
       });
     }
 
-    if (memberData.eq_scores.self_management >= 75) {
+    const selfMgmt = memberData.eq_scores.self_management;
+    if (selfMgmt !== null && selfMgmt !== undefined && selfMgmt >= 75) {
       strengths.push({
         area: 'Self-Management',
-        score: memberData.eq_scores.self_management,
+        score: selfMgmt,
         evidence: 'Excellent at managing stress, staying composed under pressure, and maintaining focus',
         category: 'interpersonal'
       });
@@ -98,9 +103,14 @@ export function identifyStrengths(memberData: any): Strength[] {
   }
 
   // Motivational Strengths
+  // Only add if we have REAL motivational data
   if (memberData.motivational_drivers) {
-    const topDriver = Object.entries(memberData.motivational_drivers)
-      .sort(([,a]: any, [,b]: any) => b - a)[0];
+    // Filter out null/undefined values before sorting
+    const validDrivers = Object.entries(memberData.motivational_drivers)
+      .filter(([, score]) => score !== null && score !== undefined)
+      .sort(([,a]: any, [,b]: any) => b - a);
+    
+    const topDriver = validDrivers[0];
     
     if (topDriver) {
       const [driver, score] = topDriver as [string, number];
@@ -156,7 +166,11 @@ export function identifyStrengths(memberData: any): Strength[] {
   }
 
   // Communication Strengths
-  if (memberData.communication_preference === 'sync' && memberData.eq_scores?.relationship_management >= 70) {
+  const relationshipScore = memberData.eq_scores?.relationship_management;
+  if (memberData.communication_preference === 'sync' && 
+      relationshipScore !== null && 
+      relationshipScore !== undefined && 
+      relationshipScore >= 70) {
     strengths.push({
       area: 'Verbal Communication',
       score: 80,
@@ -179,54 +193,58 @@ export function identifyDevelopmentAreas(memberData: any, roleRequirements?: any
   const areas: DevelopmentArea[] = [];
 
   // EQ Development Areas
+  // CRITICAL: Only add development areas if we have REAL data and it's actually low
   if (memberData.eq_scores) {
     Object.entries(memberData.eq_scores).forEach(([dimension, score]) => {
-      if ((score as number) < 65) {
-        const dimensionMap: Record<string, { area: string; actions: string[] }> = {
-          self_awareness: {
-            area: 'Self-Awareness Development',
-            actions: [
-              'Complete 360-degree feedback assessment',
-              'Work with coach or mentor on self-reflection',
-              'Journal daily about emotional responses and triggers'
-            ]
-          },
-          self_management: {
-            area: 'Self-Management Skills',
-            actions: [
-              'Attend stress management training',
-              'Practice mindfulness or meditation techniques',
-              'Develop coping strategies for high-pressure situations'
-            ]
-          },
-          social_awareness: {
-            area: 'Social Awareness & Empathy',
-            actions: [
-              'Shadow experienced client-facing colleagues',
-              'Practice active listening techniques',
-              'Seek feedback on reading social situations'
-            ]
-          },
-          relationship_management: {
-            area: 'Relationship Building',
-            actions: [
-              'Attend networking and relationship building workshops',
-              'Practice conflict resolution techniques',
-              'Increase client-facing opportunities with supervision'
-            ]
-          }
-        };
-
-        if (dimensionMap[dimension]) {
-          areas.push({
-            area: dimensionMap[dimension].area,
-            current_score: score as number,
-            target_score: 70,
-            priority: (score as number) < 55 ? 'critical' : 'high',
-            timeline: (score as number) < 55 ? '3 months' : '6 months',
-            recommended_actions: dimensionMap[dimension].actions
-          });
+      // Skip if score is null/undefined (no data) or if score is actually good (>= 65)
+      if (score === null || score === undefined || (score as number) >= 65) {
+        return; // Skip this dimension
+      }
+      
+      const dimensionMap: Record<string, { area: string; actions: string[] }> = {
+        self_awareness: {
+          area: 'Self-Awareness Development',
+          actions: [
+            'Complete 360-degree feedback assessment',
+            'Work with coach or mentor on self-reflection',
+            'Journal daily about emotional responses and triggers'
+          ]
+        },
+        self_management: {
+          area: 'Self-Management Skills',
+          actions: [
+            'Attend stress management training',
+            'Practice mindfulness or meditation techniques',
+            'Develop coping strategies for high-pressure situations'
+          ]
+        },
+        social_awareness: {
+          area: 'Social Awareness & Empathy',
+          actions: [
+            'Shadow experienced client-facing colleagues',
+            'Practice active listening techniques',
+            'Seek feedback on reading social situations'
+          ]
+        },
+        relationship_management: {
+          area: 'Relationship Building',
+          actions: [
+            'Attend networking and relationship building workshops',
+            'Practice conflict resolution techniques',
+            'Increase client-facing opportunities with supervision'
+          ]
         }
+      };
+
+      if (dimensionMap[dimension]) {
+        areas.push({
+          area: dimensionMap[dimension].area,
+          current_score: score as number,
+          target_score: 70,
+          priority: (score as number) < 55 ? 'critical' : 'high',
+          timeline: (score as number) < 55 ? '3 months' : '6 months',
+          recommended_actions: dimensionMap[dimension].actions
+        });
       }
     });
   }
@@ -388,9 +406,12 @@ export function determineOptimalWorkConditions(memberData: any): OptimalWorkCond
 
   // Autonomy based on motivation
   if (memberData.motivational_drivers) {
-    const autonomyScore = memberData.motivational_drivers.autonomy || 50;
-    conditions.autonomy = autonomyScore >= 70 ? 'high' : autonomyScore >= 50 ? 'medium' : 'low';
-    conditions.supervision = autonomyScore >= 70 ? 'minimal' : autonomyScore >= 50 ? 'moderate' : 'close';
+    const autonomyScore = memberData.motivational_drivers.autonomy;
+    // Only set if we have REAL data
+    if (autonomyScore !== null && autonomyScore !== undefined) {
+      conditions.autonomy = autonomyScore >= 70 ? 'high' : autonomyScore >= 50 ? 'medium' : 'low';
+      conditions.supervision = autonomyScore >= 70 ? 'minimal' : autonomyScore >= 50 ? 'moderate' : 'close';
+    }
   }
 
   // Task variety based on Belbin
@@ -431,21 +452,29 @@ export function generatePersonalitySummary(memberData: any): string {
 
   // EQ profile
   if (memberData.eq_scores) {
-    const avgEQ = Object.values(memberData.eq_scores).reduce((sum: any, score: any) => sum + score, 0) / 4;
-    
-    if (avgEQ >= 75) {
-      parts.push('with exceptional emotional intelligence');
-    } else if (avgEQ >= 65) {
-      parts.push('with strong emotional intelligence');
-    } else {
-      parts.push('who is developing emotional intelligence skills');
+    // Only calculate average from REAL scores (not null/undefined)
+    const realScores = Object.values(memberData.eq_scores).filter(score => score !== null && score !== undefined);
+    if (realScores.length > 0) {
+      const avgEQ = realScores.reduce((sum: any, score: any) => sum + score, 0) / realScores.length;
+      
+      if (avgEQ >= 75) {
+        parts.push('with exceptional emotional intelligence');
+      } else if (avgEQ >= 65) {
+        parts.push('with strong emotional intelligence');
+      } else {
+        parts.push('who is developing emotional intelligence skills');
+      }
     }
   }
 
   // Motivational drivers
   if (memberData.motivational_drivers) {
-    const topDriver = Object.entries(memberData.motivational_drivers)
-      .sort(([,a]: any, [,b]: any) => b - a)[0];
+    // Filter out null/undefined values before sorting
+    const validDrivers = Object.entries(memberData.motivational_drivers)
+      .filter(([, score]) => score !== null && score !== undefined)
+      .sort(([,a]: any, [,b]: any) => b - a);
+    
+    const topDriver = validDrivers[0];
     
     if (topDriver) {
       const [driver] = topDriver as [string, number];
@@ -519,11 +548,16 @@ export function generateTeamContributionStyle(memberData: any): string {
   }
 
   // Secondary contribution based on motivation
-  if (motivationalDrivers.affiliation >= 70) {
+  // Only add if we have REAL motivational data
+  const affiliation = motivationalDrivers.affiliation;
+  const influence = motivationalDrivers.influence;
+  const achievement = motivationalDrivers.achievement;
+  
+  if (affiliation !== null && affiliation !== undefined && affiliation >= 70) {
     contributions.push('fosters strong team relationships and collaboration');
-  } else if (motivationalDrivers.influence >= 70) {
+  } else if (influence !== null && influence !== undefined && influence >= 70) {
     contributions.push('inspires and motivates teammates');
-  } else if (motivationalDrivers.achievement >= 70) {
+  } else if (achievement !== null && achievement !== undefined && achievement >= 70) {
     contributions.push('sets high standards and drives results');
   }
 
