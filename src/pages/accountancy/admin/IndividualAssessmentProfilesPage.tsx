@@ -508,12 +508,13 @@ export default function IndividualAssessmentProfilesPage() {
                       </div>
 
                       {/* Assessment Summaries */}
-                      <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-4 rounded-lg border border-indigo-200">
-                        <h4 className="font-semibold text-lg mb-4">Assessment Results Summary</h4>
-                        <div className="grid grid-cols-2 gap-4">
-                          
-                          {/* EQ Assessment */}
-                          {profile.assessments.eq && (
+                      {profile.assessments && (
+                        <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-4 rounded-lg border border-indigo-200">
+                          <h4 className="font-semibold text-lg mb-4">Assessment Results Summary</h4>
+                          <div className="grid grid-cols-2 gap-4">
+                            
+                            {/* EQ Assessment */}
+                            {profile.assessments.eq && (
                             <div className="bg-white p-3 rounded-lg border border-indigo-200">
                               <h5 className="font-medium text-sm mb-2 text-indigo-900">Emotional Intelligence (EQ)</h5>
                               <div className="space-y-1 text-xs">
@@ -689,6 +690,7 @@ export default function IndividualAssessmentProfilesPage() {
                           )}
                         </div>
                       </div>
+                      )}
 
                       {/* Recommended Roles */}
                       {profile.recommended_roles.length > 0 && (
