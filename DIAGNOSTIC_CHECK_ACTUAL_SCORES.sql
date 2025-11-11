@@ -8,10 +8,10 @@
 -- 1. Check James Howard's actual EQ scores
 SELECT 
   pm.name,
-  eq.self_awareness,
-  eq.self_management,
-  eq.social_awareness,
-  eq.relationship_management,
+  eq.self_awareness_score,
+  eq.self_management_score,
+  eq.social_awareness_score,
+  eq.relationship_management_score,
   eq.overall_eq
 FROM practice_members pm
 LEFT JOIN eq_assessments eq ON eq.practice_member_id = pm.id
@@ -55,10 +55,10 @@ WHERE pm.email = 'jhoward@rpgcc.co.uk';
 SELECT 
   pm.name,
   pm.role,
-  COALESCE(eq.self_awareness, 0) as self_awareness,
-  COALESCE(eq.self_management, 0) as self_management,
-  COALESCE(eq.social_awareness, 0) as social_awareness,
-  COALESCE(eq.relationship_management, 0) as relationship_management,
+  COALESCE(eq.self_awareness_score, 0) as self_awareness,
+  COALESCE(eq.self_management_score, 0) as self_management,
+  COALESCE(eq.social_awareness_score, 0) as social_awareness,
+  COALESCE(eq.relationship_management_score, 0) as relationship_management,
   COALESCE(eq.overall_eq, 0) as overall_eq
 FROM practice_members pm
 LEFT JOIN eq_assessments eq ON eq.practice_member_id = pm.id

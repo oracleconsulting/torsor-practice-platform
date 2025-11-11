@@ -87,16 +87,17 @@ export async function calculateIndividualProfile(
 
     // Build member data object for analysis
     // CRITICAL: Do NOT use default values - use actual assessment data
+    // CRITICAL: Use correct column names from database (_score suffix)
     const memberData = {
       id: member.id,
       name: member.name,
       role: member.role,
       email: member.email,
       eq_scores: eqData.data ? {
-        self_awareness: eqData.data.self_awareness ?? null,  // Use null if missing, NOT 50
-        self_management: eqData.data.self_management ?? null,
-        social_awareness: eqData.data.social_awareness ?? null,
-        relationship_management: eqData.data.relationship_management ?? null
+        self_awareness: eqData.data.self_awareness_score ?? null,  // Note: _score suffix in DB
+        self_management: eqData.data.self_management_score ?? null,
+        social_awareness: eqData.data.social_awareness_score ?? null,
+        relationship_management: eqData.data.relationship_management_score ?? null
       } : null,  // Explicitly null if no EQ data
       belbin_primary: belbinData.data?.primary_role ? [belbinData.data.primary_role] : [],
       belbin_secondary: belbinData.data?.secondary_role ? [belbinData.data.secondary_role] : [],
