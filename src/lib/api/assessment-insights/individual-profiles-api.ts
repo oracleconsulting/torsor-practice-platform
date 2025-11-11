@@ -62,7 +62,7 @@ export async function calculateIndividualProfile(
       supabase.from('conflict_style_assessments').select('*').eq('practice_member_id', practiceMemberId).maybeSingle(),
       supabase.from('working_preferences').select('*').eq('practice_member_id', practiceMemberId).maybeSingle(),
       supabase.from('vark_assessments').select('*').eq('practice_member_id', practiceMemberId).maybeSingle(),
-      supabase.from('skill_assessments').select('*, skills(name)').eq('practice_member_id', practiceMemberId)
+      supabase.from('skill_assessments').select('*, skills(name)').eq('team_member_id', practiceMemberId)
     ]);
 
     // Build member data object for analysis
@@ -300,7 +300,7 @@ export async function getIndividualProfile(practiceMemberId: string): Promise<In
       supabase.from('conflict_style_assessments').select('*').eq('practice_member_id', practiceMemberId).maybeSingle(),
       supabase.from('working_preferences').select('*').eq('practice_member_id', practiceMemberId).maybeSingle(),
       supabase.from('vark_assessments').select('*').eq('practice_member_id', practiceMemberId).maybeSingle(),
-      supabase.from('skill_assessments').select('*, skills(name)').eq('practice_member_id', practiceMemberId)
+      supabase.from('skill_assessments').select('*, skills(name)').eq('team_member_id', practiceMemberId)
     ]);
 
     // Calculate stats
