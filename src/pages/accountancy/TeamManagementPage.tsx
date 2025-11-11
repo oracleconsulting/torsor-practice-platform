@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Award, BookOpen, TrendingUp, BarChart2, Mail, LayoutDashboard, Target, Users, CheckCircle, CheckCircle2, Sparkles, Brain, ActivitySquare, Ticket } from 'lucide-react';
+import { Award, BookOpen, TrendingUp, BarChart2, Mail, LayoutDashboard, Target, Users, CheckCircle, CheckCircle2, Sparkles, Brain, ActivitySquare, Ticket, UserCircle, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -20,6 +20,8 @@ import TeamAssessmentInsights from './admin/TeamAssessmentInsights';
 import MyAssessmentsPanel from './admin/MyAssessmentsPanel';
 import ServiceLinePreferencesAdmin from './admin/ServiceLinePreferencesAdmin';
 import TicketsAdmin from './admin/TicketsAdmin';
+import IndividualAssessmentProfilesPage from './admin/IndividualAssessmentProfilesPage';
+import RoleDefinitionsAdminPanel from './admin/RoleDefinitionsAdminPanel';
 
 // Visual Pattern Components
 const DiagonalPattern = () => (
@@ -157,6 +159,20 @@ const TeamManagementPage: React.FC = () => {
       label: 'ASSESSMENT INSIGHTS',
       icon: ActivitySquare,
       component: TeamAssessmentInsights,
+      badge: 'NEW',
+    },
+    {
+      value: 'individual-profiles',
+      label: 'INDIVIDUAL PROFILES',
+      icon: UserCircle,
+      component: IndividualAssessmentProfilesPage,
+      badge: 'NEW',
+    },
+    {
+      value: 'role-definitions',
+      label: 'ROLE DEFINITIONS',
+      icon: Briefcase,
+      component: RoleDefinitionsAdminPanel,
       badge: 'NEW',
     },
     {
