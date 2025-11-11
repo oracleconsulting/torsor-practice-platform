@@ -14,7 +14,7 @@ export interface RoleDefinition {
   // Basic Info
   role_title: string;
   role_category: 'technical' | 'advisory' | 'hybrid' | 'leadership';
-  seniority_level: 'Junior' | 'Senior' | 'Assistant Manager' | 'Manager' | 'Director' | 'Associate Director' | 'Partner';
+  seniority_level: 'Junior' | 'Senior' | 'Assistant Manager' | 'Manager' | 'Director' | 'Partner';
   department: string;
   
   // Description

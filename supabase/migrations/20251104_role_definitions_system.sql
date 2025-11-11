@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS role_definitions (
   -- Basic Info
   role_title VARCHAR(100) NOT NULL,
   role_category VARCHAR(50), -- 'technical', 'advisory', 'hybrid', 'leadership'
-  seniority_level VARCHAR(50), -- 'Junior', 'Senior', 'Manager', 'Director', 'Partner'
+  seniority_level VARCHAR(50), -- 'Junior', 'Senior', 'Assistant Manager', 'Manager', 'Director', 'Partner'
   department VARCHAR(100), -- 'Audit', 'Tax', 'Advisory', 'Corporate Finance'
   
   -- Role Description

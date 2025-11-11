@@ -493,7 +493,6 @@ export default function RoleDefinitionsAdminPanel() {
                     <SelectItem value="Assistant Manager">Assistant Manager</SelectItem>
                     <SelectItem value="Manager">Manager</SelectItem>
                     <SelectItem value="Director">Director</SelectItem>
-                    <SelectItem value="Associate Director">Associate Director</SelectItem>
                     <SelectItem value="Partner">Partner</SelectItem>
                   </SelectContent>
                 </Select>
