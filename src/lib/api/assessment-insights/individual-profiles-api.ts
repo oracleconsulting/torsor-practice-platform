@@ -46,7 +46,7 @@ export async function calculateIndividualProfile(
     console.log('[IndividualProfile] Step 1: Fetching member data...');
     const { data: member, error: memberError } = await supabase
       .from('practice_members')
-      .select('id, name, email, role, department')
+      .select('id, name, email, role')
         .eq('id', practiceMemberId)
       .single();
 
@@ -84,7 +84,6 @@ export async function calculateIndividualProfile(
       name: member.name,
       role: member.role,
       email: member.email,
-      department: member.department,
       eq_scores: eqData.data ? {
         self_awareness: eqData.data.self_awareness || 50,
         self_management: eqData.data.self_management || 50,
@@ -287,7 +286,7 @@ export async function getIndividualProfile(practiceMemberId: string): Promise<In
     // Fetch member
     const { data: member, error: memberError } = await supabase
       .from('practice_members')
-      .select('id, name, email, role, department')
+      .select('id, name, email, role')
       .eq('id', practiceMemberId)
       .single();
 
@@ -378,8 +377,7 @@ export async function getIndividualProfile(practiceMemberId: string): Promise<In
         id: member.id,
         name: member.name,
         email: member.email,
-        role: member.role || '',
-        department: member.department
+        role: member.role || ''
       },
       profile: profile as IndividualAssessmentProfile,
       currentRoleAssignment: roleAssignment as MemberRoleAssignment,
