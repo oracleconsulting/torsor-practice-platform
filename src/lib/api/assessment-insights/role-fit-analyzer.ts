@@ -66,12 +66,17 @@ export class RoleFitAnalyzer {
     };
 
     // EQ Social Awareness (target: ≥70)
-    const socialAwareness = memberData.eq_scores?.social_awareness || 50;
-    score += (socialAwareness / 100) * weights.eq_social * 100;
+    // Only include if we have actual data
+    const socialAwareness = memberData.eq_scores?.social_awareness;
+    if (socialAwareness !== null && socialAwareness !== undefined) {
+      score += (socialAwareness / 100) * weights.eq_social * 100;
+    }
 
     // EQ Relationship Management (target: ≥70)
-    const relationshipMgmt = memberData.eq_scores?.relationship_management || 50;
-    score += (relationshipMgmt / 100) * weights.eq_relationship * 100;
+    const relationshipMgmt = memberData.eq_scores?.relationship_management;
+    if (relationshipMgmt !== null && relationshipMgmt !== undefined) {
+      score += (relationshipMgmt / 100) * weights.eq_relationship * 100;
+    }
 
     // Belbin People-Oriented Roles
     const peopleRoles = ['Coordinator', 'Resource Investigator', 'Teamworker', 'Shaper'];
@@ -80,17 +85,19 @@ export class RoleFitAnalyzer {
     score += (hasPeopleRole ? 1 : 0) * weights.belbin_people * 100;
 
     // Motivational Drivers (Achievement + Influence)
-    const achievement = memberData.motivational_drivers?.achievement || 50;
-    const influence = memberData.motivational_drivers?.influence || 50;
-    const motivationScore = (achievement + influence) / 2;
-    score += (motivationScore / 100) * weights.motivation_influence * 100;
+    const achievement = memberData.motivational_drivers?.achievement;
+    const influence = memberData.motivational_drivers?.influence;
+    if (achievement !== null && influence !== null && achievement !== undefined && influence !== undefined) {
+      const motivationScore = (achievement + influence) / 2;
+      score += (motivationScore / 100) * weights.motivation_influence * 100;
+    }
 
     // Conflict Style (Collaborating preferred)
     const isCollaborative = memberData.conflict_style_primary === 'Collaborating';
     score += (isCollaborative ? 1 : 0) * weights.conflict_collaborative * 100;
 
     // Communication Preference (Sync or Balanced)
-    const prefersSyncComm = ['High-sync', 'Balanced'].includes(memberData.communication_preference || '');
+    const prefersSyncComm = ['sync', 'balanced'].includes((memberData.communication_preference || '').toLowerCase());
     score += (prefersSyncComm ? 1 : 0) * weights.communication_sync * 100;
 
     return Math.min(100, Math.round(score));
@@ -116,14 +123,20 @@ export class RoleFitAnalyzer {
     score += (hasTechRole ? 1 : 0) * weights.belbin_specialist * 100;
 
     // EQ Self-Management
-    const selfManagement = memberData.eq_scores?.self_management || 50;
-    score += (selfManagement / 100) * weights.eq_self_management * 100;
+    const selfManagement = memberData.eq_scores?.self_management;
+    if (selfManagement !== null && selfManagement !== undefined) {
+      score += (selfManagement / 100) * weights.eq_self_management * 100;
+    }
 
     // Motivational Drivers
-    const achievement = memberData.motivational_drivers?.achievement || 50;
-    const autonomy = memberData.motivational_drivers?.autonomy || 50;
-    score += (achievement / 100) * weights.motivation_achievement * 100;
-    score += (autonomy / 100) * weights.motivation_autonomy * 100;
+    const achievement = memberData.motivational_drivers?.achievement;
+    const autonomy = memberData.motivational_drivers?.autonomy;
+    if (achievement !== null && achievement !== undefined) {
+      score += (achievement / 100) * weights.motivation_achievement * 100;
+    }
+    if (autonomy !== null && autonomy !== undefined) {
+      score += (autonomy / 100) * weights.motivation_autonomy * 100;
+    }
 
     // Attention to Detail (from skills assessment)
     const detailSkillLevel = this.getSkillLevel(memberData.skills, 'Attention to Detail');
@@ -164,12 +177,16 @@ export class RoleFitAnalyzer {
     };
 
     // EQ Relationship Management (critical for leaders)
-    const relationshipMgmt = memberData.eq_scores?.relationship_management || 50;
-    score += (relationshipMgmt / 100) * weights.eq_relationship * 100;
+    const relationshipMgmt = memberData.eq_scores?.relationship_management;
+    if (relationshipMgmt !== null && relationshipMgmt !== undefined) {
+      score += (relationshipMgmt / 100) * weights.eq_relationship * 100;
+    }
 
     // EQ Social Awareness
-    const socialAwareness = memberData.eq_scores?.social_awareness || 50;
-    score += (socialAwareness / 100) * weights.eq_social * 100;
+    const socialAwareness = memberData.eq_scores?.social_awareness;
+    if (socialAwareness !== null && socialAwareness !== undefined) {
+      score += (socialAwareness / 100) * weights.eq_social * 100;
+    }
 
     // Belbin Leadership Roles
     const leadershipRoles = ['Coordinator', 'Shaper'];
@@ -178,8 +195,10 @@ export class RoleFitAnalyzer {
     score += (hasLeadershipRole ? 1 : 0) * weights.belbin_leadership * 100;
 
     // Motivational Drivers (Influence/Power)
-    const influence = memberData.motivational_drivers?.influence || 50;
-    score += (influence / 100) * weights.motivation_influence * 100;
+    const influence = memberData.motivational_drivers?.influence;
+    if (influence !== null && influence !== undefined) {
+      score += (influence / 100) * weights.motivation_influence * 100;
+    }
 
     // Experience (based on seniority)
     const seniorityScore = this.getSeniorityScore(memberData.role);
@@ -197,8 +216,8 @@ export class RoleFitAnalyzer {
     // ADVISORY ROLE RED FLAGS
     if (assignedRole === 'advisory') {
       // Low EQ Social Awareness
-      const socialAwareness = memberData.eq_scores?.social_awareness || 50;
-      if (socialAwareness < 55) {
+      const socialAwareness = memberData.eq_scores?.social_awareness;
+      if (socialAwareness !== null && socialAwareness !== undefined && socialAwareness < 55) {
         flags.push({
           type: 'low_eq_social',
           severity: 'critical',
@@ -208,7 +227,7 @@ export class RoleFitAnalyzer {
       }
 
       // Async-only communication preference
-      if (memberData.communication_preference === 'Async-heavy') {
+      if (memberData.communication_preference?.toLowerCase() === 'async') {
         flags.push({
           type: 'async_only_advisory',
           severity: 'high',

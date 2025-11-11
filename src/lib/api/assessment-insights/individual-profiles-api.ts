@@ -86,28 +86,29 @@ export async function calculateIndividualProfile(
     });
 
     // Build member data object for analysis
+    // CRITICAL: Do NOT use default values - use actual assessment data
     const memberData = {
       id: member.id,
       name: member.name,
       role: member.role,
       email: member.email,
       eq_scores: eqData.data ? {
-        self_awareness: eqData.data.self_awareness || 50,
-        self_management: eqData.data.self_management || 50,
-        social_awareness: eqData.data.social_awareness || 50,
-        relationship_management: eqData.data.relationship_management || 50
-      } : {},
+        self_awareness: eqData.data.self_awareness ?? null,  // Use null if missing, NOT 50
+        self_management: eqData.data.self_management ?? null,
+        social_awareness: eqData.data.social_awareness ?? null,
+        relationship_management: eqData.data.relationship_management ?? null
+      } : null,  // Explicitly null if no EQ data
       belbin_primary: belbinData.data?.primary_role ? [belbinData.data.primary_role] : [],
       belbin_secondary: belbinData.data?.secondary_role ? [belbinData.data.secondary_role] : [],
       motivational_drivers: motivData.data ? {
-        achievement: motivData.data.achievement_score || 50,
-        affiliation: motivData.data.affiliation_score || 50,
-        autonomy: motivData.data.autonomy_score || 50,
-        influence: motivData.data.influence_score || 50
-      } : {},
-      conflict_style_primary: conflictData.data?.primary_style || '',
-      communication_preference: workingPrefsData.data?.communication_style || '',
-      vark_preference: varkData.data?.learning_style || '',
+        achievement: motivData.data.achievement_score ?? null,
+        affiliation: motivData.data.affiliation_score ?? null,
+        autonomy: motivData.data.autonomy_score ?? null,
+        influence: motivData.data.influence_score ?? null
+      } : null,  // Explicitly null if no motivational data
+      conflict_style_primary: conflictData.data?.primary_style || null,
+      communication_preference: workingPrefsData.data?.communication_style || null,
+      vark_preference: varkData.data?.learning_style || null,
       skills: (skillsData.data || []).map((s: any) => ({
         name: s.skills?.name || '',
         current_level: s.self_rating || 0
