@@ -32,8 +32,7 @@ SELECT
   social_awareness_score,
   relationship_management_score,
   overall_eq,
-  eq_level,
-  created_at
+  eq_level
 FROM eq_assessments
 WHERE practice_member_id = '2b5f8f65-97bb-4c44-9d6b-56788ab593b9';
 
