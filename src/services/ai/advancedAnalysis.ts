@@ -30,7 +30,7 @@ function applyTemplate(template: string, variables: Record<string, any>): string
 /**
  * Helper: Get prompt config from database
  */
-async function getPromptConfig(promptKey: string, practiceId: string) {
+async function getPromptConfig(supabase: SupabaseClient, promptKey: string, practiceId: string) {
   const { data, error } = await supabase
     .from('ai_prompts')
     .select('*')
@@ -49,7 +49,7 @@ async function getPromptConfig(promptKey: string, practiceId: string) {
 /**
  * Helper: Get OpenRouter API key
  */
-async function getApiKey(practiceId: string): Promise<string> {
+async function getApiKey(supabase: SupabaseClient, practiceId: string): Promise<string> {
   const { data, error } = await supabase
     .from('ai_api_keys')
     .select('api_key')
@@ -244,8 +244,8 @@ export async function generateGapAnalysisInsights(supabase: SupabaseClient, prac
   });
   
   // Get prompt and API key
-  const promptConfig = await getPromptConfig('gap_analysis_insights', practiceId);
-  const apiKey = await getApiKey(practiceId);
+  const promptConfig = await getPromptConfig(supabase, 'gap_analysis_insights', practiceId);
+  const apiKey = await getApiKey(supabase, practiceId);
   
   // Fill template with REAL DATA
   const userPrompt = applyTemplate(promptConfig.user_prompt_template, {
@@ -502,8 +502,8 @@ export async function generateTeamCompositionAnalysis(supabase: SupabaseClient, 
     .join('\n') || 'No skills assessments completed';
   
   // Get prompt and API key
-  const promptConfig = await getPromptConfig('team_composition_analysis', practiceId);
-  const apiKey = await getApiKey(practiceId);
+  const promptConfig = await getPromptConfig(supabase, 'team_composition_analysis', practiceId);
+  const apiKey = await getApiKey(supabase, practiceId);
   
   // Build COMPREHENSIVE user prompt with ALL data
   const userPrompt = applyTemplate(promptConfig.user_prompt_template, {
@@ -585,8 +585,8 @@ export async function generateServiceLineDeployment(supabase: SupabaseClient, pr
     .join('\n');
   
   // Get prompt and API key
-  const promptConfig = await getPromptConfig('service_line_deployment', practiceId);
-  const apiKey = await getApiKey(practiceId);
+  const promptConfig = await getPromptConfig(supabase, 'service_line_deployment', practiceId);
+  const apiKey = await getApiKey(supabase, practiceId);
   
   // Fill template
   const userPrompt = applyTemplate(promptConfig.user_prompt_template, {
@@ -683,8 +683,8 @@ export async function generateTrainingNarrative(supabase: SupabaseClient, member
     ?.reduce((sum: number, a: any) => sum + (a.hours || 0), 0) || 0;
   
   // Get prompt and API key
-  const promptConfig = await getPromptConfig('training_narrative', practiceId);
-  const apiKey = await getApiKey(practiceId);
+  const promptConfig = await getPromptConfig(supabase, 'training_narrative', practiceId);
+  const apiKey = await getApiKey(supabase, practiceId);
   
   // Fill template (removed years_experience as it doesn't exist in schema)
   const userPrompt = applyTemplate(promptConfig.user_prompt_template, {
@@ -817,8 +817,8 @@ export async function generateAssessmentSynthesis(supabase: SupabaseClient, memb
   const completionCount = Object.values(assessmentStatus).filter(Boolean).length;
   
   // Get prompt and API key
-  const promptConfig = await getPromptConfig('assessment_synthesis', practiceId);
-  const apiKey = await getApiKey(practiceId);
+  const promptConfig = await getPromptConfig(supabase, 'assessment_synthesis', practiceId);
+  const apiKey = await getApiKey(supabase, practiceId);
   
   // Fill template
   const userPrompt = applyTemplate(promptConfig.user_prompt_template, {
