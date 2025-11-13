@@ -96,6 +96,10 @@ CREATE INDEX IF NOT EXISTS idx_assessment_insights_member_updated
   ON assessment_insights (member_id, updated_at DESC);
 
 -- 5. Update the last_updated timestamp trigger
+-- First drop any old triggers that might reference wrong column names
+DROP TRIGGER IF EXISTS update_team_composition_insights_updated_at ON team_composition_insights;
+DROP TRIGGER IF EXISTS update_team_composition_insights_timestamp ON team_composition_insights;
+
 CREATE OR REPLACE FUNCTION update_team_composition_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -103,8 +107,6 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS update_team_composition_insights_timestamp ON team_composition_insights;
 
 CREATE TRIGGER update_team_composition_insights_timestamp
   BEFORE UPDATE ON team_composition_insights
