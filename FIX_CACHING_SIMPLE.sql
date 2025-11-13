@@ -72,8 +72,6 @@ CREATE POLICY team_composition_insights_insert ON team_composition_insights
 CREATE POLICY team_composition_insights_update ON team_composition_insights
   FOR UPDATE USING (true);
 
-RAISE NOTICE '✅ RLS policies updated';
-
 -- Step 6: Fix RLS policies for assessment_insights
 DROP POLICY IF EXISTS assessment_insights_select ON assessment_insights;
 DROP POLICY IF EXISTS assessment_insights_insert ON assessment_insights;
@@ -88,16 +86,12 @@ CREATE POLICY assessment_insights_insert ON assessment_insights
 CREATE POLICY assessment_insights_update ON assessment_insights
   FOR UPDATE USING (true);
 
-RAISE NOTICE '✅ Assessment insights RLS policies updated';
-
 -- Step 7: Create indexes for performance (if they don't exist)
 CREATE INDEX IF NOT EXISTS idx_team_composition_insights_practice_calc
   ON team_composition_insights (practice_id, calculated_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_assessment_insights_member_updated
   ON assessment_insights (member_id, updated_at DESC);
-
-RAISE NOTICE '✅ Indexes created';
 
 -- Step 8: Create NEW trigger function (with unique name)
 CREATE OR REPLACE FUNCTION update_last_updated_timestamp()
@@ -116,12 +110,13 @@ CREATE TRIGGER team_comp_insights_update_timestamp
   FOR EACH ROW
   EXECUTE FUNCTION update_last_updated_timestamp();
 
-RAISE NOTICE '✅ New trigger created successfully';
-
 -- =====================================================
--- DONE - NO TEST (to avoid errors)
+-- DONE - Migration Complete!
 -- =====================================================
 
-RAISE NOTICE '🎉 Migration complete! Caching should now work.';
-RAISE NOTICE 'ℹ️ The application will now be able to cache insights for 24 hours.';
+DO $$
+BEGIN
+  RAISE NOTICE '🎉 Migration complete! Caching should now work.';
+  RAISE NOTICE 'ℹ️ The application will now be able to cache insights for 24 hours.';
+END $$;
 
