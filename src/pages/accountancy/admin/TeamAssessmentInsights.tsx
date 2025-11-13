@@ -1603,9 +1603,9 @@ const TeamAssessmentInsights: React.FC = () => {
                 {(() => {
                   try {
                     return (
-                      <>
-                      {/* Communication Styles */}
-              {teamComposition.communicationStyles && teamComposition.communicationStyles.length > 0 && (() => {
+              <>
+              {/* Communication Styles */}
+      {teamComposition.communicationStyles && teamComposition.communicationStyles.length > 0 ? (() => {
                 try {
                   // Validate and sanitize communication styles data for charts
                   const validCommData = teamComposition.communicationStyles
@@ -1728,7 +1728,7 @@ const TeamAssessmentInsights: React.FC = () => {
                     </Card>
                   );
                 }
-              })()}
+              })() : null}
 
               {/* Belbin Roles */}
               {teamComposition.belbinRoles && teamComposition.belbinRoles.length > 0 && (
@@ -1767,7 +1767,7 @@ const TeamAssessmentInsights: React.FC = () => {
               )}
 
               {/* EQ Distribution */}
-              {teamComposition.eqDistribution && teamComposition.eqDistribution.length > 0 && (() => {
+              {teamComposition.eqDistribution && teamComposition.eqDistribution.length > 0 ? (() => {
                 try {
                   // Validate and sanitize EQ data for charts
                   const validEqData = teamComposition.eqDistribution
@@ -1856,10 +1856,10 @@ const TeamAssessmentInsights: React.FC = () => {
                     </Card>
                   );
                 }
-              })()}
+              })() : null}
 
               {/* Work Styles Distribution */}
-              {teamComposition.workStyles && teamComposition.workStyles.length > 0 && (() => {
+              {teamComposition.workStyles && teamComposition.workStyles.length > 0 ? (() => {
                 try {
                   const validWorkData = teamComposition.workStyles
                     .map(item => ({
@@ -1974,10 +1974,10 @@ const TeamAssessmentInsights: React.FC = () => {
                     </Card>
                   );
                 }
-              })()}
+              })() : null}
 
               {/* Work Environment Preferences */}
-              {teamComposition.environments && teamComposition.environments.length > 0 && (() => {
+              {teamComposition.environments && teamComposition.environments.length > 0 ? (() => {
                 try {
                   const validEnvData = teamComposition.environments
                     .map(item => ({
@@ -2022,10 +2022,10 @@ const TeamAssessmentInsights: React.FC = () => {
                   console.error('[TeamAssessmentInsights] Error rendering environment chart:', error);
                   return null;
                 }
-              })()}
+              })() : null}
 
               {/* Motivational Drivers */}
-              {teamComposition.motivationalDrivers && teamComposition.motivationalDrivers.length > 0 && (() => {
+              {teamComposition.motivationalDrivers && teamComposition.motivationalDrivers.length > 0 ? (() => {
                 try {
                   const validMotivData = teamComposition.motivationalDrivers
                     .map(item => ({
@@ -2087,10 +2087,10 @@ const TeamAssessmentInsights: React.FC = () => {
                   console.error('[TeamAssessmentInsights] Error rendering motivational chart:', error);
                   return null;
                 }
-              })()}
+              })() : null}
 
               {/* Conflict Styles */}
-              {teamComposition.conflictStyles && teamComposition.conflictStyles.length > 0 && (() => {
+              {teamComposition.conflictStyles && teamComposition.conflictStyles.length > 0 ? (() => {
                 try {
                   const validConflictData = teamComposition.conflictStyles
                     .map(item => ({
@@ -2152,10 +2152,10 @@ const TeamAssessmentInsights: React.FC = () => {
                   console.error('[TeamAssessmentInsights] Error rendering conflict chart:', error);
                   return null;
                 }
-              })()}
+              })() : null}
 
               {/* VARK Learning Styles */}
-              {teamComposition.varkStyles && teamComposition.varkStyles.length > 0 && (() => {
+              {teamComposition.varkStyles && teamComposition.varkStyles.length > 0 ? (() => {
                 try {
                   const validVarkData = teamComposition.varkStyles
                     .map(item => ({
@@ -2262,7 +2262,7 @@ const TeamAssessmentInsights: React.FC = () => {
                   console.error('[TeamAssessmentInsights] Error rendering VARK chart:', error);
                   return null;
                 }
-              })()}
+              })() : null}
 
               {/* OCEAN Personality Profile */}
               {teamComposition.avgPersonality && (
