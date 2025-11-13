@@ -50,8 +50,7 @@ SELECT
   affiliation_score,
   autonomy_score,
   influence_score,
-  dominant_driver,
-  created_at
+  dominant_driver
 FROM motivational_drivers
 WHERE practice_member_id = '2b5f8f65-97bb-4c44-9d6b-56788ab593b9';
 
@@ -65,8 +64,7 @@ SELECT
   'Step 4: Belbin Roles' as step,
   practice_member_id,
   primary_role,
-  secondary_role,
-  created_at
+  secondary_role
 FROM belbin_assessments
 WHERE practice_member_id = '2b5f8f65-97bb-4c44-9d6b-56788ab593b9';
 
@@ -80,8 +78,7 @@ SELECT
   practice_member_id,
   work_environment,
   communication_preference,
-  autonomy_preference,
-  created_at
+  autonomy_preference
 FROM working_preferences
 WHERE practice_member_id = '2b5f8f65-97bb-4c44-9d6b-56788ab593b9';
 
@@ -91,8 +88,7 @@ WHERE practice_member_id = '2b5f8f65-97bb-4c44-9d6b-56788ab593b9';
 SELECT 
   'Step 6: Conflict Style' as step,
   practice_member_id,
-  primary_style,
-  created_at
+  primary_style
 FROM conflict_style_assessments
 WHERE practice_member_id = '2b5f8f65-97bb-4c44-9d6b-56788ab593b9';
 
