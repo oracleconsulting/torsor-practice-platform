@@ -495,6 +495,68 @@ const TeamAssessmentInsights: React.FC = () => {
     setTeamDynamics(dynamics);
   };
 
+  // Calculate real Belbin role gaps from actual team data
+  const calculateBelbinRoleGaps = async (members: TeamMember[]) => {
+    // Fetch all Belbin assessments for team members
+    const { data: belbinData } = await supabase
+      .from('belbin_assessments')
+      .select('primary_role, secondary_role')
+      .in('practice_member_id', members.map(m => m.id));
+
+    if (!belbinData || belbinData.length === 0) {
+      return [];
+    }
+
+    // Count primary and secondary roles
+    const roleCounts: Record<string, number> = {};
+    
+    belbinData.forEach(assessment => {
+      if (assessment.primary_role) {
+        roleCounts[assessment.primary_role] = (roleCounts[assessment.primary_role] || 0) + 1;
+      }
+      if (assessment.secondary_role) {
+        roleCounts[assessment.secondary_role] = (roleCounts[assessment.secondary_role] || 0) + 0.5; // Weight secondary roles less
+      }
+    });
+
+    // Define ideal team composition (Belbin's recommended balance for a team of ~15)
+    // Adjust based on team size
+    const teamSize = members.length;
+    const idealRoles: Record<string, number> = {
+      // Action-oriented roles
+      'Shaper': Math.max(1, Math.round(teamSize * 0.1)), // 10% - drives action
+      'Implementer': Math.max(2, Math.round(teamSize * 0.15)), // 15% - gets things done
+      'Completer Finisher': Math.max(1, Math.round(teamSize * 0.1)), // 10% - ensures quality
+      
+      // People-oriented roles
+      'Coordinator': Math.max(1, Math.round(teamSize * 0.12)), // 12% - orchestrates team
+      'Teamworker': Math.max(2, Math.round(teamSize * 0.15)), // 15% - maintains harmony
+      'Resource Investigator': Math.max(1, Math.round(teamSize * 0.12)), // 12% - external connections
+      
+      // Thought-oriented roles
+      'Plant': Math.max(1, Math.round(teamSize * 0.1)), // 10% - generates ideas
+      'Monitor Evaluator': Math.max(1, Math.round(teamSize * 0.08)), // 8% - critical thinking
+      'Specialist': Math.max(1, Math.round(teamSize * 0.08)) // 8% - deep expertise
+    };
+
+    // Calculate gaps
+    const gaps = Object.entries(idealRoles).map(([role, ideal]) => {
+      const current = Math.round(roleCounts[role] || 0);
+      return {
+        role,
+        current,
+        ideal,
+        gap: ideal - current,
+        priority: ideal - current > 1 ? 'high' : ideal - current > 0 ? 'medium' : 'none'
+      };
+    });
+
+    // Sort by gap size (highest priority first) and filter out non-gaps
+    return gaps
+      .filter(g => g.gap > 0 || g.current > 0) // Show roles with gaps OR existing coverage
+      .sort((a, b) => b.gap - a.gap);
+  };
+
   const identifyPriorities = async (members: TeamMember[]) => {
     // Get skills data for gap analysis
     const { data: skills } = await supabase
@@ -509,10 +571,8 @@ const TeamAssessmentInsights: React.FC = () => {
       { area: 'Project Management', severity: 'medium' as const, affectedMembers: 4 }
     ];
 
-    const roleGaps = [
-      { role: 'Innovator', current: 2, ideal: 3 },
-      { role: 'Leader', current: 1, ideal: 2 }
-    ];
+    // CALCULATE REAL BELBIN ROLE GAPS FROM ACTUAL DATA
+    const roleGaps = await calculateBelbinRoleGaps(members);
 
     const recommendations = [
       'Schedule team workshops focused on advanced financial modeling',
