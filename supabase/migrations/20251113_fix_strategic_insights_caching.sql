@@ -99,6 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_assessment_insights_member_updated
 -- First drop any old triggers that might reference wrong column names
 DROP TRIGGER IF EXISTS update_team_composition_insights_updated_at ON team_composition_insights;
 DROP TRIGGER IF EXISTS update_team_composition_insights_timestamp ON team_composition_insights;
+DROP FUNCTION IF EXISTS update_team_composition_timestamp();
 
 CREATE OR REPLACE FUNCTION update_team_composition_timestamp()
 RETURNS TRIGGER AS $$
@@ -112,8 +113,6 @@ CREATE TRIGGER update_team_composition_insights_timestamp
   BEFORE UPDATE ON team_composition_insights
   FOR EACH ROW
   EXECUTE FUNCTION update_team_composition_timestamp();
-
-COMMIT;
 
 -- =====================================================
 -- VERIFICATION
@@ -134,7 +133,7 @@ SELECT
 FROM pg_policies
 WHERE tablename IN ('team_composition_insights', 'assessment_insights');
 
--- Test upsert (should work now)
+-- Test upsert (should work now with new trigger and unique constraint)
 DO $$
 BEGIN
   INSERT INTO team_composition_insights (
@@ -143,17 +142,17 @@ BEGIN
     team_name,
     team_health_score
   ) VALUES (
-    'a1b2c3d4-5678-90ab-cdef-123456789abc', -- Replace with actual practice_id
+    'a1b2c3d4-5678-90ab-cdef-123456789abc',
     NULL,
     NULL,
     75.0
   )
-  ON CONFLICT (practice_id, service_line_id, team_name)
+  ON CONFLICT (practice_id, date(calculated_at))
   DO UPDATE SET
     team_health_score = EXCLUDED.team_health_score,
     last_updated = NOW();
   
-  RAISE NOTICE '✅ Upsert test successful - caching will now work!';
+  RAISE NOTICE '✅ Upsert test successful – caching will now work!';
   
   -- Clean up test
   DELETE FROM team_composition_insights 
