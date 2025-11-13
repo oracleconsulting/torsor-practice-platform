@@ -146,7 +146,7 @@ export async function calculateRetentionRisk(memberId: string): Promise<Retentio
     // Calculate time to action
     const timeToAction = getTimeToAction(riskLevel);
 
-    return {
+    const result: RetentionRiskResult = {
       memberId: member.id,
       memberName: member.name,
       riskScore,
@@ -157,6 +157,11 @@ export async function calculateRetentionRisk(memberId: string): Promise<Retentio
       timeToAction,
       calculatedAt: new Date().toISOString()
     };
+
+    // 📊 PERSIST TO DATABASE for historical tracking
+    await persistRetentionRisk(result, factors);
+
+    return result;
 
   } catch (error) {
     console.error('[RetentionRisk] Error calculating retention risk:', error);
@@ -546,5 +551,139 @@ export async function getPracticeRetentionSummary(practiceId: string) {
     topRisks: risks.slice(0, 5), // Top 5 highest risk members
     calculatedAt: new Date().toISOString()
   };
+}
+
+/**
+ * Persist retention risk to database for historical tracking and trend analysis
+ */
+async function persistRetentionRisk(
+  result: RetentionRiskResult,
+  factors: RetentionRiskFactors
+): Promise<void> {
+  try {
+    console.log('[RetentionRisk] 💾 Persisting to database:', result.memberId);
+
+    // Upsert retention risk score (one per member per day)
+    const { error } = await supabase
+      .from('retention_risk_scores')
+      .upsert({
+        member_id: result.memberId,
+        risk_score: result.riskScore,
+        risk_level: result.riskLevel,
+        confidence: result.confidence,
+        role_match_score: factors.roleMatchScore,
+        motivation_alignment: factors.motivationAlignment,
+        engagement_indicators: factors.engagementIndicators,
+        tenure_risk: factors.tenureRisk,
+        development_gap_severity: factors.developmentGapSeverity,
+        eq_mismatch: factors.eqMismatch,
+        top_risk_factors: result.topRiskFactors,
+        recommended_actions: result.recommendedActions.map(a => ({
+          action: a.action,
+          priority: a.priority,
+          expected_impact: a.expectedImpact,
+          description: a.description
+        })),
+        time_to_action: result.timeToAction,
+        calculated_at: new Date().toISOString()
+      }, {
+        onConflict: 'member_id,date(calculated_at)',
+        ignoreDuplicates: false
+      });
+
+    if (error) {
+      console.error('[RetentionRisk] ❌ Failed to persist:', error);
+    } else {
+      console.log('[RetentionRisk] ✅ Persisted successfully');
+    }
+  } catch (error) {
+    console.error('[RetentionRisk] ❌ Error persisting:', error);
+    // Don't throw - persistence failure shouldn't break calculation
+  }
+}
+
+/**
+ * Get historical retention risk data for a member
+ */
+export async function getRetentionRiskHistory(
+  memberId: string,
+  days: number = 30
+): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('retention_risk_scores')
+    .select('*')
+    .eq('member_id', memberId)
+    .gte('calculated_at', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString())
+    .order('calculated_at', { ascending: true });
+
+  if (error) {
+    console.error('[RetentionRisk] Error fetching history:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Get latest retention risk from database (cached version)
+ */
+export async function getLatestRetentionRisk(memberId: string): Promise<any | null> {
+  const { data, error } = await supabase
+    .from('retention_risk_scores')
+    .select('*')
+    .eq('member_id', memberId)
+    .order('calculated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[RetentionRisk] Error fetching latest risk:', error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Get retention risk with smart caching (from DB if fresh, recalculate if stale)
+ */
+export async function getRetentionRiskCached(
+  memberId: string,
+  maxAgeHours: number = 24
+): Promise<RetentionRiskResult | null> {
+  // Try to get from database first
+  const cached = await getLatestRetentionRisk(memberId);
+
+  if (cached) {
+    const cacheAge = Date.now() - new Date(cached.calculated_at).getTime();
+    const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
+
+    // If cache is fresh, return it
+    if (cacheAge < maxAgeMs) {
+      console.log(`[RetentionRisk] ⚡ Using cached data (${Math.round(cacheAge / 1000 / 60)} minutes old)`);
+      
+      // Transform DB format to RetentionRiskResult format
+      return {
+        memberId: cached.member_id,
+        memberName: '', // Will need to fetch if needed
+        riskScore: cached.risk_score,
+        riskLevel: cached.risk_level,
+        confidence: cached.confidence,
+        topRiskFactors: cached.top_risk_factors || [],
+        recommendedActions: (cached.recommended_actions || []).map((a: any) => ({
+          action: a.action,
+          priority: a.priority,
+          expectedImpact: a.expected_impact,
+          description: a.description
+        })),
+        timeToAction: cached.time_to_action,
+        calculatedAt: cached.calculated_at
+      };
+    }
+  }
+
+  // Cache is stale or doesn't exist - recalculate
+  console.log('[RetentionRisk] 🔄 Cache stale or missing - recalculating');
+  return await calculateRetentionRisk(memberId);
 }
 
