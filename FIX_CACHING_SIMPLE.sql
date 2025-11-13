@@ -26,35 +26,33 @@ DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE;
 DROP FUNCTION IF EXISTS update_modified_column() CASCADE;
 DROP FUNCTION IF EXISTS update_team_composition_last_updated() CASCADE;
 
--- Step 3: Add unique constraint if it doesn't exist
+-- Step 3: Add unique index if it doesn't exist (using functional index)
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint 
-    WHERE conname = 'team_composition_insights_practice_date_unique'
+    SELECT 1 FROM pg_indexes 
+    WHERE indexname = 'team_composition_insights_practice_date_unique'
   ) THEN
-    ALTER TABLE team_composition_insights
-    ADD CONSTRAINT team_composition_insights_practice_date_unique 
-    UNIQUE (practice_id, (calculated_at::date));
-    RAISE NOTICE '✅ Added unique constraint on (practice_id, date(calculated_at))';
+    CREATE UNIQUE INDEX team_composition_insights_practice_date_unique 
+    ON team_composition_insights (practice_id, (calculated_at::date));
+    RAISE NOTICE '✅ Added unique index on (practice_id, date(calculated_at))';
   ELSE
-    RAISE NOTICE 'ℹ️ Unique constraint already exists';
+    RAISE NOTICE 'ℹ️ Unique index already exists';
   END IF;
 END $$;
 
--- Step 4: Add unique constraint for assessment_insights if it doesn't exist
+-- Step 4: Add unique index for assessment_insights if it doesn't exist
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint 
-    WHERE conname = 'assessment_insights_member_date_unique'
+    SELECT 1 FROM pg_indexes 
+    WHERE indexname = 'assessment_insights_member_date_unique'
   ) THEN
-    ALTER TABLE assessment_insights
-    ADD CONSTRAINT assessment_insights_member_date_unique 
-    UNIQUE (member_id, (updated_at::date));
-    RAISE NOTICE '✅ Added unique constraint on assessment_insights';
+    CREATE UNIQUE INDEX assessment_insights_member_date_unique 
+    ON assessment_insights (member_id, (updated_at::date));
+    RAISE NOTICE '✅ Added unique index on assessment_insights';
   ELSE
-    RAISE NOTICE 'ℹ️ Assessment insights constraint already exists';
+    RAISE NOTICE 'ℹ️ Assessment insights index already exists';
   END IF;
 END $$;
 
