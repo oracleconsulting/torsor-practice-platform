@@ -194,9 +194,9 @@ function calculateRiskFactors(data: any): RetentionRiskFactors {
   // High achievement/influence motivation with no growth = high risk
   let motivationAlignment = 50;
   if (motivation) {
-    const achievementScore = motivation.achievement_score || 50;
-    const influenceScore = motivation.influence_score || 50;
-    const autonomyScore = motivation.autonomy_score || 50;
+    const achievementScore = motivation.driver_scores?.achievement || 50;
+    const influenceScore = motivation.driver_scores?.influence || 50;
+    const autonomyScore = motivation.driver_scores?.autonomy || 50;
 
     // High achievers need progression
     const isHighAchiever = achievementScore >= 70 || influenceScore >= 70;
@@ -245,7 +245,7 @@ function calculateRiskFactors(data: any): RetentionRiskFactors {
     );
 
     // Risk increases after 18 months in same role for ambitious people
-    if (motivation && (motivation.achievement_score >= 70 || motivation.influence_score >= 70)) {
+    if (motivation && (motivation.driver_scores?.achievement >= 70 || motivation.driver_scores?.influence >= 70)) {
       if (monthsInPractice > 24) tenureRisk = 80;
       else if (monthsInPractice > 18) tenureRisk = 60;
       else if (monthsInPractice > 12) tenureRisk = 40;

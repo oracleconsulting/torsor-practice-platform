@@ -102,12 +102,14 @@ export async function calculateIndividualProfile(
       belbin_primary: belbinData.data?.primary_role ? [belbinData.data.primary_role] : [],
       belbin_secondary: belbinData.data?.secondary_role ? [belbinData.data.secondary_role] : [],
       motivational_drivers: motivData.data ? {
-        achievement: motivData.data.achievement_score ?? null,
-        affiliation: motivData.data.affiliation_score ?? null,
-        autonomy: motivData.data.autonomy_score ?? null,
-        influence: motivData.data.influence_score ?? null
+        // CRITICAL FIX: Scores are in JSONB field 'driver_scores', not individual columns
+        achievement: motivData.data.driver_scores?.achievement ?? null,
+        affiliation: motivData.data.driver_scores?.affiliation ?? null,
+        autonomy: motivData.data.driver_scores?.autonomy ?? null,
+        influence: motivData.data.driver_scores?.influence ?? null
       } : null,  // Explicitly null if no motivational data
       conflict_style_primary: conflictData.data?.primary_style || null,
+      // CRITICAL FIX: Column is 'communication_style', not 'communication_preference'
       communication_preference: workingPrefsData.data?.communication_style || null,
       vark_preference: varkData.data?.learning_style || null,
       skills: (skillsData.data || []).map((s: any) => ({

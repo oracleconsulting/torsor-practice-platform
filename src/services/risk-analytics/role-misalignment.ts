@@ -190,9 +190,9 @@ async function detectMemberMisalignment(member: any): Promise<RoleMisalignmentAl
 
   // CHECK 3: Motivation Mismatch
   if (motivation?.data && member.role) {
-    const achievement = motivation.data.achievement_score || 50;
-    const influence = motivation.data.influence_score || 50;
-    const autonomy = motivation.data.autonomy_score || 50;
+    const achievement = motivation.data.driver_scores?.achievement || 50;
+    const influence = motivation.data.driver_scores?.influence || 50;
+    const autonomy = motivation.data.driver_scores?.autonomy || 50;
 
     const isJunior = 
       member.role.toLowerCase().includes('junior') ||
