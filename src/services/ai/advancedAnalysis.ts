@@ -114,14 +114,16 @@ export async function generateGapAnalysisInsights(practiceId: string) {
   const { data: members } = await supabase
     .from('practice_members')
     .select('id, name, role')
-    .eq('practice_id', practiceId);
+    .eq('practice_id', practiceId)
+    .or('is_test_account.is.null,is_test_account.eq.false'); // Exclude test accounts
   
   if (!members || members.length === 0) {
     throw new Error('No team members found');
   }
   
-  // Fetch all skill assessments for these members with skill names
   const memberIds = members.map(m => m.id);
+  
+  // Fetch all skill assessments for these members with skill names
   const { data: assessments } = await supabase
     .from('skill_assessments')
     .select(`
@@ -132,45 +134,134 @@ export async function generateGapAnalysisInsights(practiceId: string) {
   
   console.log('[GapAnalysis] Fetched', assessments?.length || 0, 'skill assessments for', members.length, 'members');
   
-  // Calculate gap statistics
-  const skillGapMap = new Map<string, { totalGap: number; count: number }>();
+  // Calculate skill gap statistics
+  const skillGapMap = new Map<string, { totalGap: number; count: number; totalCurrent: number }>();
   
   (assessments || []).forEach((assessment: any) => {
-    const gap = (assessment.target_level || 0) - (assessment.current_level || 0);
-    if (gap > 0 && assessment.skill?.name) {
+    const current = assessment.self_rating || assessment.current_level || 0;
+    const target = assessment.target_level || 0;
+    const gap = target - current;
+    
+    if (assessment.skill?.name) {
       const skillName = assessment.skill.name;
-      const existing = skillGapMap.get(skillName) || { totalGap: 0, count: 0 };
+      const existing = skillGapMap.get(skillName) || { totalGap: 0, count: 0, totalCurrent: 0 };
       skillGapMap.set(skillName, {
-        totalGap: existing.totalGap + gap,
-        count: existing.count + 1
+        totalGap: existing.totalGap + (gap > 0 ? gap : 0),
+        count: existing.count + 1,
+        totalCurrent: existing.totalCurrent + current
       });
     }
   });
+  
+  const avgSkillLevel = assessments && assessments.length > 0
+    ? (assessments.reduce((sum, a) => sum + (a.self_rating || a.current_level || 0), 0) / assessments.length).toFixed(1)
+    : '0.0';
   
   const gapList = Array.from(skillGapMap.entries())
     .map(([skill, data]) => ({
       skill,
       avgGap: data.totalGap / data.count,
+      avgCurrent: data.totalCurrent / data.count,
       count: data.count
     }))
+    .filter(g => g.avgGap > 0) // Only include skills with gaps
     .sort((a, b) => b.avgGap - a.avgGap)
     .slice(0, 15)
-    .map((g, i) => `${i + 1}. ${g.skill}: Avg gap ${g.avgGap.toFixed(1)}/5 (${g.count} members)`)
+    .map((g, i) => `${i + 1}. ${g.skill}: Current ${g.avgCurrent.toFixed(1)}/5, Gap ${g.avgGap.toFixed(1)}/5 (${g.count} members affected)`)
     .join('\n');
   
-  console.log('[GapAnalysis] Calculated gaps for', skillGapMap.size, 'unique skills');
+  // Fetch REAL Belbin data
+  const { data: belbinData } = await supabase
+    .from('belbin_assessments')
+    .select('primary_role, secondary_role')
+    .in('practice_member_id', memberIds);
+
+  const belbinCounts: Record<string, number> = {};
+  (belbinData || []).forEach(b => {
+    if (b.primary_role) belbinCounts[b.primary_role] = (belbinCounts[b.primary_role] || 0) + 1;
+    if (b.secondary_role) belbinCounts[b.secondary_role] = (belbinCounts[b.secondary_role] || 0) + 0.5;
+  });
+
+  const belbinIdeal = Math.round(members.length / 9); // Ideal: evenly distributed
+  const belbinGaps = ['Plant', 'Monitor Evaluator', 'Specialist', 'Shaper', 'Implementer', 'Completer Finisher', 'Coordinator', 'Teamworker', 'Resource Investigator']
+    .map(role => ({
+      role,
+      current: Math.round(belbinCounts[role] || 0),
+      ideal: belbinIdeal
+    }))
+    .filter(g => g.current < g.ideal)
+    .sort((a, b) => (b.ideal - b.current) - (a.ideal - a.current))
+    .slice(0, 5);
+
+  const belbinGapsStr = belbinGaps.length > 0
+    ? belbinGaps.map(g => `${g.role}: ${g.current}/${g.ideal} ideal`).join(', ')
+    : 'Well balanced';
+
+  // Fetch REAL EQ data
+  const { data: eqData } = await supabase
+    .from('eq_assessments')
+    .select('overall_eq, self_awareness_score, social_awareness_score')
+    .in('practice_member_id', memberIds);
+
+  const avgEQ = eqData && eqData.length > 0
+    ? Math.round(eqData.reduce((sum, e) => sum + (e.overall_eq || 0), 0) / eqData.length)
+    : 0;
+
+  const avgSelfAwareness = eqData && eqData.length > 0
+    ? Math.round(eqData.reduce((sum, e) => sum + (e.self_awareness_score || 0), 0) / eqData.length)
+    : 0;
+
+  // Fetch REAL Motivational Drivers
+  const { data: motivData } = await supabase
+    .from('motivational_drivers')
+    .select('primary_driver')
+    .in('practice_member_id', memberIds);
+
+  const motivDrivers: Record<string, number> = {};
+  (motivData || []).forEach(m => {
+    if (m.primary_driver) motivDrivers[m.primary_driver] = (motivDrivers[m.primary_driver] || 0) + 1;
+  });
+
+  const dominantDriver = Object.entries(motivDrivers).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown';
+
+  // Fetch service line preferences
+  const { data: servicePrefs } = await supabase
+    .from('service_line_interests')
+    .select('*')
+    .in('practice_member_id', memberIds);
+
+  const serviceLineCount = servicePrefs?.length || 0;
+  const serviceCoverage = serviceLineCount > 0
+    ? `${serviceLineCount}/${members.length} members have stated preferences`
+    : 'No service line data';
+  
+  console.log('[GapAnalysis] Calculated REAL team data:', {
+    skillGaps: skillGapMap.size,
+    avgEQ,
+    avgSkillLevel,
+    belbinGaps: belbinGaps.length,
+    dominantDriver
+  });
   
   // Get prompt and API key
   const promptConfig = await getPromptConfig('gap_analysis_insights', practiceId);
   const apiKey = await getApiKey(practiceId);
   
-  // Fill template
+  // Fill template with REAL DATA
   const userPrompt = applyTemplate(promptConfig.user_prompt_template, {
     team_size: members.length,
-    avg_skill_level: '3.2', // Calculate from actual data
-    gap_list: gapList,
-    critical_gaps: 'Tax planning, Cloud accounting, Advisory services',
-    service_line_coverage: 'Strong in compliance, weak in advisory'
+    avg_skill_level: avgSkillLevel,
+    avg_eq: avgEQ,
+    avg_self_awareness: avgSelfAwareness,
+    dominant_driver: dominantDriver,
+    gap_list: gapList || 'No significant skill gaps identified',
+    belbin_gaps: belbinGapsStr,
+    critical_gaps: Array.from(skillGapMap.entries())
+      .sort((a, b) => b[1].totalGap - a[1].totalGap)
+      .slice(0, 3)
+      .map(([skill]) => skill)
+      .join(', ') || 'None identified',
+    service_line_coverage: serviceCoverage
   });
   
   // Call LLM
@@ -187,7 +278,14 @@ export async function generateGapAnalysisInsights(practiceId: string) {
     insights,
     metadata: {
       teamSize: members.length,
-      topGaps: Array.from(skillGapMap.entries()).slice(0, 5),
+      avgEQ,
+      avgSkillLevel: parseFloat(avgSkillLevel),
+      topGaps: Array.from(skillGapMap.entries())
+        .sort((a, b) => b[1].totalGap - a[1].totalGap)
+        .slice(0, 5)
+        .map(([skill, data]) => ({ skill, avgGap: data.totalGap / data.count })),
+      belbinGaps,
+      dominantDriver,
       generatedAt: new Date().toISOString()
     }
   };
