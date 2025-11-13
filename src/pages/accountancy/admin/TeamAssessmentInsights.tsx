@@ -1028,7 +1028,7 @@ const TeamAssessmentInsights: React.FC = () => {
     setGeneratingGapAnalysis(true);
     try {
       const practiceId = 'a1b2c3d4-5678-90ab-cdef-123456789abc';
-      const result = await generateGapAnalysisInsights(practiceId);
+      const result = await generateGapAnalysisInsights(supabase, practiceId);
       setGapAnalysis(result.insights);
       toast({
         title: 'Gap Analysis Complete!',
@@ -1050,7 +1050,7 @@ const TeamAssessmentInsights: React.FC = () => {
     setGeneratingComposition(true);
     try {
       const practiceId = 'a1b2c3d4-5678-90ab-cdef-123456789abc';
-      const result = await generateTeamCompositionAnalysis(practiceId);
+      const result = await generateTeamCompositionAnalysis(supabase, practiceId);
       setCompositionAnalysis(result.analysis);
       toast({
         title: 'Team Analysis Complete!',

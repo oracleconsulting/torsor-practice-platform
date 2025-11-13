@@ -10,7 +10,7 @@
  * - Assessment Result Synthesis
  */
 
-import { supabase } from '@/lib/supabase/client';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Helper: Apply template variables
@@ -109,7 +109,7 @@ async function callOpenRouter(
  * 1. GAP ANALYSIS AI INSIGHTS
  * Analyzes skill gaps across the team and provides strategic recommendations
  */
-export async function generateGapAnalysisInsights(practiceId: string) {
+export async function generateGapAnalysisInsights(supabase: SupabaseClient, practiceId: string) {
   // Fetch team members
   const { data: members } = await supabase
     .from('practice_members')
@@ -295,7 +295,7 @@ export async function generateGapAnalysisInsights(practiceId: string) {
  * 2. TEAM COMPOSITION ANALYSIS
  * Analyzes team dynamics based on personality and working styles
  */
-export async function generateTeamCompositionAnalysis(practiceId: string) {
+export async function generateTeamCompositionAnalysis(supabase: SupabaseClient, practiceId: string) {
   // Fetch team members (excluding test accounts)
   const { data: members } = await supabase
     .from('practice_members')
@@ -549,7 +549,7 @@ export async function generateTeamCompositionAnalysis(practiceId: string) {
  * 3. SERVICE LINE DEPLOYMENT STRATEGY
  * Generates deployment strategy for service lines
  */
-export async function generateServiceLineDeployment(practiceId: string) {
+export async function generateServiceLineDeployment(supabase: SupabaseClient, practiceId: string) {
   // Fetch service line data
   const { data: interests } = await supabase
     .from('service_line_interests')
@@ -622,7 +622,7 @@ export async function generateServiceLineDeployment(practiceId: string) {
  * 4. TRAINING RECOMMENDATIONS NARRATIVE
  * Generates personalized training recommendations with narrative
  */
-export async function generateTrainingNarrative(memberId: string, practiceId: string) {
+export async function generateTrainingNarrative(supabase: SupabaseClient, memberId: string, practiceId: string) {
   console.log('[TrainingNarrative] Starting with memberId:', memberId, 'practiceId:', practiceId);
   
   // Fetch member data with proper joins
@@ -728,7 +728,7 @@ export async function generateTrainingNarrative(memberId: string, practiceId: st
  * 5. ASSESSMENT RESULT SYNTHESIS
  * Creates holistic insights from all assessments
  */
-export async function generateAssessmentSynthesis(memberId: string, practiceId: string) {
+export async function generateAssessmentSynthesis(supabase: SupabaseClient, memberId: string, practiceId: string) {
   console.log('[AssessmentSynthesis] Starting with memberId:', memberId, 'practiceId:', practiceId);
   
   // Fetch member basic data

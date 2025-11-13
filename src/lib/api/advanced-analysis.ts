@@ -3,6 +3,7 @@
  * Provides access to Phase 2 LLM features
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   generateGapAnalysisInsights,
   generateTeamCompositionAnalysis,
@@ -22,11 +23,11 @@ export {
 /**
  * Convenience function: Generate all team-level analyses
  */
-export async function generateAllTeamAnalyses(practiceId: string) {
+export async function generateAllTeamAnalyses(supabase: SupabaseClient, practiceId: string) {
   const [gapAnalysis, teamComposition, serviceDeployment] = await Promise.all([
-    generateGapAnalysisInsights(practiceId),
-    generateTeamCompositionAnalysis(practiceId),
-    generateServiceLineDeployment(practiceId)
+    generateGapAnalysisInsights(supabase, practiceId),
+    generateTeamCompositionAnalysis(supabase, practiceId),
+    generateServiceLineDeployment(supabase, practiceId)
   ]);
   
   return {
@@ -39,10 +40,10 @@ export async function generateAllTeamAnalyses(practiceId: string) {
 /**
  * Convenience function: Generate all member-level analyses
  */
-export async function generateAllMemberAnalyses(memberId: string, practiceId: string) {
+export async function generateAllMemberAnalyses(supabase: SupabaseClient, memberId: string, practiceId: string) {
   const [trainingNarrative, assessmentSynthesis] = await Promise.all([
-    generateTrainingNarrative(memberId, practiceId),
-    generateAssessmentSynthesis(memberId, practiceId)
+    generateTrainingNarrative(supabase, memberId, practiceId),
+    generateAssessmentSynthesis(supabase, memberId, practiceId)
   ]);
   
   return {
@@ -50,4 +51,3 @@ export async function generateAllMemberAnalyses(memberId: string, practiceId: st
     assessmentSynthesis
   };
 }
-
