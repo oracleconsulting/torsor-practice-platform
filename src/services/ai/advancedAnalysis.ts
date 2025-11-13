@@ -296,45 +296,80 @@ export async function generateGapAnalysisInsights(practiceId: string) {
  * Analyzes team dynamics based on personality and working styles
  */
 export async function generateTeamCompositionAnalysis(practiceId: string) {
-  // Fetch team assessment data
+  // Fetch team members (excluding test accounts)
   const { data: members } = await supabase
     .from('practice_members')
-    .select(`
-      id,
-      name,
-      role,
-      personality_assessments (work_style, openness, conscientiousness, extraversion, agreeableness, neuroticism),
-      learning_preferences (primary_style),
-      working_preferences (environment, communication_style),
-      team_roles (primary_role),
-      conflict_styles (style)
-    `)
-    .eq('practice_id', practiceId);
+    .select('id, name, role')
+    .eq('practice_id', practiceId)
+    .or('is_test_account.is.null,is_test_account.eq.false');
   
   if (!members || members.length === 0) {
     throw new Error('No team members found');
   }
   
-  // Aggregate distribution data
-  const personalityDist = members.reduce((acc: any, m: any) => {
-    const workStyle = m.personality_assessments?.[0]?.work_style || 'Unknown';
-    acc[workStyle] = (acc[workStyle] || 0) + 1;
-    return acc;
-  }, {});
+  console.log('[TeamComposition] Found', members.length, 'team members');
+  
+  const memberIds = members.map(m => m.id);
+  
+  // Fetch OCEAN assessments
+  const { data: oceanAssessments } = await supabase
+    .from('ocean_assessments')
+    .select('*')
+    .in('team_member_id', memberIds);
+  
+  // Fetch working preferences
+  const { data: workingPrefs } = await supabase
+    .from('working_preferences')
+    .select('*')
+    .in('team_member_id', memberIds);
+  
+  // Fetch Belbin assessments
+  const { data: belbinAssessments } = await supabase
+    .from('belbin_assessments')
+    .select('*')
+    .in('team_member_id', memberIds);
+  
+  // Fetch VARK assessments
+  const { data: varkAssessments } = await supabase
+    .from('vark_assessments')
+    .select('*')
+    .in('team_member_id', memberIds);
+  
+  console.log('[TeamComposition] Fetched assessments:', {
+    ocean: oceanAssessments?.length || 0,
+    working: workingPrefs?.length || 0,
+    belbin: belbinAssessments?.length || 0,
+    vark: varkAssessments?.length || 0
+  });
+  
+  // Calculate work style distribution from OCEAN scores
+  const personalityDist: Record<string, number> = {};
+  (oceanAssessments || []).forEach((assessment: any) => {
+    const e = assessment.extraversion_score || 0;
+    const c = assessment.conscientiousness_score || 0;
+    
+    let style = 'Balanced';
+    if (c > 70) style = 'Structured Worker';
+    else if (e > 70) style = 'Collaborative Worker';
+    else if (e < 30) style = 'Independent Worker';
+    
+    personalityDist[style] = (personalityDist[style] || 0) + 1;
+  });
   
   const workingStyles = Object.entries(personalityDist)
     .map(([style, count]) => `${style}: ${count} members`)
-    .join('\n');
+    .join('\n') || 'Mix of working styles';
   
-  const learningStyles = members.reduce((acc: any, m: any) => {
-    const style = m.learning_preferences?.[0]?.primary_style || 'Unknown';
-    acc[style] = (acc[style] || 0) + 1;
-    return acc;
-  }, {});
+  // Calculate learning styles from VARK
+  const learningStyles: Record<string, number> = {};
+  (varkAssessments || []).forEach((assessment: any) => {
+    const style = assessment.primary_style || 'Visual';
+    learningStyles[style] = (learningStyles[style] || 0) + 1;
+  });
   
   const learningStylesStr = Object.entries(learningStyles)
     .map(([style, count]) => `${style}: ${count} members`)
-    .join('\n');
+    .join('\n') || 'Mix of learning styles';
   
   // Get prompt and API key
   const promptConfig = await getPromptConfig('team_composition_analysis', practiceId);
