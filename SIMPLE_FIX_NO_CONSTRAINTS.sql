@@ -48,8 +48,8 @@ CREATE POLICY assessment_insights_all ON assessment_insights
 CREATE INDEX IF NOT EXISTS idx_team_comp_practice_calc
   ON team_composition_insights (practice_id, calculated_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_assessment_member_updated
-  ON assessment_insights (member_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_assessment_member_calc
+  ON assessment_insights (member_id, calculated_at DESC);
 
 -- DONE - That's it!
 -- The app will handle preventing duplicates
