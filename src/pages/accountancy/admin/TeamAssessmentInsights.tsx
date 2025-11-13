@@ -198,11 +198,12 @@ const TeamAssessmentInsights: React.FC = () => {
   const loadTeamData = async () => {
     setLoading(true);
     try {
-      // Load team members
+      // Load team members (exclude test accounts)
       const { data: members } = await supabase
         .from('practice_members')
         .select('id, name, role, email')
         .eq('is_active', true)
+        .or('is_test_account.is.null,is_test_account.eq.false')
         .order('name');
 
       setTeamMembers(members || []);
@@ -532,21 +533,105 @@ const TeamAssessmentInsights: React.FC = () => {
   };
 
   // NEW: Calculate Strategic Insights using the new analyzers
-  const calculateStrategicInsights = async () => {
+  // WITH CACHING: Only recalculates if data is older than 24 hours or if explicitly forced
+  const calculateStrategicInsights = async (forceRecalculate = false) => {
     console.log('[TeamInsights] 🎯 Calculating strategic insights...');
     setCalculatingStrategic(true);
     
     try {
-      // Fetch complete member data with ALL assessments
+      // First, try to load cached insights from database
+      if (!forceRecalculate) {
+        const { data: existingInsights } = await supabase
+          .from('team_composition_insights')
+          .select('*')
+          .eq('practice_id', 'a1b2c3d4-5678-90ab-cdef-123456789abc')
+          .is('service_line_id', null) // Overall team insights (not service-line specific)
+          .maybeSingle();
+
+        if (existingInsights && existingInsights.calculated_at) {
+          const cacheAge = Date.now() - new Date(existingInsights.calculated_at).getTime();
+          const twentyFourHours = 24 * 60 * 60 * 1000;
+
+          if (cacheAge < twentyFourHours) {
+            console.log('[TeamInsights] ✅ Using cached strategic insights (age:', Math.round(cacheAge / (60 * 1000)), 'minutes)');
+            
+            // Convert database format back to UI format
+            const teamInsight: TeamCompositionInsight = {
+              practiceId: existingInsights.practice_id,
+              teamName: existingInsights.team_name || 'Practice Team',
+              memberCount: existingInsights.team_size,
+              belbinBalance: existingInsights.belbin_coverage as any || {},
+              motivationalDistribution: existingInsights.motivational_distribution as any || {},
+              eqMapping: existingInsights.eq_domain_averages as any || {},
+              conflictStyleDiversity: existingInsights.conflict_style_distribution as any || {},
+              teamHealthScore: Number(existingInsights.team_health_score) || 0,
+              strengths: [], // Would need to recalculate these
+              weaknesses: [],
+              recommendations: [],
+              riskFactors: [],
+              lastCalculated: existingInsights.calculated_at
+            };
+
+            setStrategicTeamInsight(teamInsight);
+            
+            // Also load individual insights from cache
+            const { data: cachedIndividualInsights } = await supabase
+              .from('assessment_insights')
+              .select('*')
+              .in('member_id', existingInsights.member_ids || []);
+
+            if (cachedIndividualInsights && cachedIndividualInsights.length > 0) {
+              // Convert to UI format
+              const insights: AssessmentInsight[] = cachedIndividualInsights.map((cached: any) => ({
+                memberId: cached.member_id,
+                memberName: '', // Would need to fetch from practice_members
+                assignedRoleType: cached.assigned_role_type,
+                roleFitScores: {
+                  advisorySuitability: Number(cached.advisory_suitability_score) || 0,
+                  technicalSuitability: Number(cached.technical_suitability_score) || 0,
+                  hybridSuitability: Number(cached.hybrid_suitability_score) || 0,
+                  leadershipReadiness: Number(cached.leadership_readiness_score) || 0,
+                  overallRoleFit: Number(cached.overall_role_fit_score) || 0
+                },
+                belbinPrimary: cached.belbin_primary || [],
+                belbinSecondary: cached.belbin_secondary || [],
+                motivationalDrivers: cached.motivational_drivers || {},
+                eqScores: cached.eq_scores || {},
+                conflictStylePrimary: cached.conflict_style_primary || '',
+                communicationPreference: cached.communication_preference || '',
+                redFlags: cached.red_flags || [],
+                warningFlags: cached.warning_flags || [],
+                developmentPriorities: cached.development_priorities || [],
+                trainingLevel: cached.training_level,
+                currentRoleMatch: Number(cached.current_role_match_percentage) || 0,
+                recommendedRoleType: cached.recommended_role_type || 'unassigned',
+                successionReadiness: Number(cached.succession_readiness_score) || 0
+              }));
+
+              setIndividualInsights(insights);
+            }
+
+            setCalculatingStrategic(false);
+            return; // Use cached data!
+          }
+        }
+      }
+
+      // If we get here, we need to recalculate
+      console.log('[TeamInsights] 🔄 Recalculating strategic insights (cache miss or forced)...');
+      
+      // Fetch complete member data with ALL assessments (exclude test accounts)
       const { data: members, error } = await supabase
         .from('practice_members')
         .select(`
           id,
           name,
           role,
-          email
+          email,
+          practice_id
         `)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .or('is_test_account.is.null,is_test_account.eq.false');
 
       if (error) throw error;
 
@@ -607,10 +692,10 @@ const TeamAssessmentInsights: React.FC = () => {
           name: member.name,
           role: member.role,
           eq_scores: eqData ? {
-            self_awareness: eqData.self_awareness || 50,
-            self_management: eqData.self_management || 50,
-            social_awareness: eqData.social_awareness || 50,
-            relationship_management: eqData.relationship_management || 50
+            self_awareness: eqData.self_awareness_score ?? null,
+            self_management: eqData.self_management_score ?? null,
+            social_awareness: eqData.social_awareness_score ?? null,
+            relationship_management: eqData.relationship_management_score ?? null
           } : {},
           belbin_primary: belbinData?.primary_role ? [belbinData.primary_role] : [],
           belbin_secondary: belbinData?.secondary_role ? [belbinData.secondary_role] : [],
@@ -734,10 +819,10 @@ const TeamAssessmentInsights: React.FC = () => {
           name: member.name,
           role: member.role,
           eq_scores: eqData ? {
-            self_awareness: eqData.self_awareness || 50,
-            self_management: eqData.self_management || 50,
-            social_awareness: eqData.social_awareness || 50,
-            relationship_management: eqData.relationship_management || 50
+            self_awareness: eqData.self_awareness_score ?? null,
+            self_management: eqData.self_management_score ?? null,
+            social_awareness: eqData.social_awareness_score ?? null,
+            relationship_management: eqData.relationship_management_score ?? null
           } : {},
           belbin_primary: belbinData?.primary_role ? [belbinData.primary_role] : [],
           belbin_secondary: belbinData?.secondary_role ? [belbinData.secondary_role] : [],
@@ -765,7 +850,7 @@ const TeamAssessmentInsights: React.FC = () => {
       );
 
       const teamInsight: TeamCompositionInsight = {
-        practiceId: '', // You can fetch this if needed
+        practiceId: members[0]?.practice_id || 'a1b2c3d4-5678-90ab-cdef-123456789abc',
         teamName: 'Practice Team',
         memberCount: members.length,
         belbinBalance,
@@ -781,6 +866,79 @@ const TeamAssessmentInsights: React.FC = () => {
       };
 
       setStrategicTeamInsight(teamInsight);
+
+      // 💾 SAVE INSIGHTS TO DATABASE FOR CACHING
+      try {
+        const practiceId = members[0]?.practice_id || 'a1b2c3d4-5678-90ab-cdef-123456789abc';
+        
+        // Save team composition insights
+        const { error: teamInsightError } = await supabase
+          .from('team_composition_insights')
+          .upsert({
+            practice_id: practiceId,
+            service_line_id: null,
+            team_name: 'Practice Team',
+            member_ids: members.map(m => m.id),
+            team_size: members.length,
+            belbin_coverage: belbinBalance,
+            motivational_distribution: motivationalDistribution,
+            eq_domain_averages: eqMapping,
+            conflict_style_distribution: conflictDiversity,
+            team_health_score: teamHealthScore,
+            team_avg_eq: eqMapping.teamAverage || 0,
+            calculated_at: new Date().toISOString()
+          }, {
+            onConflict: 'practice_id,service_line_id',
+            ignoreDuplicates: false
+          });
+
+        if (teamInsightError) {
+          console.error('[TeamInsights] ⚠️  Failed to cache team insights:', teamInsightError);
+        } else {
+          console.log('[TeamInsights] 💾 Team insights cached successfully');
+        }
+
+        // Save individual assessment insights
+        for (const insight of memberInsights) {
+          const { error: individualError } = await supabase
+            .from('assessment_insights')
+            .upsert({
+              member_id: insight.memberId,
+              assigned_role_type: insight.assignedRoleType,
+              advisory_suitability_score: insight.roleFitScores.advisorySuitability,
+              technical_suitability_score: insight.roleFitScores.technicalSuitability,
+              hybrid_suitability_score: insight.roleFitScores.hybridSuitability,
+              leadership_readiness_score: insight.roleFitScores.leadershipReadiness,
+              overall_role_fit_score: insight.roleFitScores.overallRoleFit,
+              belbin_primary: insight.belbinPrimary,
+              belbin_secondary: insight.belbinSecondary,
+              motivational_drivers: insight.motivationalDrivers,
+              eq_scores: insight.eqScores,
+              conflict_style_primary: insight.conflictStylePrimary,
+              communication_preference: insight.communicationPreference,
+              red_flags: insight.redFlags,
+              warning_flags: insight.warningFlags,
+              development_priorities: insight.developmentPriorities,
+              training_level: insight.trainingLevel,
+              current_role_match_percentage: insight.currentRoleMatch,
+              recommended_role_type: insight.recommendedRoleType,
+              succession_readiness_score: insight.successionReadiness,
+              calculated_at: new Date().toISOString()
+            }, {
+              onConflict: 'member_id',
+              ignoreDuplicates: false
+            });
+
+          if (individualError) {
+            console.error(`[TeamInsights] ⚠️  Failed to cache insights for member ${insight.memberId}:`, individualError);
+          }
+        }
+
+        console.log(`[TeamInsights] 💾 Cached ${memberInsights.length} individual insights`);
+      } catch (cacheError) {
+        console.error('[TeamInsights] ⚠️  Error caching insights:', cacheError);
+        // Don't fail the entire operation if caching fails
+      }
 
       console.log('[TeamInsights] ✅ Strategic insights calculated:', {
         individualCount: memberInsights.length,
@@ -1009,7 +1167,7 @@ const TeamAssessmentInsights: React.FC = () => {
                   </CardDescription>
                 </div>
                 <Button
-                  onClick={calculateStrategicInsights}
+                  onClick={() => calculateStrategicInsights(true)}
                   disabled={calculatingStrategic}
                   variant="outline"
                   className="border-blue-300 text-blue-700 hover:bg-blue-50"
@@ -1022,7 +1180,7 @@ const TeamAssessmentInsights: React.FC = () => {
                   ) : (
                     <>
                       <TrendingUp className="w-4 h-4 mr-2" />
-                      {individualInsights.length > 0 ? 'Recalculate' : 'Calculate Strategic Insights'}
+                      {individualInsights.length > 0 ? 'Force Refresh' : 'Calculate Strategic Insights'}
                     </>
                   )}
                 </Button>

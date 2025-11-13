@@ -51,7 +51,8 @@ const SkillsDashboardV2Page: React.FC = () => {
       }
 
       // Load team members with their skills from skill_assessments table
-      const { data: members, error: membersError } = await supabase
+      // Filter out test accounts
+      const { data: members, error: membersError} = await supabase
         .from('practice_members')
         .select(`
           id,
@@ -59,8 +60,11 @@ const SkillsDashboardV2Page: React.FC = () => {
           email,
           role,
           vark_assessment_completed,
-          vark_result
-        `);
+          vark_result,
+          is_test_account,
+          practice_id
+        `)
+        .or('is_test_account.is.null,is_test_account.eq.false');
       
       if (membersError) {
         console.error('Error loading members:', membersError);
@@ -69,7 +73,10 @@ const SkillsDashboardV2Page: React.FC = () => {
       /**
        * DATA SOURCE: skill_assessments table (SINGLE SOURCE OF TRUTH)
        * Load all assessments for members in this practice
+       * Filter out test accounts
        */
+      const memberIds = (members || []).map(m => m.id);
+      
       const { data: assessments, error: assessmentsError } = await supabase
         .from('skill_assessments')
         .select(`
@@ -78,15 +85,9 @@ const SkillsDashboardV2Page: React.FC = () => {
           skill_id,
           current_level,
           interest_level,
-          assessed_at,
-          practice_members!inner(
-            id,
-            name,
-            email,
-            practice_id
-          )
+          assessed_at
         `)
-        .eq('practice_members.practice_id', (members?.[0] as any)?.practice_id);
+        .in('team_member_id', memberIds);
 
       if (assessmentsError) {
         console.error('Error loading assessments:', assessmentsError);
