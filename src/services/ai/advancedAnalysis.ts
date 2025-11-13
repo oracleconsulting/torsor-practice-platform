@@ -335,18 +335,61 @@ export async function generateTeamCompositionAnalysis(practiceId: string) {
     .select('*')
     .in('team_member_id', memberIds);
   
-  console.log('[TeamComposition] Fetched assessments:', {
+  // Fetch EQ assessments
+  const { data: eqAssessments } = await supabase
+    .from('eq_assessments')
+    .select('*')
+    .in('team_member_id', memberIds);
+  
+  // Fetch motivational drivers
+  const { data: motivationalDrivers } = await supabase
+    .from('motivational_drivers')
+    .select('*')
+    .in('team_member_id', memberIds);
+  
+  // Fetch conflict styles
+  const { data: conflictStyles } = await supabase
+    .from('conflict_styles')
+    .select('*')
+    .in('team_member_id', memberIds);
+  
+  // Fetch service line interests
+  const { data: serviceInterests } = await supabase
+    .from('service_line_interests')
+    .select('*')
+    .in('practice_member_id', memberIds);
+  
+  // Fetch skill assessments
+  const { data: skillAssessments } = await supabase
+    .from('skill_assessments')
+    .select(`
+      *,
+      skill:skills(name, category)
+    `)
+    .in('team_member_id', memberIds);
+  
+  console.log('[TeamComposition] Fetched ALL assessments:', {
     ocean: oceanAssessments?.length || 0,
     working: workingPrefs?.length || 0,
     belbin: belbinAssessments?.length || 0,
-    vark: varkAssessments?.length || 0
+    vark: varkAssessments?.length || 0,
+    eq: eqAssessments?.length || 0,
+    motivational: motivationalDrivers?.length || 0,
+    conflict: conflictStyles?.length || 0,
+    serviceInterests: serviceInterests?.length || 0,
+    skills: skillAssessments?.length || 0
   });
   
-  // Calculate work style distribution from OCEAN scores
+  // Calculate DETAILED work style distribution from OCEAN scores
   const personalityDist: Record<string, number> = {};
+  const oceanDetails: string[] = [];
   (oceanAssessments || []).forEach((assessment: any) => {
+    const member = members.find(m => m.id === assessment.team_member_id);
     const e = assessment.extraversion_score || 0;
     const c = assessment.conscientiousness_score || 0;
+    const o = assessment.openness_score || 0;
+    const a = assessment.agreeableness_score || 0;
+    const n = assessment.neuroticism_score || 0;
     
     let style = 'Balanced';
     if (c > 70) style = 'Structured Worker';
@@ -354,36 +397,129 @@ export async function generateTeamCompositionAnalysis(practiceId: string) {
     else if (e < 30) style = 'Independent Worker';
     
     personalityDist[style] = (personalityDist[style] || 0) + 1;
+    oceanDetails.push(`${member?.name || 'Unknown'} (${member?.role}): O=${o}, C=${c}, E=${e}, A=${a}, N=${n}`);
   });
   
   const workingStyles = Object.entries(personalityDist)
     .map(([style, count]) => `${style}: ${count} members`)
-    .join('\n') || 'Mix of working styles';
+    .join('\n') || 'No OCEAN data available';
   
-  // Calculate learning styles from VARK
-  const learningStyles: Record<string, number> = {};
+  // Calculate DETAILED Belbin roles
+  const belbinDist: Record<string, string[]> = {};
+  (belbinAssessments || []).forEach((assessment: any) => {
+    const member = members.find(m => m.id === assessment.team_member_id);
+    const role = assessment.primary_role || 'Unassigned';
+    if (!belbinDist[role]) belbinDist[role] = [];
+    belbinDist[role].push(`${member?.name} (${member?.role})`);
+  });
+  
+  const belbinRolesStr = Object.entries(belbinDist)
+    .map(([role, membersList]) => `${role}: ${membersList.join(', ')}`)
+    .join('\n') || 'No Belbin assessments completed';
+  
+  // Calculate DETAILED learning styles from VARK
+  const learningStyles: Record<string, string[]> = {};
   (varkAssessments || []).forEach((assessment: any) => {
-    const style = assessment.primary_style || 'Visual';
-    learningStyles[style] = (learningStyles[style] || 0) + 1;
+    const member = members.find(m => m.id === assessment.team_member_id);
+    const style = assessment.primary_style || 'Unknown';
+    if (!learningStyles[style]) learningStyles[style] = [];
+    learningStyles[style].push(`${member?.name} (${member?.role})`);
   });
   
   const learningStylesStr = Object.entries(learningStyles)
-    .map(([style, count]) => `${style}: ${count} members`)
-    .join('\n') || 'Mix of learning styles';
+    .map(([style, membersList]) => `${style}: ${membersList.join(', ')}`)
+    .join('\n') || 'No VARK assessments completed';
+  
+  // Calculate DETAILED EQ distribution
+  const eqDist = (eqAssessments || []).map((assessment: any) => {
+    const member = members.find(m => m.id === assessment.team_member_id);
+    return `${member?.name} (${member?.role}): Self-Awareness=${assessment.self_awareness_score}, Social Awareness=${assessment.social_awareness_score}, Self-Management=${assessment.self_management_score}, Relationship=${assessment.relationship_management_score}`;
+  });
+  
+  const eqStr = eqDist.length > 0 ? eqDist.join('\n') : 'No EQ assessments completed';
+  
+  // Calculate DETAILED motivational drivers
+  const motivationalDist: Record<string, string[]> = {};
+  (motivationalDrivers || []).forEach((assessment: any) => {
+    const member = members.find(m => m.id === assessment.team_member_id);
+    const driver = assessment.primary_driver || 'Unknown';
+    if (!motivationalDist[driver]) motivationalDist[driver] = [];
+    motivationalDist[driver].push(`${member?.name} (${member?.role})`);
+  });
+  
+  const motivationalStr = Object.entries(motivationalDist)
+    .map(([driver, membersList]) => `${driver}: ${membersList.join(', ')}`)
+    .join('\n') || 'No motivational assessments completed';
+  
+  // Calculate DETAILED conflict styles
+  const conflictDist: Record<string, string[]> = {};
+  (conflictStyles || []).forEach((assessment: any) => {
+    const member = members.find(m => m.id === assessment.team_member_id);
+    const style = assessment.style || 'Unknown';
+    if (!conflictDist[style]) conflictDist[style] = [];
+    conflictDist[style].push(`${member?.name} (${member?.role})`);
+  });
+  
+  const conflictStylesStr = Object.entries(conflictDist)
+    .map(([style, membersList]) => `${style}: ${membersList.join(', ')}`)
+    .join('\n') || 'No conflict style assessments completed';
+  
+  // Calculate DETAILED working preferences
+  const workingPrefsDist = (workingPrefs || []).map((pref: any) => {
+    const member = members.find(m => m.id === pref.team_member_id);
+    return `${member?.name} (${member?.role}): Environment=${pref.environment}, Communication=${pref.communication_style}, Autonomy=${pref.autonomy_level}, Supervision=${pref.supervision_preference}`;
+  });
+  
+  const workingPrefsStr = workingPrefsDist.length > 0 ? workingPrefsDist.join('\n') : 'No working preferences data';
+  
+  // Calculate TOP SKILLS by category
+  const skillsByCategory: Record<string, Array<{skill: string, avgLevel: number, memberCount: number}>> = {};
+  (skillAssessments || []).forEach((assessment: any) => {
+    const skillName = assessment.skill?.name || 'Unknown';
+    const category = assessment.skill?.category || 'Other';
+    const level = assessment.self_rating || assessment.current_level || 0;
+    
+    if (!skillsByCategory[category]) skillsByCategory[category] = [];
+    
+    const existing = skillsByCategory[category].find(s => s.skill === skillName);
+    if (existing) {
+      existing.avgLevel = ((existing.avgLevel * existing.memberCount) + level) / (existing.memberCount + 1);
+      existing.memberCount++;
+    } else {
+      skillsByCategory[category].push({ skill: skillName, avgLevel: level, memberCount: 1 });
+    }
+  });
+  
+  const skillsStr = Object.entries(skillsByCategory)
+    .map(([category, skills]) => {
+      const topSkills = skills
+        .sort((a, b) => b.avgLevel - a.avgLevel)
+        .slice(0, 5)
+        .map(s => `${s.skill} (avg: ${s.avgLevel.toFixed(1)}/5, ${s.memberCount} members)`)
+        .join(', ');
+      return `${category}: ${topSkills}`;
+    })
+    .join('\n') || 'No skills assessments completed';
   
   // Get prompt and API key
   const promptConfig = await getPromptConfig('team_composition_analysis', practiceId);
   const apiKey = await getApiKey(practiceId);
   
-  // Fill template
+  // Build COMPREHENSIVE user prompt with ALL data
   const userPrompt = applyTemplate(promptConfig.user_prompt_template, {
     team_size: members.length,
+    team_roles: members.map(m => `${m.name}: ${m.role}`).join(', '),
     personality_distribution: workingStyles,
+    ocean_details: oceanDetails.join('\n'),
     working_styles: workingStyles,
-    communication_preferences: 'Mix of direct and collaborative styles',
+    working_preferences: workingPrefsStr,
+    communication_preferences: workingPrefsStr,
     learning_styles: learningStylesStr,
-    belbin_roles: 'Balanced across roles',
-    conflict_styles: 'Mix of compromising and collaborating'
+    belbin_roles: belbinRolesStr,
+    eq_scores: eqStr,
+    motivational_drivers: motivationalStr,
+    conflict_styles: conflictStylesStr,
+    top_skills: skillsStr
   });
   
   // Call LLM
