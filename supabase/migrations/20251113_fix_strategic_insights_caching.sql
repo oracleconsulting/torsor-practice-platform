@@ -95,13 +95,25 @@ CREATE INDEX IF NOT EXISTS idx_team_composition_practice_calculated
 CREATE INDEX IF NOT EXISTS idx_assessment_insights_member_updated
   ON assessment_insights (member_id, updated_at DESC);
 
--- 5. Update the last_updated timestamp trigger
--- First drop any old triggers that might reference wrong column names
-DROP TRIGGER IF EXISTS update_team_composition_insights_updated_at ON team_composition_insights;
-DROP TRIGGER IF EXISTS update_team_composition_insights_timestamp ON team_composition_insights;
-DROP FUNCTION IF EXISTS update_team_composition_timestamp();
+-- 5. Drop ALL existing triggers on team_composition_insights to start fresh
+DO $$
+DECLARE
+  r RECORD;
+BEGIN
+  FOR r IN (SELECT tgname FROM pg_trigger WHERE tgrelid = 'team_composition_insights'::regclass)
+  LOOP
+    EXECUTE 'DROP TRIGGER IF EXISTS ' || quote_ident(r.tgname) || ' ON team_composition_insights';
+    RAISE NOTICE 'Dropped trigger: %', r.tgname;
+  END LOOP;
+END $$;
 
-CREATE OR REPLACE FUNCTION update_team_composition_timestamp()
+-- Drop any old functions that might reference updated_at
+DROP FUNCTION IF EXISTS update_team_composition_timestamp() CASCADE;
+DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE;
+DROP FUNCTION IF EXISTS update_modified_column() CASCADE;
+
+-- Create new function for last_updated timestamp
+CREATE OR REPLACE FUNCTION update_team_composition_last_updated()
 RETURNS TRIGGER AS $$
 BEGIN
   NEW.last_updated = NOW();
@@ -109,10 +121,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER update_team_composition_insights_timestamp
+-- Create new trigger
+CREATE TRIGGER update_team_composition_insights_last_updated
   BEFORE UPDATE ON team_composition_insights
   FOR EACH ROW
-  EXECUTE FUNCTION update_team_composition_timestamp();
+  EXECUTE FUNCTION update_team_composition_last_updated();
 
 -- =====================================================
 -- VERIFICATION
