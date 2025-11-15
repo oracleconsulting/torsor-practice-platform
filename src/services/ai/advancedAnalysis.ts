@@ -329,9 +329,9 @@ export async function generateTeamCompositionAnalysis(supabase: SupabaseClient, 
     .select('*')
     .in('team_member_id', memberIds);
   
-  // Fetch VARK assessments
+  // Fetch VARK assessments (learning preferences)
   const { data: varkAssessments } = await supabase
-    .from('vark_assessments')
+    .from('learning_preferences')
     .select('*')
     .in('team_member_id', memberIds);
   
@@ -349,7 +349,7 @@ export async function generateTeamCompositionAnalysis(supabase: SupabaseClient, 
   
   // Fetch conflict styles
   const { data: conflictStyles } = await supabase
-    .from('conflict_styles')
+    .from('conflict_style_assessments')
     .select('*')
     .in('team_member_id', memberIds);
   
@@ -767,7 +767,7 @@ export async function generateAssessmentSynthesis(supabase: SupabaseClient, memb
     .eq('practice_member_id', memberId);
   
   const { data: belbinRoles } = await supabase
-    .from('belbin_team_roles')
+    .from('belbin_assessments')
     .select('*')
     .eq('practice_member_id', memberId);
   
@@ -782,7 +782,7 @@ export async function generateAssessmentSynthesis(supabase: SupabaseClient, memb
     .eq('practice_member_id', memberId);
   
   const { data: conflictStyles } = await supabase
-    .from('conflict_styles')
+    .from('conflict_style_assessments')
     .select('*')
     .eq('practice_member_id', memberId);
   
