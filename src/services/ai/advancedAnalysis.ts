@@ -313,7 +313,7 @@ export async function generateTeamCompositionAnalysis(supabase: SupabaseClient, 
   
   // Fetch OCEAN assessments
   const { data: oceanAssessments } = await supabase
-    .from('ocean_assessments')
+    .from('personality_assessments')
     .select('*')
     .in('team_member_id', memberIds);
   
