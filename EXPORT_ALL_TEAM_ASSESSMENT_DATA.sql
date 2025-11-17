@@ -187,11 +187,10 @@ SELECT
   s.name as skill_name,
   s.category,
   s.service_line,
-  s.required_level as skill_difficulty,
+  s.required_level as required_level,
   sa.current_level,
-  sa.target_level,
-  (sa.target_level - sa.current_level) as skill_gap,
   sa.manager_rating,
+  (s.required_level - sa.current_level) as skill_gap,
   sa.last_assessed_at,
   sa.created_at as first_assessed,
   sa.updated_at as last_updated
@@ -213,48 +212,58 @@ ORDER BY pm.name, s.category, s.name;
 
 SELECT 
   pm.name as member_name,
-  sl.name as service_line,
-  sl.category,
-  sli.interest_level,
-  sli.experience_level,
-  sli.willing_to_lead,
+  sli.service_line,
+  sli.interest_rank,
+  sli.current_experience_level,
+  sli.desired_involvement_pct,
   sli.notes,
-  sli.updated_at
+  sli.created_at as first_recorded,
+  sli.updated_at as last_updated
 
 FROM practice_members pm
-JOIN service_line_interests sli ON pm.id = sli.team_member_id
-JOIN service_lines sl ON sli.service_line_id = sl.id
+JOIN service_line_interests sli ON pm.id = sli.practice_member_id
 
 WHERE pm.is_active = TRUE
   AND (pm.is_test_account IS NULL OR pm.is_test_account = FALSE)
 
-ORDER BY pm.name, sl.name;
+ORDER BY pm.name, sli.interest_rank;
 
 
 -- =====================================================
--- ROLE ASSIGNMENTS & FIT SCORES
+-- ROLE DEFINITIONS THAT TEAM MEMBERS ARE SUITED FOR
+-- (Based on role_definitions table - no assignments table exists yet)
 -- =====================================================
+-- Note: This query shows what roles exist and their requirements.
+-- Individual role-fit analysis is in assessment_insights (Query #1)
 
 SELECT 
-  pm.name as member_name,
   rd.role_title,
-  rd.seniority_level as role_seniority,
-  rd.core_responsibilities,
-  rd.required_competencies,
-  ra.fit_score,
-  ra.gap_analysis,
-  ra.development_recommendations,
-  ra.assigned_at,
-  ra.auto_assigned
+  rd.role_category,
+  rd.seniority_level,
+  rd.department,
+  rd.description,
+  rd.key_responsibilities,
+  rd.client_facing,
+  rd.required_belbin_roles,
+  rd.min_eq_self_awareness,
+  rd.min_eq_self_management,
+  rd.min_eq_social_awareness,
+  rd.min_eq_relationship_management,
+  rd.required_achievement,
+  rd.required_affiliation,
+  rd.required_autonomy,
+  rd.required_influence,
+  rd.preferred_communication_style,
+  rd.preferred_work_environment,
+  rd.preferred_conflict_styles,
+  rd.training_delivery_preference,
+  rd.is_active
 
-FROM practice_members pm
-JOIN role_assignments ra ON pm.id = ra.member_id
-JOIN role_definitions rd ON ra.role_definition_id = rd.id
+FROM role_definitions rd
 
-WHERE pm.is_active = TRUE
-  AND (pm.is_test_account IS NULL OR pm.is_test_account = FALSE)
+WHERE rd.is_active = TRUE
 
-ORDER BY pm.name;
+ORDER BY rd.seniority_level, rd.role_title;
 
 
 -- =====================================================
