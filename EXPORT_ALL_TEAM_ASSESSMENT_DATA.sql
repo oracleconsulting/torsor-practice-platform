@@ -91,17 +91,17 @@ SELECT
   md.secondary_driver,
   md.completed_at as motivational_completed,
   
-  -- Individual Profile Insights
-  ip.advisory_score,
-  ip.technical_score,
-  ip.leadership_score,
-  ip.role_fit_score,
-  ip.strengths,
-  ip.development_areas,
-  ip.training_priorities,
-  ip.career_trajectory,
-  ip.recommended_roles,
-  ip.calculated_at as profile_calculated,
+  -- Individual Profile Insights (if table exists)
+  -- ip.advisory_score,
+  -- ip.technical_score,
+  -- ip.leadership_score,
+  -- ip.role_fit_score,
+  -- ip.strengths,
+  -- ip.development_areas,
+  -- ip.training_priorities,
+  -- ip.career_trajectory,
+  -- ip.recommended_roles,
+  -- ip.calculated_at as profile_calculated,
   
   -- Assessment Insights
   ai.assigned_role_type,
@@ -138,7 +138,7 @@ LEFT JOIN learning_preferences lp ON pm.id = lp.team_member_id
 LEFT JOIN working_preferences wp ON pm.id = wp.practice_member_id
 LEFT JOIN conflict_style_assessments cs ON pm.id = cs.practice_member_id
 LEFT JOIN motivational_drivers md ON pm.id = md.practice_member_id
-LEFT JOIN individual_profiles ip ON pm.id = ip.member_id
+-- LEFT JOIN individual_profiles ip ON pm.id = ip.member_id  -- Table doesn't exist
 LEFT JOIN assessment_insights ai ON pm.id = ai.member_id
 
 WHERE pm.is_active = TRUE
