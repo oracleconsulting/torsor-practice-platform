@@ -189,8 +189,7 @@ SELECT
   s.service_line,
   s.required_level as required_level,
   sa.current_level,
-  sa.manager_rating,
-  (s.required_level - sa.current_level) as skill_gap,
+  (s.required_level - COALESCE(sa.current_level, 0)) as skill_gap,
   sa.last_assessed_at,
   sa.created_at as first_assessed,
   sa.updated_at as last_updated
@@ -274,18 +273,26 @@ SELECT
   mentor.name as mentor_name,
   mentee.name as mentee_name,
   mr.status,
-  mr.focus_areas,
-  mr.goals,
+  mr.matched_skills,
+  mr.match_score,
+  mr.vark_compatibility,
+  mr.agreement_signed,
+  mr.agreement_signed_at,
   mr.start_date,
   mr.end_date,
-  mr.session_frequency,
+  mr.expected_duration_months,
+  mr.primary_goals,
+  mr.success_criteria,
+  mr.reminder_frequency,
+  mr.last_reminder_sent,
+  mr.created_at,
   (SELECT COUNT(*) FROM mentoring_sessions WHERE relationship_id = mr.id) as sessions_completed
 
 FROM mentoring_relationships mr
 JOIN practice_members mentor ON mr.mentor_id = mentor.id
 JOIN practice_members mentee ON mr.mentee_id = mentee.id
 
-WHERE mr.status IN ('active', 'pending')
+WHERE mr.status IN ('active', 'pending', 'matched')
 
 ORDER BY mentor.name, mentee.name;
 
