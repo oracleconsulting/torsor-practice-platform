@@ -188,10 +188,10 @@ SELECT
   s.category,
   s.service_line,
   s.required_level as skill_difficulty,
-  sa.self_rating,
   sa.current_level,
   sa.target_level,
-  (sa.target_level - COALESCE(sa.current_level, sa.self_rating)) as skill_gap,
+  (sa.target_level - sa.current_level) as skill_gap,
+  sa.manager_rating,
   sa.last_assessed_at,
   sa.created_at as first_assessed,
   sa.updated_at as last_updated
