@@ -23,7 +23,7 @@ INSERT INTO ai_prompts (
 VALUES (
   'team_composition_analysis',
   'Team Composition Analysis',
-  'team_insights',
+  'analysis',
   'You are an organizational psychology expert specializing in accounting teams. Analyze team composition, dynamics, and provide actionable insights for optimal performance.',
   'Analyze our accounting practice team composition:
 
@@ -140,7 +140,7 @@ INSERT INTO ai_prompts (
 VALUES (
   'gap_analysis_insights',
   'Team Gap Analysis',
-  'team_insights',
+  'analysis',
   'You are a skills development specialist for accounting practices. Analyze skill gaps and provide strategic recommendations for training and development.',
   'Analyze our team skill gaps:
 
