@@ -179,33 +179,6 @@ ORDER BY pm.name;
 
 
 -- =====================================================
--- DETAILED SKILLS BREAKDOWN PER MEMBER
--- =====================================================
-
-SELECT 
-  pm.name as member_name,
-  s.name as skill_name,
-  s.category,
-  s.service_line,
-  s.required_level as required_level,
-  sa.current_level,
-  (s.required_level - COALESCE(sa.current_level, 0)) as skill_gap,
-  sa.last_assessed_at,
-  sa.created_at as first_assessed,
-  sa.updated_at as last_updated
-
-FROM practice_members pm
-JOIN skill_assessments sa ON pm.id = sa.team_member_id
-JOIN skills s ON sa.skill_id = s.id
-
-WHERE pm.is_active = TRUE
-  AND (pm.is_test_account IS NULL OR pm.is_test_account = FALSE)
-  AND s.is_active = TRUE
-
-ORDER BY pm.name, s.category, s.name;
-
-
--- =====================================================
 -- SERVICE LINE INTERESTS PER MEMBER
 -- =====================================================
 
