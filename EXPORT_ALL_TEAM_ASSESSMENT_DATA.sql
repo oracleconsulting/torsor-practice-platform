@@ -126,7 +126,7 @@ SELECT
   (SELECT AVG(self_rating) FROM skill_assessments WHERE team_member_id = pm.id) as avg_self_rating,
   (SELECT AVG(current_level) FROM skill_assessments WHERE team_member_id = pm.id) as avg_current_level,
   (SELECT AVG(target_level) FROM skill_assessments WHERE team_member_id = pm.id) as avg_target_level,
-  (SELECT AVG(target_level - current_level) FROM skill_assessments WHERE team_member_id = pm.id WHERE current_level IS NOT NULL) as avg_skill_gap
+  (SELECT AVG(target_level - current_level) FROM skill_assessments WHERE team_member_id = pm.id AND current_level IS NOT NULL) as avg_skill_gap
 
 FROM practice_members pm
 
