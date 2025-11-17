@@ -150,14 +150,14 @@ SELECT
   -- CPD Summary
   (SELECT COUNT(*) FROM cpd_activities WHERE practice_member_id = pm.id) as cpd_activities_count,
   (SELECT SUM(hours_claimed) FROM cpd_activities WHERE practice_member_id = pm.id AND status = 'completed') as cpd_hours_total,
-  (SELECT SUM(hours_claimed) FROM cpd_activities WHERE practice_member_id = pm.id AND status = 'completed' AND activity_date >= DATE_TRUNC('year', CURRENT_DATE)) as cpd_hours_this_year,
+  (SELECT SUM(hours_claimed) FROM cpd_activities WHERE practice_member_id = pm.id AND status = 'completed' AND activity_date >= DATE_TRUNC('year', CURRENT_DATE)) as cpd_hours_this_year
   
-  -- Skills Summary
-  (SELECT COUNT(*) FROM skill_assessments WHERE team_member_id = pm.id) as skills_assessed_count,
-  (SELECT AVG(self_rating) FROM skill_assessments WHERE team_member_id = pm.id) as avg_self_rating,
-  (SELECT AVG(current_level) FROM skill_assessments WHERE team_member_id = pm.id) as avg_current_level,
-  (SELECT AVG(target_level) FROM skill_assessments WHERE team_member_id = pm.id) as avg_target_level,
-  (SELECT AVG(target_level - current_level) FROM skill_assessments WHERE team_member_id = pm.id AND current_level IS NOT NULL) as avg_skill_gap
+  -- Skills Summary (commented out - need to check skill_assessments table structure)
+  -- (SELECT COUNT(*) FROM skill_assessments WHERE team_member_id = pm.id) as skills_assessed_count,
+  -- (SELECT AVG(self_rating) FROM skill_assessments WHERE team_member_id = pm.id) as avg_self_rating,
+  -- (SELECT AVG(current_level) FROM skill_assessments WHERE team_member_id = pm.id) as avg_current_level,
+  -- (SELECT AVG(target_level) FROM skill_assessments WHERE team_member_id = pm.id) as avg_target_level,
+  -- (SELECT AVG(target_level - current_level) FROM skill_assessments WHERE team_member_id = pm.id AND current_level IS NOT NULL) as avg_skill_gap
 
 FROM practice_members pm
 
