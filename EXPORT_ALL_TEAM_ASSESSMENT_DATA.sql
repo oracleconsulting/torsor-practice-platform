@@ -130,14 +130,14 @@ SELECT
 
 FROM practice_members pm
 
--- Join all assessment tables
+-- Join all assessment tables (note: inconsistent column naming across tables)
 LEFT JOIN personality_assessments pa ON pm.id = pa.team_member_id
-LEFT JOIN belbin_assessments ba ON pm.id = ba.team_member_id
-LEFT JOIN eq_assessments eq ON pm.id = eq.team_member_id
+LEFT JOIN belbin_assessments ba ON pm.id = ba.practice_member_id
+LEFT JOIN eq_assessments eq ON pm.id = eq.practice_member_id
 LEFT JOIN learning_preferences lp ON pm.id = lp.team_member_id
-LEFT JOIN working_preferences wp ON pm.id = wp.team_member_id
-LEFT JOIN conflict_style_assessments cs ON pm.id = cs.team_member_id
-LEFT JOIN motivational_drivers md ON pm.id = md.team_member_id
+LEFT JOIN working_preferences wp ON pm.id = wp.practice_member_id
+LEFT JOIN conflict_style_assessments cs ON pm.id = cs.practice_member_id
+LEFT JOIN motivational_drivers md ON pm.id = md.practice_member_id
 LEFT JOIN individual_profiles ip ON pm.id = ip.member_id
 LEFT JOIN assessment_insights ai ON pm.id = ai.member_id
 
