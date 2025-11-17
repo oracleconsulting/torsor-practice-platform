@@ -9,9 +9,9 @@ SELECT
   pm.name,
   pm.email,
   pm.role as system_role,
-  pm.seniority_level,
-  pm.years_experience,
-  pm.department,
+  -- pm.seniority_level,  -- Check if column exists
+  -- pm.years_experience, -- Check if column exists
+  -- pm.department,       -- Check if column exists
   pm.is_test_account,
   pm.created_at as member_since,
   
@@ -138,7 +138,7 @@ LEFT JOIN learning_preferences lp ON pm.id = lp.team_member_id
 LEFT JOIN working_preferences wp ON pm.id = wp.practice_member_id
 LEFT JOIN conflict_style_assessments cs ON pm.id = cs.practice_member_id
 LEFT JOIN motivational_drivers md ON pm.id = md.practice_member_id
--- LEFT JOIN individual_profiles ip ON pm.id = ip.member_id  -- Table doesn't exist
+-- LEFT JOIN individual_assessment_profiles iap ON pm.id = iap.member_id  -- Check column name
 LEFT JOIN assessment_insights ai ON pm.id = ai.member_id
 
 WHERE pm.is_active = TRUE
