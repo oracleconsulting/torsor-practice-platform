@@ -9,11 +9,31 @@ SELECT
   pm.name,
   pm.email,
   pm.role as system_role,
-  -- pm.seniority_level,  -- Check if column exists
-  -- pm.years_experience, -- Check if column exists
-  -- pm.department,       -- Check if column exists
+  pm.permission_role,
+  pm.is_mentor,
+  pm.mentor_capacity,
+  pm.reporting_to,
+  pm.reports_to_id,
   pm.is_test_account,
+  pm.is_active,
+  pm.onboarding_completed,
   pm.created_at as member_since,
+  pm.invited_at,
+  pm.joined_at,
+  pm.last_login_at,
+  pm.login_count,
+  
+  -- CPD tracking
+  pm.cpd_completed_hours,
+  pm.cpd_determined_completed,
+  pm.cpd_self_allocated_completed,
+  pm.cpd_year_start_date,
+  pm.cpd_exempt,
+  
+  -- VARK Quick Info
+  pm.vark_assessment_completed,
+  pm.vark_completed_at,
+  pm.learning_style,
   
   -- OCEAN Personality Scores
   pa.openness_score,
@@ -31,7 +51,7 @@ SELECT
   -- Belbin Team Roles
   ba.primary_role as belbin_primary,
   ba.secondary_role as belbin_secondary,
-  ba.tertiary_role as belbin_tertiary,
+  -- ba.tertiary_role as belbin_tertiary,  -- Column doesn't exist
   ba.primary_score as belbin_primary_score,
   ba.secondary_score as belbin_secondary_score,
   ba.raw_scores as belbin_all_scores,
