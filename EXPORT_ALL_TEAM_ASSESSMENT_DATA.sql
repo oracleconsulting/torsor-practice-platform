@@ -179,6 +179,12 @@ ORDER BY pm.name;
 
 
 -- =====================================================
+-- QUERIES 2-5 COMMENTED OUT - NEED TABLE STRUCTURE VERIFICATION
+-- Run CHECK_SKILLS_TABLES.sql and CHECK_SKILL_ASSESSMENTS_COLUMNS.sql first
+-- =====================================================
+
+/*
+-- =====================================================
 -- DETAILED SKILLS BREAKDOWN PER MEMBER
 -- =====================================================
 
@@ -296,4 +302,5 @@ JOIN practice_members manager ON rl.reports_to_id = manager.id
 WHERE member.is_active = TRUE
 
 ORDER BY manager.name, member.name;
+*/
 
