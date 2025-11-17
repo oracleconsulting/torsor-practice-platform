@@ -179,27 +179,22 @@ ORDER BY pm.name;
 
 
 -- =====================================================
--- QUERIES 2-5 COMMENTED OUT - NEED TABLE STRUCTURE VERIFICATION
--- Run CHECK_SKILLS_TABLES.sql and CHECK_SKILL_ASSESSMENTS_COLUMNS.sql first
--- =====================================================
-
-/*
--- =====================================================
 -- DETAILED SKILLS BREAKDOWN PER MEMBER
 -- =====================================================
 
 SELECT 
   pm.name as member_name,
-  s.skill_name,
+  s.name as skill_name,
   s.category,
-  s.skill_level as skill_difficulty,
+  s.service_line,
+  s.required_level as skill_difficulty,
   sa.self_rating,
   sa.current_level,
   sa.target_level,
   (sa.target_level - COALESCE(sa.current_level, sa.self_rating)) as skill_gap,
-  sa.last_used_date,
-  sa.proficiency_notes,
-  sa.updated_at as last_assessed
+  sa.last_assessed_at,
+  sa.created_at as first_assessed,
+  sa.updated_at as last_updated
 
 FROM practice_members pm
 JOIN skill_assessments sa ON pm.id = sa.team_member_id
@@ -207,8 +202,9 @@ JOIN skills s ON sa.skill_id = s.id
 
 WHERE pm.is_active = TRUE
   AND (pm.is_test_account IS NULL OR pm.is_test_account = FALSE)
+  AND s.is_active = TRUE
 
-ORDER BY pm.name, s.category, s.skill_name;
+ORDER BY pm.name, s.category, s.name;
 
 
 -- =====================================================
