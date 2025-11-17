@@ -52,8 +52,8 @@ SELECT
   ba.primary_role as belbin_primary,
   ba.secondary_role as belbin_secondary,
   -- ba.tertiary_role as belbin_tertiary,  -- Column doesn't exist
-  ba.primary_score as belbin_primary_score,
-  ba.secondary_score as belbin_secondary_score,
+  -- ba.primary_score as belbin_primary_score,    -- Check if exists
+  -- ba.secondary_score as belbin_secondary_score, -- Check if exists
   ba.raw_scores as belbin_all_scores,
   ba.completed_at as belbin_completed,
   
