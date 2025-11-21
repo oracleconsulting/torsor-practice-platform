@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { 
@@ -136,7 +135,14 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
 
       if (skillInfo && skill.currentLevel < skill.targetLevel) {
         const gap = skill.targetLevel - skill.currentLevel;
-        const priority = gap >= 2 ? 'high' : gap === 1 ? 'medium' : 'low';
+        let priority: 'high' | 'medium' | 'low';
+        if (gap >= 2) {
+          priority = 'high';
+        } else if (gap === 1) {
+          priority = 'medium';
+        } else {
+          priority = 'low';
+        }
         
         // Determine training method based on skill category and gap
         let trainingMethod = 'Workshop';
@@ -247,11 +253,16 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
   };
 
   const updatePlanStatus = (planId: string, status: DevelopmentPlan['status']) => {
-    setDevelopmentPlans(prev => prev.map(plan => 
-      plan.id === planId 
-        ? { ...plan, status, completedAt: status === 'completed' ? new Date() : undefined }
-        : plan
-    ));
+    setDevelopmentPlans(prev => prev.map(plan => {
+      if (plan.id === planId) {
+        return {
+          ...plan,
+          status,
+          completedAt: status === 'completed' ? new Date() : undefined
+        };
+      }
+      return plan;
+    }));
   };
 
   const getStatusColor = (status: DevelopmentPlan['status']) => {
