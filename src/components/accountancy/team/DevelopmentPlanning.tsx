@@ -355,8 +355,8 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recommendations.slice(0, 5).map((rec, index) => (
-                <div key={index} className="p-4 bg-gray-700/30 rounded-lg">
+              {recommendations.slice(0, 5).map((rec) => (
+                <div key={rec.skillName} className="p-4 bg-gray-700/30 rounded-lg">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
@@ -399,7 +399,7 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
                     <h5 className="text-sm font-medium text-white mb-2">Learning Path:</h5>
                     <div className="flex flex-wrap gap-2">
                       {rec.learningPath.map((step, stepIndex) => (
-                        <Badge key={stepIndex} variant="outline" className="text-xs">
+                        <Badge key={`${rec.skillName}-step-${stepIndex}`} variant="outline" className="text-xs">
                           {stepIndex + 1}. {step}
                         </Badge>
                       ))}
@@ -425,8 +425,8 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {skillsWithGaps.map((skill, index) => (
-              <div key={index} className="p-4 bg-gray-700/30 rounded-lg">
+            {skillsWithGaps.map((skill) => (
+              <div key={skill.skillId} className="p-4 bg-gray-700/30 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
@@ -590,8 +590,8 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
                   <SelectValue placeholder="Select a skill" />
                 </SelectTrigger>
                 <SelectContent>
-                  {skillsWithGaps.map((skill, index) => (
-                    <SelectItem key={index} value={skill.skillId}>
+                  {skillsWithGaps.map((skill) => (
+                    <SelectItem key={skill.skillId} value={skill.skillId}>
                       {skill.skillInfo?.name} (Current: {skill.currentLevel}/5 → Target: {skill.targetLevel}/5)
                     </SelectItem>
                   ))}
@@ -602,7 +602,7 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="targetLevel">Target Level</Label>
-                <Select value={planFormData.targetLevel.toString()} onValueChange={(value) => setPlanFormData(prev => ({ ...prev, targetLevel: parseInt(value) }))}>
+                <Select value={planFormData.targetLevel.toString()} onValueChange={(value) => setPlanFormData(prev => ({ ...prev, targetLevel: Number.parseInt(value, 10) }))}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -618,7 +618,7 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
               
               <div>
                 <Label htmlFor="priority">Priority</Label>
-                <Select value={planFormData.priority.toString()} onValueChange={(value) => setPlanFormData(prev => ({ ...prev, priority: parseInt(value) }))}>
+                <Select value={planFormData.priority.toString()} onValueChange={(value) => setPlanFormData(prev => ({ ...prev, priority: Number.parseInt(value, 10) }))}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -684,7 +684,7 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
                 id="budget"
                 type="number"
                 value={planFormData.budget}
-                onChange={(e) => setPlanFormData(prev => ({ ...prev, budget: parseFloat(e.target.value) || 0 }))}
+                onChange={(e) => setPlanFormData(prev => ({ ...prev, budget: Number.parseFloat(e.target.value) || 0 }))}
                 placeholder="0"
               />
             </div>
