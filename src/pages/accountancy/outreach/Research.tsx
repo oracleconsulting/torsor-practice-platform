@@ -230,7 +230,7 @@ const Research = () => {
                       type="number"
                       value={networkSearch.maxFirms}
                       onChange={(e) => 
-                        setNetworkSearch({...networkSearch, maxFirms: parseInt(e.target.value)})
+                        setNetworkSearch({...networkSearch, maxFirms: Number.parseInt(e.target.value, 10)})
                       }
                     />
                   </div>
@@ -240,7 +240,7 @@ const Research = () => {
                       type="number"
                       value={networkSearch.minScore}
                       onChange={(e) => 
-                        setNetworkSearch({...networkSearch, minScore: parseInt(e.target.value)})
+                        setNetworkSearch({...networkSearch, minScore: Number.parseInt(e.target.value, 10)})
                       }
                     />
                   </div>

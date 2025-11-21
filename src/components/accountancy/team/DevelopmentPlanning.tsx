@@ -303,9 +303,10 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
             {teamMembers.map(member => (
-              <div 
+              <button
                 key={member.id}
-                className="p-4 bg-gray-700/50 rounded-lg cursor-pointer hover:bg-gray-700 transition-colors"
+                type="button"
+                className="p-4 bg-gray-700/50 rounded-lg cursor-pointer hover:bg-gray-700 transition-colors text-left w-full"
                 onClick={() => setSelectedMember(member)}
               >
                 <div className="flex items-center gap-3">
@@ -319,7 +320,7 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
                     <div className="text-sm text-white">{member.role}</div>
                   </div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </CardContent>

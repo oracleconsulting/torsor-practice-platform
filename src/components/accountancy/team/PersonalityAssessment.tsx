@@ -276,7 +276,7 @@ export const PersonalityAssessment: React.FC<PersonalityAssessmentProps> = ({
           
           <RadioGroup 
             value={responses[currentQuestion]?.toString()} 
-            onValueChange={(value) => handleResponse(parseInt(value))}
+            onValueChange={(value) => handleResponse(Number.parseInt(value, 10))}
             className="space-y-3"
           >
             {responseScale.map(option => (

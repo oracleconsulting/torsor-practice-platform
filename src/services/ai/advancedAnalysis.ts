@@ -279,7 +279,7 @@ export async function generateGapAnalysisInsights(supabase: SupabaseClient, prac
     metadata: {
       teamSize: members.length,
       avgEQ,
-      avgSkillLevel: parseFloat(avgSkillLevel),
+      avgSkillLevel: Number.parseFloat(avgSkillLevel),
       topGaps: Array.from(skillGapMap.entries())
         .sort((a, b) => b[1].totalGap - a[1].totalGap)
         .slice(0, 5)

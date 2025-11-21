@@ -557,7 +557,7 @@ export default function RoleDefinitionsAdminPanel() {
                     min="0"
                     max="100"
                     value={formData.min_eq_self_awareness}
-                    onChange={e => setFormData(prev => ({ ...prev, min_eq_self_awareness: parseInt(e.target.value) }))}
+                    onChange={e => setFormData(prev => ({ ...prev, min_eq_self_awareness: Number.parseInt(e.target.value, 10) }))}
                   />
                 </div>
                 <div>
@@ -567,7 +567,7 @@ export default function RoleDefinitionsAdminPanel() {
                     min="0"
                     max="100"
                     value={formData.min_eq_self_management}
-                    onChange={e => setFormData(prev => ({ ...prev, min_eq_self_management: parseInt(e.target.value) }))}
+                    onChange={e => setFormData(prev => ({ ...prev, min_eq_self_management: Number.parseInt(e.target.value, 10) }))}
                   />
                 </div>
                 <div>
@@ -577,7 +577,7 @@ export default function RoleDefinitionsAdminPanel() {
                     min="0"
                     max="100"
                     value={formData.min_eq_social_awareness}
-                    onChange={e => setFormData(prev => ({ ...prev, min_eq_social_awareness: parseInt(e.target.value) }))}
+                    onChange={e => setFormData(prev => ({ ...prev, min_eq_social_awareness: Number.parseInt(e.target.value, 10) }))}
                   />
                 </div>
                 <div>
@@ -587,7 +587,7 @@ export default function RoleDefinitionsAdminPanel() {
                     min="0"
                     max="100"
                     value={formData.min_eq_relationship_management}
-                    onChange={e => setFormData(prev => ({ ...prev, min_eq_relationship_management: parseInt(e.target.value) }))}
+                    onChange={e => setFormData(prev => ({ ...prev, min_eq_relationship_management: Number.parseInt(e.target.value, 10) }))}
                   />
                 </div>
               </div>
@@ -604,7 +604,7 @@ export default function RoleDefinitionsAdminPanel() {
                     min="0"
                     max="100"
                     value={formData.required_achievement}
-                    onChange={e => setFormData(prev => ({ ...prev, required_achievement: parseInt(e.target.value) }))}
+                    onChange={e => setFormData(prev => ({ ...prev, required_achievement: Number.parseInt(e.target.value, 10) }))}
                   />
                 </div>
                 <div>
@@ -614,7 +614,7 @@ export default function RoleDefinitionsAdminPanel() {
                     min="0"
                     max="100"
                     value={formData.required_affiliation}
-                    onChange={e => setFormData(prev => ({ ...prev, required_affiliation: parseInt(e.target.value) }))}
+                    onChange={e => setFormData(prev => ({ ...prev, required_affiliation: Number.parseInt(e.target.value, 10) }))}
                   />
                 </div>
                 <div>

@@ -412,7 +412,7 @@ const ServiceLineInterestRanking: React.FC<ServiceLineInterestRankingProps> = ({
                     {/* Rank Number Dropdown */}
                     <select
                       value={ranking.rank}
-                      onChange={(e) => setRank(index, parseInt(e.target.value))}
+                      onChange={(e) => setRank(index, Number.parseInt(e.target.value, 10))}
                       className="w-12 h-12 rounded-full text-center font-bold text-lg border-2 bg-white cursor-pointer hover:shadow-md transition-shadow"
                       style={{
                         borderColor: ranking.rank <= 2 ? '#16a34a' : 
@@ -468,7 +468,7 @@ const ServiceLineInterestRanking: React.FC<ServiceLineInterestRankingProps> = ({
                             min="0"
                             max="5"
                             value={ranking.experienceLevel}
-                            onChange={(e) => handleExperienceChange(index, parseInt(e.target.value))}
+                            onChange={(e) => handleExperienceChange(index, Number.parseInt(e.target.value, 10))}
                             className="flex-1 cursor-pointer"
                           />
                           <span className="text-sm font-bold w-8 text-center">
@@ -500,7 +500,7 @@ const ServiceLineInterestRanking: React.FC<ServiceLineInterestRankingProps> = ({
                             max="100"
                             step="5"
                             value={ranking.desiredInvolvement}
-                            onChange={(e) => handleInvolvementChange(index, parseInt(e.target.value))}
+                            onChange={(e) => handleInvolvementChange(index, Number.parseInt(e.target.value, 10))}
                             className="flex-1 cursor-pointer"
                           />
                           <span className="text-sm font-bold w-12 text-center">

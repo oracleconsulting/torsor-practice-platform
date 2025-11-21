@@ -452,7 +452,7 @@ export const BulkCompanyResearch: React.FC = () => {
                 min="1"
                 max="100"
                 value={maxFilings}
-                onChange={(e) => setMaxFilings(parseInt(e.target.value) || 20)}
+                onChange={(e) => setMaxFilings(Number.parseInt(e.target.value, 10) || 20)}
                 disabled={loading}
               />
             </div>
