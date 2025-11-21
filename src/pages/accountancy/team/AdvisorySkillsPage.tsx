@@ -260,11 +260,28 @@ const AdvisorySkillsPage: React.FC = () => {
   };
 
   function handleExport() {
+    // Export current tab data as JSON
+    const exportData = {
+      timestamp: new Date().toISOString(),
+      activeTab,
+      skills: mockSkills,
+      categories: mockCategories,
+      members: mockTeamMembers
+    };
+    
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `advisory-skills-${activeTab}-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    
     toast({
-      title: 'Export Started',
-      description: 'Preparing your data export...',
+      title: 'Export Complete',
+      description: 'Your data has been downloaded successfully.',
     });
-    // TODO: Implement export functionality
   }
 
   // Breadcrumb items

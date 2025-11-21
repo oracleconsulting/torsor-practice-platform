@@ -12,3 +12,4 @@ WHERE table_schema = 'public'
   AND table_name = 'reporting_lines'
 ORDER BY ordinal_position;
 
+
