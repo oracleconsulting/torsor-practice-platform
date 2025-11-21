@@ -22,31 +22,31 @@
     
     <script>
       // Clear any existing service workers and caches
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for(let registration of registrations) {
-            registration.unregister();
+      (async () => {
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for(const registration of registrations) {
+            await registration.unregister();
           }
-        });
-      }
-      
-      // Clear caches
-      if ('caches' in window) {
-        caches.keys().then(function(names) {
-          for (let name of names) {
-            caches.delete(name);
+        }
+        
+        // Clear caches
+        if ('caches' in globalThis) {
+          const names = await caches.keys();
+          for (const name of names) {
+            await caches.delete(name);
           }
-        });
-      }
+        }
+      })();
       
       // Simple error logging without redirects
-      window.addEventListener('error', (event) => {
+      globalThis.addEventListener('error', (event) => {
         console.error('Global error:', event.error);
         // Don't prevent default - let React handle errors
       });
       
       // Log unhandled promise rejections
-      window.addEventListener('unhandledrejection', (event) => {
+      globalThis.addEventListener('unhandledrejection', (event) => {
         console.error('Unhandled promise rejection:', event.reason);
         // Don't prevent default - let React handle rejections
       });

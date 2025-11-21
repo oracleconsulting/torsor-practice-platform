@@ -137,8 +137,8 @@ SELECT
   
   -- CPD Summary
   (SELECT COUNT(*) FROM cpd_activities WHERE practice_member_id = pm.id) as cpd_activities_count,
-  (SELECT SUM(hours_claimed) FROM cpd_activities WHERE practice_member_id = pm.id AND status = 'completed') as cpd_hours_total,
-  (SELECT SUM(hours_claimed) FROM cpd_activities WHERE practice_member_id = pm.id AND status = 'completed' AND activity_date >= DATE_TRUNC('year', CURRENT_DATE)) as cpd_hours_this_year
+  (SELECT SUM(hours_claimed) FROM cpd_activities cpd1 WHERE cpd1.practice_member_id = pm.id AND cpd1.status = 'completed') as cpd_hours_total,
+  (SELECT SUM(hours_claimed) FROM cpd_activities cpd2 WHERE cpd2.practice_member_id = pm.id AND cpd2.status = 'completed' AND cpd2.activity_date >= DATE_TRUNC('year', CURRENT_DATE)) as cpd_hours_this_year
 
 FROM practice_members pm
 
@@ -154,4 +154,4 @@ LEFT JOIN assessment_insights ai ON pm.id = ai.member_id
 WHERE pm.is_active = TRUE
   AND (pm.is_test_account IS NULL OR pm.is_test_account = FALSE)
 
-ORDER BY pm.name;
+ORDER BY pm.name ASC;
