@@ -367,16 +367,20 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recommendations.slice(0, 5).map((rec) => (
+              {recommendations.slice(0, 5).map((rec) => {
+                const getBadgeVariant = () => {
+                  if (rec.priority === 'high') return 'destructive';
+                  if (rec.priority === 'medium') return 'secondary';
+                  return 'outline';
+                };
+                
+                return (
                 <div key={rec.skillName} className="p-4 bg-gray-700/30 rounded-lg">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         <h4 className="font-medium text-white">{rec.skillName}</h4>
-                        <Badge variant={
-                          rec.priority === 'high' ? 'destructive' : 
-                          rec.priority === 'medium' ? 'secondary' : 'outline'
-                        }>
+                        <Badge variant={getBadgeVariant()}>
                           {rec.priority} priority
                         </Badge>
                       </div>
@@ -418,7 +422,8 @@ const DevelopmentPlanning: React.FC<DevelopmentPlanningProps> = ({
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>

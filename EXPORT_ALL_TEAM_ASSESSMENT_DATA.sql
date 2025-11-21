@@ -151,7 +151,7 @@ LEFT JOIN conflict_style_assessments cs ON pm.id = cs.practice_member_id
 LEFT JOIN motivational_drivers md ON pm.id = md.practice_member_id
 LEFT JOIN assessment_insights ai ON pm.id = ai.member_id
 
-WHERE pm.is_active = TRUE
-  AND (pm.is_test_account IS NULL OR pm.is_test_account = FALSE)
+WHERE pm.is_active
+  AND (pm.is_test_account IS NULL OR NOT pm.is_test_account)
 
 ORDER BY pm.name ASC;
