@@ -1,9 +1,10 @@
 /**
  * Custom hook for loading team assessment data
  * Handles loading team members, completion status, composition, and dynamics
+ * Optimized with memoization
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import type { TeamMember, AssessmentCompletion, TeamComposition, TeamDynamics } from '@/types/team-insights';
 import { getFriendlyName } from '@/utils/team-insights/helpers';
@@ -235,7 +236,7 @@ export const useTeamAssessmentData = (): UseTeamAssessmentDataReturn => {
     setTeamDynamics(dynamics);
   };
 
-  const loadTeamData = async () => {
+  const loadTeamData = useCallback(async () => {
     setLoading(true);
     try {
       const { data: members } = await supabase
@@ -254,11 +255,11 @@ export const useTeamAssessmentData = (): UseTeamAssessmentDataReturn => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadTeamData();
-  }, []);
+  }, [loadTeamData]);
 
   return {
     loading,

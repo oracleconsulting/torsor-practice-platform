@@ -20,7 +20,7 @@ interface StrategicTabProps {
   onCalculateStrategic: (force: boolean) => Promise<void>;
 }
 
-export const StrategicTab: React.FC<StrategicTabProps> = ({
+export const StrategicTab: React.FC<StrategicTabProps> = React.memo(({
   loading,
   individualInsights,
   strategicTeamInsight,
@@ -332,5 +332,7 @@ export const StrategicTab: React.FC<StrategicTabProps> = ({
       </Card>
     </div>
   );
-};
+});
+
+StrategicTab.displayName = 'StrategicTab';
 

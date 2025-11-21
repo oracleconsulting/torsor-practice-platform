@@ -17,7 +17,7 @@ interface OverviewTabProps {
   teamMembers: TeamMember[];
 }
 
-export const OverviewTab: React.FC<OverviewTabProps> = ({
+export const OverviewTab: React.FC<OverviewTabProps> = React.memo(({
   loading,
   completionStatus,
   teamMembers,
@@ -107,5 +107,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       </Card>
     </div>
   );
-};
+});
+
+OverviewTab.displayName = 'OverviewTab';
 
