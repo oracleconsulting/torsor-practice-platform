@@ -607,9 +607,9 @@ export const BulkCompanyResearch: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-2 max-h-[600px] overflow-y-auto">
-                {results.results.map((company, index) => (
+                {results.results.map((company) => (
                   <div
-                    key={index}
+                    key={company.companyNumber}
                     className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition"
                     onClick={() => setSelectedCompany(company)}
                   >

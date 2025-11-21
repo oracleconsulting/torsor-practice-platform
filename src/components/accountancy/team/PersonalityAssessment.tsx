@@ -354,9 +354,9 @@ export const PersonalityAssessment: React.FC<PersonalityAssessmentProps> = ({
         <CardContent className="p-4">
           <p className="text-sm font-semibold text-gray-700 mb-3">Quick Navigation:</p>
           <div className="grid grid-cols-10 gap-2">
-            {professionalBigFiveQuestions.map((_, index) => (
+            {professionalBigFiveQuestions.map((question, index) => (
               <button
-                key={index}
+                key={`nav-${question.id}`}
                 onClick={() => jumpToQuestion(index)}
                 className={`
                   w-full aspect-square text-xs rounded-md font-semibold transition-all
