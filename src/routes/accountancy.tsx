@@ -9,18 +9,7 @@ import { useAccountancyContext } from '../contexts/AccountancyContext';
 import AccountancyDashboard from '../pages/AccountancyDashboard';
 import { ClientManagementPage } from '../components/accountancy/client-management/ClientManagementPage';
 import TeamManagementPage from '../pages/accountancy/TeamManagementPage';
-import { AlternateAuditorPage } from '../pages/accountancy/AlternateAuditorPage';
-import { MTDCapacityPage } from '../pages/accountancy/MTDCapacityPage';
-import { ESGReportingPage } from '../pages/accountancy/ESGReportingPage';
-import { ContinuityPlanningPage } from '../pages/accountancy/ContinuityPlanningPage';
-import CyberSecurityPage from '../pages/accountancy/CyberSecurityPage';
-import TeamWellnessPage from '../pages/accountancy/TeamWellnessPage';
 import ManageSubscriptionPage from '../pages/accountancy/ManageSubscriptionPage';
-import ComplianceCalendarPage from '../pages/accountancy/ComplianceCalendarPage';
-import { HandoverComplaintsPage } from '../pages/accountancy/HandoverComplaintsPage';
-import { NewComplaintPage } from '../pages/accountancy/NewComplaintPage';
-import { ComplaintDetailsPage } from '../pages/accountancy/ComplaintDetailsPage';
-import KPIDashboardPage from '../pages/accountancy/KPIDashboardPage';
 import SettingsPage from '../pages/accountancy/SettingsPage';
 
 // Outreach pages
@@ -40,7 +29,6 @@ import ClientRescues from '../pages/accountancy/ClientRescues';
 import AdvisoryServices from '../pages/accountancy/AdvisoryServices';
 import ServiceDetailPage from '../pages/ServiceDetailPage';
 import PracticeHealth from '../pages/accountancy/PracticeHealth';
-import ClientVaultPage from '../pages/accountancy/ClientVaultPage';
 import SystemsAuditPage from '../pages/accountancy/SystemsAuditPage';
 import AlignmentProgrammePage from '../pages/accountancy/AlignmentProgrammePage';
 
@@ -163,26 +151,13 @@ const AccountancyRoutesWrapper: React.FC = () => {
       <Route path="portal/advisory/valuation" element={<ValuationPage />} />
       <Route path="portal/advisory/valuation/:clientId" element={<ValuationPage />} />
       
-      {/* New Portal Features */}
-      <Route path="portal/client-vault" element={<ClientVaultPage />} />
-      <Route path="portal/client-vault/:clientId" element={<ClientVaultPage />} />
+      {/* Archived: Client Vault - See docs/archive/future-features/ */}
       <Route path="portal/systems-audit" element={<SystemsAuditPage />} />
       <Route path="portal/systems-audit/:clientId" element={<SystemsAuditPage />} />
       <Route path="portal/365-alignment" element={<AlignmentProgrammePage />} />
       <Route path="portal/365-alignment/:clientId" element={<AlignmentProgrammePage />} />
       
-      {/* Compliance & Regulatory */}
-      <Route path="compliance" element={<ComplianceCalendarPage />} />
-      <Route path="regulatory-compliance" element={<Navigate to="/accountancy/compliance" replace />} />
-      
-      {/* Partner Services */}
-      <Route path="alternate-auditor" element={<AlternateAuditorPage />} />
-      <Route path="mtd-capacity" element={<MTDCapacityPage />} />
-      <Route path="esg-reporting" element={<ESGReportingPage />} />
-      <Route path="continuity-planning" element={<ContinuityPlanningPage />} />
-      <Route path="continuity" element={<Navigate to="/accountancy/continuity-planning" replace />} />
-      <Route path="cyber-security" element={<CyberSecurityPage />} />
-      <Route path="team-wellness" element={<TeamWellnessPage />} />
+      {/* Archived Future Features - See docs/archive/future-features/ */}
       
       {/* Outreach System */}
       <Route path="outreach">
@@ -201,15 +176,7 @@ const AccountancyRoutesWrapper: React.FC = () => {
         <Route path="analytics" element={<Analytics />} />
       </Route>
       
-      {/* Complaints */}
-      <Route path="complaints">
-        <Route index element={<HandoverComplaintsPage />} />
-        <Route path="new" element={<NewComplaintPage />} />
-        <Route path=":id" element={<ComplaintDetailsPage />} />
-      </Route>
-      
-      {/* KPI & Analytics */}
-      <Route path="kpi" element={<KPIDashboardPage />} />
+      {/* Archived: Complaints & KPI - See docs/archive/future-features/ */}
       
       {/* Settings & Management */}
       <Route path="subscription" element={<Navigate to="/accountancy/manage-subscription" replace />} />
