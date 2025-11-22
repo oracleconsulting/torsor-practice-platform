@@ -63,11 +63,11 @@ SELECT
   
   -- Conflict Style
   cs.primary_style as conflict_style,
-  cs.competing_score,
-  cs.collaborating_score,
-  cs.compromising_score,
-  cs.avoiding_score,
-  cs.accommodating_score,
+  cs.secondary_style as conflict_secondary,
+  cs.style_scores as conflict_style_scores,
+  cs.assertiveness_level,
+  cs.cooperativeness_level,
+  cs.flexibility_score,
   cs.id IS NOT NULL as conflict_complete,
   cs.assessed_at as conflict_completed_at,
   
