@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BarChart2, TrendingUp, Sparkles, Briefcase } from 'lucide-react';
+import { BarChart2, TrendingUp, Star, Briefcase } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AnalyticsDashboardPage from '../../team/AnalyticsDashboardPage';
@@ -55,7 +55,7 @@ const AnalyticsInsightsTab: React.FC = () => {
             value="service-lines"
             className="flex items-center gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
           >
-            <Sparkles className="w-4 h-4" />
+            <Star className="w-4 h-4" />
             <span className="font-semibold">Service Lines</span>
           </TabsTrigger>
           <TabsTrigger
