@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Target, BarChart2, BookOpen, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, Target, BarChart2, BookOpen, Settings, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -149,7 +149,7 @@ const TeamManagementPage: React.FC = () => {
                 className="bg-amber-600 hover:bg-amber-700 text-white px-8 py-6 text-lg font-bold uppercase shadow-lg"
                 size="lg"
               >
-                <Sparkles className="h-5 w-5 mr-2" />
+                <Star className="h-5 w-5 mr-2" />
                 View Capability Matrix
               </Button>
             </div>
