@@ -57,10 +57,7 @@ SELECT
   
   -- Motivational Drivers
   md.primary_driver,
-  md.achievement_score,
-  md.affiliation_score,
-  md.autonomy_score,
-  md.influence_score,
+  md.answers as motivational_answers,
   md.id IS NOT NULL as motivational_complete,
   md.assessed_at as motivational_completed_at,
   
