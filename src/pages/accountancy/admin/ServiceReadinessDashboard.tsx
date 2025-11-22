@@ -4,25 +4,42 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
   TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Clock, 
   Target, Users, DollarSign, Calendar, Download, RefreshCw,
-  Zap, Award, BookOpen, BarChart3, Activity
+  Zap, Award, BookOpen, BarChart3, Activity, Loader2
 } from 'lucide-react';
 import { useAccountancyContext } from '@/contexts/AccountancyContext';
 import { supabase } from '@/lib/supabase/client';
-import { advisoryServicesMap, canDeliverService, getTeamCapabilityMatrix } from '@/lib/advisory-services-skills-mapping';
+import { advisoryServicesMap, ServiceLine } from '@/lib/advisory-services-skills-mapping';
 import { useToast } from '@/components/ui/use-toast';
 
+// ====================================================================
+// REAL DATA INTERFACES (from skill_assessments table)
+// ====================================================================
+
+interface SkillAggregation {
+  skillId: string;
+  skillName: string;
+  category: string;
+  serviceLine: string[];
+  requiredLevel: number | null;
+  teamCount: number;
+  avgLevel: number;
+  avgInterest: number;
+  minLevel: number;
+  maxLevel: number;
+}
+
 interface ServiceReadiness {
-  serviceId: string;
-  serviceName: string;
-  interest: number;
-  skillsReadiness: number;
+  service: ServiceLine;
+  interest: number; // Average team interest (1-5) * 20 = percentage
+  skillsReadiness: number; // Percentage of required skills met
   gap: number;
   status: 'ready' | 'partial' | 'not-ready';
   weeksToReady: number;
-  capableMembers: string[];
+  capableMembers: number;
   criticalGaps: string[];
   trainingInvestment: number;
   revenueEnabled: number;
@@ -43,58 +60,101 @@ const ServiceReadinessDashboard: React.FC = () => {
   const { practice } = useAccountancyContext();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [teamMembers, setTeamMembers] = useState<any[]>([]);
-  const [skillAssessments, setSkillAssessments] = useState<any[]>([]);
+  const [skillsOverview, setSkillsOverview] = useState<SkillAggregation[]>([]);
   const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
-    loadData();
+    loadRealData();
   }, [practice?.id]);
 
-  const loadData = async () => {
+  // ====================================================================
+  // LOAD REAL DATA (using proven pattern from team-portal.ts)
+  // ====================================================================
+
+  const loadRealData = async () => {
     if (!practice?.id) return;
 
     try {
       setLoading(true);
 
-      // Load team members
-      const { data: members, error: membersError } = await supabase
+      // Step 1: Get non-test members ONLY
+      const { data: realMembers, error: membersError } = await supabase
         .from('practice_members')
-        .select('*')
+        .select('id')
         .eq('practice_id', practice.id)
-        .eq('is_active', true);
-
+        .or('is_test_account.is.null,is_test_account.eq.false');
+      
       if (membersError) throw membersError;
-
-      // Load all skill assessments
-      const { data: assessments, error: assessmentsError } = await supabase
-        .from('v_member_assessment_overview')
-        .select('*');
-
-      if (assessmentsError) throw assessmentsError;
-
-      // Load skills from invitations (skills assessments)
-      const { data: skillData, error: skillError } = await supabase
-        .from('invitations')
+      
+      const realMemberIds = realMembers?.map(m => m.id) || [];
+      
+      if (realMemberIds.length === 0) {
+        toast({
+          title: 'No Team Members',
+          description: 'No active team members found for analysis.',
+          variant: 'destructive',
+        });
+        setLoading(false);
+        return;
+      }
+      
+      // Step 2: Get assessments ONLY for real members with skill details
+      const { data, error } = await supabase
+        .from('skill_assessments')
         .select(`
-          practice_member_id,
-          assessments
+          skill_id,
+          current_level,
+          interest_level,
+          skill:skills(name, category, service_line, required_level)
         `)
-        .eq('practice_id', practice.id)
-        .eq('type', 'skills');
+        .in('team_member_id', realMemberIds);
+        
+      if (error) throw error;
+      
+      // Step 3: Group by skill and calculate aggregates (EXACTLY like team-portal.ts)
+      const skillMap = new Map<string, any>();
+      
+      data?.forEach((assessment: any) => {
+        const skillId = assessment.skill_id;
+        if (!skillMap.has(skillId)) {
+          skillMap.set(skillId, {
+            skill: assessment.skill,
+            levels: [],
+            interests: [],
+          });
+        }
+        
+        const entry = skillMap.get(skillId);
+        entry.levels.push(assessment.current_level);
+        entry.interests.push(assessment.interest_level);
+      });
+      
+      // Step 4: Calculate statistics
+      const overview = Array.from(skillMap.entries()).map(([skillId, data]) => ({
+        skillId,
+        skillName: data.skill?.name || 'Unknown',
+        category: data.skill?.category || 'Uncategorized',
+        serviceLine: data.skill?.service_line || [],
+        requiredLevel: data.skill?.required_level,
+        teamCount: data.levels.length,
+        avgLevel: data.levels.reduce((a: number, b: number) => a + b, 0) / data.levels.length,
+        avgInterest: data.interests.reduce((a: number, b: number) => a + b, 0) / data.interests.length,
+        minLevel: Math.min(...data.levels),
+        maxLevel: Math.max(...data.levels),
+      }));
 
-      if (skillError) throw skillError;
+      setSkillsOverview(overview);
 
-      setTeamMembers(members || []);
-      setSkillAssessments(skillData || []);
-
-      console.log('[ServiceReadiness] Loaded:', {
-        members: members?.length,
-        skills: skillData?.length
+      console.log('✅ [ServiceReadiness] REAL DATA Loaded:', {
+        members: realMemberIds.length,
+        assessments: data?.length,
+        uniqueSkills: overview.length,
+        avgSkillLevel: (overview.reduce((sum, s) => sum + s.avgLevel, 0) / overview.length).toFixed(2),
+        avgInterest: (overview.reduce((sum, s) => sum + s.avgInterest, 0) / overview.length).toFixed(2)
       });
 
     } catch (error: any) {
-      console.error('[ServiceReadiness] Load error:', error);
+      console.error('❌ [ServiceReadiness] Load error:', error);
       toast({
         title: 'Error Loading Data',
         description: error.message,
@@ -105,138 +165,173 @@ const ServiceReadinessDashboard: React.FC = () => {
     }
   };
 
-  // Calculate service readiness
-  const serviceReadiness = useMemo((): ServiceReadiness[] => {
-    if (!teamMembers.length || !skillAssessments.length) return [];
+  // ====================================================================
+  // CALCULATE SERVICE READINESS (using REAL skill assessments)
+  // ====================================================================
 
-    // Mock interests from your document
-    const serviceInterests: Record<string, number> = {
-      'management-accounts': 95,
-      '365-alignment': 100,
-      'profit-extraction': 90,
-      'advisory-accelerator': 85,
-      'automation': 80,
-      'benchmarking': 70,
-      'systems-audit': 60
-    };
+  const serviceReadiness = useMemo((): ServiceReadiness[] => {
+    if (skillsOverview.length === 0) return [];
 
     return advisoryServicesMap.map(service => {
-      // Calculate team capability
-      const teamSkills = skillAssessments.map(sa => ({
-        skillName: '', // TODO: Map actual skill names
-        level: 0
-      }));
+      let totalInterest = 0;
+      let totalSkillMatch = 0;
+      let totalRequiredSkills = service.requiredSkills.length;
+      let skillsAssessed = 0;
 
-      const capability = getTeamCapabilityMatrix([{
-        id: 'team',
-        name: 'Team',
-        role: 'Team',
-        skills: teamSkills
-      }]);
+      // For each required skill in this service
+      service.requiredSkills.forEach(requiredSkill => {
+        // Find the skill in our aggregated data
+        const skillData = skillsOverview.find(s => s.skillName === requiredSkill.skillName);
+        
+        if (skillData) {
+          skillsAssessed++;
+          totalInterest += skillData.avgInterest;
+          
+          // Check if team average meets minimum requirement
+          if (skillData.avgLevel >= requiredSkill.minimumLevel) {
+            totalSkillMatch++;
+          }
+        }
+      });
 
-      const serviceCapability = capability.find(c => c.serviceLine.id === service.id);
-      const interest = serviceInterests[service.id] || 50;
+      // Calculate percentages
+      const interestPercentage = skillsAssessed > 0 
+        ? (totalInterest / skillsAssessed / 5) * 100 // Interest is 1-5 scale
+        : 0;
       
-      // Simplified readiness calculation
-      const skillsReadiness = serviceCapability?.capableMembers.length 
-        ? 100 
-        : serviceCapability?.partialCapableMembers.length 
-        ? 60 
-        : 30;
+      const skillsReadinessPercentage = totalRequiredSkills > 0
+        ? (totalSkillMatch / totalRequiredSkills) * 100
+        : 0;
 
-      const gap = interest - skillsReadiness;
-      
+      const gap = interestPercentage - skillsReadinessPercentage;
+
+      // Determine status and weeks to ready
       let status: 'ready' | 'partial' | 'not-ready' = 'not-ready';
       let weeksToReady = 12;
       
-      if (skillsReadiness >= 80) {
+      if (skillsReadinessPercentage >= 80) {
         status = 'ready';
         weeksToReady = 0;
-      } else if (skillsReadiness >= 60) {
+      } else if (skillsReadinessPercentage >= 60) {
         status = 'partial';
         weeksToReady = 4;
+      } else if (skillsReadinessPercentage >= 40) {
+        weeksToReady = 6;
       } else {
-        weeksToReady = 8;
+        weeksToReady = 12;
       }
+
+      // Identify critical gaps (skills where team avg is below minimum)
+      const criticalGaps = service.requiredSkills
+        .filter(req => {
+          const skillData = skillsOverview.find(s => s.skillName === req.skillName);
+          return skillData && skillData.avgLevel < req.minimumLevel && req.criticalToDelivery;
+        })
+        .map(req => req.skillName)
+        .slice(0, 3);
+
+      // Calculate training investment based on gap
+      const trainingInvestment = Math.round(gap * 200); // £200 per percentage point gap
+
+      // Estimate revenue (this should come from service pricing data)
+      const revenueEnabled = service.id === 'management-accounts' ? 40000 
+        : service.id === '365-alignment' ? 18000
+        : service.id === 'profit-extraction' ? 16000
+        : service.id === 'advisory-accelerator' ? 15000
+        : service.id === 'automation' ? 12000
+        : service.id === 'benchmarking' ? 10000
+        : 8000;
 
       return {
-        serviceId: service.id,
-        serviceName: service.name,
-        interest,
-        skillsReadiness,
-        gap,
+        service,
+        interest: Math.round(interestPercentage),
+        skillsReadiness: Math.round(skillsReadinessPercentage),
+        gap: Math.round(gap),
         status,
         weeksToReady,
-        capableMembers: serviceCapability?.capableMembers || [],
-        criticalGaps: service.requiredSkills
-          .filter(s => s.criticalToDelivery)
-          .map(s => s.skillName)
-          .slice(0, 3),
-        trainingInvestment: Math.round(gap * 250), // £250 per % gap
-        revenueEnabled: service.id === 'management-accounts' ? 40000 
-          : service.id === '365-alignment' ? 18000
-          : service.id === 'profit-extraction' ? 16000
-          : service.id === 'advisory-accelerator' ? 15000
-          : 10000
+        capableMembers: skillsAssessed,
+        criticalGaps,
+        trainingInvestment,
+        revenueEnabled,
       };
     });
-  }, [teamMembers, skillAssessments]);
+  }, [skillsOverview]);
 
-  // Calculate critical skill gaps
+  // ====================================================================
+  // CALCULATE CRITICAL SKILL GAPS (using REAL data)
+  // ====================================================================
+
   const criticalSkillGaps = useMemo((): SkillGap[] => {
-    return [
-      {
-        skillName: 'Board Presentation',
-        teamAverage: 3,
-        requiredLevel: 5,
-        gap: 2,
-        priority: 'critical',
-        servicesBlocked: ['Profit Extraction', 'CFO', 'Advisory'],
-        peopleNeed: 4,
-        trainingCost: 3000
-      },
-      {
-        skillName: 'Strategic Options Appraisal',
-        teamAverage: 2.5,
-        requiredLevel: 5,
-        gap: 2.5,
-        priority: 'critical',
-        servicesBlocked: ['CFO', 'Advisory', '365'],
-        peopleNeed: 6,
-        trainingCost: 4000
-      },
-      {
-        skillName: 'Business Valuations',
-        teamAverage: 2.5,
-        requiredLevel: 4,
-        gap: 1.5,
-        priority: 'critical',
-        servicesBlocked: ['Profit Extraction', 'Advisory'],
-        peopleNeed: 2,
-        trainingCost: 3000
-      },
-      {
-        skillName: 'Financial Statements Prep',
-        teamAverage: 3.5,
-        requiredLevel: 5,
-        gap: 1.5,
-        priority: 'high',
-        servicesBlocked: ['Management Accounts'],
-        peopleNeed: 1,
-        trainingCost: 500
-      },
-      {
-        skillName: 'Three-way Forecasting',
-        teamAverage: 3.5,
-        requiredLevel: 5,
-        gap: 1.5,
-        priority: 'high',
-        servicesBlocked: ['CFO', 'Advisory'],
-        peopleNeed: 3,
-        trainingCost: 2000
+    if (skillsOverview.length === 0) return [];
+
+    // Get all unique skills across all services
+    const allRequiredSkills = new Set<string>();
+    advisoryServicesMap.forEach(service => {
+      service.requiredSkills.forEach(req => allRequiredSkills.add(req.skillName));
+    });
+
+    const gaps: SkillGap[] = [];
+
+    allRequiredSkills.forEach(skillName => {
+      // Find this skill in our aggregated data
+      const skillData = skillsOverview.find(s => s.skillName === skillName);
+      if (!skillData) return;
+
+      // Find all services that require this skill
+      const servicesRequiring = advisoryServicesMap.filter(service =>
+        service.requiredSkills.some(req => req.skillName === skillName)
+      );
+
+      // Get the highest required level across all services
+      const maxRequiredLevel = Math.max(
+        ...servicesRequiring.flatMap(service =>
+          service.requiredSkills
+            .filter(req => req.skillName === skillName)
+            .map(req => req.idealLevel)
+        )
+      );
+
+      const gap = maxRequiredLevel - skillData.avgLevel;
+
+      // Only include if there's actually a gap
+      if (gap <= 0) return;
+
+      // Determine priority
+      let priority: 'critical' | 'high' | 'medium' | 'low' = 'medium';
+      const isCritical = servicesRequiring.some(service =>
+        service.requiredSkills.some(req => req.skillName === skillName && req.criticalToDelivery)
+      );
+
+      if (isCritical && gap >= 2) priority = 'critical';
+      else if (isCritical && gap >= 1) priority = 'high';
+      else if (gap >= 2) priority = 'high';
+
+      gaps.push({
+        skillName,
+        teamAverage: Math.round(skillData.avgLevel * 10) / 10,
+        requiredLevel: maxRequiredLevel,
+        gap: Math.round(gap * 10) / 10,
+        priority,
+        servicesBlocked: servicesRequiring.map(s => s.name),
+        peopleNeed: skillData.teamCount, // Number of people who have been assessed
+        trainingCost: Math.round(gap * 1000), // £1000 per skill level gap
+      });
+    });
+
+    // Sort by priority and gap
+    return gaps.sort((a, b) => {
+      const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+      if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
+        return priorityOrder[a.priority] - priorityOrder[b.priority];
       }
-    ];
-  }, []);
+      return b.gap - a.gap;
+    }).slice(0, 10); // Top 10 gaps
+
+  }, [skillsOverview]);
+
+  // ====================================================================
+  // AGGREGATE METRICS
+  // ====================================================================
 
   const totalInvestmentNeeded = useMemo(() => {
     return criticalSkillGaps.reduce((sum, gap) => sum + gap.trainingCost, 0);
@@ -246,11 +341,35 @@ const ServiceReadinessDashboard: React.FC = () => {
     return serviceReadiness.reduce((sum, service) => sum + service.revenueEnabled, 0);
   }, [serviceReadiness]);
 
+  // ====================================================================
+  // RENDER
+  // ====================================================================
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <RefreshCw className="w-12 h-12 animate-spin text-blue-600" />
+        <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
+        <p className="ml-4 text-gray-600">Loading REAL team skills data...</p>
       </div>
+    );
+  }
+
+  if (skillsOverview.length === 0) {
+    return (
+      <Card className="border-4 border-red-500">
+        <CardHeader>
+          <CardTitle className="text-red-900">No Skills Data Found</CardTitle>
+          <CardDescription>
+            No skill assessments have been completed yet. Team members need to complete their skills assessments first.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={loadRealData}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Try Again
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -266,7 +385,7 @@ const ServiceReadinessDashboard: React.FC = () => {
                 Service Launch Readiness Analysis
               </CardTitle>
               <CardDescription className="text-lg mt-2">
-                Strategic skills gap analysis • Training investment ROI • Launch timeline
+                Based on {skillsOverview.length} assessed skills from {skillsOverview[0]?.teamCount || 0} team members
               </CardDescription>
             </div>
             <div className="text-right">
@@ -330,7 +449,7 @@ const ServiceReadinessDashboard: React.FC = () => {
               <TrendingUp className="w-8 h-8 text-purple-600" />
               <div>
                 <div className="text-2xl font-black">
-                  {Math.round((totalRevenueEnabled / totalInvestmentNeeded) * 10) / 10}x
+                  {totalInvestmentNeeded > 0 ? Math.round((totalRevenueEnabled / totalInvestmentNeeded) * 10) / 10 : 0}x
                 </div>
                 <div className="text-sm text-gray-600 font-semibold">6-Month ROI</div>
               </div>
@@ -345,7 +464,7 @@ const ServiceReadinessDashboard: React.FC = () => {
           <TabsTrigger value="overview">Service Overview</TabsTrigger>
           <TabsTrigger value="skills">Skills Heat Map</TabsTrigger>
           <TabsTrigger value="investment">Training Investment</TabsTrigger>
-          <TabsTrigger value="timeline">Launch Timeline</TabsTrigger>
+          <TabsTrigger value="data">Raw Data</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -354,16 +473,16 @@ const ServiceReadinessDashboard: React.FC = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="w-5 h-5" />
-                Service Launch Readiness Matrix
+                Service Launch Readiness Matrix (REAL DATA)
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {serviceReadiness.map(service => (
-                  <div key={service.serviceId} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                  <div key={service.service.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <h3 className="text-lg font-bold">{service.serviceName}</h3>
+                        <h3 className="text-lg font-bold">{service.service.name}</h3>
                         <Badge 
                           className={
                             service.status === 'ready' ? 'bg-green-600' :
@@ -441,7 +560,7 @@ const ServiceReadinessDashboard: React.FC = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="w-5 h-5" />
-                Critical Skills Heat Map
+                Critical Skills Heat Map (REAL DATA)
               </CardTitle>
               <CardDescription>
                 Current team average vs required level • Sorted by business priority
@@ -461,7 +580,7 @@ const ServiceReadinessDashboard: React.FC = () => {
                         <div>
                           <h3 className="text-lg font-bold">{gap.skillName}</h3>
                           <div className="text-sm text-gray-600">
-                            {gap.peopleNeed} people need training • Blocks {gap.servicesBlocked.length} services
+                            {gap.peopleNeed} people assessed • Blocks {gap.servicesBlocked.length} services
                           </div>
                         </div>
                       </div>
@@ -532,168 +651,103 @@ const ServiceReadinessDashboard: React.FC = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <DollarSign className="w-5 h-5" />
-                Training Investment & ROI Analysis
+                Training Investment Plan (AUTO-CALCULATED)
               </CardTitle>
+              <CardDescription>
+                Based on skill gaps identified in your team's assessments
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                {/* Phase breakdown */}
-                <div className="space-y-3">
-                  <div className="border rounded-lg p-4 bg-red-50">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-lg font-bold text-red-900">Immediate Phase (Weeks 1-2)</h3>
-                      <div className="text-2xl font-black text-red-600">£3,500</div>
-                    </div>
-                    <div className="text-sm space-y-1">
-                      <div>• Board Presentation Bootcamp (£3,000)</div>
-                      <div>• Financial Statements Verification (£500)</div>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-red-200">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-red-800 font-semibold">Revenue Enabled:</span>
-                        <span className="font-bold text-green-600">£3,000 MRR</span>
-                      </div>
-                    </div>
-                  </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Skill</TableHead>
+                    <TableHead>Gap</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>People</TableHead>
+                    <TableHead className="text-right">Investment</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {criticalSkillGaps.map((gap, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{gap.skillName}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">-{gap.gap.toFixed(1)} levels</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={
+                          gap.priority === 'critical' ? 'bg-red-600' :
+                          gap.priority === 'high' ? 'bg-amber-600' :
+                          'bg-yellow-600'
+                        }>
+                          {gap.priority}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{gap.peopleNeed}</TableCell>
+                      <TableCell className="text-right font-bold text-blue-600">
+                        £{gap.trainingCost.toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="bg-blue-50 font-bold">
+                    <TableCell colSpan={4}>TOTAL INVESTMENT</TableCell>
+                    <TableCell className="text-right text-blue-600 text-lg">
+                      £{totalInvestmentNeeded.toLocaleString()}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
 
-                  <div className="border rounded-lg p-4 bg-amber-50">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-lg font-bold text-amber-900">Short-term Phase (Weeks 3-4)</h3>
-                      <div className="text-2xl font-black text-amber-600">£5,500</div>
-                    </div>
-                    <div className="text-sm space-y-1">
-                      <div>• Strategic Options Workshop (£4,000)</div>
-                      <div>• Executive Writing Skills (£1,500)</div>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-amber-200">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-amber-800 font-semibold">Revenue Enabled:</span>
-                        <span className="font-bold text-green-600">£9,500 MRR</span>
-                      </div>
-                    </div>
+              <div className="mt-6 border-4 border-green-600 rounded-lg p-6 bg-green-50">
+                <div className="text-center space-y-3">
+                  <div className="text-sm text-gray-600 font-semibold">PROJECTED ANNUAL REVENUE</div>
+                  <div className="text-5xl font-black text-green-600">
+                    £{(totalRevenueEnabled * 12 / 1000).toFixed(0)}k
                   </div>
-
-                  <div className="border rounded-lg p-4 bg-green-50">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-lg font-bold text-green-900">Medium-term Phase (Month 2-3)</h3>
-                      <div className="text-2xl font-black text-green-600">£7,500</div>
-                    </div>
-                    <div className="text-sm space-y-1">
-                      <div>• Business Valuations Certification (£3,000)</div>
-                      <div>• Power BI Training (£1,500)</div>
-                      <div>• MEdirisinghe Fast-track (£3,000 upfront)</div>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-green-200">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-green-800 font-semibold">Revenue Enabled:</span>
-                        <span className="font-bold text-green-600">£22,500 MRR</span>
-                      </div>
-                    </div>
-                  </div>
+                  <div className="text-sm text-gray-600">from {serviceReadiness.length} services</div>
                 </div>
-
-                {/* ROI Summary */}
-                <Card className="border-4 border-blue-600 bg-blue-50">
-                  <CardContent className="pt-6">
-                    <div className="text-center space-y-3">
-                      <div>
-                        <div className="text-sm text-gray-600 font-semibold">TOTAL INVESTMENT</div>
-                        <div className="text-5xl font-black text-blue-600">£16,500</div>
-                      </div>
-                      <div className="text-4xl font-black text-gray-400">↓</div>
-                      <div>
-                        <div className="text-sm text-gray-600 font-semibold">6-MONTH MRR ENABLED</div>
-                        <div className="text-5xl font-black text-green-600">£89,000</div>
-                      </div>
-                      <div className="text-4xl font-black text-gray-400">↓</div>
-                      <div>
-                        <div className="text-sm text-gray-600 font-semibold">ANNUAL REVENUE IMPACT</div>
-                        <div className="text-5xl font-black text-purple-600">£1.07M</div>
-                      </div>
-                      <div className="pt-4 border-t-4 border-blue-300">
-                        <div className="text-sm text-gray-600 font-semibold">ROI</div>
-                        <div className="text-6xl font-black text-orange-600">65x</div>
-                        <div className="text-sm text-gray-600 mt-1">(Annual)</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Timeline Tab */}
-        <TabsContent value="timeline" className="space-y-4">
+        {/* Raw Data Tab */}
+        <TabsContent value="data" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="w-5 h-5" />
-                Service Launch Timeline
-              </CardTitle>
+              <CardTitle>Raw Skills Data ({skillsOverview.length} skills assessed)</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {/* Week 1 */}
-                <div className="border-l-4 border-green-600 pl-4">
-                  <div className="font-black text-lg mb-2">✓ Week 1 - LAUNCH NOW</div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                      <span className="font-bold">Management Accounts</span>
-                      <Badge className="bg-green-600">READY</Badge>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Week 3 */}
-                <div className="border-l-4 border-amber-600 pl-4">
-                  <div className="font-black text-lg mb-2">Week 3 - AFTER TRAINING</div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-amber-600" />
-                      <span className="font-bold">Profit Extraction</span>
-                      <Badge className="bg-amber-600">TRAINING NEEDED</Badge>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Week 4 */}
-                <div className="border-l-4 border-amber-600 pl-4">
-                  <div className="font-black text-lg mb-2">Week 4 - AFTER TRAINING</div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-amber-600" />
-                      <span className="font-bold">Fractional CFO</span>
-                      <Badge className="bg-amber-600">JEREMY READY, TEAM NEEDS DEV</Badge>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Week 6 */}
-                <div className="border-l-4 border-orange-600 pl-4">
-                  <div className="font-black text-lg mb-2">Week 6 - SIGNIFICANT TRAINING</div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-orange-600" />
-                      <span className="font-bold">365 Alignment</span>
-                      <Badge className="bg-orange-600">6 WEEKS NEEDED</Badge>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Month 3 */}
-                <div className="border-l-4 border-red-600 pl-4">
-                  <div className="font-black text-lg mb-2">Month 3 - MAJOR DEVELOPMENT</div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-red-600" />
-                      <span className="font-bold">Advisory Accelerator</span>
-                      <Badge className="bg-red-600">12 WEEKS NEEDED</Badge>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Skill</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Team Avg Level</TableHead>
+                    <TableHead>Avg Interest</TableHead>
+                    <TableHead>People Assessed</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {skillsOverview
+                    .sort((a, b) => b.avgLevel - a.avgLevel)
+                    .slice(0, 20)
+                    .map((skill, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{skill.skillName}</TableCell>
+                      <TableCell>{skill.category}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{skill.avgLevel.toFixed(1)}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{skill.avgInterest.toFixed(1)}</Badge>
+                      </TableCell>
+                      <TableCell>{skill.teamCount}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </TabsContent>
@@ -705,7 +759,7 @@ const ServiceReadinessDashboard: React.FC = () => {
           <Download className="w-5 h-5 mr-2" />
           Export Report for Jeremy
         </Button>
-        <Button variant="outline" size="lg" onClick={loadData}>
+        <Button variant="outline" size="lg" onClick={loadRealData}>
           <RefreshCw className="w-5 h-5 mr-2" />
           Refresh Data
         </Button>
@@ -715,4 +769,3 @@ const ServiceReadinessDashboard: React.FC = () => {
 };
 
 export default ServiceReadinessDashboard;
-
