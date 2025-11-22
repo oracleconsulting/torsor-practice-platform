@@ -1,27 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Award, BookOpen, TrendingUp, BarChart2, Mail, LayoutDashboard, Target, Users, CheckCircle, CheckCircle2, Sparkles, Brain, ActivitySquare, Ticket, UserCircle, Briefcase } from 'lucide-react';
+import { LayoutDashboard, Users, Target, BarChart2, BookOpen, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import CPDTrackerPage from './team/CPDTrackerPage';
-import SkillsDashboardV2Page from './team/SkillsDashboardV2Page';
-import KPIManagementPage from './team/KPIManagementPage';
-import KnowledgeBasePage from './team/KnowledgeBasePage';
-import InvitationsPage from './team/InvitationsPage';
-import AdminDashboardPage from './team/AdminDashboardPage';
-import TrainingRecommendationsPage from './team/TrainingRecommendationsPage';
-import MentoringHubPage from './team/MentoringHubPage';
-import AnalyticsDashboardPage from './team/AnalyticsDashboardPage';
-import SkillsManagementPage from './team/SkillsManagementPage';
-import AISettingsPage from './admin/AISettingsPage';
-import TeamAssessmentsSimple from './admin/TeamAssessmentsSimple';
-import MyAssessmentsPanel from './admin/MyAssessmentsPanel';
-import ServiceLinePreferencesAdmin from './admin/ServiceLinePreferencesAdmin';
-import TicketsAdmin from './admin/TicketsAdmin';
-import IndividualAssessmentProfilesPage from './admin/IndividualAssessmentProfilesPage';
-import RoleDefinitionsAdminPanel from './admin/RoleDefinitionsAdminPanel';
+import DashboardTab from './admin/tabs/DashboardTab';
+import TeamAssessmentsTab from './admin/tabs/TeamAssessmentsTab';
+import SkillsDevelopmentTab from './admin/tabs/SkillsDevelopmentTab';
+import AnalyticsInsightsTab from './admin/tabs/AnalyticsInsightsTab';
+import KnowledgeSupportTab from './admin/tabs/KnowledgeSupportTab';
+import SettingsTab from './admin/tabs/SettingsTab';
 
 // Visual Pattern Components
 const DiagonalPattern = () => (
@@ -64,7 +52,7 @@ const GeometricShape = () => (
 const TeamManagementPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState('invitations');
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   // Read tab from URL params on mount and when params change
   useEffect(() => {
@@ -74,119 +62,49 @@ const TeamManagementPage: React.FC = () => {
     }
   }, [searchParams]);
 
+  // SIMPLIFIED: 6 core tabs instead of 17!
   const tabs = [
     {
-      value: 'invitations',
-      label: 'TEAM INVITATIONS',
-      icon: Mail,
-      component: InvitationsPage,
-    },
-    {
-      value: 'my-assessments',
-      label: 'MY ASSESSMENTS',
-      icon: CheckCircle2,
-      component: MyAssessmentsPanel,
-      badge: 'YOU',
-    },
-    {
       value: 'dashboard',
-      label: 'ADMIN DASHBOARD',
+      label: 'DASHBOARD',
       icon: LayoutDashboard,
-      component: AdminDashboardPage,
+      component: DashboardTab,
+      description: 'Overview & quick actions'
     },
     {
-      value: 'advisory',
-      label: 'ADVISORY SKILLS',
-      icon: TrendingUp,
-      component: SkillsDashboardV2Page,
-      badge: 'V2',
-    },
-    {
-      value: 'training',
-      label: 'TRAINING',
-      icon: Target,
-      component: TrainingRecommendationsPage,
-      badge: 'NEW',
-    },
-    {
-      value: 'mentoring',
-      label: 'MENTORING',
+      value: 'team',
+      label: 'TEAM & ASSESSMENTS',
       icon: Users,
-      component: MentoringHubPage,
-      badge: 'NEW',
-    },
-    {
-      value: 'analytics',
-      label: 'ANALYTICS',
-      icon: BarChart2,
-      component: AnalyticsDashboardPage,
-      badge: 'NEW',
+      component: TeamAssessmentsTab,
+      description: 'Invitations, assessments, profiles'
     },
     {
       value: 'skills',
-      label: 'SKILLS MANAGEMENT',
+      label: 'SKILLS & DEVELOPMENT',
       icon: Target,
-      component: SkillsManagementPage,
-      badge: 'NEW',
+      component: SkillsDevelopmentTab,
+      description: 'Skills, training, mentoring, CPD'
     },
     {
-      value: 'cpd',
-      label: 'CPD TRACKER',
-      icon: Award,
-      component: CPDTrackerPage,
-    },
-    {
-      value: 'kpi',
-      label: 'KPI MANAGEMENT',
+      value: 'analytics',
+      label: 'ANALYTICS & INSIGHTS',
       icon: BarChart2,
-      component: KPIManagementPage,
+      component: AnalyticsInsightsTab,
+      description: 'Analytics, KPIs, service lines'
     },
     {
       value: 'knowledge',
-      label: 'KNOWLEDGE BASE',
+      label: 'KNOWLEDGE & SUPPORT',
       icon: BookOpen,
-      component: KnowledgeBasePage,
+      component: KnowledgeSupportTab,
+      description: 'Knowledge base & tickets'
     },
     {
-      value: 'ai-settings',
-      label: 'AI SETTINGS',
-      icon: Brain,
-      component: AISettingsPage,
-      badge: 'NEW',
-    },
-    {
-      value: 'assessment-insights',
-      label: 'ASSESSMENT INSIGHTS',
-      icon: ActivitySquare,
-      component: TeamAssessmentsSimple,
-      badge: 'SIMPLE',
-    },
-    {
-      value: 'individual-profiles',
-      label: 'INDIVIDUAL PROFILES',
-      icon: UserCircle,
-      component: IndividualAssessmentProfilesPage,
-      badge: 'NEW',
-    },
-    {
-      value: 'role-definitions',
-      label: 'ROLE DEFINITIONS',
-      icon: Briefcase,
-      component: RoleDefinitionsAdminPanel,
-      badge: 'NEW',
-    },
-    {
-      value: 'service-lines',
-      label: 'SERVICE LINE PREFERENCES',
-      icon: Sparkles,
-      component: ServiceLinePreferencesAdmin,
-      badge: 'STRATEGY',
-    },
-    {
-      value: 'tickets',
-      label: 'TICKETS',
-      icon: Ticket,
-      component: TicketsAdmin,
+      value: 'settings',
+      label: 'SETTINGS',
+      icon: Settings,
+      component: SettingsTab,
+      description: 'AI & system configuration'
     },
   ];
 
@@ -241,72 +159,26 @@ const TeamManagementPage: React.FC = () => {
       
       {/* Page Content */}
       <div className="relative z-10 container mx-auto px-6 py-8">
-        {/* Tabs */}
+        {/* Tabs - SIMPLIFIED: Single row with 6 tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          {/* Tab Buttons - 3 Rows */}
-          <div className="flex flex-col gap-3 max-w-6xl mx-auto">
-            {/* Row 1 - First 5 tabs */}
-            <TabsList className="grid grid-cols-5 gap-2 bg-[#1a2b4a] p-2 border-2 border-[#ff6b35] h-auto">
-              {tabs.slice(0, 5).map((tab) => (
-                <TabsTrigger
-                  key={tab.value}
-                  value={tab.value}
-                  className="flex flex-col items-center justify-center gap-2 p-3 h-20 data-[state=active]:bg-[#ff6b35] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#1a2b4a] font-bold transition-all duration-200 relative rounded hover:bg-[#ff6b35]/90 hover:text-white"
-                >
-                  {tab.badge && (
-                    <Badge className="absolute -top-1 -right-1 bg-green-500 text-white text-xs px-1.5 py-0.5">
-                      {tab.badge}
-                    </Badge>
-                  )}
-                  <tab.icon className="w-6 h-6" />
-                  <span className="text-xs font-bold uppercase leading-tight text-center">{tab.label}</span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
+          <TabsList className="grid grid-cols-6 gap-3 bg-[#1a2b4a] p-3 border-4 border-[#ff6b35] h-auto max-w-7xl mx-auto rounded-lg shadow-2xl">
+            {tabs.map((tab) => (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className="flex flex-col items-center justify-center gap-2 p-4 h-24 data-[state=active]:bg-[#ff6b35] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#1a2b4a] font-bold transition-all duration-200 rounded-lg hover:bg-[#ff6b35]/90 hover:text-white shadow-md"
+              >
+                <tab.icon className="w-7 h-7" />
+                <div className="text-center">
+                  <div className="text-sm font-black uppercase leading-tight">{tab.label}</div>
+                  <div className="text-[10px] font-normal mt-0.5 opacity-75">{tab.description}</div>
+                </div>
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-            {/* Row 2 - Next 5 tabs */}
-            <TabsList className="grid grid-cols-5 gap-2 bg-[#1a2b4a] p-2 border-2 border-[#ff6b35] h-auto">
-              {tabs.slice(5, 10).map((tab) => (
-                <TabsTrigger
-                  key={tab.value}
-                  value={tab.value}
-                  className="flex flex-col items-center justify-center gap-2 p-3 h-20 data-[state=active]:bg-[#ff6b35] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#1a2b4a] font-bold transition-all duration-200 relative rounded hover:bg-[#ff6b35]/90 hover:text-white"
-                >
-                  {tab.badge && (
-                    <Badge className="absolute -top-1 -right-1 bg-green-500 text-white text-xs px-1.5 py-0.5">
-                      {tab.badge}
-                    </Badge>
-                  )}
-                  <tab.icon className="w-6 h-6" />
-                  <span className="text-xs font-bold uppercase leading-tight text-center">{tab.label}</span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-
-            {/* Row 3 - Last 2 tabs (AI Settings & Assessment Insights) */}
-            {tabs.length > 10 && (
-              <TabsList className="grid grid-cols-5 gap-2 bg-[#1a2b4a] p-2 border-2 border-[#ff6b35] h-auto">
-                {tabs.slice(10).map((tab) => (
-                  <TabsTrigger
-                    key={tab.value}
-                    value={tab.value}
-                    className="flex flex-col items-center justify-center gap-2 p-3 h-20 data-[state=active]:bg-[#ff6b35] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:text-[#1a2b4a] font-bold transition-all duration-200 relative rounded hover:bg-[#ff6b35]/90 hover:text-white"
-                  >
-                    {tab.badge && (
-                      <Badge className="absolute -top-1 -right-1 bg-green-500 text-white text-xs px-1.5 py-0.5">
-                        {tab.badge}
-                      </Badge>
-                    )}
-                    <tab.icon className="w-6 h-6" />
-                    <span className="text-xs font-bold uppercase leading-tight text-center">{tab.label}</span>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            )}
-          </div>
-
-          {/* Tab Content Below */}
-          <div className="mt-6">
+          {/* Tab Content */}
+          <div className="mt-8">
             {tabs.map((tab) => (
               <TabsContent key={tab.value} value={tab.value} className="m-0">
                 <tab.component />
