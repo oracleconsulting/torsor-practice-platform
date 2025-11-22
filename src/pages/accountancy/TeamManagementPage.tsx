@@ -16,7 +16,7 @@ import MentoringHubPage from './team/MentoringHubPage';
 import AnalyticsDashboardPage from './team/AnalyticsDashboardPage';
 import SkillsManagementPage from './team/SkillsManagementPage';
 import AISettingsPage from './admin/AISettingsPage';
-import TeamAssessmentInsights from './admin/TeamAssessmentInsights';
+import TeamAssessmentsSimple from './admin/TeamAssessmentsSimple';
 import MyAssessmentsPanel from './admin/MyAssessmentsPanel';
 import ServiceLinePreferencesAdmin from './admin/ServiceLinePreferencesAdmin';
 import TicketsAdmin from './admin/TicketsAdmin';
@@ -158,8 +158,8 @@ const TeamManagementPage: React.FC = () => {
       value: 'assessment-insights',
       label: 'ASSESSMENT INSIGHTS',
       icon: ActivitySquare,
-      component: TeamAssessmentInsights,
-      badge: 'NEW',
+      component: TeamAssessmentsSimple,
+      badge: 'SIMPLE',
     },
     {
       value: 'individual-profiles',

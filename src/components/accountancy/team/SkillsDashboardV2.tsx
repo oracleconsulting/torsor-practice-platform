@@ -42,7 +42,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 // Lazy load heavy components
 const SkillsMatrix = lazy(() => import('./SkillsMatrix'));
-const GapAnalysis = lazy(() => import('./GapAnalysis'));
+// const GapAnalysis = lazy(() => import('./GapAnalysis')); // Removed - too complex
 
 // Types
 export interface SkillsDashboardV2Props {
@@ -564,8 +564,8 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                       </CardContent>
                     </Card>
 
-                    {/* Gap Analysis */}
-                    {teamMembers.length > 0 && skillCategories.length > 0 ? (
+                    {/* Gap Analysis - Removed for simplification */}
+                    {/* teamMembers.length > 0 && skillCategories.length > 0 ? (
                       <Suspense fallback={<Skeleton className="h-96 w-full" />}>
                         <GapAnalysis
                           teamMembers={teamMembers.filter(m => m && m.id)}
@@ -574,7 +574,7 @@ const SkillsDashboardV2: React.FC<SkillsDashboardV2Props> = ({
                           priorityAlgorithm="weighted"
                         />
                       </Suspense>
-                    ) : null}
+                    ) : null */}
                   </CardContent>
                 </AccordionContent>
               </Card>
