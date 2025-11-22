@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { BarChart2, TrendingUp, Star, Briefcase } from 'lucide-react';
+import { BarChart2, TrendingUp, Star, Briefcase, Target } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AnalyticsDashboardPage from '../../team/AnalyticsDashboardPage';
 import KPIManagementPage from '../../team/KPIManagementPage';
 import ServiceLinePreferencesAdmin from '../ServiceLinePreferencesAdmin';
 import RoleDefinitionsAdminPanel from '../RoleDefinitionsAdminPanel';
+import ServiceReadinessDashboard from '../ServiceReadinessDashboard';
 
 /**
  * Analytics & Insights Tab - All analytics, KPIs, and strategic insights
@@ -17,7 +18,7 @@ import RoleDefinitionsAdminPanel from '../RoleDefinitionsAdminPanel';
  * - ROLE DEFINITIONS
  */
 const AnalyticsInsightsTab: React.FC = () => {
-  const [activeSubTab, setActiveSubTab] = useState('analytics');
+  const [activeSubTab, setActiveSubTab] = useState('readiness');
 
   return (
     <div className="space-y-6">
@@ -36,7 +37,14 @@ const AnalyticsInsightsTab: React.FC = () => {
 
       {/* Sub-navigation */}
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="space-y-4">
-        <TabsList className="grid grid-cols-4 gap-2 bg-gray-100 p-2 rounded-lg">
+        <TabsList className="grid grid-cols-5 gap-2 bg-gray-100 p-2 rounded-lg">
+          <TabsTrigger
+            value="readiness"
+            className="flex items-center gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+          >
+            <Target className="w-4 h-4" />
+            <span className="font-semibold">Service Readiness</span>
+          </TabsTrigger>
           <TabsTrigger
             value="analytics"
             className="flex items-center gap-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
@@ -66,6 +74,10 @@ const AnalyticsInsightsTab: React.FC = () => {
             <span className="font-semibold">Role Definitions</span>
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="readiness">
+          <ServiceReadinessDashboard />
+        </TabsContent>
 
         <TabsContent value="analytics">
           <AnalyticsDashboardPage />
