@@ -17,20 +17,25 @@ SELECT
   pm.practice_id,
   
   -- VARK Learning Style
-  lp.primary_style as vark_style,
+  lp.learning_type as vark_style,
   lp.visual_score,
   lp.auditory_score,
-  lp.reading_score,
+  lp.read_write_score,
   lp.kinesthetic_score,
+  lp.visual_percentage,
+  lp.auditory_percentage,
+  lp.read_write_percentage,
+  lp.kinesthetic_percentage,
+  lp.dominant_styles,
   lp.id IS NOT NULL as vark_complete,
-  lp.completed_at as vark_completed_at,
+  lp.assessment_date as vark_completed_at,
   
   -- OCEAN Personality
-  pa.openness,
-  pa.conscientiousness,
-  pa.extraversion,
-  pa.agreeableness,
-  pa.neuroticism,
+  pa.openness_score as openness,
+  pa.conscientiousness_score as conscientiousness,
+  pa.extraversion_score as extraversion,
+  pa.agreeableness_score as agreeableness,
+  pa.neuroticism_score as neuroticism,
   pa.id IS NOT NULL as ocean_complete,
   pa.completed_at as ocean_completed_at,
   
@@ -38,7 +43,7 @@ SELECT
   ba.primary_role as belbin_primary,
   ba.secondary_role as belbin_secondary,
   ba.id IS NOT NULL as belbin_complete,
-  ba.completed_at as belbin_completed_at,
+  ba.assessed_at as belbin_completed_at,
   
   -- Emotional Intelligence
   eq.overall_eq,
@@ -48,7 +53,7 @@ SELECT
   eq.social_awareness_score,
   eq.relationship_management_score,
   eq.id IS NOT NULL as eq_complete,
-  eq.completed_at as eq_completed_at,
+  eq.assessed_at as eq_completed_at,
   
   -- Motivational Drivers
   md.primary_driver,
@@ -57,7 +62,7 @@ SELECT
   md.autonomy_score,
   md.influence_score,
   md.id IS NOT NULL as motivational_complete,
-  md.completed_at as motivational_completed_at,
+  md.assessed_at as motivational_completed_at,
   
   -- Conflict Style
   cs.primary_style as conflict_style,
@@ -67,14 +72,14 @@ SELECT
   cs.avoiding_score,
   cs.accommodating_score,
   cs.id IS NOT NULL as conflict_complete,
-  cs.completed_at as conflict_completed_at,
+  cs.assessed_at as conflict_completed_at,
   
   -- Working Preferences
   wp.communication_style,
   wp.work_style,
   wp.environment as work_environment,
   wp.id IS NOT NULL as working_prefs_complete,
-  wp.completed_at as working_prefs_completed_at,
+  wp.assessed_at as working_prefs_completed_at,
   
   -- Overall Completion Metrics
   (
