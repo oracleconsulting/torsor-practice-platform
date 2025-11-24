@@ -1,0 +1,16 @@
+{
+  "version": "2.0.1",
+  "buildDate": "2025-11-24T22:20:00Z",
+  "fixes": [
+    "Force clean build (rm -rf dist node_modules/.vite)",
+    "Add .limit(10000) to fetch all 1773 skill assessments",
+    "Bust React Query cache with 'v2' key",
+    "Fix horizontal scrolling heatmap layout"
+  ],
+  "expectedBehavior": {
+    "totalAssessments": 1773,
+    "activeSkills": 111,
+    "teamMembers": 16
+  }
+}
+
