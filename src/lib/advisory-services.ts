@@ -73,7 +73,7 @@ export const ADVISORY_SERVICES: ServiceLine[] = [
         recommendedSeniority: ['Manager', 'Senior']
       },
       {
-        skillName: 'Client Relationship Management',
+        skillName: 'Client Retention Strategies',
         minimumLevel: 3,
         idealLevel: 4,
         criticalToDelivery: true,
@@ -140,7 +140,7 @@ export const ADVISORY_SERVICES: ServiceLine[] = [
         recommendedSeniority: ['Director', 'Senior']
       },
       {
-        skillName: 'Financial Modelling & Forecasting',
+        skillName: 'Three-way Forecasting',
         minimumLevel: 4,
         idealLevel: 5,
         criticalToDelivery: true,
@@ -161,7 +161,7 @@ export const ADVISORY_SERVICES: ServiceLine[] = [
         recommendedSeniority: ['Senior', 'Director']
       },
       {
-        skillName: 'Strategic Financial Planning',
+        skillName: 'Strategic Options Appraisal',
         minimumLevel: 3,
         idealLevel: 4,
         criticalToDelivery: false,
@@ -235,7 +235,7 @@ export const ADVISORY_SERVICES: ServiceLine[] = [
         recommendedSeniority: ['Manager', 'Senior']
       },
       {
-        skillName: 'Project Management',
+        skillName: 'Delegation 'Project Management' Prioritisation',
         minimumLevel: 3,
         idealLevel: 4,
         criticalToDelivery: false,
@@ -265,7 +265,7 @@ export const ADVISORY_SERVICES: ServiceLine[] = [
         recommendedSeniority: ['Senior', 'Director']
       },
       {
-        skillName: 'Risk Management',
+        skillName: 'Professional Scepticism',
         minimumLevel: 3,
         idealLevel: 4,
         criticalToDelivery: true,
@@ -281,14 +281,14 @@ export const ADVISORY_SERVICES: ServiceLine[] = [
     deliveryTime: '1-2 weeks',
     requiredSkills: [
       {
-        skillName: 'Tax Planning & Advisory',
+        skillName: 'Corporation Tax',
         minimumLevel: 4,
         idealLevel: 5,
         criticalToDelivery: true,
         recommendedSeniority: ['Director', 'Partner']
       },
       {
-        skillName: 'Strategic Financial Planning',
+        skillName: 'Strategic Options Appraisal',
         minimumLevel: 4,
         idealLevel: 5,
         criticalToDelivery: true,
@@ -311,7 +311,7 @@ export const ADVISORY_SERVICES: ServiceLine[] = [
     deliveryTime: 'Ongoing',
     requiredSkills: [
       {
-        skillName: 'Strategic Financial Planning',
+        skillName: 'Strategic Options Appraisal',
         minimumLevel: 4,
         idealLevel: 5,
         criticalToDelivery: true,
@@ -325,14 +325,14 @@ export const ADVISORY_SERVICES: ServiceLine[] = [
         recommendedSeniority: ['Director', 'Partner']
       },
       {
-        skillName: 'Leadership & Mentoring',
+        skillName: 'Performance Management',
         minimumLevel: 4,
         idealLevel: 5,
         criticalToDelivery: true,
         recommendedSeniority: ['Director', 'Partner']
       },
       {
-        skillName: 'Client Relationship Management',
+        skillName: 'Client Retention Strategies',
         minimumLevel: 4,
         idealLevel: 5,
         criticalToDelivery: true,
@@ -362,14 +362,14 @@ export const ADVISORY_SERVICES: ServiceLine[] = [
         recommendedSeniority: ['Director', 'Partner']
       },
       {
-        skillName: 'Leadership & Mentoring',
+        skillName: 'Performance Management',
         minimumLevel: 4,
         idealLevel: 5,
         criticalToDelivery: true,
         recommendedSeniority: ['Director', 'Partner']
       },
       {
-        skillName: 'Project Management',
+        skillName: 'Delegation 'Project Management' Prioritisation',
         minimumLevel: 3,
         idealLevel: 4,
         criticalToDelivery: true,
@@ -385,7 +385,7 @@ export const ADVISORY_SERVICES: ServiceLine[] = [
     deliveryTime: 'Ongoing',
     requiredSkills: [
       {
-        skillName: 'Strategic Financial Planning',
+        skillName: 'Strategic Options Appraisal',
         minimumLevel: 4,
         idealLevel: 5,
         criticalToDelivery: true,
@@ -406,7 +406,7 @@ export const ADVISORY_SERVICES: ServiceLine[] = [
         recommendedSeniority: ['Director', 'Partner']
       },
       {
-        skillName: 'Leadership & Mentoring',
+        skillName: 'Performance Management',
         minimumLevel: 4,
         idealLevel: 5,
         criticalToDelivery: true,
