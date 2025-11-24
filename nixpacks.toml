@@ -1,3 +1,5 @@
 [phases.setup]
-nixPkgs = ['nodejs_20']
+nixPkgs = ['nodejs-20_x']
+nixLibs = ['nodejs-20_x']
+
 
