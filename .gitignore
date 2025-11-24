@@ -40,3 +40,5 @@ Thumbs.db
 *.local
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+*.csv
+*.log
