@@ -4,7 +4,7 @@ import type { SkillAssessment } from '../lib/types';
 
 export function useSkillAssessments(memberIds: string[]) {
   return useQuery({
-    queryKey: ['skill-assessments', memberIds],
+    queryKey: ['skill-assessments', memberIds, 'v2'], // Cache bust
     queryFn: async () => {
       if (memberIds.length === 0) return [];
       
