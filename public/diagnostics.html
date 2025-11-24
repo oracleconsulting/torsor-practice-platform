@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deployment Diagnostics</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        h2 { color: #666; margin-top: 0; }
+        .status { 
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        pre {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .test { margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Deployment Diagnostics</h1>
+    
+    <div class="card">
+        <h2>Version Info</h2>
+        <div id="version-info">Loading...</div>
+    </div>
+
+    <div class="card">
+        <h2>Supabase Connection</h2>
+        <div id="supabase-test">Testing...</div>
+    </div>
+
+    <div class="card">
+        <h2>Skill Assessments Query</h2>
+        <div id="assessment-test">Testing...</div>
+    </div>
+
+    <script type="module">
+        // Test 1: Version info
+        try {
+            const versionRes = await fetch('/version.json');
+            const version = await versionRes.json();
+            document.getElementById('version-info').innerHTML = `
+                <div class="test">
+                    <strong>Version:</strong> ${version.version}<br>
+                    <strong>Build Date:</strong> ${version.buildDate}<br>
+                    <strong>Expected Assessments:</strong> ${version.expectedBehavior.totalAssessments}
+                </div>
+                <pre>${JSON.stringify(version, null, 2)}</pre>
+            `;
+        } catch (e) {
+            document.getElementById('version-info').innerHTML = 
+                `<span class="status error">❌ Failed to load version.json: ${e.message}</span>`;
+        }
+
+        // Test 2: Supabase connection
+        const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+        const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        document.getElementById('supabase-test').innerHTML = `
+            <div class="test">
+                <strong>Supabase URL:</strong> ${SUPABASE_URL || '❌ NOT SET'}<br>
+                <strong>Anon Key:</strong> ${SUPABASE_ANON_KEY ? '✅ Set' : '❌ NOT SET'}
+            </div>
+        `;
+
+        // Test 3: Skill assessments count
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+            try {
+                const countRes = await fetch(
+                    `${SUPABASE_URL}/rest/v1/skill_assessments?select=id&limit=10000`,
+                    {
+                        headers: {
+                            'apikey': SUPABASE_ANON_KEY,
+                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                        }
+                    }
+                );
+                const data = await countRes.json();
+                const count = data.length;
+                
+                document.getElementById('assessment-test').innerHTML = `
+                    <div class="test">
+                        <strong>Total Assessments Fetched:</strong> 
+                        <span class="status ${count >= 1700 ? 'success' : 'error'}">
+                            ${count}
+                        </span><br>
+                        <strong>Expected:</strong> 1773<br>
+                        <strong>Status:</strong> ${count >= 1700 ? '✅ CORRECT' : '❌ STILL TRUNCATED AT 1000'}
+                    </div>
+                    ${count < 1700 ? '<p><strong>Issue:</strong> The .limit(10000) fix is not active yet. Railway needs to rebuild.</p>' : ''}
+                `;
+            } catch (e) {
+                document.getElementById('assessment-test').innerHTML = 
+                    `<span class="status error">❌ Failed to query: ${e.message}</span>`;
+            }
+        } else {
+            document.getElementById('assessment-test').innerHTML = 
+                `<span class="status error">❌ Supabase credentials not configured</span>`;
+        }
+    </script>
+</body>
+</html>
+
