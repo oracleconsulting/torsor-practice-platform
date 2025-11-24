@@ -35,59 +35,64 @@ export function SkillsHeatmapGrid({ skills, members, assessments }: SkillsHeatma
     <div className="space-y-8">
       {Object.entries(skillsByCategory).map(([category, categorySkills]) => (
         <div key={category} className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="bg-gray-800 text-white px-4 py-3">
+          <div className="bg-gray-800 text-white px-6 py-4">
             <h3 className="text-lg font-semibold">{category}</h3>
-            <p className="text-sm text-gray-300">{categorySkills.length} skills</p>
+            <p className="text-sm text-gray-300 mt-1">{categorySkills.length} skills</p>
           </div>
 
+          {/* Horizontal scrolling container */}
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="sticky left-0 bg-gray-50 px-4 py-3 text-left text-sm font-medium text-gray-700 min-w-[200px]">
-                    Team Member
-                  </th>
-                  {categorySkills.map((skill) => (
-                    <th
-                      key={skill.id}
-                      className="px-2 py-3 text-center text-xs font-medium text-gray-700 min-w-[80px]"
-                    >
-                      <div className="transform -rotate-45 origin-left whitespace-nowrap">
-                        {skill.name}
-                      </div>
+            <div className="inline-block min-w-full align-middle">
+              <table className="min-w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="sticky left-0 z-10 bg-gray-50 px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200 min-w-[220px]">
+                      Team Member
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {members.map((member) => (
-                  <tr key={member.id} className="border-t border-gray-200 hover:bg-gray-50">
-                    <td className="sticky left-0 bg-white hover:bg-gray-50 px-4 py-3 text-sm font-medium text-gray-900">
-                      <div>
-                        <div>{member.name}</div>
-                        <div className="text-xs text-gray-500">{member.role}</div>
-                      </div>
-                    </td>
-                    {categorySkills.map((skill) => {
-                      const assessment = getAssessment(member.id, skill.id);
-                      const level = assessment?.current_level ?? 0;
-                      const colorClass = LEVEL_COLORS[level as keyof typeof LEVEL_COLORS];
-
-                      return (
-                        <td key={skill.id} className="px-2 py-3 text-center">
-                          <div
-                            className={`inline-flex items-center justify-center w-10 h-10 rounded font-semibold ${colorClass}`}
-                            title={`${member.name} - ${skill.name}: Level ${level}`}
-                          >
-                            {level || '-'}
-                          </div>
-                        </td>
-                      );
-                    })}
+                    {categorySkills.map((skill) => (
+                      <th
+                        key={skill.id}
+                        className="px-4 py-4 text-left text-xs font-medium text-gray-700 border-r border-gray-200 whitespace-nowrap min-w-[180px]"
+                      >
+                        {skill.name}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {members.map((member, idx) => (
+                    <tr 
+                      key={member.id} 
+                      className={`hover:bg-gray-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                    >
+                      <td className="sticky left-0 z-10 bg-inherit px-6 py-4 text-sm border-r border-gray-200">
+                        <div className="font-medium text-gray-900">{member.name}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">{member.role}</div>
+                      </td>
+                      {categorySkills.map((skill) => {
+                        const assessment = getAssessment(member.id, skill.id);
+                        const level = assessment?.current_level ?? 0;
+                        const colorClass = LEVEL_COLORS[level as keyof typeof LEVEL_COLORS];
+
+                        return (
+                          <td 
+                            key={skill.id} 
+                            className="px-4 py-4 text-center border-r border-gray-200"
+                          >
+                            <div
+                              className={`inline-flex items-center justify-center w-12 h-12 rounded-lg font-bold text-base ${colorClass}`}
+                              title={`${member.name} - ${skill.name}: Level ${level || 'Not Assessed'}`}
+                            >
+                              {level || '-'}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       ))}
