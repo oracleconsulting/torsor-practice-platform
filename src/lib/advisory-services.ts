@@ -235,7 +235,7 @@ export const ADVISORY_SERVICES: ServiceLine[] = [
         recommendedSeniority: ['Manager', 'Senior']
       },
       {
-        skillName: 'Delegation 'Project Management' Prioritisation',
+        skillName: 'Delegation & Prioritisation',
         minimumLevel: 3,
         idealLevel: 4,
         criticalToDelivery: false,
@@ -369,7 +369,7 @@ export const ADVISORY_SERVICES: ServiceLine[] = [
         recommendedSeniority: ['Director', 'Partner']
       },
       {
-        skillName: 'Delegation 'Project Management' Prioritisation',
+        skillName: 'Delegation & Prioritisation',
         minimumLevel: 3,
         idealLevel: 4,
         criticalToDelivery: true,
