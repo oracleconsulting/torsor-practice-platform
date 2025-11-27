@@ -92,54 +92,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Get initial session with error handling
-    supabase.auth.getSession()
-      .then(({ data: { session }, error }) => {
-        if (error) {
-          console.error('Auth error:', error);
-          setLoading(false);
-          return;
-        }
+    let isMounted = true;
+    let initialLoadDone = false;
+
+    // Listen for auth changes (this handles both initial load and subsequent changes)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.id);
+        
+        if (!isMounted) return;
         
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          loadClientSession(session.user.id).finally(() => {
-            setLoading(false);
-          });
-        } else {
-          setLoading(false);
-        }
-      })
-      .catch((error) => {
-        console.error('Failed to get session:', error);
-        setLoading(false);
-      });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event);
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        try {
-          if (session?.user) {
+          try {
             await loadClientSession(session.user.id);
-          } else {
+          } catch (error) {
+            console.error('Error loading client session:', error);
             setClientSession(null);
           }
-        } catch (error) {
-          console.error('Error in auth state change:', error);
+        } else {
           setClientSession(null);
-        } finally {
+        }
+        
+        // Only set loading false after first load
+        if (!initialLoadDone) {
+          initialLoadDone = true;
           setLoading(false);
         }
       }
     );
 
-    return () => subscription.unsubscribe();
+    // Also check initial session (backup in case onAuthStateChange doesn't fire)
+    const timeout = setTimeout(() => {
+      if (!initialLoadDone && isMounted) {
+        console.log('Auth timeout - setting loading false');
+        setLoading(false);
+        initialLoadDone = true;
+      }
+    }, 3000); // 3 second timeout as backup
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Magic link sign in
