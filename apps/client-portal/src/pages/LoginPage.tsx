@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Mail, ArrowRight, CheckCircle } from 'lucide-react';
+import { Loader2, Mail, Lock, ArrowRight, CheckCircle } from 'lucide-react';
 
 export default function LoginPage() {
-  const { user, loading, signIn } = useAuth();
+  const { user, loading, signIn, signInWithPassword } = useAuth();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [usePassword, setUsePassword] = useState(true); // Default to password login
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,14 +29,21 @@ export default function LoginPage() {
     setError(null);
     setSubmitting(true);
 
-    const { error } = await signIn(email);
-
-    if (error) {
-      setError(error.message);
+    if (usePassword) {
+      const { error } = await signInWithPassword(email, password);
+      if (error) {
+        setError(error.message);
+      }
       setSubmitting(false);
     } else {
-      setSent(true);
-      setSubmitting(false);
+      const { error } = await signIn(email);
+      if (error) {
+        setError(error.message);
+        setSubmitting(false);
+      } else {
+        setSent(true);
+        setSubmitting(false);
+      }
     }
   };
 
@@ -86,7 +95,7 @@ export default function LoginPage() {
 
         {/* Login Form */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label
                 htmlFor="email"
@@ -108,6 +117,29 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {usePassword && (
+              <div>
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-slate-700 mb-2"
+                >
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-shadow"
+                  />
+                </div>
+              </div>
+            )}
+
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
                 {error}
@@ -116,26 +148,34 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={submitting || !email}
+              disabled={submitting || !email || (usePassword && !password)}
               className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium py-3 px-4 rounded-lg transition-colors"
             >
               {submitting ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Sending link...
+                  {usePassword ? 'Signing in...' : 'Sending link...'}
                 </>
               ) : (
                 <>
-                  Send magic link
+                  {usePassword ? 'Sign in' : 'Send magic link'}
                   <ArrowRight className="w-5 h-5" />
                 </>
               )}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-slate-500">
-            We'll send you a secure link to sign in. No password needed.
-          </p>
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => {
+                setUsePassword(!usePassword);
+                setError(null);
+              }}
+              className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+            >
+              {usePassword ? 'Use magic link instead' : 'Use password instead'}
+            </button>
+          </div>
         </div>
 
         {/* Footer */}
