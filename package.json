@@ -17,10 +17,15 @@
     "build": "npm run build --workspaces --if-present",
     "build:platform": "npm run build --workspace=apps/platform",
     "build:client": "npm run build --workspace=apps/client-portal",
+    "preview": "serve -c serve.json",
+    "start": "serve -c serve.json -l $PORT",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "db:migrate": "supabase db push",
     "db:types": "supabase gen types typescript --local > packages/shared/src/types/database.ts"
+  },
+  "dependencies": {
+    "serve": "^14.2.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
