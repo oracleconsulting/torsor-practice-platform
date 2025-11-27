@@ -22,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Load client session data
   const loadClientSession = async (userId: string) => {
+    console.log('Loading client session for user:', userId);
     try {
       const { data, error } = await supabase
         .from('practice_members')
@@ -38,39 +39,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         `)
         .eq('user_id', userId)
         .eq('member_type', 'client')
-        .single();
+        .maybeSingle(); // Use maybeSingle instead of single to avoid error when no record
 
-      if (error) throw error;
-
-      if (data) {
-        // Get advisor data if assigned
-        let advisor = null;
-        if (data.assigned_advisor_id) {
-          const { data: advisorData } = await supabase
-            .from('practice_members')
-            .select('id, name, email')
-            .eq('id', data.assigned_advisor_id)
-            .single();
-          advisor = advisorData;
-        }
-
-        setClientSession({
-          clientId: data.id,
-          practiceId: data.practice_id,
-          name: data.name,
-          email: data.email,
-          company: data.client_company,
-          status: data.program_status || 'active',
-          enrolledAt: data.program_enrolled_at,
-          advisor,
-        });
-
-        // Update last login
-        await supabase
-          .from('practice_members')
-          .update({ last_portal_login: new Date().toISOString() })
-          .eq('id', data.id);
+      if (error) {
+        console.error('Client session query error:', error);
+        setClientSession(null);
+        return;
       }
+
+      if (!data) {
+        console.log('No client record found for user - they may be a team member');
+        setClientSession(null);
+        return;
+      }
+
+      console.log('Client data found:', data);
+
+      // Get advisor data if assigned
+      let advisor = null;
+      if (data.assigned_advisor_id) {
+        const { data: advisorData } = await supabase
+          .from('practice_members')
+          .select('id, name, email')
+          .eq('id', data.assigned_advisor_id)
+          .maybeSingle();
+        advisor = advisorData;
+      }
+
+      setClientSession({
+        clientId: data.id,
+        practiceId: data.practice_id,
+        name: data.name,
+        email: data.email,
+        company: data.client_company,
+        status: data.program_status || 'active',
+        enrolledAt: data.program_enrolled_at,
+        advisor,
+      });
+
+      // Update last login (don't await, fire and forget)
+      supabase
+        .from('practice_members')
+        .update({ last_portal_login: new Date().toISOString() })
+        .eq('id', data.id)
+        .then(() => console.log('Updated last login'));
+
     } catch (error) {
       console.error('Error loading client session:', error);
       setClientSession(null);
@@ -110,13 +123,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         
-        if (session?.user) {
-          await loadClientSession(session.user.id);
-        } else {
+        try {
+          if (session?.user) {
+            await loadClientSession(session.user.id);
+          } else {
+            setClientSession(null);
+          }
+        } catch (error) {
+          console.error('Error in auth state change:', error);
           setClientSession(null);
+        } finally {
+          setLoading(false);
         }
-        
-        setLoading(false);
       }
     );
 
