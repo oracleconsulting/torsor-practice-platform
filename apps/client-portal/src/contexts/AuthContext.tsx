@@ -92,8 +92,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('practice_members')
         .update({ last_portal_login: new Date().toISOString() })
         .eq('id', data.id)
-        .then(() => console.log('Updated last login'))
-        .catch(() => {}); // Ignore errors
+        .then(
+          () => console.log('Updated last login'),
+          () => {} // Ignore errors
+        );
 
       return true;
     } catch (error) {
