@@ -45,9 +45,10 @@ export interface ClientSession {
   email: string;
   company: string | null;
   status: ProgramStatus;
+  enrolledAt: string | null;
   advisor: {
     id: string;
-    full_name: string;
+    name: string;
     email: string;
   } | null;
 }

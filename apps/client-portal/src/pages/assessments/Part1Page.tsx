@@ -172,7 +172,7 @@ const part1Questions = [
 
 export default function Part1Page() {
   const navigate = useNavigate();
-  const { session, clientMember } = useAuth();
+  const { clientSession } = useAuth();
   
   const [currentIndex, setCurrentIndex] = useState(0);
   const [responses, setResponses] = useState<Record<string, any>>({});
@@ -183,13 +183,13 @@ export default function Part1Page() {
   // Load existing progress
   useEffect(() => {
     async function loadProgress() {
-      if (!clientMember?.id) return;
+      if (!clientSession?.clientId) return;
 
       try {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('client_assessments')
           .select('*')
-          .eq('client_id', clientMember.id)
+          .eq('client_id', clientSession.clientId)
           .eq('assessment_type', 'part1')
           .single();
 
@@ -206,7 +206,7 @@ export default function Part1Page() {
     }
 
     loadProgress();
-  }, [clientMember?.id]);
+  }, [clientSession?.clientId]);
 
   // Get visible questions (handle conditional)
   const visibleQuestions = part1Questions.filter(q => {
@@ -223,13 +223,13 @@ export default function Part1Page() {
 
   // Save progress to database
   async function saveProgress(completed = false) {
-    if (!clientMember?.id || !clientMember?.practice_id) return;
+    if (!clientSession?.clientId || !clientSession?.practiceId) return;
 
     setIsSaving(true);
     try {
       const assessmentData = {
-        practice_id: clientMember.practice_id,
-        client_id: clientMember.id,
+        practice_id: clientSession.practiceId,
+        client_id: clientSession.clientId,
         assessment_type: 'part1',
         responses,
         current_section: currentIndex,
@@ -275,8 +275,8 @@ export default function Part1Page() {
       try {
         await supabase.functions.invoke('fit-assessment', {
           body: {
-            clientId: clientMember?.id,
-            practiceId: clientMember?.practice_id,
+            clientId: clientSession?.clientId,
+            practiceId: clientSession?.practiceId,
             part1Responses: responses
           }
         });

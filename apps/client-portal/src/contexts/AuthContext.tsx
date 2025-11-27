@@ -28,29 +28,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .select(`
           id,
           practice_id,
-          full_name,
+          name,
           email,
           member_type,
           program_status,
+          program_enrolled_at,
           client_company,
-          assigned_advisor:assigned_advisor_id(id, full_name, email)
+          assigned_advisor_id
         `)
         .eq('user_id', userId)
         .eq('member_type', 'client')
-        .eq('is_active', true)
         .single();
 
       if (error) throw error;
 
       if (data) {
+        // Get advisor data if assigned
+        let advisor = null;
+        if (data.assigned_advisor_id) {
+          const { data: advisorData } = await supabase
+            .from('practice_members')
+            .select('id, name, email')
+            .eq('id', data.assigned_advisor_id)
+            .single();
+          advisor = advisorData;
+        }
+
         setClientSession({
           clientId: data.id,
           practiceId: data.practice_id,
-          name: data.full_name,
+          name: data.name,
           email: data.email,
           company: data.client_company,
-          status: data.program_status,
-          advisor: data.assigned_advisor,
+          status: data.program_status || 'active',
+          enrolledAt: data.program_enrolled_at,
+          advisor,
         });
 
         // Update last login

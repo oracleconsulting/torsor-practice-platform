@@ -4,7 +4,7 @@
 // The conversational, one-at-a-time assessment that builds rapport and
 // establishes the client's personal vision
 
-export interface Question {
+export interface Part1Question {
   id: string;
   title: string;
   context: string;
@@ -20,7 +20,7 @@ export interface Question {
   };
 }
 
-export const part1Questions: Question[] = [
+export const part1Questions: Part1Question[] = [
   {
     id: 'tuesday_test',
     title: 'The Tuesday Test',
