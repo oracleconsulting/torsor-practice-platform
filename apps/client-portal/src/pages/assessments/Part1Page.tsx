@@ -179,6 +179,7 @@ export default function Part1Page() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [assessmentId, setAssessmentId] = useState<string | null>(null);
+  const [showSummary, setShowSummary] = useState(false);
 
   // Load existing progress
   useEffect(() => {
@@ -219,7 +220,28 @@ export default function Part1Page() {
 
   const currentQuestion = visibleQuestions[currentIndex];
   const isLastQuestion = currentIndex === visibleQuestions.length - 1;
-  const canProceed = !currentQuestion?.required || responses[currentQuestion.id];
+  
+  // For multi-part questions, check if any part has a value
+  const getQuestionValue = (question: typeof currentQuestion) => {
+    if (question.type === 'multi-part' && question.parts) {
+      // Check if values exist as flat keys (legacy format)
+      const partsValue: Record<string, any> = {};
+      let hasValue = false;
+      question.parts.forEach(part => {
+        if (responses[part.id]) {
+          partsValue[part.id] = responses[part.id];
+          hasValue = true;
+        }
+      });
+      if (hasValue) return partsValue;
+      // Otherwise check nested format
+      return responses[question.id];
+    }
+    return responses[question.id];
+  };
+  
+  const currentValue = getQuestionValue(currentQuestion);
+  const canProceed = !currentQuestion?.required || currentValue;
 
   // Save progress to database
   async function saveProgress(completed = false) {
@@ -261,9 +283,14 @@ export default function Part1Page() {
     }
   }
 
-  // Handle answer changes
+  // Handle answer changes - flatten multi-part values
   function handleChange(fieldName: string, value: any) {
-    setResponses(prev => ({ ...prev, [fieldName]: value }));
+    // If value is an object (from multi-part), spread the keys directly
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      setResponses(prev => ({ ...prev, ...value }));
+    } else {
+      setResponses(prev => ({ ...prev, [fieldName]: value }));
+    }
   }
 
   // Navigation
@@ -319,79 +346,148 @@ export default function Part1Page() {
                 <p className="text-xs text-slate-400">Understanding your vision</p>
               </div>
             </div>
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="text-slate-400 hover:text-white transition-colors"
-            >
-              Save & Exit
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowSummary(!showSummary)}
+                className="text-emerald-400 hover:text-emerald-300 transition-colors text-sm"
+              >
+                {showSummary ? 'Back to Questions' : 'View All Answers'}
+              </button>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                Save & Exit
+              </button>
+            </div>
           </div>
           <DotProgress current={currentIndex} total={visibleQuestions.length} />
         </div>
       </div>
 
-      {/* Question */}
-      <div className="max-w-2xl mx-auto px-4 py-12">
-        <div className="animate-fadeIn">
-          <QuestionRenderer
-            question={currentQuestion}
-            value={responses[currentQuestion.id]}
-            onChange={handleChange}
-            showInsights={false}
-          />
+      {/* Content */}
+      {showSummary ? (
+        /* Summary View */
+        <div className="max-w-2xl mx-auto px-4 py-8 pb-24">
+          <h2 className="text-xl font-bold text-white mb-6">Your Responses</h2>
+          <div className="space-y-6">
+            {visibleQuestions.map((q, idx) => {
+              const qValue = q.type === 'multi-part' && q.parts
+                ? q.parts.reduce((acc, p) => {
+                    if (responses[p.id]) acc[p.id] = responses[p.id];
+                    return acc;
+                  }, {} as Record<string, any>)
+                : responses[q.id];
+              
+              const hasAnswer = qValue && (
+                typeof qValue === 'string' ? qValue.trim() : 
+                Array.isArray(qValue) ? qValue.length > 0 :
+                typeof qValue === 'object' ? Object.keys(qValue).length > 0 :
+                true
+              );
+              
+              return (
+                <div
+                  key={q.id}
+                  onClick={() => { setCurrentIndex(idx); setShowSummary(false); }}
+                  className={`p-4 rounded-lg border cursor-pointer transition-all hover:border-emerald-500/50
+                    ${hasAnswer ? 'bg-slate-800 border-slate-700' : 'bg-slate-800/50 border-red-500/50'}`}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <h3 className="font-medium text-white">{q.title}</h3>
+                    <span className={`text-xs px-2 py-1 rounded ${hasAnswer ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                      {hasAnswer ? 'Answered' : 'Incomplete'}
+                    </span>
+                  </div>
+                  <div className="text-sm text-slate-400">
+                    {q.type === 'multi-part' && q.parts ? (
+                      <div className="space-y-1">
+                        {q.parts.map(p => (
+                          <div key={p.id}>
+                            <span className="text-slate-500">{p.label.split(')')[0]})</span>{' '}
+                            <span className="text-slate-300">{responses[p.id] || '—'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : Array.isArray(qValue) ? (
+                      qValue.join(', ')
+                    ) : typeof qValue === 'string' ? (
+                      qValue.length > 150 ? qValue.substring(0, 150) + '...' : qValue
+                    ) : (
+                      <span className="text-slate-500 italic">Click to answer</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
-
-      {/* Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur border-t border-slate-800">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex justify-between items-center">
-          <button
-            onClick={handleBack}
-            disabled={currentIndex === 0}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors
-              ${currentIndex === 0 
-                ? 'text-slate-600 cursor-not-allowed' 
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back
-          </button>
-
-          <button
-            onClick={handleNext}
-            disabled={!canProceed || isSaving}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all
-              ${canProceed && !isSaving
-                ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/25'
-                : 'bg-slate-700 text-slate-400 cursor-not-allowed'
-              }`}
-          >
-            {isSaving ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Saving...
-              </>
-            ) : isLastQuestion ? (
-              <>
-                Complete Part 1
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </>
-            ) : (
-              <>
-                Continue
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </>
-            )}
-          </button>
+      ) : (
+        /* Single Question View */
+        <div className="max-w-2xl mx-auto px-4 py-12">
+          <div className="animate-fadeIn">
+            <QuestionRenderer
+              question={currentQuestion}
+              value={currentValue}
+              onChange={handleChange}
+              showInsights={false}
+            />
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Navigation - hide in summary view */}
+      {!showSummary && (
+        <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur border-t border-slate-800">
+          <div className="max-w-2xl mx-auto px-4 py-4 flex justify-between items-center">
+            <button
+              onClick={handleBack}
+              disabled={currentIndex === 0}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors
+                ${currentIndex === 0 
+                  ? 'text-slate-600 cursor-not-allowed' 
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back
+            </button>
+
+            <button
+              onClick={handleNext}
+              disabled={!canProceed || isSaving}
+              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all
+                ${canProceed && !isSaving
+                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/25'
+                  : 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                }`}
+            >
+              {isSaving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Saving...
+                </>
+              ) : isLastQuestion ? (
+                <>
+                  Complete Part 1
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </>
+              ) : (
+                <>
+                  Continue
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
