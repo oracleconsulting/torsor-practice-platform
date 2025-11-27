@@ -22,9 +22,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   // Load client session data
-  const loadClientSession = async (userId: string) => {
+  const loadClientSession = async (userId: string): Promise<boolean> => {
     console.log('Loading client session for user:', userId);
     try {
+      console.log('Querying practice_members...');
       const { data, error } = await supabase
         .from('practice_members')
         .select(`
@@ -40,31 +41,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         `)
         .eq('user_id', userId)
         .eq('member_type', 'client')
-        .maybeSingle(); // Use maybeSingle instead of single to avoid error when no record
+        .maybeSingle();
+
+      console.log('Query result:', { data, error });
 
       if (error) {
         console.error('Client session query error:', error);
         setClientSession(null);
-        return;
+        return false;
       }
 
       if (!data) {
         console.log('No client record found for user - they may be a team member');
         setClientSession(null);
-        return;
+        return false;
       }
 
       console.log('Client data found:', data);
 
-      // Get advisor data if assigned
+      // Get advisor data if assigned (don't block on this)
       let advisor = null;
       if (data.assigned_advisor_id) {
-        const { data: advisorData } = await supabase
-          .from('practice_members')
-          .select('id, name, email')
-          .eq('id', data.assigned_advisor_id)
-          .maybeSingle();
-        advisor = advisorData;
+        try {
+          const { data: advisorData } = await supabase
+            .from('practice_members')
+            .select('id, name, email')
+            .eq('id', data.assigned_advisor_id)
+            .maybeSingle();
+          advisor = advisorData;
+        } catch (e) {
+          console.log('Could not load advisor data:', e);
+        }
       }
 
       setClientSession({
@@ -78,27 +85,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         advisor,
       });
 
+      console.log('Client session set successfully');
+
       // Update last login (don't await, fire and forget)
       supabase
         .from('practice_members')
         .update({ last_portal_login: new Date().toISOString() })
         .eq('id', data.id)
-        .then(() => console.log('Updated last login'));
+        .then(() => console.log('Updated last login'))
+        .catch(() => {}); // Ignore errors
 
+      return true;
     } catch (error) {
       console.error('Error loading client session:', error);
       setClientSession(null);
+      return false;
     }
   };
 
   useEffect(() => {
     let isMounted = true;
-    let initialLoadDone = false;
 
-    // Listen for auth changes (this handles both initial load and subsequent changes)
+    async function initAuth() {
+      try {
+        console.log('Initializing auth...');
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (!isMounted) return;
+        
+        if (error) {
+          console.error('Auth error:', error);
+          setLoading(false);
+          return;
+        }
+
+        console.log('Got session:', session?.user?.id);
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          await loadClientSession(session.user.id);
+        }
+        
+        if (isMounted) {
+          console.log('Init complete, setting loading false');
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Init auth error:', error);
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    initAuth();
+
+    // Listen for subsequent auth changes (sign in/out)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.id);
+        
+        // Skip INITIAL_SESSION as we handle that in initAuth
+        if (event === 'INITIAL_SESSION') return;
         
         if (!isMounted) return;
         
@@ -106,36 +155,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          try {
-            await loadClientSession(session.user.id);
-          } catch (error) {
-            console.error('Error loading client session:', error);
-            setClientSession(null);
-          }
+          await loadClientSession(session.user.id);
         } else {
           setClientSession(null);
         }
         
-        // Only set loading false after first load
-        if (!initialLoadDone) {
-          initialLoadDone = true;
-          setLoading(false);
-        }
+        setLoading(false);
       }
     );
 
-    // Also check initial session (backup in case onAuthStateChange doesn't fire)
-    const timeout = setTimeout(() => {
-      if (!initialLoadDone && isMounted) {
-        console.log('Auth timeout - setting loading false');
-        setLoading(false);
-        initialLoadDone = true;
-      }
-    }, 3000); // 3 second timeout as backup
-
     return () => {
       isMounted = false;
-      clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, []);
