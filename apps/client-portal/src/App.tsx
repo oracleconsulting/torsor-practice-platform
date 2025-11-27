@@ -1,0 +1,56 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
+
+// Pages
+import LoginPage from './pages/LoginPage';
+import DashboardPage from './pages/DashboardPage';
+import AssessmentPart1Page from './pages/assessments/Part1Page';
+import AssessmentPart2Page from './pages/assessments/Part2Page';
+import AssessmentPart3Page from './pages/assessments/Part3Page';
+import AssessmentReviewPage from './pages/assessments/ReviewPage';
+import RoadmapPage from './pages/roadmap/RoadmapPage';
+import TasksPage from './pages/roadmap/TasksPage';
+import ChatPage from './pages/chat/ChatPage';
+import AppointmentsPage from './pages/appointments/AppointmentsPage';
+
+function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/login" element={<LoginPage />} />
+          
+          {/* Protected routes */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            
+            {/* Assessments */}
+            <Route path="/assessment/part1" element={<AssessmentPart1Page />} />
+            <Route path="/assessment/part2" element={<AssessmentPart2Page />} />
+            <Route path="/assessment/part3" element={<AssessmentPart3Page />} />
+            <Route path="/assessment/review" element={<AssessmentReviewPage />} />
+            
+            {/* Roadmap & Tasks */}
+            <Route path="/roadmap" element={<RoadmapPage />} />
+            <Route path="/tasks" element={<TasksPage />} />
+            
+            {/* Chat */}
+            <Route path="/chat" element={<ChatPage />} />
+            
+            {/* Appointments */}
+            <Route path="/appointments" element={<AppointmentsPage />} />
+          </Route>
+          
+          {/* Catch all */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  );
+}
+
+export default App;
+

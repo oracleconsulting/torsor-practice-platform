@@ -1,0 +1,144 @@
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
+import type { ClientSession } from '@torsor/shared';
+
+interface AuthContextType {
+  user: User | null;
+  session: Session | null;
+  clientSession: ClientSession | null;
+  loading: boolean;
+  signIn: (email: string) => Promise<{ error: Error | null }>;
+  signOut: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [clientSession, setClientSession] = useState<ClientSession | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Load client session data
+  const loadClientSession = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('practice_members')
+        .select(`
+          id,
+          practice_id,
+          full_name,
+          email,
+          member_type,
+          program_status,
+          client_company,
+          assigned_advisor:assigned_advisor_id(id, full_name, email)
+        `)
+        .eq('user_id', userId)
+        .eq('member_type', 'client')
+        .eq('is_active', true)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setClientSession({
+          clientId: data.id,
+          practiceId: data.practice_id,
+          name: data.full_name,
+          email: data.email,
+          company: data.client_company,
+          status: data.program_status,
+          advisor: data.assigned_advisor,
+        });
+
+        // Update last login
+        await supabase
+          .from('practice_members')
+          .update({ last_portal_login: new Date().toISOString() })
+          .eq('id', data.id);
+      }
+    } catch (error) {
+      console.error('Error loading client session:', error);
+      setClientSession(null);
+    }
+  };
+
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        loadClientSession(session.user.id);
+      }
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          await loadClientSession(session.user.id);
+        } else {
+          setClientSession(null);
+        }
+        
+        setLoading(false);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Magic link sign in
+  const signIn = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+      return { error };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
+  // Sign out
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setSession(null);
+    setClientSession(null);
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        clientSession,
+        loading,
+        signIn,
+        signOut,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
+
