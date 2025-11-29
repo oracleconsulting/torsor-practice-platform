@@ -218,8 +218,18 @@ export default function Part1Page() {
     return true;
   });
 
-  const currentQuestion = visibleQuestions[currentIndex];
-  const isLastQuestion = currentIndex === visibleQuestions.length - 1;
+  // Ensure currentIndex is within bounds
+  const safeIndex = Math.min(currentIndex, Math.max(0, visibleQuestions.length - 1));
+  const currentQuestion = visibleQuestions[safeIndex];
+  const isLastQuestion = safeIndex === visibleQuestions.length - 1;
+  
+  // Debug logging
+  console.log('Assessment state:', { 
+    currentIndex, 
+    safeIndex, 
+    visibleQuestionsLength: visibleQuestions.length,
+    currentQuestion: currentQuestion?.id 
+  });
   
   // For multi-part questions, check if any part has a value
   const getQuestionValue = (question: typeof currentQuestion) => {
