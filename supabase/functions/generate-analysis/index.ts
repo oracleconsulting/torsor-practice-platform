@@ -581,6 +581,45 @@ async function callLLM(prompt: string, context: AssessmentContext): Promise<stri
   return data.choices[0].message.content;
 }
 
+// Extract JSON from LLM response (handles markdown code blocks)
+function extractJson(text: string): any {
+  if (!text) throw new Error('Empty LLM response');
+  
+  // Remove markdown code blocks
+  let cleaned = text
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .trim();
+  
+  // Find JSON object boundaries
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  
+  if (start === -1 || end === -1 || end < start) {
+    console.error('No JSON found in response:', text.substring(0, 200));
+    throw new Error('No valid JSON object found in LLM response');
+  }
+  
+  const jsonStr = cleaned.substring(start, end + 1);
+  
+  try {
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    // Try to fix common issues
+    const fixed = jsonStr
+      .replace(/,\s*}/g, '}')  // Remove trailing commas
+      .replace(/,\s*]/g, ']')  // Remove trailing commas in arrays
+      .replace(/[\x00-\x1f]/g, ' '); // Remove control characters
+    
+    try {
+      return JSON.parse(fixed);
+    } catch (e2) {
+      console.error('JSON parse failed. First 500 chars:', jsonStr.substring(0, 500));
+      throw new Error(`Failed to parse JSON: ${e2.message}`);
+    }
+  }
+}
+
 // ============================================================================
 // MAIN HANDLER
 // ============================================================================
@@ -630,14 +669,14 @@ serve(async (req) => {
     console.log('Generating 5-Year Vision...');
     const startTime = Date.now();
     const visionResponse = await callLLM(FIVE_YEAR_VISION_PROMPT, context);
-    const fiveYearVision = JSON.parse(visionResponse);
+    const fiveYearVision = extractJson(visionResponse);
     console.log('Vision generated:', fiveYearVision.northStar?.slice(0, 50));
 
     // Generate 6-Month Shift
     console.log('Generating 6-Month Shift...');
     const shiftContext = { ...context, fiveYearVision: JSON.stringify(fiveYearVision) };
     const shiftResponse = await callLLM(SIX_MONTH_SHIFT_PROMPT, shiftContext);
-    const sixMonthShift = JSON.parse(shiftResponse);
+    const sixMonthShift = extractJson(shiftResponse);
 
     // Generate 12-Week Sprint
     console.log('Generating 12-Week Sprint...');
@@ -650,7 +689,7 @@ serve(async (req) => {
       toolsUsed: 'scheduling software, CRM'
     };
     const sprintResponse = await callLLM(TWELVE_WEEK_SPRINT_PROMPT, sprintContext);
-    const sprint = JSON.parse(sprintResponse);
+    const sprint = extractJson(sprintResponse);
 
     const duration = Date.now() - startTime;
     const cost = 0.15; // Estimate for 3 LLM calls
