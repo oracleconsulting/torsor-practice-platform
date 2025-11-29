@@ -183,58 +183,157 @@ export default function RoadmapPage() {
           </button>
         </div>
 
-        {/* 5-Year Vision View */}
+        {/* 5-Year Vision View - Rich Narrative */}
         {viewMode === 'vision' && roadmapData?.fiveYearVision && (
-          <div className="space-y-6">
-            {/* Vision Narrative */}
-            <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 rounded-xl p-8 text-white">
-              <div className="flex items-center gap-3 mb-4">
-                <Star className="w-6 h-6" />
-                <h2 className="text-xl font-bold">Your 5-Year Vision</h2>
+          <div className="space-y-8">
+            {/* Tagline */}
+            {roadmapData.fiveYearVision.tagline && (
+              <div className="text-center py-4">
+                <h2 className="text-2xl md:text-3xl font-bold text-indigo-600 italic">
+                  "{roadmapData.fiveYearVision.tagline}"
+                </h2>
               </div>
-              <div className="prose prose-invert max-w-none">
-                <p className="text-lg leading-relaxed opacity-95 whitespace-pre-line">
-                  {roadmapData.fiveYearVision.narrative}
-                </p>
+            )}
+
+            {/* Your Transformation Story - 3 Sections */}
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-slate-800 to-slate-900 p-6 text-white">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Star className="w-5 h-5 text-amber-400" />
+                  Your Transformation Story
+                </h2>
               </div>
-              {roadmapData.fiveYearVision.northStar && (
-                <div className="mt-6 pt-6 border-t border-white/20">
-                  <p className="text-sm uppercase tracking-wide opacity-75 mb-1">Your North Star</p>
-                  <p className="text-xl font-semibold">{roadmapData.fiveYearVision.northStar}</p>
+              
+              {/* Current Reality */}
+              {roadmapData.fiveYearVision.currentReality && (
+                <div className="p-6 border-b border-slate-200 bg-red-50">
+                  <h3 className="text-lg font-bold text-red-800 mb-4">
+                    {roadmapData.fiveYearVision.currentReality.headline}
+                  </h3>
+                  <div className="prose prose-slate max-w-none">
+                    <p className="text-slate-700 leading-relaxed whitespace-pre-line">
+                      {roadmapData.fiveYearVision.currentReality.narrative}
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Turning Point */}
+              {roadmapData.fiveYearVision.turningPoint && (
+                <div className="p-6 border-b border-slate-200 bg-amber-50">
+                  <h3 className="text-lg font-bold text-amber-800 mb-4">
+                    {roadmapData.fiveYearVision.turningPoint.headline}
+                  </h3>
+                  <div className="prose prose-slate max-w-none">
+                    <p className="text-slate-700 leading-relaxed whitespace-pre-line">
+                      {roadmapData.fiveYearVision.turningPoint.narrative}
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Vision Achieved */}
+              {roadmapData.fiveYearVision.visionAchieved && (
+                <div className="p-6 bg-emerald-50">
+                  <h3 className="text-lg font-bold text-emerald-800 mb-4">
+                    {roadmapData.fiveYearVision.visionAchieved.headline}
+                  </h3>
+                  <div className="prose prose-slate max-w-none">
+                    <p className="text-slate-700 leading-relaxed whitespace-pre-line">
+                      {roadmapData.fiveYearVision.visionAchieved.narrative}
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Legacy narrative support */}
+              {!roadmapData.fiveYearVision.currentReality && roadmapData.fiveYearVision.narrative && (
+                <div className="p-6">
+                  <div className="prose prose-slate max-w-none">
+                    <p className="text-slate-700 leading-relaxed whitespace-pre-line">
+                      {roadmapData.fiveYearVision.narrative}
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Year Milestones */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* North Star */}
+            {roadmapData.fiveYearVision.northStar && (
+              <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 rounded-xl p-8 text-white text-center">
+                <p className="text-sm uppercase tracking-wide opacity-75 mb-3">Your North Star</p>
+                <p className="text-2xl font-bold leading-relaxed">
+                  "{roadmapData.fiveYearVision.northStar}"
+                </p>
+                {roadmapData.fiveYearVision.emotionalCore && (
+                  <p className="mt-4 text-indigo-100 text-sm max-w-xl mx-auto">
+                    {roadmapData.fiveYearVision.emotionalCore}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Year-by-Year Transformation */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-bold text-slate-900 px-2">Your Year-by-Year Transformation</h3>
+              
               {['year1', 'year3', 'year5'].map((year, index) => {
                 const yearData = roadmapData.fiveYearVision[year];
                 if (!yearData) return null;
                 const yearNum = index === 0 ? 1 : index === 1 ? 3 : 5;
-                const colors = [
-                  'border-emerald-200 bg-emerald-50',
-                  'border-blue-200 bg-blue-50',
-                  'border-purple-200 bg-purple-50'
+                const bgColors = [
+                  'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200',
+                  'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200',
+                  'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200'
+                ];
+                const accentColors = [
+                  'bg-emerald-600',
+                  'bg-blue-600',
+                  'bg-purple-600'
                 ];
                 return (
-                  <div key={year} className={`rounded-xl border ${colors[index]} p-6`}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        index === 0 ? 'bg-emerald-500' : index === 1 ? 'bg-blue-500' : 'bg-purple-500'
-                      } text-white font-bold`}>
-                        Y{yearNum}
+                  <div key={year} className={`rounded-xl border-2 ${bgColors[index]} overflow-hidden`}>
+                    <div className="p-6">
+                      <div className="flex items-start gap-4">
+                        <div className={`w-14 h-14 rounded-xl ${accentColors[index]} text-white flex flex-col items-center justify-center flex-shrink-0`}>
+                          <span className="text-xs uppercase tracking-wide opacity-75">Year</span>
+                          <span className="text-xl font-bold">{yearNum}</span>
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-lg font-bold text-slate-900">{yearData.headline}</h4>
+                          {yearData.subheadline && (
+                            <p className="text-sm font-medium text-slate-600 mb-3">{yearData.subheadline}</p>
+                          )}
+                          <div className="prose prose-slate max-w-none mt-3">
+                            <p className="text-slate-700 leading-relaxed whitespace-pre-line">
+                              {yearData.story}
+                            </p>
+                          </div>
+                          {yearData.measurable && (
+                            <div className="mt-4 p-3 bg-white/60 rounded-lg">
+                              <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Your Measurable Results</p>
+                              <p className="text-sm font-medium text-slate-900">{yearData.measurable}</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <h3 className="font-semibold text-slate-900">{yearData.headline}</h3>
-                    </div>
-                    <p className="text-slate-600 text-sm mb-4">{yearData.story}</p>
-                    <div className="pt-3 border-t border-slate-200">
-                      <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Measurable</p>
-                      <p className="text-sm font-medium text-slate-900">{yearData.measurable}</p>
                     </div>
                   </div>
                 );
               })}
             </div>
+
+            {/* Archetype Badge */}
+            {roadmapData.fiveYearVision.archetype && (
+              <div className="flex justify-center">
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-full">
+                  <span className="text-sm text-slate-600">Your Archetype:</span>
+                  <span className="text-sm font-semibold text-slate-900 capitalize">
+                    {roadmapData.fiveYearVision.archetype.replace(/_/g, ' ')}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
