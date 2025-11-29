@@ -223,6 +223,7 @@ export default function Part1Page() {
   
   // For multi-part questions, check if any part has a value
   const getQuestionValue = (question: typeof currentQuestion) => {
+    if (!question) return undefined;
     if (question.type === 'multi-part' && question.parts) {
       // Check if values exist as flat keys (legacy format)
       const partsValue: Record<string, any> = {};
@@ -240,7 +241,7 @@ export default function Part1Page() {
     return responses[question.id];
   };
   
-  const currentValue = getQuestionValue(currentQuestion);
+  const currentValue = currentQuestion ? getQuestionValue(currentQuestion) : undefined;
   const canProceed = !currentQuestion?.required || currentValue;
 
   // Save progress to database
@@ -327,6 +328,17 @@ export default function Part1Page() {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500" />
+      </div>
+    );
+  }
+
+  // Guard against empty questions array
+  if (!currentQuestion) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-white text-lg">Loading assessment...</p>
+        </div>
       </div>
     );
   }
