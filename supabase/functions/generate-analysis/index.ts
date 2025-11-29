@@ -692,7 +692,6 @@ serve(async (req) => {
     const sprint = extractJson(sprintResponse);
 
     const duration = Date.now() - startTime;
-    const cost = 0.15; // Estimate for 3 LLM calls
 
     // Build full roadmap
     const roadmapData = {
@@ -723,10 +722,6 @@ serve(async (req) => {
         client_id: clientId,
         roadmap_data: roadmapData,
         value_analysis: valueAnalysis,
-        llm_model_used: 'anthropic/claude-sonnet-4',
-        prompt_version: '3.0.0-365-method',
-        generation_cost: cost,
-        generation_duration_ms: duration,
         is_active: true
       })
       .select()
@@ -753,20 +748,7 @@ serve(async (req) => {
       if (tasks.length > 0) await supabase.from('client_tasks').insert(tasks);
     }
 
-    // Log usage
-    await supabase.from('llm_usage_log').insert({
-      practice_id: practiceId,
-      client_id: clientId,
-      task_type: '365_complete_analysis',
-      model_used: 'anthropic/claude-sonnet-4',
-      tokens_input: 0,
-      tokens_output: 0,
-      cost_usd: cost,
-      duration_ms: duration,
-      success: true
-    });
-
-    console.log('365 Analysis complete!');
+    console.log(`365 Analysis complete! Duration: ${duration}ms`);
 
     return new Response(
       JSON.stringify({
