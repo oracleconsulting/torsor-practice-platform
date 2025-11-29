@@ -559,7 +559,7 @@ async function callLLM(prompt: string, context: AssessmentContext): Promise<stri
       'X-Title': 'Torsor 365 Alignment'
     },
     body: JSON.stringify({
-      model: 'anthropic/claude-sonnet-4-20250514',
+      model: 'anthropic/claude-3.5-sonnet',
       max_tokens: 4000,
       temperature: 0.7,
       response_format: { type: 'json_object' },
