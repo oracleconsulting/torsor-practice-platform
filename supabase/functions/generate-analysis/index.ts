@@ -760,7 +760,7 @@ serve(async (req) => {
           northStar: fiveYearVision.northStar,
           weekCount: sprint.weeks?.length || 0
         },
-        usage: { cost, durationMs: duration }
+        usage: { durationMs: duration }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
