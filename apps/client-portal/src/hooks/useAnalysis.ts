@@ -1,51 +1,103 @@
 // ============================================================================
 // ANALYSIS HOOKS
 // ============================================================================
-// Hooks for triggering analysis generation and fetching roadmap data
+// Hooks for the 365 Method analysis system:
+// - useGenerateRoadmap: Generate roadmap from Parts 1+2
+// - useGenerateValueAnalysis: Generate value analysis from Part 3
+// - useRoadmap: Fetch existing roadmap
+// - usePart3Questions: Get stage-specific Part 3 questions
+// - useTasks: Manage sprint tasks
 
 import { useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
-export interface AnalysisResult {
+// ============================================================================
+// TYPES
+// ============================================================================
+
+export interface RoadmapResult {
   success: boolean;
   roadmapId?: string;
-  valueAnalysis?: {
-    overallScore: number;
-    totalOpportunity: number;
-  };
-  roadmap?: {
-    summary: {
-      headline: string;
-      keyInsight: string;
-      expectedOutcome: string;
-    };
+  summary?: {
+    headline: string;
+    northStar: string;
+    archetype: string;
     weekCount: number;
     taskCount: number;
   };
   usage?: {
-    model: string;
-    cost: number;
     durationMs: number;
+    llmCalls: number;
   };
   error?: string;
+}
+
+export interface ValueAnalysisResult {
+  success: boolean;
+  valueAnalysis?: {
+    businessStage: string;
+    overallScore: number;
+    totalOpportunity: number;
+    assetScores: AssetScore[];
+    riskRegister: Risk[];
+    valueGaps: ValueGap[];
+  };
+  summary?: {
+    overallScore: number;
+    totalOpportunity: number;
+    criticalRisks: number;
+    quickWins: number;
+  };
+  error?: string;
+}
+
+export interface AssetScore {
+  category: string;
+  score: number;
+  maxScore: number;
+  issues: string[];
+  opportunities: string[];
+  financialImpact: number;
+}
+
+export interface Risk {
+  title: string;
+  severity: 'Critical' | 'High' | 'Medium' | 'Low';
+  impact: string;
+  mitigation: string;
+  cost: number;
+}
+
+export interface ValueGap {
+  area: string;
+  currentValue: number;
+  potentialValue: number;
+  gap: number;
+  actions: string[];
+  timeframe: string;
+  effort: 'Low' | 'Medium' | 'High';
 }
 
 export interface RoadmapData {
   id: string;
   roadmapData: {
-    summary: {
+    fiveYearVision?: any;
+    sixMonthShift?: any;
+    sprint?: any;
+    summary?: {
       headline: string;
+      northStar?: string;
       keyInsight: string;
       expectedOutcome: string;
     };
-    priorities: Array<{
+    priorities?: Array<{
       rank: number;
       title: string;
       description: string;
       category: string;
     }>;
-    weeks: Array<{
+    weeks?: Array<{
       weekNumber: number;
       theme: string;
       focus: string;
@@ -59,46 +111,50 @@ export interface RoadmapData {
       }>;
       milestone?: string;
     }>;
-    successMetrics: Array<{
-      metric: string;
-      baseline: string;
-      target: string;
-    }>;
   };
-  valueAnalysis: {
-    assetScores: Array<{
-      category: string;
-      score: number;
-      maxScore: number;
-      percentage: number;
-      issues: string[];
-      opportunities: string[];
-    }>;
-    riskRegister: Array<{
-      title: string;
-      severity: string;
-      impact: string;
-      mitigation: string;
-    }>;
-    valueGaps: Array<{
-      area: string;
-      gap: number;
-      effort: string;
-      actions: string[];
-    }>;
-    overallScore: number;
+  valueAnalysis?: {
+    businessStage?: string;
+    assetScores?: AssetScore[];
+    overallScore?: number;
+    valueGaps?: ValueGap[];
+    riskRegister?: Risk[];
+    totalOpportunity?: number;
   };
   createdAt: string;
   isActive: boolean;
 }
 
-export function useGenerateAnalysis() {
+export interface Part3Question {
+  id: string;
+  fieldName: string;
+  question: string;
+  type: 'radio' | 'checkbox' | 'slider' | 'matrix' | 'text';
+  options?: string[];
+  min?: number;
+  max?: number;
+  step?: number;
+  insight?: string;
+  benchmark?: string;
+  matrixRows?: Array<{ id: string; label: string; fieldName: string }>;
+  matrixColumns?: string[];
+}
+
+export interface Part3Section {
+  section: string;
+  questions: Part3Question[];
+}
+
+// ============================================================================
+// useGenerateRoadmap - Generate from Parts 1+2
+// ============================================================================
+
+export function useGenerateRoadmap() {
   const { clientSession } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [result, setResult] = useState<RoadmapResult | null>(null);
 
-  const generate = useCallback(async (regenerate = false): Promise<AnalysisResult> => {
+  const generate = useCallback(async (regenerate = false): Promise<RoadmapResult> => {
     if (!clientSession?.clientId || !clientSession?.practiceId) {
       const err = { success: false, error: 'Not authenticated' };
       setError(err.error);
@@ -109,7 +165,7 @@ export function useGenerateAnalysis() {
     setError(null);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('generate-analysis', {
+      const { data, error: fnError } = await supabase.functions.invoke('generate-roadmap', {
         body: {
           clientId: clientSession.clientId,
           practiceId: clientSession.practiceId,
@@ -117,13 +173,8 @@ export function useGenerateAnalysis() {
         }
       });
 
-      if (fnError) {
-        throw new Error(fnError.message);
-      }
-
-      if (!data.success) {
-        throw new Error(data.error || 'Analysis generation failed');
-      }
+      if (fnError) throw new Error(fnError.message);
+      if (!data.success) throw new Error(data.error || 'Roadmap generation failed');
 
       setResult(data);
       return data;
@@ -139,6 +190,168 @@ export function useGenerateAnalysis() {
 
   return { generate, loading, error, result };
 }
+
+// ============================================================================
+// useGenerateValueAnalysis - Generate from Part 3
+// ============================================================================
+
+export function useGenerateValueAnalysis() {
+  const { clientSession } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ValueAnalysisResult | null>(null);
+
+  const generate = useCallback(async (part3Responses: Record<string, any>): Promise<ValueAnalysisResult> => {
+    if (!clientSession?.clientId || !clientSession?.practiceId) {
+      const err = { success: false, error: 'Not authenticated' };
+      setError(err.error);
+      return err;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('generate-value-analysis', {
+        body: {
+          action: 'generate-analysis',
+          clientId: clientSession.clientId,
+          practiceId: clientSession.practiceId,
+          part3Responses
+        }
+      });
+
+      if (fnError) throw new Error(fnError.message);
+      if (!data.success) throw new Error(data.error || 'Value analysis failed');
+
+      setResult(data);
+      return data;
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    } finally {
+      setLoading(false);
+    }
+  }, [clientSession]);
+
+  return { generate, loading, error, result };
+}
+
+// ============================================================================
+// usePart3Questions - Get stage-specific Hidden Value questions
+// ============================================================================
+
+export function usePart3Questions() {
+  const { clientSession } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<Part3Section[]>([]);
+  const [businessStage, setBusinessStage] = useState<string | null>(null);
+
+  const fetchQuestions = useCallback(async () => {
+    if (!clientSession?.clientId) {
+      return [];
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('generate-value-analysis', {
+        body: {
+          action: 'get-questions',
+          clientId: clientSession.clientId,
+          practiceId: clientSession.practiceId
+        }
+      });
+
+      if (fnError) throw new Error(fnError.message);
+
+      setQuestions(data.questions || []);
+      setBusinessStage(data.businessStage);
+      return data.questions || [];
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMessage);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, [clientSession]);
+
+  return { fetchQuestions, loading, error, questions, businessStage };
+}
+
+// ============================================================================
+// useGenerateAnalysis - Legacy hook (calls generate-roadmap for backward compat)
+// ============================================================================
+
+export function useGenerateAnalysis() {
+  const { clientSession } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<RoadmapResult | null>(null);
+
+  const generate = useCallback(async (regenerate = false): Promise<RoadmapResult> => {
+    if (!clientSession?.clientId || !clientSession?.practiceId) {
+      const err = { success: false, error: 'Not authenticated' };
+      setError(err.error);
+      return err;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Try new generate-roadmap function first
+      let data, fnError;
+      try {
+        const result = await supabase.functions.invoke('generate-roadmap', {
+          body: {
+            clientId: clientSession.clientId,
+            practiceId: clientSession.practiceId,
+            regenerate
+          }
+        });
+        data = result.data;
+        fnError = result.error;
+      } catch {
+        // Fallback to legacy generate-analysis function
+        const result = await supabase.functions.invoke('generate-analysis', {
+          body: {
+            clientId: clientSession.clientId,
+            practiceId: clientSession.practiceId,
+            regenerate
+          }
+        });
+        data = result.data;
+        fnError = result.error;
+      }
+
+      if (fnError) throw new Error(fnError.message);
+      if (!data.success) throw new Error(data.error || 'Analysis generation failed');
+
+      setResult(data);
+      return data;
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    } finally {
+      setLoading(false);
+    }
+  }, [clientSession]);
+
+  return { generate, loading, error, result };
+}
+
+// ============================================================================
+// useRoadmap - Fetch existing roadmap
+// ============================================================================
 
 export function useRoadmap() {
   const { clientSession } = useAuth();
@@ -162,9 +375,7 @@ export function useRoadmap() {
         .eq('is_active', true)
         .maybeSingle();
 
-      if (fetchError) {
-        throw new Error(fetchError.message);
-      }
+      if (fetchError) throw new Error(fetchError.message);
 
       if (data) {
         setRoadmap({
@@ -190,6 +401,10 @@ export function useRoadmap() {
 
   return { fetchRoadmap, loading, error, roadmap };
 }
+
+// ============================================================================
+// useTasks - Manage sprint tasks
+// ============================================================================
 
 export function useTasks() {
   const { clientSession } = useAuth();
@@ -219,9 +434,7 @@ export function useTasks() {
 
       const { data, error: fetchError } = await query;
 
-      if (fetchError) {
-        throw new Error(fetchError.message);
-      }
+      if (fetchError) throw new Error(fetchError.message);
 
       setTasks(data || []);
       return data || [];
@@ -245,11 +458,8 @@ export function useTasks() {
         })
         .eq('id', taskId);
 
-      if (updateError) {
-        throw new Error(updateError.message);
-      }
+      if (updateError) throw new Error(updateError.message);
 
-      // Refresh tasks
       await fetchTasks();
       return true;
 
@@ -261,4 +471,3 @@ export function useTasks() {
 
   return { fetchTasks, updateTaskStatus, loading, error, tasks };
 }
-
