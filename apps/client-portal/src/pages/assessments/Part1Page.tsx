@@ -5,7 +5,7 @@
 // 15 questions about personal vision and business relationship
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { QuestionRenderer } from '../../components/assessment/QuestionRenderer';
@@ -172,14 +172,17 @@ const part1Questions = [
 
 export default function Part1Page() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { clientSession } = useAuth();
+  const isReviewMode = searchParams.get('mode') === 'review';
   
   const [currentIndex, setCurrentIndex] = useState(0);
   const [responses, setResponses] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [assessmentId, setAssessmentId] = useState<string | null>(null);
-  const [showSummary, setShowSummary] = useState(false);
+  const [showSummary, setShowSummary] = useState(isReviewMode);
+  const [assessmentStatus, setAssessmentStatus] = useState<string>('not_started');
 
   // Load existing progress
   useEffect(() => {
@@ -206,7 +209,13 @@ export default function Part1Page() {
           setAssessmentId(data.id);
           setResponses(data.responses || {});
           setCurrentIndex(data.current_section || 0);
-          console.log('Loaded assessment, currentSection:', data.current_section);
+          setAssessmentStatus(data.status || 'in_progress');
+          console.log('Loaded assessment, currentSection:', data.current_section, 'status:', data.status);
+          
+          // If assessment is completed and we're in review mode, show summary
+          if (data.status === 'completed' || isReviewMode) {
+            setShowSummary(true);
+          }
         } else {
           console.log('No existing assessment found, starting fresh');
         }
@@ -218,7 +227,7 @@ export default function Part1Page() {
     }
 
     loadProgress();
-  }, [clientSession?.clientId]);
+  }, [clientSession?.clientId, isReviewMode]);
 
   // Get visible questions (handle conditional)
   const visibleQuestions = part1Questions.filter(q => {
@@ -333,7 +342,7 @@ export default function Part1Page() {
         console.error('Error generating fit assessment:', error);
       }
       
-      navigate('/assessments/part2');
+      navigate('/assessment/part2');
     } else {
       setCurrentIndex(prev => prev + 1);
     }
@@ -387,10 +396,10 @@ export default function Part1Page() {
                 {showSummary ? 'Back to Questions' : 'View All Answers'}
               </button>
               <button
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/assessments')}
                 className="text-slate-400 hover:text-white transition-colors"
               >
-                Save & Exit
+                ← Back to Assessments
               </button>
             </div>
           </div>

@@ -5,6 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 // Pages
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import AssessmentsPage from './pages/assessments/AssessmentsPage';
 import AssessmentPart1Page from './pages/assessments/Part1Page';
 import AssessmentPart2Page from './pages/assessments/Part2Page';
 import AssessmentPart3Page from './pages/assessments/Part3Page';
@@ -28,6 +29,7 @@ function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             
             {/* Assessments */}
+            <Route path="/assessments" element={<AssessmentsPage />} />
             <Route path="/assessment/part1" element={<AssessmentPart1Page />} />
             <Route path="/assessment/part2" element={<AssessmentPart2Page />} />
             <Route path="/assessment/part3" element={<AssessmentPart3Page />} />

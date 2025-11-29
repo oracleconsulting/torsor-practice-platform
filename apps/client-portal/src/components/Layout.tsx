@@ -22,7 +22,7 @@ interface LayoutProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
-  { name: 'Assessments', href: '/assessment/part1', icon: ClipboardList },
+  { name: 'Assessments', href: '/assessments', icon: ClipboardList },
   { name: 'Roadmap', href: '/roadmap', icon: Map },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
   { name: 'Chat', href: '/chat', icon: MessageCircle },
@@ -68,7 +68,10 @@ export function Layout({ children, title, subtitle }: LayoutProps) {
           {/* Navigation */}
           <nav className="flex-1 px-3 py-4 space-y-1">
             {navigation.map((item) => {
-              const isActive = location.pathname.startsWith(item.href);
+              // Special case for assessments - match both /assessments and /assessment/*
+              const isActive = item.href === '/assessments' 
+                ? location.pathname.startsWith('/assessment')
+                : location.pathname.startsWith(item.href);
               return (
                 <Link
                   key={item.name}
@@ -120,7 +123,9 @@ export function Layout({ children, title, subtitle }: LayoutProps) {
         {mobileMenuOpen && (
           <div className="bg-white border-t border-slate-200 py-2">
             {navigation.map((item) => {
-              const isActive = location.pathname.startsWith(item.href);
+              const isActive = item.href === '/assessments' 
+                ? location.pathname.startsWith('/assessment')
+                : location.pathname.startsWith(item.href);
               return (
                 <Link
                   key={item.name}
