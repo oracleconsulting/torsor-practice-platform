@@ -34,15 +34,10 @@ export default function RoadmapPage() {
   const [activeWeek, setActiveWeek] = useState<number | null>(1);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Fetch roadmap on mount
+  // Fetch roadmap on mount - don't auto-generate (Edge Function may not be deployed)
   useEffect(() => {
     const init = async () => {
-      const existing = await fetchRoadmap();
-      if (!existing && progress?.overall === 100) {
-        // No roadmap exists but assessments are complete - generate one
-        await generate();
-        await fetchRoadmap();
-      }
+      await fetchRoadmap();
       setIsInitialized(true);
     };
     init();
@@ -145,11 +140,31 @@ export default function RoadmapPage() {
           </p>
           <button
             onClick={() => generate()}
-            className="inline-flex items-center gap-2 mt-6 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            disabled={generating}
+            className="inline-flex items-center gap-2 mt-6 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
           >
-            <Sparkles className="w-4 h-4" />
-            Generate My Roadmap
+            {generating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                Generate My Roadmap
+              </>
+            )}
           </button>
+          
+          {generateError && (
+            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-left max-w-lg mx-auto">
+              <p className="text-sm text-amber-800 font-medium">Edge Function Not Deployed</p>
+              <p className="text-sm text-amber-700 mt-1">
+                The roadmap generation Edge Function needs to be deployed to Supabase. 
+                Run: <code className="bg-amber-100 px-1 rounded">supabase functions deploy generate-analysis</code>
+              </p>
+            </div>
+          )}
         </div>
       </Layout>
     );
