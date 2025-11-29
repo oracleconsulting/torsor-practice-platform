@@ -1,13 +1,8 @@
 // ============================================================================
-// EDGE FUNCTION: Generate Roadmap (Parts 1 + 2)
+// EDGE FUNCTION: generate-roadmap
 // ============================================================================
-// This generates the comprehensive 365 transformation roadmap:
-// - 5-Year Life Compass (from Part 1 life design + Part 2 business reality)
-// - 6-Month Structural Shifts
-// - 12-Week Implementation Sprint
-//
-// This runs AFTER Parts 1 & 2 are complete, BEFORE Part 3 (Hidden Value).
-// The Hidden Value Audit is a separate assessment with its own analysis.
+// Triggered: After Parts 1 & 2 are complete
+// Generates: 5-Year Vision, 6-Month Shift, 12-Week Sprint
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -19,94 +14,29 @@ const corsHeaders = {
 };
 
 // ============================================================================
-// TYPES
-// ============================================================================
-
-interface EmotionalAnchors {
-  painPhrases: string[];
-  desirePhrases: string[];
-  metaphors: string[];
-  timePatterns: string[];
-  transformationSignals: string[];
-  repeatedThemes: string[];
-}
-
-interface RoadmapContext {
-  // Identity
-  userName: string;
-  companyName: string;
-  industry: string;
-  
-  // Part 1 - Life Design
-  tuesdayTest: string;
-  emergencyLog: string;
-  relationshipMirror: string;
-  moneyWorry: string;
-  sacrifices: string[];
-  commitmentHours: string;
-  currentIncome: string;
-  desiredIncome: string;
-  hasPartners: string;
-  dangerZone: string;
-  mondayFrustration: string;
-  familyFeedback: string;
-  twoWeekBreakImpact: string;
-  magicAwayTask: string;
-  secretPride: string;
-  lastExcitement: string;
-  helpFears: string;
-  
-  // Part 2 - Business Deep Dive
-  tradingName: string;
-  yearsTrading: string;
-  tenYearVision: string;
-  annualTurnover: string;
-  winningBy2030: string;
-  sixMonthShifts: string;
-  teamSize: string;
-  growthBottleneck: string;
-  ninetyDayPriorities: string[];
-  currentWorkingHours: number;
-  targetWorkingHours: number;
-  toolsUsed: string[];
-  
-  // Computed
-  isPreRevenue: boolean;
-  revenueNumeric: number;
-  emotionalAnchors: EmotionalAnchors;
-}
-
-// ============================================================================
 // EMOTIONAL ANCHOR EXTRACTION
 // ============================================================================
 
-function extractEmotionalAnchors(
-  part1: Record<string, any>,
-  part2: Record<string, any>
-): EmotionalAnchors {
-  const anchors: EmotionalAnchors = {
-    painPhrases: [],
-    desirePhrases: [],
-    metaphors: [],
-    timePatterns: [],
-    transformationSignals: [],
-    repeatedThemes: []
+function extractEmotionalAnchors(part1: Record<string, any>, part2: Record<string, any>) {
+  const anchors = {
+    painPhrases: [] as string[],
+    desirePhrases: [] as string[],
+    metaphors: [] as string[],
+    timePatterns: [] as string[],
+    repeatedThemes: [] as string[]
   };
 
   const allResponses = { ...part1, ...part2 };
 
-  // Extract from Tuesday Test / 90-Day Fantasy
+  // Tuesday Test extraction
   const tuesdayTest = part1.tuesday_test || part1.ninety_day_fantasy || '';
   if (tuesdayTest) {
     // Time patterns
-    const timeMatches = tuesdayTest.match(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b|\b\d+-\d+\b|\bearly\b|\blate\b|\bmorning\b|\bevening\b/gi);
-    if (timeMatches) {
-      anchors.timePatterns = [...new Set(timeMatches.map((t: string) => t.toLowerCase()))];
-    }
+    const timeMatches = tuesdayTest.match(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b|\bearly\b|\blate\b|\bmorning\b|\bevening\b/gi);
+    if (timeMatches) anchors.timePatterns = [...new Set(timeMatches.map((t: string) => t.toLowerCase()))];
 
     // Pain phrases
-    const painWords = ['not', "don't", 'stop', 'no more', 'without', 'never', 'tired of', 'sick of', 'hate'];
-    painWords.forEach(word => {
+    ['not', "don't", 'stop', 'no more', 'without', 'never', 'tired of', 'hate'].forEach(word => {
       if (tuesdayTest.toLowerCase().includes(word)) {
         const regex = new RegExp(`[^.!?]*\\b${word}\\b[^.!?]*[.!?]?`, 'gi');
         const matches = tuesdayTest.match(regex);
@@ -115,8 +45,7 @@ function extractEmotionalAnchors(
     });
 
     // Desire phrases
-    const desireWords = ['want', 'wish', 'dream', 'love to', 'finally', 'freedom', 'choose', 'able to'];
-    desireWords.forEach(word => {
+    ['want', 'wish', 'dream', 'love to', 'finally', 'freedom', 'choose', 'able to'].forEach(word => {
       if (tuesdayTest.toLowerCase().includes(word)) {
         const regex = new RegExp(`[^.!?]*\\b${word}\\b[^.!?]*[.!?]?`, 'gi');
         const matches = tuesdayTest.match(regex);
@@ -125,56 +54,36 @@ function extractEmotionalAnchors(
     });
   }
 
-  // Extract metaphors from Relationship Mirror
-  const relationshipMirror = part1.relationship_mirror || part1.business_relationship || '';
-  if (relationshipMirror) {
-    if (relationshipMirror.toLowerCase().includes('feels like')) {
-      const metaphorPart = relationshipMirror.toLowerCase().split('feels like').pop() || '';
-      const metaphor = metaphorPart.replace(/[.!?].*/, '').trim();
-      if (metaphor && metaphor.length > 3) anchors.metaphors.push(metaphor);
-    }
-    const likeAMatch = relationshipMirror.match(/like a ([^.!?,]+)/i);
-    if (likeAMatch) anchors.metaphors.push(likeAMatch[1].trim());
+  // Metaphors from Relationship Mirror
+  const relationshipMirror = part1.relationship_mirror || '';
+  if (relationshipMirror.toLowerCase().includes('feels like')) {
+    const metaphor = relationshipMirror.toLowerCase().split('feels like').pop()?.replace(/[.!?].*/, '').trim();
+    if (metaphor && metaphor.length > 3) anchors.metaphors.push(metaphor);
   }
 
   // Extract from emotion-rich fields
-  const emotionFields = [
-    'emergency_log', 'money_worry', 'monday_frustration',
-    'family_feedback', 'two_week_break_impact', 'magic_away_task',
-    'business_secret', 'secret_pride', 'last_excitement',
-    'danger_zone', 'help_fears', 'biggest_challenge', 'growth_bottleneck'
-  ];
+  const emotionFields = ['emergency_log', 'money_worry', 'monday_frustration', 'family_feedback', 
+    'two_week_break_impact', 'magic_away_task', 'secret_pride', 'danger_zone', 'growth_bottleneck'];
 
   emotionFields.forEach(field => {
     const content = allResponses[field];
     if (content && typeof content === 'string' && content.length > 15) {
-      const painMatches = content.match(/\b(stress|overwhelm|chaos|struggle|worry|fear|exhaust|frustrat|anxious|trapped|drown|spinning|emergency|constant|always|never|can't)\w*\b/gi);
+      const painMatches = content.match(/\b(stress|overwhelm|chaos|struggle|worry|fear|exhaust|frustrat|anxious|trapped|drown|spinning)\w*\b/gi);
       if (painMatches) anchors.painPhrases.push(...painMatches);
-
-      const aspirationMatches = content.match(/\b(freedom|peace|calm|control|balance|growth|success|achieve|finally|time|family|enjoy|love|happy)\w*\b/gi);
-      if (aspirationMatches) anchors.desirePhrases.push(...aspirationMatches);
-
-      const transformMatches = content.match(/\b(change|transform|different|better|improve|grow|build|create|start|stop|more|less)\w*\b/gi);
-      if (transformMatches) anchors.transformationSignals.push(...transformMatches);
+      const desireMatches = content.match(/\b(freedom|peace|calm|control|balance|growth|success|finally|family|enjoy)\w*\b/gi);
+      if (desireMatches) anchors.desirePhrases.push(...desireMatches);
     }
   });
 
   // Find repeated themes
   const allText = Object.values(allResponses).filter(v => typeof v === 'string').join(' ').toLowerCase();
-  const themeWords = ['time', 'money', 'family', 'freedom', 'stress', 'work', 'team', 'growth', 'control', 'help'];
-  themeWords.forEach(word => {
-    const count = (allText.match(new RegExp(`\\b${word}\\w*\\b`, 'g')) || []).length;
-    if (count >= 3) anchors.repeatedThemes.push(word);
+  ['time', 'money', 'family', 'freedom', 'stress', 'work', 'team', 'growth', 'control'].forEach(word => {
+    if ((allText.match(new RegExp(`\\b${word}\\w*\\b`, 'g')) || []).length >= 3) anchors.repeatedThemes.push(word);
   });
 
-  // Clean and deduplicate
+  // Deduplicate
   Object.keys(anchors).forEach(key => {
-    const arr = anchors[key as keyof EmotionalAnchors];
-    if (Array.isArray(arr)) {
-      (anchors as any)[key] = [...new Set(arr.filter(Boolean).map((s: string) => 
-        typeof s === 'string' ? s.trim() : s
-      ))].slice(0, 10);
-    }
+    (anchors as any)[key] = [...new Set((anchors as any)[key].filter(Boolean))].slice(0, 10);
   });
 
   return anchors;
@@ -184,7 +93,7 @@ function extractEmotionalAnchors(
 // CONTEXT BUILDER
 // ============================================================================
 
-function buildContext(part1: Record<string, any>, part2: Record<string, any>): RoadmapContext {
+function buildContext(part1: Record<string, any>, part2: Record<string, any>) {
   const anchors = extractEmotionalAnchors(part1, part2);
   
   // Parse revenue
@@ -194,32 +103,28 @@ function buildContext(part1: Record<string, any>, part2: Record<string, any>): R
   else if (turnoverStr.includes('£100k-£250k')) revenueNumeric = 175000;
   else if (turnoverStr.includes('£250k-£500k')) revenueNumeric = 375000;
   else if (turnoverStr.includes('£500k-£1m')) revenueNumeric = 750000;
-  else if (turnoverStr.includes('£1m-£2.5m')) revenueNumeric = 1750000;
-  else if (turnoverStr.includes('£2.5m')) revenueNumeric = 3500000;
+  else if (turnoverStr.includes('£1m')) revenueNumeric = 2500000;
 
   // Detect industry
   const allText = JSON.stringify({ ...part1, ...part2 }).toLowerCase();
   let industry = 'general_business';
-  if (allText.includes('rowing') || allText.includes('fitness') || allText.includes('gym')) industry = 'fitness_equipment';
-  else if (allText.includes('consult') || allText.includes('advisor')) industry = 'consulting';
-  else if (allText.includes('software') || allText.includes('saas') || allText.includes('tech')) industry = 'technology';
-  else if (allText.includes('agency') || allText.includes('marketing')) industry = 'agency';
-  else if (allText.includes('trade') || allText.includes('construction')) industry = 'trades';
+  if (allText.includes('rowing') || allText.includes('fitness')) industry = 'fitness_equipment';
+  else if (allText.includes('consult')) industry = 'consulting';
+  else if (allText.includes('software') || allText.includes('saas')) industry = 'technology';
+  else if (allText.includes('agency')) industry = 'agency';
 
   return {
     userName: part1.full_name || 'Founder',
     companyName: part1.company_name || part2.trading_name || 'Your Business',
     industry,
-    
     tuesdayTest: part1.tuesday_test || part1.ninety_day_fantasy || '',
     emergencyLog: part1.emergency_log || '',
     relationshipMirror: part1.relationship_mirror || '',
     moneyWorry: part1.money_worry || '',
-    sacrifices: part1.sacrifices || [],
+    sacrifices: JSON.stringify(part1.sacrifices || []),
     commitmentHours: part1.commitment_hours || '10-15 hours',
     currentIncome: part1.current_income || '',
     desiredIncome: part1.desired_income || '',
-    hasPartners: part1.has_partners || 'No',
     dangerZone: part1.danger_zone || '',
     mondayFrustration: part1.monday_frustration || '',
     familyFeedback: part1.family_feedback || '',
@@ -228,23 +133,23 @@ function buildContext(part1: Record<string, any>, part2: Record<string, any>): R
     secretPride: part1.secret_pride || '',
     lastExcitement: part1.last_excitement || '',
     helpFears: part1.help_fears || '',
-    
-    tradingName: part2.trading_name || '',
     yearsTrading: part2.years_trading || '',
     tenYearVision: part2.ten_year_vision || '',
     annualTurnover: part2.annual_turnover || '',
     winningBy2030: part2.winning_2030 || '',
-    sixMonthShifts: part2.six_month_shifts || '',
     teamSize: part2.team_size || 'solo',
     growthBottleneck: part2.growth_bottleneck || '',
-    ninetyDayPriorities: part2.ninety_day_priorities || [],
+    ninetyDayPriorities: JSON.stringify(part2.ninety_day_priorities || []),
     currentWorkingHours: parseInt(part2.current_working_hours) || 50,
     targetWorkingHours: parseInt(part2.target_working_hours) || 35,
-    toolsUsed: part2.current_tools || [],
-    
+    toolsUsed: JSON.stringify(part2.current_tools || []),
     isPreRevenue: revenueNumeric === 0,
     revenueNumeric,
-    emotionalAnchors: anchors
+    painPhrases: JSON.stringify(anchors.painPhrases),
+    desirePhrases: JSON.stringify(anchors.desirePhrases),
+    metaphors: JSON.stringify(anchors.metaphors),
+    timePatterns: JSON.stringify(anchors.timePatterns),
+    repeatedThemes: JSON.stringify(anchors.repeatedThemes)
   };
 }
 
@@ -252,87 +157,81 @@ function buildContext(part1: Record<string, any>, part2: Record<string, any>): R
 // PROMPTS
 // ============================================================================
 
-const FIVE_YEAR_VISION_PROMPT = `You are an emotionally intelligent advisor who creates deeply personal transformation narratives. You excel at recognising that true success isn't just financial growth - it's about creating a business that enhances life rather than consuming it.
+const FIVE_YEAR_VISION_PROMPT = `You are an emotionally intelligent advisor creating a deeply personal transformation narrative for {userName} who runs {companyName}.
 
-FOUNDER'S COMPLETE JOURNEY (their exact words):
+FOUNDER'S JOURNEY (their exact words):
 
-=== PART 1: LIFE DESIGN ===
-Name: {userName}
-Company: {companyName}
+=== LIFE DESIGN ===
 Tuesday Test/90-Day Fantasy: "{tuesdayTest}"
-Business Relationship (metaphor): "{relationshipMirror}"
+Business Relationship: "{relationshipMirror}"
 Money Worry: "{moneyWorry}"
-What They've Sacrificed: {sacrifices}
+Sacrifices: {sacrifices}
 Emergency Log: "{emergencyLog}"
 Danger Zone: "{dangerZone}"
 Monday Frustration: "{mondayFrustration}"
 Family Feedback: "{familyFeedback}"
 Two Week Break Impact: "{twoWeekBreakImpact}"
-What They'd Magic Away: "{magicAwayTask}"
+Magic Away Task: "{magicAwayTask}"
 Secret Pride: "{secretPride}"
-Last Excitement: "{lastExcitement}"
 Help Fears: "{helpFears}"
 
-=== PART 2: BUSINESS REALITY ===
+=== BUSINESS REALITY ===
 Industry: {industry}
 Years Trading: {yearsTrading}
-Annual Turnover: {annualTurnover}
-Current Personal Income: {currentIncome}
-Desired Personal Income: {desiredIncome}
-Current Working Hours: {currentWorkingHours} hours/week
-Target Working Hours: {targetWorkingHours} hours/week
-Team Size: {teamSize}
+Turnover: {annualTurnover}
+Personal Income: {currentIncome} → Target: {desiredIncome}
+Working Hours: {currentWorkingHours}/week → Target: {targetWorkingHours}/week
+Team: {teamSize}
 10-Year Vision: "{tenYearVision}"
 Winning by 2030: "{winningBy2030}"
 Biggest Challenge: "{growthBottleneck}"
-Time Commitment Available: {commitmentHours}
+Available Time: {commitmentHours}
 90-Day Priorities: {ninetyDayPriorities}
 
-=== EMOTIONAL PATTERNS DETECTED ===
-Pain phrases (their exact words): {painPhrases}
-Desire phrases (their exact words): {desirePhrases}
-Metaphors they use: {metaphors}
-Time patterns mentioned: {timePatterns}
+=== EMOTIONAL PATTERNS ===
+Pain phrases: {painPhrases}
+Desire phrases: {desirePhrases}
+Metaphors: {metaphors}
+Time patterns: {timePatterns}
 Repeated themes: {repeatedThemes}
 
-CRITICAL INSTRUCTIONS:
-1. Write in SECOND PERSON - speak directly to them ("You" not "They")
-2. Use their EXACT emotional phrases naturally throughout - weave their actual quotes
-3. Mirror their communication style and energy
-4. Show them a path where success means LESS stress, not more
-5. Make them feel truly understood - "How did you know that about me?"
+INSTRUCTIONS:
+1. Write in SECOND PERSON directly to them ("You" not "They")
+2. Use their EXACT emotional phrases throughout
+3. Show a path where success = LESS stress, not more
+4. Make them feel truly understood
 
-Return as JSON:
+Return JSON:
 {
-  "tagline": "A short aspirational tagline for their transformation",
+  "tagline": "Short aspirational tagline for their transformation",
   "transformationStory": {
     "currentReality": {
-      "title": "Your Current Reality: [use their exact phrase]",
-      "narrative": "3-4 paragraphs (300+ words) describing where they are now using their EXACT quotes"
+      "title": "Your Current Reality: [use their phrase]",
+      "narrative": "3-4 paragraphs (300+ words) describing where they are now using their EXACT quotes from tuesday_test, emergency_log, family_feedback. Make them feel DEEPLY understood."
     },
     "turningPoint": {
       "title": "Your Turning Point",
-      "narrative": "2-3 paragraphs (200+ words) about the breakthrough moment"
+      "narrative": "2-3 paragraphs (200+ words) about the breakthrough moment. Reference their help_fears and danger_zone."
     },
     "visionAchieved": {
-      "title": "Your Vision Achieved: [use their winning_2030 phrase]",
-      "narrative": "3-4 paragraphs (300+ words) painting their success IN THEIR TERMS"
+      "title": "Your Vision Achieved: [their winning_2030 phrase]",
+      "narrative": "3-4 paragraphs (300+ words) painting their success IN THEIR TERMS. Reference their tuesday_test ideal, ten_year_vision, desired_income, target_working_hours."
     }
   },
   "yearMilestones": {
     "year1": {
-      "headline": "From [current state] to [first shift]",
-      "story": "Full paragraph (100+ words) showing what specifically changes",
-      "measurable": "Specific metrics"
+      "headline": "From [current] to [first shift]",
+      "story": "100+ words showing specific changes in their mornings, weekends, stress, family time",
+      "measurable": "Working hours reduced to X, income at £Y, [pain point] resolved"
     },
     "year3": {
       "headline": "The Transformation Deepens",
-      "story": "Full paragraph (100+ words)",
-      "measurable": "Their target working hours achieved, income goals met"
+      "story": "100+ words showing their new normal",
+      "measurable": "Target working hours achieved, income goals met"
     },
     "year5": {
-      "headline": "[Their exact winning_2030 phrase]",
-      "story": "Full paragraph (100+ words)",
+      "headline": "[Their winning_2030 phrase]",
+      "story": "100+ words showing THEIR definition of success",
       "measurable": "Their specific vision quantified"
     }
   },
@@ -341,69 +240,61 @@ Return as JSON:
   "emotionalCore": "2-3 sentences explaining the deep truth about what they're really seeking"
 }`;
 
-const SIX_MONTH_SHIFT_PROMPT = `Based on the founder's 5-year vision, create a detailed 6-month shift plan.
+const SIX_MONTH_SHIFT_PROMPT = `Create a 6-month shift plan for {companyName} based on their 5-year vision.
 
-FIVE-YEAR VISION CONTEXT:
+VISION CONTEXT:
 {fiveYearVision}
 
-CURRENT REALITY:
-- Business: {companyName} ({industry})
-- Revenue: {annualTurnover} (Numeric: £{revenueNumeric})
-- Pre-revenue: {isPreRevenue}
-- Time Available: {commitmentHours}
-- Team Size: {teamSize}
-- Current Working Hours: {currentWorkingHours}/week
-- Target Working Hours: {targetWorkingHours}/week
+CURRENT STATE:
+- Revenue: {annualTurnover} (£{revenueNumeric})
+- Team: {teamSize}
+- Hours: {currentWorkingHours}/week → Target: {targetWorkingHours}/week
+- Available Time: {commitmentHours}
 
-THEIR SPECIFIC PAIN POINTS:
+PAIN POINTS:
 - Biggest Challenge: "{growthBottleneck}"
 - Money Worry: "{moneyWorry}"
 - Danger Zone: "{dangerZone}"
-- What They'd Magic Away: "{magicAwayTask}"
+- Magic Away: "{magicAwayTask}"
 - 90-Day Priorities: {ninetyDayPriorities}
 
 EMOTIONAL ANCHORS:
-Pain phrases: {painPhrases}
-Desire phrases: {desirePhrases}
+Pain: {painPhrases}
+Desire: {desirePhrases}
 
-Return as JSON:
+Return JSON:
 {
-  "shiftOverview": "3-4 sentences summarizing what this 6 months will achieve using their words",
+  "shiftOverview": "3-4 sentences summarizing what this 6 months achieves using their words",
   "month1_2": {
-    "theme": "Short theme name",
-    "focus": "Clear description connecting to their biggest pain",
+    "theme": "Theme name",
+    "focus": "Primary focus connecting to their biggest pain",
     "keyActions": ["Action 1", "Action 2", "Action 3"],
     "successMetrics": ["Metric 1", "Metric 2"],
     "timeCommitment": "X hours/week",
-    "howYoullFeel": "Emotional shift they'll experience"
+    "howYoullFeel": "Emotional shift description"
   },
   "month3_4": {
     "theme": "Theme building on months 1-2",
     "focus": "Building momentum",
     "keyActions": ["Action 1", "Action 2", "Action 3"],
     "successMetrics": ["Metric 1", "Metric 2"],
-    "timeCommitment": "Hours/week",
+    "timeCommitment": "X hours/week",
     "howYoullFeel": "Progress description"
   },
   "month5_6": {
     "theme": "Theme approaching year 1",
-    "focus": "Consolidation and scaling",
+    "focus": "Consolidation",
     "keyActions": ["Action 1", "Action 2", "Action 3"],
     "successMetrics": ["Metric 1", "Metric 2"],
-    "timeCommitment": "Hours/week",
+    "timeCommitment": "X hours/week",
     "howYoullFeel": "How they feel approaching year 1"
   },
-  "quickWins": ["Something achievable THIS WEEK", "Something in first month"],
+  "quickWins": ["Achievable THIS WEEK", "First month win"],
   "dangerMitigation": "How this addresses their danger zone",
   "northStarAlignment": "How each phase moves toward their north star"
 }`;
 
-const TWELVE_WEEK_SPRINT_PROMPT = `Create a comprehensive 12-week sprint for {companyName}.
-
-THE 365 METHOD:
-- 365 days to transform (not just grow)
-- Every week moves them closer to their ideal Tuesday
-- Progress measured in life quality, not just revenue
+const TWELVE_WEEK_SPRINT_PROMPT = `Create a 12-week sprint for {companyName}.
 
 SIX-MONTH SHIFTS:
 {sixMonthShift}
@@ -413,11 +304,11 @@ North Star: {northStar}
 Emotional Core: {emotionalCore}
 Year 1 Target: {year1Target}
 
-BUSINESS CONTEXT:
+BUSINESS:
 - Industry: {industry}
-- Revenue: £{revenueNumeric} (Pre-revenue: {isPreRevenue})
+- Revenue: £{revenueNumeric}
 - Team: {teamSize}
-- Current hours: {currentWorkingHours}/week → Target: {targetWorkingHours}/week
+- Hours: {currentWorkingHours}/week → {targetWorkingHours}/week
 - Tools: {toolsUsed}
 
 EMOTIONAL DRIVERS:
@@ -431,14 +322,14 @@ CONSTRAINTS:
 - Available time: {commitmentHours}
 - 90-day priorities: {ninetyDayPriorities}
 
-Return as JSON with ALL 12 weeks:
+Return JSON with ALL 12 weeks:
 {
   "sprintTheme": "Theme connecting to their 90-day fantasy",
   "sprintPromise": "In 90 days, transform from [current] to [ideal]",
   "sprintGoals": ["Primary goal", "Secondary goal", "Tertiary goal"],
   "phases": {
     "weeks1_2": { "name": "Immediate Relief", "purpose": "Quick wins" },
-    "weeks3_4": { "name": "Foundation Building", "purpose": "Root causes" },
+    "weeks3_4": { "name": "Foundation", "purpose": "Root causes" },
     "weeks5_6": { "name": "Momentum", "purpose": "Scale what works" },
     "weeks7_8": { "name": "Lock-In", "purpose": "Make permanent" },
     "weeks9_10": { "name": "Scale", "purpose": "Multiply" },
@@ -463,10 +354,8 @@ Return as JSON with ALL 12 weeks:
           "deliverable": "Specific output"
         }
       ],
-      "milestone": "Success by end of week",
-      "celebrationPrompt": "How to recognize wins"
+      "milestone": "Success by end of week"
     }
-    // ... weeks 2-12 with similar structure
   ],
   "successMetrics": {
     "week4": "Foundation solid",
@@ -474,41 +363,27 @@ Return as JSON with ALL 12 weeks:
     "week12": "Transformed"
   },
   "tuesdayEvolution": {
-    "week0": "Current Tuesday feeling",
+    "week0": "Current Tuesday",
     "week4": "First shift",
     "week8": "New patterns",
     "week12": "New normal"
   }
 }
 
-Generate ALL 12 weeks with 3-5 tasks each.`;
+Generate ALL 12 weeks with 3-5 tasks each, specific to their industry and situation.`;
 
 // ============================================================================
 // LLM HELPERS
 // ============================================================================
 
-async function callLLM(prompt: string, context: RoadmapContext): Promise<string> {
+async function callLLM(prompt: string, context: Record<string, any>): Promise<string> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!openRouterKey) throw new Error('OPENROUTER_API_KEY not configured');
 
   let filledPrompt = prompt;
   Object.entries(context).forEach(([key, value]) => {
-    const placeholder = `{${key}}`;
-    let stringValue: string;
-    if (Array.isArray(value)) stringValue = JSON.stringify(value);
-    else if (typeof value === 'object' && value !== null) stringValue = JSON.stringify(value);
-    else stringValue = String(value || '');
-    filledPrompt = filledPrompt.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), stringValue);
+    filledPrompt = filledPrompt.replace(new RegExp(`\\{${key}\\}`, 'g'), String(value ?? ''));
   });
-
-  if (context.emotionalAnchors) {
-    filledPrompt = filledPrompt
-      .replace(/{painPhrases}/g, JSON.stringify(context.emotionalAnchors.painPhrases))
-      .replace(/{desirePhrases}/g, JSON.stringify(context.emotionalAnchors.desirePhrases))
-      .replace(/{metaphors}/g, JSON.stringify(context.emotionalAnchors.metaphors))
-      .replace(/{timePatterns}/g, JSON.stringify(context.emotionalAnchors.timePatterns))
-      .replace(/{repeatedThemes}/g, JSON.stringify(context.emotionalAnchors.repeatedThemes));
-  }
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -530,22 +405,19 @@ async function callLLM(prompt: string, context: RoadmapContext): Promise<string>
   });
   
   if (!response.ok) throw new Error(`OpenRouter error: ${await response.text()}`);
-  const data = await response.json();
-  return data.choices[0].message.content;
+  return (await response.json()).choices[0].message.content;
 }
 
 function extractJson(text: string): any {
-  if (!text) throw new Error('Empty LLM response');
-  let cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+  const cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
-  if (start === -1 || end === -1 || end < start) throw new Error('No valid JSON found');
+  if (start === -1 || end === -1) throw new Error('No JSON found');
   const jsonStr = cleaned.substring(start, end + 1);
   try {
     return JSON.parse(jsonStr);
   } catch {
-    const fixed = jsonStr.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']').replace(/[\x00-\x1f]/g, ' ');
-    return JSON.parse(fixed);
+    return JSON.parse(jsonStr.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']').replace(/[\x00-\x1f]/g, ' '));
   }
 }
 
@@ -554,35 +426,28 @@ function extractJson(text: string): any {
 // ============================================================================
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
     const { clientId, practiceId, regenerate } = await req.json();
-
     if (!clientId || !practiceId) {
-      return new Response(
-        JSON.stringify({ error: 'Missing clientId or practiceId' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Missing clientId or practiceId' }), 
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     console.log(`Generating roadmap for client ${clientId}...`);
     const startTime = Date.now();
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-    // Fetch Parts 1 & 2 only (Part 3 is separate value analysis)
+    // Fetch Parts 1 & 2
     const { data: assessments, error: fetchError } = await supabase
       .from('client_assessments')
-      .select('assessment_type, responses, status')
+      .select('assessment_type, responses')
       .eq('client_id', clientId)
       .in('assessment_type', ['part1', 'part2']);
 
-    if (fetchError) throw new Error(`Failed to fetch assessments: ${fetchError.message}`);
+    if (fetchError) throw new Error(`Failed to fetch: ${fetchError.message}`);
 
     const part1 = assessments?.find(a => a.assessment_type === 'part1')?.responses || {};
     const part2 = assessments?.find(a => a.assessment_type === 'part2')?.responses || {};
@@ -590,33 +455,20 @@ serve(async (req) => {
     // Build context
     const context = buildContext(part1, part2);
     console.log('Context built for', context.companyName);
-    console.log('Emotional anchors:', context.emotionalAnchors.painPhrases.length, 'pain phrases');
 
-    // ========================================
-    // PHASE 1: 5-Year Vision
-    // ========================================
+    // Phase 1: 5-Year Vision
     console.log('Generating 5-Year Vision...');
     const visionResponse = await callLLM(FIVE_YEAR_VISION_PROMPT, context);
     const fiveYearVision = extractJson(visionResponse);
-    console.log('Vision:', fiveYearVision.northStar?.substring(0, 50) + '...');
+    console.log('Vision:', fiveYearVision.northStar?.substring(0, 50));
 
-    // ========================================
-    // PHASE 2: 6-Month Shift
-    // ========================================
+    // Phase 2: 6-Month Shift
     console.log('Generating 6-Month Shift...');
-    const shiftContext = {
-      ...context,
-      fiveYearVision: JSON.stringify(fiveYearVision),
-      northStar: fiveYearVision.northStar || '',
-      archetype: fiveYearVision.archetype || 'balanced_achiever'
-    } as any;
+    const shiftContext = { ...context, fiveYearVision: JSON.stringify(fiveYearVision) };
     const shiftResponse = await callLLM(SIX_MONTH_SHIFT_PROMPT, shiftContext);
     const sixMonthShift = extractJson(shiftResponse);
-    console.log('6-Month Shift generated');
 
-    // ========================================
-    // PHASE 3: 12-Week Sprint
-    // ========================================
+    // Phase 3: 12-Week Sprint
     console.log('Generating 12-Week Sprint...');
     const sprintContext = {
       ...context,
@@ -624,10 +476,10 @@ serve(async (req) => {
       northStar: fiveYearVision.northStar || '',
       emotionalCore: fiveYearVision.emotionalCore || '',
       year1Target: fiveYearVision.yearMilestones?.year1?.measurable || ''
-    } as any;
+    };
     const sprintResponse = await callLLM(TWELVE_WEEK_SPRINT_PROMPT, sprintContext);
     const sprint = extractJson(sprintResponse);
-    console.log('12-Week Sprint:', sprint.weeks?.length || 0, 'weeks');
+    console.log('Sprint:', sprint.weeks?.length, 'weeks');
 
     const duration = Date.now() - startTime;
 
@@ -642,9 +494,6 @@ serve(async (req) => {
         keyInsight: sixMonthShift.shiftOverview,
         expectedOutcome: fiveYearVision.yearMilestones?.year1?.measurable
       },
-      priorities: sprint.sprintGoals?.map((goal: string, i: number) => ({
-        rank: i + 1, title: goal, description: goal, category: 'Strategic'
-      })) || [],
       weeks: sprint.weeks || [],
       generatedAt: new Date().toISOString(),
       generationDurationMs: duration
@@ -653,15 +502,10 @@ serve(async (req) => {
     // Deactivate old roadmaps
     await supabase.from('client_roadmaps').update({ is_active: false }).eq('client_id', clientId);
 
-    // Insert new (value_analysis will be added by separate function after Part 3)
+    // Insert new
     const { data: savedRoadmap, error: saveError } = await supabase
       .from('client_roadmaps')
-      .insert({
-        practice_id: practiceId,
-        client_id: clientId,
-        roadmap_data: roadmapData,
-        is_active: true
-      })
+      .insert({ practice_id: practiceId, client_id: clientId, roadmap_data: roadmapData, is_active: true })
       .select()
       .single();
 
@@ -671,48 +515,34 @@ serve(async (req) => {
     if (sprint.weeks?.length > 0) {
       const tasks = sprint.weeks.flatMap((week: any) =>
         (week.tasks || []).map((task: any, i: number) => ({
-          practice_id: practiceId,
-          client_id: clientId,
-          roadmap_id: savedRoadmap.id,
-          week_number: week.weekNumber,
-          title: task.title,
-          description: task.description,
-          category: task.category || 'General',
-          priority: task.priority || 'medium',
-          estimated_hours: task.estimatedHours || 1,
-          sort_order: i,
-          status: 'pending'
+          practice_id: practiceId, client_id: clientId, roadmap_id: savedRoadmap.id,
+          week_number: week.weekNumber, title: task.title, description: task.description,
+          category: task.category || 'General', priority: task.priority || 'medium',
+          estimated_hours: task.estimatedHours || 1, sort_order: i, status: 'pending'
         }))
       );
-      if (tasks.length > 0) {
-        await supabase.from('client_tasks').insert(tasks);
-        console.log(`Created ${tasks.length} tasks`);
-      }
+      if (tasks.length > 0) await supabase.from('client_tasks').insert(tasks);
+      console.log(`Created ${tasks.length} tasks`);
     }
 
     console.log('Roadmap generation complete!');
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        roadmapId: savedRoadmap.id,
-        summary: {
-          headline: roadmapData.summary.headline,
-          northStar: fiveYearVision.northStar,
-          archetype: fiveYearVision.archetype,
-          weekCount: sprint.weeks?.length || 0,
-          taskCount: sprint.weeks?.reduce((sum: number, w: any) => sum + (w.tasks?.length || 0), 0) || 0
-        },
-        usage: { durationMs: duration, llmCalls: 3 }
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({
+      success: true,
+      roadmapId: savedRoadmap.id,
+      summary: {
+        headline: roadmapData.summary.headline,
+        northStar: fiveYearVision.northStar,
+        archetype: fiveYearVision.archetype,
+        weekCount: sprint.weeks?.length || 0,
+        taskCount: sprint.weeks?.reduce((sum: number, w: any) => sum + (w.tasks?.length || 0), 0) || 0
+      },
+      usage: { durationMs: duration, llmCalls: 3 }
+    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error) {
     console.error('Error:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ success: false, error: (error as Error).message }), 
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
