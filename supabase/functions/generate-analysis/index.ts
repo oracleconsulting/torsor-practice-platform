@@ -43,6 +43,13 @@ interface AssessmentContext {
   hasPartners: string;
   dangerZone: string;
   
+  // Additional Life Design fields for rich narrative
+  mondayFrustration: string;
+  familyFeedback: string;
+  twoWeekBreakImpact: string;
+  magicAwayTask: string;
+  secretPride: string;
+  
   // Part 2 - Business Deep Dive
   tradingName: string;
   yearsTrading: string;
@@ -185,6 +192,13 @@ function buildContext(
     hasPartners: part1.has_partners || 'No',
     dangerZone: part1.danger_zone || '',
     
+    // Additional life design fields
+    mondayFrustration: part1.monday_frustration || '',
+    familyFeedback: part1.family_feedback || '',
+    twoWeekBreakImpact: part1.two_week_break_impact || '',
+    magicAwayTask: part1.magic_away_task || '',
+    secretPride: part1.secret_pride || '',
+    
     tradingName: part2.trading_name || '',
     yearsTrading: part2.years_trading || '',
     tenYearVision: part2.ten_year_vision || '',
@@ -211,7 +225,7 @@ function buildContext(
 // THE 365 METHOD PROMPTS
 // ============================================================================
 
-const FIVE_YEAR_VISION_PROMPT = `You are an emotionally intelligent advisor who creates deeply personal transformation narratives. You understand that true success isn't just financial growth - it's about creating a business that enhances life rather than consuming it.
+const FIVE_YEAR_VISION_PROMPT = `You are an emotionally intelligent advisor who creates deeply personal transformation narratives. You excel at recognising that true success isn't just financial growth - it's about creating a business that enhances life rather than consuming it.
 
 FOUNDER'S COMPLETE JOURNEY (their exact words):
 
@@ -224,6 +238,7 @@ Emergency Log: "{emergencyLog}"
 Danger Zone: "{dangerZone}"
 
 === PART 2: BUSINESS REALITY ===
+Company: {companyName}
 Current Personal Income: {currentIncome}
 Desired Personal Income: {desiredIncome}
 Business Turnover: {annualTurnover}
@@ -232,6 +247,11 @@ Winning by 2030: "{winningBy2030}"
 Biggest Challenge: "{growthBottleneck}"
 Time Commitment Available: {commitmentHours}
 Team Size: {teamSize}
+Monday Frustration: "{mondayFrustration}"
+Family Feedback: "{familyFeedback}"
+Two Week Break Impact: "{twoWeekBreakImpact}"
+Magic Away Task: "{magicAwayTask}"
+Secret Pride: "{secretPride}"
 
 === PART 3: HIDDEN VALUE ===
 Knowledge Dependency: {knowledgeDependency}%
@@ -244,43 +264,69 @@ Desire phrases: {desirePhrases}
 Metaphors used: {metaphors}
 
 THE CORE INSIGHT:
-This founder isn't just seeking more money or growth. They're seeking a specific quality of life. Look at what they've sacrificed. Notice what they say about their business relationship - that reveals the real cost. Their emergency log tells you what keeps interrupting their life.
+This founder isn't just seeking more money or growth. They're seeking a specific quality of life. Look at the gap between their current and target working hours as much as the revenue gap. Notice what they say when asked about a two-week break - that reveals their true relationship with their business. Their family feedback tells you the real cost of their current approach.
 
 CRITICAL INSTRUCTIONS:
 1. Identify the LIFE they want, not just the business they want
-2. Use their EXACT emotional phrases naturally throughout
-3. Mirror their communication style and energy
-4. Show them a path where success means LESS stress, not more
-5. Make them feel truly understood
+2. Notice if they're sacrificing happiness for marginal gains
+3. Use their EXACT emotional phrases naturally throughout - weave their quotes into the narrative
+4. Mirror their communication style and energy
+5. Show them a path where success means LESS stress, not more
+6. Make them feel truly understood - "How did you know that about me?"
+7. Focus on sustainable growth that enhances life, not endless scaling
+8. Write in SECOND PERSON ("You" not "They") - speak directly to the founder
 
-Create a 5-year vision that shows them how to build a business that serves their life, not the other way around.
+Create a deeply personal 5-year vision that shows them how to build a business that serves their life, not the other way around.
 
-Return as JSON:
+Return as JSON with this EXACT structure:
+
 {
-  "narrative": "2-3 paragraphs that paint their transformation journey. Start with their current struggle (using their exact pain words), show the turning point, then paint their achieved vision. This must sound like THEIR story.",
+  "tagline": "A short aspirational tagline like: Britain's Leading [X] Specialist - On Your Terms",
+  
+  "currentReality": {
+    "headline": "Your Current Reality: quoted phrase from their words",
+    "narrative": "2-3 FULL paragraphs (not sentences) describing their current situation. Weave in their EXACT quotes naturally. Reference their emergency log, their relationship with the business, what they've sacrificed. Make them feel deeply understood. This should be 150-200 words minimum."
+  },
+  
+  "turningPoint": {
+    "headline": "Your Turning Point: quoted insight",
+    "narrative": "1-2 FULL paragraphs about the breakthrough moment. What needs to change in their thinking? What's the key insight that unlocks everything? Reference their specific fears and desires. 100-150 words."
+  },
+  
+  "visionAchieved": {
+    "headline": "Your Vision Achieved: the outcome in their words",
+    "narrative": "2-3 FULL paragraphs painting the picture of success IN THEIR TERMS. What does their Tuesday look like now? How does their family see them? What can they finally do? Be specific and emotional. 150-200 words."
+  },
   
   "year1": {
-    "headline": "Their first crucial shift",
-    "story": "2-3 sentences showing what changes - likely boundaries, systems, delegation",
-    "measurable": "Specific improvements"
+    "headline": "From [Current State] to [Improved State]",
+    "subheadline": "Short powerful statement",
+    "story": "A FULL paragraph (not 2-3 sentences) showing what specifically changes in year 1. Use their language and reference their specific situation. What's different about their mornings? Their weekends? Their stress levels? 100-150 words.",
+    "measurable": "Specific metrics: Working hours reduced from X to Y, income increased to £Z, specific pain point reduced by %"
   },
   
   "year3": {
-    "headline": "The transformation deepens",
-    "story": "2-3 sentences showing their new normal",
-    "measurable": "Their target working hours achieved, income goals met"
+    "headline": "The [Relationship/Business] That Serves Your [Life Goal]",
+    "subheadline": "Short powerful statement",
+    "story": "A FULL paragraph showing their transformation at the midpoint. The business now works differently. What can they do now that was impossible before? Reference their 10-year vision and family goals. 100-150 words.",
+    "measurable": "Their target working hours achieved, specific income goals met, life milestones progressing"
   },
   
   "year5": {
-    "headline": "Living their definition of winning",
-    "story": "Their version of success achieved - not generic, THEIR success",
-    "measurable": "Their specific vision quantified"
+    "headline": "[Their Definition of Winning]",
+    "subheadline": "Living on Your Terms",
+    "story": "A FULL paragraph showing their complete vision achieved - not generic success, THEIR success. Reference their 'winning by 2030' answer directly. What's their relationship with the business now? With their family? 100-150 words.",
+    "measurable": "Their specific vision quantified - income, hours, lifestyle, business value"
   },
   
-  "northStar": "One powerful line capturing their core desire using their EXACT words",
+  "northStar": "One powerful line that captures their core desire using their EXACT words - this becomes their decision filter for everything",
   
-  "emotionalCore": "The deep truth about what they're really seeking"
-}`;
+  "archetype": "freedom_seeker|empire_builder|innovator|lifestyle_designer|impact_maker|survival_fighter|balanced_achiever",
+  
+  "emotionalCore": "The deep truth about what they're really seeking - usually connection, control, freedom, or peace. 1-2 sentences explaining why THIS matters to THIS person."
+}
+
+Remember: This is about life transformation through business transformation. Write as if you're their advisor who truly understands them. Every paragraph should make them think "How did you know that about me?"`;
 
 const SIX_MONTH_SHIFT_PROMPT = `Based on the founder's 5-year vision, create a 6-month shift plan that bridges their current reality to their year 1 goals.
 
@@ -560,13 +606,13 @@ async function callLLM(prompt: string, context: AssessmentContext): Promise<stri
     },
     body: JSON.stringify({
       model: 'anthropic/claude-3.5-sonnet',
-      max_tokens: 4000,
+      max_tokens: 8000,
       temperature: 0.7,
       response_format: { type: 'json_object' },
       messages: [
         {
           role: 'system',
-          content: 'You are an expert at creating deeply personal narratives that make founders feel truly seen and understood. Always return valid JSON.'
+          content: 'You are an expert advisor who creates deeply personal transformation narratives. You excel at reading between the lines and finding the emotional truth in people\'s words. Write in second person, directly to the founder. Weave their exact quotes naturally throughout. Every paragraph should make them think "How did you know that about me?" Always return valid JSON.'
         },
         { role: 'user', content: filledPrompt }
       ]
