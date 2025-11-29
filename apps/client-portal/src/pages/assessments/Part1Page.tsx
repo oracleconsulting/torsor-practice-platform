@@ -184,20 +184,31 @@ export default function Part1Page() {
   // Load existing progress
   useEffect(() => {
     async function loadProgress() {
-      if (!clientSession?.clientId) return;
+      console.log('loadProgress called, clientId:', clientSession?.clientId);
+      if (!clientSession?.clientId) {
+        console.log('No clientId, setting loading false');
+        setIsLoading(false);
+        return;
+      }
 
       try {
-        const { data } = await supabase
+        console.log('Querying client_assessments for part1...');
+        const { data, error } = await supabase
           .from('client_assessments')
           .select('*')
           .eq('client_id', clientSession.clientId)
           .eq('assessment_type', 'part1')
-          .single();
+          .maybeSingle(); // Use maybeSingle to avoid error when no record exists
+
+        console.log('Assessment query result:', { data, error });
 
         if (data) {
           setAssessmentId(data.id);
           setResponses(data.responses || {});
           setCurrentIndex(data.current_section || 0);
+          console.log('Loaded assessment, currentSection:', data.current_section);
+        } else {
+          console.log('No existing assessment found, starting fresh');
         }
       } catch (error) {
         console.error('Error loading progress:', error);
