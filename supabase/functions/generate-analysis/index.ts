@@ -225,246 +225,118 @@ function buildContext(
 // THE 365 METHOD PROMPTS
 // ============================================================================
 
-const FIVE_YEAR_VISION_PROMPT = `You are an emotionally intelligent advisor who creates deeply personal transformation narratives. You excel at recognising that true success isn't just financial growth - it's about creating a business that enhances life rather than consuming it.
+const FIVE_YEAR_VISION_PROMPT = `You are a world-class advisor who writes transformational narratives that make founders feel truly seen and understood. Your writing is warm, direct, and uses their exact words naturally throughout.
 
-FOUNDER'S COMPLETE JOURNEY (their exact words):
+THEIR COMPLETE STORY (in their own words):
 
-=== PART 1: LIFE DESIGN ===
-Tuesday Test/90-Day Fantasy: "{tuesdayTest}"
-Business Relationship: "{relationshipMirror}"
-Money Worry: "{moneyWorry}"
-What They've Sacrificed: {sacrifices}
-Emergency Log: "{emergencyLog}"
-Danger Zone: "{dangerZone}"
+=== WHO THEY ARE ===
+Name: {userName}
+Business: {companyName}
+Team: {teamSize}
+Revenue: {annualTurnover}
+Years Trading: {yearsTrading}
 
-=== PART 2: BUSINESS REALITY ===
-Company: {companyName}
-Current Personal Income: {currentIncome}
-Desired Personal Income: {desiredIncome}
-Business Turnover: {annualTurnover}
-10-Year Vision: "{tenYearVision}"
-Winning by 2030: "{winningBy2030}"
-Biggest Challenge: "{growthBottleneck}"
-Time Commitment Available: {commitmentHours}
-Team Size: {teamSize}
-Monday Frustration: "{mondayFrustration}"
-Family Feedback: "{familyFeedback}"
-Two Week Break Impact: "{twoWeekBreakImpact}"
-Magic Away Task: "{magicAwayTask}"
-Secret Pride: "{secretPride}"
+=== WHAT THEY'VE TOLD US ===
+Their ideal Tuesday: "{tuesdayTest}"
+Their relationship with the business: "{relationshipMirror}"
+What keeps them up at night: "{moneyWorry}"
+What they've sacrificed: {sacrifices}
+What interrupts their life: "{emergencyLog}"
+Their danger zone: "{dangerZone}"
+What frustrates them on Mondays: "{mondayFrustration}"
+What their family says: "{familyFeedback}"
+What happens if they take 2 weeks off: "{twoWeekBreakImpact}"
+What they'd magic away: "{magicAwayTask}"
+What they're secretly proud of: "{secretPride}"
 
-=== PART 3: HIDDEN VALUE ===
-Knowledge Dependency: {knowledgeDependency}%
-Personal Brand Dependency: {personalBrand}%
-Undocumented Processes: {undocumentedProcesses}
+=== THEIR DREAMS ===
+Their 10-year vision: "{tenYearVision}"
+What "winning" looks like by 2030: "{winningBy2030}"
+Income now: {currentIncome} → Income goal: {desiredIncome}
+Time they can commit: {commitmentHours}
 
-=== EMOTIONAL PATTERNS DETECTED ===
-Pain phrases: {painPhrases}
-Desire phrases: {desirePhrases}
-Metaphors used: {metaphors}
+=== PATTERNS WE'VE NOTICED ===
+Their pain in their words: {painPhrases}
+Their desires in their words: {desirePhrases}
+Metaphors they use: {metaphors}
 
-THE CORE INSIGHT:
-This founder isn't just seeking more money or growth. They're seeking a specific quality of life. Look at the gap between their current and target working hours as much as the revenue gap. Notice what they say when asked about a two-week break - that reveals their true relationship with their business. Their family feedback tells you the real cost of their current approach.
+YOUR TASK:
+Write a comprehensive, beautifully crafted transformation story that will become their guiding document for the next 5 years. This must feel deeply personal - like you've known them for years.
 
-CRITICAL INSTRUCTIONS:
-1. Identify the LIFE they want, not just the business they want
-2. Notice if they're sacrificing happiness for marginal gains
-3. Use their EXACT emotional phrases naturally throughout - weave their quotes into the narrative
-4. Mirror their communication style and energy
-5. Show them a path where success means LESS stress, not more
-6. Make them feel truly understood - "How did you know that about me?"
-7. Focus on sustainable growth that enhances life, not endless scaling
-8. Write in SECOND PERSON ("You" not "They") - speak directly to the founder
-
-Create a deeply personal 5-year vision that shows them how to build a business that serves their life, not the other way around.
-
-Return as JSON with this EXACT structure:
-
-{
-  "tagline": "A short aspirational tagline like: Britain's Leading [X] Specialist - On Your Terms",
-  
-  "currentReality": {
-    "headline": "Your Current Reality: quoted phrase from their words",
-    "narrative": "2-3 FULL paragraphs (not sentences) describing their current situation. Weave in their EXACT quotes naturally. Reference their emergency log, their relationship with the business, what they've sacrificed. Make them feel deeply understood. This should be 150-200 words minimum."
-  },
-  
-  "turningPoint": {
-    "headline": "Your Turning Point: quoted insight",
-    "narrative": "1-2 FULL paragraphs about the breakthrough moment. What needs to change in their thinking? What's the key insight that unlocks everything? Reference their specific fears and desires. 100-150 words."
-  },
-  
-  "visionAchieved": {
-    "headline": "Your Vision Achieved: the outcome in their words",
-    "narrative": "2-3 FULL paragraphs painting the picture of success IN THEIR TERMS. What does their Tuesday look like now? How does their family see them? What can they finally do? Be specific and emotional. 150-200 words."
-  },
-  
-  "year1": {
-    "headline": "From [Current State] to [Improved State]",
-    "subheadline": "Short powerful statement",
-    "story": "A FULL paragraph (not 2-3 sentences) showing what specifically changes in year 1. Use their language and reference their specific situation. What's different about their mornings? Their weekends? Their stress levels? 100-150 words.",
-    "measurable": "Specific metrics: Working hours reduced from X to Y, income increased to £Z, specific pain point reduced by %"
-  },
-  
-  "year3": {
-    "headline": "The [Relationship/Business] That Serves Your [Life Goal]",
-    "subheadline": "Short powerful statement",
-    "story": "A FULL paragraph showing their transformation at the midpoint. The business now works differently. What can they do now that was impossible before? Reference their 10-year vision and family goals. 100-150 words.",
-    "measurable": "Their target working hours achieved, specific income goals met, life milestones progressing"
-  },
-  
-  "year5": {
-    "headline": "[Their Definition of Winning]",
-    "subheadline": "Living on Your Terms",
-    "story": "A FULL paragraph showing their complete vision achieved - not generic success, THEIR success. Reference their 'winning by 2030' answer directly. What's their relationship with the business now? With their family? 100-150 words.",
-    "measurable": "Their specific vision quantified - income, hours, lifestyle, business value"
-  },
-  
-  "northStar": "One powerful line that captures their core desire using their EXACT words - this becomes their decision filter for everything",
-  
-  "archetype": "freedom_seeker|empire_builder|innovator|lifestyle_designer|impact_maker|survival_fighter|balanced_achiever",
-  
-  "emotionalCore": "The deep truth about what they're really seeking - usually connection, control, freedom, or peace. 1-2 sentences explaining why THIS matters to THIS person."
-}
-
-Remember: This is about life transformation through business transformation. Write as if you're their advisor who truly understands them. Every paragraph should make them think "How did you know that about me?"`;
-
-const SIX_MONTH_SHIFT_PROMPT = `Based on the founder's 5-year vision, create a 6-month shift plan that bridges their current reality to their year 1 goals.
-
-5-YEAR VISION CONTEXT:
-{fiveYearVision}
-
-CURRENT REALITY:
-- Business: {companyName}
-- Revenue: {annualTurnover}
-- Time Available: {commitmentHours}
-- Team Size: {teamSize}
-- Biggest Challenge: {growthBottleneck}
-- Danger Zone: {dangerZone}
-- 90-Day Priorities: {ninetyDayPriorities}
-
-Create a 6-month shift plan that:
-1. Addresses their immediate pain points using their language
-2. Makes progress toward their year 1 vision
-3. Respects their time constraints
-4. Focuses on highest-impact activities
+CRITICAL RULES:
+1. Write in SECOND PERSON - speak directly to them ("You" not "They")
+2. Weave their EXACT quotes throughout - but naturally, not awkwardly
+3. Focus on LIFE transformation, not just business metrics
+4. Make every paragraph feel like you understand them better than they understand themselves
+5. Quality over quantity - every sentence should matter
 
 Return as JSON:
-{
-  "overview": "2-3 sentences summarizing what this 6 months will achieve, using their words",
-  
-  "month1_2": {
-    "theme": "Short theme name",
-    "focus": "What to focus on",
-    "keyActions": ["Action 1", "Action 2", "Action 3"],
-    "successMetrics": ["Metric 1", "Metric 2"],
-    "timeCommitment": "X hours/week on Y"
-  },
-  
-  "month3_4": {
-    "theme": "Short theme name",
-    "focus": "What to focus on",
-    "keyActions": ["Action 1", "Action 2", "Action 3"],
-    "successMetrics": ["Metric 1", "Metric 2"]
-  },
-  
-  "month5_6": {
-    "theme": "Short theme name",
-    "focus": "What to focus on",
-    "keyActions": ["Action 1", "Action 2", "Action 3"],
-    "successMetrics": ["Metric 1", "Metric 2"]
-  },
-  
-  "quickWins": ["Win they can achieve in week 1", "Win in month 1"],
-  
-  "dangerMitigation": "How this shift addresses their specific danger zone",
-  
-  "northStarAlignment": "How this moves them toward their north star"
-}`;
-
-const TWELVE_WEEK_SPRINT_PROMPT = `Create a 12-week transformation sprint for {companyName}. This is about changing HOW they work, not just WHAT they do.
-
-THE 365 METHOD FOUNDATION:
-- Every week must move them closer to their ideal Tuesday feeling
-- Progress is measured in life quality improvement, not just revenue
-- Build in backslide prevention and celebrations
-
-6-MONTH SHIFTS:
-{sixMonthShift}
-
-5-YEAR COMPASS:
-North Star: {northStar}
-Emotional Core: {emotionalCore}
-Year 1 Target: {year1Target}
-
-BUSINESS SPECIFICS:
-- Business: {companyName}
-- Revenue: {annualTurnover}
-- Team: {teamSize}
-- Current tools mentioned: {toolsUsed}
-- Commitment: {commitmentHours}
-
-EMOTIONAL DRIVERS (USE THESE EXACT WORDS):
-- Their biggest pain: "{growthBottleneck}"
-- Their 90-day fantasy: "{tuesdayTest}"
-- Money worry: "{moneyWorry}"
-- Emergency log: "{emergencyLog}"
-- Danger zone: "{dangerZone}"
-
-CONSTRAINTS:
-- Available time: {commitmentHours}
-- 90-day priorities: {ninetyDayPriorities}
-
-Create 12 weeks following this structure:
 
 {
-  "sprintTheme": "Overarching theme connecting to their 90-day fantasy",
+  "fiveYearVision": "A beautifully written 3-4 paragraph narrative (400-500 words) that tells the complete story of their transformation. Start with where they are now (the pain, the struggle, the sacrifice). Move to the turning point (the insight that changes everything). End with the achieved vision (what life looks like when they've won). Use their words. Make them feel seen. This is the centrepiece - make it exceptional.",
   
-  "sprintPromise": "In 90 days, transform from X to Y",
+  "northStar": "One powerful sentence that captures their deepest desire - using their exact words where possible. This becomes the filter for every decision. Example: 'Give ourselves the time to have kids and step back to enjoy more time together while we can still go anywhere and do anything.'",
   
-  "sprintGoals": ["Goal 1", "Goal 2", "Goal 3"],
+  "sixMonthShifts": [
+    "First structural change that must happen - be specific to their situation",
+    "Second structural change - reference their pain points",
+    "Third structural change - address their danger zone",
+    "Fourth structural change - move toward their vision"
+  ],
   
-  "weeks": [
+  "threeMonthFocus": {
+    "theme": "A clear, compelling theme for the next 90 days",
+    "why": "Why this matters NOW - connect to their pain and their vision",
+    "outcome": "What will be different in 90 days - be specific and measurable"
+  },
+  
+  "immediateActions": [
     {
-      "weekNumber": 1,
-      "phase": "Immediate Relief",
-      "theme": "Specific theme for this week",
-      "focus": "The ONE thing to focus on",
-      "tasks": [
-        {
-          "id": "w1-t1",
-          "title": "Task title",
-          "description": "Clear actionable instructions",
-          "category": "Operations|People|Systems|Financial|Marketing",
-          "priority": "critical|high|medium",
-          "estimatedHours": 2
-        }
-      ],
-      "milestone": "What success looks like this week",
-      "tuesdayEvolution": "How their Tuesday starts to feel different"
+      "action": "First specific action they should take this week",
+      "why": "Why this matters - connect to their story",
+      "time": "How long this takes"
+    },
+    {
+      "action": "Second action",
+      "why": "Connection to their goals",
+      "time": "Time estimate"
+    },
+    {
+      "action": "Third action",
+      "why": "Why this moves the needle",
+      "time": "Time estimate"
+    },
+    {
+      "action": "Fourth action",
+      "why": "Strategic importance",
+      "time": "Time estimate"
+    },
+    {
+      "action": "Fifth action",
+      "why": "How this builds momentum",
+      "time": "Time estimate"
     }
   ],
   
-  "successMetrics": [
-    {"metric": "Name", "baseline": "Current state", "target": "90-day goal"}
-  ],
+  "yearMilestones": {
+    "year1": {
+      "headline": "A powerful headline for year 1",
+      "summary": "2-3 sentences describing what's different after year 1"
+    },
+    "year3": {
+      "headline": "A powerful headline for year 3",
+      "summary": "2-3 sentences describing the midpoint transformation"
+    },
+    "year5": {
+      "headline": "Their definition of winning achieved",
+      "summary": "2-3 sentences describing the complete vision realized"
+    }
+  },
   
-  "tuesdayTestEvolution": {
-    "week0": "Current Tuesday feeling",
-    "week4": "First shift",
-    "week8": "Momentum building",
-    "week12": "Transformed"
-  }
+  "archetype": "freedom_seeker|empire_builder|lifestyle_designer|impact_maker|balanced_achiever"
 }
 
-PHASES TO FOLLOW:
-- Weeks 1-2: Immediate Relief (quick wins, pain reduction)
-- Weeks 3-4: Foundation Building (systems, processes)
-- Weeks 5-6: Momentum Multiplication (scale what works)
-- Weeks 7-8: Lock-In Phase (make changes permanent)
-- Weeks 9-10: Scale Phase (multiply success)
-- Weeks 11-12: Transform Phase (become the new version)
-
-Every task must be specific to their situation. Reference their emotional language throughout.`;
+Remember: The fiveYearVision narrative is the heart of this. It should be so well-written that they want to print it out and put it on their wall. Make them feel understood. Make them believe change is possible. Make them excited to start.`;
 
 // ============================================================================
 // VALUE ANALYSIS (Rule-Based - No LLM Cost)
@@ -711,51 +583,30 @@ serve(async (req) => {
     const valueAnalysis = calculateValueAnalysis(part3, context);
     console.log('Value analysis complete. Score:', valueAnalysis.overallScore);
 
-    // Generate 5-Year Vision
-    console.log('Generating 5-Year Vision...');
+    // Generate Complete Transformation Plan (single high-quality LLM call)
+    console.log('Generating Transformation Plan...');
     const startTime = Date.now();
-    const visionResponse = await callLLM(FIVE_YEAR_VISION_PROMPT, context);
-    const fiveYearVision = extractJson(visionResponse);
-    console.log('Vision generated:', fiveYearVision.northStar?.slice(0, 50));
-
-    // Generate 6-Month Shift
-    console.log('Generating 6-Month Shift...');
-    const shiftContext = { ...context, fiveYearVision: JSON.stringify(fiveYearVision) };
-    const shiftResponse = await callLLM(SIX_MONTH_SHIFT_PROMPT, shiftContext);
-    const sixMonthShift = extractJson(shiftResponse);
-
-    // Generate 12-Week Sprint
-    console.log('Generating 12-Week Sprint...');
-    const sprintContext = {
-      ...context,
-      sixMonthShift: JSON.stringify(sixMonthShift),
-      northStar: fiveYearVision.northStar,
-      emotionalCore: fiveYearVision.emotionalCore,
-      year1Target: fiveYearVision.year1?.measurable,
-      toolsUsed: 'scheduling software, CRM'
-    };
-    const sprintResponse = await callLLM(TWELVE_WEEK_SPRINT_PROMPT, sprintContext);
-    const sprint = extractJson(sprintResponse);
-
+    const planResponse = await callLLM(FIVE_YEAR_VISION_PROMPT, context);
+    const plan = extractJson(planResponse);
     const duration = Date.now() - startTime;
+    console.log('Plan generated in', duration, 'ms. North Star:', plan.northStar?.slice(0, 50));
 
-    // Build full roadmap
+    // Build roadmap data structure
     const roadmapData = {
-      fiveYearVision,
-      sixMonthShift,
+      fiveYearVision: plan,
+      northStar: plan.northStar,
       summary: {
-        headline: sprint.sprintTheme || `${context.companyName}'s 12-Week Transformation`,
-        keyInsight: sprint.sprintPromise,
-        expectedOutcome: sprint.sprintGoals?.[0]
+        headline: plan.threeMonthFocus?.theme || `${context.companyName}'s Transformation`,
+        keyInsight: plan.threeMonthFocus?.why || plan.fiveYearVision?.split('.')[0],
+        expectedOutcome: plan.threeMonthFocus?.outcome
       },
-      priorities: sprint.sprintGoals?.map((goal: string, i: number) => ({
+      priorities: plan.immediateActions?.map((action: any, i: number) => ({
         rank: i + 1,
-        title: goal,
-        description: goal,
+        title: action.action,
+        description: action.why,
+        time: action.time,
         category: 'Strategic'
-      })) || [],
-      weeks: sprint.weeks || [],
-      successMetrics: sprint.successMetrics || []
+      })) || []
     };
 
     // Save to database
@@ -775,26 +626,7 @@ serve(async (req) => {
 
     if (saveError) throw new Error(`Failed to save: ${saveError.message}`);
 
-    // Create tasks
-    if (sprint.weeks?.length > 0) {
-      const tasks = sprint.weeks.flatMap((week: any) =>
-        (week.tasks || []).map((task: any, i: number) => ({
-          practice_id: practiceId,
-          client_id: clientId,
-          roadmap_id: savedRoadmap.id,
-          week_number: week.weekNumber,
-          title: task.title,
-          description: task.description,
-          category: task.category || 'General',
-          priority: task.priority || 'medium',
-          sort_order: i,
-          status: 'pending'
-        }))
-      );
-      if (tasks.length > 0) await supabase.from('client_tasks').insert(tasks);
-    }
-
-    console.log(`365 Analysis complete! Duration: ${duration}ms`);
+    console.log(`Transformation plan complete! Duration: ${duration}ms`);
 
     return new Response(
       JSON.stringify({
@@ -803,8 +635,8 @@ serve(async (req) => {
         valueAnalysis: { overallScore: valueAnalysis.overallScore },
         roadmap: {
           headline: roadmapData.summary.headline,
-          northStar: fiveYearVision.northStar,
-          weekCount: sprint.weeks?.length || 0
+          northStar: plan.northStar,
+          archetype: plan.archetype
         },
         usage: { durationMs: duration }
       }),
