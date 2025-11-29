@@ -26,7 +26,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('Loading client session for user:', userId);
     try {
       console.log('Querying practice_members...');
-      const { data, error } = await supabase
+      
+      // Add timeout to prevent infinite hanging
+      const queryPromise = supabase
         .from('practice_members')
         .select(`
           id,
@@ -42,6 +44,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('user_id', userId)
         .eq('member_type', 'client')
         .maybeSingle();
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Query timeout after 10s')), 10000)
+      );
+      
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
       console.log('Query result:', { data, error });
 
