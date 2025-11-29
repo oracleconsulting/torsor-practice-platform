@@ -609,7 +609,7 @@ export default function RoadmapPage() {
             </div>
 
             {/* Risk Register */}
-            {valueAnalysis.riskRegister?.length > 0 && (
+            {(valueAnalysis.riskRegister?.length ?? 0) > 0 && (
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <div className="p-6 border-b border-slate-200 bg-red-50">
                   <h3 className="font-bold text-red-900 flex items-center gap-2">
@@ -618,7 +618,7 @@ export default function RoadmapPage() {
                   </h3>
                 </div>
                 <div className="divide-y divide-slate-100">
-                  {valueAnalysis.riskRegister.map((risk: any, i: number) => (
+                  {valueAnalysis.riskRegister?.map((risk: any, i: number) => (
                     <div key={i} className="p-4">
                       <div className="flex items-start gap-3">
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${
@@ -643,7 +643,7 @@ export default function RoadmapPage() {
             )}
 
             {/* Value Gaps */}
-            {valueAnalysis.valueGaps?.length > 0 && (
+            {(valueAnalysis.valueGaps?.length ?? 0) > 0 && (
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <div className="p-6 border-b border-slate-200 bg-emerald-50">
                   <h3 className="font-bold text-emerald-900 flex items-center gap-2">
@@ -652,7 +652,7 @@ export default function RoadmapPage() {
                   </h3>
                 </div>
                 <div className="divide-y divide-slate-100">
-                  {valueAnalysis.valueGaps.map((gap: any, i: number) => (
+                  {valueAnalysis.valueGaps?.map((gap: any, i: number) => (
                     <div key={i} className="p-4">
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-medium text-slate-900">{gap.area}</h4>
