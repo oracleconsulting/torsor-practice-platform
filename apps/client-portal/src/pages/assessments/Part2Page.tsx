@@ -55,7 +55,10 @@ export default function Part2Page() {
 
         if (data) {
           setAssessmentId(data.id);
-          setResponses(data.responses || {});
+          const loadedResponses = data.responses || {};
+          console.log('Part2 loaded responses:', loadedResponses);
+          console.log('Sample values - external_forces:', loadedResponses.external_forces, 'data_driven_level:', loadedResponses.data_driven_level);
+          setResponses(loadedResponses);
           setCurrentSectionIndex(data.current_section || 0);
           if (data.status === 'completed' || isReviewMode) {
             setShowSummary(true);
@@ -369,6 +372,9 @@ function QuestionCard({
   responses: Record<string, any>;
   number: number;
 }) {
+  // Debug: log the value for this question
+  console.log(`Q${number} (${question.fieldName}): value =`, value, 'type =', typeof value);
+  
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-6">
       <div className="flex gap-4">
