@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 // Import questions from shared package
-import { part2Sections, Part2Section, Part2Question } from '@torsor/shared/data/part2-questions';
+import { part2Sections, type Part2Section, type Part2Question } from '@torsor/shared';
 
 export default function Part2Page() {
   const navigate = useNavigate();
@@ -73,8 +73,8 @@ export default function Part2Page() {
 
   // Calculate section completion
   const getSectionCompletion = (section: Part2Section) => {
-    const requiredQuestions = section.questions.filter(q => q.required);
-    const answeredRequired = requiredQuestions.filter(q => {
+    const requiredQuestions = section.questions.filter((q: Part2Question) => q.required);
+    const answeredRequired = requiredQuestions.filter((q: Part2Question) => {
       const value = responses[q.fieldName];
       if (Array.isArray(value)) return value.length > 0;
       return value !== undefined && value !== null && value !== '';
@@ -84,7 +84,7 @@ export default function Part2Page() {
   };
 
   const overallCompletion = Math.round(
-    part2Sections.reduce((sum, s) => sum + getSectionCompletion(s), 0) / part2Sections.length
+    part2Sections.reduce((sum: number, s: Part2Section) => sum + getSectionCompletion(s), 0) / part2Sections.length
   );
 
   // Save progress
@@ -202,7 +202,7 @@ export default function Part2Page() {
         {showSummary ? (
           /* Summary View */
           <div className="space-y-6">
-            {part2Sections.map((section, sIdx) => (
+            {part2Sections.map((section: Part2Section, sIdx: number) => (
               <div 
                 key={section.shortTitle}
                 className="bg-white rounded-xl border border-slate-200 overflow-hidden"
@@ -244,7 +244,7 @@ export default function Part2Page() {
                 {/* Show responses preview */}
                 <div className="border-t border-slate-100 px-4 py-3 bg-slate-50">
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    {section.questions.slice(0, 4).map(q => (
+                    {section.questions.slice(0, 4).map((q: Part2Question) => (
                       <div key={q.fieldName} className="truncate">
                         <span className="text-slate-500">{q.question.slice(0, 30)}...</span>
                         {responses[q.fieldName] && (
@@ -266,7 +266,7 @@ export default function Part2Page() {
           <div className="space-y-6">
             {/* Section Navigation Pills */}
             <div className="flex gap-2 overflow-x-auto pb-2">
-              {part2Sections.map((section, idx) => (
+              {part2Sections.map((section: Part2Section, idx: number) => (
                 <button
                   key={section.shortTitle}
                   onClick={() => setCurrentSectionIndex(idx)}
@@ -299,7 +299,7 @@ export default function Part2Page() {
 
             {/* Questions */}
             <div className="space-y-6">
-              {currentSection.questions.map((question, qIdx) => (
+              {currentSection.questions.map((question: Part2Question, qIdx: number) => (
                 <QuestionCard
                   key={question.fieldName}
                   question={question}
@@ -409,7 +409,7 @@ function QuestionCard({
 
           {question.type === 'radio' && question.options && (
             <div className="space-y-2">
-              {question.options.map((option) => (
+              {question.options.map((option: string) => (
                 <label
                   key={option}
                   className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
@@ -432,7 +432,7 @@ function QuestionCard({
 
           {question.type === 'checkbox' && question.options && (
             <div className="space-y-2">
-              {question.options.map((option) => {
+              {question.options.map((option: string) => {
                 const isChecked = Array.isArray(value) && value.includes(option);
                 return (
                   <label
@@ -495,7 +495,7 @@ function QuestionCard({
           {question.type === 'conditional' && question.options && (
             <div className="space-y-4">
               <div className="space-y-2">
-                {question.options.map((option) => (
+                {question.options.map((option: string) => (
                   <label
                     key={option}
                     className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
@@ -515,7 +515,7 @@ function QuestionCard({
                 ))}
               </div>
               {/* Render conditional questions if visible */}
-              {question.conditionalQuestions?.filter(cq => cq.showWhen === value).map(cq => (
+              {question.conditionalQuestions?.filter((cq: { showWhen: string }) => cq.showWhen === value).map((cq: { id: string; question: string; type: string; fieldName: string; options?: string[] }) => (
                 <div key={cq.id} className="ml-6 pl-4 border-l-2 border-indigo-200">
                   <p className="text-sm font-medium text-slate-700 mb-2">{cq.question}</p>
                   {/* Simplified render for conditional questions */}
@@ -528,7 +528,7 @@ function QuestionCard({
                     />
                   ) : cq.type === 'radio' && cq.options ? (
                     <div className="space-y-1">
-                      {cq.options.map(opt => (
+                      {cq.options.map((opt: string) => (
                         <label key={opt} className="flex items-center gap-2 text-sm">
                           <input type="radio" name={cq.fieldName} className="w-3 h-3" />
                           {opt}
@@ -543,7 +543,7 @@ function QuestionCard({
 
           {question.type === 'matrix' && question.matrixItems && (
             <div className="space-y-3">
-              {question.matrixItems.map((item) => (
+              {question.matrixItems.map((item: { label: string; fieldName: string }) => (
                 <div key={item.fieldName} className="flex items-center gap-4">
                   <span className="w-40 text-sm text-slate-600">{item.label}</span>
                   <input

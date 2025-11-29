@@ -9,7 +9,9 @@
     ".": "./src/index.ts",
     "./types": "./src/types/index.ts",
     "./constants": "./src/constants/index.ts",
-    "./lib": "./src/lib/index.ts"
+    "./lib": "./src/lib/index.ts",
+    "./data": "./src/data/index.ts",
+    "./data/*": "./src/data/*.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

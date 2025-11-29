@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 
 // Import questions from shared package
-import { part3Sections, Part3Section, Part3Question } from '@torsor/shared/data/part3-questions';
+import { part3Sections, type Part3Section, type Part3Question } from '@torsor/shared';
 
 export default function Part3Page() {
   const navigate = useNavigate();
@@ -75,8 +75,8 @@ export default function Part3Page() {
 
   // Calculate section completion
   const getSectionCompletion = (section: Part3Section) => {
-    const requiredQuestions = section.questions.filter(q => q.required);
-    const answeredRequired = requiredQuestions.filter(q => {
+    const requiredQuestions = section.questions.filter((q: Part3Question) => q.required);
+    const answeredRequired = requiredQuestions.filter((q: Part3Question) => {
       const value = responses[q.fieldName];
       if (Array.isArray(value)) return value.length > 0;
       return value !== undefined && value !== null && value !== '';
@@ -86,7 +86,7 @@ export default function Part3Page() {
   };
 
   const overallCompletion = Math.round(
-    part3Sections.reduce((sum, s) => sum + getSectionCompletion(s), 0) / part3Sections.length
+    part3Sections.reduce((sum: number, s: Part3Section) => sum + getSectionCompletion(s), 0) / part3Sections.length
   );
 
   // Save progress
@@ -205,7 +205,7 @@ export default function Part3Page() {
         {showSummary ? (
           /* Summary View */
           <div className="space-y-6">
-            {part3Sections.map((section, sIdx) => (
+            {part3Sections.map((section: Part3Section, sIdx: number) => (
               <div 
                 key={section.id}
                 className="bg-white rounded-xl border border-slate-200 overflow-hidden"
@@ -256,7 +256,7 @@ export default function Part3Page() {
           <div className="space-y-6">
             {/* Section Navigation Pills */}
             <div className="flex gap-2 overflow-x-auto pb-2">
-              {part3Sections.map((section, idx) => (
+              {part3Sections.map((section: Part3Section, idx: number) => (
                 <button
                   key={section.id}
                   onClick={() => setCurrentSectionIndex(idx)}
@@ -290,7 +290,7 @@ export default function Part3Page() {
 
             {/* Questions */}
             <div className="space-y-6">
-              {currentSection.questions.map((question, qIdx) => (
+              {currentSection.questions.map((question: Part3Question, qIdx: number) => (
                 <Part3QuestionCard
                   key={question.fieldName}
                   question={question}
@@ -446,7 +446,7 @@ function Part3QuestionCard({
 
           {question.type === 'radio' && question.options && (
             <div className="space-y-2">
-              {question.options.map((option) => (
+              {question.options.map((option: string) => (
                 <label
                   key={option}
                   className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
@@ -469,7 +469,7 @@ function Part3QuestionCard({
 
           {question.type === 'checkbox' && question.options && (
             <div className="space-y-2">
-              {question.options.map((option) => {
+              {question.options.map((option: string) => {
                 const isChecked = Array.isArray(value) && value.includes(option);
                 return (
                   <label
@@ -527,7 +527,7 @@ function Part3QuestionCard({
                 <thead>
                   <tr>
                     <th className="text-left p-2"></th>
-                    {question.matrixColumns.map(col => (
+                    {question.matrixColumns.map((col: string) => (
                       <th key={col} className="p-2 text-center font-medium text-slate-600 min-w-[100px]">
                         {col}
                       </th>
@@ -535,10 +535,10 @@ function Part3QuestionCard({
                   </tr>
                 </thead>
                 <tbody>
-                  {question.matrixRows.map(row => (
+                  {question.matrixRows.map((row: { id: string; label: string; fieldName: string }) => (
                     <tr key={row.id} className="border-t border-slate-100">
                       <td className="p-2 text-slate-700">{row.label}</td>
-                      {question.matrixColumns!.map((col, colIdx) => (
+                      {question.matrixColumns!.map((col: string) => (
                         <td key={col} className="p-2 text-center">
                           <input
                             type="radio"
