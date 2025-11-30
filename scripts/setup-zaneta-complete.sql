@@ -201,6 +201,7 @@ BEGIN
         practice_id,
         assessment_type,
         status,
+        completion_percentage,
         started_at,
         completed_at,
         responses
@@ -209,6 +210,7 @@ BEGIN
         v_practice_id,
         'part1',
         'completed',
+        100,
         '2025-09-15T13:45:00Z',
         '2025-09-15T13:49:05Z',
         '{
@@ -239,6 +241,7 @@ BEGIN
         practice_id,
         assessment_type,
         status,
+        completion_percentage,
         started_at,
         completed_at,
         responses
@@ -247,6 +250,7 @@ BEGIN
         v_practice_id,
         'part2',
         'completed',
+        100,
         '2025-09-15T13:50:00Z',
         '2025-09-15T13:59:28Z',
         '{
@@ -314,6 +318,7 @@ BEGIN
         practice_id,
         assessment_type,
         status,
+        completion_percentage,
         started_at,
         completed_at,
         responses
@@ -322,6 +327,7 @@ BEGIN
         v_practice_id,
         'part3',
         'completed',
+        100,
         '2025-09-15T14:00:00Z',
         '2025-09-15T14:10:54Z',
         '{
