@@ -5,8 +5,8 @@ import { Navigation } from '../../components/Navigation';
 import { Brain, TrendingUp, AlertTriangle, Award, Users, Target } from 'lucide-react';
 
 interface TeamAnalyticsPageProps {
-  onNavigate: (page: 'heatmap' | 'management' | 'readiness' | 'analytics') => void;
-  currentPage: 'heatmap' | 'management' | 'readiness' | 'analytics';
+  onNavigate: (page: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients') => void;
+  currentPage: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients';
 }
 
 export function TeamAnalyticsPage({ onNavigate, currentPage }: TeamAnalyticsPageProps) {

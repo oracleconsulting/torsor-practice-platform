@@ -4,8 +4,8 @@ import { useServiceReadiness } from '../../hooks/useServiceReadiness';
 import { Navigation } from '../../components/Navigation';
 
 interface ServiceReadinessPageProps {
-  onNavigate: (page: 'heatmap' | 'management' | 'readiness' | 'analytics') => void;
-  currentPage: 'heatmap' | 'management' | 'readiness' | 'analytics';
+  onNavigate: (page: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients') => void;
+  currentPage: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients';
 }
 
 export function ServiceReadinessPage({ onNavigate, currentPage }: ServiceReadinessPageProps) {

@@ -7,8 +7,8 @@ import { SkillsHeatmapGrid } from '../../components/SkillsHeatmapGrid';
 import { Navigation } from '../../components/Navigation';
 
 interface SkillsHeatmapPageProps {
-  onNavigate: (page: 'heatmap' | 'management' | 'readiness' | 'analytics') => void;
-  currentPage: 'heatmap' | 'management' | 'readiness' | 'analytics';
+  onNavigate: (page: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients') => void;
+  currentPage: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients';
 }
 
 export function SkillsHeatmapPage({ onNavigate, currentPage }: SkillsHeatmapPageProps) {

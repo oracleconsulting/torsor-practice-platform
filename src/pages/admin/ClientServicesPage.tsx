@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Navigation } from '../../components/Navigation';
+import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { supabase } from '../../lib/supabase';
 import { 
@@ -17,9 +18,11 @@ import {
   Plus
 } from 'lucide-react';
 
-interface NavigationProps {
-  currentPage: string;
-  onNavigate: (page: any) => void;
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients';
+
+interface ClientServicesPageProps {
+  currentPage: Page;
+  onNavigate: (page: Page) => void;
 }
 
 // Service Lines - these are your client-facing programs
@@ -59,8 +62,9 @@ interface Client {
   hasRoadmap: boolean;
 }
 
-export function ClientServicesPage({ currentPage, onNavigate }: NavigationProps) {
-  const { currentMember } = useCurrentMember();
+export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPageProps) {
+  const { user } = useAuth();
+  const { data: currentMember } = useCurrentMember(user?.id);
   const [selectedServiceLine, setSelectedServiceLine] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
@@ -414,7 +418,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: NavigationProps)
 
 // Enhanced Client Detail Modal with full functionality
 function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: () => void }) {
-  const { currentMember } = useCurrentMember();
+  const { user } = useAuth();
+  const { data: currentMember } = useCurrentMember(user?.id);
   const [client, setClient] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'sprint'>('overview');
