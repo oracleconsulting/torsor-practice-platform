@@ -58,8 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           program_status,
           program_enrolled_at,
           client_company,
-          assigned_advisor_id,
-          skip_value_analysis
+          assigned_advisor_id
         `)
         .eq('user_id', userId)
         .eq('member_type', 'client')
