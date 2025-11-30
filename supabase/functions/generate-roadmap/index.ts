@@ -60,6 +60,7 @@ interface RoadmapContext {
   teamSize: string;
   growthBottleneck: string;
   ninetyDayPriorities: string[];
+  threeExpertsNeeded: string;
   currentWorkingHours: number;
   targetWorkingHours: number;
   toolsUsed: string[];
@@ -564,6 +565,7 @@ function buildContext(part1: Record<string, any>, part2: Record<string, any>): R
     teamSize: part2.team_size || 'solo',
     growthBottleneck: part2.growth_bottleneck || '',
     ninetyDayPriorities: part2.ninety_day_priorities || [],
+    threeExpertsNeeded: part2.three_experts_needed || part1.three_experts_needed || '',
     currentWorkingHours: parseInt(part2.current_working_hours) || 50,
     targetWorkingHours: parseInt(part2.target_working_hours) || 35,
     toolsUsed: part2.current_tools || [],
@@ -987,7 +989,6 @@ CRITICAL REMINDERS:
 - Address their 90-day priorities: ${ctx.ninetyDayPriorities?.join(', ') || 'systems, delegation, time'}
 - Every task needs a board owner from: ${boardMembers.map(b => b.role).join(', ')}
 - Use their exact emotional language throughout`;
-}
 }
 
 // ============================================================================
