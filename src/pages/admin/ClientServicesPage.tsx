@@ -145,37 +145,100 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   const fetchClients = async () => {
     setLoading(true);
     try {
-      // Use practice_id directly from currentMember (from useCurrentMember hook)
       const practiceId = currentMember?.practice_id;
 
-      if (!practiceId) {
-        console.log('No practice found - currentMember:', currentMember);
+      if (!practiceId || !selectedServiceLine) {
+        console.log('No practice or service line selected');
+        setLoading(false);
+        setClients([]);
+        return;
+      }
+
+      // Get the service line from our constants to find its code
+      const serviceLineConfig = SERVICE_LINES.find(sl => sl.id === selectedServiceLine);
+      const serviceLineCode = serviceLineConfig?.code || selectedServiceLine;
+
+      console.log('Fetching clients for practice:', practiceId, 'service:', serviceLineCode);
+
+      // First, get the service_line_id from the database
+      const { data: serviceLineData } = await supabase
+        .from('service_lines')
+        .select('id')
+        .eq('code', serviceLineCode)
+        .single();
+
+      if (!serviceLineData) {
+        console.log('Service line not found in database:', serviceLineCode);
+        // Fallback: if service_lines table not populated, show 365 clients from practice_members
+        if (serviceLineCode === '365_method') {
+          const { data: clientsData } = await supabase
+            .from('practice_members')
+            .select('id, name, email, client_company, program_status, last_portal_login')
+            .eq('practice_id', practiceId)
+            .eq('member_type', 'client')
+            .order('name');
+
+          const clientIds = clientsData?.map(c => c.id) || [];
+          const { data: roadmaps } = await supabase
+            .from('client_roadmaps')
+            .select('client_id')
+            .in('client_id', clientIds)
+            .eq('is_active', true);
+
+          const { data: assessments } = await supabase
+            .from('client_assessments')
+            .select('client_id, status')
+            .in('client_id', clientIds);
+
+          const enrichedClients: Client[] = (clientsData || []).map(client => {
+            const clientAssessments = assessments?.filter(a => a.client_id === client.id) || [];
+            const completedCount = clientAssessments.filter(a => a.status === 'completed').length;
+            const hasRoadmap = roadmaps?.some(r => r.client_id === client.id) || false;
+            return {
+              id: client.id,
+              name: client.name,
+              email: client.email,
+              company: client.client_company,
+              service_line: serviceLineCode,
+              status: client.program_status || 'active',
+              progress: completedCount * 33,
+              lastActivity: client.last_portal_login,
+              hasRoadmap
+            };
+          });
+          setClients(enrichedClients);
+        } else {
+          setClients([]);
+        }
         setLoading(false);
         return;
       }
 
-      console.log('Fetching clients for practice:', practiceId);
-
-      // Fetch clients from practice_members
-      const { data: clientsData, error } = await supabase
-        .from('practice_members')
+      // Fetch clients enrolled in this specific service line
+      const { data: enrollments, error } = await supabase
+        .from('client_service_lines')
         .select(`
-          id,
-          name,
-          email,
-          client_company,
-          program_status,
-          last_portal_login
+          client_id,
+          status,
+          onboarding_completed_at,
+          practice_members!client_service_lines_client_id_fkey (
+            id,
+            name,
+            email,
+            client_company,
+            program_status,
+            last_portal_login
+          )
         `)
         .eq('practice_id', practiceId)
-        .eq('member_type', 'client')
-        .order('name');
+        .eq('service_line_id', serviceLineData.id);
 
       if (error) throw error;
 
-      // Fetch assessments and roadmaps for these clients
-      const clientIds = clientsData?.map(c => c.id) || [];
-      
+      // Get client IDs for additional queries
+      const clientIds = enrollments?.map(e => e.client_id) || [];
+
+      // Fetch assessments and roadmaps
       const { data: assessments } = await supabase
         .from('client_assessments')
         .select('client_id, status')
@@ -187,28 +250,48 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         .in('client_id', clientIds)
         .eq('is_active', true);
 
-      // Map to client objects
-      const enrichedClients: Client[] = (clientsData || []).map(client => {
-        const clientAssessments = assessments?.filter(a => a.client_id === client.id) || [];
-        const completedCount = clientAssessments.filter(a => a.status === 'completed').length;
-        const hasRoadmap = roadmaps?.some(r => r.client_id === client.id) || false;
+      // Also fetch service-specific assessments
+      const { data: serviceAssessments } = await supabase
+        .from('service_line_assessments')
+        .select('client_id, completion_percentage, completed_at')
+        .in('client_id', clientIds)
+        .eq('service_line_code', serviceLineCode);
 
-        return {
-          id: client.id,
-          name: client.name,
-          email: client.email,
-          company: client.client_company,
-          service_line: '365-alignment', // For now, all are 365
-          status: client.program_status || 'active',
-          progress: completedCount * 33, // 3 parts = 33% each
-          lastActivity: client.last_portal_login,
-          hasRoadmap
-        };
-      });
+      // Map to client objects
+      const enrichedClients: Client[] = (enrollments || [])
+        .filter(e => e.practice_members)
+        .map(enrollment => {
+          const client = enrollment.practice_members as any;
+          const clientAssessments = assessments?.filter(a => a.client_id === client.id) || [];
+          const completedCount = clientAssessments.filter(a => a.status === 'completed').length;
+          const hasRoadmap = roadmaps?.some(r => r.client_id === client.id) || false;
+          const serviceAssessment = serviceAssessments?.find(sa => sa.client_id === client.id);
+
+          // For 365, use standard assessments; for others, use service-specific
+          let progress = 0;
+          if (serviceLineCode === '365_method') {
+            progress = completedCount * 33;
+          } else {
+            progress = serviceAssessment?.completion_percentage || 0;
+          }
+
+          return {
+            id: client.id,
+            name: client.name,
+            email: client.email,
+            company: client.client_company,
+            service_line: serviceLineCode,
+            status: enrollment.status || client.program_status || 'active',
+            progress,
+            lastActivity: client.last_portal_login,
+            hasRoadmap: serviceLineCode === '365_method' ? hasRoadmap : !!enrollment.onboarding_completed_at
+          };
+        });
 
       setClients(enrichedClients);
     } catch (error) {
       console.error('Error fetching clients:', error);
+      setClients([]);
     } finally {
       setLoading(false);
     }
