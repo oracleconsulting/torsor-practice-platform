@@ -495,6 +495,63 @@ function extractEmotionalAnchors(part1: Record<string, any>, part2: Record<strin
 }
 
 // ============================================================================
+// CLIENT-SPECIFIC CONTENT FILTER (for shared documents)
+// ============================================================================
+
+function filterContentForClient(
+  content: string, 
+  thisClientPatterns: string[], 
+  otherClientPatterns: string[]
+): string {
+  const lines = content.split('\n');
+  const relevantLines: string[] = [];
+  let inRelevantSection = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const lineLower = lines[i].toLowerCase();
+    
+    // Check if line mentions THIS client
+    const mentionsThis = thisClientPatterns.some(p => lineLower.includes(p));
+    // Check if line mentions OTHER clients
+    const mentionsOther = otherClientPatterns.some(p => lineLower.includes(p));
+    
+    // Detect speaker changes in transcripts
+    if (lineLower.match(/^[\w\s]+:/)) {
+      inRelevantSection = mentionsThis && !mentionsOther;
+    }
+    
+    // Include line if:
+    // 1. Specifically mentions this client
+    // 2. We're in a section where this client is speaking
+    // 3. It's general advice (not about any specific client's business)
+    if (mentionsThis && !mentionsOther) {
+      relevantLines.push(lines[i]);
+      inRelevantSection = true;
+    } else if (inRelevantSection && !mentionsOther) {
+      relevantLines.push(lines[i]);
+    } else if (!mentionsOther && isGeneralAdvice(lineLower)) {
+      relevantLines.push(lines[i]);
+    }
+    
+    // Reset section flag after empty lines
+    if (lines[i].trim() === '') {
+      inRelevantSection = false;
+    }
+  }
+  
+  return relevantLines.join('\n').trim();
+}
+
+function isGeneralAdvice(line: string): boolean {
+  const generalPatterns = [
+    'recommend', 'suggest', 'should', 'could', 'consider',
+    'strategy', 'approach', 'framework', 'process', 'system',
+    'goal setting', 'planning', 'priority', 'focus on'
+  ];
+  return generalPatterns.some(p => line.includes(p));
+}
+
+// ============================================================================
 // CONTEXT BUILDER
 // ============================================================================
 
@@ -1564,24 +1621,76 @@ serve(async (req) => {
     // ================================================================
     // FETCH ADVISOR-PROVIDED CONTEXT (for regeneration with new info)
     // ================================================================
+    // CRITICAL: Filter shared documents to only include THIS client's content
     let advisorContext: Array<{id: string, type: string, content: string, priority: string}> = [];
+    
+    // Get client name for entity filtering
+    const clientName = part1.full_name || '';
+    const clientFirstName = clientName.split(' ')[0].toLowerCase();
+    const companyName = (part1.company_name || part2.trading_name || '').toLowerCase();
+    
+    // Build patterns to identify THIS client's content
+    const thisClientPatterns = [clientFirstName, companyName].filter(p => p.length > 2);
+    
+    // Get OTHER clients in practice to filter OUT their content
+    let otherClientPatterns: string[] = [];
+    try {
+      const { data: otherClients } = await supabase
+        .from('practice_members')
+        .select('name, email')
+        .eq('practice_id', practiceId)
+        .eq('member_type', 'client')
+        .neq('id', clientId);
+      
+      if (otherClients) {
+        otherClientPatterns = otherClients.flatMap((c: any) => {
+          const patterns: string[] = [];
+          if (c.name) patterns.push(c.name.split(' ')[0].toLowerCase());
+          if (c.email) {
+            const domain = c.email.split('@')[1];
+            if (domain && !domain.includes('gmail')) {
+              patterns.push(domain.split('.')[0].toLowerCase());
+            }
+          }
+          return patterns;
+        }).filter(p => p.length > 2);
+      }
+    } catch (e) {
+      console.log('Could not fetch other clients for filtering');
+    }
+    
+    console.log(`Entity filtering: THIS client [${thisClientPatterns.join(', ')}], EXCLUDE [${otherClientPatterns.join(', ')}]`);
+    
     try {
       const { data: contextData } = await supabase
         .from('client_context')
-        .select('id, context_type, content, priority_level')
+        .select('id, context_type, content, priority_level, is_shared, data_source_type')
         .eq('client_id', clientId)
         .eq('processed', false)
         .order('priority_level', { ascending: false })
         .order('created_at', { ascending: false });
       
       if (contextData && contextData.length > 0) {
-        advisorContext = contextData.map((c: any) => ({
-          id: c.id,
-          type: c.context_type,
-          content: c.content,
-          priority: c.priority_level
-        }));
-        console.log(`Found ${advisorContext.length} unprocessed context items`);
+        for (const c of contextData) {
+          let content = c.content;
+          
+          // For SHARED documents, filter content by entity
+          if (c.is_shared && c.data_source_type === 'transcript') {
+            content = filterContentForClient(c.content, thisClientPatterns, otherClientPatterns);
+            if (content.length < 50) {
+              console.log(`Skipping shared context ${c.id} - no relevant content for ${clientFirstName}`);
+              continue; // Skip if no relevant content for this client
+            }
+          }
+          
+          advisorContext.push({
+            id: c.id,
+            type: c.context_type,
+            content: content,
+            priority: c.priority_level
+          });
+        }
+        console.log(`Found ${advisorContext.length} relevant context items (after entity filtering)`);
       }
     } catch (e) {
       // Table might not exist yet - that's okay
@@ -1599,13 +1708,27 @@ serve(async (req) => {
     const advisorContextSection = advisorContext.length > 0 
       ? `
 ═══════════════════════════════════════════════════════════════════
-ADVISOR-PROVIDED CONTEXT (HIGHEST PRIORITY - INCORPORATE THESE)
+⚠️ CRITICAL: DATA SOURCE PRIORITY ⚠️
+═══════════════════════════════════════════════════════════════════
+The following facts are from the client's OFFICIAL ASSESSMENT - use ONLY these:
+- CLIENT NAME: ${context.userName}
+- COMPANY NAME: ${context.companyName}
+- INDUSTRY: ${context.industry}
+- REVENUE: £${context.revenueNumeric.toLocaleString()}
+- TEAM SIZE: ${context.teamSize}
+
+DO NOT use company names, industries, or financial figures from the advisor 
+context below. The advisor context is for QUALITATIVE insights only.
+If the advisor context mentions a different company or industry, IGNORE IT.
+
+═══════════════════════════════════════════════════════════════════
+ADVISOR-PROVIDED CONTEXT (FOR QUALITATIVE INSIGHTS ONLY)
 ═══════════════════════════════════════════════════════════════════
 ${advisorContext.map(c => `[${c.type.toUpperCase()}${c.priority === 'critical' ? ' - CRITICAL' : c.priority === 'high' ? ' - HIGH PRIORITY' : ''}]:
 ${c.content}
 `).join('\n')}
-These insights came from client calls, emails, or advisor observations.
-They should INFORM and potentially MODIFY the sprint tasks.
+Use these insights for understanding goals, challenges, and emotions.
+DO NOT extract business facts from here - use the assessment data above.
 `
       : '';
 
