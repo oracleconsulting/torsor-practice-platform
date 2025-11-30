@@ -1,8 +1,8 @@
-import { LayoutDashboard, Target, TrendingUp, Brain } from 'lucide-react';
+import { LayoutDashboard, Target, TrendingUp, Brain, Users } from 'lucide-react';
 
 interface NavigationProps {
-  currentPage: 'heatmap' | 'management' | 'readiness' | 'analytics';
-  onNavigate: (page: 'heatmap' | 'management' | 'readiness' | 'analytics') => void;
+  currentPage: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients';
+  onNavigate: (page: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients') => void;
 }
 
 export function Navigation({ currentPage, onNavigate }: NavigationProps) {
@@ -11,6 +11,7 @@ export function Navigation({ currentPage, onNavigate }: NavigationProps) {
     { id: 'management' as const, label: 'Skills Management', icon: TrendingUp },
     { id: 'readiness' as const, label: 'Service Readiness', icon: Target },
     { id: 'analytics' as const, label: 'Team Analytics', icon: Brain },
+    { id: 'clients' as const, label: 'Client Services', icon: Users },
   ];
 
   return (
