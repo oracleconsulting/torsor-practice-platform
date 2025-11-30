@@ -8,7 +8,7 @@ export function useCurrentMember(userId: string | undefined) {
       if (!userId) return null;
       
       // First try to find as a team member in practice_members
-      const { data: teamMember, error: teamError } = await supabase
+      const { data: teamMember } = await supabase
         .from('practice_members')
         .select('id, name, email, role, practice_id, user_id, member_type')
         .eq('user_id', userId)
