@@ -180,6 +180,51 @@ export interface RoadmapData {
     valueGaps?: ValueGap[];
     riskRegister?: Risk[];
     totalOpportunity?: number;
+    businessValuation?: {
+      asOfDate?: string;
+      method?: string;
+      currentValue?: number;
+      valueRange?: { low: number; mid: number; high: number };
+      potentialValue?: number;
+      valueGapAmount?: number;
+      keyMetrics?: {
+        revenue?: number;
+        grossMargin?: string;
+        netProfit?: number;
+        sde?: number;
+        ebitda?: number;
+        growthRate?: string;
+        recurringRevenue?: string;
+      };
+      valueDrivers?: Array<{
+        name: string;
+        impact: number;
+        reason: string;
+        fixable: boolean;
+        fixCost: number;
+        fixTimeMonths: number;
+        afterFix: number;
+      }>;
+      industryComparison?: {
+        industry: string;
+        averageMultiple: number;
+        yourMultiple: number;
+        percentile: number;
+        topPerformersMultiple: number;
+      };
+      roi?: {
+        investmentRequired: number;
+        timeToRealize: number;
+        valueIncrease: number;
+        roiPercentage: number;
+      };
+      exitReadiness?: {
+        score: number;
+        blockers?: string[];
+        recommendations?: string[];
+        timeToExit: string;
+      };
+    };
   };
   createdAt: string;
   isActive: boolean;
