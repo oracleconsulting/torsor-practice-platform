@@ -429,10 +429,12 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
     content: '', 
     priority: 'normal',
     appliesTo: ['sprint'] as string[], // Which roadmap parts this applies to
-    file: null as File | null
+    files: [] as File[] // Support multiple files
   });
   const [addingContext, setAddingContext] = useState(false);
-  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{current: number, total: number, fileName: string}>({ current: 0, total: 0, fileName: '' });
+  const [processingDocuments, setProcessingDocuments] = useState(false);
   
   // Analysis generation state
   const [generatingValueAnalysis, setGeneratingValueAnalysis] = useState(false);
@@ -490,41 +492,102 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
   };
 
   // ================================================================
-  // FILE UPLOAD FUNCTIONALITY
+  // MULTI-FILE UPLOAD & DOCUMENT PROCESSING
   // ================================================================
-  const handleFileUpload = async (file: File): Promise<string | null> => {
-    if (!client?.practice_id) return null;
+  
+  interface UploadedDocument {
+    fileName: string;
+    fileUrl: string;
+    fileSize: number;
+    fileType: string;
+  }
+
+  const handleMultiFileUpload = async (files: File[]): Promise<UploadedDocument[]> => {
+    if (!client?.practice_id || files.length === 0) return [];
     
-    setUploadingFile(true);
+    setUploadingFiles(true);
+    const uploadedDocs: UploadedDocument[] = [];
+    
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${client.practice_id}/${clientId}/${Date.now()}.${fileExt}`;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setUploadProgress({ current: i + 1, total: files.length, fileName: file.name });
+        
+        const fileExt = file.name.split('.').pop();
+        const timestamp = Date.now();
+        const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const storagePath = `${client.practice_id}/${clientId}/${timestamp}_${safeFileName}`;
+        
+        const { error } = await supabase.storage
+          .from('client-documents')
+          .upload(storagePath, file);
+        
+        if (error) {
+          console.error(`Error uploading ${file.name}:`, error);
+          continue;
+        }
+        
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('client-documents')
+          .getPublicUrl(storagePath);
+        
+        uploadedDocs.push({
+          fileName: file.name,
+          fileUrl: urlData.publicUrl,
+          fileSize: file.size,
+          fileType: file.type || fileExt || 'unknown'
+        });
+      }
       
-      const { error } = await supabase.storage
-        .from('client-documents')
-        .upload(fileName, file);
-      
-      if (error) throw error;
-      
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('client-documents')
-        .getPublicUrl(fileName);
-      
-      return urlData.publicUrl;
+      return uploadedDocs;
     } catch (error) {
-      console.error('Error uploading file:', error);
-      return null;
+      console.error('Error in multi-file upload:', error);
+      return uploadedDocs;
     } finally {
-      setUploadingFile(false);
+      setUploadingFiles(false);
+      setUploadProgress({ current: 0, total: 0, fileName: '' });
+    }
+  };
+
+  // Process documents for vectorization
+  const processDocumentsForVectorization = async (
+    documents: UploadedDocument[], 
+    contextId: string
+  ): Promise<void> => {
+    if (documents.length === 0) return;
+    
+    setProcessingDocuments(true);
+    try {
+      // Call Edge Function to process and vectorize documents
+      const response = await supabase.functions.invoke('process-documents', {
+        body: {
+          clientId,
+          practiceId: client?.practice_id,
+          contextId,
+          documents,
+          appliesTo: newContext.appliesTo
+        }
+      });
+
+      if (response.error) {
+        console.error('Document processing error:', response.error);
+        // Don't throw - documents are uploaded, just not vectorized yet
+      } else {
+        console.log('Documents processed:', response.data);
+      }
+    } catch (error) {
+      console.error('Error processing documents:', error);
+    } finally {
+      setProcessingDocuments(false);
     }
   };
 
   // ================================================================
-  // ADD CONTEXT FUNCTIONALITY
+  // ADD CONTEXT FUNCTIONALITY (with multi-file support)
   // ================================================================
   const handleAddContext = async () => {
-    if ((!newContext.content.trim() && !newContext.file) || !client?.practice_id) return;
+    if ((!newContext.content.trim() && newContext.files.length === 0) || !client?.practice_id) return;
     
     setAddingContext(true);
     try {
@@ -536,32 +599,53 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
         .eq('member_type', 'team')
         .single();
 
-      // Upload file if present
-      let fileUrl = null;
-      if (newContext.file) {
-        fileUrl = await handleFileUpload(newContext.file);
+      // Upload files if present
+      let uploadedDocs: UploadedDocument[] = [];
+      if (newContext.files.length > 0) {
+        uploadedDocs = await handleMultiFileUpload(newContext.files);
       }
 
-      const { error } = await supabase
+      // Create content summary
+      let contentSummary = newContext.content;
+      if (uploadedDocs.length > 0) {
+        const fileList = uploadedDocs.map(d => `• ${d.fileName} (${(d.fileSize / 1024).toFixed(1)} KB)`).join('\n');
+        contentSummary = newContext.content 
+          ? `${newContext.content}\n\n📎 Attached files:\n${fileList}`
+          : `📎 Uploaded ${uploadedDocs.length} document(s):\n${fileList}`;
+      }
+
+      // Insert context record
+      const { data: contextRecord, error } = await supabase
         .from('client_context')
         .insert({
           practice_id: client.practice_id,
           client_id: clientId,
-          context_type: newContext.type,
-          content: newContext.content || `Uploaded file: ${newContext.file?.name}`,
-          source_file_url: fileUrl,
+          context_type: uploadedDocs.length > 0 ? 'document' : newContext.type,
+          content: contentSummary,
+          source_file_url: uploadedDocs.length > 0 ? JSON.stringify(uploadedDocs) : null,
           priority_level: newContext.priority,
           applies_to: newContext.appliesTo,
           added_by: memberData?.id,
           processed: false
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
+      // Process documents for vectorization (async - don't block UI)
+      if (uploadedDocs.length > 0 && contextRecord) {
+        processDocumentsForVectorization(uploadedDocs, contextRecord.id);
+      }
+
       // Refresh client data
       await fetchClientDetail();
-      setNewContext({ type: 'note', content: '', priority: 'normal', appliesTo: ['sprint'], file: null });
+      setNewContext({ type: 'note', content: '', priority: 'normal', appliesTo: ['sprint'], files: [] });
       setShowAddContext(false);
+      
+      if (uploadedDocs.length > 0) {
+        alert(`${uploadedDocs.length} document(s) uploaded successfully! They will be processed and vectorized for roadmap context.`);
+      }
     } catch (error) {
       console.error('Error adding context:', error);
       alert('Failed to add context. Please try again.');
@@ -1067,57 +1151,141 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                           <p className="text-xs text-gray-500 mt-1">Select which roadmap sections should incorporate this context</p>
                         </div>
 
-                        {/* File Upload */}
+                        {/* Multi-File Upload */}
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Upload Document (optional)</label>
-                          <div className="flex items-center gap-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Upload Documents (optional - multiple files supported)
+                          </label>
+                          <div 
+                            className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-indigo-400 transition-colors cursor-pointer"
+                            onClick={() => document.getElementById('multi-file-input')?.click()}
+                            onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-indigo-500', 'bg-indigo-50'); }}
+                            onDragLeave={(e) => { e.currentTarget.classList.remove('border-indigo-500', 'bg-indigo-50'); }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              e.currentTarget.classList.remove('border-indigo-500', 'bg-indigo-50');
+                              const droppedFiles = Array.from(e.dataTransfer.files);
+                              setNewContext({ ...newContext, files: [...newContext.files, ...droppedFiles], type: 'document' });
+                            }}
+                          >
                             <input
+                              id="multi-file-input"
                               type="file"
-                              accept=".pdf,.doc,.docx,.txt,.csv,.xls,.xlsx"
+                              multiple
+                              accept=".pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,.ppt,.pptx,.md"
                               onChange={(e) => {
-                                const file = e.target.files?.[0] || null;
-                                setNewContext({ ...newContext, file, type: file ? 'document' : newContext.type });
+                                const selectedFiles = Array.from(e.target.files || []);
+                                if (selectedFiles.length > 0) {
+                                  setNewContext({ ...newContext, files: [...newContext.files, ...selectedFiles], type: 'document' });
+                                }
+                                e.target.value = ''; // Reset input to allow re-selecting same files
                               }}
-                              className="flex-1 text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                              className="hidden"
                             />
-                            {newContext.file && (
-                              <button
-                                onClick={() => setNewContext({ ...newContext, file: null })}
-                                className="text-sm text-red-600 hover:text-red-700"
-                              >
-                                Remove
-                              </button>
-                            )}
+                            <div className="text-gray-500">
+                              <Briefcase className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                              <p className="text-sm font-medium">Drop files here or click to browse</p>
+                              <p className="text-xs text-gray-400 mt-1">PDF, Word, Excel, PowerPoint, Text files</p>
+                            </div>
                           </div>
-                          {newContext.file && (
-                            <p className="text-sm text-gray-600 mt-2">
-                              Selected: {newContext.file.name} ({(newContext.file.size / 1024).toFixed(1)} KB)
-                            </p>
+                          
+                          {/* File list */}
+                          {newContext.files.length > 0 && (
+                            <div className="mt-3 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm font-medium text-gray-700">{newContext.files.length} file(s) selected</p>
+                                <button
+                                  onClick={() => setNewContext({ ...newContext, files: [] })}
+                                  className="text-xs text-red-600 hover:text-red-700"
+                                >
+                                  Remove all
+                                </button>
+                              </div>
+                              <div className="max-h-32 overflow-y-auto space-y-1">
+                                {newContext.files.map((file, idx) => (
+                                  <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className="flex-shrink-0 w-6 h-6 bg-indigo-100 text-indigo-600 rounded flex items-center justify-center text-xs font-medium">
+                                        {file.name.split('.').pop()?.toUpperCase().substring(0, 3)}
+                                      </span>
+                                      <span className="truncate text-gray-700">{file.name}</span>
+                                      <span className="flex-shrink-0 text-gray-400">({(file.size / 1024).toFixed(0)} KB)</span>
+                                    </div>
+                                    <button
+                                      onClick={() => setNewContext({ 
+                                        ...newContext, 
+                                        files: newContext.files.filter((_, i) => i !== idx) 
+                                      })}
+                                      className="text-red-500 hover:text-red-700 ml-2"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                              <p className="text-xs text-indigo-600">
+                                📊 Files will be vectorized and used to enrich roadmap context
+                              </p>
+                            </div>
                           )}
                         </div>
 
                         {/* Text Content */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            {newContext.file ? 'Additional Notes (optional)' : 'Content'}
+                            {newContext.files.length > 0 ? 'Additional Notes (optional)' : 'Content'}
                           </label>
                           <textarea
                             value={newContext.content}
                             onChange={(e) => setNewContext({ ...newContext, content: e.target.value })}
                             rows={5}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                            placeholder={newContext.file 
-                              ? "Add any additional context about this document..." 
+                            placeholder={newContext.files.length > 0
+                              ? "Add any additional context about these documents..." 
                               : "Paste meeting transcript, email content, or notes here..."
                             }
                           />
                         </div>
 
+                        {/* Upload progress */}
+                        {uploadingFiles && (
+                          <div className="bg-indigo-50 rounded-lg p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-indigo-900">
+                                  Uploading {uploadProgress.current} of {uploadProgress.total}...
+                                </p>
+                                <p className="text-xs text-indigo-700">{uploadProgress.fileName}</p>
+                              </div>
+                            </div>
+                            <div className="mt-2 h-2 bg-indigo-200 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-indigo-600 transition-all"
+                                style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Processing indicator */}
+                        {processingDocuments && (
+                          <div className="bg-purple-50 rounded-lg p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                              <div>
+                                <p className="text-sm font-medium text-purple-900">Processing documents...</p>
+                                <p className="text-xs text-purple-700">Extracting text and creating embeddings</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         <div className="flex justify-end gap-3 pt-2">
                           <button
                             onClick={() => {
                               setShowAddContext(false);
-                              setNewContext({ type: 'note', content: '', priority: 'normal', appliesTo: ['sprint'], file: null });
+                              setNewContext({ type: 'note', content: '', priority: 'normal', appliesTo: ['sprint'], files: [] });
                             }}
                             className="px-4 py-2 text-gray-600 hover:text-gray-800"
                           >
@@ -1125,13 +1293,13 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                           </button>
                           <button
                             onClick={handleAddContext}
-                            disabled={addingContext || uploadingFile || (!newContext.content.trim() && !newContext.file)}
+                            disabled={addingContext || uploadingFiles || (!newContext.content.trim() && newContext.files.length === 0)}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400"
                           >
-                            {(addingContext || uploadingFile) && (
+                            {(addingContext || uploadingFiles) && (
                               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             )}
-                            {uploadingFile ? 'Uploading...' : 'Save Context'}
+                            {uploadingFiles ? 'Uploading...' : newContext.files.length > 0 ? `Upload ${newContext.files.length} File(s)` : 'Save Context'}
                           </button>
                         </div>
                       </div>
