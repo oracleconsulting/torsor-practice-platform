@@ -500,7 +500,7 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
       const fileExt = file.name.split('.').pop();
       const fileName = `${client.practice_id}/${clientId}/${Date.now()}.${fileExt}`;
       
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('client-documents')
         .upload(fileName, file);
       
