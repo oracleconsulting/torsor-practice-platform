@@ -15,7 +15,12 @@ import {
   Calendar,
   Filter,
   Search,
-  Plus
+  Plus,
+  Mail,
+  X,
+  Send,
+  LineChart,
+  Settings
 } from 'lucide-react';
 
 type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients';
@@ -28,25 +33,36 @@ interface ClientServicesPageProps {
 // Service Lines - these are your client-facing programs
 const SERVICE_LINES = [
   { 
-    id: '365-alignment', 
+    id: '365_method', 
+    code: '365_method',
     name: '365 Alignment Program',
     description: 'Life-first business transformation with 5-year vision, 6-month shift, and 12-week sprints',
     icon: Target,
     color: 'indigo'
   },
   { 
-    id: 'growth-advisory', 
-    name: 'Growth Advisory',
-    description: 'Strategic growth planning and execution support',
-    icon: TrendingUp,
+    id: 'management_accounts', 
+    code: 'management_accounts',
+    name: 'Management Accounts',
+    description: 'Monthly financial visibility with P&L, Balance Sheet, KPIs and Cash Flow analysis',
+    icon: LineChart,
     color: 'emerald'
   },
   { 
-    id: 'exit-planning', 
-    name: 'Exit Planning',
-    description: 'Business value optimization and succession planning',
-    icon: Briefcase,
+    id: 'systems_audit', 
+    code: 'systems_audit',
+    name: 'Systems Audit',
+    description: 'Identify and fix operational bottlenecks, integrate systems, eliminate manual workarounds',
+    icon: Settings,
     color: 'amber'
+  },
+  { 
+    id: 'fractional_executive', 
+    code: 'fractional_executive',
+    name: 'Fractional CFO/COO',
+    description: 'Executive expertise on a part-time basis for scaling businesses',
+    icon: Users,
+    color: 'purple'
   }
 ];
 
@@ -70,6 +86,16 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
+  
+  // Invitation modal state
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteForm, setInviteForm] = useState({
+    email: '',
+    name: '',
+    services: [] as string[],
+    customMessage: ''
+  });
+  const [sendingInvite, setSendingInvite] = useState(false);
 
   // Fetch clients when service line is selected
   useEffect(() => {
@@ -77,6 +103,44 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
       fetchClients();
     }
   }, [selectedServiceLine]);
+
+  // Send client invitation
+  const handleSendInvite = async () => {
+    if (!inviteForm.email || inviteForm.services.length === 0 || !currentMember?.practice_id) {
+      alert('Please enter an email and select at least one service');
+      return;
+    }
+
+    setSendingInvite(true);
+    try {
+      const response = await supabase.functions.invoke('send-client-invitation', {
+        body: {
+          email: inviteForm.email,
+          name: inviteForm.name,
+          practiceId: currentMember.practice_id,
+          invitedBy: currentMember.id,
+          serviceLineCodes: inviteForm.services,
+          customMessage: inviteForm.customMessage
+        }
+      });
+
+      if (response.error) throw response.error;
+
+      alert(response.data.message || 'Invitation sent successfully!');
+      setShowInviteModal(false);
+      setInviteForm({ email: '', name: '', services: [], customMessage: '' });
+      
+      // Refresh clients list
+      if (selectedServiceLine) {
+        fetchClients();
+      }
+    } catch (error) {
+      console.error('Error sending invitation:', error);
+      alert('Failed to send invitation. Please try again.');
+    } finally {
+      setSendingInvite(false);
+    }
+  };
 
   const fetchClients = async () => {
     setLoading(true);
@@ -176,9 +240,12 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                 Manage clients across all service lines
               </p>
             </div>
-            <button className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
-              <Plus className="w-4 h-4" />
-              Add Client
+            <button 
+              onClick={() => setShowInviteModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              <Mail className="w-4 h-4" />
+              Invite Client
             </button>
           </div>
         </div>
@@ -408,6 +475,143 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             clientId={selectedClient} 
             onClose={() => setSelectedClient(null)} 
           />
+        )}
+
+        {/* Invite Client Modal */}
+        {showInviteModal && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
+              {/* Modal Header */}
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Invite Client</h2>
+                  <p className="text-sm text-gray-500">Send an invitation to join your client portal</p>
+                </div>
+                <button
+                  onClick={() => setShowInviteModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-4">
+                {/* Email */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    value={inviteForm.email}
+                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                    placeholder="client@example.com"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+
+                {/* Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Client Name
+                  </label>
+                  <input
+                    type="text"
+                    value={inviteForm.name}
+                    onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
+                    placeholder="John Smith"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+
+                {/* Service Lines */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Invite to Services *
+                  </label>
+                  <div className="space-y-2">
+                    {SERVICE_LINES.map((service) => {
+                      const Icon = service.icon;
+                      const isSelected = inviteForm.services.includes(service.code);
+                      return (
+                        <label
+                          key={service.id}
+                          className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'border-indigo-500 bg-indigo-50' 
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setInviteForm({ ...inviteForm, services: [...inviteForm.services, service.code] });
+                              } else {
+                                setInviteForm({ ...inviteForm, services: inviteForm.services.filter(s => s !== service.code) });
+                              }
+                            }}
+                            className="w-4 h-4 text-indigo-600 rounded"
+                          />
+                          <Icon className={`w-5 h-5 text-${service.color}-600`} />
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900">{service.name}</p>
+                            <p className="text-xs text-gray-500">{service.description}</p>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Custom Message */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Personal Message (optional)
+                  </label>
+                  <textarea
+                    value={inviteForm.customMessage}
+                    onChange={(e) => setInviteForm({ ...inviteForm, customMessage: e.target.value })}
+                    placeholder="Looking forward to working with you..."
+                    rows={3}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setShowInviteModal(false);
+                    setInviteForm({ email: '', name: '', services: [], customMessage: '' });
+                  }}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSendInvite}
+                  disabled={sendingInvite || !inviteForm.email || inviteForm.services.length === 0}
+                  className="inline-flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed transition-colors"
+                >
+                  {sendingInvite ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Send Invitation
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </div>

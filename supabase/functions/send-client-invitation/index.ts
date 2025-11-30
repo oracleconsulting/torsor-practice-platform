@@ -1,0 +1,236 @@
+// ============================================================================
+// EDGE FUNCTION: send-client-invitation
+// ============================================================================
+// Invites a client to specific service lines via email
+// Creates pending invitation record and sends personalized email
+// ============================================================================
+
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface InvitationRequest {
+  email: string;
+  name: string;
+  practiceId: string;
+  invitedBy: string;  // Team member ID
+  serviceLineCodes: string[];  // Which services to invite to
+  customMessage?: string;
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+
+    const { email, name, practiceId, invitedBy, serviceLineCodes, customMessage }: InvitationRequest = await req.json();
+
+    // Validate required fields
+    if (!email || !practiceId || !invitedBy || !serviceLineCodes?.length) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields: email, practiceId, invitedBy, serviceLineCodes' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check if email already exists as a client in this practice
+    const { data: existingClient } = await supabase
+      .from('practice_members')
+      .select('id, name, email')
+      .eq('email', email.toLowerCase())
+      .eq('practice_id', practiceId)
+      .single();
+
+    if (existingClient) {
+      // Client exists - just enrol them in the new service lines
+      const { data: serviceLines } = await supabase
+        .from('service_lines')
+        .select('id, code, name')
+        .in('code', serviceLineCodes);
+
+      const enrolments = [];
+      for (const sl of serviceLines || []) {
+        const { data: enrolment, error } = await supabase
+          .from('client_service_lines')
+          .upsert({
+            client_id: existingClient.id,
+            practice_id: practiceId,
+            service_line_id: sl.id,
+            status: 'invited',
+            invited_at: new Date().toISOString(),
+            invited_by: invitedBy
+          }, { onConflict: 'client_id,service_line_id' })
+          .select()
+          .single();
+        
+        if (enrolment) enrolments.push({ service: sl.name, status: 'invited' });
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          type: 'existing_client',
+          clientId: existingClient.id,
+          enrolments,
+          message: `${existingClient.name} has been invited to ${enrolments.length} service(s)`
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // New client - create invitation
+    const token = crypto.randomUUID();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // 7 day expiry
+
+    // Get service line IDs
+    const { data: serviceLines } = await supabase
+      .from('service_lines')
+      .select('id, code, name')
+      .in('code', serviceLineCodes);
+
+    const serviceLineIds = (serviceLines || []).map(sl => sl.id);
+    const serviceLineNames = (serviceLines || []).map(sl => sl.name);
+
+    // Create invitation record
+    const { data: invitation, error: invError } = await supabase
+      .from('client_invitations')
+      .insert({
+        practice_id: practiceId,
+        invited_by: invitedBy,
+        email: email.toLowerCase(),
+        name: name || '',
+        service_line_ids: serviceLineIds,
+        invitation_token: token,
+        expires_at: expiresAt.toISOString(),
+        status: 'pending'
+      })
+      .select()
+      .single();
+
+    if (invError) throw invError;
+
+    // Get practice details for email
+    const { data: practice } = await supabase
+      .from('practices')
+      .select('name')
+      .eq('id', practiceId)
+      .single();
+
+    // Get inviter details
+    const { data: inviter } = await supabase
+      .from('practice_members')
+      .select('name')
+      .eq('id', invitedBy)
+      .single();
+
+    // Build invitation URL
+    const baseUrl = Deno.env.get('CLIENT_PORTAL_URL') || 'https://client.torsor.co.uk';
+    const invitationUrl = `${baseUrl}/invitation/${token}`;
+
+    // Send email via Resend (or your email provider)
+    const resendKey = Deno.env.get('RESEND_API_KEY');
+    if (resendKey) {
+      try {
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); padding: 40px; text-align: center;">
+              <h1 style="color: white; margin: 0;">You're Invited</h1>
+            </div>
+            
+            <div style="padding: 40px; background: #f8fafc;">
+              <p style="font-size: 18px; color: #334155;">Hi ${name || 'there'},</p>
+              
+              <p style="color: #64748b; line-height: 1.6;">
+                ${inviter?.name || 'Your advisor'} at <strong>${practice?.name || 'the practice'}</strong> 
+                has invited you to join:
+              </p>
+              
+              <ul style="color: #334155; line-height: 1.8;">
+                ${serviceLineNames.map(sn => `<li><strong>${sn}</strong></li>`).join('')}
+              </ul>
+              
+              ${customMessage ? `
+                <div style="background: white; border-left: 4px solid #6366f1; padding: 15px; margin: 20px 0;">
+                  <p style="color: #64748b; margin: 0; font-style: italic;">"${customMessage}"</p>
+                </div>
+              ` : ''}
+              
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${invitationUrl}" 
+                   style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); 
+                          color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px;
+                          font-weight: bold; font-size: 16px;">
+                  Accept Invitation
+                </a>
+              </div>
+              
+              <p style="color: #94a3b8; font-size: 14px;">
+                This invitation expires in 7 days. If you have any questions, 
+                reply to this email or contact your advisor directly.
+              </p>
+            </div>
+            
+            <div style="padding: 20px; background: #1e293b; text-align: center;">
+              <p style="color: #94a3b8; margin: 0; font-size: 12px;">
+                Powered by Torsor • Transforming businesses and lives
+              </p>
+            </div>
+          </div>
+        `;
+
+        await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${resendKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            from: 'Torsor <invitations@torsor.co.uk>',
+            to: email,
+            subject: `You're invited to ${serviceLineNames.join(' & ')}`,
+            html: emailHtml
+          })
+        });
+
+        console.log(`Invitation email sent to ${email}`);
+      } catch (emailError) {
+        console.error('Email send failed:', emailError);
+        // Don't fail the whole request if email fails
+      }
+    } else {
+      console.log('RESEND_API_KEY not configured - skipping email');
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        type: 'new_invitation',
+        invitationId: invitation.id,
+        invitationUrl,
+        expiresAt: expiresAt.toISOString(),
+        services: serviceLineNames,
+        message: `Invitation sent to ${email}`
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Invitation error:', error);
+    return new Response(
+      JSON.stringify({ success: false, error: (error as Error).message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
+
