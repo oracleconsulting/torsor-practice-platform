@@ -128,7 +128,6 @@ BEGIN
                 practice_id = v_practice_id,
                 name = 'Zaneta Clark',
                 member_type = 'client',
-                status = 'active',
                 program_status = 'active',
                 updated_at = now()
             WHERE id = v_zaneta_member_id;
@@ -143,7 +142,6 @@ BEGIN
                 email,
                 role,
                 member_type,
-                status,
                 program_status,
                 invited_at,
                 created_at
@@ -154,7 +152,6 @@ BEGIN
                 'zaneta@zlsalon.co.uk',
                 'Client',
                 'client',
-                'active',
                 'active',
                 now(),
                 now()
@@ -394,7 +391,7 @@ WHERE email = 'zaneta@zlsalon.co.uk';
 
 -- Check practice member
 SELECT 'Practice Member:' as check_type;
-SELECT id, name, email, member_type, status, program_status, practice_id
+SELECT id, name, email, member_type, program_status, practice_id
 FROM practice_members 
 WHERE email = 'zaneta@zlsalon.co.uk';
 
