@@ -1130,7 +1130,8 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                             {[
                               { id: 'fiveYear', label: '5-Year Vision' },
                               { id: 'sixMonth', label: '6-Month Shift' },
-                              { id: 'sprint', label: '12-Week Sprint' }
+                              { id: 'sprint', label: '12-Week Sprint' },
+                              { id: 'valueAnalysis', label: 'Value Analysis' }
                             ].map(({ id, label }) => (
                               <label key={id} className="flex items-center gap-2 cursor-pointer">
                                 <input
