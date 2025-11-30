@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { ClientSession } from '@torsor/shared';
@@ -11,6 +11,7 @@ interface AuthContextType {
   signIn: (email: string) => Promise<{ error: Error | null }>;
   signInWithPassword: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  refreshClientSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,10 +21,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [clientSession, setClientSession] = useState<ClientSession | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Track if we've successfully loaded the session to avoid re-querying on token refresh
+  const sessionLoadedRef = useRef(false);
+  const loadingRef = useRef(false);
 
   // Load client session data
-  const loadClientSession = async (userId: string): Promise<boolean> => {
+  const loadClientSession = async (userId: string, force = false): Promise<boolean> => {
+    // Skip if already loaded and not forcing refresh
+    if (sessionLoadedRef.current && clientSession && !force) {
+      console.log('Client session already loaded, skipping query');
+      return true;
+    }
+
+    // Prevent concurrent loads
+    if (loadingRef.current) {
+      console.log('Already loading client session, skipping');
+      return false;
+    }
+
+    loadingRef.current = true;
     console.log('Loading client session for user:', userId);
+
     try {
       console.log('Querying practice_members...');
       
@@ -39,7 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           program_status,
           program_enrolled_at,
           client_company,
-          assigned_advisor_id
+          assigned_advisor_id,
+          skip_value_analysis
         `)
         .eq('user_id', userId)
         .eq('member_type', 'client')
@@ -55,7 +75,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('Client session query error:', error);
-        setClientSession(null);
+        // Don't clear existing session on error - keep what we have
+        if (!clientSession) {
+          setClientSession(null);
+        }
         return false;
       }
 
@@ -82,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      setClientSession({
+      const newSession: ClientSession = {
         clientId: data.id,
         practiceId: data.practice_id,
         name: data.name,
@@ -91,7 +114,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: data.program_status || 'active',
         enrolledAt: data.program_enrolled_at,
         advisor,
-      });
+      };
+
+      setClientSession(newSession);
+      sessionLoadedRef.current = true;
 
       console.log('Client session set successfully');
 
@@ -108,8 +134,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (error) {
       console.error('Error loading client session:', error);
-      setClientSession(null);
+      // On timeout, DON'T clear existing session - keep what we have
+      if (!clientSession) {
+        console.log('No existing session to preserve');
+      } else {
+        console.log('Preserving existing client session despite error');
+      }
       return false;
+    } finally {
+      loadingRef.current = false;
+    }
+  };
+
+  // Manual refresh function
+  const refreshClientSession = async () => {
+    if (user) {
+      await loadClientSession(user.id, true);
     }
   };
 
@@ -156,21 +196,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.id);
         
-        // Skip INITIAL_SESSION as we handle that in initAuth
-        if (event === 'INITIAL_SESSION') return;
-        
         if (!isMounted) return;
         
+        // Always update the auth session
         setSession(session);
         setUser(session?.user ?? null);
         
-        if (session?.user) {
-          await loadClientSession(session.user.id);
-        } else {
+        // Only reload client session on actual sign in/out, NOT token refreshes
+        if (event === 'SIGNED_IN') {
+          // New sign in - need to load client session
+          if (session?.user) {
+            await loadClientSession(session.user.id);
+          }
+          setLoading(false);
+        } else if (event === 'SIGNED_OUT') {
+          // Clear everything on sign out
           setClientSession(null);
+          sessionLoadedRef.current = false;
+          setLoading(false);
+        } else if (event === 'TOKEN_REFRESHED') {
+          // Don't re-query on token refresh - keep existing session
+          console.log('Token refreshed, keeping existing client session');
+        } else if (event === 'INITIAL_SESSION') {
+          // Skip - handled in initAuth
         }
-        
-        setLoading(false);
       }
     );
 
@@ -214,6 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setSession(null);
     setClientSession(null);
+    sessionLoadedRef.current = false;
   };
 
   return (
@@ -226,6 +276,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signInWithPassword,
         signOut,
+        refreshClientSession,
       }}
     >
       {children}
@@ -240,4 +291,3 @@ export function useAuth() {
   }
   return context;
 }
-
