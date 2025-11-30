@@ -1331,15 +1331,58 @@ serve(async (req) => {
 
     if (fetchError) throw new Error(`Failed to fetch: ${fetchError.message}`);
 
-    const part1 = assessments?.find(a => a.assessment_type === 'part1')?.responses || {};
-    const part2 = assessments?.find(a => a.assessment_type === 'part2')?.responses || {};
+    const part1 = assessments?.find((a: any) => a.assessment_type === 'part1')?.responses || {};
+    const part2 = assessments?.find((a: any) => a.assessment_type === 'part2')?.responses || {};
+
+    // ================================================================
+    // FETCH ADVISOR-PROVIDED CONTEXT (for regeneration with new info)
+    // ================================================================
+    let advisorContext: Array<{id: string, type: string, content: string, priority: string}> = [];
+    try {
+      const { data: contextData } = await supabase
+        .from('client_context')
+        .select('id, context_type, content, priority_level')
+        .eq('client_id', clientId)
+        .eq('processed', false)
+        .order('priority_level', { ascending: false })
+        .order('created_at', { ascending: false });
+      
+      if (contextData && contextData.length > 0) {
+        advisorContext = contextData.map((c: any) => ({
+          id: c.id,
+          type: c.context_type,
+          content: c.content,
+          priority: c.priority_level
+        }));
+        console.log(`Found ${advisorContext.length} unprocessed context items`);
+      }
+    } catch (e) {
+      // Table might not exist yet - that's okay
+      console.log('No client_context table or no context found');
+    }
 
     // Build comprehensive context
     const context = buildContext(part1, part2);
     console.log(`Context built for ${context.companyName} (${context.industry}, £${context.revenueNumeric})`);
     console.log(`Emotional anchors: ${context.emotionalAnchors.painPhrases.length} pain, ${context.emotionalAnchors.desirePhrases.length} desire`);
 
-    // Phase 1: 5-Year Vision
+    // ================================================================
+    // BUILD ADVISOR CONTEXT INJECTION FOR PROMPTS
+    // ================================================================
+    const advisorContextSection = advisorContext.length > 0 
+      ? `
+═══════════════════════════════════════════════════════════════════
+ADVISOR-PROVIDED CONTEXT (HIGHEST PRIORITY - INCORPORATE THESE)
+═══════════════════════════════════════════════════════════════════
+${advisorContext.map(c => `[${c.type.toUpperCase()}${c.priority === 'critical' ? ' - CRITICAL' : c.priority === 'high' ? ' - HIGH PRIORITY' : ''}]:
+${c.content}
+`).join('\n')}
+These insights came from client calls, emails, or advisor observations.
+They should INFORM and potentially MODIFY the sprint tasks.
+`
+      : '';
+
+    // Phase 1: 5-Year Vision (usually not affected by sprint-level context)
     console.log('Generating 5-Year Vision...');
     let fiveYearVision;
     try {
@@ -1365,11 +1408,18 @@ serve(async (req) => {
       sixMonthShift = generateFallbackShift(context, fiveYearVision);
     }
 
-    // Phase 3: 12-Week Sprint
+    // Phase 3: 12-Week Sprint (INJECT ADVISOR CONTEXT HERE)
     console.log('Generating 12-Week Sprint...');
     let sprint;
     try {
-      const sprintPrompt = buildSprintPrompt(context, fiveYearVision, sixMonthShift);
+      let sprintPrompt = buildSprintPrompt(context, fiveYearVision, sixMonthShift);
+      
+      // INJECT ADVISOR CONTEXT AT TOP OF SPRINT PROMPT
+      if (advisorContextSection) {
+        sprintPrompt = advisorContextSection + '\n\n' + sprintPrompt;
+        console.log('Injected advisor context into sprint prompt');
+      }
+      
       const sprintResponse = await callLLM(sprintPrompt, 10000);
       sprint = extractJson(sprintResponse);
       console.log('Sprint generated:', sprint.weeks?.length, 'weeks');
@@ -1404,17 +1454,49 @@ serve(async (req) => {
       version: '2.0'
     };
 
-    // Deactivate old roadmaps
+    // Deactivate old roadmaps and delete old tasks
     await supabase.from('client_roadmaps').update({ is_active: false }).eq('client_id', clientId);
+    
+    // Get current roadmap version
+    const { data: existingRoadmaps } = await supabase
+      .from('client_roadmaps')
+      .select('version')
+      .eq('client_id', clientId)
+      .order('version', { ascending: false })
+      .limit(1);
+    
+    const newVersion = (existingRoadmaps?.[0]?.version || 0) + 1;
 
-    // Insert new
+    // Insert new roadmap with context snapshot
     const { data: savedRoadmap, error: saveError } = await supabase
       .from('client_roadmaps')
-      .insert({ practice_id: practiceId, client_id: clientId, roadmap_data: roadmapData, is_active: true })
+      .insert({ 
+        practice_id: practiceId, 
+        client_id: clientId, 
+        roadmap_data: roadmapData, 
+        is_active: true,
+        version: newVersion,
+        context_snapshot: advisorContext.length > 0 ? advisorContext : null
+      })
       .select()
       .single();
 
     if (saveError) throw new Error(`Failed to save: ${saveError.message}`);
+
+    // ================================================================
+    // MARK ADVISOR CONTEXT AS PROCESSED
+    // ================================================================
+    if (advisorContext.length > 0) {
+      const contextIds = advisorContext.map(c => c.id);
+      await supabase
+        .from('client_context')
+        .update({ processed: true })
+        .in('id', contextIds);
+      console.log(`Marked ${contextIds.length} context items as processed`);
+    }
+
+    // Delete old tasks for this client (we'll recreate from new sprint)
+    await supabase.from('client_tasks').delete().eq('client_id', clientId);
 
     // Create tasks from sprint weeks
     if (sprint.weeks?.length > 0) {
@@ -1432,7 +1514,7 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Roadmap generation complete in ${duration}ms!`);
+    console.log(`Roadmap v${newVersion} generation complete in ${duration}ms!`);
 
     return new Response(JSON.stringify({
       success: true,
