@@ -10,17 +10,6 @@
 -- STEP 1: ENSURE TABLES EXIST
 -- ============================================================================
 
--- Practices table
-CREATE TABLE IF NOT EXISTS practices (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  slug text,
-  domain text,
-  settings jsonb DEFAULT '{}',
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-
 -- Ensure practice_members has all needed columns
 ALTER TABLE practice_members 
   ADD COLUMN IF NOT EXISTS practice_id uuid;
@@ -56,17 +45,28 @@ CREATE TABLE IF NOT EXISTS client_roadmaps (
 );
 
 -- ============================================================================
--- STEP 2: ENSURE RPGCC PRACTICE EXISTS
+-- STEP 2: GET OR CREATE RPGCC PRACTICE
 -- ============================================================================
 
-INSERT INTO practices (id, name, slug, domain)
-VALUES (
-  '8624cd8c-b4c2-4fc3-85b8-e559d14b0568',
-  'RPGCC',
-  'rpgcc',
-  'rpgcc.co.uk'
-)
-ON CONFLICT (id) DO NOTHING;
+-- Use the practice that already has Tom
+DO $$
+DECLARE
+    v_practice_id uuid;
+BEGIN
+    -- Find the practice Tom belongs to
+    SELECT practice_id INTO v_practice_id
+    FROM practice_members
+    WHERE email = 'tom@rowgear.com'
+    LIMIT 1;
+    
+    IF v_practice_id IS NOT NULL THEN
+        RAISE NOTICE '✓ Found existing practice: %', v_practice_id;
+    ELSE
+        -- Use default RPGCC practice ID
+        v_practice_id := '8624cd8c-b4c2-4fc3-85b8-e559d14b0568';
+        RAISE NOTICE 'Using default practice ID: %', v_practice_id;
+    END IF;
+END $$;
 
 -- ============================================================================
 -- STEP 3: CREATE AUTH USER FOR ZANETA
@@ -90,8 +90,20 @@ DO $$
 DECLARE
     v_zaneta_user_id uuid;
     v_zaneta_member_id uuid;
-    v_practice_id uuid := '8624cd8c-b4c2-4fc3-85b8-e559d14b0568';
+    v_practice_id uuid;
 BEGIN
+    -- Get practice_id from Tom's record (same practice)
+    SELECT practice_id INTO v_practice_id
+    FROM practice_members
+    WHERE email = 'tom@rowgear.com'
+    LIMIT 1;
+    
+    -- Fallback to default if Tom not found
+    IF v_practice_id IS NULL THEN
+        v_practice_id := '8624cd8c-b4c2-4fc3-85b8-e559d14b0568';
+    END IF;
+    
+    RAISE NOTICE 'Using practice_id: %', v_practice_id;
     -- Get Zaneta's auth user ID
     SELECT id INTO v_zaneta_user_id 
     FROM auth.users 
@@ -162,8 +174,18 @@ END $$;
 DO $$
 DECLARE
     v_zaneta_id uuid;
-    v_practice_id uuid := '8624cd8c-b4c2-4fc3-85b8-e559d14b0568';
+    v_practice_id uuid;
 BEGIN
+    -- Get practice_id from Tom's record (same practice)
+    SELECT practice_id INTO v_practice_id
+    FROM practice_members
+    WHERE email = 'tom@rowgear.com'
+    LIMIT 1;
+    
+    -- Fallback to default if Tom not found
+    IF v_practice_id IS NULL THEN
+        v_practice_id := '8624cd8c-b4c2-4fc3-85b8-e559d14b0568';
+    END IF;
     -- Get her practice_members ID
     SELECT id INTO v_zaneta_id
     FROM practice_members
