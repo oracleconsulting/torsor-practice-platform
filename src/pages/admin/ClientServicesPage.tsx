@@ -662,10 +662,24 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
     
     setGeneratingValueAnalysis(true);
     try {
+      // First, fetch Part 3 responses for this client
+      const { data: part3Assessment } = await supabase
+        .from('client_assessments')
+        .select('responses')
+        .eq('client_id', clientId)
+        .eq('assessment_type', 'part3')
+        .single();
+      
+      const part3Responses = part3Assessment?.responses || {};
+      
+      console.log('Generating value analysis with part3 responses:', Object.keys(part3Responses).length, 'fields');
+      
       const response = await supabase.functions.invoke('generate-value-analysis', {
         body: {
+          action: 'generate-analysis',
           clientId,
-          practiceId: client.practice_id
+          practiceId: client.practice_id,
+          part3Responses
         }
       });
 
