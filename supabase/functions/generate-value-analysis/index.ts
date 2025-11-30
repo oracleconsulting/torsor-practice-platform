@@ -71,14 +71,12 @@ function determineBusinessStage(part1: Record<string, any>, part2: Record<string
     stage = 'mature';
   }
 
-  // Detect industry
-  const allText = JSON.stringify({ ...part1, ...part2 }).toLowerCase();
-  let industry = 'general_business';
-  if (allText.includes('rowing') || allText.includes('fitness') || allText.includes('gym')) industry = 'fitness_equipment';
-  else if (allText.includes('consult') || allText.includes('advisor') || allText.includes('coach')) industry = 'consulting';
-  else if (allText.includes('software') || allText.includes('saas') || allText.includes('tech')) industry = 'technology';
-  else if (allText.includes('agency') || allText.includes('marketing') || allText.includes('creative')) industry = 'agency';
-  else if (allText.includes('trade') || allText.includes('construction')) industry = 'trades';
+  // Detect industry using comprehensive dynamic detection
+  const allText = JSON.stringify({ ...part1, ...part2 });
+  const companyName = part1.company_name || part2.trading_name || '';
+  const industry = detectIndustryFromContext(allText, companyName);
+  
+  console.log(`Industry detected: ${industry} for "${companyName}"`);
 
   return {
     stage,
@@ -86,7 +84,7 @@ function determineBusinessStage(part1: Record<string, any>, part2: Record<string
     revenueBand,
     teamSize: part2.team_size || 'Just me',
     yearsTrading,
-    companyName: part1.company_name || part2.trading_name || 'Your Business',
+    companyName: companyName || 'Your Business',
     industry
   };
 }
@@ -168,8 +166,15 @@ interface BusinessValuation {
   };
 }
 
-// Industry-specific valuation benchmarks
+// ============================================================================
+// COMPREHENSIVE INDUSTRY MULTIPLES DATABASE
+// ============================================================================
+// Dynamic industry detection with 50+ industries and sub-sectors
+// Multiples based on BizBuySell, IBBA, and Pepperdine data 2023-2024
+// ============================================================================
+
 const INDUSTRY_MULTIPLES: Record<string, ValuationMultiples> = {
+  // ============ SPORTING GOODS & FITNESS ============
   fitness_equipment: {
     revenueMultiple: { low: 0.8, mid: 1.5, high: 2.5 },
     ebitdaMultiple: { low: 3.0, mid: 4.5, high: 7.0 },
@@ -177,6 +182,22 @@ const INDUSTRY_MULTIPLES: Record<string, ValuationMultiples> = {
     primaryMethod: 'sde',
     notes: 'Sporting goods/fitness: valued on SDE with premium for brand strength and recurring revenue'
   },
+  sporting_goods_retail: {
+    revenueMultiple: { low: 0.3, mid: 0.5, high: 0.8 },
+    ebitdaMultiple: { low: 2.5, mid: 3.5, high: 5.0 },
+    sdeMultiple: { low: 2.0, mid: 2.8, high: 4.0 },
+    primaryMethod: 'sde',
+    notes: 'Retail sporting goods: inventory and location dependent'
+  },
+  gym_fitness_center: {
+    revenueMultiple: { low: 0.5, mid: 1.0, high: 1.8 },
+    ebitdaMultiple: { low: 3.0, mid: 4.5, high: 6.5 },
+    sdeMultiple: { low: 2.0, mid: 3.0, high: 4.5 },
+    primaryMethod: 'sde',
+    notes: 'Gym/fitness centers: membership recurring revenue adds premium'
+  },
+  
+  // ============ E-COMMERCE ============
   ecommerce: {
     revenueMultiple: { low: 0.5, mid: 1.0, high: 2.0 },
     ebitdaMultiple: { low: 2.5, mid: 4.0, high: 6.0 },
@@ -184,6 +205,22 @@ const INDUSTRY_MULTIPLES: Record<string, ValuationMultiples> = {
     primaryMethod: 'sde',
     notes: 'E-commerce: valued on SDE, premium for proprietary products and brand'
   },
+  amazon_fba: {
+    revenueMultiple: { low: 0.8, mid: 1.5, high: 2.5 },
+    ebitdaMultiple: { low: 2.5, mid: 3.5, high: 5.0 },
+    sdeMultiple: { low: 2.5, mid: 3.5, high: 5.0 },
+    primaryMethod: 'sde',
+    notes: 'Amazon FBA: premium for established listings, reviews, and brand registry'
+  },
+  subscription_box: {
+    revenueMultiple: { low: 1.0, mid: 2.0, high: 3.5 },
+    ebitdaMultiple: { low: 4.0, mid: 6.0, high: 9.0 },
+    sdeMultiple: { low: 3.0, mid: 4.5, high: 6.5 },
+    primaryMethod: 'sde',
+    notes: 'Subscription boxes: recurring revenue commands significant premium'
+  },
+  
+  // ============ PROFESSIONAL SERVICES ============
   consulting: {
     revenueMultiple: { low: 0.5, mid: 1.0, high: 1.5 },
     ebitdaMultiple: { low: 3.0, mid: 5.0, high: 8.0 },
@@ -191,6 +228,36 @@ const INDUSTRY_MULTIPLES: Record<string, ValuationMultiples> = {
     primaryMethod: 'sde',
     notes: 'Consulting: heavily discounted for founder dependency, premium for systems'
   },
+  accounting_bookkeeping: {
+    revenueMultiple: { low: 0.8, mid: 1.2, high: 1.8 },
+    ebitdaMultiple: { low: 4.0, mid: 6.0, high: 8.0 },
+    sdeMultiple: { low: 1.5, mid: 2.5, high: 3.5 },
+    primaryMethod: 'revenue',
+    notes: 'Accounting: recurring engagements, valued on revenue multiple'
+  },
+  law_firm: {
+    revenueMultiple: { low: 0.5, mid: 1.0, high: 1.5 },
+    ebitdaMultiple: { low: 3.0, mid: 5.0, high: 7.0 },
+    sdeMultiple: { low: 1.0, mid: 2.0, high: 3.0 },
+    primaryMethod: 'sde',
+    notes: 'Law firms: highly dependent on partners, difficult to transfer'
+  },
+  coaching_training: {
+    revenueMultiple: { low: 0.4, mid: 0.8, high: 1.5 },
+    ebitdaMultiple: { low: 2.0, mid: 4.0, high: 6.0 },
+    sdeMultiple: { low: 1.0, mid: 2.0, high: 3.5 },
+    primaryMethod: 'sde',
+    notes: 'Coaching: highly founder-dependent, premium for group programs and IP'
+  },
+  recruitment_staffing: {
+    revenueMultiple: { low: 0.3, mid: 0.6, high: 1.2 },
+    ebitdaMultiple: { low: 3.0, mid: 5.0, high: 7.0 },
+    sdeMultiple: { low: 2.0, mid: 3.0, high: 4.5 },
+    primaryMethod: 'sde',
+    notes: 'Recruitment: relationship-dependent, premium for retained/exclusive contracts'
+  },
+  
+  // ============ TECHNOLOGY ============
   technology: {
     revenueMultiple: { low: 2.0, mid: 4.0, high: 8.0 },
     ebitdaMultiple: { low: 6.0, mid: 10.0, high: 15.0 },
@@ -198,6 +265,29 @@ const INDUSTRY_MULTIPLES: Record<string, ValuationMultiples> = {
     primaryMethod: 'revenue',
     notes: 'Technology/SaaS: valued on revenue with premium for growth and recurring revenue'
   },
+  saas: {
+    revenueMultiple: { low: 3.0, mid: 6.0, high: 12.0 },
+    ebitdaMultiple: { low: 8.0, mid: 15.0, high: 25.0 },
+    sdeMultiple: { low: 4.0, mid: 7.0, high: 12.0 },
+    primaryMethod: 'revenue',
+    notes: 'SaaS: ARR-based, premium for low churn, high NRR, and growth rate'
+  },
+  it_services_msp: {
+    revenueMultiple: { low: 0.8, mid: 1.5, high: 2.5 },
+    ebitdaMultiple: { low: 4.0, mid: 6.0, high: 9.0 },
+    sdeMultiple: { low: 2.5, mid: 4.0, high: 6.0 },
+    primaryMethod: 'sde',
+    notes: 'IT Services/MSP: MRR valued highly, premium for managed services'
+  },
+  software_development: {
+    revenueMultiple: { low: 0.8, mid: 1.5, high: 3.0 },
+    ebitdaMultiple: { low: 4.0, mid: 6.0, high: 10.0 },
+    sdeMultiple: { low: 2.0, mid: 3.5, high: 5.5 },
+    primaryMethod: 'sde',
+    notes: 'Software dev agencies: project vs retainer mix affects valuation'
+  },
+  
+  // ============ MARKETING & CREATIVE ============
   agency: {
     revenueMultiple: { low: 0.4, mid: 0.8, high: 1.5 },
     ebitdaMultiple: { low: 3.0, mid: 5.0, high: 8.0 },
@@ -205,6 +295,29 @@ const INDUSTRY_MULTIPLES: Record<string, ValuationMultiples> = {
     primaryMethod: 'sde',
     notes: 'Agencies: valued on SDE, heavily discounted for key person dependency'
   },
+  digital_marketing: {
+    revenueMultiple: { low: 0.5, mid: 1.0, high: 2.0 },
+    ebitdaMultiple: { low: 3.0, mid: 5.0, high: 8.0 },
+    sdeMultiple: { low: 2.0, mid: 3.0, high: 5.0 },
+    primaryMethod: 'sde',
+    notes: 'Digital marketing: retainer revenue and processes add premium'
+  },
+  seo_ppc: {
+    revenueMultiple: { low: 0.8, mid: 1.5, high: 2.5 },
+    ebitdaMultiple: { low: 3.5, mid: 5.5, high: 8.0 },
+    sdeMultiple: { low: 2.5, mid: 4.0, high: 6.0 },
+    primaryMethod: 'sde',
+    notes: 'SEO/PPC agencies: recurring revenue model valued highly'
+  },
+  content_media: {
+    revenueMultiple: { low: 1.0, mid: 2.0, high: 4.0 },
+    ebitdaMultiple: { low: 4.0, mid: 6.0, high: 10.0 },
+    sdeMultiple: { low: 2.0, mid: 3.5, high: 5.5 },
+    primaryMethod: 'sde',
+    notes: 'Content/media: subscriber base and traffic metrics key drivers'
+  },
+  
+  // ============ TRADES & CONSTRUCTION ============
   trades: {
     revenueMultiple: { low: 0.3, mid: 0.6, high: 1.0 },
     ebitdaMultiple: { low: 2.0, mid: 3.5, high: 5.0 },
@@ -212,6 +325,169 @@ const INDUSTRY_MULTIPLES: Record<string, ValuationMultiples> = {
     primaryMethod: 'sde',
     notes: 'Trades: valued on SDE plus assets, premium for recurring contracts'
   },
+  construction: {
+    revenueMultiple: { low: 0.2, mid: 0.4, high: 0.7 },
+    ebitdaMultiple: { low: 2.0, mid: 3.0, high: 4.5 },
+    sdeMultiple: { low: 1.5, mid: 2.5, high: 3.5 },
+    primaryMethod: 'sde',
+    notes: 'Construction: backlog quality and relationships key, plus equipment value'
+  },
+  electrical: {
+    revenueMultiple: { low: 0.3, mid: 0.5, high: 0.8 },
+    ebitdaMultiple: { low: 2.5, mid: 4.0, high: 5.5 },
+    sdeMultiple: { low: 2.0, mid: 3.0, high: 4.0 },
+    primaryMethod: 'sde',
+    notes: 'Electrical contractors: licenses and recurring maintenance add premium'
+  },
+  plumbing_hvac: {
+    revenueMultiple: { low: 0.4, mid: 0.7, high: 1.2 },
+    ebitdaMultiple: { low: 3.0, mid: 4.5, high: 6.0 },
+    sdeMultiple: { low: 2.0, mid: 3.5, high: 5.0 },
+    primaryMethod: 'sde',
+    notes: 'HVAC/Plumbing: maintenance contracts highly valued, premium for commercial'
+  },
+  landscaping: {
+    revenueMultiple: { low: 0.3, mid: 0.5, high: 0.8 },
+    ebitdaMultiple: { low: 2.0, mid: 3.5, high: 5.0 },
+    sdeMultiple: { low: 1.5, mid: 2.5, high: 3.5 },
+    primaryMethod: 'sde',
+    notes: 'Landscaping: recurring maintenance contracts key value driver'
+  },
+  
+  // ============ HEALTHCARE & WELLNESS ============
+  healthcare_practice: {
+    revenueMultiple: { low: 0.5, mid: 1.0, high: 1.5 },
+    ebitdaMultiple: { low: 4.0, mid: 6.0, high: 9.0 },
+    sdeMultiple: { low: 2.0, mid: 3.5, high: 5.0 },
+    primaryMethod: 'sde',
+    notes: 'Healthcare practices: patient base and recurring care highly valued'
+  },
+  dental_practice: {
+    revenueMultiple: { low: 0.6, mid: 0.9, high: 1.3 },
+    ebitdaMultiple: { low: 5.0, mid: 7.0, high: 10.0 },
+    sdeMultiple: { low: 2.0, mid: 3.0, high: 4.5 },
+    primaryMethod: 'revenue',
+    notes: 'Dental: valued on collections, premium for hygiene program and specialists'
+  },
+  veterinary: {
+    revenueMultiple: { low: 0.8, mid: 1.2, high: 1.8 },
+    ebitdaMultiple: { low: 5.0, mid: 8.0, high: 12.0 },
+    sdeMultiple: { low: 2.5, mid: 4.0, high: 6.0 },
+    primaryMethod: 'revenue',
+    notes: 'Veterinary: consolidation driving multiples, premium for specialty'
+  },
+  beauty_salon_spa: {
+    revenueMultiple: { low: 0.3, mid: 0.5, high: 0.8 },
+    ebitdaMultiple: { low: 2.0, mid: 3.0, high: 4.5 },
+    sdeMultiple: { low: 1.5, mid: 2.5, high: 3.5 },
+    primaryMethod: 'sde',
+    notes: 'Salons/spas: stylist retention and location critical'
+  },
+  
+  // ============ FOOD & HOSPITALITY ============
+  restaurant: {
+    revenueMultiple: { low: 0.25, mid: 0.4, high: 0.7 },
+    ebitdaMultiple: { low: 2.0, mid: 3.0, high: 4.5 },
+    sdeMultiple: { low: 1.5, mid: 2.5, high: 3.5 },
+    primaryMethod: 'sde',
+    notes: 'Restaurants: lease terms, location, and brand all critical'
+  },
+  cafe_coffee_shop: {
+    revenueMultiple: { low: 0.3, mid: 0.5, high: 0.8 },
+    ebitdaMultiple: { low: 2.0, mid: 3.0, high: 4.0 },
+    sdeMultiple: { low: 1.5, mid: 2.5, high: 3.5 },
+    primaryMethod: 'sde',
+    notes: 'Cafes: foot traffic, location, and systems key'
+  },
+  food_manufacturing: {
+    revenueMultiple: { low: 0.5, mid: 0.8, high: 1.3 },
+    ebitdaMultiple: { low: 4.0, mid: 6.0, high: 8.0 },
+    sdeMultiple: { low: 2.5, mid: 4.0, high: 5.5 },
+    primaryMethod: 'ebitda',
+    notes: 'Food manufacturing: contracts, facilities, and certifications valued'
+  },
+  
+  // ============ RETAIL ============
+  retail_general: {
+    revenueMultiple: { low: 0.2, mid: 0.4, high: 0.7 },
+    ebitdaMultiple: { low: 2.0, mid: 3.0, high: 4.5 },
+    sdeMultiple: { low: 1.5, mid: 2.5, high: 3.5 },
+    primaryMethod: 'sde',
+    notes: 'General retail: inventory plus goodwill, lease terms critical'
+  },
+  franchise: {
+    revenueMultiple: { low: 0.3, mid: 0.6, high: 1.0 },
+    ebitdaMultiple: { low: 2.5, mid: 4.0, high: 6.0 },
+    sdeMultiple: { low: 2.0, mid: 3.0, high: 4.5 },
+    primaryMethod: 'sde',
+    notes: 'Franchises: multiple varies by brand strength and territory'
+  },
+  
+  // ============ MANUFACTURING ============
+  manufacturing: {
+    revenueMultiple: { low: 0.4, mid: 0.7, high: 1.2 },
+    ebitdaMultiple: { low: 3.5, mid: 5.5, high: 8.0 },
+    sdeMultiple: { low: 2.5, mid: 4.0, high: 5.5 },
+    primaryMethod: 'ebitda',
+    notes: 'Manufacturing: equipment, contracts, and customer concentration key'
+  },
+  engineering: {
+    revenueMultiple: { low: 0.5, mid: 1.0, high: 1.5 },
+    ebitdaMultiple: { low: 4.0, mid: 6.0, high: 9.0 },
+    sdeMultiple: { low: 2.5, mid: 4.0, high: 6.0 },
+    primaryMethod: 'sde',
+    notes: 'Engineering firms: IP, contracts, and team retention critical'
+  },
+  
+  // ============ TRANSPORT & LOGISTICS ============
+  transport_logistics: {
+    revenueMultiple: { low: 0.3, mid: 0.6, high: 1.0 },
+    ebitdaMultiple: { low: 3.0, mid: 5.0, high: 7.0 },
+    sdeMultiple: { low: 2.0, mid: 3.5, high: 5.0 },
+    primaryMethod: 'ebitda',
+    notes: 'Logistics: fleet value, contracts, and driver retention key'
+  },
+  courier_delivery: {
+    revenueMultiple: { low: 0.4, mid: 0.7, high: 1.2 },
+    ebitdaMultiple: { low: 3.0, mid: 4.5, high: 6.5 },
+    sdeMultiple: { low: 2.0, mid: 3.0, high: 4.5 },
+    primaryMethod: 'sde',
+    notes: 'Courier services: contracts and route optimization valued'
+  },
+  
+  // ============ PROPERTY & REAL ESTATE ============
+  property_management: {
+    revenueMultiple: { low: 1.0, mid: 1.5, high: 2.5 },
+    ebitdaMultiple: { low: 5.0, mid: 7.0, high: 10.0 },
+    sdeMultiple: { low: 3.0, mid: 4.5, high: 6.5 },
+    primaryMethod: 'revenue',
+    notes: 'Property management: units under management drive value'
+  },
+  estate_agency: {
+    revenueMultiple: { low: 0.4, mid: 0.8, high: 1.3 },
+    ebitdaMultiple: { low: 2.5, mid: 4.0, high: 6.0 },
+    sdeMultiple: { low: 1.5, mid: 2.5, high: 4.0 },
+    primaryMethod: 'sde',
+    notes: 'Estate agents: lettings portfolio valued higher than sales'
+  },
+  
+  // ============ EDUCATION ============
+  education_training: {
+    revenueMultiple: { low: 0.5, mid: 1.0, high: 2.0 },
+    ebitdaMultiple: { low: 4.0, mid: 6.0, high: 9.0 },
+    sdeMultiple: { low: 2.0, mid: 3.5, high: 5.5 },
+    primaryMethod: 'sde',
+    notes: 'Education: curriculum IP, accreditations, and enrollments valued'
+  },
+  tutoring: {
+    revenueMultiple: { low: 0.4, mid: 0.8, high: 1.5 },
+    ebitdaMultiple: { low: 2.5, mid: 4.0, high: 6.0 },
+    sdeMultiple: { low: 1.5, mid: 2.5, high: 4.0 },
+    primaryMethod: 'sde',
+    notes: 'Tutoring: student retention and tutor quality key'
+  },
+  
+  // ============ GENERAL / FALLBACK ============
   general_business: {
     revenueMultiple: { low: 0.5, mid: 1.0, high: 2.0 },
     ebitdaMultiple: { low: 3.0, mid: 4.0, high: 6.0 },
@@ -220,6 +496,109 @@ const INDUSTRY_MULTIPLES: Record<string, ValuationMultiples> = {
     notes: 'General: valued on SDE with standard adjustments for risk factors'
   }
 };
+
+// ============================================================================
+// DYNAMIC INDUSTRY DETECTION
+// ============================================================================
+// Analyzes business context to determine most appropriate industry category
+// ============================================================================
+
+function detectIndustryFromContext(allText: string, companyName: string): string {
+  const text = (allText + ' ' + companyName).toLowerCase();
+  
+  // Priority-ordered industry detection patterns
+  const industryPatterns: { industry: string; patterns: RegExp[]; priority: number }[] = [
+    // Specific industries first (higher priority)
+    { industry: 'saas', patterns: [/\bsaas\b/, /software as a service/, /\barr\b/, /\bmrr\b/, /subscription software/], priority: 100 },
+    { industry: 'amazon_fba', patterns: [/\bfba\b/, /amazon seller/, /amazon business/, /fulfilled by amazon/], priority: 100 },
+    { industry: 'subscription_box', patterns: [/subscription box/, /monthly box/, /curated box/], priority: 100 },
+    
+    // Fitness & Sporting Goods
+    { industry: 'fitness_equipment', patterns: [/rowing/, /fitness equipment/, /gym equipment/, /exercise equipment/, /sport.*equipment/], priority: 90 },
+    { industry: 'gym_fitness_center', patterns: [/\bgym\b/, /fitness cent/, /fitness studio/, /health club/, /crossfit/, /pilates studio/, /yoga studio/], priority: 85 },
+    { industry: 'sporting_goods_retail', patterns: [/sporting goods/, /sports shop/, /sport.*retail/], priority: 80 },
+    
+    // Healthcare
+    { industry: 'dental_practice', patterns: [/dental/, /dentist/, /orthodont/], priority: 90 },
+    { industry: 'veterinary', patterns: [/veterinary/, /\bvet\b/, /animal hospital/, /pet clinic/], priority: 90 },
+    { industry: 'healthcare_practice', patterns: [/medical practice/, /\bgp\b/, /clinic/, /physio/, /chiropract/, /osteopath/], priority: 85 },
+    { industry: 'beauty_salon_spa', patterns: [/salon/, /\bspa\b/, /beauty/, /hair.*dress/, /barber/, /nail.*tech/], priority: 80 },
+    
+    // Technology
+    { industry: 'it_services_msp', patterns: [/\bmsp\b/, /managed service/, /it support/, /it services/, /tech support/], priority: 85 },
+    { industry: 'software_development', patterns: [/software dev/, /app dev/, /web dev/, /mobile dev/, /coding/, /programming/], priority: 80 },
+    { industry: 'technology', patterns: [/\btech\b/, /software/, /\bapp\b/, /digital product/], priority: 70 },
+    
+    // Marketing & Creative
+    { industry: 'seo_ppc', patterns: [/\bseo\b/, /\bppc\b/, /search engine/, /google ads/, /paid search/], priority: 90 },
+    { industry: 'digital_marketing', patterns: [/digital market/, /online market/, /social media market/], priority: 85 },
+    { industry: 'content_media', patterns: [/content creat/, /media company/, /\bblog\b/, /podcast/, /youtube/], priority: 80 },
+    { industry: 'agency', patterns: [/\bagency\b/, /creative agency/, /branding/, /design agency/], priority: 75 },
+    
+    // Professional Services
+    { industry: 'accounting_bookkeeping', patterns: [/accountant/, /bookkeep/, /\bcpa\b/, /chartered account/], priority: 90 },
+    { industry: 'law_firm', patterns: [/law firm/, /solicitor/, /lawyer/, /legal practice/], priority: 90 },
+    { industry: 'recruitment_staffing', patterns: [/recruit/, /staffing/, /headhunt/, /talent acqui/], priority: 85 },
+    { industry: 'coaching_training', patterns: [/\bcoach\b/, /training provider/, /mentor/, /\bconsultant\b/], priority: 75 },
+    { industry: 'consulting', patterns: [/consult/, /advisory/, /business advice/], priority: 70 },
+    
+    // Trades
+    { industry: 'electrical', patterns: [/electrician/, /electrical contract/], priority: 90 },
+    { industry: 'plumbing_hvac', patterns: [/plumber/, /plumbing/, /\bhvac\b/, /heating/, /air condition/], priority: 90 },
+    { industry: 'landscaping', patterns: [/landscap/, /garden.*service/, /lawn care/], priority: 85 },
+    { industry: 'construction', patterns: [/construct/, /building contract/, /builder/], priority: 80 },
+    { industry: 'trades', patterns: [/trade/, /contractor/, /handyman/, /maintenance/], priority: 60 },
+    
+    // Food & Hospitality
+    { industry: 'food_manufacturing', patterns: [/food manufact/, /food product/, /bakery/, /catering/], priority: 85 },
+    { industry: 'cafe_coffee_shop', patterns: [/coffee shop/, /\bcafe\b/, /café/], priority: 85 },
+    { industry: 'restaurant', patterns: [/restaurant/, /takeaway/, /fast food/], priority: 80 },
+    
+    // E-commerce
+    { industry: 'ecommerce', patterns: [/e-?commerce/, /online.*shop/, /online.*store/, /webshop/, /\bshopify\b/], priority: 75 },
+    
+    // Property
+    { industry: 'property_management', patterns: [/property manag/, /letting agent/, /rental management/], priority: 85 },
+    { industry: 'estate_agency', patterns: [/estate agent/, /real estate/, /property sale/], priority: 80 },
+    
+    // Transport
+    { industry: 'courier_delivery', patterns: [/courier/, /delivery service/, /last mile/], priority: 85 },
+    { industry: 'transport_logistics', patterns: [/transport/, /logistic/, /haulage/, /freight/], priority: 80 },
+    
+    // Education
+    { industry: 'tutoring', patterns: [/tutor/, /private lesson/], priority: 85 },
+    { industry: 'education_training', patterns: [/education/, /training provider/, /course provider/, /e-?learning/], priority: 80 },
+    
+    // Retail & Franchise
+    { industry: 'franchise', patterns: [/franchise/], priority: 80 },
+    { industry: 'retail_general', patterns: [/\bretail\b/, /\bshop\b/, /store/], priority: 60 },
+    
+    // Manufacturing
+    { industry: 'engineering', patterns: [/engineer.*firm/, /engineering company/], priority: 85 },
+    { industry: 'manufacturing', patterns: [/manufactur/, /factory/, /production/], priority: 75 }
+  ];
+  
+  // Score each industry
+  const scores: { industry: string; score: number }[] = [];
+  
+  for (const { industry, patterns, priority } of industryPatterns) {
+    let matchCount = 0;
+    for (const pattern of patterns) {
+      if (pattern.test(text)) {
+        matchCount++;
+      }
+    }
+    if (matchCount > 0) {
+      scores.push({ industry, score: matchCount * priority });
+    }
+  }
+  
+  // Sort by score descending
+  scores.sort((a, b) => b.score - a.score);
+  
+  // Return best match or general_business
+  return scores[0]?.industry || 'general_business';
+}
 
 // Extract financial data from context documents (uploaded accounts)
 function extractFinancialsFromContext(

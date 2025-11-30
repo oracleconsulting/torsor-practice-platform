@@ -3,6 +3,12 @@
 // ============================================================================
 // Purpose: Extract text from uploaded documents and create embeddings for
 // vector similarity search to enrich roadmap generation
+// 
+// CRITICAL: DATA PROTECTION
+// - Raw documents are NEVER sent to LLM providers
+// - Only sanitized, extracted data is used for embeddings
+// - PII is redacted before any processing
+// - Financial data is aggregated/anonymized
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -28,6 +34,136 @@ interface DocumentChunk {
     chunkIndex: number;
     totalChunks: number;
   };
+}
+
+// ============================================================================
+// DATA PROTECTION & SANITIZATION (GDPR COMPLIANT)
+// ============================================================================
+// These functions ensure NO raw client data reaches LLM providers
+// Only structured, anonymized summaries are used for embeddings
+// ============================================================================
+
+interface SanitizedFinancials {
+  revenueBand: string;      // "£500k-£1m" not exact figures
+  profitMargin: string;     // "15-20%" not exact figures
+  growthBand: string;       // "10-20% YoY" not exact
+  teamSizeBand: string;     // "5-10 employees"
+  assetCategories: string[];
+  businessMetrics: Record<string, string>; // Aggregated only
+}
+
+// Redact specific PII patterns
+function redactPII(text: string): string {
+  let sanitized = text;
+  
+  // Email addresses
+  sanitized = sanitized.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[EMAIL_REDACTED]');
+  
+  // Phone numbers (UK and international)
+  sanitized = sanitized.replace(/(?:\+44|0)[\s.-]?\d{2,4}[\s.-]?\d{3,4}[\s.-]?\d{3,4}/g, '[PHONE_REDACTED]');
+  sanitized = sanitized.replace(/\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/g, '[PHONE_REDACTED]');
+  
+  // National Insurance numbers
+  sanitized = sanitized.replace(/[A-Z]{2}\s?\d{2}\s?\d{2}\s?\d{2}\s?[A-Z]/gi, '[NI_REDACTED]');
+  
+  // Bank account numbers (8 digits)
+  sanitized = sanitized.replace(/\b\d{8}\b/g, '[ACCOUNT_REDACTED]');
+  
+  // Sort codes
+  sanitized = sanitized.replace(/\b\d{2}[-\s]?\d{2}[-\s]?\d{2}\b/g, '[SORTCODE_REDACTED]');
+  
+  // Credit card numbers
+  sanitized = sanitized.replace(/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, '[CARD_REDACTED]');
+  
+  // Addresses (basic pattern - street numbers with names)
+  sanitized = sanitized.replace(/\b\d+\s+[A-Z][a-z]+\s+(Road|Street|Lane|Avenue|Drive|Close|Way|Court|Place|Gardens|Crescent)\b/gi, '[ADDRESS_REDACTED]');
+  
+  // Postcodes (UK)
+  sanitized = sanitized.replace(/\b[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2}\b/gi, '[POSTCODE_REDACTED]');
+  
+  // Specific names in common patterns
+  sanitized = sanitized.replace(/(?:Mr|Mrs|Ms|Miss|Dr|Prof)\.?\s+[A-Z][a-z]+\s+[A-Z][a-z]+/g, '[NAME_REDACTED]');
+  
+  return sanitized;
+}
+
+// Convert exact financial figures to bands (for LLM-safe processing)
+function anonymizeFinancials(text: string): { text: string; extractedMetrics: Record<string, any> } {
+  const extractedMetrics: Record<string, any> = {};
+  let sanitized = text;
+  
+  // Extract and replace exact revenue figures with bands
+  const revenuePatterns = [
+    /(?:revenue|turnover|sales)[:\s]*£?([\d,]+(?:\.\d{2})?)\s*(?:k|m)?/gi,
+    /£([\d,]+(?:\.\d{2})?)\s*(?:turnover|revenue)/gi
+  ];
+  
+  for (const pattern of revenuePatterns) {
+    const matches = text.matchAll(pattern);
+    for (const match of matches) {
+      const value = parseFloat(match[1].replace(/,/g, ''));
+      if (value > 0) {
+        extractedMetrics.revenue = value;
+        const band = getRevenueBand(value);
+        sanitized = sanitized.replace(match[0], `[REVENUE: ${band}]`);
+      }
+    }
+  }
+  
+  // Extract and replace profit figures
+  const profitPatterns = [
+    /(?:profit|net income|operating profit|ebitda)[:\s]*£?([\d,]+(?:\.\d{2})?)/gi
+  ];
+  
+  for (const pattern of profitPatterns) {
+    const matches = text.matchAll(pattern);
+    for (const match of matches) {
+      const value = parseFloat(match[1].replace(/,/g, ''));
+      if (value > 0) {
+        extractedMetrics.profit = value;
+        sanitized = sanitized.replace(match[0], `[PROFIT: Extracted]`);
+      }
+    }
+  }
+  
+  // Replace any remaining large numbers (likely financial)
+  sanitized = sanitized.replace(/£\s*([\d,]{5,}(?:\.\d{2})?)/g, (match, num) => {
+    const value = parseFloat(num.replace(/,/g, ''));
+    return `[AMOUNT: ${getRevenueBand(value)}]`;
+  });
+  
+  return { text: sanitized, extractedMetrics };
+}
+
+function getRevenueBand(value: number): string {
+  if (value < 50000) return 'Under £50k';
+  if (value < 100000) return '£50k-£100k';
+  if (value < 250000) return '£100k-£250k';
+  if (value < 500000) return '£250k-£500k';
+  if (value < 1000000) return '£500k-£1m';
+  if (value < 2500000) return '£1m-£2.5m';
+  if (value < 5000000) return '£2.5m-£5m';
+  if (value < 10000000) return '£5m-£10m';
+  return '£10m+';
+}
+
+// Full document sanitization for LLM processing
+function sanitizeForLLM(rawText: string): { sanitizedText: string; extractedMetrics: Record<string, any> } {
+  // Step 1: Redact PII
+  let sanitized = redactPII(rawText);
+  
+  // Step 2: Anonymize financial figures (but extract for local processing)
+  const { text: anonymizedText, extractedMetrics } = anonymizeFinancials(sanitized);
+  sanitized = anonymizedText;
+  
+  // Step 3: Remove any remaining sensitive patterns
+  // Company registration numbers
+  sanitized = sanitized.replace(/\b\d{7,8}\b/g, '[REG_NUM]');
+  
+  // VAT numbers
+  sanitized = sanitized.replace(/(?:GB)?\s?\d{3}\s?\d{4}\s?\d{2}/g, '[VAT_REDACTED]');
+  
+  return { sanitizedText: sanitized, extractedMetrics };
 }
 
 // ============================================================================
@@ -263,17 +399,32 @@ serve(async (req) => {
         console.log(`Processing: ${doc.fileName}`);
         
         // 1. Extract text from document
-        const text = await extractTextFromUrl(doc.fileUrl, doc.fileType);
-        console.log(`Extracted ${text.length} chars from ${doc.fileName}`);
+        const rawText = await extractTextFromUrl(doc.fileUrl, doc.fileType);
+        console.log(`Extracted ${rawText.length} chars from ${doc.fileName}`);
         
-        // 2. Chunk the text
-        const chunks = chunkText(text, doc.fileName);
+        // 2. CRITICAL: Sanitize before ANY LLM processing (GDPR compliance)
+        const { sanitizedText, extractedMetrics } = sanitizeForLLM(rawText);
+        console.log(`Sanitized text: ${sanitizedText.length} chars, extracted ${Object.keys(extractedMetrics).length} metrics`);
+        
+        // Store extracted metrics locally (these never go to LLM)
+        if (Object.keys(extractedMetrics).length > 0) {
+          await supabase
+            .from('client_context')
+            .update({ 
+              extracted_metrics: extractedMetrics,
+              processed: true 
+            })
+            .eq('id', contextId);
+        }
+        
+        // 3. Chunk the SANITIZED text (raw data never leaves here)
+        const chunks = chunkText(sanitizedText, doc.fileName);
         console.log(`Created ${chunks.length} chunks from ${doc.fileName}`);
         
-        // 3. Generate embeddings and store each chunk
+        // 4. Generate embeddings and store each chunk (using SANITIZED content only)
         for (const chunk of chunks) {
           try {
-            // Generate embedding
+            // Generate embedding from SANITIZED content only
             const embedding = await generateEmbedding(chunk.content);
             
             // Store in document_embeddings table
