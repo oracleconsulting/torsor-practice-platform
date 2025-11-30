@@ -249,11 +249,11 @@ function QuestionCard({ question, value, onChange }: { question: AssessmentQuest
       {question.type === 'multi' && (
         <div className="space-y-2">
           {question.options?.map((opt, i) => {
-            const sel = value?.includes(opt);
-            const max = question.maxSelections && value?.length >= question.maxSelections && !sel;
+            const sel = value?.includes(opt) || false;
+            const maxReached = !!(question.maxSelections && value?.length >= question.maxSelections && !sel);
             return (
-              <label key={i} className={`flex items-center gap-3 p-4 rounded-lg border-2 ${max ? 'opacity-50 cursor-not-allowed' : sel ? 'border-indigo-500 bg-indigo-50 cursor-pointer' : 'border-gray-200 hover:border-gray-300 cursor-pointer'}`}>
-                <input type="checkbox" checked={sel} disabled={max} onChange={e => onChange(e.target.checked ? [...(value || []), opt] : (value || []).filter((v: string) => v !== opt))} className="w-4 h-4 text-indigo-600 rounded" />
+              <label key={i} className={`flex items-center gap-3 p-4 rounded-lg border-2 ${maxReached ? 'opacity-50 cursor-not-allowed' : sel ? 'border-indigo-500 bg-indigo-50 cursor-pointer' : 'border-gray-200 hover:border-gray-300 cursor-pointer'}`}>
+                <input type="checkbox" checked={sel} disabled={maxReached} onChange={e => onChange(e.target.checked ? [...(value || []), opt] : (value || []).filter((v: string) => v !== opt))} className="w-4 h-4 text-indigo-600 rounded" />
                 <span>{opt}</span>
               </label>
             );

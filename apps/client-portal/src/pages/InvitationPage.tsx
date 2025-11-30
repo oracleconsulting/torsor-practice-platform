@@ -57,53 +57,32 @@ export default function InvitationPage() {
     }
 
     try {
-      const response = await supabase.functions.invoke('accept-invitation', {
-        body: null,
-        headers: {},
-      });
-
-      // Use GET-style validation
-      const { data, error: fnError } = await supabase.functions.invoke('accept-invitation?action=validate&token=' + token, {
-        method: 'GET'
-      });
-
-      // Fallback: direct fetch if invoke doesn't work with GET
-      if (fnError) {
-        const directResponse = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/accept-invitation?action=validate&token=${token}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-            }
+      // Use direct fetch for GET-style validation
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/accept-invitation?action=validate&token=${token}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
           }
-        );
-        const directData = await directResponse.json();
-        
-        if (!directData.valid) {
-          if (directData.expired) {
-            setError('This invitation has expired. Please contact your advisor for a new invitation.');
-          } else if (directData.alreadyAccepted) {
-            setError('This invitation has already been accepted. Please sign in instead.');
-          } else {
-            setError(directData.error || 'Invalid invitation');
-          }
-          setValidating(false);
-          setLoading(false);
-          return;
         }
-
-        setInvitation(directData.invitation);
-        setName(directData.invitation.name || '');
-      } else if (data) {
-        if (!data.valid) {
+      );
+      const data = await response.json();
+      
+      if (!data.valid) {
+        if (data.expired) {
+          setError('This invitation has expired. Please contact your advisor for a new invitation.');
+        } else if (data.alreadyAccepted) {
+          setError('This invitation has already been accepted. Please sign in instead.');
+        } else {
           setError(data.error || 'Invalid invitation');
-          setValidating(false);
-          setLoading(false);
-          return;
         }
-        setInvitation(data.invitation);
-        setName(data.invitation.name || '');
+        setValidating(false);
+        setLoading(false);
+        return;
       }
+
+      setInvitation(data.invitation);
+      setName(data.invitation.name || '');
     } catch (err) {
       console.error('Validation error:', err);
       setError('Failed to validate invitation. Please try again.');
