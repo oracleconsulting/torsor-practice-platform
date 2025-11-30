@@ -234,6 +234,88 @@ function calculateRevenueBasedRoi(context: RoadmapContext): any {
 }
 
 // ============================================================================
+// BOARD MEMBER DETERMINATION
+// ============================================================================
+
+interface BoardMember {
+  role: string;
+  focus: string;
+  priority: number;
+}
+
+function determineBoardMembers(ctx: RoadmapContext): BoardMember[] {
+  const board: BoardMember[] = [];
+  
+  // Always include COO for operations (most common need)
+  board.push({
+    role: 'COO',
+    focus: 'Systems, processes, delegation, time recovery',
+    priority: 1
+  });
+
+  // CFO if money worries or cash flow issues
+  if (ctx.moneyWorry || ctx.growthBottleneck?.toLowerCase().includes('cash') ||
+      ctx.growthBottleneck?.toLowerCase().includes('money') ||
+      ctx.growthBottleneck?.toLowerCase().includes('profit')) {
+    board.push({
+      role: 'CFO',
+      focus: 'Cash flow, pricing, profitability, financial systems',
+      priority: 2
+    });
+  }
+
+  // CMO if growth/marketing mentioned
+  if (ctx.growthBottleneck?.toLowerCase().includes('lead') ||
+      ctx.growthBottleneck?.toLowerCase().includes('customer') ||
+      ctx.growthBottleneck?.toLowerCase().includes('sales') ||
+      ctx.growthBottleneck?.toLowerCase().includes('marketing') ||
+      ctx.ninetyDayPriorities?.some((p: string) => p.toLowerCase().includes('market') || p.toLowerCase().includes('sales'))) {
+    board.push({
+      role: 'CMO',
+      focus: 'Marketing, lead generation, brand, customer acquisition',
+      priority: 3
+    });
+  }
+
+  // CTO if tech/systems mentioned
+  if (ctx.toolsUsed?.length > 3 || ctx.industry === 'technology' ||
+      ctx.growthBottleneck?.toLowerCase().includes('tech') ||
+      ctx.growthBottleneck?.toLowerCase().includes('system') ||
+      ctx.growthBottleneck?.toLowerCase().includes('automation')) {
+    board.push({
+      role: 'CTO',
+      focus: 'Technology, automation, integrations, digital infrastructure',
+      priority: 4
+    });
+  }
+
+  // CHRO if team/people issues
+  if (ctx.teamSize !== 'Just me' ||
+      ctx.growthBottleneck?.toLowerCase().includes('staff') ||
+      ctx.growthBottleneck?.toLowerCase().includes('hire') ||
+      ctx.growthBottleneck?.toLowerCase().includes('team') ||
+      ctx.threeExpertsNeeded?.toLowerCase().includes('hr')) {
+    board.push({
+      role: 'CHRO',
+      focus: 'Team, hiring, culture, performance, delegation',
+      priority: 5
+    });
+  }
+
+  // Default additional members if board is small
+  if (board.length < 3) {
+    if (!board.find(b => b.role === 'CFO')) {
+      board.push({ role: 'CFO', focus: 'Financial health and pricing', priority: 6 });
+    }
+    if (!board.find(b => b.role === 'CMO')) {
+      board.push({ role: 'CMO', focus: 'Growth and customer acquisition', priority: 7 });
+    }
+  }
+
+  return board.sort((a, b) => a.priority - b.priority).slice(0, 4);
+}
+
+// ============================================================================
 // INDUSTRY CONTEXT BUILDER
 // ============================================================================
 
@@ -730,6 +812,9 @@ Return as JSON:
 }
 
 function buildSprintPrompt(ctx: RoadmapContext, vision: any, shift: any): string {
+  // Determine board members based on their needs
+  const boardMembers = determineBoardMembers(ctx);
+  
   return `You are implementing The 365 Method for ${ctx.userName} at ${ctx.companyName} - a ${ctx.industry} business ready for life-first transformation.
 
 THE 365 METHOD FOUNDATION:
@@ -737,9 +822,7 @@ THE 365 METHOD FOUNDATION:
 - 5-Year Life Compass (not just business goals)
 - 6-Month Structural Shifts (HOW they work, not tasks)
 - 3-Month Implementation Sprints (specific, measurable progress)
-- This is about changing HOW they work, not just WHAT they do
 - Every week must move them closer to their ideal Tuesday feeling
-- Progress is measured in life quality improvement, not just revenue
 
 THEIR 6-MONTH SHIFTS:
 ${JSON.stringify(shift, null, 2)}
@@ -748,172 +831,163 @@ THEIR 5-YEAR COMPASS:
 North Star: ${vision.northStar}
 Emotional Core: ${vision.emotionalCore}
 Year 1 Target: ${vision.yearMilestones?.year1?.measurable}
-Archetype: ${vision.archetype}
 
 BUSINESS SPECIFICS:
 - Business: ${ctx.companyName} (${ctx.industry})
 - Revenue: ${ctx.annualTurnover} (£${ctx.revenueNumeric})
-- Pre-revenue: ${ctx.isPreRevenue}
 - Team: ${ctx.teamSize}
 - Years Trading: ${ctx.yearsTrading}
-- Current Tools: ${JSON.stringify(ctx.toolsUsed)}
 - Current working hours: ${ctx.currentWorkingHours} hours/week
 - Target working hours: ${ctx.targetWorkingHours} hours/week
 
-EMOTIONAL DRIVERS (USE THESE EXACT WORDS):
+═══════════════════════════════════════════════════════════════════
+TASK GENERATION CONTEXT (CRITICAL - USE THESE SPECIFICALLY)
+═══════════════════════════════════════════════════════════════════
+
+THEIR CURRENT TOOLS (reference these in tasks):
+${ctx.toolsUsed.length > 0 ? ctx.toolsUsed.map(t => `- ${t}`).join('\n') : '- No specific tools mentioned - recommend appropriate ones'}
+
+THEIR MONDAY FRUSTRATION (address this in Week 1-2):
+"${ctx.mondayFrustration || ctx.growthBottleneck || 'general operational friction'}"
+
+THEIR MAGIC-AWAY TASK (if they could eliminate one thing):
+"${ctx.magicAwayTask || 'administrative burden'}"
+
+THEIR 90-DAY PRIORITIES (must address at least 2 in Weeks 1-4):
+${ctx.ninetyDayPriorities?.length > 0 ? ctx.ninetyDayPriorities.map((p: string, i: number) => `${i + 1}. ${p}`).join('\n') : '- Systems, delegation, time recovery'}
+
+THREE EXPERTS THEY WISH THEY HAD (inform task delegation):
+"${ctx.threeExpertsNeeded || 'Operations manager, marketing support, admin help'}"
+
+THEIR DANGER ZONE (build prevention into tasks):
+"${ctx.dangerZone || 'overcommitment'}"
+
+═══════════════════════════════════════════════════════════════════
+ADVISORY BOARD ROLES (assign ownership to each task)
+═══════════════════════════════════════════════════════════════════
+${boardMembers.map(b => `- ${b.role}: ${b.focus}`).join('\n')}
+
+═══════════════════════════════════════════════════════════════════
+EMOTIONAL ANCHORS (use their exact words)
+═══════════════════════════════════════════════════════════════════
 - Their biggest pain: "${ctx.growthBottleneck}"
 - Their 90-day fantasy: "${ctx.tuesdayTest}"
 - Tuesday currently feels: "${ctx.relationshipMirror}"
 - Money worry: "${ctx.moneyWorry}"
 - Emergency log: "${ctx.emergencyLog}"
-- Danger zone: "${ctx.dangerZone}"
-- What they'd magic away: "${ctx.magicAwayTask}"
-- Monday frustration: "${ctx.mondayFrustration}"
 - Family feedback: "${ctx.familyFeedback}"
 - Secret pride: "${ctx.secretPride}"
 
-CONSTRAINTS TO HONOR:
+CONSTRAINTS:
 - Available time per week: ${ctx.commitmentHours}
-- Must work within current team size (${ctx.teamSize}) initially
-- 90-day priorities selected: ${JSON.stringify(ctx.ninetyDayPriorities)}
-
-ROI TARGETS:
-${JSON.stringify(ctx.roiData, null, 2)}
+- Team size: ${ctx.teamSize}
 
 INDUSTRY CONTEXT FOR ${ctx.industry}:
 ${ctx.industryContext}
 
-CRITICAL: Create a 12-week transformation following this structure. Each week MUST be specific to THEIR situation using THEIR words.
+═══════════════════════════════════════════════════════════════════
+TASK REQUIREMENTS (CRITICAL - FOLLOW EXACTLY)
+═══════════════════════════════════════════════════════════════════
+
+For EVERY task, you MUST include:
+1. A SPECIFIC tool reference (from their list or an industry-appropriate recommendation)
+2. A board member owner (${boardMembers.map(b => b.role).join(', ')})
+3. A quantified success metric (not "improved" - give a number or percentage)
+4. A clear deliverable output (not "progress made" - name the artifact)
+5. Delegation score (1-10 how suitable for delegation) and who to delegate to
+
+GOOD TASK EXAMPLE:
+{
+  "title": "Set up automated payment reminders in Xero",
+  "description": "Configure 3-stage reminder sequence: 7 days before, on due date, 7 days overdue",
+  "why": "Addresses your Monday frustration about 'chasing invoices'",
+  "tool": "Xero",
+  "boardOwner": "CFO",
+  "successMetric": "Reduce debtor days from 45 to 30",
+  "deliverable": "Automated reminder sequence live and tested",
+  "delegationScore": 8,
+  "delegateTo": "Bookkeeper"
+}
+
+BAD TASK EXAMPLE (DO NOT DO THIS):
+{
+  "title": "Work on cash flow",
+  "description": "Improve the business finances",
+  "tool": "Accounting software",
+  "successMetric": "Better cash position"
+}
 
 Return as JSON:
 {
-  "sprintTheme": "Overarching theme connecting to their 90-day fantasy: '${ctx.tuesdayTest}'",
+  "sprintTheme": "90 Days to ${ctx.tuesdayTest || 'Transform Your Tuesday'}",
   
-  "sprintPromise": "In 90 days, transform from '${ctx.relationshipMirror}' to '${ctx.tuesdayTest}'",
+  "sprintPromise": "Transform from '${ctx.relationshipMirror}' to finally experiencing '${ctx.tuesdayTest}'. Solve: ${ctx.magicAwayTask}. Address: ${ctx.mondayFrustration || ctx.growthBottleneck}. Progress toward: ${vision.northStar}.",
   
   "sprintGoals": [
-    "Primary goal: Solve '${ctx.growthBottleneck}'",
-    "Secondary goal: Address '${ctx.moneyWorry}'",
-    "Tertiary goal: Progress toward '${vision.northStar}'"
+    "Eliminate: ${ctx.magicAwayTask}",
+    "Solve: ${ctx.growthBottleneck}",
+    "Achieve: Progress toward ${ctx.tuesdayTest}"
   ],
   
   "phases": {
-    "weeks1_2": { "name": "Immediate Relief", "purpose": "Quick wins and pain reduction addressing '${ctx.magicAwayTask}'" },
-    "weeks3_4": { "name": "Foundation Building", "purpose": "Address root causes of '${ctx.growthBottleneck}'" },
-    "weeks5_6": { "name": "Momentum Multiplication", "purpose": "Scale what works" },
-    "weeks7_8": { "name": "Lock-In Phase", "purpose": "Make changes permanent" },
-    "weeks9_10": { "name": "Scale Phase", "purpose": "Multiply success" },
-    "weeks11_12": { "name": "Transform Phase", "purpose": "Become the new version" }
-  },
-  
-  "week0_preparation": {
-    "theme": "Creating Space for Change",
-    "tasks": [
-      {
-        "task": "Clear calendar for transformation time",
-        "output": "${ctx.commitmentHours} blocked weekly",
-        "tool": "Calendar"
-      },
-      {
-        "task": "Document baseline metrics",
-        "output": "Current state captured",
-        "tool": "Spreadsheet"
-      },
-      {
-        "task": "Communicate changes to ${ctx.teamSize === 'Just me' ? 'key stakeholders/family' : 'team'}",
-        "output": "Everyone aligned",
-        "tool": "Email/Meeting"
-      }
-    ]
+    "weeks1_2": { "name": "Immediate Relief", "purpose": "Quick wins addressing '${ctx.magicAwayTask}'" },
+    "weeks3_4": { "name": "Foundation", "purpose": "Systems for '${ctx.growthBottleneck}'" },
+    "weeks5_6": { "name": "Momentum", "purpose": "Scale what's working" },
+    "weeks7_8": { "name": "Lock-In", "purpose": "Make permanent" },
+    "weeks9_10": { "name": "Scale", "purpose": "Multiply wins" },
+    "weeks11_12": { "name": "Transform", "purpose": "New normal" }
   },
   
   "weeks": [
     {
       "weekNumber": 1,
       "phase": "Immediate Relief",
-      "theme": "[Specific relief for '${ctx.magicAwayTask}']",
-      "tuesdayTransformation": "First glimpse of calm instead of '${ctx.relationshipMirror}'",
-      "focus": "The ONE thing that provides immediate relief from '${ctx.growthBottleneck}'",
-      "unlockRequirement": "Complete Week 0 prep",
+      "theme": "Week 1: [Specific action addressing their Monday frustration]",
+      "focus": "[What ONE thing gives immediate relief from '${ctx.mondayFrustration}']",
+      "tuesdayTransformation": "First glimpse of relief from '${ctx.relationshipMirror}'",
       "tasks": [
         {
           "id": "w1_t1",
-          "title": "[Quick win addressing '${ctx.magicAwayTask}']",
-          "description": "Specific actionable instructions",
-          "why": "Immediate proof that change is possible - connects to '${ctx.emotionalAnchors.painPhrases[0] || 'their pain'}'",
-          "category": "Operations|Systems|People|Financial|Marketing",
-          "priority": "critical",
-          "estimatedHours": 1,
-          "deliverable": "[Specific output]",
-          "tool": "[Tool from ${JSON.stringify(ctx.toolsUsed)} or recommendation]",
-          "capture": "What to measure/document",
-          "quickWin": true
-        },
-        {
-          "id": "w1_t2",
-          "title": "[${ctx.industry}-specific improvement]",
-          "description": "Description specific to ${ctx.industry} at £${ctx.revenueNumeric} stage",
-          "why": "Industry best practice implementation",
+          "title": "[SPECIFIC action with SPECIFIC tool from their list]",
+          "description": "[Step-by-step what to do]",
+          "why": "Directly addresses: '${ctx.mondayFrustration}'",
           "category": "Operations",
-          "priority": "high",
+          "priority": "critical",
           "estimatedHours": 2,
-          "deliverable": "[System or process improved]",
-          "tool": "[Specific platform]",
-          "capture": "Before/after comparison",
-          "quickWin": false
+          "tool": "[Actual tool name from ${ctx.toolsUsed.join(', ')} or recommend one]",
+          "boardOwner": "[Role from ${boardMembers.map(b => b.role).join(', ')}]",
+          "successMetric": "[Number or percentage, e.g., 'Reduce X by 50%']",
+          "deliverable": "[Specific artifact, e.g., 'Automated sequence configured']",
+          "delegationScore": 7,
+          "delegateTo": "[Who could do this, e.g., 'VA', 'Bookkeeper']"
         },
-        {
-          "id": "w1_t3",
-          "title": "Weekly Reflection & Planning",
-          "description": "15-minute review of wins and lessons",
-          "why": "Build the habit of strategic thinking",
-          "category": "Personal",
-          "priority": "medium",
-          "estimatedHours": 0.5,
-          "deliverable": "Week 1 insights captured",
-          "tool": "Notes",
-          "capture": "Key learnings",
-          "quickWin": false
-        }
+        // 2-4 more tasks per week, each specific and measurable
       ],
-      "milestone": "First win achieved - proof that change is possible",
-      "celebrationPrompt": "How to recognize this week's progress",
-      "warningSign": "If X happens, do Y"
+      "milestone": "[Concrete achievement, not 'progress made']"
     }
-    // Continue for weeks 2-12, each building on previous and specific to their industry/situation
+    // Generate all 12 weeks with 3-5 SPECIFIC tasks each
   ],
-  
-  "successMetrics": {
-    "week4": "Foundation solid - '${ctx.magicAwayTask}' 50% reduced",
-    "week8": "Momentum locked - Working toward ${ctx.targetWorkingHours} hours/week",
-    "week12": "Transformed - Living closer to '${ctx.tuesdayTest}'"
-  },
   
   "tuesdayEvolution": {
     "week0": "'${ctx.relationshipMirror}'",
-    "week4": "First noticeable shift - [specific improvement]",
-    "week8": "New patterns established - [specific change]",
-    "week12": "This is just how Tuesdays are now - approaching '${ctx.tuesdayTest}'"
+    "week4": "[Specific improvement they'll feel]",
+    "week8": "[How Tuesday feels now]",
+    "week12": "Approaching: '${ctx.tuesdayTest}'"
   },
   
   "backslidePreventions": [
-    {
-      "trigger": "Common trigger related to '${ctx.dangerZone}'",
-      "response": "Specific action to take instead"
-    },
-    {
-      "trigger": "Feeling overwhelmed like '${ctx.emergencyLog}'",
-      "response": "Return to Week X foundation"
-    }
-  ],
-  
-  "supportNeeded": [
-    "Type of support 1 based on '${ctx.helpFears}'",
-    "Type of support 2"
+    { "trigger": "${ctx.dangerZone}", "response": "[Specific action]" }
   ]
 }
 
-IMPORTANT: Generate ALL 12 weeks with specific, actionable tasks. Each week should have 3-5 tasks that are realistic given their time constraints (${ctx.commitmentHours}). Make every task specific to their industry (${ctx.industry}), their revenue stage (£${ctx.revenueNumeric}), and their situation. Use their exact words and emotional anchors throughout.`;
+CRITICAL REMINDERS:
+- Generate ALL 12 weeks with 3-5 SPECIFIC tasks each
+- Time per week available: ${ctx.commitmentHours}
+- Reference their ACTUAL tools: ${ctx.toolsUsed.join(', ') || 'recommend appropriate tools'}
+- Address their 90-day priorities: ${ctx.ninetyDayPriorities?.join(', ') || 'systems, delegation, time'}
+- Every task needs a board owner from: ${boardMembers.map(b => b.role).join(', ')}
+- Use their exact emotional language throughout`;
+}
 }
 
 // ============================================================================
@@ -1007,104 +1081,134 @@ function generateFallbackShift(ctx: RoadmapContext, vision: any): any {
 
 function generateFallbackSprint(ctx: RoadmapContext, vision: any, shift: any): any {
   const weeks = [];
+  const boardMembers = determineBoardMembers(ctx);
+  const primaryTool = ctx.toolsUsed?.[0] || getDefaultToolForIndustry(ctx.industry);
   
-  // Industry-specific task templates
+  // Comprehensive industry-specific task templates with board ownership
   const industryTasks: Record<string, any[]> = {
     fitness_equipment: [
-      { title: 'Audit top 10 product pages for SEO', description: 'Review meta titles, descriptions, and image alt tags', category: 'Marketing' },
-      { title: 'Set up automated email for abandoned carts', description: 'Configure 3-email sequence for cart recovery', category: 'Marketing' },
-      { title: 'Document order fulfillment process', description: 'Create step-by-step SOP for picking, packing, shipping', category: 'Operations' },
-      { title: 'Negotiate with top 3 suppliers', description: 'Request volume discounts or better payment terms', category: 'Financial' },
-      { title: 'Create assembly instruction videos', description: 'Film and upload to product pages and YouTube', category: 'Marketing' },
-      { title: 'Implement inventory management alerts', description: 'Set low stock notifications at 2-week supply level', category: 'Operations' },
-      { title: 'Launch customer referral program', description: 'Set up £50 off for referrer and referee', category: 'Marketing' },
-      { title: 'Optimize Google Shopping campaigns', description: 'Review ROAS by product and adjust bids', category: 'Marketing' },
-      { title: 'Create maintenance service offering', description: 'Design annual service package for equipment', category: 'Sales' },
-      { title: 'Build trade/B2B sales process', description: 'Create gym and hotel outreach sequence', category: 'Sales' },
-      { title: 'Hire warehouse assistant', description: 'Job spec, post, shortlist candidates', category: 'People' },
-      { title: 'Plan seasonal promotion calendar', description: 'Map out Jan, Easter, Summer sales strategy', category: 'Marketing' },
+      { title: 'Audit top 10 product pages for SEO', description: 'Review meta titles, descriptions, image alt tags. Document current rankings and identify quick wins.', category: 'Marketing', tool: 'Google Search Console + Shopify', boardOwner: 'CMO', successMetric: 'Improve average position by 5 spots', delegationScore: 6, delegateTo: 'Marketing VA or SEO freelancer' },
+      { title: 'Set up abandoned cart email sequence', description: 'Configure 3-email sequence: 1hr, 24hr, 72hr after abandonment with discount ladder', category: 'Marketing', tool: 'Klaviyo or Mailchimp', boardOwner: 'CMO', successMetric: 'Recover 10% of abandoned carts', delegationScore: 5, delegateTo: 'Email marketing specialist' },
+      { title: 'Document order fulfillment process', description: 'Create step-by-step SOP for picking, packing, shipping. Include photos and checklists.', category: 'Operations', tool: 'Notion or Google Docs', boardOwner: 'COO', successMetric: 'Reduce packing errors by 50%', delegationScore: 8, delegateTo: 'Warehouse staff' },
+      { title: 'Renegotiate terms with top 3 suppliers', description: 'Request volume discounts, better payment terms (60 days), or exclusive product access', category: 'Financial', tool: 'Email + Spreadsheet', boardOwner: 'CFO', successMetric: 'Secure 5% cost reduction', delegationScore: 2, delegateTo: 'Cannot delegate - owner decision' },
+      { title: 'Create video assembly guides', description: 'Film 5 assembly instruction videos for top-selling products. Upload to YouTube and product pages.', category: 'Marketing', tool: 'Smartphone + YouTube', boardOwner: 'CMO', successMetric: 'Reduce assembly-related support tickets by 30%', delegationScore: 7, delegateTo: 'VA or content creator' },
+      { title: 'Set up inventory low-stock alerts', description: 'Configure alerts at 2-week supply level for top 20 products. Create reorder triggers.', category: 'Operations', tool: 'Inventory management system', boardOwner: 'COO', successMetric: 'Zero stockouts on top sellers', delegationScore: 4, delegateTo: 'Operations manager' },
+      { title: 'Launch customer referral program', description: 'Set up £50 off for referrer and £25 for referee. Create shareable links and tracking.', category: 'Marketing', tool: 'ReferralCandy or manual tracking', boardOwner: 'CMO', successMetric: 'Generate 20 referrals in first month', delegationScore: 6, delegateTo: 'Marketing VA' },
+      { title: 'Optimize Google Shopping campaigns', description: 'Review ROAS by product category. Pause losers, increase bids on winners. Add negative keywords.', category: 'Marketing', tool: 'Google Ads', boardOwner: 'CMO', successMetric: 'Improve ROAS from X to X+30%', delegationScore: 4, delegateTo: 'PPC specialist' },
+      { title: 'Create annual maintenance service package', description: 'Design service offering: annual check, part replacement, tune-up. Price at 10% of product value.', category: 'Sales', tool: 'Pricing spreadsheet + Website', boardOwner: 'CFO', successMetric: 'Sign 10 maintenance contracts', delegationScore: 3, delegateTo: 'Sales team can sell, owner designs' },
+      { title: 'Build B2B/trade sales outreach', description: 'Create gym and hotel outreach sequence. Build target list of 50 prospects. Design trade pricing.', category: 'Sales', tool: 'CRM + Email', boardOwner: 'CMO', successMetric: 'Generate 5 B2B leads', delegationScore: 5, delegateTo: 'Sales rep or VA' },
+      { title: 'Hire and onboard warehouse assistant', description: 'Write job spec, post on Indeed/local boards, interview 5 candidates, hire and train one.', category: 'People', tool: 'Indeed + Onboarding docs', boardOwner: 'CHRO', successMetric: 'New hire operational within 2 weeks', delegationScore: 3, delegateTo: 'Recruitment support only' },
+      { title: 'Plan Q1 promotional calendar', description: 'Map out Jan (NY resolution), Feb (Valentines), Mar (Spring prep) promotions with dates and discounts.', category: 'Marketing', tool: 'Calendar + Marketing plan', boardOwner: 'CMO', successMetric: 'Promotions driving 30% of monthly revenue', delegationScore: 4, delegateTo: 'Marketing team' },
     ],
     consulting: [
-      { title: 'Create service productization document', description: 'Define 3 fixed-scope packages with clear deliverables', category: 'Sales' },
-      { title: 'Build retainer proposal template', description: 'Create monthly retainer option for ongoing clients', category: 'Sales' },
-      { title: 'Set up client onboarding automation', description: 'Welcome email sequence and info-gathering form', category: 'Operations' },
-      { title: 'Document your methodology', description: 'Write out your step-by-step consulting process', category: 'Operations' },
-      { title: 'Create case study from recent win', description: 'Document problem, approach, and measurable results', category: 'Marketing' },
-      { title: 'Launch LinkedIn content plan', description: 'Schedule 3 posts per week for 4 weeks', category: 'Marketing' },
-      { title: 'Build referral partner network', description: 'Identify 10 complementary service providers', category: 'Sales' },
-      { title: 'Implement project management system', description: 'Set up Notion/Asana with client templates', category: 'Operations' },
-      { title: 'Create proposal automation', description: 'Build template with pricing calculator', category: 'Sales' },
-      { title: 'Train associate/contractor', description: 'Document delivery process and quality standards', category: 'People' },
-      { title: 'Raise prices for new clients', description: 'Increase rates by 20% for new engagements', category: 'Financial' },
-      { title: 'Build recurring revenue stream', description: 'Create subscription element to service', category: 'Sales' },
+      { title: 'Define 3 productized service packages', description: 'Create Bronze/Silver/Gold tiers with fixed scope, deliverables, timelines, and pricing', category: 'Sales', tool: 'Notion or Google Docs', boardOwner: 'CFO', successMetric: 'Close 2 new clients on packages', delegationScore: 2, delegateTo: 'Cannot delegate - IP creation' },
+      { title: 'Build retainer proposal template', description: 'Create monthly retainer option with clear scope, SLA, and escalation process', category: 'Sales', tool: 'Proposal software (PandaDoc)', boardOwner: 'CFO', successMetric: 'Convert 30% of projects to retainers', delegationScore: 3, delegateTo: 'Admin can format' },
+      { title: 'Automate client onboarding sequence', description: 'Welcome email, info-gathering form, Calendly link, contract signing, kick-off scheduling', category: 'Operations', tool: 'Zapier + Forms + Calendly', boardOwner: 'COO', successMetric: 'Reduce onboarding time by 50%', delegationScore: 6, delegateTo: 'VA or ops person' },
+      { title: 'Document your consulting methodology', description: 'Write step-by-step process from discovery to delivery. Include templates and checklists.', category: 'Operations', tool: 'Notion or process docs', boardOwner: 'COO', successMetric: 'Associate can deliver 80% of work', delegationScore: 2, delegateTo: 'You must document, others can format' },
+      { title: 'Write case study from recent project', description: 'Document: client problem, your approach, specific results achieved. Include testimonial.', category: 'Marketing', tool: 'Google Docs + Website', boardOwner: 'CMO', successMetric: 'Use case study in 5 pitches', delegationScore: 5, delegateTo: 'Writer can draft' },
+      { title: 'Launch 4-week LinkedIn content sprint', description: 'Schedule 12 posts (3/week) mixing insights, case studies, and thought leadership', category: 'Marketing', tool: 'LinkedIn + scheduling tool', boardOwner: 'CMO', successMetric: 'Gain 200 followers and 3 inbound leads', delegationScore: 4, delegateTo: 'Content writer' },
+      { title: 'Identify 10 referral partners', description: 'List complementary service providers who serve same clients. Propose referral arrangement.', category: 'Sales', tool: 'CRM + LinkedIn', boardOwner: 'CMO', successMetric: 'Secure 3 active referral partnerships', delegationScore: 3, delegateTo: 'You identify, VA can reach out' },
+      { title: 'Set up project management system', description: 'Configure Notion/Asana with client templates, project stages, and recurring tasks', category: 'Operations', tool: 'Notion or Asana', boardOwner: 'COO', successMetric: 'All clients tracked in one place', delegationScore: 6, delegateTo: 'VA can set up' },
+      { title: 'Create automated proposal with pricing', description: 'Build template with variable pricing calculator based on scope inputs', category: 'Sales', tool: 'PandaDoc or spreadsheet', boardOwner: 'CFO', successMetric: 'Reduce proposal time by 60%', delegationScore: 5, delegateTo: 'Admin can configure' },
+      { title: 'Train associate on delivery process', description: 'Document standards, run through 2 client scenarios, shadow on 1 project', category: 'People', tool: 'SOPs + Video calls', boardOwner: 'CHRO', successMetric: 'Associate delivers first project independently', delegationScore: 2, delegateTo: 'You must train' },
+      { title: 'Increase prices for new clients by 20%', description: 'Update all proposal templates, communicate confidently, track conversion rates', category: 'Financial', tool: 'Pricing documents', boardOwner: 'CFO', successMetric: 'New clients at higher rate, no drop in conversion', delegationScore: 2, delegateTo: 'You decide, admin updates docs' },
+      { title: 'Create recurring revenue offering', description: 'Design subscription/retainer element that provides ongoing value and steady income', category: 'Sales', tool: 'Service design document', boardOwner: 'CFO', successMetric: '£5k MRR from retainers', delegationScore: 2, delegateTo: 'You design, team can sell' },
     ],
     general_business: [
-      { title: 'Document your 3 core processes', description: 'Write SOPs for delivery, sales, and support', category: 'Operations' },
-      { title: 'Review and optimize pricing', description: 'Audit margins and consider 10-15% increase', category: 'Financial' },
-      { title: 'Set up CRM system', description: 'Implement HubSpot/Pipedrive with pipeline stages', category: 'Operations' },
-      { title: 'Create customer feedback loop', description: 'Send NPS survey and follow up on responses', category: 'Marketing' },
-      { title: 'Automate invoicing and follow-ups', description: 'Set up recurring invoices and payment reminders', category: 'Financial' },
-      { title: 'Build email list nurture sequence', description: 'Create 5-email sequence for leads', category: 'Marketing' },
-      { title: 'Delegate first task to VA/contractor', description: 'Identify 5 hours/week to hand off', category: 'People' },
-      { title: 'Create customer referral incentive', description: 'Design and launch referral program', category: 'Marketing' },
-      { title: 'Set up weekly metrics dashboard', description: 'Track leads, conversions, revenue, hours', category: 'Operations' },
-      { title: 'Block protected time in calendar', description: 'Reserve 2 hours daily for strategic work', category: 'Personal' },
-      { title: 'Review and reduce subscriptions', description: 'Audit all SaaS and cancel unused tools', category: 'Financial' },
-      { title: 'Create 90-day marketing plan', description: 'Map out channels, content, and campaigns', category: 'Marketing' },
+      { title: 'Document your 3 core processes', description: 'Write SOPs for: 1) How you deliver your service, 2) How you sell, 3) How you support clients. Include step-by-step instructions anyone could follow.', category: 'Operations', tool: 'Notion, Loom, or Google Docs', boardOwner: 'COO', successMetric: 'Team member can follow process independently', delegationScore: 3, delegateTo: 'You document, team can format' },
+      { title: 'Review and increase pricing by 10-15%', description: 'Audit current margins by service/product. Identify where you can increase without losing clients. Update all materials.', category: 'Financial', tool: 'Spreadsheet + proposal templates', boardOwner: 'CFO', successMetric: 'Average order value up 10%', delegationScore: 2, delegateTo: 'You decide, admin updates' },
+      { title: 'Implement CRM with sales pipeline', description: 'Set up HubSpot/Pipedrive with stages: Lead → Qualified → Proposal → Negotiation → Won/Lost. Import existing contacts.', category: 'Operations', tool: 'HubSpot or Pipedrive', boardOwner: 'COO', successMetric: 'All deals tracked, nothing falls through cracks', delegationScore: 6, delegateTo: 'VA can set up and maintain' },
+      { title: 'Create customer feedback system', description: 'Send NPS survey at project end. Set up review request sequence. Act on detractor feedback within 48h.', category: 'Marketing', tool: 'Typeform + Email automation', boardOwner: 'CMO', successMetric: 'NPS above 50, 10 new reviews', delegationScore: 7, delegateTo: 'VA can manage entirely' },
+      { title: 'Automate invoicing and payment chase', description: 'Set up recurring invoices, auto-reminders at 7 days overdue, escalation at 30 days. Consider auto-payment.', category: 'Financial', tool: 'Xero, QuickBooks, or Stripe', boardOwner: 'CFO', successMetric: 'Reduce debtor days from X to X-15', delegationScore: 8, delegateTo: 'Bookkeeper' },
+      { title: 'Build email nurture sequence', description: 'Create 5-email sequence for new leads: Value → Case study → FAQ → Offer → Follow up', category: 'Marketing', tool: 'Mailchimp, ConvertKit, or ActiveCampaign', boardOwner: 'CMO', successMetric: 'Convert 5% of leads to calls', delegationScore: 5, delegateTo: 'Marketing VA or copywriter' },
+      { title: 'Delegate first 5 hours/week to VA', description: 'Identify tasks: email management, calendar, data entry, research. Hire and train VA.', category: 'People', tool: 'Time Etc, Belay, or local VA', boardOwner: 'CHRO', successMetric: 'Reclaim 5 hours/week', delegationScore: 8, delegateTo: 'VA (this IS the delegation)' },
+      { title: 'Launch customer referral program', description: 'Design incentive (discount, gift, or credit). Create referral link/code system. Promote to existing customers.', category: 'Marketing', tool: 'Referral software or manual tracking', boardOwner: 'CMO', successMetric: '5 referral customers in first month', delegationScore: 6, delegateTo: 'Marketing VA' },
+      { title: 'Set up weekly metrics dashboard', description: 'Track: Leads, Calls, Proposals, Revenue, Hours worked. Review every Monday.', category: 'Operations', tool: 'Google Sheets or dashboard tool', boardOwner: 'COO', successMetric: 'Make one data-driven decision/week', delegationScore: 5, delegateTo: 'VA updates, you review' },
+      { title: 'Block 2 hours daily for strategic work', description: 'Reserve 10am-12pm (or similar) for deep work. No calls, no email. Communicate to team.', category: 'Personal', tool: 'Calendar + communication', boardOwner: 'COO', successMetric: 'Working ON business 10hrs/week', delegationScore: 10, delegateTo: 'Only you can do this' },
+      { title: 'Cancel unused subscriptions and tools', description: 'Audit all SaaS spend. Cancel anything not used in 30 days. Consolidate overlapping tools.', category: 'Financial', tool: 'Bank statement + subscriptions list', boardOwner: 'CFO', successMetric: 'Reduce SaaS spend by 20%', delegationScore: 4, delegateTo: 'VA can audit, you decide' },
+      { title: 'Create 90-day marketing plan', description: 'Map out: channels, content themes, campaigns, budget. Include weekly actions.', category: 'Marketing', tool: 'Planning template', boardOwner: 'CMO', successMetric: 'Consistent marketing activity for 90 days', delegationScore: 3, delegateTo: 'You plan, team executes' },
     ]
   };
 
   const tasks = industryTasks[ctx.industry] || industryTasks.general_business;
   
   const phases = [
-    { weeks: [1, 2], name: 'Immediate Relief', focus: ctx.magicAwayTask || 'Quick wins to reduce immediate pressure' },
-    { weeks: [3, 4], name: 'Foundation', focus: 'Build systems that remove you from the day-to-day' },
-    { weeks: [5, 6], name: 'Momentum', focus: 'Scale what\'s working and optimize' },
-    { weeks: [7, 8], name: 'Lock-In', focus: 'Make changes permanent with habits and processes' },
-    { weeks: [9, 10], name: 'Scale', focus: 'Multiply your wins and prepare for growth' },
-    { weeks: [11, 12], name: 'Transform', focus: 'Step into your new way of operating' }
+    { weeks: [1, 2], name: 'Immediate Relief', focus: `Tackle: ${ctx.magicAwayTask || ctx.mondayFrustration || 'Quick wins'}` },
+    { weeks: [3, 4], name: 'Foundation', focus: `Systems for: ${ctx.growthBottleneck || 'core operations'}` },
+    { weeks: [5, 6], name: 'Momentum', focus: 'Scale what\'s working' },
+    { weeks: [7, 8], name: 'Lock-In', focus: 'Make changes permanent' },
+    { weeks: [9, 10], name: 'Scale', focus: 'Multiply your wins' },
+    { weeks: [11, 12], name: 'Transform', focus: `Approaching: ${ctx.tuesdayTest || 'your ideal Tuesday'}` }
   ];
 
   for (let w = 1; w <= 12; w++) {
     const phase = phases.find(p => p.weeks.includes(w))!;
-    const weekTask = tasks[w - 1] || tasks[0];
+    const taskTemplate = tasks[w - 1] || tasks[0];
+    
+    // Create primary task with full structure
+    const primaryTask = {
+      id: `w${w}_t1`,
+      title: taskTemplate.title,
+      description: taskTemplate.description,
+      why: w <= 2 ? `Directly addresses your Monday frustration: "${ctx.mondayFrustration || ctx.growthBottleneck}"` :
+           w <= 4 ? `Builds foundation for: ${vision.northStar?.substring(0, 50) || 'your vision'}` :
+           `Moves toward: ${ctx.tuesdayTest?.substring(0, 50) || 'your ideal Tuesday'}`,
+      category: taskTemplate.category,
+      priority: w <= 4 ? 'critical' : w <= 8 ? 'high' : 'medium',
+      estimatedHours: 3,
+      tool: taskTemplate.tool || primaryTool,
+      boardOwner: taskTemplate.boardOwner || boardMembers[0]?.role || 'COO',
+      successMetric: taskTemplate.successMetric,
+      deliverable: `${taskTemplate.title} - complete and documented`,
+      delegationScore: taskTemplate.delegationScore || 5,
+      delegateTo: taskTemplate.delegateTo || 'VA or team member'
+    };
+
+    // Weekly reflection task
+    const reflectionTask = {
+      id: `w${w}_t2`,
+      title: 'Weekly Reflection & Planning',
+      description: `Review Week ${w} progress. What worked? What didn't? What's blocking you? Plan next week.`,
+      why: 'Build the habit of strategic thinking - this is how successful founders operate',
+      category: 'Personal',
+      priority: 'medium',
+      estimatedHours: 0.5,
+      tool: 'Notes app or journal',
+      boardOwner: 'COO',
+      successMetric: 'Clear next week priorities documented',
+      deliverable: `Week ${w} review completed`,
+      delegationScore: 10,
+      delegateTo: 'Cannot delegate - founder thinking time'
+    };
     
     weeks.push({
       weekNumber: w,
       phase: phase.name,
-      theme: `Week ${w}: ${weekTask.title.split(' ').slice(0, 3).join(' ')}`,
+      theme: `Week ${w}: ${taskTemplate.title.split(' ').slice(0, 4).join(' ')}`,
       focus: phase.focus,
-      tuesdayTransformation: w === 1 ? 'First glimpse of a lighter workload' : 
+      tuesdayTransformation: w === 1 ? `First glimpse of relief from "${ctx.relationshipMirror || 'the grind'}"` : 
                              w === 4 ? 'Systems starting to carry the weight' :
                              w === 8 ? 'New habits feeling natural' :
-                             w === 12 ? 'This is how Tuesdays feel now' : undefined,
-      tasks: [
-        {
-          id: `w${w}_t1`,
-          title: weekTask.title,
-          description: weekTask.description,
-          why: `Moves toward ${vision.northStar?.substring(0, 50) || 'your vision'}...`,
-          category: weekTask.category,
-          priority: w <= 4 ? 'critical' : w <= 8 ? 'high' : 'medium',
-          estimatedHours: 3,
-          deliverable: weekTask.title.replace(/^(Create|Build|Set up|Document|Launch|Review)/, 'Completed').replace(/\s+/g, ' ')
-        },
-        {
-          id: `w${w}_t2`,
-          title: 'Weekly Reflection',
-          description: 'Review progress, capture wins, and plan next steps',
-          why: 'Build the habit of strategic thinking',
-          category: 'Personal',
-          priority: 'medium',
-          estimatedHours: 0.5,
-          deliverable: 'Week insights documented'
-        }
-      ],
-      milestone: w === 4 ? 'Foundation complete - first real changes visible' :
-                 w === 8 ? 'Momentum locked in - changes becoming habits' :
-                 w === 12 ? '90-day transformation complete' :
-                 `Week ${w} complete`
+                             w === 12 ? `Approaching: "${ctx.tuesdayTest || 'your ideal Tuesday'}"` : undefined,
+      tasks: [primaryTask, reflectionTask],
+      milestone: w === 4 ? `Foundation complete - "${ctx.magicAwayTask || 'main pain point'}" 50% reduced` :
+                 w === 8 ? `Momentum locked - working toward ${ctx.targetWorkingHours || 40} hours/week` :
+                 w === 12 ? `90-day transformation complete - living closer to "${ctx.tuesdayTest || 'your vision'}"` :
+                 `Week ${w}: ${taskTemplate.title.split(' ').slice(0, 3).join(' ')} complete`
     });
+  }
+
+  // Helper function for default tools
+  function getDefaultToolForIndustry(industry: string): string {
+    const defaults: Record<string, string> = {
+      fitness_equipment: 'Shopify + Xero',
+      consulting: 'Notion + Google Workspace',
+      technology: 'Jira + Slack',
+      agency: 'Asana + Figma',
+      trades: 'ServiceM8 + QuickBooks',
+      general_business: 'Google Workspace + Xero'
+    };
+    return defaults[industry] || 'Google Workspace';
   }
 
   return {
