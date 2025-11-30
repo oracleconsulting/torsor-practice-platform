@@ -81,18 +81,16 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   const fetchClients = async () => {
     setLoading(true);
     try {
-      // Get practice_id from current member
-      const { data: memberData } = await supabase
-        .from('team_members')
-        .select('practice_id')
-        .eq('auth_user_id', currentMember?.id)
-        .single();
+      // Use practice_id directly from currentMember (from useCurrentMember hook)
+      const practiceId = currentMember?.practice_id;
 
-      if (!memberData?.practice_id) {
-        console.log('No practice found');
+      if (!practiceId) {
+        console.log('No practice found - currentMember:', currentMember);
         setLoading(false);
         return;
       }
+
+      console.log('Fetching clients for practice:', practiceId);
 
       // Fetch clients from practice_members
       const { data: clientsData, error } = await supabase
@@ -105,7 +103,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           program_status,
           last_portal_login
         `)
-        .eq('practice_id', memberData.practice_id)
+        .eq('practice_id', practiceId)
         .eq('member_type', 'client')
         .order('name');
 
