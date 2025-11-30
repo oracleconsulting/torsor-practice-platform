@@ -11,9 +11,11 @@
 
 import { useEffect, useState } from 'react';
 import { Layout } from '@/components/Layout';
-import { useRoadmap, useGenerateAnalysis, useTasks } from '@/hooks/useAnalysis';
+import { useRoadmap, useGenerateAnalysis, useTasks, useGenerateValueAnalysis } from '@/hooks/useAnalysis';
 import { useAssessmentProgress } from '@/hooks/useAssessmentProgress';
 import { Link } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Sparkles,
   CheckCircle,
@@ -40,21 +42,36 @@ import {
 type ViewTab = 'vision' | 'shift' | 'sprint' | 'value';
 
 export default function RoadmapPage() {
+  const { clientSession } = useAuth();
   const { roadmap, fetchRoadmap, loading: roadmapLoading } = useRoadmap();
   const { generate, loading: generating, error: generateError } = useGenerateAnalysis();
+  const { generate: generateValueAnalysis, loading: generatingValue, error: valueError } = useGenerateValueAnalysis();
   const { progress } = useAssessmentProgress();
   const { tasks, fetchTasks, updateTaskStatus } = useTasks();
   const [activeTab, setActiveTab] = useState<ViewTab>('vision');
   const [activeWeek, setActiveWeek] = useState<number | null>(1);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [part3Responses, setPart3Responses] = useState<Record<string, any> | null>(null);
 
   useEffect(() => {
     const init = async () => {
       await fetchRoadmap();
+      // Also fetch Part 3 responses if they exist
+      if (clientSession?.clientId) {
+        const { data } = await supabase
+          .from('client_assessments')
+          .select('responses')
+          .eq('client_id', clientSession.clientId)
+          .eq('assessment_type', 'part3')
+          .maybeSingle();
+        if (data?.responses) {
+          setPart3Responses(data.responses);
+        }
+      }
       setIsInitialized(true);
     };
     init();
-  }, []);
+  }, [clientSession]);
 
   useEffect(() => {
     if (roadmap) {
@@ -65,6 +82,21 @@ export default function RoadmapPage() {
   const handleRegenerate = async () => {
     await generate(true);
     await fetchRoadmap();
+  };
+
+  const handleGenerateValueAnalysis = async () => {
+    if (!part3Responses) {
+      // If no Part 3 responses, generate with minimal context from roadmap
+      const result = await generateValueAnalysis({});
+      if (result.success) {
+        await fetchRoadmap(); // Refresh to get the new value analysis
+      }
+    } else {
+      const result = await generateValueAnalysis(part3Responses);
+      if (result.success) {
+        await fetchRoadmap();
+      }
+    }
   };
 
   // Loading states
@@ -582,6 +614,47 @@ export default function RoadmapPage() {
         {/* ================================================================
             TAB: VALUE ANALYSIS
         ================================================================ */}
+        {activeTab === 'value' && !valueAnalysis && (
+          <div className="flex flex-col items-center justify-center py-16">
+            <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center mb-6">
+              <TrendingUp className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-3">Value Analysis</h2>
+            <p className="text-slate-600 max-w-md text-center mb-6">
+              Discover hidden value opportunities in your business. This analysis identifies untapped assets,
+              risks, and actionable improvements to maximize your business value.
+            </p>
+            {generatingValue ? (
+              <div className="flex flex-col items-center">
+                <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mb-3" />
+                <p className="text-slate-600">Analyzing your business value...</p>
+                <div className="mt-4 space-y-1 text-sm text-slate-500">
+                  <p>🔍 Calculating asset scores...</p>
+                  <p>⚠️ Identifying risks...</p>
+                  <p>💡 Finding opportunities...</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={handleGenerateValueAnalysis}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-medium hover:from-emerald-600 hover:to-teal-700 transition-all"
+                >
+                  <Sparkles className="w-5 h-5" />
+                  Generate Value Analysis
+                </button>
+                {valueError && (
+                  <p className="text-red-600 text-sm mt-3">{valueError}</p>
+                )}
+                {!part3Responses && (
+                  <p className="text-slate-500 text-sm mt-3">
+                    Complete the Hidden Value Assessment for deeper insights, or generate now with existing data.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        )}
         {activeTab === 'value' && valueAnalysis && (
           <div className="space-y-6">
             {/* Overall Score */}
