@@ -1,7 +1,10 @@
-// Stub file - Platform code will be migrated here from ../../src/
-// This enables the monorepo build to pass
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+import './index.css';
 
-export {};
-
-console.log('Platform app - to be migrated');
-
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+);
