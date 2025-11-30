@@ -657,6 +657,173 @@ export default function RoadmapPage() {
         )}
         {activeTab === 'value' && valueAnalysis && (
           <div className="space-y-6">
+            {/* Business Valuation - TODAY'S VALUE */}
+            {valueAnalysis.businessValuation && (
+              <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-8 text-white">
+                <div className="flex items-start justify-between mb-6">
+                  <div>
+                    <p className="text-slate-400 text-sm uppercase tracking-wide">Your Business Value Today</p>
+                    <p className="text-5xl font-bold mt-2 text-emerald-400">
+                      £{(valueAnalysis.businessValuation.currentValue || 0).toLocaleString()}
+                    </p>
+                    <p className="text-slate-400 mt-1 text-sm">
+                      Range: £{(valueAnalysis.businessValuation.valueRange?.low || 0).toLocaleString()} 
+                      - £{(valueAnalysis.businessValuation.valueRange?.high || 0).toLocaleString()}
+                    </p>
+                    <p className="text-slate-500 text-xs mt-2">
+                      Method: {valueAnalysis.businessValuation.method} | As of {valueAnalysis.businessValuation.asOfDate}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-slate-400 text-sm uppercase tracking-wide">Potential Value</p>
+                    <p className="text-3xl font-bold mt-2 text-white">
+                      £{(valueAnalysis.businessValuation.potentialValue || 0).toLocaleString()}
+                    </p>
+                    <p className="text-emerald-400 text-sm mt-1">
+                      +£{(valueAnalysis.businessValuation.valueGapAmount || 0).toLocaleString()} opportunity
+                    </p>
+                  </div>
+                </div>
+
+                {/* Key Metrics Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-700">
+                  <div>
+                    <p className="text-slate-500 text-xs uppercase">Revenue</p>
+                    <p className="text-white font-semibold">£{(valueAnalysis.businessValuation.keyMetrics?.revenue || 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-xs uppercase">Net Profit</p>
+                    <p className="text-white font-semibold">£{(valueAnalysis.businessValuation.keyMetrics?.netProfit || 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-xs uppercase">SDE</p>
+                    <p className="text-white font-semibold">£{(valueAnalysis.businessValuation.keyMetrics?.sde || 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-xs uppercase">Growth Rate</p>
+                    <p className="text-white font-semibold">{valueAnalysis.businessValuation.keyMetrics?.growthRate || '0%'}</p>
+                  </div>
+                </div>
+
+                {/* Industry Comparison */}
+                {valueAnalysis.businessValuation.industryComparison && (
+                  <div className="mt-6 pt-6 border-t border-slate-700">
+                    <p className="text-slate-400 text-sm mb-3">Industry Comparison: {valueAnalysis.businessValuation.industryComparison.industry}</p>
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1 bg-slate-700 rounded-full h-3 relative">
+                        <div 
+                          className="absolute inset-0 bg-gradient-to-r from-red-500 via-amber-500 to-emerald-500 rounded-full opacity-30"
+                        />
+                        <div 
+                          className="absolute h-5 w-2 bg-white rounded -top-1"
+                          style={{ left: `${valueAnalysis.businessValuation.industryComparison.percentile || 50}%` }}
+                        />
+                      </div>
+                      <span className="text-white font-medium">
+                        {valueAnalysis.businessValuation.industryComparison.percentile || 50}th percentile
+                      </span>
+                    </div>
+                    <p className="text-slate-500 text-xs mt-2">
+                      Your multiple: {valueAnalysis.businessValuation.industryComparison.yourMultiple}x 
+                      | Industry avg: {valueAnalysis.businessValuation.industryComparison.averageMultiple}x
+                      | Top performers: {valueAnalysis.businessValuation.industryComparison.topPerformersMultiple}x
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Value Drivers - What's Helping/Hurting Your Value */}
+            {valueAnalysis.businessValuation?.valueDrivers?.length > 0 && (
+              <div className="bg-white rounded-xl border border-slate-200 p-6">
+                <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-slate-600" />
+                  Value Drivers - What's Affecting Your Valuation
+                </h3>
+                <div className="space-y-3">
+                  {valueAnalysis.businessValuation.valueDrivers.map((driver: any, i: number) => (
+                    <div key={i} className="flex items-center gap-4 p-3 rounded-lg bg-slate-50">
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center font-bold ${
+                        driver.impact > 0 ? 'bg-emerald-100 text-emerald-700' : 
+                        driver.impact < -15 ? 'bg-red-100 text-red-700' : 
+                        'bg-amber-100 text-amber-700'
+                      }`}>
+                        {driver.impact > 0 ? '+' : ''}{driver.impact}%
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-slate-900">{driver.name}</p>
+                        <p className="text-sm text-slate-600">{driver.reason}</p>
+                      </div>
+                      {driver.fixable && driver.fixCost > 0 && (
+                        <div className="text-right text-sm">
+                          <p className="text-emerald-600 font-medium">Fixable</p>
+                          <p className="text-slate-500">£{driver.fixCost.toLocaleString()} / {driver.fixTimeMonths}mo</p>
+                          <p className="text-slate-400 text-xs">After: {driver.afterFix > 0 ? '+' : ''}{driver.afterFix}%</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ROI on Improvements */}
+            {valueAnalysis.businessValuation?.roi && valueAnalysis.businessValuation.roi.investmentRequired > 0 && (
+              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-6 text-white">
+                <h3 className="font-bold mb-4">ROI on Value Improvements</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-indigo-200 text-sm">Investment Required</p>
+                    <p className="text-2xl font-bold">£{valueAnalysis.businessValuation.roi.investmentRequired.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-indigo-200 text-sm">Time to Realize</p>
+                    <p className="text-2xl font-bold">{valueAnalysis.businessValuation.roi.timeToRealize} months</p>
+                  </div>
+                  <div>
+                    <p className="text-indigo-200 text-sm">Value Increase</p>
+                    <p className="text-2xl font-bold text-emerald-300">+£{valueAnalysis.businessValuation.roi.valueIncrease.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-indigo-200 text-sm">ROI</p>
+                    <p className="text-2xl font-bold text-yellow-300">{valueAnalysis.businessValuation.roi.roiPercentage}%</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Exit Readiness */}
+            {valueAnalysis.businessValuation?.exitReadiness && (
+              <div className="bg-white rounded-xl border border-slate-200 p-6">
+                <h3 className="font-bold text-slate-900 mb-4">Exit Readiness</h3>
+                <div className="flex items-center gap-4 mb-4">
+                  <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold ${
+                    valueAnalysis.businessValuation.exitReadiness.score >= 70 ? 'bg-emerald-100 text-emerald-700' :
+                    valueAnalysis.businessValuation.exitReadiness.score >= 40 ? 'bg-amber-100 text-amber-700' :
+                    'bg-red-100 text-red-700'
+                  }`}>
+                    {valueAnalysis.businessValuation.exitReadiness.score}
+                  </div>
+                  <div>
+                    <p className="font-medium text-slate-900">Time to Exit Ready: {valueAnalysis.businessValuation.exitReadiness.timeToExit}</p>
+                    {valueAnalysis.businessValuation.exitReadiness.blockers?.length > 0 && (
+                      <p className="text-sm text-red-600">
+                        Blockers: {valueAnalysis.businessValuation.exitReadiness.blockers.slice(0, 3).join(', ')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {valueAnalysis.businessValuation.exitReadiness.recommendations?.length > 0 && (
+                  <div className="border-t border-slate-200 pt-4 mt-4">
+                    <p className="text-sm font-medium text-slate-700 mb-2">Priority Fixes:</p>
+                    {valueAnalysis.businessValuation.exitReadiness.recommendations.slice(0, 3).map((rec: string, i: number) => (
+                      <p key={i} className="text-sm text-slate-600">• {rec}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Overall Score */}
             <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl p-8 text-white">
               <div className="flex items-center justify-between">

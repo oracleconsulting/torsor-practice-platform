@@ -92,6 +92,628 @@ function determineBusinessStage(part1: Record<string, any>, part2: Record<string
 }
 
 // ============================================================================
+// BUSINESS VALUATION ENGINE (NEW - Comprehensive)
+// ============================================================================
+// Establishes baseline business value using:
+// - Industry-specific valuation multiples
+// - Revenue/EBITDA/SDE analysis
+// - Value driver adjustments (+/-)
+// - Before/after ROI projections
+// ============================================================================
+
+interface FinancialData {
+  revenue: number;
+  grossProfit: number;
+  operatingProfit: number;
+  netProfit: number;
+  ebitda: number;
+  ownerSalary: number;
+  ownerPerks: number;
+  sde: number;  // Seller's Discretionary Earnings
+  assets: number;
+  liabilities: number;
+  yearOnYearGrowth: number;
+  recurringRevenuePercentage: number;
+  grossMargin: number;
+  netMargin: number;
+}
+
+interface ValuationMultiples {
+  revenueMultiple: { low: number; mid: number; high: number };
+  ebitdaMultiple: { low: number; mid: number; high: number };
+  sdeMultiple: { low: number; mid: number; high: number };
+  primaryMethod: 'revenue' | 'ebitda' | 'sde' | 'asset';
+  notes: string;
+}
+
+interface ValueDriver {
+  name: string;
+  impact: number;  // -30 to +30 percentage points on multiple
+  reason: string;
+  fixable: boolean;
+  fixCost: number;
+  fixTimeMonths: number;
+  afterFix: number;
+}
+
+interface BusinessValuation {
+  asOfDate: string;
+  method: string;
+  baselineValue: number;
+  adjustedValue: number;
+  valueRange: { low: number; mid: number; high: number };
+  keyMetrics: FinancialData;
+  multiples: ValuationMultiples;
+  valueDrivers: ValueDriver[];
+  potentialValue: number;  // After implementing improvements
+  valueGap: number;  // Difference between current and potential
+  roi: {
+    investmentRequired: number;
+    timeToRealize: number;
+    valueIncrease: number;
+    roiPercentage: number;
+  };
+  industryComparison: {
+    industry: string;
+    averageMultiple: number;
+    yourMultiple: number;
+    percentile: number;
+    topPerformersMultiple: number;
+  };
+  exitReadiness: {
+    score: number;
+    blockers: string[];
+    recommendations: string[];
+    timeToExit: string;
+  };
+}
+
+// Industry-specific valuation benchmarks
+const INDUSTRY_MULTIPLES: Record<string, ValuationMultiples> = {
+  fitness_equipment: {
+    revenueMultiple: { low: 0.8, mid: 1.5, high: 2.5 },
+    ebitdaMultiple: { low: 3.0, mid: 4.5, high: 7.0 },
+    sdeMultiple: { low: 2.5, mid: 3.5, high: 5.0 },
+    primaryMethod: 'sde',
+    notes: 'Sporting goods/fitness: valued on SDE with premium for brand strength and recurring revenue'
+  },
+  ecommerce: {
+    revenueMultiple: { low: 0.5, mid: 1.0, high: 2.0 },
+    ebitdaMultiple: { low: 2.5, mid: 4.0, high: 6.0 },
+    sdeMultiple: { low: 2.0, mid: 3.0, high: 4.5 },
+    primaryMethod: 'sde',
+    notes: 'E-commerce: valued on SDE, premium for proprietary products and brand'
+  },
+  consulting: {
+    revenueMultiple: { low: 0.5, mid: 1.0, high: 1.5 },
+    ebitdaMultiple: { low: 3.0, mid: 5.0, high: 8.0 },
+    sdeMultiple: { low: 1.5, mid: 2.5, high: 4.0 },
+    primaryMethod: 'sde',
+    notes: 'Consulting: heavily discounted for founder dependency, premium for systems'
+  },
+  technology: {
+    revenueMultiple: { low: 2.0, mid: 4.0, high: 8.0 },
+    ebitdaMultiple: { low: 6.0, mid: 10.0, high: 15.0 },
+    sdeMultiple: { low: 3.0, mid: 5.0, high: 8.0 },
+    primaryMethod: 'revenue',
+    notes: 'Technology/SaaS: valued on revenue with premium for growth and recurring revenue'
+  },
+  agency: {
+    revenueMultiple: { low: 0.4, mid: 0.8, high: 1.5 },
+    ebitdaMultiple: { low: 3.0, mid: 5.0, high: 8.0 },
+    sdeMultiple: { low: 1.5, mid: 2.5, high: 4.0 },
+    primaryMethod: 'sde',
+    notes: 'Agencies: valued on SDE, heavily discounted for key person dependency'
+  },
+  trades: {
+    revenueMultiple: { low: 0.3, mid: 0.6, high: 1.0 },
+    ebitdaMultiple: { low: 2.0, mid: 3.5, high: 5.0 },
+    sdeMultiple: { low: 1.5, mid: 2.5, high: 3.5 },
+    primaryMethod: 'sde',
+    notes: 'Trades: valued on SDE plus assets, premium for recurring contracts'
+  },
+  general_business: {
+    revenueMultiple: { low: 0.5, mid: 1.0, high: 2.0 },
+    ebitdaMultiple: { low: 3.0, mid: 4.0, high: 6.0 },
+    sdeMultiple: { low: 2.0, mid: 3.0, high: 4.0 },
+    primaryMethod: 'sde',
+    notes: 'General: valued on SDE with standard adjustments for risk factors'
+  }
+};
+
+// Extract financial data from context documents (uploaded accounts)
+function extractFinancialsFromContext(
+  contextDocuments: any[],
+  stageContext: StageContext,
+  part2Responses: Record<string, any>
+): FinancialData {
+  // Start with what we know from assessments
+  let revenue = stageContext.revenue;
+  let grossProfit = 0;
+  let operatingProfit = 0;
+  let netProfit = 0;
+  let ownerSalary = 0;
+  let ownerPerks = 0;
+  let assets = 0;
+  let liabilities = 0;
+  let yearOnYearGrowth = 0;
+  let recurringRevenuePercentage = 0;
+
+  // Parse revenue from part2 if more specific
+  if (part2Responses.exact_annual_revenue) {
+    revenue = parseFloat(part2Responses.exact_annual_revenue.replace(/[£,]/g, '')) || revenue;
+  }
+
+  // Parse gross margin
+  const grossMarginStr = part2Responses.gross_margin || part2Responses.profit_margin || '30%';
+  const grossMargin = parseFloat(grossMarginStr.replace('%', '')) / 100 || 0.3;
+  grossProfit = revenue * grossMargin;
+
+  // Estimate operating profit (typically 60-80% of gross for SMEs)
+  operatingProfit = grossProfit * 0.7;
+
+  // Parse owner salary from context or estimate
+  ownerSalary = parseFloat(part2Responses.owner_salary?.replace(/[£,]/g, '') || '0') || revenue * 0.15;
+  ownerPerks = ownerSalary * 0.1; // Estimate perks at 10% of salary
+
+  // Parse growth rate
+  const growthStr = part2Responses.growth_rate || part2Responses.revenue_growth || '0%';
+  yearOnYearGrowth = parseFloat(growthStr.replace('%', '')) / 100 || 0;
+
+  // Parse recurring revenue
+  recurringRevenuePercentage = parseFloat(part2Responses.recurring_revenue_percentage || '0') / 100 || 0;
+
+  // Try to extract from uploaded context documents
+  for (const doc of contextDocuments || []) {
+    const content = (doc.content || '').toLowerCase();
+    
+    // Look for key financial terms
+    if (content.includes('turnover') || content.includes('revenue')) {
+      const revenueMatch = content.match(/(?:turnover|revenue)[:\s]*£?([\d,]+)/);
+      if (revenueMatch) {
+        const extractedRevenue = parseFloat(revenueMatch[1].replace(/,/g, ''));
+        if (extractedRevenue > 0) revenue = extractedRevenue;
+      }
+    }
+    
+    if (content.includes('gross profit')) {
+      const gpMatch = content.match(/gross profit[:\s]*£?([\d,]+)/);
+      if (gpMatch) {
+        grossProfit = parseFloat(gpMatch[1].replace(/,/g, '')) || grossProfit;
+      }
+    }
+
+    if (content.includes('operating profit') || content.includes('ebit')) {
+      const opMatch = content.match(/(?:operating profit|ebit)[:\s]*£?([\d,]+)/);
+      if (opMatch) {
+        operatingProfit = parseFloat(opMatch[1].replace(/,/g, '')) || operatingProfit;
+      }
+    }
+
+    if (content.includes('net profit') || content.includes('profit after tax')) {
+      const npMatch = content.match(/(?:net profit|profit after tax)[:\s]*£?([\d,]+)/);
+      if (npMatch) {
+        netProfit = parseFloat(npMatch[1].replace(/,/g, '')) || netProfit;
+      }
+    }
+
+    if (content.includes('director') && (content.includes('salary') || content.includes('remuneration'))) {
+      const salMatch = content.match(/(?:director|owner)(?:'s)?\s*(?:salary|remuneration)[:\s]*£?([\d,]+)/);
+      if (salMatch) {
+        ownerSalary = parseFloat(salMatch[1].replace(/,/g, '')) || ownerSalary;
+      }
+    }
+
+    if (content.includes('total assets')) {
+      const assetMatch = content.match(/total assets[:\s]*£?([\d,]+)/);
+      if (assetMatch) {
+        assets = parseFloat(assetMatch[1].replace(/,/g, '')) || 0;
+      }
+    }
+
+    if (content.includes('total liabilities')) {
+      const liabMatch = content.match(/total liabilities[:\s]*£?([\d,]+)/);
+      if (liabMatch) {
+        liabilities = parseFloat(liabMatch[1].replace(/,/g, '')) || 0;
+      }
+    }
+  }
+
+  // Estimate net profit if not found
+  if (netProfit === 0) {
+    netProfit = operatingProfit * 0.8; // Rough estimate after tax
+  }
+
+  // Calculate EBITDA (add back depreciation/amortization estimate)
+  const depreciation = revenue * 0.03; // Estimate 3% of revenue
+  const ebitda = operatingProfit + depreciation;
+
+  // Calculate SDE (Seller's Discretionary Earnings)
+  const sde = netProfit + ownerSalary + ownerPerks + depreciation;
+
+  return {
+    revenue,
+    grossProfit,
+    operatingProfit,
+    netProfit,
+    ebitda,
+    ownerSalary,
+    ownerPerks,
+    sde,
+    assets,
+    liabilities,
+    yearOnYearGrowth,
+    recurringRevenuePercentage,
+    grossMargin,
+    netMargin: revenue > 0 ? netProfit / revenue : 0
+  };
+}
+
+// Analyze value drivers and their impact on multiple
+function analyzeValueDrivers(
+  financials: FinancialData,
+  part3Responses: Record<string, any>,
+  stageContext: StageContext,
+  assetScores: any[]
+): ValueDriver[] {
+  const drivers: ValueDriver[] = [];
+  
+  // --- OWNER DEPENDENCY ---
+  const dependency = parseInt(part3Responses.knowledge_dependency_percentage || '50');
+  if (dependency > 70) {
+    drivers.push({
+      name: 'High Owner Dependency',
+      impact: -25,
+      reason: `${dependency}% of knowledge in founder's head. Buyers see this as massive risk.`,
+      fixable: true,
+      fixCost: 15000, // Documentation and training
+      fixTimeMonths: 6,
+      afterFix: -10 // Still some dependency but much better
+    });
+  } else if (dependency > 50) {
+    drivers.push({
+      name: 'Moderate Owner Dependency',
+      impact: -10,
+      reason: `${dependency}% owner knowledge concentration needs addressing`,
+      fixable: true,
+      fixCost: 8000,
+      fixTimeMonths: 3,
+      afterFix: 0
+    });
+  } else if (dependency < 30) {
+    drivers.push({
+      name: 'Low Owner Dependency',
+      impact: +10,
+      reason: 'Business can run without founder - premium valuations apply',
+      fixable: false,
+      fixCost: 0,
+      fixTimeMonths: 0,
+      afterFix: +10
+    });
+  }
+
+  // --- CUSTOMER CONCENTRATION ---
+  const top3Concentration = parseInt(part3Responses.top3_customer_revenue_percentage || '30');
+  if (top3Concentration > 60) {
+    drivers.push({
+      name: 'High Customer Concentration',
+      impact: -20,
+      reason: `${top3Concentration}% of revenue from top 3 customers. One departure = crisis.`,
+      fixable: true,
+      fixCost: 25000, // Sales & marketing investment
+      fixTimeMonths: 12,
+      afterFix: -5
+    });
+  } else if (top3Concentration > 40) {
+    drivers.push({
+      name: 'Moderate Customer Concentration',
+      impact: -10,
+      reason: `${top3Concentration}% from top 3 - needs diversification`,
+      fixable: true,
+      fixCost: 12000,
+      fixTimeMonths: 6,
+      afterFix: 0
+    });
+  } else if (top3Concentration < 20) {
+    drivers.push({
+      name: 'Well-Diversified Customer Base',
+      impact: +10,
+      reason: 'No single customer dependency - lower risk profile',
+      fixable: false,
+      fixCost: 0,
+      fixTimeMonths: 0,
+      afterFix: +10
+    });
+  }
+
+  // --- RECURRING REVENUE ---
+  const recurringPct = financials.recurringRevenuePercentage * 100;
+  if (recurringPct > 70) {
+    drivers.push({
+      name: 'Strong Recurring Revenue',
+      impact: +25,
+      reason: `${Math.round(recurringPct)}% recurring revenue - predictable and valuable`,
+      fixable: false,
+      fixCost: 0,
+      fixTimeMonths: 0,
+      afterFix: +25
+    });
+  } else if (recurringPct > 40) {
+    drivers.push({
+      name: 'Moderate Recurring Revenue',
+      impact: +10,
+      reason: `${Math.round(recurringPct)}% recurring - room to grow subscription model`,
+      fixable: true,
+      fixCost: 10000,
+      fixTimeMonths: 6,
+      afterFix: +15
+    });
+  } else if (recurringPct < 20) {
+    drivers.push({
+      name: 'Low Recurring Revenue',
+      impact: -10,
+      reason: 'Mostly one-time sales - less predictable for buyers',
+      fixable: true,
+      fixCost: 15000,
+      fixTimeMonths: 9,
+      afterFix: 0
+    });
+  }
+
+  // --- GROWTH RATE ---
+  const growthPct = financials.yearOnYearGrowth * 100;
+  if (growthPct > 30) {
+    drivers.push({
+      name: 'High Growth Rate',
+      impact: +20,
+      reason: `${Math.round(growthPct)}% YoY growth - premium multiple territory`,
+      fixable: false,
+      fixCost: 0,
+      fixTimeMonths: 0,
+      afterFix: +20
+    });
+  } else if (growthPct > 15) {
+    drivers.push({
+      name: 'Solid Growth',
+      impact: +10,
+      reason: `${Math.round(growthPct)}% YoY growth - above average`,
+      fixable: false,
+      fixCost: 0,
+      fixTimeMonths: 0,
+      afterFix: +10
+    });
+  } else if (growthPct < 5) {
+    drivers.push({
+      name: 'Flat/Low Growth',
+      impact: -15,
+      reason: 'Stagnant growth impacts buyer interest',
+      fixable: true,
+      fixCost: 20000,
+      fixTimeMonths: 12,
+      afterFix: 0
+    });
+  }
+
+  // --- DOCUMENTATION & SYSTEMS ---
+  const undocumented = (part3Responses.critical_processes_undocumented || []).length;
+  if (undocumented > 5) {
+    drivers.push({
+      name: 'Poor Documentation',
+      impact: -15,
+      reason: `${undocumented} critical processes not documented`,
+      fixable: true,
+      fixCost: 5000 + (undocumented * 1000),
+      fixTimeMonths: 4,
+      afterFix: 0
+    });
+  } else if (undocumented === 0) {
+    drivers.push({
+      name: 'Excellent Documentation',
+      impact: +10,
+      reason: 'All critical processes documented - transfer-ready',
+      fixable: false,
+      fixCost: 0,
+      fixTimeMonths: 0,
+      afterFix: +10
+    });
+  }
+
+  // --- FINANCIAL CLEANLINESS ---
+  const cleanFinancials = part3Responses.clean_financials;
+  if (cleanFinancials === 'Mixed personal/business expenses') {
+    drivers.push({
+      name: 'Messy Financials',
+      impact: -20,
+      reason: 'Mixed personal/business expenses = due diligence nightmare',
+      fixable: true,
+      fixCost: 3000,
+      fixTimeMonths: 3,
+      afterFix: -5
+    });
+  } else if (cleanFinancials === 'Audited/accountant-reviewed annually') {
+    drivers.push({
+      name: 'Clean Audited Financials',
+      impact: +10,
+      reason: 'Audited accounts = buyer confidence',
+      fixable: false,
+      fixCost: 0,
+      fixTimeMonths: 0,
+      afterFix: +10
+    });
+  }
+
+  // --- BRAND/PERSONAL BRAND ---
+  const personalBrand = parseInt(part3Responses.personal_brand_percentage || '50');
+  if (personalBrand > 70) {
+    drivers.push({
+      name: 'Founder is the Brand',
+      impact: -30,
+      reason: `${personalBrand}% of customers buy because of founder - business is unsellable without transition plan`,
+      fixable: true,
+      fixCost: 20000,
+      fixTimeMonths: 18,
+      afterFix: -10
+    });
+  }
+
+  // --- SUCCESSION/EXIT READINESS ---
+  const succession = part3Responses.succession_your_role;
+  if (succession === 'Nobody') {
+    drivers.push({
+      name: 'No Succession Plan',
+      impact: -15,
+      reason: 'No one can run business without founder',
+      fixable: true,
+      fixCost: 10000,
+      fixTimeMonths: 12,
+      afterFix: 0
+    });
+  } else if (succession === 'Someone ready now') {
+    drivers.push({
+      name: 'Strong Succession',
+      impact: +15,
+      reason: 'Proven succession - low transition risk',
+      fixable: false,
+      fixCost: 0,
+      fixTimeMonths: 0,
+      afterFix: +15
+    });
+  }
+
+  return drivers;
+}
+
+// Calculate business valuation
+function calculateBusinessValuation(
+  financials: FinancialData,
+  valueDrivers: ValueDriver[],
+  stageContext: StageContext,
+  assetScores: any[]
+): BusinessValuation {
+  const industry = stageContext.industry;
+  const multiples = INDUSTRY_MULTIPLES[industry] || INDUSTRY_MULTIPLES.general_business;
+
+  // Calculate total value driver impact
+  const currentImpact = valueDrivers.reduce((sum, d) => sum + d.impact, 0);
+  const potentialImpact = valueDrivers.reduce((sum, d) => sum + d.afterFix, 0);
+
+  // Adjust multiples based on value drivers
+  const adjustmentFactor = 1 + (currentImpact / 100);
+  const potentialAdjustmentFactor = 1 + (potentialImpact / 100);
+
+  // Calculate valuations using primary method
+  let baselineValue: number;
+  let potentialValue: number;
+  let method: string;
+
+  switch (multiples.primaryMethod) {
+    case 'revenue':
+      baselineValue = financials.revenue * multiples.revenueMultiple.mid * adjustmentFactor;
+      potentialValue = financials.revenue * multiples.revenueMultiple.mid * potentialAdjustmentFactor;
+      method = 'Revenue Multiple';
+      break;
+    case 'ebitda':
+      baselineValue = financials.ebitda * multiples.ebitdaMultiple.mid * adjustmentFactor;
+      potentialValue = financials.ebitda * multiples.ebitdaMultiple.mid * potentialAdjustmentFactor;
+      method = 'EBITDA Multiple';
+      break;
+    case 'sde':
+    default:
+      baselineValue = financials.sde * multiples.sdeMultiple.mid * adjustmentFactor;
+      potentialValue = financials.sde * multiples.sdeMultiple.mid * potentialAdjustmentFactor;
+      method = 'SDE Multiple (Seller\'s Discretionary Earnings)';
+      break;
+  }
+
+  // Calculate range
+  const valueLow = baselineValue * 0.7;
+  const valueHigh = baselineValue * 1.4;
+
+  // Calculate ROI on improvements
+  const investmentRequired = valueDrivers
+    .filter(d => d.fixable && d.fixCost > 0)
+    .reduce((sum, d) => sum + d.fixCost, 0);
+  
+  const longestFix = Math.max(...valueDrivers.filter(d => d.fixable).map(d => d.fixTimeMonths), 0);
+  const valueIncrease = potentialValue - baselineValue;
+  const roiPercentage = investmentRequired > 0 ? (valueIncrease / investmentRequired) * 100 : 0;
+
+  // Calculate current multiple and percentile
+  const currentMultiple = financials.sde > 0 ? baselineValue / financials.sde : 0;
+  const avgMultiple = multiples.sdeMultiple.mid;
+  const percentile = Math.min(100, Math.max(0, 
+    50 + ((currentMultiple - avgMultiple) / avgMultiple) * 50
+  ));
+
+  // Exit readiness assessment
+  const blockers: string[] = [];
+  const recommendations: string[] = [];
+  let exitScore = 50;
+
+  valueDrivers.forEach(driver => {
+    if (driver.impact < -15) {
+      blockers.push(driver.name);
+      exitScore -= 10;
+    }
+    if (driver.fixable && driver.impact < 0) {
+      recommendations.push(`Fix ${driver.name}: £${driver.fixCost.toLocaleString()} investment, ${driver.fixTimeMonths} months`);
+    }
+  });
+
+  // Add asset score insights to exit readiness
+  assetScores.forEach(score => {
+    if (score.score < 40) {
+      blockers.push(`Low ${score.category} score (${score.score}%)`);
+      exitScore -= 5;
+    }
+  });
+
+  exitScore = Math.max(0, Math.min(100, exitScore));
+
+  let timeToExit = 'Ready now';
+  if (exitScore < 30) timeToExit = '18-24 months of improvements needed';
+  else if (exitScore < 50) timeToExit = '12-18 months';
+  else if (exitScore < 70) timeToExit = '6-12 months';
+  else if (exitScore < 90) timeToExit = '3-6 months';
+
+  return {
+    asOfDate: new Date().toISOString().split('T')[0],
+    method,
+    baselineValue: Math.round(baselineValue),
+    adjustedValue: Math.round(baselineValue),
+    valueRange: {
+      low: Math.round(valueLow),
+      mid: Math.round(baselineValue),
+      high: Math.round(valueHigh)
+    },
+    keyMetrics: financials,
+    multiples,
+    valueDrivers,
+    potentialValue: Math.round(potentialValue),
+    valueGap: Math.round(potentialValue - baselineValue),
+    roi: {
+      investmentRequired: Math.round(investmentRequired),
+      timeToRealize: longestFix,
+      valueIncrease: Math.round(valueIncrease),
+      roiPercentage: Math.round(roiPercentage)
+    },
+    industryComparison: {
+      industry: stageContext.industry.replace('_', ' '),
+      averageMultiple: avgMultiple,
+      yourMultiple: Math.round(currentMultiple * 10) / 10,
+      percentile: Math.round(percentile),
+      topPerformersMultiple: multiples.sdeMultiple.high
+    },
+    exitReadiness: {
+      score: exitScore,
+      blockers,
+      recommendations,
+      timeToExit
+    }
+  };
+}
+
+// ============================================================================
 // STAGE-SPECIFIC QUESTIONS (Full Implementation)
 // ============================================================================
 
@@ -1855,6 +2477,12 @@ serve(async (req) => {
       const part2 = assessments?.find(a => a.assessment_type === 'part2')?.responses || {};
       const stageContext = determineBusinessStage(part1, part2);
 
+      // Fetch any uploaded context documents (like accounts)
+      const { data: contextDocs } = await supabase
+        .from('client_context')
+        .select('content, type, priority')
+        .eq('client_id', clientId);
+
       // Calculate all analysis components
       const assetScores = calculateAssetScores(part3Responses, stageContext);
       const valueGaps = identifyValueGaps(part3Responses, assetScores, stageContext);
@@ -1862,12 +2490,62 @@ serve(async (req) => {
       const valuationImpact = calculateValuationImpact(assetScores, riskRegister, stageContext);
       const thirtyDayPlan = generate30DayPlan(assetScores, valueGaps, riskRegister, stageContext);
 
+      // ============ NEW: BUSINESS VALUATION ============
+      // Extract financial data from assessments and uploaded documents
+      const financialData = extractFinancialsFromContext(
+        contextDocs || [],
+        stageContext,
+        part2
+      );
+
+      // Analyze value drivers
+      const valueDrivers = analyzeValueDrivers(
+        financialData,
+        part3Responses,
+        stageContext,
+        assetScores
+      );
+
+      // Calculate comprehensive business valuation
+      const businessValuation = calculateBusinessValuation(
+        financialData,
+        valueDrivers,
+        stageContext,
+        assetScores
+      );
+
+      console.log(`Business valuation calculated: £${businessValuation.baselineValue.toLocaleString()} (range: £${businessValuation.valueRange.low.toLocaleString()} - £${businessValuation.valueRange.high.toLocaleString()})`);
+
       const overallScore = valuationImpact.valueDrivers.overallScore;
       const totalOpportunity = valuationImpact.totalOpportunity;
 
       const valueAnalysis = {
         businessStage: stageContext.stage,
         stageContext,
+        
+        // NEW: Business Valuation Section
+        businessValuation: {
+          asOfDate: businessValuation.asOfDate,
+          method: businessValuation.method,
+          currentValue: businessValuation.baselineValue,
+          valueRange: businessValuation.valueRange,
+          potentialValue: businessValuation.potentialValue,
+          valueGapAmount: businessValuation.valueGap,
+          keyMetrics: {
+            revenue: financialData.revenue,
+            grossMargin: `${Math.round(financialData.grossMargin * 100)}%`,
+            netProfit: financialData.netProfit,
+            sde: financialData.sde,
+            ebitda: financialData.ebitda,
+            growthRate: `${Math.round(financialData.yearOnYearGrowth * 100)}%`,
+            recurringRevenue: `${Math.round(financialData.recurringRevenuePercentage * 100)}%`
+          },
+          valueDrivers: businessValuation.valueDrivers,
+          industryComparison: businessValuation.industryComparison,
+          roi: businessValuation.roi,
+          exitReadiness: businessValuation.exitReadiness
+        },
+        
         assetScores,
         overallScore,
         scoreInterpretation: overallScore < 40 ? 'Significant improvement needed' : 
