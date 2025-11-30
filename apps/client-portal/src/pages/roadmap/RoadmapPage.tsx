@@ -84,6 +84,18 @@ export default function RoadmapPage() {
     await fetchRoadmap();
   };
 
+  const handleGenerate = async () => {
+    console.log('Starting roadmap generation...');
+    const result = await generate();
+    console.log('Generation result:', result);
+    if (result.success) {
+      console.log('Generation successful, fetching roadmap...');
+      await fetchRoadmap();
+    } else {
+      console.error('Generation failed:', result.error);
+    }
+  };
+
   const handleGenerateValueAnalysis = async () => {
     if (!part3Responses) {
       // If no Part 3 responses, generate with minimal context from roadmap
@@ -165,7 +177,7 @@ export default function RoadmapPage() {
             You've completed all assessments. Now let's turn everything you've shared into a comprehensive, personalized transformation plan.
           </p>
           <button
-            onClick={() => generate()}
+            onClick={handleGenerate}
             disabled={generating}
             className="inline-flex items-center gap-3 mt-8 px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl font-medium text-lg"
           >
