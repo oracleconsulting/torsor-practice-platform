@@ -4,6 +4,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 
 // Pages
 import LoginPage from './pages/LoginPage';
+import InvitationPage from './pages/InvitationPage';
 import DashboardPage from './pages/DashboardPage';
 import AssessmentsPage from './pages/assessments/AssessmentsPage';
 import AssessmentPart1Page from './pages/assessments/Part1Page';
@@ -22,6 +23,7 @@ function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/invitation/:token" element={<InvitationPage />} />
           
           {/* Protected routes */}
           <Route element={<ProtectedRoute />}>
