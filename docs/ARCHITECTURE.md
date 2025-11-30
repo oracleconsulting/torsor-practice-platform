@@ -415,23 +415,172 @@ async function generateWithKnowledge(prompt, practiceId) {
 
 ---
 
-## 9. IMMEDIATE FIXES NEEDED
+## 9. GDPR & DATA PROTECTION
 
-### 9.1 Sprint Summary Formatting
-**Problem**: One large block of text
-**Fix**: Structure into clear sections
+### 9.1 Data Flow & LLM Safety
 
-### 9.2 Generic Task Labels
-**Problem**: "Week 1 Priority Task" is not actionable
-**Fix**: Generate specific, industry-relevant tasks
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DATA PROTECTION FLOW                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Client Assessment     sanitizeForLLM()      OpenRouter/Anthropic           │
+│  ┌──────────────┐     ┌──────────────┐     ┌──────────────────────┐        │
+│  │ Full PII     │ ──► │ Anonymized   │ ──► │ NO TRAINING          │        │
+│  │ - Email      │     │ - "founder"  │     │ - API data excluded  │        │
+│  │ - Full name  │     │ - Revenue    │     │ - No model updates   │        │
+│  │ - IDs        │     │   ranges     │     │ - EU servers (Claude)│        │
+│  └──────────────┘     └──────────────┘     └──────────────────────┘        │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-### 9.3 Practice Platform Integration
-**Problem**: No way to view clients or add context
-**Fix**: Build practice-side views and context system
+### 9.2 What We Send to LLMs
+
+| Data Type | Treatment | Reason |
+|-----------|-----------|--------|
+| Email addresses | ❌ NEVER sent | PII |
+| Full names | Anonymized to "founder" | PII |
+| User/Client IDs | ❌ NEVER sent | Identifiers |
+| Company name | ✅ Sent (with consent) | Needed for context |
+| Revenue exact | Converted to ranges | Financial privacy |
+| Emotional responses | ✅ Sent | Core to methodology |
+| Industry | ✅ Sent | Required for relevance |
+
+### 9.3 LLM Provider Compliance
+
+**OpenRouter → Anthropic (Claude)**
+- Anthropic does NOT train on API data
+- EU data processing available
+- GDPR compliant data handling
+- No data retention beyond request
+
+**Request Headers**
+```typescript
+{
+  'HTTP-Referer': 'https://torsor.co.uk',
+  'X-Title': 'Torsor 365 Platform'
+}
+```
+
+### 9.4 Data Retention Periods
+
+| Data Type | Retention | Legal Basis |
+|-----------|-----------|-------------|
+| Client assessments | 7 years | Business records |
+| Roadmaps | 7 years | Business records |
+| Tasks | 3 years | Operational |
+| Chat messages | 1 year | Support |
+| LLM logs | 1 year | Anonymized only |
+| Post-contract | 6 years | UK legal requirement |
+
+### 9.5 Consent Management
+
+```sql
+-- Client consent stored in practice_members
+ALTER TABLE practice_members ADD COLUMN IF NOT EXISTS ai_consent boolean DEFAULT false;
+ALTER TABLE practice_members ADD COLUMN IF NOT EXISTS consent_timestamp timestamptz;
+ALTER TABLE practice_members ADD COLUMN IF NOT EXISTS consent_version text;
+```
 
 ---
 
-## 10. FILES REFERENCE
+## 10. MULTI-TENANT GTM ARCHITECTURE
+
+### 10.1 Current: Single Practice (Torsor)
+
+```
+torsor.co.uk (Practice Platform)
+client.torsor.co.uk (Client Portal)
+└── practice_id = '8624cd8c...' (Torsor)
+    └── All clients belong to Torsor
+```
+
+### 10.2 Future: Multi-Tenant SaaS
+
+```
+Smith & Co Accountants → practice_id = 'aaa...'
+├── Platform: smithco.torsor.co.uk OR app.smithco.com
+├── Client Portal: clients.smithco.torsor.co.uk
+├── Team: John (owner), Jane (advisor), Bob (viewer)
+├── Clients: 50 businesses
+├── Knowledge Base: Custom methodology docs
+├── Service Lines: 365 Alignment, Growth Program
+└── Branding: Custom colors, logo, domain
+
+Jones Advisory → practice_id = 'bbb...'
+├── Platform: jonesadvisory.torsor.co.uk
+├── Completely separate data
+└── Own clients, team, knowledge base
+```
+
+### 10.3 Database Isolation
+
+```sql
+-- All client tables have practice_id
+ALTER TABLE client_assessments ADD COLUMN IF NOT EXISTS practice_id uuid;
+ALTER TABLE client_roadmaps ADD COLUMN IF NOT EXISTS practice_id uuid;
+ALTER TABLE client_tasks ADD COLUMN IF NOT EXISTS practice_id uuid;
+ALTER TABLE client_context ADD COLUMN IF NOT EXISTS practice_id uuid;
+
+-- Row Level Security enforces isolation
+CREATE POLICY "Practice isolation" ON client_assessments
+  FOR ALL USING (
+    practice_id IN (
+      SELECT practice_id FROM practice_members 
+      WHERE user_id = auth.uid()
+    )
+  );
+```
+
+### 10.4 Service Line Architecture
+
+```sql
+CREATE TABLE service_lines (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  practice_id uuid REFERENCES practices(id),
+  name text NOT NULL,  -- '365 Alignment', 'Cashflow Forecast', etc.
+  assessments jsonb[],  -- Which assessments are included
+  edge_functions jsonb[],  -- Which generation functions to call
+  pricing jsonb,
+  is_active boolean DEFAULT true
+);
+
+CREATE TABLE client_enrollments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id uuid REFERENCES practice_members(id),
+  service_line_id uuid REFERENCES service_lines(id),
+  status text DEFAULT 'active',
+  enrolled_at timestamptz DEFAULT now(),
+  completed_at timestamptz
+);
+```
+
+### 10.5 GTM Pricing Model
+
+| Tier | Price | Clients | Service Lines | Features |
+|------|-------|---------|---------------|----------|
+| Starter | £299/mo | 10 | 365 Only | Basic |
+| Professional | £599/mo | 50 | All | + Knowledge Base |
+| Enterprise | £1499/mo | Unlimited | All | + Custom Domain, SSO |
+
+### 10.6 White-Label Configuration
+
+```sql
+CREATE TABLE practice_branding (
+  practice_id uuid PRIMARY KEY REFERENCES practices(id),
+  primary_color text DEFAULT '#4F46E5',
+  secondary_color text DEFAULT '#10B981',
+  logo_url text,
+  custom_domain text,
+  email_from_name text,
+  email_reply_to text
+);
+```
+
+---
+
+## 11. FILES REFERENCE
 
 ### Client Portal
 ```
