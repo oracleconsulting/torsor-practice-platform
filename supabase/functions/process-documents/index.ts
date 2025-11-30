@@ -36,6 +36,149 @@ interface DocumentChunk {
   };
 }
 
+interface ClientEntity {
+  id: string;
+  name: string;
+  firstName: string;
+  companyPatterns: string[];
+}
+
+// ============================================================================
+// CLIENT-SPECIFIC EXTRACTION (For shared documents)
+// ============================================================================
+
+function extractCompanyPatterns(email: string, name: string): string[] {
+  const patterns: string[] = [];
+  
+  // Extract company name from email domain
+  const domain = email.split('@')[1];
+  if (domain && !domain.includes('gmail') && !domain.includes('yahoo') && !domain.includes('hotmail')) {
+    const company = domain.split('.')[0];
+    patterns.push(company.toLowerCase());
+  }
+  
+  // Add name variations
+  patterns.push(name.toLowerCase());
+  patterns.push(name.split(' ')[0].toLowerCase()); // First name
+  
+  return patterns;
+}
+
+// Detect data source type from filename and content
+function detectDataSourceType(fileName: string, content: string): { type: string; priority: number } {
+  const lowerName = fileName.toLowerCase();
+  const lowerContent = content.toLowerCase().substring(0, 2000); // Check first 2000 chars
+  
+  // Official accounts - highest priority for financials
+  if (lowerName.includes('account') || lowerName.includes('financials') || 
+      lowerName.includes('p&l') || lowerName.includes('profit') ||
+      lowerContent.includes('turnover') && lowerContent.includes('expenses') ||
+      lowerContent.includes('balance sheet') || lowerContent.includes('statutory accounts')) {
+    return { type: 'accounts', priority: 100 };
+  }
+  
+  // Transcripts - lower priority for numbers, high for qualitative insights
+  if (lowerName.includes('transcript') || lowerName.includes('recording') ||
+      lowerContent.includes('speaker:') || lowerContent.includes('interviewer:') ||
+      lowerContent.includes('[inaudible]')) {
+    return { type: 'transcript', priority: 30 };
+  }
+  
+  // Meeting notes
+  if (lowerName.includes('meeting') || lowerName.includes('notes') ||
+      lowerContent.includes('action items') || lowerContent.includes('next steps')) {
+    return { type: 'meeting_notes', priority: 40 };
+  }
+  
+  // Email correspondence
+  if (lowerName.includes('email') || lowerContent.includes('from:') && lowerContent.includes('to:')) {
+    return { type: 'email', priority: 35 };
+  }
+  
+  return { type: 'general', priority: 50 };
+}
+
+// Extract content relevant to a specific client from shared document
+function extractClientSpecificContent(
+  text: string, 
+  targetClient: ClientEntity,
+  allClients: ClientEntity[]
+): { content: string; relevanceScore: number; entityMentions: number } {
+  const lines = text.split('\n');
+  const relevantLines: string[] = [];
+  let entityMentions = 0;
+  
+  // Build patterns for target client
+  const targetPatterns = [
+    targetClient.name.toLowerCase(),
+    targetClient.firstName,
+    ...targetClient.companyPatterns
+  ].filter(p => p.length > 2);
+  
+  // Build patterns for other clients (to exclude their specific content)
+  const otherPatterns = allClients
+    .filter(c => c.id !== targetClient.id)
+    .flatMap(c => [c.firstName, ...c.companyPatterns])
+    .filter(p => p.length > 2);
+  
+  let inTargetSection = false;
+  let lastSpeaker = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].toLowerCase();
+    const originalLine = lines[i];
+    
+    // Check if this line mentions target client
+    const mentionsTarget = targetPatterns.some(p => line.includes(p));
+    const mentionsOther = otherPatterns.some(p => line.includes(p));
+    
+    // Detect speaker changes in transcripts
+    const speakerMatch = line.match(/^([\w\s]+):/);
+    if (speakerMatch) {
+      lastSpeaker = speakerMatch[1].trim();
+      if (targetPatterns.some(p => lastSpeaker.includes(p))) {
+        inTargetSection = true;
+      } else if (otherPatterns.some(p => lastSpeaker.includes(p))) {
+        inTargetSection = false;
+      }
+    }
+    
+    // Include line if:
+    // 1. It mentions the target client
+    // 2. Target client is speaking (in transcript)
+    // 3. It's general context (doesn't specifically mention others)
+    // 4. It's about business metrics that match target's company
+    if (mentionsTarget) {
+      entityMentions++;
+      relevantLines.push(originalLine);
+      // Include surrounding context (2 lines before/after)
+      if (i > 0 && !relevantLines.includes(lines[i-1])) relevantLines.push(lines[i-1]);
+      if (i < lines.length - 1) relevantLines.push(lines[i+1]);
+    } else if (inTargetSection && !mentionsOther) {
+      relevantLines.push(originalLine);
+    } else if (!mentionsOther && isGeneralBusinessContext(line)) {
+      // Include general business advice that applies to everyone
+      relevantLines.push(originalLine);
+    }
+  }
+  
+  const content = [...new Set(relevantLines)].join('\n').trim();
+  const relevanceScore = content.length > 0 
+    ? Math.min(1, entityMentions * 0.1 + content.length / text.length)
+    : 0;
+  
+  return { content, relevanceScore, entityMentions };
+}
+
+function isGeneralBusinessContext(line: string): boolean {
+  const generalPatterns = [
+    'business', 'revenue', 'growth', 'strategy', 'marketing',
+    'team', 'culture', 'systems', 'process', 'goal', 'vision',
+    'challenge', 'opportunity', 'improvement', 'efficiency'
+  ];
+  return generalPatterns.some(p => line.includes(p));
+}
+
 // ============================================================================
 // DATA PROTECTION & SANITIZATION (GDPR COMPLIANT)
 // ============================================================================
@@ -377,7 +520,7 @@ serve(async (req) => {
   }
 
   try {
-    const { clientId, practiceId, contextId, documents, appliesTo } = await req.json();
+    const { clientId, practiceId, contextId, documents, appliesTo, isShared, sharedWithClientIds } = await req.json();
     
     if (!clientId || !practiceId || !documents || documents.length === 0) {
       return new Response(
@@ -391,6 +534,22 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Get all clients in this practice for entity extraction
+    const { data: practiceClients } = await supabase
+      .from('practice_members')
+      .select('id, name, email')
+      .eq('practice_id', practiceId)
+      .eq('member_type', 'client');
+    
+    const clientEntities = (practiceClients || []).map(c => ({
+      id: c.id,
+      name: c.name,
+      firstName: c.name.split(' ')[0].toLowerCase(),
+      companyPatterns: extractCompanyPatterns(c.email, c.name)
+    }));
+    
+    console.log(`Found ${clientEntities.length} clients for entity extraction`);
+
     const processedDocs: any[] = [];
     const errors: string[] = [];
 
@@ -402,7 +561,11 @@ serve(async (req) => {
         const rawText = await extractTextFromUrl(doc.fileUrl, doc.fileType);
         console.log(`Extracted ${rawText.length} chars from ${doc.fileName}`);
         
-        // 2. CRITICAL: Sanitize before ANY LLM processing (GDPR compliance)
+        // 2. Detect data source type (accounts vs transcript)
+        const sourceInfo = detectDataSourceType(doc.fileName, rawText);
+        console.log(`Data source: ${sourceInfo.type} (priority: ${sourceInfo.priority})`);
+        
+        // 3. CRITICAL: Sanitize before ANY LLM processing (GDPR compliance)
         const { sanitizedText, extractedMetrics } = sanitizeForLLM(rawText);
         console.log(`Sanitized text: ${sanitizedText.length} chars, extracted ${Object.keys(extractedMetrics).length} metrics`);
         
@@ -412,56 +575,107 @@ serve(async (req) => {
             .from('client_context')
             .update({ 
               extracted_metrics: extractedMetrics,
+              data_source_type: sourceInfo.type,
+              priority_level: sourceInfo.priority,
               processed: true 
             })
             .eq('id', contextId);
         }
         
-        // 3. Chunk the SANITIZED text (raw data never leaves here)
-        const chunks = chunkText(sanitizedText, doc.fileName);
-        console.log(`Created ${chunks.length} chunks from ${doc.fileName}`);
+        // 4. Determine which clients to process for
+        const targetClients = isShared && clientEntities.length > 1
+          ? clientEntities  // Process for all clients if shared
+          : clientEntities.filter(c => c.id === clientId);  // Just the primary client
         
-        // 4. Generate embeddings and store each chunk (using SANITIZED content only)
-        for (const chunk of chunks) {
-          try {
-            // Generate embedding from SANITIZED content only
-            const embedding = await generateEmbedding(chunk.content);
+        console.log(`Processing for ${targetClients.length} client(s), isShared: ${isShared}`);
+        
+        // 5. For each client, extract relevant content and create embeddings
+        for (const targetClient of targetClients) {
+          let textToProcess = sanitizedText;
+          let relevanceScore = 1.0;
+          let entityMentions = 0;
+          
+          // For shared documents, extract client-specific content
+          if (isShared && clientEntities.length > 1 && sourceInfo.type === 'transcript') {
+            const extraction = extractClientSpecificContent(sanitizedText, targetClient, clientEntities);
+            textToProcess = extraction.content;
+            relevanceScore = extraction.relevanceScore;
+            entityMentions = extraction.entityMentions;
             
-            // Store in document_embeddings table
-            const { error: insertError } = await supabase
-              .from('document_embeddings')
-              .insert({
-                practice_id: practiceId,
-                client_id: clientId,
-                context_id: contextId,
-                file_name: doc.fileName,
-                file_url: doc.fileUrl,
-                chunk_index: chunk.metadata.chunkIndex,
-                total_chunks: chunk.metadata.totalChunks,
-                content: chunk.content,
-                embedding: embedding,
-                applies_to: appliesTo || ['sprint'],
-                metadata: {
-                  fileType: doc.fileType,
-                  fileSize: doc.fileSize,
-                  processedAt: new Date().toISOString()
-                }
-              });
+            console.log(`Client ${targetClient.firstName}: ${textToProcess.length} chars, ${entityMentions} mentions, score: ${relevanceScore.toFixed(2)}`);
             
-            if (insertError) {
-              console.error('Insert error:', insertError);
-              errors.push(`Failed to store chunk ${chunk.metadata.chunkIndex} of ${doc.fileName}`);
+            // Skip if no relevant content for this client
+            if (textToProcess.length < 100 || entityMentions === 0) {
+              console.log(`Skipping ${targetClient.firstName} - insufficient relevant content`);
+              continue;
             }
-          } catch (embeddingError) {
-            console.error(`Embedding error for chunk ${chunk.metadata.chunkIndex}:`, embeddingError);
-            errors.push(`Embedding failed for ${doc.fileName} chunk ${chunk.metadata.chunkIndex}`);
+          }
+          
+          // 6. Chunk the text
+          const chunks = chunkText(textToProcess, doc.fileName);
+          console.log(`Created ${chunks.length} chunks for ${targetClient.firstName}`);
+          
+          // 7. Generate embeddings and store each chunk
+          for (const chunk of chunks) {
+            try {
+              const embedding = await generateEmbedding(chunk.content);
+              
+              const { error: insertError } = await supabase
+                .from('document_embeddings')
+                .insert({
+                  practice_id: practiceId,
+                  client_id: targetClient.id,
+                  context_id: contextId,
+                  file_name: doc.fileName,
+                  file_url: doc.fileUrl,
+                  chunk_index: chunk.metadata.chunkIndex,
+                  total_chunks: chunk.metadata.totalChunks,
+                  content: chunk.content,
+                  embedding: embedding,
+                  applies_to: appliesTo || ['sprint'],
+                  metadata: {
+                    fileType: doc.fileType,
+                    fileSize: doc.fileSize,
+                    processedAt: new Date().toISOString(),
+                    dataSourceType: sourceInfo.type,
+                    priorityLevel: sourceInfo.priority,
+                    relevanceScore: relevanceScore,
+                    entityMentions: entityMentions,
+                    isSharedDocument: isShared,
+                    extractedForClient: targetClient.name
+                  }
+                });
+              
+              if (insertError) {
+                console.error('Insert error:', insertError);
+                errors.push(`Failed to store chunk ${chunk.metadata.chunkIndex} for ${targetClient.firstName}`);
+              }
+            } catch (embeddingError) {
+              console.error(`Embedding error for chunk ${chunk.metadata.chunkIndex}:`, embeddingError);
+              errors.push(`Embedding failed for ${doc.fileName} chunk ${chunk.metadata.chunkIndex}`);
+            }
+          }
+          
+          // Store extraction record for shared documents
+          if (isShared && targetClient.id !== clientId) {
+            await supabase
+              .from('client_document_extractions')
+              .insert({
+                source_context_id: contextId,
+                client_id: targetClient.id,
+                practice_id: practiceId,
+                extracted_content: textToProcess.substring(0, 5000), // Store summary
+                relevance_score: relevanceScore,
+                entity_mentions: entityMentions
+              })
+              .catch(err => console.log('Extraction record failed:', err));
           }
         }
         
         processedDocs.push({
           fileName: doc.fileName,
-          chunksCreated: chunks.length,
-          textLength: text.length
+          clientsProcessed: targetClients.length,
+          dataSourceType: sourceInfo.type
         });
         
       } catch (docError) {

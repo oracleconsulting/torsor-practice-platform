@@ -429,7 +429,9 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
     content: '', 
     priority: 'normal',
     appliesTo: ['sprint'] as string[], // Which roadmap parts this applies to
-    files: [] as File[] // Support multiple files
+    files: [] as File[], // Support multiple files
+    isShared: false, // Is this a shared document (e.g., joint meeting transcript)?
+    dataSourceType: 'general' as 'accounts' | 'transcript' | 'meeting_notes' | 'general'
   });
   const [addingContext, setAddingContext] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
@@ -566,7 +568,9 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
           practiceId: client?.practice_id,
           contextId,
           documents,
-          appliesTo: newContext.appliesTo
+          appliesTo: newContext.appliesTo,
+          isShared: newContext.isShared,
+          dataSourceType: newContext.dataSourceType
         }
       });
 
@@ -640,7 +644,7 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
 
       // Refresh client data
       await fetchClientDetail();
-      setNewContext({ type: 'note', content: '', priority: 'normal', appliesTo: ['sprint'], files: [] });
+      setNewContext({ type: 'note', content: '', priority: 'normal', appliesTo: ['sprint'], files: [], isShared: false, dataSourceType: 'general' });
       setShowAddContext(false);
       
       if (uploadedDocs.length > 0) {
@@ -1166,6 +1170,41 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                           <p className="text-xs text-gray-500 mt-1">Select which roadmap sections should incorporate this context</p>
                         </div>
 
+                        {/* Document Type & Shared Options */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Document Type</label>
+                            <select
+                              value={newContext.dataSourceType}
+                              onChange={(e) => setNewContext({ ...newContext, dataSourceType: e.target.value as any })}
+                              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                            >
+                              <option value="general">General Notes</option>
+                              <option value="accounts">Official Accounts (£ figures)</option>
+                              <option value="transcript">Meeting Transcript</option>
+                              <option value="meeting_notes">Meeting Notes</option>
+                            </select>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Accounts data takes priority for financial figures
+                            </p>
+                          </div>
+                          
+                          <div>
+                            <label className="flex items-center gap-2 cursor-pointer mt-6">
+                              <input
+                                type="checkbox"
+                                checked={newContext.isShared}
+                                onChange={(e) => setNewContext({ ...newContext, isShared: e.target.checked })}
+                                className="w-4 h-4 text-indigo-600 rounded"
+                              />
+                              <span className="text-sm text-gray-700">Shared Document</span>
+                            </label>
+                            <p className="text-xs text-gray-500 mt-1 ml-6">
+                              For joint meetings - extracts relevant info per client
+                            </p>
+                          </div>
+                        </div>
+
                         {/* Multi-File Upload */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1300,7 +1339,7 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                           <button
                             onClick={() => {
                               setShowAddContext(false);
-                              setNewContext({ type: 'note', content: '', priority: 'normal', appliesTo: ['sprint'], files: [] });
+                              setNewContext({ type: 'note', content: '', priority: 'normal', appliesTo: ['sprint'], files: [], isShared: false, dataSourceType: 'general' });
                             }}
                             className="px-4 py-2 text-gray-600 hover:text-gray-800"
                           >
