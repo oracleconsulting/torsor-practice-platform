@@ -424,8 +424,24 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
   
   // Context form state
   const [showAddContext, setShowAddContext] = useState(false);
-  const [newContext, setNewContext] = useState({ type: 'note', content: '', priority: 'normal' });
+  const [newContext, setNewContext] = useState({ 
+    type: 'note', 
+    content: '', 
+    priority: 'normal',
+    appliesTo: ['sprint'] as string[], // Which roadmap parts this applies to
+    file: null as File | null
+  });
   const [addingContext, setAddingContext] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  
+  // Analysis generation state
+  const [generatingValueAnalysis, setGeneratingValueAnalysis] = useState(false);
+  const [regenerateOptions, setRegenerateOptions] = useState({
+    fiveYear: false,
+    sixMonth: false,
+    sprint: true
+  });
+  const [showRegenerateOptions, setShowRegenerateOptions] = useState(false);
   
   // Sprint editing state
   const [editingTask, setEditingTask] = useState<{weekNumber: number, taskId: string, original: any} | null>(null);
@@ -474,10 +490,41 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
   };
 
   // ================================================================
+  // FILE UPLOAD FUNCTIONALITY
+  // ================================================================
+  const handleFileUpload = async (file: File): Promise<string | null> => {
+    if (!client?.practice_id) return null;
+    
+    setUploadingFile(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${client.practice_id}/${clientId}/${Date.now()}.${fileExt}`;
+      
+      const { data, error } = await supabase.storage
+        .from('client-documents')
+        .upload(fileName, file);
+      
+      if (error) throw error;
+      
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('client-documents')
+        .getPublicUrl(fileName);
+      
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      return null;
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  // ================================================================
   // ADD CONTEXT FUNCTIONALITY
   // ================================================================
   const handleAddContext = async () => {
-    if (!newContext.content.trim() || !client?.practice_id) return;
+    if ((!newContext.content.trim() && !newContext.file) || !client?.practice_id) return;
     
     setAddingContext(true);
     try {
@@ -489,14 +536,22 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
         .eq('member_type', 'team')
         .single();
 
+      // Upload file if present
+      let fileUrl = null;
+      if (newContext.file) {
+        fileUrl = await handleFileUpload(newContext.file);
+      }
+
       const { error } = await supabase
         .from('client_context')
         .insert({
           practice_id: client.practice_id,
           client_id: clientId,
           context_type: newContext.type,
-          content: newContext.content,
+          content: newContext.content || `Uploaded file: ${newContext.file?.name}`,
+          source_file_url: fileUrl,
           priority_level: newContext.priority,
+          applies_to: newContext.appliesTo,
           added_by: memberData?.id,
           processed: false
         });
@@ -505,13 +560,40 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
 
       // Refresh client data
       await fetchClientDetail();
-      setNewContext({ type: 'note', content: '', priority: 'normal' });
+      setNewContext({ type: 'note', content: '', priority: 'normal', appliesTo: ['sprint'], file: null });
       setShowAddContext(false);
     } catch (error) {
       console.error('Error adding context:', error);
       alert('Failed to add context. Please try again.');
     } finally {
       setAddingContext(false);
+    }
+  };
+
+  // ================================================================
+  // GENERATE VALUE ANALYSIS (SEPARATE FROM ROADMAP)
+  // ================================================================
+  const handleGenerateValueAnalysis = async () => {
+    if (!client?.practice_id) return;
+    
+    setGeneratingValueAnalysis(true);
+    try {
+      const response = await supabase.functions.invoke('generate-value-analysis', {
+        body: {
+          clientId,
+          practiceId: client.practice_id
+        }
+      });
+
+      if (response.error) throw response.error;
+
+      await fetchClientDetail();
+      alert('Value analysis generated successfully!');
+    } catch (error) {
+      console.error('Error generating value analysis:', error);
+      alert('Failed to generate value analysis. Please try again.');
+    } finally {
+      setGeneratingValueAnalysis(false);
     }
   };
 
@@ -597,25 +679,42 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
   };
 
   // ================================================================
-  // REGENERATE ROADMAP FUNCTIONALITY
+  // REGENERATE ROADMAP FUNCTIONALITY (with selective options)
   // ================================================================
-  const handleRegenerate = async () => {
+  const handleRegenerate = async (sections?: { fiveYear?: boolean, sixMonth?: boolean, sprint?: boolean }) => {
     if (!client?.practice_id) return;
     
-    const unprocessedContext = client.context?.filter((c: any) => !c.processed) || [];
-    const confirmMessage = unprocessedContext.length > 0
-      ? `Regenerate roadmap? ${unprocessedContext.length} new context item(s) will be incorporated.`
-      : 'Regenerate roadmap? This will create a new version based on current assessments.';
+    const opts = sections || regenerateOptions;
+    const selectedSections = [];
+    if (opts.fiveYear) selectedSections.push('5-Year Vision');
+    if (opts.sixMonth) selectedSections.push('6-Month Shift');
+    if (opts.sprint) selectedSections.push('12-Week Sprint');
     
-    if (!confirm(confirmMessage)) return;
+    if (selectedSections.length === 0) {
+      alert('Please select at least one section to regenerate.');
+      return;
+    }
+    
+    const unprocessedContext = client.context?.filter((c: any) => !c.processed) || [];
+    const contextMsg = unprocessedContext.length > 0 
+      ? `\n${unprocessedContext.length} new context item(s) will be incorporated.` 
+      : '';
+    
+    if (!confirm(`Regenerate ${selectedSections.join(', ')}?${contextMsg}`)) return;
     
     setRegenerating(true);
+    setShowRegenerateOptions(false);
     try {
       const response = await supabase.functions.invoke('generate-roadmap', {
         body: {
           clientId,
           practiceId: client.practice_id,
-          regenerate: true
+          regenerate: true,
+          sections: {
+            fiveYear: opts.fiveYear,
+            sixMonth: opts.sixMonth,
+            sprint: opts.sprint
+          }
         }
       });
 
@@ -623,7 +722,7 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
 
       // Refresh client data
       await fetchClientDetail();
-      alert('Roadmap regenerated successfully!');
+      alert(`${selectedSections.join(', ')} regenerated successfully!`);
     } catch (error) {
       console.error('Error regenerating roadmap:', error);
       alert('Failed to regenerate roadmap. Please try again.');
@@ -647,26 +746,99 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
               </>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {/* Value Analysis Button */}
+            <button
+              onClick={handleGenerateValueAnalysis}
+              disabled={generatingValueAnalysis}
+              className="inline-flex items-center gap-2 px-3 py-2 border border-purple-300 text-purple-700 bg-purple-50 rounded-lg hover:bg-purple-100 disabled:bg-purple-50 disabled:opacity-50 text-sm font-medium"
+            >
+              {generatingValueAnalysis ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Target className="w-4 h-4" />
+                  Value Analysis
+                </>
+              )}
+            </button>
+
+            {/* Regenerate Dropdown */}
             {client?.roadmap && (
-              <button
-                onClick={handleRegenerate}
-                disabled={regenerating}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400 text-sm font-medium"
-              >
-                {regenerating ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Regenerating...
-                  </>
-                ) : (
-                  <>
-                    <TrendingUp className="w-4 h-4" />
-                    Regenerate
-                  </>
+              <div className="relative">
+                <button
+                  onClick={() => setShowRegenerateOptions(!showRegenerateOptions)}
+                  disabled={regenerating}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400 text-sm font-medium"
+                >
+                  {regenerating ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Regenerating...
+                    </>
+                  ) : (
+                    <>
+                      <TrendingUp className="w-4 h-4" />
+                      Regenerate
+                      <ChevronRight className={`w-4 h-4 transition-transform ${showRegenerateOptions ? 'rotate-90' : ''}`} />
+                    </>
+                  )}
+                </button>
+                
+                {showRegenerateOptions && !regenerating && (
+                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 z-50 p-4">
+                    <p className="text-sm font-medium text-gray-900 mb-3">Select sections to regenerate:</p>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={regenerateOptions.fiveYear}
+                          onChange={(e) => setRegenerateOptions({ ...regenerateOptions, fiveYear: e.target.checked })}
+                          className="w-4 h-4 text-indigo-600 rounded"
+                        />
+                        <span className="text-sm text-gray-700">5-Year Vision</span>
+                      </label>
+                      <label className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={regenerateOptions.sixMonth}
+                          onChange={(e) => setRegenerateOptions({ ...regenerateOptions, sixMonth: e.target.checked })}
+                          className="w-4 h-4 text-indigo-600 rounded"
+                        />
+                        <span className="text-sm text-gray-700">6-Month Shift</span>
+                      </label>
+                      <label className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={regenerateOptions.sprint}
+                          onChange={(e) => setRegenerateOptions({ ...regenerateOptions, sprint: e.target.checked })}
+                          className="w-4 h-4 text-indigo-600 rounded"
+                        />
+                        <span className="text-sm text-gray-700">12-Week Sprint</span>
+                      </label>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-gray-200 flex gap-2">
+                      <button
+                        onClick={() => handleRegenerate({ sprint: true })}
+                        className="flex-1 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                      >
+                        Sprint Only
+                      </button>
+                      <button
+                        onClick={() => handleRegenerate()}
+                        className="flex-1 px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                      >
+                        Regenerate
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </button>
+              </div>
             )}
+            
             <button
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500"
@@ -850,6 +1022,7 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                               <option value="transcript">Call Transcript</option>
                               <option value="email">Email Thread</option>
                               <option value="priority">Priority / Action Item</option>
+                              <option value="document">Document Upload</option>
                             </select>
                           </div>
                           <div>
@@ -865,21 +1038,86 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                             </select>
                           </div>
                         </div>
+
+                        {/* Applies To - Which roadmap sections should consider this */}
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Consider for:</label>
+                          <div className="flex flex-wrap gap-3">
+                            {[
+                              { id: 'fiveYear', label: '5-Year Vision' },
+                              { id: 'sixMonth', label: '6-Month Shift' },
+                              { id: 'sprint', label: '12-Week Sprint' }
+                            ].map(({ id, label }) => (
+                              <label key={id} className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={newContext.appliesTo.includes(id)}
+                                  onChange={(e) => {
+                                    const updated = e.target.checked
+                                      ? [...newContext.appliesTo, id]
+                                      : newContext.appliesTo.filter(a => a !== id);
+                                    setNewContext({ ...newContext, appliesTo: updated });
+                                  }}
+                                  className="w-4 h-4 text-indigo-600 rounded"
+                                />
+                                <span className="text-sm text-gray-700">{label}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">Select which roadmap sections should incorporate this context</p>
+                        </div>
+
+                        {/* File Upload */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Upload Document (optional)</label>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="file"
+                              accept=".pdf,.doc,.docx,.txt,.csv,.xls,.xlsx"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                setNewContext({ ...newContext, file, type: file ? 'document' : newContext.type });
+                              }}
+                              className="flex-1 text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                            />
+                            {newContext.file && (
+                              <button
+                                onClick={() => setNewContext({ ...newContext, file: null })}
+                                className="text-sm text-red-600 hover:text-red-700"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                          {newContext.file && (
+                            <p className="text-sm text-gray-600 mt-2">
+                              Selected: {newContext.file.name} ({(newContext.file.size / 1024).toFixed(1)} KB)
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Text Content */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {newContext.file ? 'Additional Notes (optional)' : 'Content'}
+                          </label>
                           <textarea
                             value={newContext.content}
                             onChange={(e) => setNewContext({ ...newContext, content: e.target.value })}
-                            rows={6}
+                            rows={5}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                            placeholder="Paste meeting transcript, email content, or notes here..."
+                            placeholder={newContext.file 
+                              ? "Add any additional context about this document..." 
+                              : "Paste meeting transcript, email content, or notes here..."
+                            }
                           />
                         </div>
-                        <div className="flex justify-end gap-3">
+
+                        <div className="flex justify-end gap-3 pt-2">
                           <button
                             onClick={() => {
                               setShowAddContext(false);
-                              setNewContext({ type: 'note', content: '', priority: 'normal' });
+                              setNewContext({ type: 'note', content: '', priority: 'normal', appliesTo: ['sprint'], file: null });
                             }}
                             className="px-4 py-2 text-gray-600 hover:text-gray-800"
                           >
@@ -887,11 +1125,13 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                           </button>
                           <button
                             onClick={handleAddContext}
-                            disabled={addingContext || !newContext.content.trim()}
+                            disabled={addingContext || uploadingFile || (!newContext.content.trim() && !newContext.file)}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400"
                           >
-                            {addingContext && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                            Save Context
+                            {(addingContext || uploadingFile) && (
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            )}
+                            {uploadingFile ? 'Uploading...' : 'Save Context'}
                           </button>
                         </div>
                       </div>
@@ -903,11 +1143,12 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                     <div className="space-y-3">
                       {client.context.map((ctx: any) => (
                         <div key={ctx.id} className={`border rounded-lg p-4 ${!ctx.processed ? 'border-purple-200 bg-purple-50/30' : 'border-gray-200'}`}>
-                          <div className="flex items-center gap-2 mb-2">
+                          <div className="flex items-center flex-wrap gap-2 mb-2">
                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                               ctx.context_type === 'priority' ? 'bg-red-100 text-red-700' :
                               ctx.context_type === 'transcript' ? 'bg-blue-100 text-blue-700' :
                               ctx.context_type === 'email' ? 'bg-amber-100 text-amber-700' :
+                              ctx.context_type === 'document' ? 'bg-green-100 text-green-700' :
                               'bg-gray-100 text-gray-600'
                             }`}>
                               {ctx.context_type}
@@ -919,9 +1160,16 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                                 {ctx.priority_level}
                               </span>
                             )}
+                            {ctx.applies_to && ctx.applies_to.length > 0 && (
+                              <span className="px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700">
+                                → {ctx.applies_to.map((a: string) => 
+                                  a === 'fiveYear' ? '5Y' : a === 'sixMonth' ? '6M' : '12W'
+                                ).join(', ')}
+                              </span>
+                            )}
                             {!ctx.processed && (
                               <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
-                                New - will be processed
+                                New
                               </span>
                             )}
                             <span className="text-xs text-gray-400 ml-auto">
@@ -929,13 +1177,24 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                             </span>
                           </div>
                           <p className="text-gray-700 text-sm whitespace-pre-wrap">{ctx.content}</p>
+                          {ctx.source_file_url && (
+                            <a 
+                              href={ctx.source_file_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 mt-2 text-sm text-indigo-600 hover:text-indigo-700"
+                            >
+                              <Briefcase className="w-4 h-4" />
+                              View Document
+                            </a>
+                          )}
                         </div>
                       ))}
                     </div>
                   ) : (
                     <div className="text-center py-12 bg-gray-50 rounded-lg">
                       <p className="text-gray-500">No context added yet</p>
-                      <p className="text-sm text-gray-400 mt-1">Add meeting notes or emails to inform roadmap generation</p>
+                      <p className="text-sm text-gray-400 mt-1">Add meeting notes, documents, or emails to inform roadmap generation</p>
                     </div>
                   )}
                 </div>

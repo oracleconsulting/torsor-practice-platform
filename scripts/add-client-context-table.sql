@@ -4,20 +4,29 @@
 -- ============================================================================
 
 -- Create client_context table for storing additional context
--- (transcripts, emails, notes, priorities)
+-- (transcripts, emails, notes, priorities, documents)
 CREATE TABLE IF NOT EXISTS client_context (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   practice_id uuid NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
   client_id uuid NOT NULL REFERENCES practice_members(id) ON DELETE CASCADE,
-  context_type text NOT NULL CHECK (context_type IN ('transcript', 'email', 'note', 'priority')),
+  context_type text NOT NULL CHECK (context_type IN ('transcript', 'email', 'note', 'priority', 'document')),
   content text NOT NULL,
   source_file_url text,
   added_by uuid REFERENCES practice_members(id),
   priority_level text DEFAULT 'normal' CHECK (priority_level IN ('normal', 'high', 'critical')),
+  applies_to text[] DEFAULT ARRAY['sprint'], -- Which roadmap sections: fiveYear, sixMonth, sprint
   processed boolean DEFAULT false,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
+
+-- Add applies_to column if table exists but column doesn't
+ALTER TABLE client_context ADD COLUMN IF NOT EXISTS applies_to text[] DEFAULT ARRAY['sprint'];
+
+-- Update check constraint to include 'document' type
+ALTER TABLE client_context DROP CONSTRAINT IF EXISTS client_context_context_type_check;
+ALTER TABLE client_context ADD CONSTRAINT client_context_context_type_check 
+  CHECK (context_type IN ('transcript', 'email', 'note', 'priority', 'document'));
 
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_client_context_client_id ON client_context(client_id);
