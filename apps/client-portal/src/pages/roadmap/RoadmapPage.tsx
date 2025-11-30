@@ -433,22 +433,61 @@ export default function RoadmapPage() {
           <div className="space-y-6">
             {/* Sprint Header */}
             {sprint && (
-              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-8 text-white">
-                <div className="flex items-center gap-3 mb-4">
-                  <Flag className="w-6 h-6" />
-                  <h2 className="text-xl font-bold">{sprint.sprintTheme || '12-Week Sprint'}</h2>
+              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl overflow-hidden">
+                <div className="p-8 text-white">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Flag className="w-6 h-6" />
+                    <h2 className="text-xl font-bold">{sprint.sprintTheme || '90 Days to Transform'}</h2>
+                  </div>
+                  
+                  {/* Format sprint promise into readable sections */}
+                  <div className="space-y-4">
+                    {sprint.sprintPromise && (
+                      <div className="text-lg opacity-95 leading-relaxed">
+                        {/* Split on common sentence patterns for better readability */}
+                        {String(sprint.sprintPromise).split(/(?<=[.!?])\s+(?=[A-Z'"I])/).slice(0, 3).map((sentence: string, i: number) => (
+                          <p key={i} className={i > 0 ? 'mt-3' : ''}>{sentence.trim()}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <p className="text-lg opacity-95">{sprint.sprintPromise}</p>
-                
-                {sprint.sprintGoals && (
-                  <div className="mt-6 flex flex-wrap gap-2">
-                    {sprint.sprintGoals.map((goal: string, i: number) => (
-                      <span key={i} className="px-3 py-1 bg-white/20 rounded-full text-sm">
-                        {goal}
-                      </span>
-                    ))}
+
+                {/* What to Solve section - extract from promise if present */}
+                {sprint.sprintPromise && sprint.sprintPromise.toLowerCase().includes('solve') && (
+                  <div className="bg-white/10 p-6 border-t border-white/20">
+                    <h3 className="text-white/80 text-sm font-semibold uppercase tracking-wide mb-3">Key Challenge to Solve</h3>
+                    <p className="text-white opacity-90">
+                      {/* Extract the "solve" sentence if present */}
+                      {String(sprint.sprintPromise).split(/[.!?]+/).find((s: string) => 
+                        s.toLowerCase().includes('solve') || s.toLowerCase().includes('finding staff')
+                      )?.trim() || ''}
+                    </p>
                   </div>
                 )}
+
+                {/* Progress Toward section */}
+                {(sprint.sprintGoals?.[0] || roadmapData?.summary?.northStar) && (
+                  <div className="bg-indigo-800/50 p-6 border-t border-white/10">
+                    <h3 className="text-indigo-200 text-sm font-semibold uppercase tracking-wide mb-2">Progress Toward</h3>
+                    <p className="text-white font-medium">{sprint.sprintGoals?.[0] || roadmapData?.summary?.northStar}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Sprint Goals as Pills */}
+            {sprint?.sprintGoals && sprint.sprintGoals.length > 1 && (
+              <div className="bg-white rounded-xl border border-slate-200 p-6">
+                <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-4">90-Day Goals</h3>
+                <div className="flex flex-wrap gap-3">
+                  {sprint.sprintGoals.map((goal: string, i: number) => (
+                    <div key={i} className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg">
+                      <Target className="w-4 h-4" />
+                      <span className="text-sm font-medium">{goal}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

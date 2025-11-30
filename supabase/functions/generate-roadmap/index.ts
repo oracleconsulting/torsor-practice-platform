@@ -1007,45 +1007,103 @@ function generateFallbackShift(ctx: RoadmapContext, vision: any): any {
 
 function generateFallbackSprint(ctx: RoadmapContext, vision: any, shift: any): any {
   const weeks = [];
+  
+  // Industry-specific task templates
+  const industryTasks: Record<string, any[]> = {
+    fitness_equipment: [
+      { title: 'Audit top 10 product pages for SEO', description: 'Review meta titles, descriptions, and image alt tags', category: 'Marketing' },
+      { title: 'Set up automated email for abandoned carts', description: 'Configure 3-email sequence for cart recovery', category: 'Marketing' },
+      { title: 'Document order fulfillment process', description: 'Create step-by-step SOP for picking, packing, shipping', category: 'Operations' },
+      { title: 'Negotiate with top 3 suppliers', description: 'Request volume discounts or better payment terms', category: 'Financial' },
+      { title: 'Create assembly instruction videos', description: 'Film and upload to product pages and YouTube', category: 'Marketing' },
+      { title: 'Implement inventory management alerts', description: 'Set low stock notifications at 2-week supply level', category: 'Operations' },
+      { title: 'Launch customer referral program', description: 'Set up £50 off for referrer and referee', category: 'Marketing' },
+      { title: 'Optimize Google Shopping campaigns', description: 'Review ROAS by product and adjust bids', category: 'Marketing' },
+      { title: 'Create maintenance service offering', description: 'Design annual service package for equipment', category: 'Sales' },
+      { title: 'Build trade/B2B sales process', description: 'Create gym and hotel outreach sequence', category: 'Sales' },
+      { title: 'Hire warehouse assistant', description: 'Job spec, post, shortlist candidates', category: 'People' },
+      { title: 'Plan seasonal promotion calendar', description: 'Map out Jan, Easter, Summer sales strategy', category: 'Marketing' },
+    ],
+    consulting: [
+      { title: 'Create service productization document', description: 'Define 3 fixed-scope packages with clear deliverables', category: 'Sales' },
+      { title: 'Build retainer proposal template', description: 'Create monthly retainer option for ongoing clients', category: 'Sales' },
+      { title: 'Set up client onboarding automation', description: 'Welcome email sequence and info-gathering form', category: 'Operations' },
+      { title: 'Document your methodology', description: 'Write out your step-by-step consulting process', category: 'Operations' },
+      { title: 'Create case study from recent win', description: 'Document problem, approach, and measurable results', category: 'Marketing' },
+      { title: 'Launch LinkedIn content plan', description: 'Schedule 3 posts per week for 4 weeks', category: 'Marketing' },
+      { title: 'Build referral partner network', description: 'Identify 10 complementary service providers', category: 'Sales' },
+      { title: 'Implement project management system', description: 'Set up Notion/Asana with client templates', category: 'Operations' },
+      { title: 'Create proposal automation', description: 'Build template with pricing calculator', category: 'Sales' },
+      { title: 'Train associate/contractor', description: 'Document delivery process and quality standards', category: 'People' },
+      { title: 'Raise prices for new clients', description: 'Increase rates by 20% for new engagements', category: 'Financial' },
+      { title: 'Build recurring revenue stream', description: 'Create subscription element to service', category: 'Sales' },
+    ],
+    general_business: [
+      { title: 'Document your 3 core processes', description: 'Write SOPs for delivery, sales, and support', category: 'Operations' },
+      { title: 'Review and optimize pricing', description: 'Audit margins and consider 10-15% increase', category: 'Financial' },
+      { title: 'Set up CRM system', description: 'Implement HubSpot/Pipedrive with pipeline stages', category: 'Operations' },
+      { title: 'Create customer feedback loop', description: 'Send NPS survey and follow up on responses', category: 'Marketing' },
+      { title: 'Automate invoicing and follow-ups', description: 'Set up recurring invoices and payment reminders', category: 'Financial' },
+      { title: 'Build email list nurture sequence', description: 'Create 5-email sequence for leads', category: 'Marketing' },
+      { title: 'Delegate first task to VA/contractor', description: 'Identify 5 hours/week to hand off', category: 'People' },
+      { title: 'Create customer referral incentive', description: 'Design and launch referral program', category: 'Marketing' },
+      { title: 'Set up weekly metrics dashboard', description: 'Track leads, conversions, revenue, hours', category: 'Operations' },
+      { title: 'Block protected time in calendar', description: 'Reserve 2 hours daily for strategic work', category: 'Personal' },
+      { title: 'Review and reduce subscriptions', description: 'Audit all SaaS and cancel unused tools', category: 'Financial' },
+      { title: 'Create 90-day marketing plan', description: 'Map out channels, content, and campaigns', category: 'Marketing' },
+    ]
+  };
+
+  const tasks = industryTasks[ctx.industry] || industryTasks.general_business;
+  
   const phases = [
-    { weeks: [1, 2], name: 'Immediate Relief', focus: ctx.magicAwayTask || 'Quick wins' },
-    { weeks: [3, 4], name: 'Foundation', focus: 'Systems and processes' },
-    { weeks: [5, 6], name: 'Momentum', focus: 'Scale what works' },
-    { weeks: [7, 8], name: 'Lock-In', focus: 'Make permanent' },
-    { weeks: [9, 10], name: 'Scale', focus: 'Multiply success' },
-    { weeks: [11, 12], name: 'Transform', focus: 'New normal' }
+    { weeks: [1, 2], name: 'Immediate Relief', focus: ctx.magicAwayTask || 'Quick wins to reduce immediate pressure' },
+    { weeks: [3, 4], name: 'Foundation', focus: 'Build systems that remove you from the day-to-day' },
+    { weeks: [5, 6], name: 'Momentum', focus: 'Scale what\'s working and optimize' },
+    { weeks: [7, 8], name: 'Lock-In', focus: 'Make changes permanent with habits and processes' },
+    { weeks: [9, 10], name: 'Scale', focus: 'Multiply your wins and prepare for growth' },
+    { weeks: [11, 12], name: 'Transform', focus: 'Step into your new way of operating' }
   ];
 
   for (let w = 1; w <= 12; w++) {
     const phase = phases.find(p => p.weeks.includes(w))!;
+    const weekTask = tasks[w - 1] || tasks[0];
+    
     weeks.push({
       weekNumber: w,
       phase: phase.name,
-      theme: `Week ${w}: ${phase.focus}`,
-      focus: `Continue building on ${phase.name.toLowerCase()}`,
+      theme: `Week ${w}: ${weekTask.title.split(' ').slice(0, 3).join(' ')}`,
+      focus: phase.focus,
+      tuesdayTransformation: w === 1 ? 'First glimpse of a lighter workload' : 
+                             w === 4 ? 'Systems starting to carry the weight' :
+                             w === 8 ? 'New habits feeling natural' :
+                             w === 12 ? 'This is how Tuesdays feel now' : undefined,
       tasks: [
         {
           id: `w${w}_t1`,
-          title: `Week ${w} Priority Task`,
-          description: `Focus on ${phase.focus} for ${ctx.companyName}`,
-          why: `Moves toward ${vision.northStar}`,
-          category: 'Operations',
-          priority: w <= 4 ? 'critical' : 'high',
-          estimatedHours: 2,
-          deliverable: 'Task completed'
+          title: weekTask.title,
+          description: weekTask.description,
+          why: `Moves toward ${vision.northStar?.substring(0, 50) || 'your vision'}...`,
+          category: weekTask.category,
+          priority: w <= 4 ? 'critical' : w <= 8 ? 'high' : 'medium',
+          estimatedHours: 3,
+          deliverable: weekTask.title.replace(/^(Create|Build|Set up|Document|Launch|Review)/, 'Completed').replace(/\s+/g, ' ')
         },
         {
           id: `w${w}_t2`,
           title: 'Weekly Reflection',
-          description: 'Review progress and plan next steps',
-          why: 'Build strategic thinking habit',
+          description: 'Review progress, capture wins, and plan next steps',
+          why: 'Build the habit of strategic thinking',
           category: 'Personal',
           priority: 'medium',
           estimatedHours: 0.5,
-          deliverable: 'Insights captured'
+          deliverable: 'Week insights documented'
         }
       ],
-      milestone: `Week ${w} complete`
+      milestone: w === 4 ? 'Foundation complete - first real changes visible' :
+                 w === 8 ? 'Momentum locked in - changes becoming habits' :
+                 w === 12 ? '90-day transformation complete' :
+                 `Week ${w} complete`
     });
   }
 
