@@ -412,11 +412,25 @@ export function ClientServicesPage({ currentPage, onNavigate }: NavigationProps)
   );
 }
 
-// Simple modal for now - can be expanded
+// Enhanced Client Detail Modal with full functionality
 function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: () => void }) {
+  const { currentMember } = useCurrentMember();
   const [client, setClient] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'sprint'>('overview');
+  
+  // Context form state
+  const [showAddContext, setShowAddContext] = useState(false);
+  const [newContext, setNewContext] = useState({ type: 'note', content: '', priority: 'normal' });
+  const [addingContext, setAddingContext] = useState(false);
+  
+  // Sprint editing state
+  const [editingTask, setEditingTask] = useState<{weekNumber: number, taskId: string, original: any} | null>(null);
+  const [editedTask, setEditedTask] = useState<{title: string, description: string}>({ title: '', description: '' });
+  const [savingTask, setSavingTask] = useState(false);
+  
+  // Regeneration state
+  const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     fetchClientDetail();
@@ -425,14 +439,12 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
   const fetchClientDetail = async () => {
     setLoading(true);
     try {
-      // Fetch client data
       const { data: clientData } = await supabase
         .from('practice_members')
         .select('*')
         .eq('id', clientId)
         .single();
 
-      // Fetch roadmap
       const { data: roadmap } = await supabase
         .from('client_roadmaps')
         .select('*')
@@ -440,7 +452,6 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
         .eq('is_active', true)
         .single();
 
-      // Fetch context
       const { data: context } = await supabase
         .from('client_context')
         .select('*')
@@ -459,9 +470,168 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
     }
   };
 
+  // ================================================================
+  // ADD CONTEXT FUNCTIONALITY
+  // ================================================================
+  const handleAddContext = async () => {
+    if (!newContext.content.trim() || !client?.practice_id) return;
+    
+    setAddingContext(true);
+    try {
+      // Get current member's practice_member ID for added_by
+      const { data: memberData } = await supabase
+        .from('practice_members')
+        .select('id')
+        .eq('user_id', currentMember?.id)
+        .eq('member_type', 'team')
+        .single();
+
+      const { error } = await supabase
+        .from('client_context')
+        .insert({
+          practice_id: client.practice_id,
+          client_id: clientId,
+          context_type: newContext.type,
+          content: newContext.content,
+          priority_level: newContext.priority,
+          added_by: memberData?.id,
+          processed: false
+        });
+
+      if (error) throw error;
+
+      // Refresh client data
+      await fetchClientDetail();
+      setNewContext({ type: 'note', content: '', priority: 'normal' });
+      setShowAddContext(false);
+    } catch (error) {
+      console.error('Error adding context:', error);
+      alert('Failed to add context. Please try again.');
+    } finally {
+      setAddingContext(false);
+    }
+  };
+
+  // ================================================================
+  // SPRINT EDITING FUNCTIONALITY
+  // ================================================================
+  const handleEditTask = (weekNumber: number, task: any) => {
+    setEditingTask({ weekNumber, taskId: task.id, original: task });
+    setEditedTask({ title: task.title, description: task.description });
+  };
+
+  const handleSaveTask = async () => {
+    if (!editingTask || !client?.roadmap) return;
+    
+    setSavingTask(true);
+    try {
+      // Get current roadmap data
+      const roadmapData = { ...client.roadmap.roadmap_data };
+      
+      // Find and update the task
+      const weekIndex = roadmapData.sprint.weeks.findIndex(
+        (w: any) => w.weekNumber === editingTask.weekNumber
+      );
+      
+      if (weekIndex !== -1) {
+        const taskIndex = roadmapData.sprint.weeks[weekIndex].tasks.findIndex(
+          (t: any) => t.id === editingTask.taskId
+        );
+        
+        if (taskIndex !== -1) {
+          // Store original for knowledge logging
+          const originalTask = roadmapData.sprint.weeks[weekIndex].tasks[taskIndex];
+          
+          // Update task
+          roadmapData.sprint.weeks[weekIndex].tasks[taskIndex] = {
+            ...originalTask,
+            title: editedTask.title,
+            description: editedTask.description
+          };
+
+          // Update roadmap in database
+          const { error: updateError } = await supabase
+            .from('client_roadmaps')
+            .update({ roadmap_data: roadmapData })
+            .eq('id', client.roadmap.id);
+
+          if (updateError) throw updateError;
+
+          // Log correction to knowledge base
+          try {
+            await supabase.from('ai_corrections').insert({
+              practice_id: client.practice_id,
+              source_type: 'roadmap_task',
+              source_id: client.roadmap.id,
+              original_output: JSON.stringify({
+                title: originalTask.title,
+                description: originalTask.description
+              }),
+              corrected_output: JSON.stringify({
+                title: editedTask.title,
+                description: editedTask.description
+              }),
+              correction_reason: `Manual task edit for Week ${editingTask.weekNumber}`,
+              correction_type: 'incomplete',
+              apply_globally: false
+            });
+          } catch (kbError) {
+            console.log('Knowledge base logging failed (table may not exist):', kbError);
+          }
+
+          // Refresh client data
+          await fetchClientDetail();
+        }
+      }
+
+      setEditingTask(null);
+    } catch (error) {
+      console.error('Error saving task:', error);
+      alert('Failed to save task. Please try again.');
+    } finally {
+      setSavingTask(false);
+    }
+  };
+
+  // ================================================================
+  // REGENERATE ROADMAP FUNCTIONALITY
+  // ================================================================
+  const handleRegenerate = async () => {
+    if (!client?.practice_id) return;
+    
+    const unprocessedContext = client.context?.filter((c: any) => !c.processed) || [];
+    const confirmMessage = unprocessedContext.length > 0
+      ? `Regenerate roadmap? ${unprocessedContext.length} new context item(s) will be incorporated.`
+      : 'Regenerate roadmap? This will create a new version based on current assessments.';
+    
+    if (!confirm(confirmMessage)) return;
+    
+    setRegenerating(true);
+    try {
+      const response = await supabase.functions.invoke('generate-roadmap', {
+        body: {
+          clientId,
+          practiceId: client.practice_id,
+          regenerate: true
+        }
+      });
+
+      if (response.error) throw response.error;
+
+      // Refresh client data
+      await fetchClientDetail();
+      alert('Roadmap regenerated successfully!');
+    } catch (error) {
+      console.error('Error regenerating roadmap:', error);
+      alert('Failed to regenerate roadmap. Please try again.');
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Modal Header */}
         <div className="p-6 border-b border-gray-200 flex items-center justify-between">
           <div>
@@ -474,12 +644,33 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
               </>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-3">
+            {client?.roadmap && (
+              <button
+                onClick={handleRegenerate}
+                disabled={regenerating}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400 text-sm font-medium"
+              >
+                {regenerating ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Regenerating...
+                  </>
+                ) : (
+                  <>
+                    <TrendingUp className="w-4 h-4" />
+                    Regenerate
+                  </>
+                )}
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -495,6 +686,11 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
               }`}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === 'context' && client?.context?.filter((c: any) => !c.processed).length > 0 && (
+                <span className="ml-2 px-1.5 py-0.5 bg-purple-500 text-white text-xs rounded-full">
+                  {client.context.filter((c: any) => !c.processed).length}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -507,9 +703,9 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
             </div>
           ) : (
             <>
+              {/* OVERVIEW TAB */}
               {activeTab === 'overview' && (
                 <div className="space-y-6">
-                  {/* North Star */}
                   {client?.roadmap?.roadmap_data?.fiveYearVision?.northStar && (
                     <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-6 text-white">
                       <p className="text-sm opacity-80 mb-2">North Star</p>
@@ -519,12 +715,11 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                     </div>
                   )}
 
-                  {/* Quick Stats */}
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-4 gap-4">
                     <div className="bg-gray-50 rounded-xl p-5">
-                      <p className="text-sm text-gray-500">Assessment Progress</p>
+                      <p className="text-sm text-gray-500">Assessment</p>
                       <p className="text-2xl font-bold text-gray-900">
-                        {client?.roadmap ? '100%' : '0%'}
+                        {client?.roadmap ? '✓' : 'Pending'}
                       </p>
                     </div>
                     <div className="bg-gray-50 rounded-xl p-5">
@@ -534,49 +729,72 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                       </p>
                     </div>
                     <div className="bg-gray-50 rounded-xl p-5">
-                      <p className="text-sm text-gray-500">Roadmap Version</p>
+                      <p className="text-sm text-gray-500">Version</p>
                       <p className="text-2xl font-bold text-gray-900">
                         v{client?.roadmap?.version || 1}
                       </p>
                     </div>
+                    <div className="bg-gray-50 rounded-xl p-5">
+                      <p className="text-sm text-gray-500">Unprocessed</p>
+                      <p className="text-2xl font-bold text-purple-600">
+                        {client?.context?.filter((c: any) => !c.processed).length || 0}
+                      </p>
+                    </div>
                   </div>
+
+                  {client?.roadmap?.roadmap_data?.summary && (
+                    <div className="bg-white border border-gray-200 rounded-xl p-6">
+                      <h3 className="font-semibold text-gray-900 mb-3">Summary</h3>
+                      <p className="text-gray-700">{client.roadmap.roadmap_data.summary.headline}</p>
+                      {client.roadmap.roadmap_data.summary.keyInsight && (
+                        <p className="text-gray-500 mt-2 text-sm">{client.roadmap.roadmap_data.summary.keyInsight}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
+              {/* ROADMAP TAB */}
               {activeTab === 'roadmap' && (
                 <div className="space-y-6">
                   {client?.roadmap ? (
                     <>
-                      {/* Vision */}
                       <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-6">
                         <h3 className="font-semibold text-indigo-900 mb-3">5-Year Vision</h3>
-                        <p className="text-indigo-800">
+                        <p className="text-indigo-800 text-lg">
                           {client.roadmap.roadmap_data?.fiveYearVision?.tagline || 'Vision not generated'}
                         </p>
+                        {client.roadmap.roadmap_data?.fiveYearVision?.transformationStory?.currentReality && (
+                          <div className="mt-4 pt-4 border-t border-indigo-200">
+                            <p className="text-sm text-indigo-700">
+                              {client.roadmap.roadmap_data.fiveYearVision.transformationStory.currentReality.narrative}
+                            </p>
+                          </div>
+                        )}
                       </div>
 
-                      {/* 12-Week Sprint Summary */}
+                      {client.roadmap.roadmap_data?.sixMonthShift && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
+                          <h3 className="font-semibold text-amber-900 mb-3">6-Month Shift</h3>
+                          <p className="text-amber-800">
+                            {client.roadmap.roadmap_data.sixMonthShift.shiftOverview || client.roadmap.roadmap_data.sixMonthShift.overview}
+                          </p>
+                        </div>
+                      )}
+
                       {client.roadmap.roadmap_data?.sprint?.weeks && (
                         <div>
-                          <h3 className="font-semibold text-gray-900 mb-3">12-Week Sprint</h3>
-                          <div className="space-y-2">
-                            {client.roadmap.roadmap_data.sprint.weeks.slice(0, 4).map((week: any) => (
-                              <div key={week.weekNumber} className="border border-gray-200 rounded-lg p-4">
-                                <div className="flex items-center gap-3">
-                                  <span className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-medium text-sm">
-                                    {week.weekNumber}
-                                  </span>
-                                  <div>
-                                    <p className="font-medium text-gray-900">{week.theme}</p>
-                                    <p className="text-sm text-gray-500">{week.tasks?.length || 0} tasks</p>
-                                  </div>
-                                </div>
+                          <h3 className="font-semibold text-gray-900 mb-3">12-Week Sprint Overview</h3>
+                          <div className="grid grid-cols-4 gap-3">
+                            {client.roadmap.roadmap_data.sprint.weeks.map((week: any) => (
+                              <div key={week.weekNumber} className="border border-gray-200 rounded-lg p-3 text-center">
+                                <span className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 inline-flex items-center justify-center font-medium text-sm mb-2">
+                                  {week.weekNumber}
+                                </span>
+                                <p className="text-xs text-gray-600 line-clamp-2">{week.theme}</p>
                               </div>
                             ))}
                           </div>
-                          <p className="text-sm text-gray-500 mt-2 text-center">
-                            + {(client.roadmap.roadmap_data.sprint.weeks.length - 4)} more weeks
-                          </p>
                         </div>
                       )}
                     </>
@@ -589,58 +807,148 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                 </div>
               )}
 
+              {/* CONTEXT TAB - WITH ADD FORM */}
               {activeTab === 'context' && (
                 <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <p className="text-sm text-gray-500">
-                      Add meeting notes, emails, or priorities to inform the next sprint regeneration
-                    </p>
-                    <button className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm">
-                      <Plus className="w-4 h-4" />
-                      Add Context
-                    </button>
-                  </div>
+                  {/* Add Context Section */}
+                  {!showAddContext ? (
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="text-sm text-gray-500">
+                          Add meeting notes, emails, or priorities to inform the next sprint regeneration
+                        </p>
+                        {client?.context?.filter((c: any) => !c.processed).length > 0 && (
+                          <p className="text-sm text-purple-600 mt-1">
+                            {client.context.filter((c: any) => !c.processed).length} item(s) will be incorporated on next regeneration
+                          </p>
+                        )}
+                      </div>
+                      <button 
+                        onClick={() => setShowAddContext(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Context
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                      <h4 className="font-medium text-gray-900 mb-4">Add New Context</h4>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                            <select
+                              value={newContext.type}
+                              onChange={(e) => setNewContext({ ...newContext, type: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                            >
+                              <option value="note">Note</option>
+                              <option value="transcript">Call Transcript</option>
+                              <option value="email">Email Thread</option>
+                              <option value="priority">Priority / Action Item</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                            <select
+                              value={newContext.priority}
+                              onChange={(e) => setNewContext({ ...newContext, priority: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                            >
+                              <option value="normal">Normal</option>
+                              <option value="high">High</option>
+                              <option value="critical">Critical</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                          <textarea
+                            value={newContext.content}
+                            onChange={(e) => setNewContext({ ...newContext, content: e.target.value })}
+                            rows={6}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                            placeholder="Paste meeting transcript, email content, or notes here..."
+                          />
+                        </div>
+                        <div className="flex justify-end gap-3">
+                          <button
+                            onClick={() => {
+                              setShowAddContext(false);
+                              setNewContext({ type: 'note', content: '', priority: 'normal' });
+                            }}
+                            className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleAddContext}
+                            disabled={addingContext || !newContext.content.trim()}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400"
+                          >
+                            {addingContext && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                            Save Context
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
+                  {/* Context List */}
                   {client?.context?.length > 0 ? (
                     <div className="space-y-3">
                       {client.context.map((ctx: any) => (
-                        <div key={ctx.id} className="border border-gray-200 rounded-lg p-4">
+                        <div key={ctx.id} className={`border rounded-lg p-4 ${!ctx.processed ? 'border-purple-200 bg-purple-50/30' : 'border-gray-200'}`}>
                           <div className="flex items-center gap-2 mb-2">
                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                               ctx.context_type === 'priority' ? 'bg-red-100 text-red-700' :
                               ctx.context_type === 'transcript' ? 'bg-blue-100 text-blue-700' :
+                              ctx.context_type === 'email' ? 'bg-amber-100 text-amber-700' :
                               'bg-gray-100 text-gray-600'
                             }`}>
                               {ctx.context_type}
                             </span>
+                            {ctx.priority_level !== 'normal' && (
+                              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                ctx.priority_level === 'critical' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                              }`}>
+                                {ctx.priority_level}
+                              </span>
+                            )}
                             {!ctx.processed && (
                               <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
-                                New
+                                New - will be processed
                               </span>
                             )}
                             <span className="text-xs text-gray-400 ml-auto">
                               {new Date(ctx.created_at).toLocaleDateString()}
                             </span>
                           </div>
-                          <p className="text-gray-700 text-sm">{ctx.content}</p>
+                          <p className="text-gray-700 text-sm whitespace-pre-wrap">{ctx.content}</p>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <div className="text-center py-12 bg-gray-50 rounded-lg">
                       <p className="text-gray-500">No context added yet</p>
+                      <p className="text-sm text-gray-400 mt-1">Add meeting notes or emails to inform roadmap generation</p>
                     </div>
                   )}
                 </div>
               )}
 
+              {/* SPRINT TAB - WITH EDITING */}
               {activeTab === 'sprint' && (
                 <div className="space-y-6">
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                    <p className="text-amber-800 text-sm">
-                      <strong>Sprint Refinement:</strong> Make changes to the 12-week sprint here. 
-                      All changes will be logged in the knowledge base for future reference.
-                    </p>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-amber-800 text-sm font-medium">Sprint Refinement</p>
+                      <p className="text-amber-700 text-sm mt-1">
+                        Click on any task to edit it. Changes are automatically logged to the knowledge base for future reference.
+                      </p>
+                    </div>
                   </div>
 
                   {client?.roadmap?.roadmap_data?.sprint?.weeks ? (
@@ -654,21 +962,79 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                               </span>
                               <div>
                                 <p className="font-medium text-gray-900">{week.theme}</p>
-                                <p className="text-sm text-gray-500">{week.phase}</p>
+                                <p className="text-sm text-gray-500">{week.phase} • {week.tasks?.length || 0} tasks</p>
                               </div>
                             </div>
-                            <button className="text-indigo-600 hover:text-indigo-700 text-sm font-medium">
-                              Edit Tasks
-                            </button>
                           </div>
-                          <div className="p-4 space-y-2">
+                          <div className="p-4 space-y-3">
                             {week.tasks?.map((task: any) => (
-                              <div key={task.id} className="flex items-start gap-3 p-3 bg-white border border-gray-100 rounded-lg">
-                                <div className="w-5 h-5 rounded border-2 border-gray-300 flex-shrink-0 mt-0.5" />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-gray-900 font-medium">{task.title}</p>
-                                  <p className="text-sm text-gray-500 line-clamp-2">{task.description}</p>
-                                </div>
+                              <div key={task.id}>
+                                {editingTask?.weekNumber === week.weekNumber && editingTask?.taskId === task.id ? (
+                                  // Edit Mode
+                                  <div className="p-4 bg-indigo-50 border-2 border-indigo-300 rounded-lg space-y-3">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">Task Title</label>
+                                      <input
+                                        type="text"
+                                        value={editedTask.title}
+                                        onChange={(e) => setEditedTask({ ...editedTask, title: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                                      <textarea
+                                        value={editedTask.description}
+                                        onChange={(e) => setEditedTask({ ...editedTask, description: e.target.value })}
+                                        rows={3}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                      />
+                                    </div>
+                                    <div className="flex justify-end gap-2">
+                                      <button
+                                        onClick={() => setEditingTask(null)}
+                                        className="px-3 py-1.5 text-gray-600 hover:text-gray-800 text-sm"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        onClick={handleSaveTask}
+                                        disabled={savingTask}
+                                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400 text-sm"
+                                      >
+                                        {savingTask && <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                                        Save & Log
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  // View Mode
+                                  <div 
+                                    onClick={() => handleEditTask(week.weekNumber, task)}
+                                    className="flex items-start gap-3 p-3 bg-white border border-gray-100 rounded-lg hover:border-indigo-300 hover:bg-indigo-50/30 cursor-pointer transition-colors group"
+                                  >
+                                    <div className="w-5 h-5 rounded border-2 border-gray-300 flex-shrink-0 mt-0.5" />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <p className="text-gray-900 font-medium">{task.title}</p>
+                                        <span className="text-xs text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                                          Click to edit
+                                        </span>
+                                      </div>
+                                      <p className="text-sm text-gray-500 mt-1">{task.description}</p>
+                                      {(task.boardOwner || task.tool) && (
+                                        <div className="flex items-center gap-2 mt-2 text-xs">
+                                          {task.boardOwner && (
+                                            <span className="px-2 py-0.5 bg-gray-100 rounded text-gray-600">{task.boardOwner}</span>
+                                          )}
+                                          {task.tool && (
+                                            <span className="px-2 py-0.5 bg-blue-50 rounded text-blue-600">{task.tool}</span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -688,18 +1054,18 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 border-t border-gray-200 flex justify-end gap-3">
+        <div className="p-4 border-t border-gray-200 flex justify-between">
+          <div className="text-sm text-gray-500">
+            {client?.roadmap && (
+              <span>Last generated: {new Date(client.roadmap.created_at).toLocaleDateString()}</span>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
           >
             Close
           </button>
-          {client?.roadmap && (
-            <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-              Regenerate Roadmap
-            </button>
-          )}
         </div>
       </div>
     </div>
