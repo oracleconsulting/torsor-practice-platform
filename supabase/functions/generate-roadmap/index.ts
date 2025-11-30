@@ -1098,272 +1098,517 @@ function generateFallbackSprint(ctx: RoadmapContext, vision: any, shift: any): a
     return defaults[industry] || 'Google Workspace';
   }
 
-  // Generate PERSONALIZED tasks based on client's ACTUAL context
+  // Generate UNIQUE PROGRESSIVE tasks for EACH week - no duplicates
   function generatePersonalizedTasks(week: number, ctx: RoadmapContext): any[] {
     const tasks: any[] = [];
+    const experts = ctx.threeExpertsNeeded?.split(',').map(e => e.trim()) || [];
+    const sacrifices = ctx.sacrifices || [];
     
-    // Week 1-2: Address their SPECIFIC Monday frustration
-    if (week <= 2) {
+    // ============ WEEK 1: DIAGNOSE & QUICK WIN ============
+    if (week === 1) {
+      tasks.push({
+        id: 'w1_t1',
+        title: `Audit: Where does your time actually go?`,
+        description: `Before we fix anything, we need truth. Track every hour this week. Use Toggl, a spreadsheet, or paper - just track it all. Include: client work, admin, emails, meetings, thinking about work.`,
+        why: `You can't optimize what you don't measure. Most founders underestimate by 10-15 hours.`,
+        category: 'Operations',
+        priority: 'critical',
+        estimatedHours: 1,
+        tool: 'Toggl or spreadsheet',
+        boardOwner: 'COO',
+        successMetric: 'Complete time log for 7 days',
+        deliverable: 'Time audit spreadsheet with categories',
+        delegationScore: 10,
+        delegateTo: 'Cannot delegate - must observe yourself'
+      });
+      
       if (ctx.mondayFrustration) {
         tasks.push({
-          id: `w${week}_t1`,
-          title: `Fix: "${ctx.mondayFrustration.substring(0, 50)}${ctx.mondayFrustration.length > 50 ? '...' : ''}"`,
-          description: `This is your biggest Monday frustration. Week ${week} action: Identify the root cause and implement first fix. Document what's causing this and create a 3-step solution.`,
-          why: `You told us this frustrates you: "${ctx.mondayFrustration}"`,
+          id: 'w1_t2',
+          title: `Document: What exactly causes "${ctx.mondayFrustration.substring(0, 35)}..."`,
+          description: `Your Monday frustration: "${ctx.mondayFrustration}". This week: Write down EXACTLY what triggers it. When did it last happen? What preceded it? What's the root cause?`,
+          why: `You told us this frustrates you - let's understand why before fixing`,
+          category: 'Analysis',
+          priority: 'critical',
+          estimatedHours: 2,
+          tool: 'Notes app',
+          boardOwner: 'COO',
+          successMetric: 'Root cause identified in writing',
+          deliverable: 'One-page frustration analysis: trigger → cause → impact',
+          delegationScore: 10,
+          delegateTo: 'Only you know the real pain'
+        });
+      }
+    }
+    
+    // ============ WEEK 2: FIRST FIX ============
+    if (week === 2) {
+      if (ctx.mondayFrustration) {
+        tasks.push({
+          id: 'w2_t1',
+          title: `Implement first fix for "${ctx.mondayFrustration.substring(0, 35)}..."`,
+          description: `Based on Week 1's diagnosis, implement ONE fix this week. Not perfect - just one improvement. Could be: a template, a boundary, a delegation, an automation.`,
+          why: `Week 1 found the cause. Week 2 starts the fix. Progress over perfection.`,
           category: 'Operations',
           priority: 'critical',
           estimatedHours: 4,
           tool: primaryTool,
           boardOwner: 'COO',
-          successMetric: `Reduce this frustration by 50% - measure by: frequency, time spent, stress level`,
-          deliverable: `Root cause documented + first fix implemented`,
-          delegationScore: 3,
-          delegateTo: 'Must identify cause yourself, then delegate fix'
+          successMetric: `Monday of Week 3 is 30% less frustrating`,
+          deliverable: 'First fix implemented and tested',
+          delegationScore: 5,
+          delegateTo: 'Depends on the fix'
+        });
+      }
+      
+      tasks.push({
+        id: 'w2_t2',
+        title: `Review time audit: Find your biggest time thief`,
+        description: `Look at your Week 1 time log. What surprised you? Where did the most time go? Identify your #1 time thief - the thing eating hours without proportional value.`,
+        why: `The time audit reveals truth. Now act on it.`,
+        category: 'Analysis',
+        priority: 'high',
+        estimatedHours: 1,
+        tool: 'Spreadsheet',
+        boardOwner: 'COO',
+        successMetric: '#1 time thief identified with hours counted',
+        deliverable: 'Time thief report: what it is, hours/week, value it creates',
+        delegationScore: 10,
+        delegateTo: 'Personal insight required'
+      });
+    }
+    
+    // ============ WEEK 3: SYSTEMS START ============
+    if (week === 3) {
+      if (ctx.growthBottleneck) {
+        tasks.push({
+          id: 'w3_t1',
+          title: `Map the process: "${ctx.growthBottleneck.substring(0, 35)}..."`,
+          description: `Your bottleneck: "${ctx.growthBottleneck}". This week: Document the current process step-by-step. Don't fix it yet - just map it. Who does what? Where does it break?`,
+          why: `You can't systemize what you haven't documented`,
+          category: 'Systems',
+          priority: 'critical',
+          estimatedHours: 3,
+          tool: 'Notion, Miro, or paper',
+          boardOwner: 'COO',
+          successMetric: 'Complete process map with bottleneck points marked',
+          deliverable: 'Visual process map showing current state',
+          delegationScore: 5,
+          delegateTo: 'You map it, team validates'
         });
       }
       
       if (ctx.magicAwayTask) {
         tasks.push({
-          id: `w${week}_t2`,
-          title: `Start eliminating: "${ctx.magicAwayTask.substring(0, 40)}..."`,
-          description: `If you could magic away one thing, you said: "${ctx.magicAwayTask}". Start the elimination process this week.`,
-          why: `You'd magic this away if you could - so let's start`,
-          category: 'Operations',
-          priority: 'critical',
-          estimatedHours: 3,
-          tool: 'Process mapping tool',
+          id: 'w3_t2',
+          title: `Research: How to eliminate "${ctx.magicAwayTask.substring(0, 30)}..."`,
+          description: `You'd magic away: "${ctx.magicAwayTask}". Research options: Can it be automated? Outsourced? Eliminated entirely? Spend 2 hours researching solutions.`,
+          why: `Someone has solved this before - find out how`,
+          category: 'Research',
+          priority: 'high',
+          estimatedHours: 2,
+          tool: 'Google, YouTube, ChatGPT',
           boardOwner: 'COO',
-          successMetric: `${ctx.magicAwayTask.substring(0, 30)} taking 30% less time`,
-          deliverable: 'Automation or delegation plan created',
-          delegationScore: 5,
-          delegateTo: ctx.threeExpertsNeeded?.split(',')[0]?.trim() || 'VA'
+          successMetric: '3 possible solutions identified with pros/cons',
+          deliverable: 'Solutions comparison document',
+          delegationScore: 6,
+          delegateTo: 'VA can research options'
         });
       }
     }
     
-    // Week 3-4: Address their SPECIFIC growth bottleneck
-    if (week >= 3 && week <= 4) {
+    // ============ WEEK 4: SYSTEMS BUILD ============
+    if (week === 4) {
       if (ctx.growthBottleneck) {
         tasks.push({
-          id: `w${week}_t1`,
-          title: `Build system for: "${ctx.growthBottleneck.substring(0, 40)}..."`,
-          description: `Your growth bottleneck is: "${ctx.growthBottleneck}". This week: Design the system that removes you from this bottleneck.`,
-          why: `This is blocking ${ctx.companyName}'s growth`,
+          id: 'w4_t1',
+          title: `Create SOP for: "${ctx.growthBottleneck.substring(0, 35)}..."`,
+          description: `Take Week 3's process map and turn it into a Standard Operating Procedure. Write it so someone else could follow it. Include: steps, decisions, tools, time estimates.`,
+          why: `Documentation is the first step to delegation`,
           category: 'Systems',
           priority: 'critical',
-          estimatedHours: 5,
-          tool: primaryTool,
+          estimatedHours: 4,
+          tool: 'Notion or Loom',
           boardOwner: 'COO',
-          successMetric: `Bottleneck reduced: Can handle 2x volume without 2x time`,
-          deliverable: `SOP + system documented for "${ctx.growthBottleneck.substring(0, 30)}"`,
-          delegationScore: 4,
-          delegateTo: 'You design, team implements'
+          successMetric: 'SOP complete - someone else could follow it',
+          deliverable: 'Written SOP or Loom video walkthrough',
+          delegationScore: 3,
+          delegateTo: 'You create, team refines'
         });
       }
       
-      // Address money worry
       if (ctx.moneyWorry) {
         tasks.push({
-          id: `w${week}_t2`,
-          title: `Create visibility: "${ctx.moneyWorry.substring(0, 40)}..."`,
-          description: `You said this money worry keeps you up: "${ctx.moneyWorry}". Create a dashboard or tracking system so you have visibility and control.`,
-          why: `Turn anxiety into data - what you can see, you can manage`,
+          id: 'w4_t2',
+          title: `Build financial dashboard for "${ctx.moneyWorry.substring(0, 30)}..."`,
+          description: `Your money worry: "${ctx.moneyWorry}". Create a simple dashboard: Cash today, Cash in 30/60/90 days, Key revenue metrics. Check it weekly instead of worrying daily.`,
+          why: `Visibility replaces anxiety. Data beats fear.`,
           category: 'Financial',
           priority: 'high',
           estimatedHours: 3,
-          tool: 'Xero or Google Sheets',
+          tool: 'Xero, QuickBooks, or Sheets',
           boardOwner: 'CFO',
-          successMetric: `Weekly financial visibility in place - no more guessing`,
-          deliverable: 'Financial dashboard showing: Cash position, Forecast, Key metrics',
+          successMetric: 'Dashboard live with automated data feeds',
+          deliverable: 'Financial dashboard with 3+ key metrics',
           delegationScore: 6,
-          delegateTo: 'Bookkeeper'
+          delegateTo: 'Bookkeeper can build it'
         });
       }
     }
     
-    // Week 5-6: Scale what's working + work toward Tuesday test
-    if (week >= 5 && week <= 6) {
+    // ============ WEEK 5: PEOPLE & DELEGATION ============
+    if (week === 5) {
+      if (experts[0]) {
+        tasks.push({
+          id: 'w5_t1',
+          title: `Find: ${experts[0]}`,
+          description: `You said you need: "${ctx.threeExpertsNeeded}". Start with ${experts[0]}. Write the job spec, post on 2 platforms, or approach 5 people on LinkedIn. Fractional, freelance, or full-time.`,
+          why: `The expertise gaps you identified are holding you back`,
+          category: 'People',
+          priority: 'high',
+          estimatedHours: 4,
+          tool: 'LinkedIn, Upwork, or recruiter',
+          boardOwner: 'CHRO',
+          successMetric: '5 candidates identified or job posted',
+          deliverable: 'Job spec + candidates list or job posting live',
+          delegationScore: 5,
+          delegateTo: 'Recruiter can source, you approve'
+        });
+      }
+      
+      tasks.push({
+        id: 'w5_t2',
+        title: `Delegate your #1 time thief from Week 2`,
+        description: `Week 2 identified your biggest time thief. This week: Hand it off. Write the brief, train someone, or set up automation. It doesn't have to be perfect - just not you.`,
+        why: `Every hour you reclaim compounds over time`,
+        category: 'Delegation',
+        priority: 'high',
+        estimatedHours: 3,
+        tool: 'Training doc or Loom',
+        boardOwner: 'COO',
+        successMetric: 'Time thief handled by someone/something else',
+        deliverable: 'Delegation complete - you're no longer doing it',
+        delegationScore: 8,
+        delegateTo: 'VA, team member, or automation'
+      });
+    }
+    
+    // ============ WEEK 6: IDEAL TUESDAY ============
+    if (week === 6) {
       if (ctx.tuesdayTest) {
         tasks.push({
-          id: `w${week}_t1`,
-          title: `One step toward: "${ctx.tuesdayTest.substring(0, 40)}..."`,
-          description: `Your ideal Tuesday: "${ctx.tuesdayTest}". What's ONE thing you can do this week to get 10% closer to that?`,
-          why: `This is your North Star - your "why" for doing all this`,
+          id: 'w6_t1',
+          title: `Design your ideal Tuesday: "${ctx.tuesdayTest.substring(0, 35)}..."`,
+          description: `Your ideal Tuesday: "${ctx.tuesdayTest}". Block next Tuesday in your calendar to be 50% closer to this. What needs to NOT be scheduled? What needs protection?`,
+          why: `You've been building systems for 5 weeks. Time to taste the result.`,
           category: 'Personal',
           priority: 'high',
-          estimatedHours: 2,
+          estimatedHours: 1,
           tool: 'Calendar',
           boardOwner: 'COO',
-          successMetric: `One element of your ideal Tuesday becomes real this week`,
-          deliverable: `Tuesday ${week === 5 ? 'of week 6' : 'of week 7'} looks 10% closer to the dream`,
+          successMetric: 'Next Tuesday calendar looks 50% like the dream',
+          deliverable: 'Calendar blocked, team informed',
           delegationScore: 10,
-          delegateTo: 'Only you can live your ideal Tuesday'
+          delegateTo: 'Only you can protect your time'
         });
       }
-      
-      // Address the experts they need
-      if (ctx.threeExpertsNeeded) {
-        const experts = ctx.threeExpertsNeeded.split(',').map(e => e.trim());
-        if (experts[0]) {
-          tasks.push({
-            id: `w${week}_t2`,
-            title: `Find or outsource: ${experts[0]}`,
-            description: `You said you need: "${ctx.threeExpertsNeeded}". Start with ${experts[0]}. Find a freelancer, agency, or fractional hire.`,
-            why: `You identified this expertise gap - fill it`,
-            category: 'People',
-            priority: 'high',
-            estimatedHours: 4,
-            tool: 'LinkedIn or Upwork',
-            boardOwner: 'CHRO',
-            successMetric: `${experts[0]} capacity added - either hired or contracted`,
-            deliverable: 'Contract signed or trial started',
-            delegationScore: 4,
-            delegateTo: 'Recruiter can source, you decide'
-          });
-        }
-      }
-    }
-    
-    // Week 7-8: Lock in changes, address danger zone
-    if (week >= 7 && week <= 8) {
-      if (ctx.dangerZone) {
-        tasks.push({
-          id: `w${week}_t1`,
-          title: `Protect against: "${ctx.dangerZone.substring(0, 40)}..."`,
-          description: `Your danger zone is: "${ctx.dangerZone}". Create guardrails this week - what systems, boundaries, or habits prevent you falling back?`,
-          why: `Sustainable change requires acknowledging and preventing backslides`,
-          category: 'Personal',
-          priority: 'high',
-          estimatedHours: 2,
-          tool: 'Calendar + accountability',
-          boardOwner: 'COO',
-          successMetric: `Clear boundary or system in place that prevents "${ctx.dangerZone.substring(0, 20)}"`,
-          deliverable: 'Written commitment + calendar blocks',
-          delegationScore: 10,
-          delegateTo: 'Cannot delegate - personal accountability'
-        });
-      }
-      
-      // Hours reduction
-      if (ctx.currentWorkingHours > ctx.targetWorkingHours) {
-        const reduction = ctx.currentWorkingHours - ctx.targetWorkingHours;
-        tasks.push({
-          id: `w${week}_t2`,
-          title: `Cut ${Math.round(reduction / 3)} hours this week`,
-          description: `You work ${ctx.currentWorkingHours}hrs, want ${ctx.targetWorkingHours}hrs. That's ${reduction}hrs to cut over 12 weeks. This week: identify and eliminate ${Math.round(reduction / 3)} hours of low-value work.`,
-          why: `Hours reduction is the real measure of transformation`,
-          category: 'Operations',
-          priority: 'high',
-          estimatedHours: 1,
-          tool: 'Time tracking',
-          boardOwner: 'COO',
-          successMetric: `Actually work ${Math.round(reduction / 3)} fewer hours this week`,
-          deliverable: 'Time audit showing hours saved + what was eliminated',
-          delegationScore: 5,
-          delegateTo: 'Delegate the tasks you cut'
-        });
-      }
-    }
-    
-    // Week 9-10: Scale and multiply
-    if (week >= 9 && week <= 10) {
-      // Income goal
-      if (ctx.desiredIncome > ctx.currentIncome) {
-        const incomeGap = ctx.desiredIncome - ctx.currentIncome;
-        tasks.push({
-          id: `w${week}_t1`,
-          title: `Find £${Math.round(incomeGap / 12).toLocaleString()}/month extra`,
-          description: `You want £${ctx.desiredIncome?.toLocaleString()}/month, currently £${ctx.currentIncome?.toLocaleString()}. Gap: £${incomeGap.toLocaleString()}/year. This week: identify ONE change that adds £${Math.round(incomeGap / 12).toLocaleString()}/month.`,
-          why: `Income transformation is part of life transformation`,
-          category: 'Financial',
-          priority: 'high',
-          estimatedHours: 3,
-          tool: 'Pricing calculator',
-          boardOwner: 'CFO',
-          successMetric: `Concrete plan for £${Math.round(incomeGap / 12).toLocaleString()}/month extra revenue`,
-          deliverable: 'One of: Price increase, New offering, Cost cut',
-          delegationScore: 2,
-          delegateTo: 'You decide pricing strategy'
-        });
-      }
-      
-      // Ten year vision
-      if (ctx.tenYearVision) {
-        tasks.push({
-          id: `w${week}_t2`,
-          title: `Align daily actions to: "${ctx.tenYearVision.substring(0, 40)}..."`,
-          description: `10-year vision: "${ctx.tenYearVision}". This week: Review your calendar. Does each commitment move toward this vision? Cut one thing that doesn't.`,
-          why: `Daily actions must ladder up to long-term vision`,
-          category: 'Personal',
-          priority: 'medium',
-          estimatedHours: 1,
-          tool: 'Calendar audit',
-          boardOwner: 'COO',
-          successMetric: `One recurring commitment cut that doesn't serve your vision`,
-          deliverable: 'Calendar updated - commitment removed',
-          delegationScore: 10,
-          delegateTo: 'Only you can align your time to your vision'
-        });
-      }
-    }
-    
-    // Week 11-12: Transform and celebrate
-    if (week >= 11) {
-      tasks.push({
-        id: `w${week}_t1`,
-        title: `Measure the transformation: ${ctx.companyName}`,
-        description: `Week ${week}: Compare where you are now vs Week 1. Hours worked, income, stress level, Tuesday feeling. Document the change.`,
-        why: `Seeing progress fuels continued growth`,
-        category: 'Personal',
-        priority: 'high',
-        estimatedHours: 1,
-        tool: 'Reflection doc',
-        boardOwner: 'COO',
-        successMetric: `Clear before/after documented for ${ctx.companyName}`,
-        deliverable: '12-week transformation report',
-        delegationScore: 10,
-        delegateTo: 'Only you can assess your own transformation'
-      });
       
       if (ctx.familyFeedback) {
         tasks.push({
-          id: `w${week}_t2`,
-          title: `Check in: Has the family feedback changed?`,
-          description: `Family said: "${ctx.familyFeedback}". Week ${week}: Ask them again. Has it changed? What do they notice now?`,
+          id: 'w6_t2',
+          title: `Check-in: Has family noticed a change?`,
+          description: `6 weeks ago, family said: "${ctx.familyFeedback}". Have a conversation this week. What have they noticed? Are they seeing the change? Use this as accountability.`,
           why: `External validation of internal change`,
           category: 'Personal',
           priority: 'medium',
           estimatedHours: 0.5,
           tool: 'Conversation',
           boardOwner: 'COO',
-          successMetric: `Family notices positive change`,
-          deliverable: 'Feedback conversation had',
+          successMetric: 'Honest feedback received',
+          deliverable: 'Family conversation had, feedback noted',
           delegationScore: 10,
-          delegateTo: 'Cannot delegate - personal relationship'
+          delegateTo: 'Personal conversation'
         });
       }
     }
     
-    // Add weekly reflection if we have less than 2 tasks
-    if (tasks.length < 2) {
+    // ============ WEEK 7: PROTECT THE GAINS ============
+    if (week === 7) {
+      if (ctx.dangerZone) {
+        tasks.push({
+          id: 'w7_t1',
+          title: `Build guardrails for: "${ctx.dangerZone.substring(0, 35)}..."`,
+          description: `Your danger zone: "${ctx.dangerZone}". You're 7 weeks in - old habits want to return. What systems prevent backslide? Calendar blocks? Accountability partner? Auto-responders?`,
+          why: `Transformation fails without prevention of old patterns`,
+          category: 'Personal',
+          priority: 'high',
+          estimatedHours: 2,
+          tool: 'Calendar + accountability system',
+          boardOwner: 'COO',
+          successMetric: 'Guardrail system in place',
+          deliverable: '3 specific backslide prevention measures documented',
+          delegationScore: 10,
+          delegateTo: 'Personal commitment required'
+        });
+      }
+      
+      if (experts[1]) {
+        tasks.push({
+          id: 'w7_t2',
+          title: `Find: ${experts[1]} (expert #2)`,
+          description: `You said you need: "${ctx.threeExpertsNeeded}". Week 5 was ${experts[0]}. Now find ${experts[1]}. Same process: spec, post, approach.`,
+          why: `Continue building the team around you`,
+          category: 'People',
+          priority: 'high',
+          estimatedHours: 4,
+          tool: 'LinkedIn, Upwork, or network',
+          boardOwner: 'CHRO',
+          successMetric: '${experts[1]} candidates or hire in progress',
+          deliverable: 'Job spec + candidates or hire started',
+          delegationScore: 5,
+          delegateTo: 'Recruiter can source'
+        });
+      }
+    }
+    
+    // ============ WEEK 8: HOURS REALITY CHECK ============
+    if (week === 8) {
       tasks.push({
-        id: `w${week}_reflection`,
-        title: `Week ${week} Reflection: What's working at ${ctx.companyName}?`,
-        description: `End of week reflection: What worked? What didn't? What's the ONE thing to focus on next week?`,
-        why: `Weekly reflection builds strategic thinking muscle`,
-        category: 'Personal',
-        priority: 'medium',
-        estimatedHours: 0.5,
-        tool: 'Notes app',
+        id: 'w8_t1',
+        title: `Time audit #2: Compare to Week 1`,
+        description: `Track your hours again this week. Compare to Week 1. Are you working fewer hours? Where did the time go? Is the ${ctx.targetWorkingHours || 40}hr/week goal getting closer?`,
+        why: `You set out to work ${ctx.targetWorkingHours || 40} hours. Are you closer?`,
+        category: 'Analysis',
+        priority: 'high',
+        estimatedHours: 1,
+        tool: 'Toggl or spreadsheet',
         boardOwner: 'COO',
-        successMetric: `Clear next week priority identified`,
-        deliverable: `Week ${week} review documented`,
+        successMetric: 'Week 8 hours < Week 1 hours',
+        deliverable: 'Comparison report: Week 1 vs Week 8',
         delegationScore: 10,
-        delegateTo: 'Cannot delegate - founder thinking time'
+        delegateTo: 'Personal measurement'
+      });
+      
+      if (ctx.currentWorkingHours > ctx.targetWorkingHours) {
+        const hoursToGo = ctx.currentWorkingHours - ctx.targetWorkingHours;
+        tasks.push({
+          id: 'w8_t2',
+          title: `Plan: How to cut remaining ${hoursToGo} hours`,
+          description: `Gap: ${ctx.currentWorkingHours}hrs → ${ctx.targetWorkingHours}hrs. 4 weeks left. What else needs to go? List 5 things you still do that someone else could do.`,
+          why: `The hardest hours to cut are the last ones - they feel "essential"`,
+          category: 'Planning',
+          priority: 'high',
+          estimatedHours: 1,
+          tool: 'Notes',
+          boardOwner: 'COO',
+          successMetric: '5 delegatable tasks identified',
+          deliverable: 'List of 5 tasks to delegate in weeks 9-12',
+          delegationScore: 10,
+          delegateTo: 'Honest self-assessment required'
+        });
+      }
+    }
+    
+    // ============ WEEK 9: INCOME FOCUS ============
+    if (week === 9) {
+      if (ctx.desiredIncome > ctx.currentIncome) {
+        const gap = ctx.desiredIncome - ctx.currentIncome;
+        tasks.push({
+          id: 'w9_t1',
+          title: `Identify: One change to add £${Math.round(gap / 12).toLocaleString()}/month`,
+          description: `Income gap: £${ctx.currentIncome?.toLocaleString()} → £${ctx.desiredIncome?.toLocaleString()}/month. Brainstorm: Price increase? New offer? Cutting costs? Upsell to existing clients?`,
+          why: `Time freedom without income freedom isn't sustainable`,
+          category: 'Financial',
+          priority: 'high',
+          estimatedHours: 2,
+          tool: 'Pricing spreadsheet',
+          boardOwner: 'CFO',
+          successMetric: 'One concrete income action identified',
+          deliverable: 'Income improvement plan with £ attached',
+          delegationScore: 2,
+          delegateTo: 'Strategy is yours'
+        });
+      }
+      
+      tasks.push({
+        id: 'w9_t2',
+        title: `Review: Are the Week 3-4 systems still working?`,
+        description: `You built systems in weeks 3-4. Are they still running? Holding up? Need adjustment? Systems decay without maintenance - check in on them.`,
+        why: `Systems need periodic review to stay effective`,
+        category: 'Systems',
+        priority: 'medium',
+        estimatedHours: 1,
+        tool: 'Review meeting',
+        boardOwner: 'COO',
+        successMetric: 'Systems audited, adjustments noted',
+        deliverable: 'Systems health check document',
+        delegationScore: 5,
+        delegateTo: 'Team can report, you decide'
+      });
+    }
+    
+    // ============ WEEK 10: IMPLEMENT INCOME CHANGE ============
+    if (week === 10) {
+      if (ctx.desiredIncome > ctx.currentIncome) {
+        tasks.push({
+          id: 'w10_t1',
+          title: `Implement: The income change from Week 9`,
+          description: `Week 9 identified how to add £${Math.round((ctx.desiredIncome - ctx.currentIncome) / 12).toLocaleString()}/month. This week: Do it. Raise the price, launch the offer, make the call.`,
+          why: `Knowing isn't doing. Do it this week.`,
+          category: 'Financial',
+          priority: 'high',
+          estimatedHours: 4,
+          tool: 'Depends on the action',
+          boardOwner: 'CFO',
+          successMetric: 'Income action taken (not just planned)',
+          deliverable: 'Proof: email sent, price updated, offer launched',
+          delegationScore: 3,
+          delegateTo: 'You decide, team can execute'
+        });
+      }
+      
+      if (ctx.tenYearVision) {
+        tasks.push({
+          id: 'w10_t2',
+          title: `Align: Does this week serve "${ctx.tenYearVision.substring(0, 35)}..."?`,
+          description: `Your 10-year vision: "${ctx.tenYearVision}". Look at next week's calendar. Does each commitment move toward this? Cancel one thing that doesn't.`,
+          why: `Daily actions must ladder up to long-term vision`,
+          category: 'Personal',
+          priority: 'medium',
+          estimatedHours: 0.5,
+          tool: 'Calendar review',
+          boardOwner: 'COO',
+          successMetric: 'One misaligned commitment removed',
+          deliverable: 'Calendar updated',
+          delegationScore: 10,
+          delegateTo: 'Only you know your vision'
+        });
+      }
+    }
+    
+    // ============ WEEK 11: MEASURE & ADJUST ============
+    if (week === 11) {
+      tasks.push({
+        id: 'w11_t1',
+        title: `Measure: ${ctx.companyName}'s 11-week transformation`,
+        description: `Document everything that's changed: Hours worked, systems built, people hired, frustrations reduced, income changes. Create a before/after comparison.`,
+        why: `Seeing progress fuels continued growth`,
+        category: 'Analysis',
+        priority: 'high',
+        estimatedHours: 2,
+        tool: 'Document',
+        boardOwner: 'COO',
+        successMetric: 'Clear before/after documented',
+        deliverable: 'Transformation report: 11 weeks of change',
+        delegationScore: 10,
+        delegateTo: 'Personal reflection required'
+      });
+      
+      if (ctx.secretPride) {
+        tasks.push({
+          id: 'w11_t2',
+          title: `Celebrate: "${ctx.secretPride.substring(0, 35)}..."`,
+          description: `You mentioned secret pride in: "${ctx.secretPride}". After 11 weeks of hard work, acknowledge what you've built. Share one win with someone who matters.`,
+          why: `Celebration reinforces the behavior that created success`,
+          category: 'Personal',
+          priority: 'medium',
+          estimatedHours: 0.5,
+          tool: 'Conversation or journal',
+          boardOwner: 'COO',
+          successMetric: 'Win shared, progress celebrated',
+          deliverable: 'Celebration moment taken',
+          delegationScore: 10,
+          delegateTo: 'Personal milestone'
+        });
+      }
+    }
+    
+    // ============ WEEK 12: FUTURE LOCK-IN ============
+    if (week === 12) {
+      if (ctx.tuesdayTest) {
+        tasks.push({
+          id: 'w12_t1',
+          title: `Live it: "${ctx.tuesdayTest.substring(0, 40)}..."`,
+          description: `Week 1: "${ctx.tuesdayTest}" was a dream. Week 12: Make Tuesday match the dream. Block the calendar, protect the time, live the transformation.`,
+          why: `12 weeks of work for this moment. Experience it fully.`,
+          category: 'Personal',
+          priority: 'critical',
+          estimatedHours: 8,
+          tool: 'Your Tuesday',
+          boardOwner: 'COO',
+          successMetric: 'Tuesday feels like the dream (or close to it)',
+          deliverable: 'Tuesday lived as designed',
+          delegationScore: 10,
+          delegateTo: 'Only you can live your life'
+        });
+      }
+      
+      tasks.push({
+        id: 'w12_t2',
+        title: `Plan: The next 90 days for ${ctx.companyName}`,
+        description: `This sprint is ending. What's next? Review what worked, what didn't. Set 3 priorities for the next quarter. Book a planning session for next week.`,
+        why: `One sprint ends, another begins. Momentum requires direction.`,
+        category: 'Planning',
+        priority: 'high',
+        estimatedHours: 2,
+        tool: 'Planning doc',
+        boardOwner: 'COO',
+        successMetric: 'Next 90-day priorities set',
+        deliverable: 'Q+1 plan with 3 clear priorities',
+        delegationScore: 2,
+        delegateTo: 'Strategy is yours'
+      });
+    }
+    
+    // Ensure we always have at least one task
+    if (tasks.length === 0) {
+      tasks.push({
+        id: `w${week}_fallback`,
+        title: `Week ${week} Focus for ${ctx.companyName}`,
+        description: `Continue building on previous weeks' progress. Review what's working, adjust what isn't, and keep moving toward "${ctx.tuesdayTest || 'your ideal Tuesday'}".`,
+        why: `Consistent progress beats sporadic effort`,
+        category: 'General',
+        priority: 'medium',
+        estimatedHours: 2,
+        tool: 'Review and action',
+        boardOwner: 'COO',
+        successMetric: 'Progress made on existing initiatives',
+        deliverable: 'Weekly progress update',
+        delegationScore: 5,
+        delegateTo: 'As appropriate'
       });
     }
     
     return tasks;
+  }
+  
+  // Generate week-specific themes
+  function getWeekTheme(week: number, ctx: RoadmapContext): string {
+    const themes: Record<number, string> = {
+      1: `Diagnose: Where does ${ctx.userName}'s time actually go?`,
+      2: `First Fix: Address the Monday frustration`,
+      3: `Map: Document the bottleneck process`,
+      4: `Build: Create the first SOP`,
+      5: `Delegate: Hand off your time thief`,
+      6: `Protect: Design your ideal Tuesday`,
+      7: `Guard: Prevent backslide`,
+      8: `Measure: Compare Week 1 vs Week 8`,
+      9: `Income: Identify the £ change`,
+      10: `Execute: Implement the income change`,
+      11: `Celebrate: Measure the transformation`,
+      12: `Live: Experience your ideal Tuesday`
+    };
+    return themes[week] || `Week ${week}: Continue the transformation`;
+  }
+  
+  // Generate phase focus
+  function getPhaseFocus(week: number, ctx: RoadmapContext): string {
+    if (week <= 2) return ctx.mondayFrustration ? `Fixing: "${ctx.mondayFrustration.substring(0, 30)}..."` : 'Quick wins & diagnosis';
+    if (week <= 4) return ctx.growthBottleneck ? `Systems for: "${ctx.growthBottleneck.substring(0, 30)}..."` : 'Building systems';
+    if (week <= 6) return ctx.tuesdayTest ? `Toward: "${ctx.tuesdayTest.substring(0, 30)}..."` : 'Delegation & ideal Tuesday';
+    if (week <= 8) return ctx.dangerZone ? `Protecting against: "${ctx.dangerZone.substring(0, 25)}..."` : 'Lock-in & measurement';
+    if (week <= 10) return `Income: £${ctx.currentIncome?.toLocaleString()} → £${ctx.desiredIncome?.toLocaleString()}`;
+    return `Transformation: Living the dream`;
   }
   
   const phases = [
@@ -1382,16 +1627,22 @@ function generateFallbackSprint(ctx: RoadmapContext, vision: any, shift: any): a
     weeks.push({
       weekNumber: w,
       phase: phase.name,
-      theme: `Week ${w}: ${tasks[0]?.title?.substring(0, 40) || phase.focus}`,
-      focus: phase.focus,
-      tuesdayTransformation: w === 1 ? `First glimpse of relief from "${ctx.relationshipMirror || 'the grind'}"` : 
-                             w === 4 ? `Starting to feel control over "${ctx.growthBottleneck?.substring(0, 30) || 'operations'}"` :
-                             w === 8 ? `New patterns forming - approaching "${ctx.tuesdayTest?.substring(0, 30) || 'ideal Tuesday'}"` :
-                             w === 12 ? `Transformation complete: "${ctx.tuesdayTest || 'Living on your terms'}"` : undefined,
+      theme: getWeekTheme(w, ctx),
+      focus: getPhaseFocus(w, ctx),
+      tuesdayTransformation: w === 1 ? `First glimpse of truth about where time goes` : 
+                             w === 2 ? `First fix implemented - relief beginning` :
+                             w === 4 ? `Systems taking shape - less firefighting` :
+                             w === 6 ? `Ideal Tuesday emerging - testing the dream` :
+                             w === 8 ? `Comparison time - Week 1 vs Week 8 reality check` :
+                             w === 10 ? `Income action taken - financial shift in motion` :
+                             w === 12 ? `Transformation: "${ctx.tuesdayTest || 'Living on your terms'}"` : undefined,
       tasks,
-      milestone: w === 4 ? `Foundation complete - "${ctx.magicAwayTask?.substring(0, 30) || 'main pain point'}" 50% reduced` :
-                 w === 8 ? `Momentum locked - working ${Math.max(ctx.targetWorkingHours || 40, ctx.currentWorkingHours - 10)} hours/week` :
-                 w === 12 ? `Transformation: ${ctx.userName} is living closer to "${ctx.tuesdayTest?.substring(0, 30) || 'the vision'}"` :
+      milestone: w === 2 ? `First fix: "${ctx.mondayFrustration?.substring(0, 25) || 'frustration'}" addressed` :
+                 w === 4 ? `First SOP: "${ctx.growthBottleneck?.substring(0, 25) || 'bottleneck'}" documented` :
+                 w === 6 ? `Ideal Tuesday: First taste of "${ctx.tuesdayTest?.substring(0, 25) || 'the dream'}"` :
+                 w === 8 ? `Reality check: Hours compared, progress measured` :
+                 w === 10 ? `Income: Action taken toward £${ctx.desiredIncome?.toLocaleString() || 'goal'}/month` :
+                 w === 12 ? `90-day transformation complete: ${ctx.userName} living closer to the vision` :
                  tasks[0]?.deliverable || `Week ${w} complete`
     });
   }
