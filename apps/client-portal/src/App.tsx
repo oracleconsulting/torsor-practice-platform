@@ -15,6 +15,7 @@ import RoadmapPage from './pages/roadmap/RoadmapPage';
 import TasksPage from './pages/roadmap/TasksPage';
 import ChatPage from './pages/chat/ChatPage';
 import AppointmentsPage from './pages/appointments/AppointmentsPage';
+import ServiceAssessmentPage from './pages/services/ServiceAssessmentPage';
 
 function App() {
   return (
@@ -46,6 +47,9 @@ function App() {
             
             {/* Appointments */}
             <Route path="/appointments" element={<AppointmentsPage />} />
+            
+            {/* Service Line Assessments */}
+            <Route path="/service/:serviceCode/assessment" element={<ServiceAssessmentPage />} />
           </Route>
           
           {/* Catch all */}
