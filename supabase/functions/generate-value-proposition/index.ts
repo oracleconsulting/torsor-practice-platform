@@ -60,6 +60,28 @@ function extractJson(text: string): any {
   return JSON.parse(cleaned);
 }
 
+// Fetch questions from database for AI context
+async function fetchQuestionsForAI(supabase: any, serviceLineCode: string) {
+  const { data: questions } = await supabase
+    .from('assessment_questions')
+    .select('question_id, section, question_text, emotional_anchor, technical_field')
+    .eq('service_line_code', serviceLineCode)
+    .eq('is_active', true)
+    .order('display_order');
+
+  return {
+    questions: questions || [],
+    emotionalAnchors: questions?.filter((q: any) => q.emotional_anchor).map((q: any) => ({
+      key: q.emotional_anchor,
+      question: q.question_text
+    })) || [],
+    technicalFields: questions?.filter((q: any) => q.technical_field).map((q: any) => ({
+      key: q.technical_field,
+      question: q.question_text
+    })) || []
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -82,15 +104,19 @@ serve(async (req) => {
 
     const financials = client?.financial_snapshot || {};
 
-    // Generate VP based on service line
+    // Fetch questions from database for AI context
+    const questionContext = await fetchQuestionsForAI(supabase, serviceLineCode);
+    console.log(`Loaded ${questionContext.questions.length} questions for AI context`);
+
+    // Generate VP based on service line (now with question context)
     let valueProposition: any;
 
     if (serviceLineCode === 'management_accounts') {
-      valueProposition = await generateMAValueProposition(extractedInsights, financials, client?.name || '');
+      valueProposition = await generateMAValueProposition(extractedInsights, financials, client?.name || '', questionContext);
     } else if (serviceLineCode === 'systems_audit') {
-      valueProposition = await generateSAValueProposition(extractedInsights, financials, client?.name || '');
+      valueProposition = await generateSAValueProposition(extractedInsights, financials, client?.name || '', questionContext);
     } else if (serviceLineCode === 'fractional_executive') {
-      valueProposition = await generateFEValueProposition(extractedInsights, financials, client?.name || '');
+      valueProposition = await generateFEValueProposition(extractedInsights, financials, client?.name || '', questionContext);
     } else {
       throw new Error(`Unknown service line: ${serviceLineCode}`);
     }
@@ -134,14 +160,22 @@ serve(async (req) => {
 // MANAGEMENT ACCOUNTS VP GENERATOR
 // ============================================================================
 
-async function generateMAValueProposition(insights: Record<string, any>, financials: any, clientName: string) {
+async function generateMAValueProposition(insights: Record<string, any>, financials: any, clientName: string, questionContext: any) {
+  // Build context from database questions
+  const questionsList = questionContext.emotionalAnchors
+    .map((a: any) => `- ${a.key}: Question was "${a.question}"`)
+    .join('\n');
+
   const systemPrompt = `You are a senior accountant creating a personalized value proposition for management accounts services. Your goal is to show the client you understand their specific pain and can transform their financial visibility.
 
-Be warm but professional. Use their exact words where possible. Focus on emotional impact, not just features.`;
+Be warm but professional. Use their exact words where possible. Focus on emotional impact, not just features.
+
+QUESTIONS ASKED (from database - these may have been customized):
+${questionsList}`;
 
   const prompt = `Generate a value proposition for ${clientName} based on their Financial Visibility Diagnostic responses.
 
-CLIENT INSIGHTS:
+CLIENT INSIGHTS (mapped from their assessment answers):
 - Relationship with numbers: ${insights.relationship_with_numbers || 'Not specified'}
 - Their Tuesday financial question: "${insights.tuesday_financial_question || 'Not specified'}"
 - What they'd magic away: "${insights.magic_away_financial || 'Not specified'}"
@@ -204,10 +238,17 @@ Return a JSON object with:
 // SYSTEMS AUDIT VP GENERATOR
 // ============================================================================
 
-async function generateSAValueProposition(insights: Record<string, any>, financials: any, clientName: string) {
+async function generateSAValueProposition(insights: Record<string, any>, financials: any, clientName: string, questionContext: any) {
+  const questionsList = questionContext.emotionalAnchors
+    .map((a: any) => `- ${a.key}: "${a.question}"`)
+    .join('\n');
+
   const systemPrompt = `You are a systems and operations consultant creating a personalized audit proposal. Show the client you understand their operational pain and can quantify the hidden costs they're experiencing.
 
-Be direct about the problems but optimistic about solutions. Use their own descriptions of chaos and frustration.`;
+Be direct about the problems but optimistic about solutions. Use their own descriptions of chaos and frustration.
+
+ASSESSMENT QUESTIONS (from database):
+${questionsList}`;
 
   const prompt = `Generate a value proposition for ${clientName} based on their Operations Health Check responses.
 
@@ -301,10 +342,17 @@ Return a JSON object with:
 // FRACTIONAL EXECUTIVE VP GENERATOR
 // ============================================================================
 
-async function generateFEValueProposition(insights: Record<string, any>, financials: any, clientName: string) {
+async function generateFEValueProposition(insights: Record<string, any>, financials: any, clientName: string, questionContext: any) {
+  const questionsList = questionContext.emotionalAnchors
+    .map((a: any) => `- ${a.key}: "${a.question}"`)
+    .join('\n');
+
   const systemPrompt = `You are a senior executive presenting a fractional CFO/COO engagement proposal. Show the client you understand their leadership gap and can fill it effectively.
 
-Be confident but not arrogant. Acknowledge the courage it takes to bring in external help.`;
+Be confident but not arrogant. Acknowledge the courage it takes to bring in external help.
+
+ASSESSMENT QUESTIONS (from database):
+${questionsList}`;
 
   // Determine CFO vs COO based on gap areas
   const gapAreas = insights.executive_gap_areas || [];

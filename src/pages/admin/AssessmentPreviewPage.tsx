@@ -1,32 +1,18 @@
 // ============================================================================
 // ASSESSMENT PREVIEW PAGE
 // ============================================================================
-// Preview and edit service line assessment questions before going live
+// Preview and edit service line assessment questions
+// Changes are saved to database and available for AI/VP generation
 // ============================================================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
 import { 
-  ArrowLeft, 
-  Eye, 
-  Edit2, 
-  Save, 
-  X, 
-  ChevronDown, 
-  ChevronRight,
-  Target,
-  LineChart,
-  Settings,
-  Users,
-  CheckCircle,
-  AlertCircle
+  ArrowLeft, Eye, Edit2, Save, X, ChevronDown, ChevronRight,
+  Target, LineChart, Settings, Users, CheckCircle, AlertCircle,
+  Loader2, History, RefreshCw
 } from 'lucide-react';
-
-// Import assessment configs
-import { 
-  SERVICE_LINE_ASSESSMENTS,
-  type ServiceLineAssessment,
-  type AssessmentQuestion
-} from '../../config/serviceLineAssessments';
 
 type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments';
 
@@ -35,51 +21,131 @@ interface AssessmentPreviewPageProps {
   onNavigate: (page: Page) => void;
 }
 
-const serviceIcons: Record<string, React.ComponentType<any>> = {
-  '365_method': Target,
-  'management_accounts': LineChart,
-  'systems_audit': Settings,
-  'fractional_executive': Users,
-};
+interface DbQuestion {
+  id: string;
+  service_line_code: string;
+  question_id: string;
+  section: string;
+  question_text: string;
+  question_type: 'single' | 'multi' | 'text' | 'rank';
+  options: string[] | null;
+  placeholder: string | null;
+  char_limit: number | null;
+  max_selections: number | null;
+  emotional_anchor: string | null;
+  technical_field: string | null;
+  is_required: boolean;
+  display_order: number;
+  is_active: boolean;
+  updated_at: string;
+}
 
-const serviceColors: Record<string, string> = {
-  '365_method': 'indigo',
-  'management_accounts': 'emerald',
-  'systems_audit': 'amber',
-  'fractional_executive': 'purple',
-};
+const SERVICE_LINE_INFO = [
+  { code: 'management_accounts', name: 'Management Accounts', title: 'Financial Visibility Diagnostic', icon: LineChart, color: 'emerald' },
+  { code: 'systems_audit', name: 'Systems Audit', title: 'Operations Health Check', icon: Settings, color: 'amber' },
+  { code: 'fractional_executive', name: 'Fractional CFO/COO', title: 'Executive Capacity Diagnostic', icon: Users, color: 'purple' },
+];
 
 export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPreviewPageProps) {
+  const { user } = useAuth();
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<'edit' | 'preview'>('edit');
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [editingQuestion, setEditingQuestion] = useState<string | null>(null);
-  const [editedQuestions, setEditedQuestions] = useState<Record<string, Partial<AssessmentQuestion>>>({});
+  
+  // Database state
+  const [questions, setQuestions] = useState<DbQuestion[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  
+  // Edit state
+  const [editForm, setEditForm] = useState<{
+    question_text: string;
+    options: string[];
+    placeholder: string;
+  }>({ question_text: '', options: [], placeholder: '' });
 
-  const services = Object.entries(SERVICE_LINE_ASSESSMENTS);
-  const selectedAssessment = selectedService ? SERVICE_LINE_ASSESSMENTS[selectedService] : null;
+  // Load questions when service is selected
+  useEffect(() => {
+    if (selectedService) {
+      loadQuestions(selectedService);
+    }
+  }, [selectedService]);
 
-  const toggleSection = (section: string) => {
-    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  const loadQuestions = async (serviceCode: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from('assessment_questions')
+        .select('*')
+        .eq('service_line_code', serviceCode)
+        .eq('is_active', true)
+        .order('display_order');
+
+      if (error) throw error;
+      setQuestions(data || []);
+    } catch (err) {
+      console.error('Error loading questions:', err);
+      setError('Failed to load questions. Make sure you\'ve run the database migration.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const getQuestionWithEdits = (question: AssessmentQuestion): AssessmentQuestion => {
-    const edits = editedQuestions[question.id];
-    return edits ? { ...question, ...edits } : question;
+  const startEditing = (question: DbQuestion) => {
+    setEditingQuestion(question.id);
+    setEditForm({
+      question_text: question.question_text,
+      options: question.options || [],
+      placeholder: question.placeholder || ''
+    });
   };
 
-  const handleSaveEdit = (questionId: string) => {
+  const handleSave = async (questionId: string) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const { error } = await supabase
+        .from('assessment_questions')
+        .update({
+          question_text: editForm.question_text,
+          options: editForm.options.length > 0 ? editForm.options : null,
+          placeholder: editForm.placeholder || null,
+          updated_at: new Date().toISOString(),
+          updated_by: user?.id
+        })
+        .eq('id', questionId);
+
+      if (error) throw error;
+
+      // Update local state
+      setQuestions(prev => prev.map(q => 
+        q.id === questionId 
+          ? { ...q, question_text: editForm.question_text, options: editForm.options, placeholder: editForm.placeholder }
+          : q
+      ));
+      
+      setEditingQuestion(null);
+      setSuccessMessage('Question saved successfully!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error('Error saving question:', err);
+      setError('Failed to save question');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
     setEditingQuestion(null);
-    // In a real implementation, you'd save to database here
-    console.log('Saving question:', questionId, editedQuestions[questionId]);
+    setEditForm({ question_text: '', options: [], placeholder: '' });
   };
 
-  const handleCancelEdit = (questionId: string) => {
-    setEditingQuestion(null);
-    // Remove unsaved edits
-    const { [questionId]: _, ...rest } = editedQuestions;
-    setEditedQuestions(rest);
-  };
+  // Get unique sections
+  const sections = [...new Set(questions.map(q => q.section))];
 
   // Service selection view
   if (!selectedService) {
@@ -87,39 +153,30 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-4xl mx-auto">
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-900">Assessment Preview</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Assessment Preview & Editor</h1>
             <p className="text-gray-600 mt-1">
-              Preview and customize assessment questions for each service line
+              Edit assessment questions - changes are saved to the database and used for AI value propositions
             </p>
           </div>
 
           <div className="grid gap-4">
-            {services.map(([code, assessment]) => {
-              const Icon = serviceIcons[code] || Target;
-              const color = serviceColors[code] || 'gray';
-              const questionCount = assessment.questions.length;
-              const sectionCount = assessment.sections.length;
-
+            {SERVICE_LINE_INFO.map((service) => {
+              const Icon = service.icon;
               return (
                 <button
-                  key={code}
-                  onClick={() => setSelectedService(code)}
+                  key={service.code}
+                  onClick={() => setSelectedService(service.code)}
                   className="bg-white rounded-xl border border-gray-200 p-6 text-left hover:border-gray-300 hover:shadow-md transition-all group"
                 >
                   <div className="flex items-start gap-4">
-                    <div className={`p-3 rounded-xl bg-${color}-100`}>
-                      <Icon className={`w-6 h-6 text-${color}-600`} />
+                    <div className={`p-3 rounded-xl bg-${service.color}-100`}>
+                      <Icon className={`w-6 h-6 text-${service.color}-600`} />
                     </div>
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                        {assessment.name}
+                        {service.name}
                       </h3>
-                      <p className="text-gray-600 mt-1">{assessment.title}</p>
-                      <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
-                        <span>{questionCount} questions</span>
-                        <span>•</span>
-                        <span>{sectionCount} sections</span>
-                      </div>
+                      <p className="text-gray-600 mt-1">{service.title}</p>
                     </div>
                     <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 transition-colors" />
                   </div>
@@ -128,14 +185,13 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
             })}
           </div>
 
-          <div className="mt-8 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="mt-8 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
             <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+              <CheckCircle className="w-5 h-5 text-emerald-600 mt-0.5" />
               <div>
-                <h4 className="font-medium text-amber-900">Note on Editing</h4>
-                <p className="text-sm text-amber-700 mt-1">
-                  Question edits are currently stored locally. For permanent changes, 
-                  the config file needs to be updated. Contact support for assistance.
+                <h4 className="font-medium text-emerald-900">Database-Backed Questions</h4>
+                <p className="text-sm text-emerald-700 mt-1">
+                  All changes are saved permanently and immediately available for AI-powered value proposition generation.
                 </p>
               </div>
             </div>
@@ -145,9 +201,8 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
     );
   }
 
-  // Assessment detail view
-  const Icon = serviceIcons[selectedService] || Target;
-  const color = serviceColors[selectedService] || 'gray';
+  const serviceInfo = SERVICE_LINE_INFO.find(s => s.code === selectedService);
+  const Icon = serviceInfo?.icon || Target;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -163,57 +218,93 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
                 <ArrowLeft className="w-5 h-5 text-gray-600" />
               </button>
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg bg-${color}-100`}>
-                  <Icon className={`w-5 h-5 text-${color}-600`} />
+                <div className={`p-2 rounded-lg bg-${serviceInfo?.color}-100`}>
+                  <Icon className={`w-5 h-5 text-${serviceInfo?.color}-600`} />
                 </div>
                 <div>
-                  <h1 className="font-bold text-gray-900">{selectedAssessment?.name}</h1>
-                  <p className="text-sm text-gray-500">{selectedAssessment?.title}</p>
+                  <h1 className="font-bold text-gray-900">{serviceInfo?.name}</h1>
+                  <p className="text-sm text-gray-500">{serviceInfo?.title}</p>
                 </div>
               </div>
             </div>
             
             <div className="flex items-center gap-2">
               <button
+                onClick={() => loadQuestions(selectedService)}
+                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                title="Refresh questions"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <button
                 onClick={() => setPreviewMode('edit')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  previewMode === 'edit' 
-                    ? 'bg-indigo-100 text-indigo-700' 
-                    : 'text-gray-600 hover:bg-gray-100'
+                  previewMode === 'edit' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
                 <Edit2 className="w-4 h-4 inline mr-2" />
-                Edit Mode
+                Edit
               </button>
               <button
                 onClick={() => setPreviewMode('preview')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  previewMode === 'preview' 
-                    ? 'bg-indigo-100 text-indigo-700' 
-                    : 'text-gray-600 hover:bg-gray-100'
+                  previewMode === 'preview' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
                 <Eye className="w-4 h-4 inline mr-2" />
-                Client Preview
+                Preview
               </button>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Messages */}
+      {error && (
+        <div className="max-w-5xl mx-auto px-4 pt-4">
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600" />
+            <span className="text-red-700">{error}</span>
+            <button onClick={() => setError(null)} className="ml-auto text-red-600 hover:text-red-800">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="max-w-5xl mx-auto px-4 pt-4">
+          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-emerald-600" />
+            <span className="text-emerald-700">{successMessage}</span>
+          </div>
+        </div>
+      )}
+
       {/* Content */}
       <div className="max-w-5xl mx-auto px-4 py-8">
-        {previewMode === 'edit' ? (
-          // Edit Mode - Collapsible sections with editable questions
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+          </div>
+        ) : questions.length === 0 ? (
+          <div className="text-center py-20">
+            <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Questions Found</h3>
+            <p className="text-gray-600 mb-4">Run the database migration to seed the questions.</p>
+            <code className="text-sm bg-gray-100 px-3 py-1 rounded">scripts/add-assessment-questions-table.sql</code>
+          </div>
+        ) : previewMode === 'edit' ? (
+          // Edit Mode
           <div className="space-y-4">
-            {selectedAssessment?.sections.map((section, sectionIdx) => {
-              const sectionQuestions = selectedAssessment.questions.filter(q => q.section === section);
-              const isExpanded = expandedSections[section] !== false; // Default expanded
+            {sections.map((section, sectionIdx) => {
+              const sectionQuestions = questions.filter(q => q.section === section);
+              const isExpanded = expandedSections[section] !== false;
 
               return (
                 <div key={section} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                   <button
-                    onClick={() => toggleSection(section)}
+                    onClick={() => setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))}
                     className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex items-center gap-3">
@@ -225,87 +316,51 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
                         <p className="text-sm text-gray-500">{sectionQuestions.length} questions</p>
                       </div>
                     </div>
-                    {isExpanded ? (
-                      <ChevronDown className="w-5 h-5 text-gray-400" />
-                    ) : (
-                      <ChevronRight className="w-5 h-5 text-gray-400" />
-                    )}
+                    {isExpanded ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronRight className="w-5 h-5 text-gray-400" />}
                   </button>
 
                   {isExpanded && (
                     <div className="border-t border-gray-100">
                       {sectionQuestions.map((question, qIdx) => {
-                        const q = getQuestionWithEdits(question);
                         const isEditing = editingQuestion === question.id;
 
                         return (
-                          <div 
-                            key={question.id} 
-                            className={`px-6 py-4 border-b border-gray-100 last:border-0 ${
-                              isEditing ? 'bg-indigo-50' : 'hover:bg-gray-50'
-                            }`}
-                          >
+                          <div key={question.id} className={`px-6 py-4 border-b border-gray-100 last:border-0 ${isEditing ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}>
                             <div className="flex items-start gap-4">
-                              <span className="text-sm text-gray-400 font-mono mt-1">
-                                Q{sectionIdx + 1}.{qIdx + 1}
-                              </span>
+                              <span className="text-sm text-gray-400 font-mono mt-1">Q{sectionIdx + 1}.{qIdx + 1}</span>
                               <div className="flex-1">
                                 {isEditing ? (
-                                  // Edit form
+                                  // Edit Form
                                   <div className="space-y-4">
                                     <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Question Text
-                                      </label>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">Question Text</label>
                                       <textarea
-                                        value={editedQuestions[question.id]?.question ?? q.question}
-                                        onChange={(e) => setEditedQuestions({
-                                          ...editedQuestions,
-                                          [question.id]: {
-                                            ...editedQuestions[question.id],
-                                            question: e.target.value
-                                          }
-                                        })}
+                                        value={editForm.question_text}
+                                        onChange={(e) => setEditForm({ ...editForm, question_text: e.target.value })}
                                         rows={2}
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                                       />
                                     </div>
                                     
-                                    {q.type !== 'text' && q.options && (
+                                    {question.question_type !== 'text' && question.options && (
                                       <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                          Options (one per line)
-                                        </label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Options (one per line)</label>
                                         <textarea
-                                          value={(editedQuestions[question.id]?.options ?? q.options).join('\n')}
-                                          onChange={(e) => setEditedQuestions({
-                                            ...editedQuestions,
-                                            [question.id]: {
-                                              ...editedQuestions[question.id],
-                                              options: e.target.value.split('\n').filter(o => o.trim())
-                                            }
-                                          })}
-                                          rows={q.options.length}
+                                          value={editForm.options.join('\n')}
+                                          onChange={(e) => setEditForm({ ...editForm, options: e.target.value.split('\n').filter(o => o.trim()) })}
+                                          rows={Math.min(10, (question.options?.length || 5))}
                                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
                                         />
                                       </div>
                                     )}
 
-                                    {q.type === 'text' && (
+                                    {question.question_type === 'text' && (
                                       <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                          Placeholder Text
-                                        </label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Placeholder Text</label>
                                         <input
                                           type="text"
-                                          value={editedQuestions[question.id]?.placeholder ?? q.placeholder ?? ''}
-                                          onChange={(e) => setEditedQuestions({
-                                            ...editedQuestions,
-                                            [question.id]: {
-                                              ...editedQuestions[question.id],
-                                              placeholder: e.target.value
-                                            }
-                                          })}
+                                          value={editForm.placeholder}
+                                          onChange={(e) => setEditForm({ ...editForm, placeholder: e.target.value })}
                                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                                         />
                                       </div>
@@ -313,14 +368,15 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
 
                                     <div className="flex items-center gap-2">
                                       <button
-                                        onClick={() => handleSaveEdit(question.id)}
-                                        className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700"
+                                        onClick={() => handleSave(question.id)}
+                                        disabled={saving}
+                                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:bg-indigo-400"
                                       >
-                                        <Save className="w-4 h-4 inline mr-1" />
-                                        Save
+                                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                        Save to Database
                                       </button>
                                       <button
-                                        onClick={() => handleCancelEdit(question.id)}
+                                        onClick={handleCancel}
                                         className="px-3 py-1.5 text-gray-600 hover:text-gray-800 text-sm"
                                       >
                                         Cancel
@@ -328,15 +384,15 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
                                     </div>
                                   </div>
                                 ) : (
-                                  // View mode
+                                  // View Mode
                                   <div>
                                     <div className="flex items-start justify-between gap-4">
                                       <p className="font-medium text-gray-900">
-                                        {q.question}
-                                        {q.required && <span className="text-red-500 ml-1">*</span>}
+                                        {question.question_text}
+                                        {question.is_required && <span className="text-red-500 ml-1">*</span>}
                                       </p>
                                       <button
-                                        onClick={() => setEditingQuestion(question.id)}
+                                        onClick={() => startEditing(question)}
                                         className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
                                       >
                                         <Edit2 className="w-4 h-4" />
@@ -345,46 +401,37 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
                                     
                                     <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
                                       <span className={`px-2 py-0.5 rounded ${
-                                        q.type === 'single' ? 'bg-blue-100 text-blue-700' :
-                                        q.type === 'multi' ? 'bg-purple-100 text-purple-700' :
+                                        question.question_type === 'single' ? 'bg-blue-100 text-blue-700' :
+                                        question.question_type === 'multi' ? 'bg-purple-100 text-purple-700' :
                                         'bg-gray-100 text-gray-700'
                                       }`}>
-                                        {q.type === 'single' ? 'Single Choice' : 
-                                         q.type === 'multi' ? 'Multiple Choice' : 
-                                         'Free Text'}
+                                        {question.question_type === 'single' ? 'Single Choice' : question.question_type === 'multi' ? 'Multiple Choice' : 'Free Text'}
                                       </span>
-                                      {q.maxSelections && (
-                                        <span className="text-gray-500">
-                                          Max {q.maxSelections} selections
-                                        </span>
-                                      )}
-                                      {q.charLimit && (
-                                        <span className="text-gray-500">
-                                          {q.charLimit} char limit
-                                        </span>
-                                      )}
-                                      {q.emotionalAnchor && (
+                                      {question.max_selections && <span className="text-gray-500">Max {question.max_selections}</span>}
+                                      {question.char_limit && <span className="text-gray-500">{question.char_limit} chars</span>}
+                                      {question.emotional_anchor && (
                                         <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs">
-                                          Anchor: {q.emotionalAnchor}
+                                          AI: {question.emotional_anchor}
                                         </span>
                                       )}
                                     </div>
 
-                                    {q.options && (
+                                    {question.options && (
                                       <ul className="mt-3 space-y-1">
-                                        {q.options.map((opt, i) => (
+                                        {question.options.slice(0, 5).map((opt, i) => (
                                           <li key={i} className="text-sm text-gray-600 flex items-center gap-2">
                                             <span className="w-4 h-4 rounded-full border border-gray-300 flex-shrink-0" />
                                             {opt}
                                           </li>
                                         ))}
+                                        {question.options.length > 5 && (
+                                          <li className="text-sm text-gray-400">+{question.options.length - 5} more options</li>
+                                        )}
                                       </ul>
                                     )}
 
-                                    {q.placeholder && (
-                                      <p className="mt-2 text-sm text-gray-400 italic">
-                                        Placeholder: "{q.placeholder}"
-                                      </p>
+                                    {question.placeholder && (
+                                      <p className="mt-2 text-sm text-gray-400 italic">"{question.placeholder}"</p>
                                     )}
                                   </div>
                                 )}
@@ -400,19 +447,17 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
             })}
           </div>
         ) : (
-          // Preview Mode - How clients see it
+          // Preview Mode
           <div className="max-w-3xl mx-auto">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              {/* Preview header */}
-              <div className={`bg-gradient-to-r from-${color}-600 to-${color}-700 px-6 py-8 text-white`}>
-                <h2 className="text-2xl font-bold">{selectedAssessment?.title}</h2>
-                <p className="text-white/80 mt-2">{selectedAssessment?.subtitle}</p>
+              <div className={`bg-gradient-to-r from-${serviceInfo?.color}-600 to-${serviceInfo?.color}-700 px-6 py-8 text-white`}>
+                <h2 className="text-2xl font-bold">{serviceInfo?.title}</h2>
+                <p className="text-white/80 mt-2">Help us understand your needs</p>
               </div>
 
-              {/* Questions preview */}
               <div className="p-6 space-y-8">
-                {selectedAssessment?.sections.map((section, sectionIdx) => {
-                  const sectionQuestions = selectedAssessment.questions.filter(q => q.section === section);
+                {sections.map((section, sectionIdx) => {
+                  const sectionQuestions = questions.filter(q => q.section === section);
                   
                   return (
                     <div key={section}>
@@ -424,54 +469,48 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
                       </div>
 
                       <div className="space-y-6 pl-11">
-                        {sectionQuestions.map((question) => {
-                          const q = getQuestionWithEdits(question);
-                          
-                          return (
-                            <div key={question.id} className="bg-gray-50 rounded-lg p-4">
-                              <label className="block font-medium text-gray-900 mb-3">
-                                {q.question}
-                                {q.required && <span className="text-red-500 ml-1">*</span>}
-                              </label>
+                        {sectionQuestions.map((question) => (
+                          <div key={question.id} className="bg-gray-50 rounded-lg p-4">
+                            <label className="block font-medium text-gray-900 mb-3">
+                              {question.question_text}
+                              {question.is_required && <span className="text-red-500 ml-1">*</span>}
+                            </label>
 
-                              {q.type === 'single' && q.options && (
-                                <div className="space-y-2">
-                                  {q.options.map((opt, i) => (
-                                    <label key={i} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200 cursor-pointer hover:border-indigo-300">
-                                      <input type="radio" disabled className="w-4 h-4" />
-                                      <span className="text-gray-700">{opt}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                              )}
+                            {question.question_type === 'single' && question.options && (
+                              <div className="space-y-2">
+                                {question.options.map((opt, i) => (
+                                  <label key={i} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                                    <input type="radio" disabled className="w-4 h-4" />
+                                    <span className="text-gray-700">{opt}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
 
-                              {q.type === 'multi' && q.options && (
-                                <div className="space-y-2">
-                                  {q.options.map((opt, i) => (
-                                    <label key={i} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200 cursor-pointer hover:border-indigo-300">
-                                      <input type="checkbox" disabled className="w-4 h-4 rounded" />
-                                      <span className="text-gray-700">{opt}</span>
-                                    </label>
-                                  ))}
-                                  {q.maxSelections && (
-                                    <p className="text-sm text-gray-500 mt-2">
-                                      Select up to {q.maxSelections} options
-                                    </p>
-                                  )}
-                                </div>
-                              )}
+                            {question.question_type === 'multi' && question.options && (
+                              <div className="space-y-2">
+                                {question.options.map((opt, i) => (
+                                  <label key={i} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                                    <input type="checkbox" disabled className="w-4 h-4 rounded" />
+                                    <span className="text-gray-700">{opt}</span>
+                                  </label>
+                                ))}
+                                {question.max_selections && (
+                                  <p className="text-sm text-gray-500 mt-2">Select up to {question.max_selections}</p>
+                                )}
+                              </div>
+                            )}
 
-                              {q.type === 'text' && (
-                                <textarea
-                                  placeholder={q.placeholder}
-                                  disabled
-                                  rows={3}
-                                  className="w-full px-4 py-3 border border-gray-200 rounded-lg bg-white text-gray-400"
-                                />
-                              )}
-                            </div>
-                          );
-                        })}
+                            {question.question_type === 'text' && (
+                              <textarea
+                                placeholder={question.placeholder || ''}
+                                disabled
+                                rows={3}
+                                className="w-full px-4 py-3 border border-gray-200 rounded-lg bg-white text-gray-400"
+                              />
+                            )}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   );
@@ -481,33 +520,22 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
           </div>
         )}
 
-        {/* Stats footer */}
-        <div className="mt-8 p-4 bg-white rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-6">
-              <span className="text-gray-600">
-                <strong>{selectedAssessment?.questions.length}</strong> questions
-              </span>
-              <span className="text-gray-600">
-                <strong>{selectedAssessment?.sections.length}</strong> sections
-              </span>
-              <span className="text-gray-600">
-                <strong>{selectedAssessment?.questions.filter(q => q.emotionalAnchor).length}</strong> emotional anchors
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              {Object.keys(editedQuestions).length > 0 && (
-                <span className="text-amber-600">
-                  {Object.keys(editedQuestions).length} unsaved changes
-                </span>
-              )}
+        {/* Stats */}
+        {questions.length > 0 && (
+          <div className="mt-8 p-4 bg-white rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-6">
+                <span className="text-gray-600"><strong>{questions.length}</strong> questions</span>
+                <span className="text-gray-600"><strong>{sections.length}</strong> sections</span>
+                <span className="text-gray-600"><strong>{questions.filter(q => q.emotional_anchor).length}</strong> AI anchors</span>
+              </div>
+              <span className="text-gray-500">Last updated: {questions[0]?.updated_at ? new Date(questions[0].updated_at).toLocaleString() : 'N/A'}</span>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
 export default AssessmentPreviewPage;
-
