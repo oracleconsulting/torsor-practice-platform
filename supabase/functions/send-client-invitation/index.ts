@@ -16,6 +16,7 @@ const corsHeaders = {
 interface InvitationRequest {
   email: string;
   name: string;
+  company?: string;
   practiceId: string;
   invitedBy: string;  // Team member ID
   serviceLineCodes: string[];  // Which services to invite to
@@ -34,7 +35,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    const { email, name, practiceId, invitedBy, serviceLineCodes, customMessage, includeDiscovery }: InvitationRequest = await req.json();
+    const { email, name, company, practiceId, invitedBy, serviceLineCodes, customMessage, includeDiscovery }: InvitationRequest = await req.json();
 
     // Validate required fields
     if (!email || !practiceId || !invitedBy || !serviceLineCodes?.length) {

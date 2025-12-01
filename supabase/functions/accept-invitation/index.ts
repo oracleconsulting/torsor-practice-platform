@@ -60,6 +60,7 @@ serve(async (req) => {
           expires_at,
           practice_id,
           service_line_ids,
+          include_discovery,
           practices:practice_id (name)
         `)
         .eq('invitation_token', token)
@@ -101,7 +102,8 @@ serve(async (req) => {
             email: invitation.email,
             name: invitation.name,
             practiceName: (invitation.practices as any)?.name || 'Your Practice',
-            services: (serviceLines || []).map(s => s.name)
+            services: (serviceLines || []).map(s => s.name),
+            includeDiscovery: invitation.include_discovery || false
           }
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -282,12 +284,18 @@ serve(async (req) => {
       password: password
     });
 
+    // Determine next step - Discovery or Dashboard
+    const includeDiscovery = invitation.include_discovery || false;
+    const redirectTo = includeDiscovery ? '/discovery' : '/dashboard';
+
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Welcome! Your account has been created.',
         clientId: memberId,
         enrollments,
+        includeDiscovery,
+        redirectTo,
         session: signInData?.session ? {
           accessToken: signInData.session.access_token,
           refreshToken: signInData.session.refresh_token

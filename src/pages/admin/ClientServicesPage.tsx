@@ -154,8 +154,10 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   const [inviteForm, setInviteForm] = useState({
     email: '',
     name: '',
+    company: '',
     services: [] as string[],
-    customMessage: ''
+    customMessage: '',
+    inviteType: 'discovery' as 'discovery' | 'direct'  // Discovery First or Direct Service
   });
   const [sendingInvite, setSendingInvite] = useState(false);
 
@@ -168,8 +170,14 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
 
   // Send client invitation
   const handleSendInvite = async () => {
-    if (!inviteForm.email || inviteForm.services.length === 0 || !currentMember?.practice_id) {
-      alert('Please enter an email and select at least one service');
+    // For discovery invites, services are optional. For direct invites, at least one is required.
+    if (!inviteForm.email || !currentMember?.practice_id) {
+      alert('Please enter an email address');
+      return;
+    }
+    
+    if (inviteForm.inviteType === 'direct' && inviteForm.services.length === 0) {
+      alert('Please select at least one service for direct enrollment');
       return;
     }
 
@@ -179,10 +187,12 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         body: {
           email: inviteForm.email,
           name: inviteForm.name,
+          company: inviteForm.company,
           practiceId: currentMember.practice_id,
           invitedBy: currentMember.id,
           serviceLineCodes: inviteForm.services,
-          customMessage: inviteForm.customMessage
+          customMessage: inviteForm.customMessage,
+          includeDiscovery: inviteForm.inviteType === 'discovery'
         }
       });
 
@@ -625,12 +635,12 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         {/* Invite Client Modal */}
         {showInviteModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
               {/* Modal Header */}
-              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">Invite Client</h2>
-                  <p className="text-sm text-gray-500">Send an invitation to join your client portal</p>
+                  <p className="text-sm text-gray-500">Create their portal account and start their journey</p>
                 </div>
                 <button
                   onClick={() => setShowInviteModal(false)}
@@ -641,48 +651,134 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
               </div>
 
               {/* Modal Body */}
-              <div className="p-6 space-y-4">
-                {/* Email */}
+              <div className="p-6 space-y-6">
+                {/* Invite Type Toggle */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email Address *
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    How should they start?
                   </label>
-                  <input
-                    type="email"
-                    value={inviteForm.email}
-                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                    placeholder="client@example.com"
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setInviteForm({ ...inviteForm, inviteType: 'discovery' })}
+                      className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                        inviteForm.inviteType === 'discovery'
+                          ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          inviteForm.inviteType === 'discovery' ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          <Target className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900">Destination Discovery</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Start with a questionnaire to understand their goals, then recommend services
+                          </p>
+                        </div>
+                      </div>
+                      {inviteForm.inviteType === 'discovery' && (
+                        <div className="absolute top-2 right-2">
+                          <CheckCircle className="w-5 h-5 text-indigo-500" />
+                        </div>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setInviteForm({ ...inviteForm, inviteType: 'direct' })}
+                      className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                        inviteForm.inviteType === 'direct'
+                          ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          inviteForm.inviteType === 'direct' ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          <Send className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900">Direct Enrollment</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Skip discovery and enroll directly in specific services
+                          </p>
+                        </div>
+                      </div>
+                      {inviteForm.inviteType === 'direct' && (
+                        <div className="absolute top-2 right-2">
+                          <CheckCircle className="w-5 h-5 text-emerald-500" />
+                        </div>
+                      )}
+                    </button>
+                  </div>
                 </div>
 
-                {/* Name */}
+                {/* Client Details */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Email */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      value={inviteForm.email}
+                      onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                      placeholder="client@example.com"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+
+                  {/* Name */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Client Name
+                    </label>
+                    <input
+                      type="text"
+                      value={inviteForm.name}
+                      onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
+                      placeholder="John Smith"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Company */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Client Name
+                    Company Name
                   </label>
                   <input
                     type="text"
-                    value={inviteForm.name}
-                    onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
-                    placeholder="John Smith"
+                    value={inviteForm.company}
+                    onChange={(e) => setInviteForm({ ...inviteForm, company: e.target.value })}
+                    placeholder="Acme Ltd"
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
                 </div>
 
-                {/* Service Lines */}
+                {/* Service Lines - Only show for Direct enrollment, or optionally for Discovery */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Invite to Services *
+                    {inviteForm.inviteType === 'discovery' 
+                      ? 'Pre-select services (optional - let discovery guide them)'
+                      : 'Enroll in Services *'
+                    }
                   </label>
-                  <div className="space-y-2">
-                    {SERVICE_LINES.map((service) => {
+                  <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+                    {SERVICE_LINES.filter(s => s.status === 'ready').map((service) => {
                       const Icon = service.icon;
                       const isSelected = inviteForm.services.includes(service.code);
                       return (
                         <label
                           key={service.id}
-                          className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                          className={`flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all ${
                             isSelected 
                               ? 'border-indigo-500 bg-indigo-50' 
                               : 'border-gray-200 hover:border-gray-300'
@@ -700,15 +796,17 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                             }}
                             className="w-4 h-4 text-indigo-600 rounded"
                           />
-                          <Icon className={`w-5 h-5 text-${service.color}-600`} />
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">{service.name}</p>
-                            <p className="text-xs text-gray-500">{service.description}</p>
-                          </div>
+                          <Icon className="w-4 h-4 text-gray-500" />
+                          <span className="text-sm font-medium text-gray-900">{service.name}</span>
                         </label>
                       );
                     })}
                   </div>
+                  {inviteForm.inviteType === 'discovery' && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Tip: Leave blank to let Discovery recommend the best services based on their goals
+                    </p>
+                  )}
                 </div>
 
                 {/* Custom Message */}
@@ -719,19 +817,62 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                   <textarea
                     value={inviteForm.customMessage}
                     onChange={(e) => setInviteForm({ ...inviteForm, customMessage: e.target.value })}
-                    placeholder="Looking forward to working with you..."
+                    placeholder="Looking forward to helping you reach your goals..."
                     rows={3}
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
                 </div>
+
+                {/* Preview what client will see */}
+                <div className="bg-slate-50 rounded-lg p-4">
+                  <p className="text-sm font-medium text-slate-700 mb-2">What they will experience:</p>
+                  <div className="flex items-start gap-3 text-sm text-slate-600">
+                    <div className="flex flex-col items-center">
+                      <div className="w-6 h-6 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xs font-bold">1</div>
+                      <div className="w-px h-4 bg-slate-300" />
+                    </div>
+                    <p>Receive email invitation</p>
+                  </div>
+                  <div className="flex items-start gap-3 text-sm text-slate-600">
+                    <div className="flex flex-col items-center">
+                      <div className="w-6 h-6 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xs font-bold">2</div>
+                      <div className="w-px h-4 bg-slate-300" />
+                    </div>
+                    <p>Create their portal account (set password)</p>
+                  </div>
+                  {inviteForm.inviteType === 'discovery' ? (
+                    <>
+                      <div className="flex items-start gap-3 text-sm text-slate-600">
+                        <div className="flex flex-col items-center">
+                          <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold">3</div>
+                          <div className="w-px h-4 bg-slate-300" />
+                        </div>
+                        <p>Complete Destination Discovery (~15 mins)</p>
+                      </div>
+                      <div className="flex items-start gap-3 text-sm text-slate-600">
+                        <div className="flex flex-col items-center">
+                          <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">4</div>
+                        </div>
+                        <p>Receive personalized service recommendations</p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-start gap-3 text-sm text-slate-600">
+                      <div className="flex flex-col items-center">
+                        <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">3</div>
+                      </div>
+                      <p>Start onboarding for {inviteForm.services.length > 0 ? inviteForm.services.length : 'selected'} service(s)</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Modal Footer */}
-              <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+              <div className="p-6 border-t border-gray-200 flex justify-end gap-3 sticky bottom-0 bg-white">
                 <button
                   onClick={() => {
                     setShowInviteModal(false);
-                    setInviteForm({ email: '', name: '', services: [], customMessage: '' });
+                    setInviteForm({ email: '', name: '', company: '', services: [], customMessage: '', inviteType: 'discovery' });
                   }}
                   className="px-4 py-2 text-gray-600 hover:text-gray-800"
                 >
@@ -739,8 +880,12 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                 </button>
                 <button
                   onClick={handleSendInvite}
-                  disabled={sendingInvite || !inviteForm.email || inviteForm.services.length === 0}
-                  className="inline-flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed transition-colors"
+                  disabled={sendingInvite || !inviteForm.email || (inviteForm.inviteType === 'direct' && inviteForm.services.length === 0)}
+                  className={`inline-flex items-center gap-2 px-6 py-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    inviteForm.inviteType === 'discovery'
+                      ? 'bg-indigo-600 hover:bg-indigo-700'
+                      : 'bg-emerald-600 hover:bg-emerald-700'
+                  }`}
                 >
                   {sendingInvite ? (
                     <>
@@ -749,8 +894,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                     </>
                   ) : (
                     <>
-                      <Send className="w-4 h-4" />
-                      Send Invitation
+                      <Mail className="w-4 h-4" />
+                      {inviteForm.inviteType === 'discovery' ? 'Send Discovery Invite' : 'Send Direct Invite'}
                     </>
                   )}
                 </button>

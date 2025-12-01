@@ -11,13 +11,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { CheckCircle, AlertCircle, Loader2, Eye, EyeOff, Target, LineChart, Settings, Users } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, Eye, EyeOff, Target, LineChart, Settings, Users, Compass, Sparkles } from 'lucide-react';
 
 interface InvitationDetails {
   email: string;
   name: string;
   practiceName: string;
   services: string[];
+  includeDiscovery: boolean;
 }
 
 const serviceIcons: Record<string, React.ComponentType<any>> = {
@@ -42,6 +43,7 @@ export default function InvitationPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [redirectTo, setRedirectTo] = useState('/dashboard');
 
   // Validate token on mount
   useEffect(() => {
@@ -128,12 +130,15 @@ export default function InvitationPage() {
         });
       }
 
+      // Determine redirect destination
+      const destination = data.redirectTo || (data.includeDiscovery ? '/discovery' : '/dashboard');
+      setRedirectTo(destination);
       setAccepted(true);
 
-      // Redirect to dashboard after brief delay
+      // Redirect after brief delay
       setTimeout(() => {
-        navigate('/dashboard');
-      }, 2000);
+        navigate(destination);
+      }, 2500);
 
     } catch (err) {
       console.error('Accept error:', err);
@@ -178,17 +183,38 @@ export default function InvitationPage() {
 
   // Success state
   if (accepted) {
+    const isDiscovery = redirectTo === '/discovery';
+    
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 flex items-center justify-center p-4">
+      <div className={`min-h-screen flex items-center justify-center p-4 ${
+        isDiscovery 
+          ? 'bg-gradient-to-br from-indigo-50 via-white to-purple-50'
+          : 'bg-gradient-to-br from-emerald-50 via-white to-teal-50'
+      }`}>
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
-          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="w-8 h-8 text-emerald-600" />
+          <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 ${
+            isDiscovery ? 'bg-indigo-100' : 'bg-emerald-100'
+          }`}>
+            {isDiscovery ? (
+              <Compass className="w-8 h-8 text-indigo-600" />
+            ) : (
+              <CheckCircle className="w-8 h-8 text-emerald-600" />
+            )}
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome Aboard!</h1>
           <p className="text-gray-600 mb-6">
-            Your account has been created. Redirecting you to your dashboard...
+            {isDiscovery 
+              ? "Your account has been created. Let's discover where you want to go..."
+              : "Your account has been created. Redirecting you to your dashboard..."
+            }
           </p>
-          <Loader2 className="w-6 h-6 text-indigo-600 animate-spin mx-auto" />
+          {isDiscovery && (
+            <div className="flex items-center justify-center gap-2 text-indigo-600 mb-4">
+              <Sparkles className="w-5 h-5" />
+              <span className="text-sm font-medium">Starting Destination Discovery</span>
+            </div>
+          )}
+          <Loader2 className={`w-6 h-6 animate-spin mx-auto ${isDiscovery ? 'text-indigo-600' : 'text-emerald-600'}`} />
         </div>
       </div>
     );
@@ -206,20 +232,53 @@ export default function InvitationPage() {
           </p>
         </div>
 
-        {/* Services List */}
+        {/* What's Next Section */}
         <div className="px-8 py-6 border-b border-gray-100">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">You'll have access to:</h3>
-          <div className="space-y-2">
-            {invitation?.services.map((service, i) => {
-              const Icon = serviceIcons[service] || Target;
-              return (
-                <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <Icon className="w-5 h-5 text-indigo-600" />
-                  <span className="font-medium text-gray-900">{service}</span>
+          {invitation?.includeDiscovery ? (
+            <>
+              <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-xl border border-amber-100 mb-4">
+                <Compass className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-amber-900">First: Destination Discovery</p>
+                  <p className="text-sm text-amber-700 mt-1">
+                    A 15-minute questionnaire to understand your goals. We'll then recommend 
+                    the best path forward for you.
+                  </p>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+              {invitation.services.length > 0 && (
+                <>
+                  <h3 className="text-sm font-medium text-gray-500 mb-3">Pre-selected services:</h3>
+                  <div className="space-y-2">
+                    {invitation.services.map((service, i) => {
+                      const Icon = serviceIcons[service] || Target;
+                      return (
+                        <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                          <Icon className="w-5 h-5 text-indigo-600" />
+                          <span className="font-medium text-gray-900">{service}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <h3 className="text-sm font-medium text-gray-500 mb-3">You'll have access to:</h3>
+              <div className="space-y-2">
+                {invitation?.services.map((service, i) => {
+                  const Icon = serviceIcons[service] || Target;
+                  return (
+                    <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      <Icon className="w-5 h-5 text-indigo-600" />
+                      <span className="font-medium text-gray-900">{service}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Form */}
