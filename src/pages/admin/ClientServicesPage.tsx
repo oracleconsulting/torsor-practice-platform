@@ -30,23 +30,28 @@ interface ClientServicesPageProps {
   onNavigate: (page: Page) => void;
 }
 
-// Service Lines - these are your client-facing programs
+// All 9 Service Lines - BSG Complete Offering
 const SERVICE_LINES = [
+  // Week 1 Ready
   { 
     id: '365_method', 
     code: '365_method',
-    name: '365 Alignment Program',
+    name: '365 Alignment Programme',
     description: 'Life-first business transformation with 5-year vision, 6-month shift, and 12-week sprints',
     icon: Target,
-    color: 'indigo'
+    color: 'indigo',
+    monthlyRevenue: 5000,
+    status: 'ready'
   },
   { 
-    id: 'management_accounts', 
-    code: 'management_accounts',
-    name: 'Management Accounts',
-    description: 'Monthly financial visibility with P&L, Balance Sheet, KPIs and Cash Flow analysis',
-    icon: LineChart,
-    color: 'emerald'
+    id: 'fractional_cfo', 
+    code: 'fractional_cfo',
+    name: 'Fractional CFO Services',
+    description: 'Strategic financial leadership without the full-time cost',
+    icon: TrendingUp,
+    color: 'blue',
+    monthlyRevenue: 6000,
+    status: 'ready'
   },
   { 
     id: 'systems_audit', 
@@ -54,15 +59,72 @@ const SERVICE_LINES = [
     name: 'Systems Audit',
     description: 'Identify and fix operational bottlenecks, integrate systems, eliminate manual workarounds',
     icon: Settings,
-    color: 'amber'
+    color: 'amber',
+    monthlyRevenue: 3000,
+    status: 'ready'
   },
   { 
-    id: 'fractional_executive', 
-    code: 'fractional_executive',
-    name: 'Fractional CFO/COO',
-    description: 'Executive expertise on a part-time basis for scaling businesses',
+    id: 'management_accounts', 
+    code: 'management_accounts',
+    name: 'Management Accounts',
+    description: 'Monthly financial visibility with P&L, Balance Sheet, KPIs and Cash Flow analysis',
+    icon: LineChart,
+    color: 'emerald',
+    monthlyRevenue: 650,
+    status: 'ready'
+  },
+  // Week 2-3 Ready
+  { 
+    id: 'combined_advisory', 
+    code: 'combined_advisory',
+    name: 'Combined CFO/COO Advisory',
+    description: 'Executive partnership covering both financial and operational strategy',
     icon: Users,
-    color: 'purple'
+    color: 'purple',
+    monthlyRevenue: 10000,
+    status: 'ready'
+  },
+  { 
+    id: 'fractional_coo', 
+    code: 'fractional_coo',
+    name: 'Fractional COO Services',
+    description: 'Operational leadership to build systems that run without you',
+    icon: Briefcase,
+    color: 'cyan',
+    monthlyRevenue: 5500,
+    status: 'development'
+  },
+  // Week 2-4 Development
+  { 
+    id: 'business_advisory', 
+    code: 'business_advisory',
+    name: 'Business Advisory & Exit Planning',
+    description: 'Protect and maximise the value you\'ve built',
+    icon: Target,
+    color: 'rose',
+    monthlyRevenue: 9000,
+    status: 'development'
+  },
+  { 
+    id: 'automation', 
+    code: 'automation',
+    name: 'Automation Services',
+    description: 'Eliminate manual work and unlock your team\'s potential',
+    icon: Settings,
+    color: 'orange',
+    monthlyRevenue: 1500,
+    status: 'development'
+  },
+  // Month 2 Development
+  { 
+    id: 'benchmarking', 
+    code: 'benchmarking',
+    name: 'Benchmarking Services',
+    description: 'Know exactly how you compare to your industry peers',
+    icon: LineChart,
+    color: 'teal',
+    monthlyRevenue: 2000,
+    status: 'development'
   }
 ];
 

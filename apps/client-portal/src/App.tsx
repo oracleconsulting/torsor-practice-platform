@@ -16,6 +16,7 @@ import TasksPage from './pages/roadmap/TasksPage';
 import ChatPage from './pages/chat/ChatPage';
 import AppointmentsPage from './pages/appointments/AppointmentsPage';
 import ServiceAssessmentPage from './pages/services/ServiceAssessmentPage';
+import DestinationDiscoveryPage from './pages/discovery/DestinationDiscoveryPage';
 
 function App() {
   return (
@@ -50,6 +51,9 @@ function App() {
             
             {/* Service Line Assessments */}
             <Route path="/service/:serviceCode/assessment" element={<ServiceAssessmentPage />} />
+            
+            {/* Destination Discovery */}
+            <Route path="/discovery" element={<DestinationDiscoveryPage />} />
           </Route>
           
           {/* Catch all */}

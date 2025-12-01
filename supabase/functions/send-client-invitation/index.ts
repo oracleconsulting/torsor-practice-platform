@@ -20,6 +20,7 @@ interface InvitationRequest {
   invitedBy: string;  // Team member ID
   serviceLineCodes: string[];  // Which services to invite to
   customMessage?: string;
+  includeDiscovery?: boolean;  // Whether to start with Destination Discovery
 }
 
 serve(async (req) => {
@@ -33,7 +34,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    const { email, name, practiceId, invitedBy, serviceLineCodes, customMessage }: InvitationRequest = await req.json();
+    const { email, name, practiceId, invitedBy, serviceLineCodes, customMessage, includeDiscovery }: InvitationRequest = await req.json();
 
     // Validate required fields
     if (!email || !practiceId || !invitedBy || !serviceLineCodes?.length) {
@@ -113,7 +114,8 @@ serve(async (req) => {
         service_line_ids: serviceLineIds,
         invitation_token: token,
         expires_at: expiresAt.toISOString(),
-        status: 'pending'
+        status: 'pending',
+        include_discovery: includeDiscovery || false
       })
       .select()
       .single();
@@ -142,6 +144,32 @@ serve(async (req) => {
     const resendKey = Deno.env.get('RESEND_API_KEY');
     if (resendKey) {
       try {
+        // Different email content based on whether we're starting with discovery
+        const discoveryIntro = includeDiscovery ? `
+          <div style="background: #fef3c7; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <p style="color: #92400e; margin: 0; font-weight: bold;">✨ First: A 15-minute Discovery</p>
+            <p style="color: #92400e; margin: 10px 0 0 0; font-size: 14px;">
+              Before we dive in, we'd love to understand where you're trying to get to. 
+              You'll complete a brief questionnaire about your goals, and we'll recommend 
+              the best path forward for you.
+            </p>
+          </div>
+        ` : '';
+
+        const servicesSection = includeDiscovery && serviceLineCodes.length === 0 ? `
+          <p style="color: #64748b; line-height: 1.6;">
+            We'll help you discover which of our services best match your goals.
+          </p>
+        ` : `
+          <p style="color: #64748b; line-height: 1.6;">
+            ${inviter?.name || 'Your advisor'} at <strong>${practice?.name || 'the practice'}</strong> 
+            has invited you to join:
+          </p>
+          <ul style="color: #334155; line-height: 1.8;">
+            ${serviceLineNames.map(sn => `<li><strong>${sn}</strong></li>`).join('')}
+          </ul>
+        `;
+
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <div style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); padding: 40px; text-align: center;">
@@ -151,14 +179,9 @@ serve(async (req) => {
             <div style="padding: 40px; background: #f8fafc;">
               <p style="font-size: 18px; color: #334155;">Hi ${name || 'there'},</p>
               
-              <p style="color: #64748b; line-height: 1.6;">
-                ${inviter?.name || 'Your advisor'} at <strong>${practice?.name || 'the practice'}</strong> 
-                has invited you to join:
-              </p>
+              ${servicesSection}
               
-              <ul style="color: #334155; line-height: 1.8;">
-                ${serviceLineNames.map(sn => `<li><strong>${sn}</strong></li>`).join('')}
-              </ul>
+              ${discoveryIntro}
               
               ${customMessage ? `
                 <div style="background: white; border-left: 4px solid #6366f1; padding: 15px; margin: 20px 0;">
@@ -171,7 +194,7 @@ serve(async (req) => {
                    style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); 
                           color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px;
                           font-weight: bold; font-size: 16px;">
-                  Accept Invitation
+                  ${includeDiscovery ? 'Start Discovery' : 'Accept Invitation'}
                 </a>
               </div>
               

@@ -1,0 +1,544 @@
+// ============================================================================
+// DESTINATION DISCOVERY PAGE
+// ============================================================================
+// "Sell the destination, not the plane"
+// 35 questions: 20 destination discovery + 15 service diagnostics
+// ============================================================================
+
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
+import { 
+  ChevronLeft, ChevronRight, Target, Compass, MapPin, 
+  Sparkles, CheckCircle, Loader2, ArrowRight, Zap
+} from 'lucide-react';
+
+interface Question {
+  question_id: string;
+  section: string;
+  question_text: string;
+  question_type: 'single' | 'multi' | 'text';
+  options?: string[];
+  placeholder?: string;
+  char_limit?: number;
+  is_required: boolean;
+}
+
+interface ServiceRecommendation {
+  rank: number;
+  service: {
+    code: string;
+    name: string;
+    shortDescription: string;
+    typicalMonthly: string;
+  };
+  valueProposition: {
+    headline: string;
+    destination: string;
+    gap: string;
+    transformation: string;
+    investment: string;
+    firstStep: string;
+  };
+  score: number;
+  isFoundational?: boolean;
+  isBundled?: boolean;
+}
+
+const SECTION_ICONS: Record<string, any> = {
+  'The Dream': Target,
+  'The Gap': MapPin,
+  'Tuesday Reality': Compass,
+  'The Real Question': Sparkles,
+  'Financial Clarity': Zap,
+  'Operational Freedom': Zap,
+  'Strategic Direction': Zap,
+  'Growth Readiness': Zap,
+  'Exit & Protection': Zap
+};
+
+const SECTION_THEMES: Record<string, { bg: string; accent: string }> = {
+  'The Dream': { bg: 'from-indigo-900 to-purple-900', accent: 'indigo' },
+  'The Gap': { bg: 'from-amber-900 to-orange-900', accent: 'amber' },
+  'Tuesday Reality': { bg: 'from-slate-800 to-zinc-900', accent: 'slate' },
+  'The Real Question': { bg: 'from-emerald-900 to-teal-900', accent: 'emerald' },
+  'Financial Clarity': { bg: 'from-blue-900 to-cyan-900', accent: 'blue' },
+  'Operational Freedom': { bg: 'from-violet-900 to-purple-900', accent: 'violet' },
+  'Strategic Direction': { bg: 'from-rose-900 to-pink-900', accent: 'rose' },
+  'Growth Readiness': { bg: 'from-green-900 to-emerald-900', accent: 'green' },
+  'Exit & Protection': { bg: 'from-orange-900 to-red-900', accent: 'orange' }
+};
+
+export default function DestinationDiscoveryPage() {
+  const { clientSession } = useAuth();
+  const navigate = useNavigate();
+  
+  const [phase, setPhase] = useState<'intro' | 'discovery' | 'diagnostic' | 'results'>('intro');
+  const [sections, setSections] = useState<Record<string, Question[]>>({});
+  const [sectionOrder, setSectionOrder] = useState<string[]>([]);
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
+  const [responses, setResponses] = useState<Record<string, any>>({});
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [recommendations, setRecommendations] = useState<ServiceRecommendation[]>([]);
+
+  // Load questions
+  useEffect(() => {
+    loadQuestions();
+  }, []);
+
+  const loadQuestions = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-service-recommendations', {
+        body: { action: 'get-discovery-questions' }
+      });
+
+      if (error) throw error;
+
+      // Combine discovery and diagnostic questions
+      const allSections = {
+        ...data.discoveryQuestions,
+        ...data.diagnosticQuestions
+      };
+
+      setSections(allSections);
+      setSectionOrder(Object.keys(allSections));
+      setLoading(false);
+    } catch (err) {
+      console.error('Error loading questions:', err);
+      setLoading(false);
+    }
+  };
+
+  const currentSection = sectionOrder[currentSectionIndex];
+  const currentQuestions = sections[currentSection] || [];
+  const isLastSection = currentSectionIndex === sectionOrder.length - 1;
+  const theme = SECTION_THEMES[currentSection] || SECTION_THEMES['The Dream'];
+  const SectionIcon = SECTION_ICONS[currentSection] || Target;
+
+  const handleResponse = (questionId: string, value: any) => {
+    setResponses(prev => ({ ...prev, [questionId]: value }));
+  };
+
+  const getSectionCompletion = () => {
+    const required = currentQuestions.filter(q => q.is_required);
+    const answered = required.filter(q => {
+      const val = responses[q.question_id];
+      return val && (Array.isArray(val) ? val.length > 0 : val.length > 0);
+    });
+    return required.length > 0 ? (answered.length / required.length) * 100 : 100;
+  };
+
+  const canProceed = getSectionCompletion() === 100;
+
+  const handleNext = async () => {
+    if (isLastSection) {
+      await submitDiscovery();
+    } else {
+      setCurrentSectionIndex(prev => prev + 1);
+      window.scrollTo(0, 0);
+    }
+  };
+
+  const handlePrevious = () => {
+    if (currentSectionIndex > 0) {
+      setCurrentSectionIndex(prev => prev - 1);
+      window.scrollTo(0, 0);
+    }
+  };
+
+  const submitDiscovery = async () => {
+    setSubmitting(true);
+    try {
+      // Split responses into discovery and diagnostic
+      const discoveryResponses: Record<string, any> = {};
+      const diagnosticResponses: Record<string, any> = {};
+
+      Object.entries(responses).forEach(([key, value]) => {
+        if (key.startsWith('dd_')) {
+          discoveryResponses[key] = value;
+        } else if (key.startsWith('sd_')) {
+          diagnosticResponses[key] = value;
+        }
+      });
+
+      const { data, error } = await supabase.functions.invoke('generate-service-recommendations', {
+        body: {
+          action: 'calculate-recommendations',
+          clientId: clientSession?.clientId,
+          discoveryResponses,
+          diagnosticResponses
+        }
+      });
+
+      if (error) throw error;
+
+      setRecommendations(data.recommendations || []);
+      setPhase('results');
+    } catch (err) {
+      console.error('Error submitting discovery:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Intro screen
+  if (phase === 'intro') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="max-w-3xl mx-auto px-4 py-16">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 mb-6">
+              <Compass className="w-10 h-10 text-white" />
+            </div>
+            <h1 className="text-4xl font-bold text-white mb-4">
+              Destination Discovery
+            </h1>
+            <p className="text-xl text-slate-300">
+              Let's find the fastest path to where you want to be
+            </p>
+          </div>
+
+          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700">
+            <h2 className="text-2xl font-semibold text-white mb-6">
+              This isn't a typical consultation
+            </h2>
+            
+            <div className="space-y-6 mb-8">
+              <div className="flex gap-4">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                  <span className="text-indigo-400 font-bold">1</span>
+                </div>
+                <div>
+                  <h3 className="text-white font-medium">First, your destination</h3>
+                  <p className="text-slate-400 text-sm">
+                    We'll understand where you're trying to get to - your 5-year vision, what success feels like, what freedom means to you.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center">
+                  <span className="text-amber-400 font-bold">2</span>
+                </div>
+                <div>
+                  <h3 className="text-white font-medium">Then, the gap</h3>
+                  <p className="text-slate-400 text-sm">
+                    We'll identify what's standing between you and that vision - the real obstacles, not the symptoms.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                  <span className="text-emerald-400 font-bold">3</span>
+                </div>
+                <div>
+                  <h3 className="text-white font-medium">Finally, the path</h3>
+                  <p className="text-slate-400 text-sm">
+                    We'll recommend the vehicles that will get you there fastest - personalized to your specific situation.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-slate-900/50 rounded-lg p-4 mb-8">
+              <p className="text-slate-300 text-sm">
+                <span className="text-indigo-400 font-medium">~15 minutes</span> • 35 questions • No sales pitch, just clarity
+              </p>
+            </div>
+
+            <button
+              onClick={() => setPhase('discovery')}
+              className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:from-indigo-600 hover:to-purple-700 transition-all"
+            >
+              Let's Begin
+              <ArrowRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Results screen
+  if (phase === 'results') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="max-w-4xl mx-auto px-4 py-12">
+          <div className="text-center mb-12">
+            <CheckCircle className="w-16 h-16 text-emerald-400 mx-auto mb-4" />
+            <h1 className="text-3xl font-bold text-white mb-2">
+              Your Path Forward
+            </h1>
+            <p className="text-slate-400">
+              Based on your responses, here's what we recommend
+            </p>
+          </div>
+
+          <div className="space-y-6">
+            {recommendations.map((rec, idx) => (
+              <div 
+                key={rec.service.code}
+                className={`bg-slate-800/50 backdrop-blur rounded-2xl p-6 border ${
+                  idx === 0 ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-slate-700'
+                }`}
+              >
+                {idx === 0 && (
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/20 rounded-full text-indigo-400 text-sm font-medium mb-4">
+                    <Sparkles className="w-4 h-4" />
+                    Primary Recommendation
+                  </div>
+                )}
+
+                <h2 className="text-2xl font-bold text-white mb-1">
+                  {rec.valueProposition.headline}
+                </h2>
+                <p className="text-lg text-slate-400 mb-4">
+                  {rec.service.name}
+                </p>
+
+                <div className="space-y-4 mb-6">
+                  {rec.valueProposition.destination && (
+                    <div className="bg-slate-900/50 rounded-lg p-4">
+                      <p className="text-slate-300 italic">
+                        {rec.valueProposition.destination}
+                      </p>
+                    </div>
+                  )}
+
+                  {rec.valueProposition.gap && (
+                    <p className="text-amber-400">
+                      {rec.valueProposition.gap}
+                    </p>
+                  )}
+
+                  <p className="text-white">
+                    {rec.valueProposition.transformation}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-4 border-t border-slate-700">
+                  <div>
+                    <p className="text-slate-400 text-sm">Typical investment</p>
+                    <p className="text-white font-semibold">{rec.service.typicalMonthly}/month</p>
+                  </div>
+                  <button className="px-6 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors">
+                    Learn More
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 text-center">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="text-slate-400 hover:text-white transition-colors"
+            >
+              Return to Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+      </div>
+    );
+  }
+
+  // Main questionnaire
+  return (
+    <div className={`min-h-screen bg-gradient-to-br ${theme.bg}`}>
+      {/* Progress bar */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-slate-900/80 backdrop-blur">
+        <div className="h-1 bg-slate-700">
+          <div 
+            className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-300"
+            style={{ width: `${((currentSectionIndex + 1) / sectionOrder.length) * 100}%` }}
+          />
+        </div>
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-slate-400 text-sm">
+            <SectionIcon className="w-4 h-4" />
+            <span>{currentSection}</span>
+          </div>
+          <div className="text-slate-500 text-sm">
+            {currentSectionIndex + 1} of {sectionOrder.length}
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-3xl mx-auto px-4 pt-24 pb-32">
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-white mb-2">
+            {currentSection}
+          </h2>
+          <div className="h-1 w-24 bg-gradient-to-r from-white/50 to-transparent rounded" />
+        </div>
+
+        <div className="space-y-8">
+          {currentQuestions.map((question, qIdx) => (
+            <QuestionCard
+              key={question.question_id}
+              question={question}
+              value={responses[question.question_id]}
+              onChange={(val) => handleResponse(question.question_id, val)}
+              index={qIdx + 1}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur border-t border-slate-700">
+        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+          <button
+            onClick={handlePrevious}
+            disabled={currentSectionIndex === 0}
+            className="flex items-center gap-2 px-4 py-2 text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft className="w-5 h-5" />
+            Previous
+          </button>
+
+          <button
+            onClick={handleNext}
+            disabled={!canProceed || submitting}
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Analyzing...
+              </>
+            ) : isLastSection ? (
+              <>
+                See My Recommendations
+                <Sparkles className="w-5 h-5" />
+              </>
+            ) : (
+              <>
+                Continue
+                <ChevronRight className="w-5 h-5" />
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// QUESTION CARD COMPONENT
+// ============================================================================
+
+function QuestionCard({ 
+  question, 
+  value, 
+  onChange,
+  index 
+}: { 
+  question: Question;
+  value: any;
+  onChange: (val: any) => void;
+  index: number;
+}) {
+  const options = question.options ? 
+    (typeof question.options === 'string' ? JSON.parse(question.options) : question.options) 
+    : [];
+
+  return (
+    <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+      <div className="flex gap-4">
+        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+          <span className="text-white/60 text-sm font-medium">{index}</span>
+        </div>
+        <div className="flex-1">
+          <label className="block text-lg text-white font-medium mb-4">
+            {question.question_text}
+            {question.is_required && <span className="text-rose-400 ml-1">*</span>}
+          </label>
+
+          {question.question_type === 'text' && (
+            <textarea
+              value={value || ''}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder={question.placeholder || ''}
+              maxLength={question.char_limit || 500}
+              className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+              rows={4}
+            />
+          )}
+
+          {question.question_type === 'single' && options.length > 0 && (
+            <div className="space-y-2">
+              {options.map((option: string) => (
+                <button
+                  key={option}
+                  onClick={() => onChange(option)}
+                  className={`w-full px-4 py-3 rounded-lg text-left transition-all ${
+                    value === option
+                      ? 'bg-indigo-500 text-white border-2 border-indigo-400'
+                      : 'bg-slate-900/50 text-slate-300 border border-slate-600 hover:border-slate-500'
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {question.question_type === 'multi' && options.length > 0 && (
+            <div className="space-y-2">
+              {options.map((option: string) => {
+                const selected = Array.isArray(value) && value.includes(option);
+                return (
+                  <button
+                    key={option}
+                    onClick={() => {
+                      const current = Array.isArray(value) ? value : [];
+                      if (selected) {
+                        onChange(current.filter(v => v !== option));
+                      } else {
+                        onChange([...current, option]);
+                      }
+                    }}
+                    className={`w-full px-4 py-3 rounded-lg text-left transition-all flex items-center gap-3 ${
+                      selected
+                        ? 'bg-indigo-500/20 text-white border-2 border-indigo-400'
+                        : 'bg-slate-900/50 text-slate-300 border border-slate-600 hover:border-slate-500'
+                    }`}
+                  >
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                      selected ? 'border-indigo-400 bg-indigo-500' : 'border-slate-500'
+                    }`}>
+                      {selected && <CheckCircle className="w-3 h-3 text-white" />}
+                    </div>
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {question.char_limit && question.question_type === 'text' && (
+            <p className="text-slate-500 text-sm mt-2 text-right">
+              {(value?.length || 0)} / {question.char_limit}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
