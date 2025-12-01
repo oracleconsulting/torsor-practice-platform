@@ -23,7 +23,7 @@ import {
   Settings
 } from 'lucide-react';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients';
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments';
 
 interface ClientServicesPageProps {
   currentPage: Page;

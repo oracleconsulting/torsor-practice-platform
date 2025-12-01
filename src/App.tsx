@@ -7,6 +7,7 @@ import { SkillsManagementPage } from './pages/admin/SkillsManagementPage';
 import { ServiceReadinessPage } from './pages/admin/ServiceReadinessPage';
 import { TeamAnalyticsPage } from './pages/admin/TeamAnalyticsPage';
 import { ClientServicesPage } from './pages/admin/ClientServicesPage';
+import { AssessmentPreviewPage } from './pages/admin/AssessmentPreviewPage';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -18,7 +19,7 @@ const queryClient = new QueryClient({
   },
 });
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients';
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -47,6 +48,10 @@ function AppContent() {
 
   if (currentPage === 'clients') {
     return <ClientServicesPage {...navProps} />;
+  }
+
+  if (currentPage === 'assessments') {
+    return <AssessmentPreviewPage {...navProps} />;
   }
 
   if (currentPage === 'management') {

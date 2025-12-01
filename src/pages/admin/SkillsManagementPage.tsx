@@ -6,8 +6,8 @@ import { Navigation } from '../../components/Navigation';
 import { Plus, Download } from 'lucide-react';
 
 interface SkillsManagementPageProps {
-  onNavigate: (page: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients') => void;
-  currentPage: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients';
+  onNavigate: (page: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments') => void;
+  currentPage: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments';
 }
 
 export function SkillsManagementPage({ onNavigate, currentPage }: SkillsManagementPageProps) {
