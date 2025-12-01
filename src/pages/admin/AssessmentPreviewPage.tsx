@@ -11,7 +11,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { 
   ArrowLeft, Eye, Edit2, Save, X, ChevronDown, ChevronRight,
   Target, LineChart, Settings, Users, CheckCircle, AlertCircle,
-  Loader2, RefreshCw, Gem
+  Loader2, RefreshCw, Gem, Compass, Zap, TrendingUp, Briefcase,
+  BarChart3, Shield
 } from 'lucide-react';
 
 type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments';
@@ -40,12 +41,40 @@ interface DbQuestion {
   updated_at: string;
 }
 
-const SERVICE_LINE_INFO = [
-  { code: 'management_accounts', name: 'Management Accounts', title: 'Financial Visibility Diagnostic', icon: LineChart, color: 'emerald' },
-  { code: 'systems_audit', name: 'Systems Audit', title: 'Operations Health Check', icon: Settings, color: 'amber' },
-  { code: 'fractional_executive', name: 'Fractional CFO/COO', title: 'Executive Capacity Diagnostic', icon: Users, color: 'purple' },
-  { code: 'hidden_value_audit', name: 'Hidden Value Audit', title: 'Discover Hidden Business Value', icon: Gem, color: 'rose' },
+// Group assessments by type
+const ASSESSMENT_GROUPS = [
+  {
+    title: 'Client Discovery',
+    subtitle: 'Understand where clients want to go',
+    assessments: [
+      { code: 'destination_discovery', name: 'Destination Discovery', title: '20 questions to understand goals and vision', icon: Compass, color: 'indigo', questionCount: 20 },
+      { code: 'service_diagnostic', name: 'Service Diagnostics', title: '15 questions to map needs to services', icon: Zap, color: 'amber', questionCount: 15 },
+    ]
+  },
+  {
+    title: 'Service Line Onboarding',
+    subtitle: 'Detailed assessments for each service',
+    assessments: [
+      { code: 'management_accounts', name: 'Management Accounts', title: 'Financial Visibility Diagnostic', icon: LineChart, color: 'emerald' },
+      { code: 'systems_audit', name: 'Systems Audit', title: 'Operations Health Check', icon: Settings, color: 'cyan' },
+      { code: 'fractional_cfo', name: 'Fractional CFO', title: 'Financial Leadership Diagnostic', icon: TrendingUp, color: 'blue' },
+      { code: 'fractional_coo', name: 'Fractional COO', title: 'Operational Leadership Diagnostic', icon: Briefcase, color: 'violet' },
+      { code: 'combined_advisory', name: 'Combined CFO/COO', title: 'Executive Capacity Diagnostic', icon: Users, color: 'purple' },
+      { code: 'business_advisory', name: 'Business Advisory & Exit', title: 'Value Protection Diagnostic', icon: Shield, color: 'rose' },
+      { code: 'benchmarking', name: 'Benchmarking', title: 'Industry Comparison Assessment', icon: BarChart3, color: 'teal' },
+    ]
+  },
+  {
+    title: 'Value Discovery',
+    subtitle: 'Deep analysis of hidden value',
+    assessments: [
+      { code: 'hidden_value_audit', name: 'Hidden Value Audit', title: '32 questions across 6 sections', icon: Gem, color: 'rose', questionCount: 32 },
+    ]
+  }
 ];
+
+// Flattened for lookup
+const SERVICE_LINE_INFO = ASSESSMENT_GROUPS.flatMap(g => g.assessments);
 
 export function AssessmentPreviewPage(_props: AssessmentPreviewPageProps) {
   const { user } = useAuth();
@@ -152,7 +181,7 @@ export function AssessmentPreviewPage(_props: AssessmentPreviewPageProps) {
   if (!selectedService) {
     return (
       <div className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-gray-900">Assessment Preview & Editor</h1>
             <p className="text-gray-600 mt-1">
@@ -160,33 +189,67 @@ export function AssessmentPreviewPage(_props: AssessmentPreviewPageProps) {
             </p>
           </div>
 
-          <div className="grid gap-4">
-            {SERVICE_LINE_INFO.map((service) => {
-              const Icon = service.icon;
-              return (
-                <button
-                  key={service.code}
-                  onClick={() => setSelectedService(service.code)}
-                  className="bg-white rounded-xl border border-gray-200 p-6 text-left hover:border-gray-300 hover:shadow-md transition-all group"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className={`p-3 rounded-xl bg-${service.color}-100`}>
-                      <Icon className={`w-6 h-6 text-${service.color}-600`} />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                        {service.name}
-                      </h3>
-                      <p className="text-gray-600 mt-1">{service.title}</p>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 transition-colors" />
-                  </div>
-                </button>
-              );
-            })}
+          <div className="space-y-8">
+            {ASSESSMENT_GROUPS.map((group) => (
+              <div key={group.title}>
+                <div className="mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">{group.title}</h2>
+                  <p className="text-sm text-gray-500">{group.subtitle}</p>
+                </div>
+                
+                <div className="grid gap-3 md:grid-cols-2">
+                  {group.assessments.map((service) => {
+                    const Icon = service.icon;
+                    return (
+                      <button
+                        key={service.code}
+                        onClick={() => setSelectedService(service.code)}
+                        className="bg-white rounded-xl border border-gray-200 p-5 text-left hover:border-gray-300 hover:shadow-md transition-all group"
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className={`p-3 rounded-xl bg-${service.color}-100`}>
+                            <Icon className={`w-5 h-5 text-${service.color}-600`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors truncate">
+                                {service.name}
+                              </h3>
+                              {(service as any).questionCount && (
+                                <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">
+                                  {(service as any).questionCount} Qs
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-500 mt-1 truncate">{service.title}</p>
+                          </div>
+                          <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 transition-colors flex-shrink-0" />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
 
-          <div className="mt-8 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+          {/* Stats Overview */}
+          <div className="mt-8 grid grid-cols-3 gap-4">
+            <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+              <div className="text-2xl font-bold text-indigo-600">35</div>
+              <div className="text-sm text-indigo-700">Discovery Questions</div>
+            </div>
+            <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+              <div className="text-2xl font-bold text-emerald-600">7</div>
+              <div className="text-sm text-emerald-700">Service Onboardings</div>
+            </div>
+            <div className="bg-rose-50 rounded-xl p-4 border border-rose-100">
+              <div className="text-2xl font-bold text-rose-600">32</div>
+              <div className="text-sm text-rose-700">Value Audit Questions</div>
+            </div>
+          </div>
+
+          <div className="mt-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
             <div className="flex items-start gap-3">
               <CheckCircle className="w-5 h-5 text-emerald-600 mt-0.5" />
               <div>
