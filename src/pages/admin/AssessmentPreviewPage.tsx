@@ -76,7 +76,7 @@ const ASSESSMENT_GROUPS = [
 // Flattened for lookup
 const SERVICE_LINE_INFO = ASSESSMENT_GROUPS.flatMap(g => g.assessments);
 
-export function AssessmentPreviewPage(_props: AssessmentPreviewPageProps) {
+export function AssessmentPreviewPage({ onNavigate }: AssessmentPreviewPageProps) {
   const { user } = useAuth();
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<'edit' | 'preview'>('edit');
@@ -182,6 +182,15 @@ export function AssessmentPreviewPage(_props: AssessmentPreviewPageProps) {
     return (
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-5xl mx-auto">
+          {/* Back to Dashboard */}
+          <button
+            onClick={() => onNavigate('clients')}
+            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 group"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            <span>Back to Dashboard</span>
+          </button>
+
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-gray-900">Assessment Preview & Editor</h1>
             <p className="text-gray-600 mt-1">
