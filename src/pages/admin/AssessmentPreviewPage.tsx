@@ -11,7 +11,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { 
   ArrowLeft, Eye, Edit2, Save, X, ChevronDown, ChevronRight,
   Target, LineChart, Settings, Users, CheckCircle, AlertCircle,
-  Loader2, History, RefreshCw
+  Loader2, RefreshCw
 } from 'lucide-react';
 
 type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments';
@@ -46,7 +46,7 @@ const SERVICE_LINE_INFO = [
   { code: 'fractional_executive', name: 'Fractional CFO/COO', title: 'Executive Capacity Diagnostic', icon: Users, color: 'purple' },
 ];
 
-export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPreviewPageProps) {
+export function AssessmentPreviewPage(_props: AssessmentPreviewPageProps) {
   const { user } = useAuth();
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<'edit' | 'preview'>('edit');
