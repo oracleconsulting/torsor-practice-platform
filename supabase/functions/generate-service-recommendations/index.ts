@@ -275,9 +275,9 @@ async function generateValueProposition(
     case 'systems_audit':
       vp.headline = 'From firefighting to flowing';
       if (anchors.tuesdayMagicWand) {
-        vp.transformation = `You said you'd magic away: "${anchors.tuesdayMagicWand}". Let's make that disappear - permanently.`;
+        vp.transformation = `You said you would magic away: "${anchors.tuesdayMagicWand}". Let us make that disappear - permanently.`;
       } else {
-        vp.transformation = 'We'll find every bottleneck, every workaround, every data silo - and give you a clear roadmap to fix them.';
+        vp.transformation = 'We will find every bottleneck, every workaround, every data silo - and give you a clear roadmap to fix them.';
       }
       vp.investment = 'One-time investment that pays dividends in time saved forever.';
       vp.firstStep = 'A 2-hour discovery call to map your current systems landscape.';
@@ -292,7 +292,7 @@ async function generateValueProposition(
 
     case 'combined_advisory':
       vp.headline = 'Board-level thinking, on-demand';
-      vp.transformation = `You said you figure things out yourself. "${anchors.operationalFrustration || 'Complex decisions'}" don't have to be solo anymore.`;
+      vp.transformation = `You said you figure things out yourself. "${anchors.operationalFrustration || 'Complex decisions'}" do not have to be solo anymore.`;
       vp.investment = 'Executive partnership for both financial AND operational strategy.';
       vp.firstStep = 'A strategic review to understand where advisory would add most value.';
       break;
