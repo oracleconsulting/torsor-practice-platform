@@ -11,7 +11,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { 
   ArrowLeft, Eye, Edit2, Save, X, ChevronDown, ChevronRight,
   Target, LineChart, Settings, Users, CheckCircle, AlertCircle,
-  Loader2, RefreshCw
+  Loader2, RefreshCw, Gem
 } from 'lucide-react';
 
 type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments';
@@ -44,6 +44,7 @@ const SERVICE_LINE_INFO = [
   { code: 'management_accounts', name: 'Management Accounts', title: 'Financial Visibility Diagnostic', icon: LineChart, color: 'emerald' },
   { code: 'systems_audit', name: 'Systems Audit', title: 'Operations Health Check', icon: Settings, color: 'amber' },
   { code: 'fractional_executive', name: 'Fractional CFO/COO', title: 'Executive Capacity Diagnostic', icon: Users, color: 'purple' },
+  { code: 'hidden_value_audit', name: 'Hidden Value Audit', title: 'Discover Hidden Business Value', icon: Gem, color: 'rose' },
 ];
 
 export function AssessmentPreviewPage(_props: AssessmentPreviewPageProps) {
