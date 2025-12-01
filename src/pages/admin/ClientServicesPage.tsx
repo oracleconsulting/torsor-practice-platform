@@ -200,7 +200,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
 
       alert(response.data.message || 'Invitation sent successfully!');
       setShowInviteModal(false);
-      setInviteForm({ email: '', name: '', services: [], customMessage: '' });
+      setInviteForm({ email: '', name: '', company: '', services: [], customMessage: '', inviteType: 'discovery' });
       
       // Refresh clients list
       if (selectedServiceLine) {
