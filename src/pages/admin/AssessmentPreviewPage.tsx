@@ -13,8 +13,9 @@ import {
   ArrowLeft, Eye, Edit2, Save, X, ChevronDown, ChevronRight,
   Target, LineChart, Settings, Users, CheckCircle, AlertCircle,
   Loader2, RefreshCw, Gem, Compass, Zap, TrendingUp, Briefcase,
-  BarChart3, Shield
+  BarChart3, Shield, Mail, Send
 } from 'lucide-react';
+import { useCurrentMember } from '../../hooks/useCurrentMember';
 
 type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config';
 
@@ -79,6 +80,7 @@ const SERVICE_LINE_INFO = ASSESSMENT_GROUPS.flatMap(g => g.assessments);
 
 export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPreviewPageProps) {
   const { user } = useAuth();
+  const { data: currentMember } = useCurrentMember(user?.id);
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<'edit' | 'preview'>('edit');
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
@@ -90,6 +92,16 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  
+  // Share for review modal
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareForm, setShareForm] = useState({
+    recipientEmail: '',
+    recipientName: '',
+    assessmentType: 'discovery' as 'discovery' | 'service_onboarding' | 'value_audit' | 'all',
+    customMessage: ''
+  });
+  const [sendingReview, setSendingReview] = useState(false);
   
   // Edit state
   const [editForm, setEditForm] = useState<{
@@ -175,6 +187,42 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
     setEditForm({ question_text: '', options: [], placeholder: '' });
   };
 
+  const handleSendReview = async () => {
+    if (!shareForm.recipientEmail || !currentMember?.practice_id) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    setSendingReview(true);
+    setError(null);
+
+    try {
+      const { error: fnError } = await supabase.functions.invoke('send-assessment-review', {
+        body: {
+          recipientEmail: shareForm.recipientEmail,
+          recipientName: shareForm.recipientName,
+          senderName: currentMember?.name || 'Team Member',
+          senderEmail: currentMember?.email,
+          practiceId: currentMember.practice_id,
+          assessmentType: shareForm.assessmentType,
+          customMessage: shareForm.customMessage
+        }
+      });
+
+      if (fnError) throw fnError;
+      
+      setSuccessMessage(`Review request sent to ${shareForm.recipientEmail}`);
+      setShowShareModal(false);
+      setShareForm({ recipientEmail: '', recipientName: '', assessmentType: 'discovery', customMessage: '' });
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (err) {
+      console.error('Error sending review:', err);
+      setError('Failed to send review request. Please try again.');
+    } finally {
+      setSendingReview(false);
+    }
+  };
+
   // Get unique sections
   const sections = [...new Set(questions.map(q => q.section))];
 
@@ -186,12 +234,29 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
         
         <main className="ml-64 p-8">
           <div className="max-w-5xl">
-            <div className="mb-8">
-              <h1 className="text-2xl font-bold text-gray-900">Assessment Preview & Editor</h1>
-              <p className="text-gray-600 mt-1">
-                Edit assessment questions - changes are saved to the database and used for AI value propositions
-              </p>
+            <div className="flex items-start justify-between mb-8">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Assessment Preview & Editor</h1>
+                <p className="text-gray-600 mt-1">
+                  Edit assessment questions - changes are saved to the database and used for AI value propositions
+                </p>
+              </div>
+              <button
+                onClick={() => setShowShareModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                <Mail className="w-4 h-4" />
+                Share for Review
+              </button>
             </div>
+
+            {/* Success Message */}
+            {successMessage && (
+              <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-3">
+                <CheckCircle className="w-5 h-5 text-emerald-600" />
+                <span className="text-emerald-700">{successMessage}</span>
+              </div>
+            )}
 
           <div className="space-y-8">
             {ASSESSMENT_GROUPS.map((group) => (
@@ -265,6 +330,123 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
             </div>
           </div>
           </div>
+
+          {/* Share for Review Modal */}
+          {showShareModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4">
+                <div className="p-6 border-b border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-indigo-100 rounded-lg">
+                        <Mail className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-bold text-gray-900">Share for Review</h2>
+                        <p className="text-sm text-gray-500">Send assessments to a colleague for feedback</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setShowShareModal(false)}
+                      className="p-2 hover:bg-gray-100 rounded-lg"
+                    >
+                      <X className="w-5 h-5 text-gray-500" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  {error && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600" />
+                      <span className="text-sm text-red-700">{error}</span>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Recipient Email *
+                    </label>
+                    <input
+                      type="email"
+                      value={shareForm.recipientEmail}
+                      onChange={(e) => setShareForm(prev => ({ ...prev, recipientEmail: e.target.value }))}
+                      placeholder="colleague@company.com"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Recipient Name
+                    </label>
+                    <input
+                      type="text"
+                      value={shareForm.recipientName}
+                      onChange={(e) => setShareForm(prev => ({ ...prev, recipientName: e.target.value }))}
+                      placeholder="Jeremy"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Assessments to Review
+                    </label>
+                    <select
+                      value={shareForm.assessmentType}
+                      onChange={(e) => setShareForm(prev => ({ ...prev, assessmentType: e.target.value as typeof shareForm.assessmentType }))}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      <option value="discovery">Client Discovery (Destination + Diagnostics)</option>
+                      <option value="service_onboarding">Service Line Onboarding</option>
+                      <option value="value_audit">Hidden Value Audit</option>
+                      <option value="all">All Assessments</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Message (optional)
+                    </label>
+                    <textarea
+                      value={shareForm.customMessage}
+                      onChange={(e) => setShareForm(prev => ({ ...prev, customMessage: e.target.value }))}
+                      placeholder="Please review these before we send to clients..."
+                      rows={3}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowShareModal(false)}
+                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSendReview}
+                    disabled={sendingReview || !shareForm.recipientEmail}
+                    className="inline-flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {sendingReview ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        Send Review Request
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     );
