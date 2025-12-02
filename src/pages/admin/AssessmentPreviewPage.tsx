@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import { Navigation } from '../../components/Navigation';
 import { 
   ArrowLeft, Eye, Edit2, Save, X, ChevronDown, ChevronRight,
   Target, LineChart, Settings, Users, CheckCircle, AlertCircle,
@@ -76,7 +77,7 @@ const ASSESSMENT_GROUPS = [
 // Flattened for lookup
 const SERVICE_LINE_INFO = ASSESSMENT_GROUPS.flatMap(g => g.assessments);
 
-export function AssessmentPreviewPage({ onNavigate }: AssessmentPreviewPageProps) {
+export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPreviewPageProps) {
   const { user } = useAuth();
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<'edit' | 'preview'>('edit');
@@ -180,23 +181,17 @@ export function AssessmentPreviewPage({ onNavigate }: AssessmentPreviewPageProps
   // Service selection view
   if (!selectedService) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-5xl mx-auto">
-          {/* Back to Dashboard */}
-          <button
-            onClick={() => onNavigate('clients')}
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 group"
-          >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            <span>Back to Dashboard</span>
-          </button>
-
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-900">Assessment Preview & Editor</h1>
-            <p className="text-gray-600 mt-1">
-              Edit assessment questions - changes are saved to the database and used for AI value propositions
-            </p>
-          </div>
+      <div className="min-h-screen bg-gray-50">
+        <Navigation currentPage={currentPage} onNavigate={onNavigate} />
+        
+        <main className="ml-64 p-8">
+          <div className="max-w-5xl">
+            <div className="mb-8">
+              <h1 className="text-2xl font-bold text-gray-900">Assessment Preview & Editor</h1>
+              <p className="text-gray-600 mt-1">
+                Edit assessment questions - changes are saved to the database and used for AI value propositions
+              </p>
+            </div>
 
           <div className="space-y-8">
             {ASSESSMENT_GROUPS.map((group) => (
@@ -269,7 +264,8 @@ export function AssessmentPreviewPage({ onNavigate }: AssessmentPreviewPageProps
               </div>
             </div>
           </div>
-        </div>
+          </div>
+        </main>
       </div>
     );
   }
@@ -279,83 +275,78 @@ export function AssessmentPreviewPage({ onNavigate }: AssessmentPreviewPageProps
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setSelectedService(null)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5 text-gray-600" />
-              </button>
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg bg-${serviceInfo?.color}-100`}>
-                  <Icon className={`w-5 h-5 text-${serviceInfo?.color}-600`} />
-                </div>
-                <div>
-                  <h1 className="font-bold text-gray-900">{serviceInfo?.name}</h1>
-                  <p className="text-sm text-gray-500">{serviceInfo?.title}</p>
-                </div>
+      <Navigation currentPage={currentPage} onNavigate={onNavigate} />
+      
+      <main className="ml-64 p-8">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setSelectedService(null)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-600" />
+            </button>
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg bg-${serviceInfo?.color}-100`}>
+                <Icon className={`w-5 h-5 text-${serviceInfo?.color}-600`} />
+              </div>
+              <div>
+                <h1 className="font-bold text-gray-900">{serviceInfo?.name}</h1>
+                <p className="text-sm text-gray-500">{serviceInfo?.title}</p>
               </div>
             </div>
-            
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => loadQuestions(selectedService)}
-                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                title="Refresh questions"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setPreviewMode('edit')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  previewMode === 'edit' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <Edit2 className="w-4 h-4 inline mr-2" />
-                Edit
-              </button>
-              <button
-                onClick={() => setPreviewMode('preview')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  previewMode === 'preview' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <Eye className="w-4 h-4 inline mr-2" />
-                Preview
-              </button>
-            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => loadQuestions(selectedService)}
+              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              title="Refresh questions"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setPreviewMode('edit')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                previewMode === 'edit' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Edit2 className="w-4 h-4 inline mr-2" />
+              Edit
+            </button>
+            <button
+              onClick={() => setPreviewMode('preview')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                previewMode === 'preview' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Eye className="w-4 h-4 inline mr-2" />
+              Preview
+            </button>
           </div>
         </div>
-      </div>
 
-      {/* Messages */}
-      {error && (
-        <div className="max-w-5xl mx-auto px-4 pt-4">
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+        {/* Messages */}
+        {error && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3 mb-4">
             <AlertCircle className="w-5 h-5 text-red-600" />
             <span className="text-red-700">{error}</span>
             <button onClick={() => setError(null)} className="ml-auto text-red-600 hover:text-red-800">
               <X className="w-4 h-4" />
             </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {successMessage && (
-        <div className="max-w-5xl mx-auto px-4 pt-4">
-          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-3">
+        {successMessage && (
+          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-3 mb-4">
             <CheckCircle className="w-5 h-5 text-emerald-600" />
             <span className="text-emerald-700">{successMessage}</span>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Content */}
-      <div className="max-w-5xl mx-auto px-4 py-8">
+        {/* Content */}
+        <div>
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
@@ -606,7 +597,8 @@ export function AssessmentPreviewPage({ onNavigate }: AssessmentPreviewPageProps
             </div>
           </div>
         )}
-      </div>
+        </div>
+      </main>
     </div>
   );
 }
