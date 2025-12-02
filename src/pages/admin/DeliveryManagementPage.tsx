@@ -9,12 +9,11 @@ import { Navigation } from '../../components/Navigation';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { supabase } from '../../lib/supabase';
-import { ADVISORY_SERVICES } from '../../lib/advisory-services';
 import { 
   ArrowLeft, Plus, ChevronRight, ChevronDown,
   Target, TrendingUp, Settings, LineChart, Briefcase,
   Users2, Clock, User, Activity, BarChart3, Shield,
-  UserPlus, Trash2, Star, Zap, Award, GraduationCap
+  UserPlus, Trash2
 } from 'lucide-react';
 
 type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config';
@@ -27,17 +26,8 @@ interface DeliveryManagementPageProps {
 interface ServiceLine {
   code: string;
   name: string;
-  advisoryId: string; // Maps to ADVISORY_SERVICES id
   icon: any;
   color: string;
-}
-
-interface SkillPerformer {
-  memberId: string;
-  memberName: string;
-  role: string;
-  currentLevel: number;
-  interestLevel: number;
 }
 
 interface DeliveryTeam {
@@ -75,26 +65,14 @@ interface PracticeMember {
 }
 
 const SERVICE_LINES: ServiceLine[] = [
-  { code: '365_method', name: '365 Alignment', advisoryId: '365-alignment', icon: Target, color: 'indigo' },
-  { code: 'management_accounts', name: 'Management Accounts', advisoryId: 'management-accounts', icon: LineChart, color: 'emerald' },
-  { code: 'fractional_cfo', name: 'Fractional CFO', advisoryId: 'fractional-cfo', icon: TrendingUp, color: 'blue' },
-  { code: 'fractional_coo', name: 'Fractional COO', advisoryId: 'fractional-coo', icon: Briefcase, color: 'violet' },
-  { code: 'systems_audit', name: 'Systems Audit', advisoryId: 'systems-audit', icon: Settings, color: 'amber' },
-  { code: 'business_advisory', name: 'Business Advisory', advisoryId: 'profit-extraction', icon: Shield, color: 'rose' },
-  { code: 'benchmarking', name: 'Benchmarking', advisoryId: 'benchmarking', icon: BarChart3, color: 'teal' },
+  { code: '365_method', name: '365 Alignment', icon: Target, color: 'indigo' },
+  { code: 'management_accounts', name: 'Management Accounts', icon: LineChart, color: 'emerald' },
+  { code: 'fractional_cfo', name: 'Fractional CFO', icon: TrendingUp, color: 'blue' },
+  { code: 'fractional_coo', name: 'Fractional COO', icon: Briefcase, color: 'violet' },
+  { code: 'systems_audit', name: 'Systems Audit', icon: Settings, color: 'amber' },
+  { code: 'business_advisory', name: 'Business Advisory', icon: Shield, color: 'rose' },
+  { code: 'benchmarking', name: 'Benchmarking', icon: BarChart3, color: 'teal' },
 ];
-
-// Skills overview data structure
-interface SkillOverview {
-  skillName: string;
-  criticalToDelivery: boolean;
-  minimumLevel: number;
-  idealLevel: number;
-  topPerformers: SkillPerformer[];
-  highPotential: SkillPerformer[];
-  avgLevel: number;
-  coverage: number; // % of team that can deliver
-}
 
 export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryManagementPageProps) {
   const { user } = useAuth();
@@ -106,8 +84,6 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
   const [practiceMembers, setPracticeMembers] = useState<PracticeMember[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [skillsOverview, setSkillsOverview] = useState<SkillOverview[]>([]);
-  const [loadingSkills, setLoadingSkills] = useState(false);
   
   // Modal states
   const [showCreateTeam, setShowCreateTeam] = useState(false);
@@ -121,115 +97,8 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
       loadTeams();
       loadRoles();
       loadPracticeMembers();
-      loadSkillsOverview();
     }
   }, [selectedService, currentMember?.practice_id]);
-
-  // Load skills overview with top performers and high potential
-  const loadSkillsOverview = async () => {
-    if (!currentMember?.practice_id || !selectedService) return;
-    
-    const serviceInfo = SERVICE_LINES.find(s => s.code === selectedService);
-    if (!serviceInfo) return;
-    
-    // Get required skills from ADVISORY_SERVICES
-    const advisoryService = ADVISORY_SERVICES.find(s => s.id === serviceInfo.advisoryId);
-    if (!advisoryService) return;
-    
-    setLoadingSkills(true);
-    
-    try {
-      // Fetch all data in parallel
-      const [membersRes, skillsRes, assessmentsRes] = await Promise.all([
-        supabase
-          .from('practice_members')
-          .select('id, name, role')
-          .eq('practice_id', currentMember.practice_id)
-          .eq('member_type', 'team'),
-        supabase
-          .from('skills')
-          .select('id, name'),
-        supabase
-          .from('skill_assessments')
-          .select('member_id, skill_id, current_level, interest_level')
-      ]);
-
-      const members = membersRes.data || [];
-      const skills = skillsRes.data || [];
-      const assessments = assessmentsRes.data || [];
-      
-      // Create skill name to ID map
-      const skillNameToId = new Map(skills.map(s => [s.name.toLowerCase(), s.id]));
-      const memberMap = new Map(members.map(m => [m.id, { name: m.name, role: m.role }]));
-      
-      // Filter assessments to only this practice's members
-      const memberIds = new Set(members.map(m => m.id));
-      const practiceAssessments = assessments.filter(a => memberIds.has(a.member_id));
-      
-      // Build overview for each required skill
-      const overview: SkillOverview[] = [];
-      
-      for (const reqSkill of advisoryService.requiredSkills) {
-        const skillId = skillNameToId.get(reqSkill.skillName.toLowerCase());
-        if (!skillId) continue;
-        
-        // Get all assessments for this skill
-        const skillAssessments = practiceAssessments
-          .filter(a => a.skill_id === skillId)
-          .map(a => ({
-            memberId: a.member_id,
-            memberName: memberMap.get(a.member_id)?.name || 'Unknown',
-            role: memberMap.get(a.member_id)?.role || '',
-            currentLevel: a.current_level || 0,
-            interestLevel: a.interest_level || 0
-          }));
-        
-        // Top performers: current_level >= minimum level, sorted by level desc
-        const topPerformers = skillAssessments
-          .filter(a => a.currentLevel >= reqSkill.minimumLevel)
-          .sort((a, b) => b.currentLevel - a.currentLevel)
-          .slice(0, 5);
-        
-        // High potential: interest >= 3, current_level < minimum level
-        const highPotential = skillAssessments
-          .filter(a => a.interestLevel >= 3 && a.currentLevel < reqSkill.minimumLevel)
-          .sort((a, b) => b.interestLevel - a.interestLevel || b.currentLevel - a.currentLevel)
-          .slice(0, 5);
-        
-        // Calculate coverage and average
-        const qualifiedCount = skillAssessments.filter(a => a.currentLevel >= reqSkill.minimumLevel).length;
-        const coverage = members.length > 0 ? Math.round((qualifiedCount / members.length) * 100) : 0;
-        const avgLevel = skillAssessments.length > 0 
-          ? skillAssessments.reduce((sum, a) => sum + a.currentLevel, 0) / skillAssessments.length 
-          : 0;
-        
-        overview.push({
-          skillName: reqSkill.skillName,
-          criticalToDelivery: reqSkill.criticalToDelivery,
-          minimumLevel: reqSkill.minimumLevel,
-          idealLevel: reqSkill.idealLevel,
-          topPerformers,
-          highPotential,
-          avgLevel: Math.round(avgLevel * 10) / 10,
-          coverage
-        });
-      }
-      
-      // Sort: critical skills first, then by coverage
-      overview.sort((a, b) => {
-        if (a.criticalToDelivery !== b.criticalToDelivery) {
-          return a.criticalToDelivery ? -1 : 1;
-        }
-        return a.coverage - b.coverage; // Low coverage first (needs attention)
-      });
-      
-      setSkillsOverview(overview);
-    } catch (err) {
-      console.error('Error loading skills overview:', err);
-    } finally {
-      setLoadingSkills(false);
-    }
-  };
 
   const loadTeams = async () => {
     if (!currentMember?.practice_id || !selectedService) return;
@@ -540,111 +409,6 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
               </span>
             ))}
           </div>
-        </div>
-
-        {/* Skills Overview */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                <Award className="w-5 h-5 text-amber-500" />
-                Skills Overview
-              </h3>
-              <p className="text-sm text-gray-500 mt-1">Essential skills for this service and team readiness</p>
-            </div>
-          </div>
-
-          {loadingSkills ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : skillsOverview.length === 0 ? (
-            <p className="text-gray-500 text-sm py-4">No skills data available for this service</p>
-          ) : (
-            <div className="space-y-4">
-              {skillsOverview.map((skill) => (
-                <div key={skill.skillName} className="border border-gray-100 rounded-lg p-4">
-                  {/* Skill Header */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      {skill.criticalToDelivery && (
-                        <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                      )}
-                      <h4 className="font-medium text-gray-900">{skill.skillName}</h4>
-                      {skill.criticalToDelivery && (
-                        <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">
-                          Critical
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500">Requires L{skill.minimumLevel}+</span>
-                        <span className={`text-sm font-medium ${
-                          skill.coverage >= 50 ? 'text-emerald-600' :
-                          skill.coverage >= 25 ? 'text-amber-600' :
-                          'text-red-600'
-                        }`}>
-                          {skill.coverage}% coverage
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-400">Avg L{skill.avgLevel}</div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* Top Performers */}
-                    <div className="bg-emerald-50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Zap className="w-4 h-4 text-emerald-600" />
-                        <h5 className="text-sm font-medium text-emerald-800">Top Performers</h5>
-                      </div>
-                      {skill.topPerformers.length === 0 ? (
-                        <p className="text-xs text-emerald-600/70 italic">No qualified team members</p>
-                      ) : (
-                        <div className="space-y-1">
-                          {skill.topPerformers.map((p) => (
-                            <div key={p.memberId} className="flex items-center justify-between text-sm">
-                              <span className="text-gray-700 truncate">{p.memberName}</span>
-                              <div className="flex items-center gap-1">
-                                <span className="text-emerald-600 font-medium">L{p.currentLevel}</span>
-                                {p.currentLevel >= skill.idealLevel && (
-                                  <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* High Potential */}
-                    <div className="bg-violet-50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <GraduationCap className="w-4 h-4 text-violet-600" />
-                        <h5 className="text-sm font-medium text-violet-800">High Potential</h5>
-                      </div>
-                      {skill.highPotential.length === 0 ? (
-                        <p className="text-xs text-violet-600/70 italic">No high-interest candidates</p>
-                      ) : (
-                        <div className="space-y-1">
-                          {skill.highPotential.map((p) => (
-                            <div key={p.memberId} className="flex items-center justify-between text-sm">
-                              <span className="text-gray-700 truncate">{p.memberName}</span>
-                              <div className="flex items-center gap-2 text-xs">
-                                <span className="text-gray-500">L{p.currentLevel}</span>
-                                <span className="text-violet-600">Interest: {p.interestLevel}/5</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Teams List */}
