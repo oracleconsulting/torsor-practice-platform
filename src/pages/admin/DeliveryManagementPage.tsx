@@ -13,7 +13,7 @@ import {
   ArrowLeft, Plus, ChevronRight, ChevronDown,
   Target, TrendingUp, Settings, LineChart, Briefcase,
   Users2, Clock, User, Activity, BarChart3, Shield,
-  UserPlus, Trash2
+  UserPlus, Trash2, Workflow
 } from 'lucide-react';
 
 type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config';
@@ -64,6 +64,23 @@ interface PracticeMember {
   role: string;
 }
 
+interface WorkflowPhase {
+  id: string;
+  phase_code: string;
+  phase_name: string;
+  description: string;
+  typical_duration: string;
+  display_order: number;
+  color: string;
+}
+
+interface PhaseFit {
+  member_id: string;
+  member_name: string;
+  role: string;
+  fit_score: number;
+}
+
 const SERVICE_LINES: ServiceLine[] = [
   { code: '365_method', name: '365 Alignment', icon: Target, color: 'indigo' },
   { code: 'management_accounts', name: 'Management Accounts', icon: LineChart, color: 'emerald' },
@@ -85,6 +102,11 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
   const [loading, setLoading] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   
+  // Phase fit data
+  const [phases, setPhases] = useState<WorkflowPhase[]>([]);
+  const [phaseFits, setPhaseFits] = useState<Record<string, PhaseFit[]>>({});
+  const [loadingPhases, setLoadingPhases] = useState(false);
+  
   // Modal states
   const [showCreateTeam, setShowCreateTeam] = useState(false);
   const [showAddMember, setShowAddMember] = useState<string | null>(null);
@@ -97,8 +119,120 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
       loadTeams();
       loadRoles();
       loadPracticeMembers();
+      loadPhasesWithFit();
     }
   }, [selectedService, currentMember?.practice_id]);
+
+  // Load workflow phases and calculate team fit for each
+  const loadPhasesWithFit = async () => {
+    if (!currentMember?.practice_id || !selectedService) return;
+    
+    setLoadingPhases(true);
+    
+    try {
+      // Get phases for this service
+      const { data: phasesData } = await supabase
+        .from('service_workflow_phases')
+        .select('*')
+        .or(`practice_id.is.null,practice_id.eq.${currentMember.practice_id}`)
+        .eq('service_line_code', selectedService)
+        .order('display_order');
+
+      if (!phasesData || phasesData.length === 0) {
+        setPhases([]);
+        setPhaseFits({});
+        return;
+      }
+
+      setPhases(phasesData);
+
+      // Get activities for phases
+      const phaseIds = phasesData.map(p => p.id);
+      const { data: activitiesData } = await supabase
+        .from('phase_activities')
+        .select('*')
+        .in('phase_id', phaseIds);
+
+      // Get skill mappings for activities
+      const activityIds = (activitiesData || []).map(a => a.id);
+      const { data: mappingsData } = await supabase
+        .from('activity_skill_mappings')
+        .select('*')
+        .in('activity_id', activityIds);
+
+      // Get team members and their skill assessments
+      const { data: members } = await supabase
+        .from('practice_members')
+        .select('id, name, role')
+        .eq('practice_id', currentMember.practice_id)
+        .eq('member_type', 'team');
+
+      const { data: skills } = await supabase
+        .from('skills')
+        .select('id, name');
+
+      const memberIds = (members || []).map(m => m.id);
+      const { data: assessments } = await supabase
+        .from('skill_assessments')
+        .select('member_id, skill_id, current_level')
+        .in('member_id', memberIds);
+
+      // Build skill name to ID map
+      const skillNameToId = new Map((skills || []).map(s => [s.name.toLowerCase(), s.id]));
+
+      // Calculate fit for each phase
+      const fits: Record<string, PhaseFit[]> = {};
+
+      for (const phase of phasesData) {
+        // Get activities for this phase
+        const phaseActivities = (activitiesData || []).filter(a => a.phase_id === phase.id);
+        
+        // Collect required skills for this phase
+        const phaseSkills: { name: string; minLevel: number }[] = [];
+        for (const activity of phaseActivities) {
+          const activityMappings = (mappingsData || []).filter(m => m.activity_id === activity.id);
+          for (const mapping of activityMappings) {
+            if (!phaseSkills.find(s => s.name === mapping.skill_name)) {
+              phaseSkills.push({ name: mapping.skill_name, minLevel: mapping.minimum_level || 3 });
+            }
+          }
+        }
+
+        // Calculate fit for each member
+        const memberFits: PhaseFit[] = (members || []).map(member => {
+          const memberAssessments = (assessments || []).filter(a => a.member_id === member.id);
+          
+          let totalScore = 0;
+          let maxScore = 0;
+
+          for (const reqSkill of phaseSkills) {
+            const skillId = skillNameToId.get(reqSkill.name.toLowerCase());
+            const assessment = memberAssessments.find(a => a.skill_id === skillId);
+            const level = assessment?.current_level || 0;
+            const meets = level >= reqSkill.minLevel;
+            
+            totalScore += meets ? level : 0;
+            maxScore += 5;
+          }
+
+          return {
+            member_id: member.id,
+            member_name: member.name,
+            role: member.role,
+            fit_score: maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0
+          };
+        }).sort((a, b) => b.fit_score - a.fit_score).slice(0, 5);
+
+        fits[phase.id] = memberFits;
+      }
+
+      setPhaseFits(fits);
+    } catch (err) {
+      console.error('Error loading phases:', err);
+    } finally {
+      setLoadingPhases(false);
+    }
+  };
 
   const loadTeams = async () => {
     if (!currentMember?.practice_id || !selectedService) return;
@@ -409,6 +543,75 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
               </span>
             ))}
           </div>
+        </div>
+
+        {/* Delivery Phases - Who's Best Fit */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Workflow className="w-5 h-5 text-indigo-600" />
+              <h3 className="font-semibold text-gray-900">Delivery Phases</h3>
+            </div>
+            <button
+              onClick={() => onNavigate('config')}
+              className="text-sm text-indigo-600 hover:text-indigo-700"
+            >
+              Configure phases →
+            </button>
+          </div>
+
+          {loadingPhases ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : phases.length === 0 ? (
+            <p className="text-gray-500 text-sm py-4 text-center">
+              No workflow phases configured. <button onClick={() => onNavigate('config')} className="text-indigo-600 hover:underline">Set up phases</button>
+            </p>
+          ) : (
+            <div className="grid grid-cols-4 gap-4">
+              {phases.map((phase) => {
+                const fits = phaseFits[phase.id] || [];
+                return (
+                  <div key={phase.id} className="border border-gray-100 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`w-6 h-6 rounded-full bg-${phase.color}-100 text-${phase.color}-600 flex items-center justify-center text-sm font-bold`}>
+                        {phase.display_order}
+                      </span>
+                      <h4 className="font-medium text-gray-900">{phase.phase_name}</h4>
+                    </div>
+                    <p className="text-xs text-gray-500 mb-3">{phase.typical_duration}</p>
+                    
+                    {fits.length === 0 ? (
+                      <p className="text-xs text-gray-400 italic">No skill data</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {fits.slice(0, 3).map((fit, idx) => (
+                          <div key={fit.member_id} className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`w-4 h-4 rounded-full text-xs flex items-center justify-center ${
+                                idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                {idx + 1}
+                              </span>
+                              <span className="text-gray-700 truncate text-xs">{fit.member_name.split(' ')[0]}</span>
+                            </div>
+                            <span className={`text-xs font-medium ${
+                              fit.fit_score >= 70 ? 'text-emerald-600' :
+                              fit.fit_score >= 40 ? 'text-amber-600' :
+                              'text-gray-400'
+                            }`}>
+                              {fit.fit_score}%
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Teams List */}
