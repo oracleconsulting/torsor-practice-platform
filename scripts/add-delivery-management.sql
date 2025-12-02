@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS service_roles (
     is_required boolean DEFAULT true,  -- Must this role be filled?
     display_order integer DEFAULT 0,
     created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now(),
     UNIQUE(service_line_code, code)
 );
 
