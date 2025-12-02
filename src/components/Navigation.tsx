@@ -1,6 +1,6 @@
-import { LayoutDashboard, Target, TrendingUp, Brain, Users, ClipboardList, Truck } from 'lucide-react';
+import { LayoutDashboard, Target, TrendingUp, Brain, Users, ClipboardList, Truck, Settings } from 'lucide-react';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery';
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config';
 
 interface NavigationProps {
   currentPage: Page;
@@ -16,6 +16,7 @@ export function Navigation({ currentPage, onNavigate }: NavigationProps) {
     { id: 'clients' as const, label: 'Client Services', icon: Users },
     { id: 'assessments' as const, label: 'Assessments', icon: ClipboardList },
     { id: 'delivery' as const, label: 'Delivery Teams', icon: Truck },
+    { id: 'config' as const, label: 'Service Config', icon: Settings },
   ];
 
   return (

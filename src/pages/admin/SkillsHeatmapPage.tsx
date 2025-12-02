@@ -6,7 +6,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { SkillsHeatmapGrid } from '../../components/SkillsHeatmapGrid';
 import { Navigation } from '../../components/Navigation';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery';
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config';
 
 interface SkillsHeatmapPageProps {
   onNavigate: (page: Page) => void;

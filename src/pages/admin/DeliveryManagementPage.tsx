@@ -17,7 +17,7 @@ import {
   UserPlus, Trash2, Star, Zap, Award, GraduationCap
 } from 'lucide-react';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery';
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config';
 
 interface DeliveryManagementPageProps {
   currentPage: Page;

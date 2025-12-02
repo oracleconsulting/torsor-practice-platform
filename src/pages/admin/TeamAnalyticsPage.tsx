@@ -4,7 +4,7 @@ import { useTeamAnalytics } from '../../hooks/useTeamAnalytics';
 import { Navigation } from '../../components/Navigation';
 import { Brain, TrendingUp, AlertTriangle, Award, Users, Target } from 'lucide-react';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery';
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config';
 
 interface TeamAnalyticsPageProps {
   onNavigate: (page: Page) => void;

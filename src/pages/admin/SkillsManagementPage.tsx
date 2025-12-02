@@ -5,7 +5,7 @@ import { SkillCategoryCard } from '../../components/SkillCategoryCard';
 import { Navigation } from '../../components/Navigation';
 import { Plus, Download } from 'lucide-react';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery';
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config';
 
 interface SkillsManagementPageProps {
   onNavigate: (page: Page) => void;

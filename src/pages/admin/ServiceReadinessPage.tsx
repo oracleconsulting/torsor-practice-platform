@@ -3,7 +3,7 @@ import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { useServiceReadiness } from '../../hooks/useServiceReadiness';
 import { Navigation } from '../../components/Navigation';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery';
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config';
 
 interface ServiceReadinessPageProps {
   onNavigate: (page: Page) => void;
