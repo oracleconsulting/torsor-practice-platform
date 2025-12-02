@@ -3,9 +3,11 @@ import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { useServiceReadiness } from '../../hooks/useServiceReadiness';
 import { Navigation } from '../../components/Navigation';
 
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery';
+
 interface ServiceReadinessPageProps {
-  onNavigate: (page: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments') => void;
-  currentPage: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments';
+  onNavigate: (page: Page) => void;
+  currentPage: Page;
 }
 
 export function ServiceReadinessPage({ onNavigate, currentPage }: ServiceReadinessPageProps) {

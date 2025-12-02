@@ -1,8 +1,10 @@
-import { LayoutDashboard, Target, TrendingUp, Brain, Users, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Target, TrendingUp, Brain, Users, ClipboardList, Truck } from 'lucide-react';
+
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery';
 
 interface NavigationProps {
-  currentPage: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments';
-  onNavigate: (page: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments') => void;
+  currentPage: Page;
+  onNavigate: (page: Page) => void;
 }
 
 export function Navigation({ currentPage, onNavigate }: NavigationProps) {
@@ -12,7 +14,8 @@ export function Navigation({ currentPage, onNavigate }: NavigationProps) {
     { id: 'readiness' as const, label: 'Service Readiness', icon: Target },
     { id: 'analytics' as const, label: 'Team Analytics', icon: Brain },
     { id: 'clients' as const, label: 'Client Services', icon: Users },
-    { id: 'assessments' as const, label: 'Assessment Preview', icon: ClipboardList },
+    { id: 'assessments' as const, label: 'Assessments', icon: ClipboardList },
+    { id: 'delivery' as const, label: 'Delivery Teams', icon: Truck },
   ];
 
   return (

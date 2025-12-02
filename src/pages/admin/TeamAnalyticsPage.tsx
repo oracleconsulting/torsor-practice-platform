@@ -4,9 +4,11 @@ import { useTeamAnalytics } from '../../hooks/useTeamAnalytics';
 import { Navigation } from '../../components/Navigation';
 import { Brain, TrendingUp, AlertTriangle, Award, Users, Target } from 'lucide-react';
 
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery';
+
 interface TeamAnalyticsPageProps {
-  onNavigate: (page: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments') => void;
-  currentPage: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments';
+  onNavigate: (page: Page) => void;
+  currentPage: Page;
 }
 
 export function TeamAnalyticsPage({ onNavigate, currentPage }: TeamAnalyticsPageProps) {

@@ -5,9 +5,11 @@ import { SkillCategoryCard } from '../../components/SkillCategoryCard';
 import { Navigation } from '../../components/Navigation';
 import { Plus, Download } from 'lucide-react';
 
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery';
+
 interface SkillsManagementPageProps {
-  onNavigate: (page: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments') => void;
-  currentPage: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments';
+  onNavigate: (page: Page) => void;
+  currentPage: Page;
 }
 
 export function SkillsManagementPage({ onNavigate, currentPage }: SkillsManagementPageProps) {

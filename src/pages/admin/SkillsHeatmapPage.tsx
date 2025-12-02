@@ -6,9 +6,11 @@ import { useAuth } from '../../hooks/useAuth';
 import { SkillsHeatmapGrid } from '../../components/SkillsHeatmapGrid';
 import { Navigation } from '../../components/Navigation';
 
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery';
+
 interface SkillsHeatmapPageProps {
-  onNavigate: (page: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments') => void;
-  currentPage: 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments';
+  onNavigate: (page: Page) => void;
+  currentPage: Page;
 }
 
 export function SkillsHeatmapPage({ onNavigate, currentPage }: SkillsHeatmapPageProps) {

@@ -8,6 +8,7 @@ import { ServiceReadinessPage } from './pages/admin/ServiceReadinessPage';
 import { TeamAnalyticsPage } from './pages/admin/TeamAnalyticsPage';
 import { ClientServicesPage } from './pages/admin/ClientServicesPage';
 import { AssessmentPreviewPage } from './pages/admin/AssessmentPreviewPage';
+import { DeliveryManagementPage } from './pages/admin/DeliveryManagementPage';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -19,7 +20,7 @@ const queryClient = new QueryClient({
   },
 });
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments';
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -52,6 +53,10 @@ function AppContent() {
 
   if (currentPage === 'assessments') {
     return <AssessmentPreviewPage {...navProps} />;
+  }
+
+  if (currentPage === 'delivery') {
+    return <DeliveryManagementPage {...navProps} />;
   }
 
   if (currentPage === 'management') {

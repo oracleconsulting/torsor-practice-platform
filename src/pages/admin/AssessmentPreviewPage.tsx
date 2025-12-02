@@ -15,7 +15,7 @@ import {
   BarChart3, Shield
 } from 'lucide-react';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments';
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery';
 
 interface AssessmentPreviewPageProps {
   currentPage: Page;
