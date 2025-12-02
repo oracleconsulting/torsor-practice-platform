@@ -10,6 +10,7 @@ import { ClientServicesPage } from './pages/admin/ClientServicesPage';
 import { AssessmentPreviewPage } from './pages/admin/AssessmentPreviewPage';
 import { DeliveryManagementPage } from './pages/admin/DeliveryManagementPage';
 import { ServiceConfigPage } from './pages/admin/ServiceConfigPage';
+import { AssessmentReviewPage } from './pages/public/AssessmentReviewPage';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -26,6 +27,15 @@ type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | '
 function AppContent() {
   const { user, loading } = useAuth();
   const [currentPage, setCurrentPage] = useState<Page>('management'); // Default to management page
+
+  // Check if this is a public review page (no auth required)
+  const isPublicReviewPage = window.location.pathname === '/review' || 
+                              window.location.pathname.startsWith('/review/');
+
+  // Public review page - no auth required
+  if (isPublicReviewPage) {
+    return <AssessmentReviewPage />;
+  }
 
   if (loading) {
     return (

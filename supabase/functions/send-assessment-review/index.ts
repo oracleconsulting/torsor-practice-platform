@@ -113,8 +113,8 @@ serve(async (req) => {
       console.log('Could not fetch questions, table may not exist yet');
     }
 
-    // Generate review URL (internal preview)
-    const reviewUrl = `https://torsor.co.uk/assessments`;
+    // Generate review URL (public preview - no login required)
+    const reviewUrl = `https://torsor.co.uk/review?type=${assessmentType}&practice=${encodeURIComponent(practice?.name || 'RPGCC')}`;
 
     // Build email HTML
     const assessmentListHtml = filteredSections.map(section => {
