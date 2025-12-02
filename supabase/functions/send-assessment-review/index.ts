@@ -92,20 +92,26 @@ serve(async (req) => {
       ? sections.filter(s => specificAssessments.includes(s.code))
       : sections;
 
-    // Fetch actual questions for the summary
-    const { data: questions } = await supabase
-      .from('assessment_questions')
-      .select('service_line_code, section, question_text, question_type')
-      .in('service_line_code', filteredSections.map(s => s.code))
-      .eq('is_active', true)
-      .order('display_order');
+    // Fetch actual questions for the summary (if table exists)
+    let questionsByAssessment: Record<string, any[]> = {};
+    try {
+      const { data: questions, error: questionsError } = await supabase
+        .from('assessment_questions')
+        .select('service_line_code, section, question_text, question_type')
+        .in('service_line_code', filteredSections.map(s => s.code))
+        .eq('is_active', true)
+        .order('display_order');
 
-    // Group questions by assessment
-    const questionsByAssessment = (questions || []).reduce((acc, q) => {
-      if (!acc[q.service_line_code]) acc[q.service_line_code] = [];
-      acc[q.service_line_code].push(q);
-      return acc;
-    }, {} as Record<string, typeof questions>);
+      if (!questionsError && questions) {
+        questionsByAssessment = questions.reduce((acc, q) => {
+          if (!acc[q.service_line_code]) acc[q.service_line_code] = [];
+          acc[q.service_line_code].push(q);
+          return acc;
+        }, {} as Record<string, any[]>);
+      }
+    } catch (e) {
+      console.log('Could not fetch questions, table may not exist yet');
+    }
 
     // Generate review URL (internal preview)
     const reviewUrl = `https://torsor.co.uk/assessments`;
@@ -204,13 +210,30 @@ serve(async (req) => {
     // Send email via Resend
     const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
     
+    console.log('Attempting to send email to:', recipientEmail);
+    console.log('Practice:', practice?.name);
+    console.log('RESEND_API_KEY present:', !!RESEND_API_KEY);
+    
     if (!RESEND_API_KEY) {
       console.error('RESEND_API_KEY not configured');
       return new Response(
-        JSON.stringify({ error: 'Email service not configured' }),
+        JSON.stringify({ error: 'Email service not configured. Please add RESEND_API_KEY to Edge Function secrets.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Use Resend's default domain if custom domain not verified
+    const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') || 'onboarding@resend.dev';
+    
+    const emailPayload = {
+      from: fromEmail,
+      to: recipientEmail,
+      reply_to: senderEmail || undefined,
+      subject: `Assessment Review Request from ${senderName}`,
+      html: emailHtml,
+    };
+    
+    console.log('Email payload:', JSON.stringify({ ...emailPayload, html: '[HTML content]' }));
 
     const emailResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -218,25 +241,27 @@ serve(async (req) => {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        from: 'Torsor Platform <noreply@torsor.co.uk>',
-        to: recipientEmail,
-        reply_to: senderEmail || undefined,
-        subject: `📋 Assessment Review Request from ${senderName}`,
-        html: emailHtml,
-      }),
+      body: JSON.stringify(emailPayload),
     });
 
+    const responseText = await emailResponse.text();
+    console.log('Resend response status:', emailResponse.status);
+    console.log('Resend response:', responseText);
+
     if (!emailResponse.ok) {
-      const errorText = await emailResponse.text();
-      console.error('Resend API error:', errorText);
+      console.error('Resend API error:', responseText);
       return new Response(
-        JSON.stringify({ error: 'Failed to send email', details: errorText }),
+        JSON.stringify({ error: 'Failed to send email', details: responseText }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const emailResult = await emailResponse.json();
+    
+    let emailResult;
+    try {
+      emailResult = JSON.parse(responseText);
+    } catch {
+      emailResult = { id: 'unknown' };
+    }
 
     return new Response(
       JSON.stringify({ 
