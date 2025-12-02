@@ -322,7 +322,7 @@ CREATE TABLE IF NOT EXISTS service_demand (
 -- 10. HELPER VIEWS
 -- ============================================================================
 
--- Team capacity overview
+-- Team capacity overview (no external dependencies)
 CREATE OR REPLACE VIEW v_team_capacity AS
 SELECT 
     dt.id as team_id,
@@ -332,44 +332,59 @@ SELECT
     dt.max_clients,
     dt.current_client_count,
     COUNT(DISTINCT tma.member_id) as team_size,
-    SUM(tma.allocated_hours_per_week) as total_allocated_hours,
+    COALESCE(SUM(tma.allocated_hours_per_week), 0) as total_allocated_hours,
     dt.status
 FROM delivery_teams dt
 LEFT JOIN team_member_assignments tma ON tma.team_id = dt.id AND tma.status = 'active'
 GROUP BY dt.id;
 
--- Member workload overview
-CREATE OR REPLACE VIEW v_member_workload AS
-SELECT 
-    mc.member_id,
-    mc.practice_id,
-    pm.name as member_name,
-    mc.total_hours_per_week,
-    mc.available_hours_per_week,
-    mc.allocated_hours_per_week,
-    (mc.available_hours_per_week - mc.allocated_hours_per_week) as spare_capacity,
-    mc.capacity_status,
-    mc.preferred_services,
-    COUNT(DISTINCT etm.engagement_id) as active_engagements
-FROM member_capacity mc
-JOIN practice_members pm ON pm.id = mc.member_id
-LEFT JOIN engagement_team_members etm ON etm.member_id = mc.member_id
-LEFT JOIN client_engagements ce ON ce.id = etm.engagement_id AND ce.status = 'active'
-GROUP BY mc.id, pm.name;
+-- Member workload overview (depends on practice_members - created only if table exists)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'practice_members') THEN
+        EXECUTE '
+            CREATE OR REPLACE VIEW v_member_workload AS
+            SELECT 
+                mc.member_id,
+                mc.practice_id,
+                pm.name as member_name,
+                mc.total_hours_per_week,
+                mc.available_hours_per_week,
+                mc.allocated_hours_per_week,
+                (mc.available_hours_per_week - mc.allocated_hours_per_week) as spare_capacity,
+                mc.capacity_status,
+                mc.preferred_services,
+                COUNT(DISTINCT etm.engagement_id) as active_engagements
+            FROM member_capacity mc
+            JOIN practice_members pm ON pm.id = mc.member_id
+            LEFT JOIN engagement_team_members etm ON etm.member_id = mc.member_id
+            LEFT JOIN client_engagements ce ON ce.id = etm.engagement_id AND ce.status = ''active''
+            GROUP BY mc.id, pm.name, mc.member_id, mc.practice_id, mc.total_hours_per_week, 
+                     mc.available_hours_per_week, mc.allocated_hours_per_week, mc.capacity_status, mc.preferred_services
+        ';
+    END IF;
+END $$;
 
--- Service delivery summary
-CREATE OR REPLACE VIEW v_service_delivery_summary AS
-SELECT 
-    sl.code as service_line_code,
-    sl.name as service_name,
-    COUNT(DISTINCT dt.id) as team_count,
-    COUNT(DISTINCT ce.id) FILTER (WHERE ce.status = 'active') as active_clients,
-    SUM(ce.monthly_fee) FILTER (WHERE ce.status = 'active') as monthly_revenue,
-    AVG(ce.health_score) FILTER (WHERE ce.status = 'active') as avg_health_score
-FROM service_lines sl
-LEFT JOIN delivery_teams dt ON dt.service_line_code = sl.code
-LEFT JOIN client_engagements ce ON ce.service_line_code = sl.code
-GROUP BY sl.code, sl.name;
+-- Service delivery summary (depends on service_lines - created only if table exists)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'service_lines') THEN
+        EXECUTE '
+            CREATE OR REPLACE VIEW v_service_delivery_summary AS
+            SELECT 
+                sl.code as service_line_code,
+                sl.name as service_name,
+                COUNT(DISTINCT dt.id) as team_count,
+                COUNT(DISTINCT ce.id) FILTER (WHERE ce.status = ''active'') as active_clients,
+                SUM(ce.monthly_fee) FILTER (WHERE ce.status = ''active'') as monthly_revenue,
+                AVG(ce.health_score) FILTER (WHERE ce.status = ''active'') as avg_health_score
+            FROM service_lines sl
+            LEFT JOIN delivery_teams dt ON dt.service_line_code = sl.code
+            LEFT JOIN client_engagements ce ON ce.service_line_code = sl.code
+            GROUP BY sl.code, sl.name
+        ';
+    END IF;
+END $$;
 
 -- ============================================================================
 -- 11. ROW LEVEL SECURITY
@@ -381,45 +396,60 @@ ALTER TABLE client_engagements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE engagement_team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE member_capacity ENABLE ROW LEVEL SECURITY;
 
--- Team members can see their practice's data
-CREATE POLICY "Team sees practice teams" ON delivery_teams
-    FOR ALL USING (
-        practice_id IN (
-            SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
-        )
-    );
+-- RLS Policies (only created if practice_members table exists)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'practice_members') THEN
+        -- Drop existing policies if they exist
+        DROP POLICY IF EXISTS "Team sees practice teams" ON delivery_teams;
+        DROP POLICY IF EXISTS "Team sees practice assignments" ON team_member_assignments;
+        DROP POLICY IF EXISTS "Team sees practice engagements" ON client_engagements;
+        DROP POLICY IF EXISTS "Team sees engagement members" ON engagement_team_members;
+        DROP POLICY IF EXISTS "Team sees capacity" ON member_capacity;
+        
+        -- Create policies
+        CREATE POLICY "Team sees practice teams" ON delivery_teams
+            FOR ALL USING (
+                practice_id IN (
+                    SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
+                )
+            );
 
-CREATE POLICY "Team sees practice assignments" ON team_member_assignments
-    FOR ALL USING (
-        team_id IN (
-            SELECT id FROM delivery_teams WHERE practice_id IN (
-                SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
-            )
-        )
-    );
+        CREATE POLICY "Team sees practice assignments" ON team_member_assignments
+            FOR ALL USING (
+                team_id IN (
+                    SELECT id FROM delivery_teams WHERE practice_id IN (
+                        SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
+                    )
+                )
+            );
 
-CREATE POLICY "Team sees practice engagements" ON client_engagements
-    FOR ALL USING (
-        practice_id IN (
-            SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
-        )
-    );
+        CREATE POLICY "Team sees practice engagements" ON client_engagements
+            FOR ALL USING (
+                practice_id IN (
+                    SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
+                )
+            );
 
-CREATE POLICY "Team sees engagement members" ON engagement_team_members
-    FOR ALL USING (
-        engagement_id IN (
-            SELECT id FROM client_engagements WHERE practice_id IN (
-                SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
-            )
-        )
-    );
+        CREATE POLICY "Team sees engagement members" ON engagement_team_members
+            FOR ALL USING (
+                engagement_id IN (
+                    SELECT id FROM client_engagements WHERE practice_id IN (
+                        SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
+                    )
+                )
+            );
 
-CREATE POLICY "Team sees capacity" ON member_capacity
-    FOR ALL USING (
-        practice_id IN (
-            SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
-        )
-    );
+        CREATE POLICY "Team sees capacity" ON member_capacity
+            FOR ALL USING (
+                practice_id IN (
+                    SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
+                )
+            );
+    ELSE
+        RAISE NOTICE 'Skipping RLS policies - practice_members table not found. Run these policies after practice_members exists.';
+    END IF;
+END $$;
 
 -- ============================================================================
 -- 12. VERIFICATION
