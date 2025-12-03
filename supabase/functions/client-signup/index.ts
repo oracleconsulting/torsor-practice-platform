@@ -53,11 +53,12 @@ serve(async (req) => {
       );
     }
 
-    // Find practice in database - just get the first one for now (single-tenant)
+    // Find practice in database - get the newest one (in case of duplicates)
     console.log('Looking for practice...');
     const { data: firstPractice, error: practiceError } = await supabase
       .from('practices')
       .select('id, name')
+      .order('created_at', { ascending: false })
       .limit(1)
       .single();
     
