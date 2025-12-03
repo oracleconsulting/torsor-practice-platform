@@ -16,7 +16,7 @@ import {
   UserPlus, Trash2, Workflow
 } from 'lucide-react';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config';
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config' | 'cpd' | 'training' | 'knowledge';
 
 interface DeliveryManagementPageProps {
   currentPage: Page;

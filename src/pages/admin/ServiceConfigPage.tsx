@@ -15,7 +15,7 @@ import {
   BarChart3, Shield, Trash2, Users, Check, X
 } from 'lucide-react';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config';
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config' | 'cpd' | 'training' | 'knowledge';
 
 interface ServiceConfigPageProps {
   currentPage: Page;

@@ -10,6 +10,9 @@ import { ClientServicesPage } from './pages/admin/ClientServicesPage';
 import { AssessmentPreviewPage } from './pages/admin/AssessmentPreviewPage';
 import { DeliveryManagementPage } from './pages/admin/DeliveryManagementPage';
 import { ServiceConfigPage } from './pages/admin/ServiceConfigPage';
+import { CPDTrackerPage } from './pages/admin/CPDTrackerPage';
+import { TrainingPlansPage } from './pages/admin/TrainingPlansPage';
+import { KnowledgeBasePage } from './pages/admin/KnowledgeBasePage';
 import { AssessmentReviewPage } from './pages/public/AssessmentReviewPage';
 import './index.css';
 
@@ -22,7 +25,7 @@ const queryClient = new QueryClient({
   },
 });
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config';
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config' | 'cpd' | 'training' | 'knowledge';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -72,6 +75,18 @@ function AppContent() {
 
   if (currentPage === 'config') {
     return <ServiceConfigPage {...navProps} />;
+  }
+
+  if (currentPage === 'cpd') {
+    return <CPDTrackerPage {...navProps} />;
+  }
+
+  if (currentPage === 'training') {
+    return <TrainingPlansPage {...navProps} />;
+  }
+
+  if (currentPage === 'knowledge') {
+    return <KnowledgeBasePage {...navProps} />;
   }
 
   if (currentPage === 'management') {

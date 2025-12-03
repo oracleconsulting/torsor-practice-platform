@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config';
+type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config' | 'cpd' | 'training' | 'knowledge';
 
 interface AssessmentPreviewPageProps {
   currentPage: Page;
