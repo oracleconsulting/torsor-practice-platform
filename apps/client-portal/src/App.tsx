@@ -4,8 +4,10 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 
 // Pages
 import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
 import InvitationPage from './pages/InvitationPage';
 import DashboardPage from './pages/DashboardPage';
+import DiscoveryCompletePage from './pages/DiscoveryCompletePage';
 import AssessmentsPage from './pages/assessments/AssessmentsPage';
 import AssessmentPart1Page from './pages/assessments/Part1Page';
 import AssessmentPart2Page from './pages/assessments/Part2Page';
@@ -25,6 +27,7 @@ function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
           <Route path="/invitation/:token" element={<InvitationPage />} />
           
           {/* Protected routes */}
@@ -54,6 +57,7 @@ function App() {
             
             {/* Destination Discovery */}
             <Route path="/discovery" element={<DestinationDiscoveryPage />} />
+            <Route path="/discovery/complete" element={<DiscoveryCompletePage />} />
           </Route>
           
           {/* Catch all */}

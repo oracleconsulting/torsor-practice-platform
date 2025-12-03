@@ -2,7 +2,7 @@
 
 export type MemberType = 'team' | 'client' | 'advisor';
 export type ClientStage = 'startup' | 'growth' | 'mature' | 'exit-planning';
-export type ProgramStatus = 'invited' | 'active' | 'paused' | 'completed' | 'churned';
+export type ProgramStatus = 'invited' | 'active' | 'paused' | 'completed' | 'churned' | 'discovery' | 'discovery_complete';
 
 export interface ClientSettings {
   notifications: {

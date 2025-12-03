@@ -10,14 +10,25 @@ import {
   ArrowRight,
   Target,
   TrendingUp,
+  Compass,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { ASSESSMENT_LABELS } from '@torsor/shared';
 
 export default function DashboardPage() {
   const { clientSession } = useAuth();
   const { progress, loading: progressLoading } = useAssessmentProgress();
   const { tasks, loading: tasksLoading } = useCurrentTasks();
+
+  // Discovery clients go straight to discovery assessment
+  if (clientSession?.status === 'discovery') {
+    return <Navigate to="/discovery" replace />;
+  }
+
+  // Discovery complete clients see holding message
+  if (clientSession?.status === 'discovery_complete') {
+    return <Navigate to="/discovery/complete" replace />;
+  }
 
   const currentWeek = progress?.currentWeek || 1;
   const pendingTasks = tasks?.filter(t => t.status === 'pending') || [];

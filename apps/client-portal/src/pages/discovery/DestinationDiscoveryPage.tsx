@@ -163,7 +163,8 @@ export default function DestinationDiscoveryPage() {
         }
       });
 
-      const { data, error } = await supabase.functions.invoke('generate-service-recommendations', {
+      // Submit to generate recommendations (saved server-side for practice team)
+      const { error } = await supabase.functions.invoke('generate-service-recommendations', {
         body: {
           action: 'calculate-recommendations',
           clientId: clientSession?.clientId,
@@ -174,8 +175,16 @@ export default function DestinationDiscoveryPage() {
 
       if (error) throw error;
 
-      setRecommendations(data.recommendations || []);
-      setPhase('results');
+      // Update client status to discovery_complete
+      if (clientSession?.clientId) {
+        await supabase
+          .from('practice_members')
+          .update({ program_status: 'discovery_complete' })
+          .eq('id', clientSession.clientId);
+      }
+
+      // Redirect to thank you page (practice team sees recommendations)
+      navigate('/discovery/complete');
     } catch (err) {
       console.error('Error submitting discovery:', err);
     } finally {
