@@ -78,47 +78,64 @@ export function SignupPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8 text-center">
-          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="w-8 h-8 text-emerald-600" />
+      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+        <div className="max-w-md w-full text-center">
+          {/* RPGCC Logo */}
+          <div className="flex items-center justify-center gap-1 mb-8">
+            <span className="text-4xl font-black tracking-tight text-black">RPGCC</span>
+            <div className="flex gap-1 ml-1">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#3B82F6]" />
+              <div className="w-2.5 h-2.5 rounded-full bg-[#EF4444]" />
+              <div className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]" />
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">
-            Welcome Aboard!
-          </h1>
-          <p className="text-gray-600 mb-6">
-            Your account has been created successfully. You can now log in and complete your discovery assessment.
-          </p>
-          <button 
-            onClick={() => navigate('/login')}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors"
-          >
-            Continue to Login
-            <ArrowRight className="w-4 h-4" />
-          </button>
+          
+          <div className="bg-gray-50 rounded-2xl border border-gray-200 p-8">
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="w-8 h-8 text-emerald-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">
+              Welcome Aboard!
+            </h1>
+            <p className="text-gray-600 mb-6">
+              Your account has been created successfully. You can now log in and complete your discovery assessment.
+            </p>
+            <button 
+              onClick={() => navigate('/login')}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors"
+            >
+              Continue to Login
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        {/* Header */}
+        {/* RPGCC Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <Compass className="w-8 h-8 text-white" />
+          <div className="flex items-center justify-center gap-1 mb-6">
+            <span className="text-5xl font-black tracking-tight text-black">RPGCC</span>
+            <div className="flex gap-1 ml-1">
+              <div className="w-3 h-3 rounded-full bg-[#3B82F6]" /> {/* Blue */}
+              <div className="w-3 h-3 rounded-full bg-[#EF4444]" /> {/* Red */}
+              <div className="w-3 h-3 rounded-full bg-[#F59E0B]" /> {/* Amber */}
+            </div>
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
             Begin Your Discovery
           </h1>
-          <p className="text-slate-400">
+          <p className="text-gray-500">
             Create your client portal to explore how we can help your business thrive
           </p>
         </div>
 
         {/* Form Card */}
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
+        <div className="bg-gray-50 rounded-2xl border border-gray-200 p-8">
           <form onSubmit={handleSignup} className="space-y-5">
             {error && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
@@ -135,7 +152,7 @@ export function SignupPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                 placeholder="John Smith"
               />
             </div>
@@ -148,7 +165,7 @@ export function SignupPage() {
                 type="text"
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                 placeholder="Acme Ltd (optional)"
               />
             </div>
@@ -162,7 +179,7 @@ export function SignupPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                 placeholder="john@company.com"
               />
             </div>
@@ -201,7 +218,7 @@ export function SignupPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                 placeholder="••••••••"
               />
             </div>
@@ -209,7 +226,7 @@ export function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold rounded-xl hover:from-amber-600 hover:to-orange-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+              className="w-full py-4 bg-black text-white font-semibold rounded-xl hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -225,7 +242,7 @@ export function SignupPage() {
           <div className="mt-6 pt-6 border-t border-gray-100 text-center">
             <p className="text-sm text-gray-500">
               Already have an account?{' '}
-              <a href="/login" className="text-amber-600 hover:text-amber-700 font-medium">
+              <a href="/login" className="text-blue-600 hover:text-blue-700 font-medium">
                 Log in
               </a>
             </p>
@@ -233,9 +250,14 @@ export function SignupPage() {
         </div>
 
         {/* Security Badge */}
-        <div className="mt-6 flex items-center justify-center gap-2 text-slate-400 text-sm">
+        <div className="mt-6 flex items-center justify-center gap-2 text-gray-400 text-sm">
           <Shield className="w-4 h-4" />
           <span>Secure signup • Your data is protected</span>
+        </div>
+        
+        {/* Footer */}
+        <div className="mt-4 text-center text-gray-400 text-xs">
+          <p>RP Griffiths Chartered Certified Accountants</p>
         </div>
       </div>
     </div>
