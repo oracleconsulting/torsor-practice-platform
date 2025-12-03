@@ -53,38 +53,25 @@ serve(async (req) => {
       );
     }
 
-    // Find practice in database (by code or name pattern)
-    let practiceId = practiceConfig.practiceId;
+    // Find practice in database - just get the first one for now (single-tenant)
+    console.log('Looking for practice...');
+    const { data: firstPractice, error: practiceError } = await supabase
+      .from('practices')
+      .select('id, name')
+      .limit(1)
+      .single();
     
-    if (!practiceId) {
-      const { data: practices } = await supabase
-        .from('practices')
-        .select('id, name')
-        .or(`name.ilike.%${practiceCode}%,name.ilike.%${practiceConfig.name.split(' ')[0]}%`)
-        .limit(1);
-      
-      if (practices && practices.length > 0) {
-        practiceId = practices[0].id;
-      } else {
-        // Fallback: get first practice (for single-tenant setups)
-        const { data: firstPractice } = await supabase
-          .from('practices')
-          .select('id')
-          .limit(1)
-          .single();
-        
-        if (firstPractice) {
-          practiceId = firstPractice.id;
-        }
-      }
-    }
-
-    if (!practiceId) {
+    console.log('Practice query result:', { firstPractice, practiceError });
+    
+    if (!firstPractice) {
       return new Response(
-        JSON.stringify({ error: 'Practice not configured. Please contact support.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'No practice configured. Please run setup-rpgcc-practice.sql first.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    const practiceId = firstPractice.id;
+    console.log('Using practice:', practiceId, firstPractice.name);
 
     // Create auth user
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
