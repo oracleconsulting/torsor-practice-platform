@@ -1,9 +1,9 @@
 import { useAuth } from '../../hooks/useAuth';
+import type { Page } from '../../types/navigation';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { useServiceReadiness } from '../../hooks/useServiceReadiness';
 import { Navigation } from '../../components/Navigation';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config' | 'cpd' | 'training' | 'knowledge';
 
 interface ServiceReadinessPageProps {
   onNavigate: (page: Page) => void;

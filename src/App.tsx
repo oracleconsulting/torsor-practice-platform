@@ -14,6 +14,7 @@ import { CPDTrackerPage } from './pages/admin/CPDTrackerPage';
 import { TrainingPlansPage } from './pages/admin/TrainingPlansPage';
 import { KnowledgeBasePage } from './pages/admin/KnowledgeBasePage';
 import { AssessmentReviewPage } from './pages/public/AssessmentReviewPage';
+import type { Page } from './types/navigation';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -24,8 +25,6 @@ const queryClient = new QueryClient({
     },
   },
 });
-
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config' | 'cpd' | 'training' | 'knowledge';
 
 function AppContent() {
   const { user, loading } = useAuth();

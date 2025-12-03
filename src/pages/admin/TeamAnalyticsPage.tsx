@@ -1,10 +1,10 @@
 import { useAuth } from '../../hooks/useAuth';
+import type { Page } from '../../types/navigation';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { useTeamAnalytics } from '../../hooks/useTeamAnalytics';
 import { Navigation } from '../../components/Navigation';
 import { Brain, TrendingUp, AlertTriangle, Award, Users, Target } from 'lucide-react';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config' | 'cpd' | 'training' | 'knowledge';
 
 interface TeamAnalyticsPageProps {
   onNavigate: (page: Page) => void;

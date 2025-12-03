@@ -42,6 +42,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_log(action, created_at DESC
 -- RLS: Team members can view their practice's audit log
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Team sees practice audit log" ON audit_log;
 CREATE POLICY "Team sees practice audit log" ON audit_log
   FOR SELECT USING (
     practice_id IN (

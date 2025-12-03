@@ -1,4 +1,5 @@
 // ============================================================================
+import type { Page } from '../../types/navigation';
 // KNOWLEDGE BASE PAGE
 // ============================================================================
 // Manage practice methodology, examples, and AI guidance
@@ -14,7 +15,6 @@ import {
   Tag, Clock, User, Sparkles, ChevronRight
 } from 'lucide-react';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config' | 'cpd' | 'training' | 'knowledge';
 
 interface KnowledgeBasePageProps {
   currentPage: Page;

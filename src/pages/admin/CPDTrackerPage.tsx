@@ -1,4 +1,5 @@
 // ============================================================================
+import type { Page } from '../../types/navigation';
 // CPD TRACKER PAGE
 // ============================================================================
 // Track Continuing Professional Development for team members
@@ -13,7 +14,6 @@ import {
   BookOpen, Video, Users, Filter, Target, AlertCircle
 } from 'lucide-react';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config' | 'cpd' | 'training' | 'knowledge';
 
 interface CPDTrackerPageProps {
   currentPage: Page;

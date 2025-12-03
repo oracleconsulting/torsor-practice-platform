@@ -1,11 +1,11 @@
 import { useAuth } from '../../hooks/useAuth';
+import type { Page } from '../../types/navigation';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { useSkillsByCategory } from '../../hooks/useSkillsByCategory';
 import { SkillCategoryCard } from '../../components/SkillCategoryCard';
 import { Navigation } from '../../components/Navigation';
 import { Plus, Download } from 'lucide-react';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config' | 'cpd' | 'training' | 'knowledge';
 
 interface SkillsManagementPageProps {
   onNavigate: (page: Page) => void;

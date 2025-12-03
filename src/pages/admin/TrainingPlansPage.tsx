@@ -1,4 +1,5 @@
 // ============================================================================
+import type { Page } from '../../types/navigation';
 // TRAINING PLANS PAGE
 // ============================================================================
 // Create and manage skill development training plans for team members
@@ -13,7 +14,6 @@ import {
   CheckCircle, Circle, Play, Pause, Calendar
 } from 'lucide-react';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config' | 'cpd' | 'training' | 'knowledge';
 
 interface TrainingPlansPageProps {
   currentPage: Page;

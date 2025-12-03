@@ -1,4 +1,5 @@
 import { useSkills } from '../../hooks/useSkills';
+import type { Page } from '../../types/navigation';
 import { useTeamMembers } from '../../hooks/useTeamMembers';
 import { useSkillAssessments } from '../../hooks/useSkillAssessments';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
@@ -6,7 +7,6 @@ import { useAuth } from '../../hooks/useAuth';
 import { SkillsHeatmapGrid } from '../../components/SkillsHeatmapGrid';
 import { Navigation } from '../../components/Navigation';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config' | 'cpd' | 'training' | 'knowledge';
 
 interface SkillsHeatmapPageProps {
   onNavigate: (page: Page) => void;

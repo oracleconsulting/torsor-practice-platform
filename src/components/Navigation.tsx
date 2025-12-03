@@ -1,11 +1,5 @@
 import { LayoutDashboard, Target, TrendingUp, Brain, Users, ClipboardList, Truck, Settings, Award, BookOpen, Database } from 'lucide-react';
-
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config' | 'cpd' | 'training' | 'knowledge';
-
-interface NavigationProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
+import type { NavigationProps } from '../types/navigation';
 
 export function Navigation({ currentPage, onNavigate }: NavigationProps) {
   const links = [

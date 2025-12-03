@@ -1,0 +1,26 @@
+// ============================================================================
+// SHARED NAVIGATION TYPES
+// ============================================================================
+// Single source of truth for navigation types
+// ============================================================================
+
+export type Page = 
+  | 'heatmap' 
+  | 'management' 
+  | 'readiness' 
+  | 'analytics' 
+  | 'clients' 
+  | 'assessments' 
+  | 'delivery' 
+  | 'config' 
+  | 'cpd' 
+  | 'training' 
+  | 'knowledge';
+
+export interface NavigationProps {
+  currentPage: Page;
+  onNavigate: (page: Page) => void;
+}
+
+export interface PageProps extends NavigationProps {}
+

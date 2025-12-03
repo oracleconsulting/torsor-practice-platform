@@ -1,4 +1,5 @@
 // ============================================================================
+import type { Page } from '../../types/navigation';
 // ASSESSMENT PREVIEW PAGE
 // ============================================================================
 // Preview and edit service line assessment questions
@@ -17,7 +18,6 @@ import {
 } from 'lucide-react';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config' | 'cpd' | 'training' | 'knowledge';
 
 interface AssessmentPreviewPageProps {
   currentPage: Page;

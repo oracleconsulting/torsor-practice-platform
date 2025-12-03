@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { Page } from '../../types/navigation';
 import { Navigation } from '../../components/Navigation';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
@@ -23,7 +24,6 @@ import {
   Settings
 } from 'lucide-react';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config' | 'cpd' | 'training' | 'knowledge';
 
 interface ClientServicesPageProps {
   currentPage: Page;

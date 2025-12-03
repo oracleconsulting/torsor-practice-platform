@@ -1,4 +1,5 @@
 // ============================================================================
+import type { Page } from '../../types/navigation';
 // SERVICE CONFIGURATION PAGE
 // ============================================================================
 // Define workflow phases with activities, match to skills, find best fit people
@@ -15,7 +16,6 @@ import {
   BarChart3, Shield, Trash2, Users, Check, X
 } from 'lucide-react';
 
-type Page = 'heatmap' | 'management' | 'readiness' | 'analytics' | 'clients' | 'assessments' | 'delivery' | 'config' | 'cpd' | 'training' | 'knowledge';
 
 interface ServiceConfigPageProps {
   currentPage: Page;

@@ -30,6 +30,7 @@ CREATE INDEX IF NOT EXISTS idx_cache_model ON llm_response_cache(model, created_
 -- RLS: Only service role can access cache
 ALTER TABLE llm_response_cache ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Service role only" ON llm_response_cache;
 CREATE POLICY "Service role only" ON llm_response_cache
   FOR ALL USING (auth.role() = 'service_role');
 
