@@ -40,11 +40,16 @@ export default function DiscoveryPortalPage() {
         .eq('client_id', clientSession?.clientId)
         .single();
 
-      if (data?.service_line?.code === 'discovery') {
-        if (data.status === 'discovery_complete' || data.status === 'complete') {
-          setDiscoveryStatus('complete');
-        } else if (data.status === 'in_progress') {
-          setDiscoveryStatus('in_progress');
+      if (data) {
+        const sl = data.service_line as any;
+        const serviceCode = Array.isArray(sl) ? sl[0]?.code : sl?.code;
+        
+        if (serviceCode === 'discovery') {
+          if (data.status === 'discovery_complete' || data.status === 'complete') {
+            setDiscoveryStatus('complete');
+          } else if (data.status === 'in_progress') {
+            setDiscoveryStatus('in_progress');
+          }
         }
       }
     } catch (err) {
