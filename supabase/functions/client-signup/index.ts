@@ -86,20 +86,6 @@ serve(async (req) => {
       );
     }
 
-    // Check if email already exists
-    const { data: existingMember } = await supabase
-      .from('practice_members')
-      .select('id')
-      .eq('email', email.toLowerCase())
-      .maybeSingle();
-
-    if (existingMember) {
-      return new Response(
-        JSON.stringify({ error: 'An account with this email already exists. Please log in.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // Create auth user
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
@@ -110,6 +96,16 @@ serve(async (req) => {
 
     if (authError) {
       console.error('Auth error:', authError);
+      
+      // Handle specific error codes
+      if (authError.message?.includes('already been registered') || 
+          (authError as any).code === 'email_exists') {
+        return new Response(
+          JSON.stringify({ error: 'An account with this email already exists. Please log in instead.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
       return new Response(
         JSON.stringify({ error: authError.message }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
