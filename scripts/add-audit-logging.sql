@@ -108,31 +108,46 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Apply audit triggers to critical tables
-DROP TRIGGER IF EXISTS audit_practice_members ON practice_members;
-CREATE TRIGGER audit_practice_members
-  AFTER INSERT OR UPDATE OR DELETE ON practice_members
-  FOR EACH ROW EXECUTE FUNCTION log_audit_event();
+-- Apply audit triggers to critical tables (safe re-run)
+DO $$ BEGIN
+  DROP TRIGGER IF EXISTS audit_practice_members ON practice_members;
+  CREATE TRIGGER audit_practice_members
+    AFTER INSERT OR UPDATE OR DELETE ON practice_members
+    FOR EACH ROW EXECUTE FUNCTION log_audit_event();
+EXCEPTION WHEN undefined_table THEN NULL;
+END $$;
 
-DROP TRIGGER IF EXISTS audit_client_assessments ON client_assessments;
-CREATE TRIGGER audit_client_assessments
-  AFTER INSERT OR UPDATE OR DELETE ON client_assessments
-  FOR EACH ROW EXECUTE FUNCTION log_audit_event();
+DO $$ BEGIN
+  DROP TRIGGER IF EXISTS audit_client_assessments ON client_assessments;
+  CREATE TRIGGER audit_client_assessments
+    AFTER INSERT OR UPDATE OR DELETE ON client_assessments
+    FOR EACH ROW EXECUTE FUNCTION log_audit_event();
+EXCEPTION WHEN undefined_table THEN NULL;
+END $$;
 
-DROP TRIGGER IF EXISTS audit_client_roadmaps ON client_roadmaps;
-CREATE TRIGGER audit_client_roadmaps
-  AFTER INSERT OR UPDATE OR DELETE ON client_roadmaps
-  FOR EACH ROW EXECUTE FUNCTION log_audit_event();
+DO $$ BEGIN
+  DROP TRIGGER IF EXISTS audit_client_roadmaps ON client_roadmaps;
+  CREATE TRIGGER audit_client_roadmaps
+    AFTER INSERT OR UPDATE OR DELETE ON client_roadmaps
+    FOR EACH ROW EXECUTE FUNCTION log_audit_event();
+EXCEPTION WHEN undefined_table THEN NULL;
+END $$;
 
-DROP TRIGGER IF EXISTS audit_client_context ON client_context;
-CREATE TRIGGER audit_client_context
-  AFTER INSERT OR UPDATE OR DELETE ON client_context
-  FOR EACH ROW EXECUTE FUNCTION log_audit_event();
+DO $$ BEGIN
+  DROP TRIGGER IF EXISTS audit_client_context ON client_context;
+  CREATE TRIGGER audit_client_context
+    AFTER INSERT OR UPDATE OR DELETE ON client_context
+    FOR EACH ROW EXECUTE FUNCTION log_audit_event();
+EXCEPTION WHEN undefined_table THEN NULL;
+END $$;
 
-DROP TRIGGER IF EXISTS audit_assessment_questions ON assessment_questions;
-CREATE TRIGGER audit_assessment_questions
-  AFTER INSERT OR UPDATE OR DELETE ON assessment_questions
-  FOR EACH ROW EXECUTE FUNCTION log_audit_event();
+DO $$ BEGIN
+  DROP TRIGGER IF EXISTS audit_assessment_questions ON assessment_questions;
+  CREATE TRIGGER audit_assessment_questions
+    AFTER INSERT OR UPDATE OR DELETE ON assessment_questions
+    FOR EACH ROW EXECUTE FUNCTION log_audit_event();
+EXCEPTION WHEN undefined_table THEN NULL;
+END $$;
 
 -- Function to log custom events (for Edge Functions)
 CREATE OR REPLACE FUNCTION log_custom_audit(

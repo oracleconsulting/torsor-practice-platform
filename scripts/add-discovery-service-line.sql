@@ -5,19 +5,17 @@
 -- ============================================================================
 
 -- Add Discovery service line
-INSERT INTO service_lines (code, name, description, category, requires_discovery, is_active)
+INSERT INTO service_lines (code, name, short_description, display_order, is_active)
 VALUES (
   'discovery',
   'Discovery',
   'Initial client discovery and assessment',
-  'Onboarding',
-  true,
+  0,
   true
 )
 ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
-  description = EXCLUDED.description,
-  category = EXCLUDED.category;
+  short_description = EXCLUDED.short_description;
 
 -- Add program_status column if not exists
 DO $$

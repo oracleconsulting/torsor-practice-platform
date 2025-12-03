@@ -135,11 +135,16 @@ CREATE TABLE IF NOT EXISTS service_lines (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   code text UNIQUE NOT NULL,
   name text NOT NULL,
-  description text,
-  category text,
+  short_description text,
+  full_description text,
+  icon text,
+  base_pricing jsonb,
+  assessment_config jsonb,
+  vp_generation_prompt text,
   is_active boolean DEFAULT true,
-  requires_discovery boolean DEFAULT false,
-  created_at timestamptz DEFAULT now()
+  display_order integer DEFAULT 0,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
 );
 
 -- Client service line enrollments
@@ -536,11 +541,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Apply audit triggers
+-- Apply audit triggers (drop first if exists)
+DROP TRIGGER IF EXISTS audit_practice_members ON practice_members;
 CREATE TRIGGER audit_practice_members AFTER INSERT OR UPDATE OR DELETE ON practice_members
   FOR EACH ROW EXECUTE FUNCTION log_audit_event();
+
+DROP TRIGGER IF EXISTS audit_client_assessments ON client_assessments;
 CREATE TRIGGER audit_client_assessments AFTER INSERT OR UPDATE OR DELETE ON client_assessments
   FOR EACH ROW EXECUTE FUNCTION log_audit_event();
+
+DROP TRIGGER IF EXISTS audit_client_roadmaps ON client_roadmaps;
 CREATE TRIGGER audit_client_roadmaps AFTER INSERT OR UPDATE OR DELETE ON client_roadmaps
   FOR EACH ROW EXECUTE FUNCTION log_audit_event();
 
@@ -548,16 +558,17 @@ CREATE TRIGGER audit_client_roadmaps AFTER INSERT OR UPDATE OR DELETE ON client_
 -- SEED DATA: Service Lines
 -- =============================================================================
 
-INSERT INTO service_lines (code, name, description, category, requires_discovery) VALUES
-  ('365_alignment', '365 Alignment Program', 'Comprehensive business transformation', 'Advisory', false),
-  ('management_accounts', 'Management Accounts', 'Monthly financial reporting', 'Compliance', false),
-  ('systems_audit', 'Systems Audit', 'Tech stack optimization', 'Technology', false),
-  ('fractional_exec', 'Fractional CFO/COO', 'Strategic executive support', 'Advisory', false),
-  ('hidden_value_audit', 'Hidden Value Audit', 'Business value discovery', 'Advisory', false),
-  ('tax_planning', 'Proactive Tax Planning', 'Tax optimization strategies', 'Compliance', false),
-  ('group_structure', 'Group Structure Review', 'Corporate restructuring', 'Advisory', false),
-  ('exit_planning', 'Exit Strategy Planning', 'Business sale preparation', 'Advisory', false),
-  ('growth_funding', 'Growth & Funding Support', 'Investment and scaling', 'Advisory', false)
+INSERT INTO service_lines (code, name, short_description, display_order) VALUES
+  ('discovery', 'Discovery', 'Initial client discovery and assessment', 0),
+  ('365_alignment', '365 Alignment Program', 'Comprehensive business transformation', 1),
+  ('management_accounts', 'Management Accounts', 'Monthly financial reporting', 2),
+  ('systems_audit', 'Systems Audit', 'Tech stack optimization', 3),
+  ('fractional_exec', 'Fractional CFO/COO', 'Strategic executive support', 4),
+  ('hidden_value_audit', 'Hidden Value Audit', 'Business value discovery', 5),
+  ('tax_planning', 'Proactive Tax Planning', 'Tax optimization strategies', 6),
+  ('group_structure', 'Group Structure Review', 'Corporate restructuring', 7),
+  ('exit_planning', 'Exit Strategy Planning', 'Business sale preparation', 8),
+  ('growth_funding', 'Growth & Funding Support', 'Investment and scaling', 9)
 ON CONFLICT (code) DO NOTHING;
 
 -- ============================================================================
