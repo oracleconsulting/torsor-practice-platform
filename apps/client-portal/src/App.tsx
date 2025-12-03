@@ -28,6 +28,7 @@ function App() {
           {/* Public routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/signup/:practiceCode" element={<SignupPage />} />
           <Route path="/invitation/:token" element={<InvitationPage />} />
           
           {/* Protected routes */}

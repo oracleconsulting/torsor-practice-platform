@@ -1,15 +1,19 @@
 // ============================================================================
 // CLIENT SIGNUP PAGE
 // ============================================================================
-// Public signup page for clients to create their portal account
-// Links directly to practice and enrolls in Discovery service line
+// Secure signup via Edge Function - practice code in URL
+// Usage: /signup/rpgcc or /signup (defaults to rpgcc)
 // ============================================================================
 
 import { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Compass, Eye, EyeOff, CheckCircle, ArrowRight } from 'lucide-react';
+import { Compass, Eye, EyeOff, CheckCircle, ArrowRight, Shield } from 'lucide-react';
 
 export function SignupPage() {
+  const { practiceCode = 'rpgcc' } = useParams<{ practiceCode?: string }>();
+  const navigate = useNavigate();
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -24,6 +28,7 @@ export function SignupPage() {
     e.preventDefault();
     setError(null);
 
+    // Validation
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -34,90 +39,38 @@ export function SignupPage() {
       return;
     }
 
+    if (!name.trim()) {
+      setError('Please enter your name');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // 1. Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-            company,
-          }
+      // Call secure Edge Function
+      const { data, error: fnError } = await supabase.functions.invoke('client-signup', {
+        body: {
+          practiceCode,
+          email: email.trim().toLowerCase(),
+          password,
+          name: name.trim(),
+          company: company.trim() || undefined,
         }
       });
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('Failed to create account');
-
-      // 2. Get practice - try multiple name patterns, then fallback to first practice
-      let practiceId: string | null = null;
-      
-      // Try to find by known names
-      const { data: practices } = await supabase
-        .from('practices')
-        .select('id, name')
-        .or('name.ilike.%RPGCC%,name.ilike.%RP Griffiths%,name.ilike.%Torsor%')
-        .limit(1);
-
-      if (practices?.[0]) {
-        practiceId = practices[0].id;
-      } else {
-        // Fallback: get any practice
-        const { data: anyPractice } = await supabase
-          .from('practices')
-          .select('id')
-          .limit(1)
-          .single();
-        
-        if (anyPractice) {
-          practiceId = anyPractice.id;
-        }
+      if (fnError) {
+        throw new Error(fnError.message || 'Signup failed');
       }
-      
-      if (!practiceId) throw new Error('No practice configured. Please contact support.');
 
-      // 3. Create practice member as client
-      const { data: member, error: memberError } = await supabase
-        .from('practice_members')
-        .insert({
-          practice_id: practiceId,
-          user_id: authData.user.id,
-          name,
-          email,
-          member_type: 'client',
-          program_status: 'discovery'
-        })
-        .select()
-        .single();
-
-      if (memberError) throw memberError;
-
-      // 4. Get discovery service line
-      const { data: discoveryService } = await supabase
-        .from('service_lines')
-        .select('id')
-        .eq('code', 'discovery')
-        .single();
-
-      // 5. Enroll in discovery service line
-      if (discoveryService && member) {
-        await supabase
-          .from('client_service_lines')
-          .insert({
-            client_id: member.id,
-            service_line_id: discoveryService.id,
-            status: 'pending_discovery'
-          });
+      if (data?.error) {
+        throw new Error(data.error);
       }
 
       setSuccess(true);
 
     } catch (err: any) {
       console.error('Signup error:', err);
-      setError(err.message || 'Failed to create account');
+      setError(err.message || 'Failed to create account. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -131,18 +84,18 @@ export function SignupPage() {
             <CheckCircle className="w-8 h-8 text-emerald-600" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-4">
-            Account Created!
+            Welcome Aboard!
           </h1>
           <p className="text-gray-600 mb-6">
-            Check your email to verify your account, then log in to complete your discovery assessment.
+            Your account has been created successfully. You can now log in and complete your discovery assessment.
           </p>
-          <a 
-            href="/login"
+          <button 
+            onClick={() => navigate('/login')}
             className="inline-flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors"
           >
             Continue to Login
             <ArrowRight className="w-4 h-4" />
-          </a>
+          </button>
         </div>
       </div>
     );
@@ -175,7 +128,7 @@ export function SignupPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Your Name
+                Your Name *
               </label>
               <input
                 type="text"
@@ -202,7 +155,7 @@ export function SignupPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
+                Email Address *
               </label>
               <input
                 type="email"
@@ -216,7 +169,7 @@ export function SignupPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Create Password
+                Create Password *
               </label>
               <div className="relative">
                 <input
@@ -241,7 +194,7 @@ export function SignupPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Confirm Password
+                Confirm Password *
               </label>
               <input
                 type="password"
@@ -279,9 +232,10 @@ export function SignupPage() {
           </div>
         </div>
 
-        {/* Trust Indicators */}
-        <div className="mt-8 text-center text-slate-400 text-sm">
-          <p>Powered by RPGCC • Your data is secure and confidential</p>
+        {/* Security Badge */}
+        <div className="mt-6 flex items-center justify-center gap-2 text-slate-400 text-sm">
+          <Shield className="w-4 h-4" />
+          <span>Secure signup • Your data is protected</span>
         </div>
       </div>
     </div>
@@ -289,4 +243,3 @@ export function SignupPage() {
 }
 
 export default SignupPage;
-
