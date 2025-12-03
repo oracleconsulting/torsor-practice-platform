@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Mail, Lock, ArrowRight, CheckCircle } from 'lucide-react';
+import { Loader2, CheckCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const { user, loading, signIn, signInWithPassword } = useAuth();
@@ -21,7 +21,7 @@ export default function LoginPage() {
   }
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/portal" replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,16 +49,26 @@ export default function LoginPage() {
 
   if (sent) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-4">
-        <div className="max-w-md w-full">
-          <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle className="w-8 h-8 text-green-600" />
+      <div className="min-h-screen flex items-center justify-center bg-white p-4">
+        <div className="max-w-md w-full text-center">
+          {/* RPGCC Logo */}
+          <div className="flex items-center justify-center gap-1 mb-8">
+            <span className="text-4xl font-black tracking-tight text-black">RPGCC</span>
+            <div className="flex gap-1 ml-1">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#3B82F6]" />
+              <div className="w-2.5 h-2.5 rounded-full bg-[#EF4444]" />
+              <div className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 mb-2">
-              Check your email
+          </div>
+          
+          <div className="bg-gray-50 rounded-2xl border border-gray-200 p-8">
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="w-8 h-8 text-emerald-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">
+              Check Your Email
             </h1>
-            <p className="text-slate-600 mb-6">
+            <p className="text-gray-600 mb-6">
               We've sent a magic link to <strong>{email}</strong>. 
               Click the link to sign in.
             </p>
@@ -67,7 +77,7 @@ export default function LoginPage() {
                 setSent(false);
                 setEmail('');
               }}
-              className="text-indigo-600 hover:text-indigo-700 font-medium"
+              className="text-blue-600 hover:text-blue-700 font-medium"
             >
               Use a different email
             </button>
@@ -78,70 +88,69 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-white p-4">
       <div className="max-w-md w-full">
-        {/* Logo */}
+        {/* RPGCC Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-2xl">365</span>
+          <div className="flex items-center justify-center gap-1 mb-6">
+            <span className="text-5xl font-black tracking-tight text-black">RPGCC</span>
+            <div className="flex gap-1 ml-1">
+              <div className="w-3 h-3 rounded-full bg-[#3B82F6]" />
+              <div className="w-3 h-3 rounded-full bg-[#EF4444]" />
+              <div className="w-3 h-3 rounded-full bg-[#F59E0B]" />
+            </div>
           </div>
-          <h1 className="text-3xl font-bold text-slate-900">
+          <h1 className="text-2xl font-bold text-gray-900">
             Welcome Back
           </h1>
-          <p className="text-slate-600 mt-2">
-            Sign in to continue your transformation journey
+          <p className="text-gray-500 mt-2">
+            Sign in to your client portal
           </p>
         </div>
 
         {/* Login Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <div className="bg-gray-50 rounded-2xl border border-gray-200 p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm font-medium text-slate-700 mb-2"
+                className="block text-sm font-medium text-gray-700 mb-2"
               >
-                Email address
+                Email Address
               </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                  className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-shadow"
-                />
-              </div>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="john@company.com"
+                required
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+              />
             </div>
 
             {usePassword && (
               <div>
                 <label
                   htmlFor="password"
-                  className="block text-sm font-medium text-slate-700 mb-2"
+                  className="block text-sm font-medium text-gray-700 mb-2"
                 >
                   Password
                 </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-shadow"
-                  />
-                </div>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                />
               </div>
             )}
 
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
                 {error}
               </div>
             )}
@@ -149,39 +158,43 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={submitting || !email || (usePassword && !password)}
-              className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+              className="w-full py-4 bg-black text-white font-semibold rounded-xl hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             >
               {submitting ? (
-                <>
+                <span className="flex items-center justify-center gap-2">
                   <Loader2 className="w-5 h-5 animate-spin" />
                   {usePassword ? 'Signing in...' : 'Sending link...'}
-                </>
+                </span>
               ) : (
-                <>
-                  {usePassword ? 'Sign in' : 'Send magic link'}
-                  <ArrowRight className="w-5 h-5" />
-                </>
+                usePassword ? 'Sign In' : 'Send Magic Link'
               )}
             </button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 pt-6 border-t border-gray-100 text-center space-y-3">
             <button
               onClick={() => {
                 setUsePassword(!usePassword);
                 setError(null);
               }}
-              className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
             >
               {usePassword ? 'Use magic link instead' : 'Use password instead'}
             </button>
+            
+            <p className="text-sm text-gray-500">
+              Don't have an account?{' '}
+              <a href="/signup/rpgcc" className="text-blue-600 hover:text-blue-700 font-medium">
+                Sign up
+              </a>
+            </p>
           </div>
         </div>
 
         {/* Footer */}
-        <p className="mt-8 text-center text-sm text-slate-500">
-          Part of the 365 Alignment Program
-        </p>
+        <div className="mt-6 text-center text-gray-400 text-xs">
+          <p>RP Griffiths Chartered Certified Accountants</p>
+        </div>
       </div>
     </div>
   );

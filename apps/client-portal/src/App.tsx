@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import InvitationPage from './pages/InvitationPage';
 import DashboardPage from './pages/DashboardPage';
+import DiscoveryPortalPage from './pages/DiscoveryPortalPage';
 import DiscoveryCompletePage from './pages/DiscoveryCompletePage';
 import AssessmentsPage from './pages/assessments/AssessmentsPage';
 import AssessmentPart1Page from './pages/assessments/Part1Page';
@@ -33,7 +34,11 @@ function App() {
           
           {/* Protected routes */}
           <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            {/* Default: Discovery Portal (simple view) */}
+            <Route path="/" element={<Navigate to="/portal" replace />} />
+            <Route path="/portal" element={<DiscoveryPortalPage />} />
+            
+            {/* Legacy dashboard for 365 clients */}
             <Route path="/dashboard" element={<DashboardPage />} />
             
             {/* Assessments */}
@@ -56,13 +61,13 @@ function App() {
             {/* Service Line Assessments */}
             <Route path="/service/:serviceCode/assessment" element={<ServiceAssessmentPage />} />
             
-            {/* Destination Discovery */}
+            {/* Destination Discovery Assessment */}
             <Route path="/discovery" element={<DestinationDiscoveryPage />} />
             <Route path="/discovery/complete" element={<DiscoveryCompletePage />} />
           </Route>
           
-          {/* Catch all */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          {/* Catch all - go to portal */}
+          <Route path="*" element={<Navigate to="/portal" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

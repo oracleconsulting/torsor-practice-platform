@@ -1,14 +1,15 @@
 // ============================================================================
-// CLIENT SIGNUP PAGE
+// CLIENT SIGNUP PAGE - SIMPLE AUTO-LOGIN FLOW
 // ============================================================================
-// Secure signup via Edge Function - practice code in URL
-// Usage: /signup/rpgcc or /signup (defaults to rpgcc)
+// 1. User enters details
+// 2. Edge Function creates account + assigns to RPGCC
+// 3. Auto-login and redirect to discovery portal
 // ============================================================================
 
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Compass, Eye, EyeOff, CheckCircle, ArrowRight, Shield } from 'lucide-react';
+import { Eye, EyeOff, Shield, Loader2 } from 'lucide-react';
 
 export function SignupPage() {
   const { practiceCode = 'rpgcc' } = useParams<{ practiceCode?: string }>();
@@ -21,8 +22,8 @@ export function SignupPage() {
   const [company, setCompany] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,9 +46,10 @@ export function SignupPage() {
     }
 
     setLoading(true);
+    setStatus('Creating your account...');
 
     try {
-      // Call secure Edge Function
+      // Step 1: Create account via Edge Function
       const { data, error: fnError } = await supabase.functions.invoke('client-signup', {
         body: {
           practiceCode,
@@ -66,52 +68,33 @@ export function SignupPage() {
         throw new Error(data.error);
       }
 
-      setSuccess(true);
+      // Step 2: Auto-login with the same credentials
+      setStatus('Logging you in...');
+      
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
+      if (loginError) {
+        throw new Error('Account created but login failed. Please try logging in manually.');
+      }
+
+      // Step 3: Redirect to portal
+      setStatus('Welcome! Redirecting...');
+      
+      // Small delay for UX, then navigate to portal
+      setTimeout(() => {
+        navigate('/portal');
+      }, 500);
 
     } catch (err: any) {
       console.error('Signup error:', err);
       setError(err.message || 'Failed to create account. Please try again.');
-    } finally {
       setLoading(false);
+      setStatus('');
     }
   };
-
-  if (success) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
-        <div className="max-w-md w-full text-center">
-          {/* RPGCC Logo */}
-          <div className="flex items-center justify-center gap-1 mb-8">
-            <span className="text-4xl font-black tracking-tight text-black">RPGCC</span>
-            <div className="flex gap-1 ml-1">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#3B82F6]" />
-              <div className="w-2.5 h-2.5 rounded-full bg-[#EF4444]" />
-              <div className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]" />
-            </div>
-          </div>
-          
-          <div className="bg-gray-50 rounded-2xl border border-gray-200 p-8">
-            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle className="w-8 h-8 text-emerald-600" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">
-              Welcome Aboard!
-            </h1>
-            <p className="text-gray-600 mb-6">
-              Your account has been created successfully. You can now log in and complete your discovery assessment.
-            </p>
-            <button 
-              onClick={() => navigate('/login')}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors"
-            >
-              Continue to Login
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-4">
@@ -121,16 +104,16 @@ export function SignupPage() {
           <div className="flex items-center justify-center gap-1 mb-6">
             <span className="text-5xl font-black tracking-tight text-black">RPGCC</span>
             <div className="flex gap-1 ml-1">
-              <div className="w-3 h-3 rounded-full bg-[#3B82F6]" /> {/* Blue */}
-              <div className="w-3 h-3 rounded-full bg-[#EF4444]" /> {/* Red */}
-              <div className="w-3 h-3 rounded-full bg-[#F59E0B]" /> {/* Amber */}
+              <div className="w-3 h-3 rounded-full bg-[#3B82F6]" />
+              <div className="w-3 h-3 rounded-full bg-[#EF4444]" />
+              <div className="w-3 h-3 rounded-full bg-[#F59E0B]" />
             </div>
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
             Begin Your Discovery
           </h1>
           <p className="text-gray-500">
-            Create your client portal to explore how we can help your business thrive
+            Create your account to start your business discovery assessment
           </p>
         </div>
 
@@ -152,7 +135,8 @@ export function SignupPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                disabled={loading}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white disabled:bg-gray-100 disabled:text-gray-500"
                 placeholder="John Smith"
               />
             </div>
@@ -165,7 +149,8 @@ export function SignupPage() {
                 type="text"
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                disabled={loading}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white disabled:bg-gray-100 disabled:text-gray-500"
                 placeholder="Acme Ltd (optional)"
               />
             </div>
@@ -179,7 +164,8 @@ export function SignupPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                disabled={loading}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white disabled:bg-gray-100 disabled:text-gray-500"
                 placeholder="john@company.com"
               />
             </div>
@@ -194,8 +180,9 @@ export function SignupPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  disabled={loading}
                   minLength={8}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent pr-12"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-12 disabled:bg-gray-100 disabled:text-gray-500"
                   placeholder="••••••••"
                 />
                 <button
@@ -218,7 +205,8 @@ export function SignupPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                disabled={loading}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white disabled:bg-gray-100 disabled:text-gray-500"
                 placeholder="••••••••"
               />
             </div>
@@ -226,15 +214,15 @@ export function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-black text-white font-semibold rounded-xl hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+              className="w-full py-4 bg-black text-white font-semibold rounded-xl hover:bg-gray-800 transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-lg"
             >
               {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Creating Account...
+                <span className="flex items-center justify-center gap-3">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  {status || 'Please wait...'}
                 </span>
               ) : (
-                'Create My Portal'
+                'Get Started'
               )}
             </button>
           </form>
