@@ -14,6 +14,16 @@ export function DiscoveryCompletePage({ clientName }: DiscoveryCompletePageProps
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
       <div className="max-w-2xl w-full">
+        {/* RPGCC Logo */}
+        <div className="flex items-center justify-center gap-1 mb-8">
+          <span className="text-3xl font-black tracking-tight text-white">RPGCC</span>
+          <div className="flex gap-1 ml-1">
+            <div className="w-2 h-2 rounded-full bg-[#3B82F6]" />
+            <div className="w-2 h-2 rounded-full bg-[#EF4444]" />
+            <div className="w-2 h-2 rounded-full bg-[#F59E0B]" />
+          </div>
+        </div>
+
         {/* Success Animation */}
         <div className="text-center mb-8">
           <div className="relative w-24 h-24 mx-auto mb-6">
@@ -116,8 +126,9 @@ export function DiscoveryCompletePage({ clientName }: DiscoveryCompletePageProps
         </div>
 
         {/* Footer */}
-        <div className="mt-8 text-center text-slate-500 text-sm">
+        <div className="mt-8 text-center text-slate-500 text-sm space-y-2">
           <p>You can safely close this window. We'll email you when your report is ready.</p>
+          <p className="text-xs text-slate-600">RP Griffiths Chartered Certified Accountants</p>
         </div>
       </div>
     </div>
