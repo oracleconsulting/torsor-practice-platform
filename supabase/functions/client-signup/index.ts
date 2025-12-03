@@ -127,6 +127,7 @@ serve(async (req) => {
         user_id: authData.user.id,
         name,
         email: email.toLowerCase(),
+        role: 'Client',  // Required field
         member_type: 'client',
         program_status: 'discovery',
         client_company: company || null,
