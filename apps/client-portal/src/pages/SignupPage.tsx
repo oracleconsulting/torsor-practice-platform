@@ -52,20 +52,38 @@ export function SignupPage() {
       if (authError) throw authError;
       if (!authData.user) throw new Error('Failed to create account');
 
-      // 2. Get RPGCC practice (or create via Edge Function)
-      const { data: practice } = await supabase
+      // 2. Get practice - try multiple name patterns, then fallback to first practice
+      let practiceId: string | null = null;
+      
+      // Try to find by known names
+      const { data: practices } = await supabase
         .from('practices')
-        .select('id')
-        .eq('name', 'RPGCC')
-        .single();
+        .select('id, name')
+        .or('name.ilike.%RPGCC%,name.ilike.%RP Griffiths%,name.ilike.%Torsor%')
+        .limit(1);
 
-      if (!practice) throw new Error('Practice not found');
+      if (practices?.[0]) {
+        practiceId = practices[0].id;
+      } else {
+        // Fallback: get any practice
+        const { data: anyPractice } = await supabase
+          .from('practices')
+          .select('id')
+          .limit(1)
+          .single();
+        
+        if (anyPractice) {
+          practiceId = anyPractice.id;
+        }
+      }
+      
+      if (!practiceId) throw new Error('No practice configured. Please contact support.');
 
       // 3. Create practice member as client
       const { data: member, error: memberError } = await supabase
         .from('practice_members')
         .insert({
-          practice_id: practice.id,
+          practice_id: practiceId,
           user_id: authData.user.id,
           name,
           email,
