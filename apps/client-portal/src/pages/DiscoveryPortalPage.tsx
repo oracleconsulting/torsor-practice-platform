@@ -11,18 +11,40 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   Compass, ChevronRight, LogOut, CheckCircle, 
-  Clock, Building2, User, Loader2 
+  Clock, Building2, Loader2, Target, TrendingUp,
+  Settings, LineChart, Users, Briefcase, ArrowRight
 } from 'lucide-react';
+
+interface AssignedService {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  status: string;
+}
+
+// Service line icons mapping
+const SERVICE_ICONS: Record<string, any> = {
+  '365_method': Target,
+  'fractional_cfo': TrendingUp,
+  'systems_audit': Settings,
+  'management_accounts': LineChart,
+  'combined_advisory': Users,
+  'fractional_coo': Briefcase,
+  'default': Target
+};
 
 export default function DiscoveryPortalPage() {
   const { user, clientSession, signOut } = useAuth();
   const navigate = useNavigate();
   const [discoveryStatus, setDiscoveryStatus] = useState<'pending' | 'in_progress' | 'complete'>('pending');
+  const [assignedServices, setAssignedServices] = useState<AssignedService[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (clientSession?.clientId) {
       checkDiscoveryStatus();
+      fetchAssignedServices();
     } else {
       setLoading(false);
     }
@@ -30,32 +52,51 @@ export default function DiscoveryPortalPage() {
 
   const checkDiscoveryStatus = async () => {
     try {
-      // Check if they have a discovery service line and its status
+      // Check program status directly from practice_members (more reliable)
+      const { data: memberData } = await supabase
+        .from('practice_members')
+        .select('program_status')
+        .eq('id', clientSession?.clientId)
+        .single();
+
+      if (memberData?.program_status === 'discovery_complete' || memberData?.program_status === 'enrolled') {
+        setDiscoveryStatus('complete');
+      } else if (memberData?.program_status === 'discovery' || memberData?.program_status === 'discovery_in_progress') {
+        setDiscoveryStatus('pending');
+      }
+    } catch (err) {
+      // Handle silently
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAssignedServices = async () => {
+    try {
       const { data } = await supabase
         .from('client_service_lines')
         .select(`
+          id,
           status,
-          service_line:service_lines(code)
+          service_line:service_lines(code, name, short_description)
         `)
         .eq('client_id', clientSession?.clientId)
-        .single();
+        .neq('status', 'cancelled');
 
       if (data) {
-        const sl = data.service_line as any;
-        const serviceCode = Array.isArray(sl) ? sl[0]?.code : sl?.code;
-        
-        if (serviceCode === 'discovery') {
-          if (data.status === 'discovery_complete' || data.status === 'complete') {
-            setDiscoveryStatus('complete');
-          } else if (data.status === 'in_progress') {
-            setDiscoveryStatus('in_progress');
-          }
-        }
+        const services = data
+          .filter((d: any) => d.service_line && d.service_line.code !== 'discovery')
+          .map((d: any) => ({
+            id: d.id,
+            code: d.service_line.code,
+            name: d.service_line.name,
+            description: d.service_line.short_description,
+            status: d.status
+          }));
+        setAssignedServices(services);
       }
     } catch (err) {
-      // No service line yet - that's fine
-    } finally {
-      setLoading(false);
+      // Handle silently
     }
   };
 
@@ -165,14 +206,18 @@ export default function DiscoveryPortalPage() {
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   Discovery Complete!
                 </h3>
-                <p className="text-gray-600 mb-6">
+                <p className="text-gray-600 mb-4">
                   Thank you for completing your discovery assessment. 
-                  Your advisor will be in touch shortly to discuss your results.
+                  {assignedServices.length > 0 
+                    ? " Here are the services you've been enrolled in:"
+                    : " Your advisor will be in touch shortly to discuss your results."}
                 </p>
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">
-                  <Clock className="w-4 h-4" />
-                  Awaiting advisor review
-                </div>
+                {assignedServices.length === 0 && (
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">
+                    <Clock className="w-4 h-4" />
+                    Awaiting advisor review
+                  </div>
+                )}
               </div>
             ) : (
               // Not Started / In Progress State
@@ -223,6 +268,59 @@ export default function DiscoveryPortalPage() {
             )}
           </div>
         </div>
+
+        {/* Assigned Services Section */}
+        {assignedServices.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Your Services</h2>
+            <div className="space-y-4">
+              {assignedServices.map((service) => {
+                const Icon = SERVICE_ICONS[service.code] || SERVICE_ICONS.default;
+                const statusColors = {
+                  'pending_onboarding': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', label: 'Onboarding' },
+                  'active': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', label: 'Active' },
+                  'in_progress': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', label: 'In Progress' }
+                };
+                const statusStyle = statusColors[service.status as keyof typeof statusColors] || statusColors.pending_onboarding;
+
+                return (
+                  <div 
+                    key={service.id}
+                    className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="p-3 bg-indigo-50 rounded-xl">
+                        <Icon className="w-6 h-6 text-indigo-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <h3 className="font-semibold text-gray-900">{service.name}</h3>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
+                            {statusStyle.label}
+                          </span>
+                        </div>
+                        <p className="text-gray-600 text-sm mb-3">{service.description}</p>
+                        
+                        {service.status === 'pending_onboarding' && (
+                          <p className="text-amber-600 text-sm">
+                            Your advisor will reach out to begin onboarding soon.
+                          </p>
+                        )}
+                        
+                        {service.status === 'active' && (
+                          <button className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-700 text-sm font-medium">
+                            View Details
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Help Section */}
         <div className="mt-8 bg-slate-50 rounded-xl border border-slate-200 p-6">

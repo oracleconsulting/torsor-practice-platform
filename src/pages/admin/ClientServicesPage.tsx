@@ -21,7 +21,13 @@ import {
   X,
   Send,
   LineChart,
-  Settings
+  Settings,
+  Compass,
+  FileText,
+  Upload,
+  Download,
+  MessageSquare,
+  Sparkles
 } from 'lucide-react';
 
 
@@ -30,8 +36,19 @@ interface ClientServicesPageProps {
   onNavigate: (page: Page) => void;
 }
 
-// All 9 Service Lines - BSG Complete Offering
+// All Service Lines - BSG Complete Offering
 const SERVICE_LINES = [
+  // Discovery First!
+  { 
+    id: 'discovery', 
+    code: 'discovery',
+    name: 'Destination Discovery',
+    description: 'Initial discovery assessment to understand client goals and recommend services',
+    icon: Compass,
+    color: 'cyan',
+    monthlyRevenue: 0,
+    status: 'ready'
+  },
   // Week 1 Ready
   { 
     id: '365_method', 
@@ -231,6 +248,52 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
       const serviceLineCode = serviceLineConfig?.code || selectedServiceLine;
 
       console.log('Fetching clients for practice:', practiceId, 'service:', serviceLineCode);
+
+      // Special handling for Discovery clients
+      if (serviceLineCode === 'discovery') {
+        const { data: discoveryClients } = await supabase
+          .from('practice_members')
+          .select(`
+            id,
+            name,
+            email,
+            client_company,
+            program_status,
+            last_portal_login,
+            created_at
+          `)
+          .eq('practice_id', practiceId)
+          .eq('member_type', 'client')
+          .in('program_status', ['discovery', 'discovery_complete', 'discovery_in_progress'])
+          .order('created_at', { ascending: false });
+
+        // Also check destination_discovery for completion
+        const clientIds = discoveryClients?.map(c => c.id) || [];
+        const { data: discoveries } = await supabase
+          .from('destination_discovery')
+          .select('client_id, completed_at')
+          .in('client_id', clientIds);
+
+        const enrichedClients: Client[] = (discoveryClients || []).map(client => {
+          const discovery = discoveries?.find(d => d.client_id === client.id);
+          const isComplete = discovery?.completed_at || client.program_status === 'discovery_complete';
+          return {
+            id: client.id,
+            name: client.name,
+            email: client.email,
+            company: client.client_company,
+            service_line: 'discovery',
+            status: isComplete ? 'completed' : 'active',
+            progress: isComplete ? 100 : 50,
+            lastActivity: client.last_portal_login,
+            hasRoadmap: isComplete
+          };
+        });
+        
+        setClients(enrichedClients);
+        setLoading(false);
+        return;
+      }
 
       // First, get the service_line_id from the database
       const { data: serviceLineData } = await supabase
@@ -624,8 +687,17 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           </div>
         )}
 
-        {/* Client Detail Modal - will be expanded */}
-        {selectedClient && (
+        {/* Client Detail Modal - show Discovery modal for discovery clients */}
+        {selectedClient && selectedServiceLine === 'discovery' && (
+          <DiscoveryClientModal 
+            clientId={selectedClient} 
+            onClose={() => setSelectedClient(null)}
+            onRefresh={fetchClients}
+          />
+        )}
+        
+        {/* Regular Client Detail Modal for other service lines */}
+        {selectedClient && selectedServiceLine !== 'discovery' && (
           <ClientDetailModal 
             clientId={selectedClient} 
             onClose={() => setSelectedClient(null)} 
@@ -904,6 +976,618 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+// ============================================================================
+// DISCOVERY CLIENT MODAL - View responses, upload docs, assign services
+// ============================================================================
+function DiscoveryClientModal({ 
+  clientId, 
+  onClose,
+  onRefresh
+}: { 
+  clientId: string; 
+  onClose: () => void;
+  onRefresh: () => void;
+}) {
+  const { user } = useAuth();
+  const { data: currentMember } = useCurrentMember(user?.id);
+  const [client, setClient] = useState<any>(null);
+  const [discovery, setDiscovery] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'responses' | 'documents' | 'analysis' | 'services'>('responses');
+  
+  // Document upload state
+  const [uploading, setUploading] = useState(false);
+  const [documents, setDocuments] = useState<any[]>([]);
+  
+  // Analysis state
+  const [analysisNotes, setAnalysisNotes] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [generatingReport, setGeneratingReport] = useState(false);
+  
+  // Service assignment state
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [assigningServices, setAssigningServices] = useState(false);
+
+  useEffect(() => {
+    fetchClientDetail();
+  }, [clientId]);
+
+  const fetchClientDetail = async () => {
+    setLoading(true);
+    try {
+      // Fetch client
+      const { data: clientData } = await supabase
+        .from('practice_members')
+        .select('*')
+        .eq('id', clientId)
+        .single();
+
+      // Fetch discovery responses
+      const { data: discoveryData } = await supabase
+        .from('destination_discovery')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      // Fetch uploaded documents
+      const { data: docsData } = await supabase
+        .from('client_context')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('context_type', 'document')
+        .order('created_at', { ascending: false });
+
+      // Fetch currently assigned services
+      const { data: assignedServices } = await supabase
+        .from('client_service_lines')
+        .select('service_line_id, service_lines(code, name)')
+        .eq('client_id', clientId);
+
+      setClient(clientData);
+      setDiscovery(discoveryData);
+      setDocuments(docsData || []);
+      setAnalysisNotes(discoveryData?.analysis_notes || '');
+      setSelectedServices(assignedServices?.map((s: any) => s.service_lines?.code).filter(Boolean) || []);
+    } catch (error) {
+      console.error('Error fetching client:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle document upload
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0 || !client?.practice_id) return;
+
+    setUploading(true);
+    try {
+      for (const file of files) {
+        const timestamp = Date.now();
+        const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const storagePath = `${client.practice_id}/${clientId}/${timestamp}_${safeFileName}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('client-documents')
+          .upload(storagePath, file);
+        
+        if (uploadError) throw uploadError;
+        
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('client-documents')
+          .getPublicUrl(storagePath);
+        
+        // Save to client_context
+        await supabase.from('client_context').insert({
+          practice_id: client.practice_id,
+          client_id: clientId,
+          context_type: 'document',
+          content: `Uploaded: ${file.name}`,
+          source_file_url: urlData.publicUrl,
+          applies_to: ['discovery'],
+          processed: false
+        });
+      }
+      
+      await fetchClientDetail();
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      alert('Failed to upload file. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Save analysis notes
+  const handleSaveNotes = async () => {
+    if (!discovery) return;
+    setSavingNotes(true);
+    try {
+      await supabase
+        .from('destination_discovery')
+        .update({ 
+          analysis_notes: analysisNotes,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', discovery.id);
+    } catch (error) {
+      console.error('Error saving notes:', error);
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
+  // Generate discovery report
+  const handleGenerateReport = async () => {
+    setGeneratingReport(true);
+    try {
+      const response = await supabase.functions.invoke('generate-discovery-report', {
+        body: {
+          clientId,
+          practiceId: client?.practice_id,
+          discoveryId: discovery?.id
+        }
+      });
+
+      if (response.error) throw response.error;
+      
+      // Download the report
+      if (response.data?.reportUrl) {
+        window.open(response.data.reportUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('Error generating report:', error);
+      alert('Failed to generate report. Please try again.');
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
+  // Assign services to client
+  const handleAssignServices = async () => {
+    if (selectedServices.length === 0 || !client?.practice_id) return;
+    
+    setAssigningServices(true);
+    try {
+      // Get service line IDs
+      const { data: serviceLines } = await supabase
+        .from('service_lines')
+        .select('id, code')
+        .in('code', selectedServices);
+
+      // Remove existing assignments
+      await supabase
+        .from('client_service_lines')
+        .delete()
+        .eq('client_id', clientId);
+
+      // Add new assignments
+      for (const sl of serviceLines || []) {
+        await supabase.from('client_service_lines').insert({
+          practice_id: client.practice_id,
+          client_id: clientId,
+          service_line_id: sl.id,
+          status: 'pending_onboarding',
+          created_by: currentMember?.id
+        });
+      }
+
+      // Update client status
+      await supabase
+        .from('practice_members')
+        .update({ program_status: 'enrolled' })
+        .eq('id', clientId);
+
+      alert('Services assigned successfully!');
+      onRefresh();
+    } catch (error) {
+      console.error('Error assigning services:', error);
+      alert('Failed to assign services. Please try again.');
+    } finally {
+      setAssigningServices(false);
+    }
+  };
+
+  // Parse discovery responses for display
+  const getDiscoveryResponses = () => {
+    if (!discovery?.responses) return [];
+    
+    const responses = discovery.responses;
+    const grouped: Record<string, any[]> = {};
+    
+    Object.entries(responses).forEach(([key, value]) => {
+      // Extract section from question ID (e.g., dd_dream_1 -> The Dream)
+      let section = 'Other';
+      if (key.includes('dream')) section = 'The Dream';
+      else if (key.includes('gap')) section = 'The Gap';
+      else if (key.includes('tuesday')) section = 'Tuesday Reality';
+      else if (key.includes('real')) section = 'The Real Question';
+      else if (key.includes('financial')) section = 'Financial Clarity';
+      else if (key.includes('operational')) section = 'Operational Freedom';
+      else if (key.includes('strategic')) section = 'Strategic Direction';
+      else if (key.includes('growth')) section = 'Growth Readiness';
+      else if (key.includes('exit')) section = 'Exit & Protection';
+      
+      if (!grouped[section]) grouped[section] = [];
+      grouped[section].push({ key, value });
+    });
+    
+    return grouped;
+  };
+
+  const responseGroups = getDiscoveryResponses();
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-cyan-50 to-indigo-50">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-cyan-500 flex items-center justify-center">
+              <Compass className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              {loading ? (
+                <div className="h-6 w-48 bg-gray-200 rounded animate-pulse" />
+              ) : (
+                <>
+                  <h2 className="text-xl font-bold text-gray-900">{client?.name}</h2>
+                  <p className="text-sm text-gray-500">
+                    {client?.client_company || client?.email} • Discovery {discovery?.completed_at ? 'Complete' : 'In Progress'}
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleGenerateReport}
+              disabled={generatingReport || !discovery?.completed_at}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium"
+            >
+              {generatingReport ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  Generate Report
+                </>
+              )}
+            </button>
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200">
+          {[
+            { id: 'responses', label: 'Responses', icon: MessageSquare },
+            { id: 'documents', label: 'Documents', icon: FileText },
+            { id: 'analysis', label: 'Analysis', icon: Sparkles },
+            { id: 'services', label: 'Assign Services', icon: Target }
+          ].map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                className={`flex-1 px-6 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? 'text-cyan-600 border-b-2 border-cyan-600 bg-cyan-50/50'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600" />
+            </div>
+          ) : (
+            <>
+              {/* RESPONSES TAB */}
+              {activeTab === 'responses' && (
+                <div className="space-y-6">
+                  {!discovery ? (
+                    <div className="text-center py-12 bg-gray-50 rounded-xl">
+                      <Compass className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500">Discovery not started yet</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Summary cards */}
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="bg-cyan-50 rounded-xl p-4">
+                          <p className="text-sm text-cyan-600 font-medium">Destination Clarity</p>
+                          <p className="text-2xl font-bold text-cyan-900">
+                            {discovery.destination_clarity_score || '—'}/10
+                          </p>
+                        </div>
+                        <div className="bg-amber-50 rounded-xl p-4">
+                          <p className="text-sm text-amber-600 font-medium">Gap Score</p>
+                          <p className="text-2xl font-bold text-amber-900">
+                            {discovery.gap_score || '—'}/10
+                          </p>
+                        </div>
+                        <div className="bg-emerald-50 rounded-xl p-4">
+                          <p className="text-sm text-emerald-600 font-medium">Completion</p>
+                          <p className="text-2xl font-bold text-emerald-900">
+                            {discovery.completed_at ? 'Complete' : 'In Progress'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Emotional anchors */}
+                      {discovery.extracted_anchors && Object.keys(discovery.extracted_anchors).length > 0 && (
+                        <div className="bg-purple-50 rounded-xl p-4">
+                          <h4 className="font-medium text-purple-900 mb-2">Extracted Emotional Anchors</h4>
+                          <div className="flex flex-wrap gap-2">
+                            {Object.values(discovery.extracted_anchors).flat().map((anchor: any, idx: number) => (
+                              <span key={idx} className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
+                                "{anchor}"
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Response sections */}
+                      {Object.entries(responseGroups).map(([section, items]) => (
+                        <div key={section} className="border border-gray-200 rounded-xl overflow-hidden">
+                          <div className="bg-gray-50 p-4">
+                            <h4 className="font-semibold text-gray-900">{section}</h4>
+                          </div>
+                          <div className="divide-y divide-gray-100">
+                            {items.map(({ key, value }) => (
+                              <div key={key} className="p-4">
+                                <p className="text-xs text-gray-400 mb-1">{key}</p>
+                                <p className="text-gray-900">
+                                  {Array.isArray(value) ? value.join(', ') : value || '—'}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Recommended services from discovery */}
+                      {discovery.recommended_services && (
+                        <div className="bg-indigo-50 rounded-xl p-4">
+                          <h4 className="font-medium text-indigo-900 mb-3">AI-Recommended Services</h4>
+                          <div className="space-y-2">
+                            {discovery.recommended_services.map((rec: any, idx: number) => (
+                              <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-lg">
+                                <div>
+                                  <p className="font-medium text-gray-900">{rec.service?.name || rec.code}</p>
+                                  <p className="text-sm text-gray-500">{rec.valueProposition?.headline}</p>
+                                </div>
+                                <span className="text-indigo-600 font-bold">{rec.score}%</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* DOCUMENTS TAB */}
+              {activeTab === 'documents' && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium text-gray-900">Uploaded Documents</h4>
+                      <p className="text-sm text-gray-500">Financial data, contracts, and supporting information</p>
+                    </div>
+                    <label className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 cursor-pointer text-sm font-medium">
+                      <Upload className="w-4 h-4" />
+                      {uploading ? 'Uploading...' : 'Upload Files'}
+                      <input
+                        type="file"
+                        multiple
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        disabled={uploading}
+                      />
+                    </label>
+                  </div>
+
+                  {documents.length > 0 ? (
+                    <div className="space-y-3">
+                      {documents.map((doc) => (
+                        <div key={doc.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                          <div className="flex items-center gap-3">
+                            <FileText className="w-8 h-8 text-cyan-500" />
+                            <div>
+                              <p className="font-medium text-gray-900">{doc.content}</p>
+                              <p className="text-sm text-gray-500">
+                                {new Date(doc.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          <a
+                            href={doc.source_file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1 text-cyan-600 hover:text-cyan-700 text-sm font-medium"
+                          >
+                            View
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                      <Upload className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500">No documents uploaded yet</p>
+                      <p className="text-sm text-gray-400 mt-1">Upload financials, contracts, or other relevant files</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ANALYSIS TAB */}
+              {activeTab === 'analysis' && (
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Internal Analysis Notes</h4>
+                    <p className="text-sm text-gray-500 mb-4">
+                      Record your observations and analysis of this client's discovery responses
+                    </p>
+                    <textarea
+                      value={analysisNotes}
+                      onChange={(e) => setAnalysisNotes(e.target.value)}
+                      rows={10}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-cyan-500"
+                      placeholder="Key observations, pain points identified, recommended approach..."
+                    />
+                    <div className="flex justify-end mt-3">
+                      <button
+                        onClick={handleSaveNotes}
+                        disabled={savingNotes}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50 text-sm font-medium"
+                      >
+                        {savingNotes ? 'Saving...' : 'Save Notes'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Value propositions from discovery */}
+                  {discovery?.value_propositions && (
+                    <div className="bg-gradient-to-br from-cyan-50 to-indigo-50 rounded-xl p-6">
+                      <h4 className="font-medium text-gray-900 mb-4">Generated Value Propositions</h4>
+                      <div className="space-y-4">
+                        {Object.entries(discovery.value_propositions).map(([service, vp]: [string, any]) => (
+                          <div key={service} className="bg-white rounded-lg p-4">
+                            <p className="font-semibold text-gray-900 mb-2">{service}</p>
+                            <p className="text-gray-700 text-sm italic">"{vp.headline}"</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SERVICES TAB */}
+              {activeTab === 'services' && (
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Assign Service Lines</h4>
+                    <p className="text-sm text-gray-500 mb-4">
+                      Select the services this client should be enrolled in based on their discovery
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    {SERVICE_LINES.filter(s => s.code !== 'discovery' && s.status === 'ready').map((service) => {
+                      const Icon = service.icon;
+                      const isSelected = selectedServices.includes(service.code);
+                      const isRecommended = discovery?.recommended_services?.some(
+                        (r: any) => r.code === service.code || r.service?.code === service.code
+                      );
+                      
+                      return (
+                        <button
+                          key={service.id}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedServices(prev => prev.filter(s => s !== service.code));
+                            } else {
+                              setSelectedServices(prev => [...prev, service.code]);
+                            }
+                          }}
+                          className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                            isSelected
+                              ? 'border-cyan-500 bg-cyan-50 ring-2 ring-cyan-200'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          {isRecommended && (
+                            <span className="absolute top-2 right-2 px-2 py-0.5 bg-indigo-100 text-indigo-600 text-xs rounded-full">
+                              AI Recommended
+                            </span>
+                          )}
+                          <div className="flex items-start gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                              isSelected ? 'bg-cyan-500 text-white' : 'bg-gray-100 text-gray-500'
+                            }`}>
+                              <Icon className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-900">{service.name}</p>
+                              <p className="text-xs text-gray-500 mt-1">{service.description}</p>
+                              {service.monthlyRevenue > 0 && (
+                                <p className="text-xs text-gray-400 mt-1">
+                                  ~£{service.monthlyRevenue.toLocaleString()}/month
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <CheckCircle className="absolute top-4 right-4 w-5 h-5 text-cyan-500" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {selectedServices.length > 0 && (
+                    <div className="bg-cyan-50 rounded-xl p-4 flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-cyan-900">
+                          {selectedServices.length} service(s) selected
+                        </p>
+                        <p className="text-sm text-cyan-700">
+                          Client will be notified and onboarding will begin
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleAssignServices}
+                        disabled={assigningServices}
+                        className="inline-flex items-center gap-2 px-6 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50 font-medium"
+                      >
+                        {assigningServices ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Assigning...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="w-4 h-4" />
+                            Assign Services
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
