@@ -1131,15 +1131,22 @@ function DiscoveryClientModal({
     try {
       // Get current session for auth
       const { data: { session } } = await supabase.auth.getSession();
+      console.log('Session for report:', session ? 'Found' : 'Missing', session?.access_token?.substring(0, 20) + '...');
       
-      // Direct fetch to edge function (workaround for SDK issue)
-      const functionUrl = `https://mvdejlkiqslwrbarwxkw.supabase.co/functions/v1/generate-discovery-report`;
+      if (!session?.access_token) {
+        throw new Error('No active session - please log in again');
+      }
+      
+      // Direct fetch to edge function
+      const functionUrl = 'https://mvdejlkiqslwrbarwxkw.supabase.co/functions/v1/generate-discovery-report';
+      console.log('Calling edge function:', functionUrl);
+      console.log('Payload:', { clientId, practiceId: client?.practice_id, discoveryId: discovery?.id });
       
       const response = await fetch(functionUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12ZGVqbGtpcXNsd3JiYXJ3eGt3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4OTg0NDEsImV4cCI6MjA3OTQ3NDQ0MX0.NaiSmZOPExJiBBksL4R1swW4jrJg9JtNK8ktB17rXiM'
         },
         body: JSON.stringify({
@@ -1149,7 +1156,10 @@ function DiscoveryClientModal({
         })
       });
       
+      console.log('Response status:', response.status, response.statusText);
+      
       const data = await response.json();
+      console.log('Response data:', data);
       
       if (!response.ok) {
         throw new Error(data?.error || `HTTP ${response.status}`);
@@ -1161,9 +1171,10 @@ function DiscoveryClientModal({
       } else {
         throw new Error(data?.error || 'Failed to generate report');
       }
-    } catch (error) {
-      console.error('Error generating report:', error);
-      alert('Failed to generate report. Please try again.');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error generating report:', errorMessage, error);
+      alert(`Failed to generate report: ${errorMessage}`);
     } finally {
       setGeneratingReport(false);
     }
