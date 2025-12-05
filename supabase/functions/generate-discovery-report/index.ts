@@ -290,28 +290,36 @@ const SERVICE_LINES: Record<string, ServiceLine> = {
 // ============================================================================
 
 const ANALYSIS_SYSTEM_PROMPT = `You are a senior business advisor at RPGCC, a boutique accountancy and advisory practice. 
-You are analyzing a discovery assessment to produce a comprehensive report for the practice team.
+You are analyzing a discovery assessment to produce a COMPREHENSIVE report for the practice team.
 
 Your role is to:
-1. Deeply understand what the client REALLY wants (their destination)
-2. Identify the gaps between where they are and where they want to be
-3. Diagnose the root causes of their challenges
-4. Recommend specific services that will get them to their destination
-5. Frame every recommendation as an INVESTMENT with clear ROI, not a cost
+1. Deeply understand what the client REALLY wants (their destination) - read between the lines
+2. Identify ALL the gaps between where they are and where they want to be
+3. Diagnose the ROOT CAUSES of their challenges (not just symptoms)
+4. Map specific problems to specific services with detailed implementation plans
+5. Frame every recommendation as an INVESTMENT with clear, quantified ROI
 
 Key principles:
-- Use the client's OWN WORDS from their responses - they should feel heard
-- Be specific and actionable, not generic
-- Quantify the impact wherever possible
-- Focus on outcomes, not activities
-- Position inaction as the risky choice
-- Show how the investment pays for itself
+- Quote the client's EXACT WORDS frequently - they should see themselves in this report
+- Be SPECIFIC - no generic advice. Reference their actual situation.
+- QUANTIFY everything: hours saved, £ impact, timeline, payback period
+- Explain HOW each service solves their specific problem
+- Show the domino effect: fixing X enables Y which unlocks Z
+- Make inaction feel like the RISKIER choice with concrete costs
+- Connect emotional goals (freedom, family time) to practical solutions
+
+Analysis depth requirements:
+- Analyze EVERY response they gave, not just the obvious ones
+- Look for patterns and connections between their answers
+- Identify what they're NOT saying but implying
+- Consider the interdependencies between their challenges
+- Think about sequencing - what needs to happen first?
 
 Writing style:
-- Direct and confident, not salesy
-- Empathetic but pragmatic
-- Business-focused with emotional intelligence
-- Clear section headers and bullet points for skimmability`;
+- Direct and confident, backed by specific evidence from their responses
+- Empathetic but pragmatic - acknowledge feelings, provide solutions
+- Use their language and metaphors back at them
+- Create urgency without being pushy`;
 
 // ============================================================================
 // MAIN HANDLER
@@ -453,76 +461,180 @@ IMPORTANT: Use the EXACT pricing from the service tiers provided. Different serv
 
 {
   "executiveSummary": {
-    "headline": "One powerful sentence that captures their situation",
-    "destinationVision": "What they really want, in their own words",
+    "headline": "One powerful sentence capturing their core challenge",
+    "situationInTheirWords": "2-3 sentences using their EXACT quotes that summarize their situation",
+    "destinationVision": "What they really want - their stated destination",
     "currentReality": "Where they are now and why it's painful",
-    "keyInsight": "The most important thing we've learned about them"
+    "criticalInsight": "The most important insight we've uncovered that they may not fully see",
+    "urgencyStatement": "Why acting now matters"
   },
+  
+  "clientProfile": {
+    "businessContext": "What we understand about their business",
+    "ownerProfile": {
+      "currentState": "How they described their typical day/week",
+      "emotionalState": "How they're feeling (frustrated, overwhelmed, etc.)",
+      "whatKeepsThemUp": "Their stated worries and concerns"
+    },
+    "strengthsIdentified": ["Things they're doing well based on their responses"],
+    "blindSpots": ["Things they may not be seeing clearly"]
+  },
+  
   "destinationAnalysis": {
-    "fiveYearVision": "Their destination summarized",
-    "emotionalDrivers": ["What really motivates them - their emotional anchors"],
-    "successMetrics": "How they'll know they've arrived"
+    "fiveYearVision": "Their stated destination in detail",
+    "coreEmotionalDrivers": [
+      {
+        "driver": "e.g., Freedom",
+        "evidence": "Exact quote from their response showing this",
+        "whatItMeans": "What this tells us about their true priorities"
+      }
+    ],
+    "successMetrics": ["How they'll know they've arrived - specific and measurable"],
+    "lifestyleGoals": ["Non-business goals they mentioned (family, health, etc.)"],
+    "timelineExpectations": "When they want to achieve this"
   },
+  
   "gapAnalysis": {
     "primaryGaps": [
       {
-        "gap": "Description of gap",
-        "impact": "What this is costing them",
-        "urgency": "high|medium|low",
-        "rootCause": "Why this gap exists"
+        "gap": "Specific gap identified",
+        "category": "Financial|Operational|Strategic|Personal",
+        "severity": "critical|high|medium",
+        "evidence": "Quote from their responses that shows this gap",
+        "currentImpact": {
+          "timeImpact": "X hours/week lost to this",
+          "financialImpact": "£X per month/year cost",
+          "emotionalImpact": "How this makes them feel"
+        },
+        "rootCause": "Why this gap exists - dig deep",
+        "connectedGaps": ["Other gaps this one causes or worsens"],
+        "ifUnaddressed": "What happens in 1 year if nothing changes"
       }
     ],
-    "hiddenChallenges": ["Things they may not have articulated but are implied"],
+    "hiddenChallenges": [
+      {
+        "challenge": "Something implied but not stated",
+        "evidence": "What in their responses suggests this",
+        "potentialImpact": "Why this matters"
+      }
+    ],
     "costOfInaction": {
-      "annual": "Estimated annual cost of doing nothing (be specific with £ figures)",
-      "description": "What staying the same will cost them"
+      "annualFinancialCost": "£X,XXX - be specific and explain calculation",
+      "opportunityCost": "What they're missing out on",
+      "personalCost": "Impact on health, relationships, quality of life",
+      "businessRisk": "Long-term risk to the business itself",
+      "compoundingEffect": "How these costs multiply over time"
     }
   },
+  
   "recommendedInvestments": [
     {
       "service": "Service name",
       "code": "service_code",
       "priority": 1,
-      "recommendedTier": "Which tier/level is right for them",
-      "investment": "£X,XXX (use actual tier price)",
-      "investmentFrequency": "per month|per year|one-off project",
-      "annualInvestment": "£XX,XXX (total annual cost if recurring, or one-off if project)",
+      "recommendedTier": "Specific tier name",
+      "investment": "£X,XXX",
+      "investmentFrequency": "per month|per year|one-off",
+      "annualInvestment": "£XX,XXX",
+      "whyThisTier": "Why this specific tier is right (not higher or lower)",
+      "problemsSolved": [
+        {
+          "problem": "Specific problem from their responses",
+          "theirWords": "Exact quote describing this problem",
+          "howWeSolveIt": "Specific actions we'll take",
+          "expectedResult": "Measurable outcome"
+        }
+      ],
+      "implementationPlan": {
+        "phase1": { "weeks": "1-4", "focus": "What happens first", "deliverables": ["Specific outputs"] },
+        "phase2": { "weeks": "5-12", "focus": "Next phase", "deliverables": ["Specific outputs"] },
+        "ongoing": "What continues after initial implementation"
+      },
       "expectedROI": {
         "multiplier": "Xx",
-        "timeframe": "X months",
-        "description": "How the investment pays back"
+        "timeframe": "X months to break even",
+        "calculation": "How we calculated this (be specific)",
+        "conservativeEstimate": "Even if half as effective: £X return"
       },
-      "whyThisService": "Specific reason this service addresses their needs",
-      "theirWordsConnection": "Quote from their responses that this addresses",
-      "expectedOutcomes": ["Specific outcomes they can expect"],
-      "alternativeToNotActing": "What happens if they don't invest in this"
+      "expectedOutcomes": [
+        {
+          "outcome": "Specific measurable outcome",
+          "timeline": "When they'll see this",
+          "howMeasured": "How we'll know it's achieved"
+        }
+      ],
+      "riskOfNotActing": "Specific consequence of not investing in this"
     }
   ],
-  "investmentSummary": {
-    "totalFirstYearInvestment": "£X,XXX (sum of all recommended services for year 1)",
-    "totalAnnualInvestment": "£XX,XXX",
-    "projectedAnnualReturn": "£XXX,XXX",
-    "paybackPeriod": "X months",
-    "riskOfNotInvesting": "Summary of what they stand to lose"
+  
+  "serviceSequencing": {
+    "recommendedOrder": "Why services should be done in this order",
+    "dependencies": ["Service X enables Service Y because..."],
+    "quickWins": ["Things that will show results in first 30 days"],
+    "foundationalWork": ["Things that enable everything else"]
   },
-  "recommendedNextSteps": [
+  
+  "investmentSummary": {
+    "totalFirstYearInvestment": "£XX,XXX",
+    "breakdownByService": [
+      { "service": "Name", "amount": "£X,XXX", "frequency": "one-off|monthly|annual" }
+    ],
+    "projectedFirstYearReturn": "£XXX,XXX",
+    "roiCalculation": "Clear explanation of how returns were calculated",
+    "paybackPeriod": "X months",
+    "netBenefitYear1": "£XX,XXX (return minus investment)",
+    "comparisonToInaction": "Investing costs £X, but NOT investing costs £Y - net benefit of acting: £Z"
+  },
+  
+  "implementationRoadmap": [
     {
-      "step": 1,
-      "action": "Specific action",
-      "owner": "Client|RPGCC",
-      "timing": "When this should happen"
+      "phase": "Week 1-2",
+      "title": "Getting Started",
+      "actions": [
+        { "action": "Specific action", "owner": "Client|RPGCC", "outcome": "What this achieves" }
+      ]
+    },
+    {
+      "phase": "Month 1",
+      "title": "Foundation",
+      "actions": [...]
+    },
+    {
+      "phase": "Month 2-3",
+      "title": "Building Momentum",
+      "actions": [...]
+    },
+    {
+      "phase": "Month 4-6",
+      "title": "Scaling Impact",
+      "actions": [...]
     }
   ],
-  "closingMessage": "A motivating, action-oriented closing that connects back to their destination"
+  
+  "successMilestones": [
+    {
+      "milestone": "First management accounts delivered",
+      "timeline": "Month 1",
+      "significance": "Why this matters to their destination"
+    }
+  ],
+  
+  "closingMessage": {
+    "personalNote": "Empathetic message connecting back to their stated goals",
+    "callToAction": "Clear next step",
+    "urgencyReminder": "Why now - connect to their timeline"
+  }
 }
 
-Important:
-- Use their EXACT WORDS from responses where possible (quote them)
-- Be specific with numbers and timeframes
-- Frame everything as investment vs return, not cost
-- Make the cost of inaction feel more risky than investing
-- Keep recommendations to top 2-3 services max (focused)
-- Ensure recommendations match their stated priorities and gaps
+CRITICAL REQUIREMENTS:
+- Quote their EXACT WORDS at least 8-10 times throughout the report
+- Calculate specific £ figures for every cost and benefit - show your working
+- Connect every recommendation back to something they specifically said
+- Be DETAILED - this report should feel comprehensive and personalized
+- Explain the HOW, not just the WHAT for each service
+- Show the domino effect: how fixing one thing enables the next
+- Maximum 3 service recommendations to keep it focused and achievable
+- Make the comparison crystal clear: investment cost vs. cost of inaction
 `;
 
     const openrouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -535,7 +647,7 @@ Important:
       },
       body: JSON.stringify({
         model: 'anthropic/claude-3.5-sonnet',
-        max_tokens: 4096,
+        max_tokens: 8192,  // Increased for comprehensive report
         messages: [
           { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
           { role: 'user', content: analysisPrompt }
