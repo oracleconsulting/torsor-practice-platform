@@ -458,7 +458,15 @@ Important:
     }
 
     const openrouterData = await openrouterResponse.json();
+    console.log('OpenRouter response received, choices:', openrouterData.choices?.length || 0);
+    
     const analysisText = openrouterData.choices?.[0]?.message?.content || '';
+    if (!analysisText) {
+      console.error('Empty response from OpenRouter:', JSON.stringify(openrouterData));
+      throw new Error('Empty response from AI');
+    }
+
+    console.log('AI response length:', analysisText.length);
 
     // Parse the JSON from the response
     let analysis;
@@ -555,11 +563,12 @@ Important:
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error generating report:', error);
+    const errorMessage = error?.message || String(error) || 'Unknown error';
     return new Response(JSON.stringify({ 
       success: false,
-      error: error.message 
+      error: errorMessage 
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
