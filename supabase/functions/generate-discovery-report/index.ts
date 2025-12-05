@@ -442,7 +442,7 @@ Important:
         'X-Title': 'Torsor Discovery Report'
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-sonnet-4-20250514',
+        model: 'anthropic/claude-3.5-sonnet',
         max_tokens: 4096,
         messages: [
           { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
