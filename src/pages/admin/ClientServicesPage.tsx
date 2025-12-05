@@ -1007,6 +1007,7 @@ function DiscoveryClientModal({
   const [analysisNotes, setAnalysisNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
   const [generatingReport, setGeneratingReport] = useState(false);
+  const [generatedReport, setGeneratedReport] = useState<any>(null);
   
   // Service assignment state
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
@@ -1138,9 +1139,11 @@ function DiscoveryClientModal({
 
       if (response.error) throw response.error;
       
-      // Download the report
-      if (response.data?.reportUrl) {
-        window.open(response.data.reportUrl, '_blank');
+      if (response.data?.success && response.data?.report) {
+        setGeneratedReport(response.data.report);
+        setActiveTab('analysis'); // Switch to analysis tab to show report
+      } else {
+        throw new Error(response.data?.error || 'Failed to generate report');
       }
     } catch (error) {
       console.error('Error generating report:', error);
@@ -1450,42 +1453,210 @@ function DiscoveryClientModal({
               {/* ANALYSIS TAB */}
               {activeTab === 'analysis' && (
                 <div className="space-y-6">
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Internal Analysis Notes</h4>
-                    <p className="text-sm text-gray-500 mb-4">
-                      Record your observations and analysis of this client's discovery responses
-                    </p>
-                    <textarea
-                      value={analysisNotes}
-                      onChange={(e) => setAnalysisNotes(e.target.value)}
-                      rows={10}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-cyan-500"
-                      placeholder="Key observations, pain points identified, recommended approach..."
-                    />
-                    <div className="flex justify-end mt-3">
-                      <button
-                        onClick={handleSaveNotes}
-                        disabled={savingNotes}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50 text-sm font-medium"
-                      >
-                        {savingNotes ? 'Saving...' : 'Save Notes'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Value propositions from discovery */}
-                  {discovery?.value_propositions && (
-                    <div className="bg-gradient-to-br from-cyan-50 to-indigo-50 rounded-xl p-6">
-                      <h4 className="font-medium text-gray-900 mb-4">Generated Value Propositions</h4>
-                      <div className="space-y-4">
-                        {Object.entries(discovery.value_propositions).map(([service, vp]: [string, any]) => (
-                          <div key={service} className="bg-white rounded-lg p-4">
-                            <p className="font-semibold text-gray-900 mb-2">{service}</p>
-                            <p className="text-gray-700 text-sm italic">"{vp.headline}"</p>
+                  {/* Generated Report Section */}
+                  {generatedReport && (
+                    <div className="space-y-6">
+                      {/* Executive Summary */}
+                      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-6 text-white">
+                        <h3 className="text-lg font-bold mb-2">
+                          {generatedReport.analysis?.executiveSummary?.headline || 'Discovery Analysis'}
+                        </h3>
+                        <p className="text-indigo-100 mb-4">
+                          {generatedReport.analysis?.executiveSummary?.keyInsight}
+                        </p>
+                        <div className="grid grid-cols-2 gap-4 mt-4">
+                          <div className="bg-white/10 rounded-lg p-3">
+                            <p className="text-indigo-200 text-xs">Destination Clarity</p>
+                            <p className="text-xl font-bold">{generatedReport.discoveryScores?.clarityScore}/10</p>
                           </div>
-                        ))}
+                          <div className="bg-white/10 rounded-lg p-3">
+                            <p className="text-indigo-200 text-xs">Gap Score</p>
+                            <p className="text-xl font-bold">{generatedReport.discoveryScores?.gapScore}/10</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Gap Analysis */}
+                      {generatedReport.analysis?.gapAnalysis && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
+                          <h4 className="font-semibold text-amber-900 mb-4">Gap Analysis</h4>
+                          <div className="space-y-3">
+                            {generatedReport.analysis.gapAnalysis.primaryGaps?.map((gap: any, idx: number) => (
+                              <div key={idx} className="bg-white rounded-lg p-4 border border-amber-100">
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <p className="font-medium text-gray-900">{gap.gap}</p>
+                                    <p className="text-sm text-gray-600 mt-1">{gap.impact}</p>
+                                  </div>
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    gap.urgency === 'high' ? 'bg-red-100 text-red-700' :
+                                    gap.urgency === 'medium' ? 'bg-amber-100 text-amber-700' :
+                                    'bg-gray-100 text-gray-600'
+                                  }`}>
+                                    {gap.urgency} priority
+                                  </span>
+                                </div>
+                                {gap.rootCause && (
+                                  <p className="text-sm text-gray-500 mt-2 italic">Root cause: {gap.rootCause}</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          {generatedReport.analysis.gapAnalysis.costOfInaction && (
+                            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                              <p className="font-medium text-red-800">Cost of Not Acting</p>
+                              <p className="text-2xl font-bold text-red-900">{generatedReport.analysis.gapAnalysis.costOfInaction.annual}</p>
+                              <p className="text-sm text-red-700">{generatedReport.analysis.gapAnalysis.costOfInaction.description}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Recommended Investments */}
+                      {generatedReport.analysis?.recommendedInvestments && (
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6">
+                          <h4 className="font-semibold text-emerald-900 mb-4">Recommended Investments</h4>
+                          <div className="space-y-4">
+                            {generatedReport.analysis.recommendedInvestments.map((inv: any, idx: number) => (
+                              <div key={idx} className="bg-white rounded-xl p-5 border border-emerald-100">
+                                <div className="flex items-start justify-between mb-3">
+                                  <div>
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs font-medium mb-2">
+                                      Priority {inv.priority}
+                                    </span>
+                                    <h5 className="font-semibold text-lg text-gray-900">{inv.service}</h5>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-xl font-bold text-emerald-600">{inv.monthlyInvestment}/mo</p>
+                                    <p className="text-xs text-gray-500">{inv.annualInvestment}/year</p>
+                                  </div>
+                                </div>
+                                
+                                <p className="text-gray-700 mb-3">{inv.whyThisService}</p>
+                                
+                                {inv.theirWordsConnection && (
+                                  <p className="text-sm italic text-indigo-600 bg-indigo-50 p-2 rounded mb-3">
+                                    "{inv.theirWordsConnection}"
+                                  </p>
+                                )}
+
+                                <div className="flex items-center gap-4 pt-3 border-t border-gray-100">
+                                  <div className="flex-1">
+                                    <p className="text-xs text-gray-500">Expected ROI</p>
+                                    <p className="font-bold text-emerald-600">{inv.expectedROI?.multiplier} in {inv.expectedROI?.timeframe}</p>
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="text-xs text-gray-500">Outcomes</p>
+                                    <p className="text-sm text-gray-700">{inv.expectedOutcomes?.[0]}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Investment Summary */}
+                          {generatedReport.analysis.investmentSummary && (
+                            <div className="mt-6 p-5 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-xl text-white">
+                              <h5 className="font-semibold mb-3">Investment Summary</h5>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <p className="text-emerald-100 text-sm">Total Monthly Investment</p>
+                                  <p className="text-2xl font-bold">{generatedReport.analysis.investmentSummary.totalMonthlyInvestment}</p>
+                                </div>
+                                <div>
+                                  <p className="text-emerald-100 text-sm">Projected Annual Return</p>
+                                  <p className="text-2xl font-bold">{generatedReport.analysis.investmentSummary.projectedAnnualReturn}</p>
+                                </div>
+                              </div>
+                              <div className="mt-4 pt-3 border-t border-white/20">
+                                <p className="text-sm text-emerald-100">
+                                  <strong>Payback Period:</strong> {generatedReport.analysis.investmentSummary.paybackPeriod}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Next Steps */}
+                      {generatedReport.analysis?.recommendedNextSteps && (
+                        <div className="bg-white border border-gray-200 rounded-xl p-6">
+                          <h4 className="font-semibold text-gray-900 mb-4">Recommended Next Steps</h4>
+                          <div className="space-y-3">
+                            {generatedReport.analysis.recommendedNextSteps.map((step: any, idx: number) => (
+                              <div key={idx} className="flex items-start gap-4">
+                                <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                                  {step.step}
+                                </div>
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-900">{step.action}</p>
+                                  <p className="text-sm text-gray-500">{step.timing} • {step.owner}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Closing Message */}
+                      {generatedReport.analysis?.closingMessage && (
+                        <div className="bg-slate-800 rounded-xl p-6 text-white text-center">
+                          <p className="text-lg">{generatedReport.analysis.closingMessage}</p>
+                        </div>
+                      )}
+
+                      <div className="flex justify-end">
+                        <button
+                          onClick={() => setGeneratedReport(null)}
+                          className="text-sm text-gray-500 hover:text-gray-700"
+                        >
+                          Hide Report
+                        </button>
                       </div>
                     </div>
+                  )}
+
+                  {/* Notes Section (show when no report or always show below) */}
+                  {!generatedReport && (
+                    <>
+                      <div>
+                        <h4 className="font-medium text-gray-900 mb-2">Internal Analysis Notes</h4>
+                        <p className="text-sm text-gray-500 mb-4">
+                          Record your observations and analysis of this client's discovery responses
+                        </p>
+                        <textarea
+                          value={analysisNotes}
+                          onChange={(e) => setAnalysisNotes(e.target.value)}
+                          rows={10}
+                          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-cyan-500"
+                          placeholder="Key observations, pain points identified, recommended approach..."
+                        />
+                        <div className="flex justify-end mt-3">
+                          <button
+                            onClick={handleSaveNotes}
+                            disabled={savingNotes}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50 text-sm font-medium"
+                          >
+                            {savingNotes ? 'Saving...' : 'Save Notes'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Value propositions from discovery */}
+                      {discovery?.value_propositions && (
+                        <div className="bg-gradient-to-br from-cyan-50 to-indigo-50 rounded-xl p-6">
+                          <h4 className="font-medium text-gray-900 mb-4">Generated Value Propositions</h4>
+                          <div className="space-y-4">
+                            {Object.entries(discovery.value_propositions).map(([service, vp]: [string, any]) => (
+                              <div key={service} className="bg-white rounded-lg p-4">
+                                <p className="font-semibold text-gray-900 mb-2">{service}</p>
+                                <p className="text-gray-700 text-sm italic">"{vp.headline}"</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
