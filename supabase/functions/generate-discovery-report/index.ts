@@ -17,13 +17,21 @@ const corsHeaders = {
 }
 
 // ============================================================================
-// SERVICE LINE DEFINITIONS WITH ROI DATA
+// SERVICE LINE DEFINITIONS WITH ACCURATE PRICING (from BSG Launch Strategy)
 // ============================================================================
+
+interface ServiceLineTier {
+  name: string;
+  price: number;  // Annual or one-off price
+  isMonthly?: boolean;
+  description: string;
+}
 
 interface ServiceLine {
   code: string;
   name: string;
-  monthlyInvestment: { min: number; max: number };
+  tiers: ServiceLineTier[];
+  isRecurring: boolean;  // true = monthly/annual, false = one-off project
   typicalROI: {
     timeframeMo: number;
     multiplier: number;
@@ -37,7 +45,12 @@ const SERVICE_LINES: Record<string, ServiceLine> = {
   '365_method': {
     code: '365_method',
     name: '365 Alignment Programme',
-    monthlyInvestment: { min: 5000, max: 5000 },
+    tiers: [
+      { name: 'Lite', price: 1500, description: 'Survey + plan + one review' },
+      { name: 'Growth', price: 4500, description: 'Adds quarterly reviews for 12 months' },
+      { name: 'Partner', price: 9000, description: 'Adds strategy day + BSG integration' }
+    ],
+    isRecurring: false,  // Annual engagement, not monthly
     typicalROI: {
       timeframeMo: 12,
       multiplier: 3,
@@ -58,7 +71,12 @@ const SERVICE_LINES: Record<string, ServiceLine> = {
   'fractional_cfo': {
     code: 'fractional_cfo',
     name: 'Fractional CFO Services',
-    monthlyInvestment: { min: 3500, max: 12000 },
+    tiers: [
+      { name: '2 days/month', price: 4000, isMonthly: true, description: '£3,500-£5,000/month' },
+      { name: '1 day/week', price: 7000, isMonthly: true, description: '£6,000-£8,000/month' },
+      { name: '2-3 days/week', price: 12500, isMonthly: true, description: '£10,000-£15,000/month' }
+    ],
+    isRecurring: true,
     typicalROI: {
       timeframeMo: 6,
       multiplier: 5,
@@ -80,7 +98,13 @@ const SERVICE_LINES: Record<string, ServiceLine> = {
   'systems_audit': {
     code: 'systems_audit',
     name: 'Systems Audit',
-    monthlyInvestment: { min: 3000, max: 3000 },
+    tiers: [
+      { name: '1 area', price: 1500, description: 'Diagnostic - single area focus' },
+      { name: '2 areas', price: 2500, description: 'Diagnostic - two areas' },
+      { name: 'Comprehensive', price: 4000, description: 'Full diagnostic (3+ areas)' },
+      { name: 'Implementation', price: 3500, description: '£2,000-£5,000 to implement fixes' }
+    ],
+    isRecurring: false,
     typicalROI: {
       timeframeMo: 3,
       multiplier: 4,
@@ -102,7 +126,11 @@ const SERVICE_LINES: Record<string, ServiceLine> = {
   'management_accounts': {
     code: 'management_accounts',
     name: 'Management Accounts',
-    monthlyInvestment: { min: 650, max: 650 },
+    tiers: [
+      { name: 'Monthly', price: 650, isMonthly: true, description: '£650/month with Spotlight analysis' },
+      { name: 'Quarterly', price: 1750, description: '£1,750/quarter with Spotlight analysis' }
+    ],
+    isRecurring: true,
     typicalROI: {
       timeframeMo: 2,
       multiplier: 10,
@@ -123,7 +151,13 @@ const SERVICE_LINES: Record<string, ServiceLine> = {
   'fractional_coo': {
     code: 'fractional_coo',
     name: 'Fractional COO Services',
-    monthlyInvestment: { min: 3000, max: 10000 },
+    tiers: [
+      { name: '2 days/month', price: 3750, isMonthly: true, description: '£3,000-£4,500/month' },
+      { name: '1 day/week', price: 6500, isMonthly: true, description: '£5,500-£7,500/month' },
+      { name: '2-3 days/week', price: 11500, isMonthly: true, description: '£9,000-£14,000/month' },
+      { name: '60-day intensive', price: 55000, description: '£35,000-£75,000 transformation' }
+    ],
+    isRecurring: true,
     typicalROI: {
       timeframeMo: 6,
       multiplier: 4,
@@ -145,7 +179,13 @@ const SERVICE_LINES: Record<string, ServiceLine> = {
   'combined_advisory': {
     code: 'combined_advisory',
     name: 'Combined CFO/COO Advisory',
-    monthlyInvestment: { min: 8000, max: 15000 },
+    tiers: [
+      { name: 'Light touch (3 days/month)', price: 7000, isMonthly: true, description: '£6,000-£8,000/month' },
+      { name: 'Standard (2 days/week)', price: 15000, isMonthly: true, description: '£12,000-£18,000/month' },
+      { name: 'Intensive (3-4 days/week)', price: 24000, isMonthly: true, description: '£20,000-£28,000/month' },
+      { name: 'Single practitioner dual-role', price: 14000, isMonthly: true, description: '£10,000-£18,000/month' }
+    ],
+    isRecurring: true,
     typicalROI: {
       timeframeMo: 6,
       multiplier: 5,
@@ -166,7 +206,13 @@ const SERVICE_LINES: Record<string, ServiceLine> = {
   'automation': {
     code: 'automation',
     name: 'Automation Services',
-    monthlyInvestment: { min: 1500, max: 1500 },
+    tiers: [
+      { name: 'Per hour', price: 150, description: '£115-£180/hour' },
+      { name: 'Half day', price: 600, description: 'Typically £500-£700' },
+      { name: 'Full day', price: 1100, description: 'Typically £1,000-£1,200' },
+      { name: 'Monthly retainer', price: 1500, isMonthly: true, description: 'Support & maintenance' }
+    ],
+    isRecurring: false,
     typicalROI: {
       timeframeMo: 3,
       multiplier: 8,
@@ -187,7 +233,12 @@ const SERVICE_LINES: Record<string, ServiceLine> = {
   'business_advisory': {
     code: 'business_advisory',
     name: 'Business Advisory & Exit Planning',
-    monthlyInvestment: { min: 9000, max: 9000 },
+    tiers: [
+      { name: 'Forecasts', price: 2000, description: '£1,000-£3,000 (execution to full workshop)' },
+      { name: 'Valuations', price: 2750, description: '£1,500-£4,000 depending on scope' },
+      { name: 'Full Advisory Package', price: 4000, description: 'Forecasts + advisory sessions' }
+    ],
+    isRecurring: false,
     typicalROI: {
       timeframeMo: 24,
       multiplier: 10,
@@ -204,6 +255,32 @@ const SERVICE_LINES: Record<string, ServiceLine> = {
       'Value-detractors discovered during due diligence',
       'Rushed exit due to unforeseen circumstances',
       'Years of work not reflected in sale price'
+    ]
+  },
+  'benchmarking': {
+    code: 'benchmarking',
+    name: 'Benchmarking Services',
+    tiers: [
+      { name: 'Simple Report', price: 450, description: 'Base cost report only' },
+      { name: 'Report + Consultation', price: 2700, description: '£1,200 report + £1,500 meeting' },
+      { name: 'Full Package', price: 3500, description: 'Comprehensive with strategic interpretation' }
+    ],
+    isRecurring: false,
+    typicalROI: {
+      timeframeMo: 3,
+      multiplier: 5,
+      description: 'Benchmarking insights typically drive 5x value through targeted improvements'
+    },
+    valueDrivers: [
+      'Know exactly how you compare to industry peers',
+      'Identify specific areas for improvement',
+      'Objective data to support strategic decisions',
+      'Spot opportunities competitors are missing'
+    ],
+    costOfNotActing: [
+      'Operating blind vs. industry standards',
+      'Unknowingly underperforming peers',
+      'Missing improvement opportunities'
     ]
   }
 };
@@ -361,7 +438,18 @@ ${JSON.stringify(clientContext, null, 2)}
 ${JSON.stringify(SERVICE_LINES, null, 2)}
 
 ## REQUIRED OUTPUT FORMAT
-Generate a JSON object with the following structure:
+Generate a JSON object with the following structure.
+
+IMPORTANT: Use the EXACT pricing from the service tiers provided. Different services have different pricing models:
+- 365 Alignment Programme: Annual engagements (Lite £1,500 / Growth £4,500 / Partner £9,000)
+- Fractional CFO: Monthly retainers (from £3,500-£15,000/month)
+- Systems Audit: Project-based (£1,500-£4,000 diagnostic + implementation)
+- Management Accounts: Monthly £650 or Quarterly £1,750
+- Fractional COO: Monthly retainers (from £3,000-£14,000/month)
+- Combined CFO/COO: Monthly retainers (from £6,000-£28,000/month)
+- Automation: Hourly/day rates (£115-£180/hour)
+- Business Advisory: Project-based (£1,000-£4,000)
+- Benchmarking: Project-based (£450-£3,500)
 
 {
   "executiveSummary": {
@@ -386,7 +474,7 @@ Generate a JSON object with the following structure:
     ],
     "hiddenChallenges": ["Things they may not have articulated but are implied"],
     "costOfInaction": {
-      "annual": "Estimated annual cost of doing nothing",
+      "annual": "Estimated annual cost of doing nothing (be specific with £ figures)",
       "description": "What staying the same will cost them"
     }
   },
@@ -395,8 +483,10 @@ Generate a JSON object with the following structure:
       "service": "Service name",
       "code": "service_code",
       "priority": 1,
-      "monthlyInvestment": "£X,XXX",
-      "annualInvestment": "£XX,XXX",
+      "recommendedTier": "Which tier/level is right for them",
+      "investment": "£X,XXX (use actual tier price)",
+      "investmentFrequency": "per month|per year|one-off project",
+      "annualInvestment": "£XX,XXX (total annual cost if recurring, or one-off if project)",
       "expectedROI": {
         "multiplier": "Xx",
         "timeframe": "X months",
@@ -409,7 +499,7 @@ Generate a JSON object with the following structure:
     }
   ],
   "investmentSummary": {
-    "totalMonthlyInvestment": "£X,XXX",
+    "totalFirstYearInvestment": "£X,XXX (sum of all recommended services for year 1)",
     "totalAnnualInvestment": "£XX,XXX",
     "projectedAnnualReturn": "£XXX,XXX",
     "paybackPeriod": "X months",
