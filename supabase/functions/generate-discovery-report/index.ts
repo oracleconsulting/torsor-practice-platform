@@ -249,9 +249,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
-    if (!anthropicKey) {
-      throw new Error('ANTHROPIC_API_KEY not configured');
+    const openrouterKey = Deno.env.get('OPENROUTER_API_KEY');
+    if (!openrouterKey) {
+      throw new Error('OPENROUTER_API_KEY not configured');
     }
 
     const { clientId, practiceId, discoveryId } = await req.json();
@@ -433,31 +433,32 @@ Important:
 - Ensure recommendations match their stated priorities and gaps
 `;
 
-    const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
+    const openrouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': anthropicKey,
-        'anthropic-version': '2023-06-01'
+        'Authorization': `Bearer ${openrouterKey}`,
+        'HTTP-Referer': 'https://torsor.co.uk',
+        'X-Title': 'Torsor Discovery Report'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'anthropic/claude-sonnet-4-20250514',
         max_tokens: 4096,
-        system: ANALYSIS_SYSTEM_PROMPT,
         messages: [
+          { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
           { role: 'user', content: analysisPrompt }
         ]
       })
     });
 
-    if (!anthropicResponse.ok) {
-      const errorText = await anthropicResponse.text();
-      console.error('Anthropic API error:', errorText);
-      throw new Error(`AI analysis failed: ${anthropicResponse.status}`);
+    if (!openrouterResponse.ok) {
+      const errorText = await openrouterResponse.text();
+      console.error('OpenRouter API error:', errorText);
+      throw new Error(`AI analysis failed: ${openrouterResponse.status}`);
     }
 
-    const anthropicData = await anthropicResponse.json();
-    const analysisText = anthropicData.content[0]?.text || '';
+    const openrouterData = await openrouterResponse.json();
+    const analysisText = openrouterData.choices?.[0]?.message?.content || '';
 
     // Parse the JSON from the response
     let analysis;
