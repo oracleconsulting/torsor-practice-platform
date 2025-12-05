@@ -1137,8 +1137,8 @@ function DiscoveryClientModal({
         throw new Error('No active session - please log in again');
       }
       
-      // Direct fetch to edge function
-      const functionUrl = 'https://mvdejlkiqslwrbarwxkw.supabase.co/functions/v1/generate-discovery-report';
+      // Direct fetch to edge function (note: function is deployed as uppercase)
+      const functionUrl = 'https://mvdejlkiqslwrbarwxkw.supabase.co/functions/v1/DISCOVERY-REPORT-GENERATOR';
       console.log('Calling edge function:', functionUrl);
       console.log('Payload:', { clientId, practiceId: client?.practice_id, discoveryId: discovery?.id });
       
