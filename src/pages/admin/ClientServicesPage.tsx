@@ -1129,21 +1129,37 @@ function DiscoveryClientModal({
   const handleGenerateReport = async () => {
     setGeneratingReport(true);
     try {
-      const response = await supabase.functions.invoke('generate-discovery-report', {
-        body: {
+      // Get current session for auth
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Direct fetch to edge function (workaround for SDK issue)
+      const functionUrl = `https://mvdejlkiqslwrbarwxkw.supabase.co/functions/v1/generate-discovery-report`;
+      
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12ZGVqbGtpcXNsd3JiYXJ3eGt3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4OTg0NDEsImV4cCI6MjA3OTQ3NDQ0MX0.NaiSmZOPExJiBBksL4R1swW4jrJg9JtNK8ktB17rXiM'
+        },
+        body: JSON.stringify({
           clientId,
           practiceId: client?.practice_id,
           discoveryId: discovery?.id
-        }
+        })
       });
-
-      if (response.error) throw response.error;
       
-      if (response.data?.success && response.data?.report) {
-        setGeneratedReport(response.data.report);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data?.error || `HTTP ${response.status}`);
+      }
+      
+      if (data?.success && data?.report) {
+        setGeneratedReport(data.report);
         setActiveTab('analysis'); // Switch to analysis tab to show report
       } else {
-        throw new Error(response.data?.error || 'Failed to generate report');
+        throw new Error(data?.error || 'Failed to generate report');
       }
     } catch (error) {
       console.error('Error generating report:', error);
