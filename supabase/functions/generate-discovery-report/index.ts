@@ -671,21 +671,61 @@ CRITICAL REQUIREMENTS:
     }
 
     console.log('AI response length:', analysisText.length);
+    console.log('AI response preview (first 500 chars):', analysisText.substring(0, 500));
+    console.log('AI response end (last 500 chars):', analysisText.substring(analysisText.length - 500));
 
     // Parse the JSON from the response
     let analysis;
     try {
-      // Extract JSON from the response (it might be wrapped in markdown code blocks)
-      const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        analysis = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('No JSON found in response');
+      // Try to extract JSON from the response
+      // First, try to find JSON wrapped in markdown code blocks
+      let jsonString = analysisText;
+      
+      // Remove markdown code blocks if present
+      const codeBlockMatch = analysisText.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (codeBlockMatch) {
+        jsonString = codeBlockMatch[1].trim();
       }
-    } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError);
-      console.log('Raw response:', analysisText);
-      throw new Error('Failed to parse AI analysis');
+      
+      // If not in code block, try to find raw JSON object
+      if (!jsonString.startsWith('{')) {
+        const jsonStart = analysisText.indexOf('{');
+        const jsonEnd = analysisText.lastIndexOf('}');
+        if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+          jsonString = analysisText.substring(jsonStart, jsonEnd + 1);
+        }
+      }
+      
+      console.log('Extracted JSON length:', jsonString.length);
+      console.log('JSON starts with:', jsonString.substring(0, 100));
+      
+      analysis = JSON.parse(jsonString);
+      console.log('Successfully parsed JSON with keys:', Object.keys(analysis).join(', '));
+      
+    } catch (parseError: unknown) {
+      const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+      console.error('Failed to parse AI response:', errorMessage);
+      console.log('Full raw response for debugging:', analysisText);
+      
+      // Try to provide a partial response if we have something
+      if (analysisText.length > 100) {
+        // Return raw text as fallback
+        analysis = {
+          executiveSummary: {
+            headline: "Analysis generated - manual review needed",
+            situationInTheirWords: analysisText.substring(0, 500),
+            destinationVision: "See raw analysis",
+            currentReality: "Parsing error - raw content available",
+            criticalInsight: "AI generated content but JSON parsing failed",
+            urgencyStatement: "Please review raw output"
+          },
+          rawAnalysis: analysisText,
+          parseError: errorMessage
+        };
+        console.log('Using fallback structure with raw analysis');
+      } else {
+        throw new Error('Failed to parse AI analysis: ' + errorMessage);
+      }
     }
 
     // ========================================================================
