@@ -1510,30 +1510,93 @@ function DiscoveryClientModal({
                           <div className="space-y-3">
                             {generatedReport.analysis.gapAnalysis.primaryGaps?.map((gap: any, idx: number) => (
                               <div key={idx} className="bg-white rounded-lg p-4 border border-amber-100">
-                                <div className="flex items-start justify-between">
-                                  <div>
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      {gap.category && (
+                                        <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+                                          {gap.category}
+                                        </span>
+                                      )}
+                                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                        gap.urgency === 'high' || gap.severity === 'critical' ? 'bg-red-100 text-red-700' :
+                                        gap.urgency === 'medium' || gap.severity === 'high' ? 'bg-amber-100 text-amber-700' :
+                                        'bg-gray-100 text-gray-600'
+                                      }`}>
+                                        {gap.urgency || gap.severity} priority
+                                      </span>
+                                    </div>
                                     <p className="font-medium text-gray-900">{gap.gap}</p>
-                                    <p className="text-sm text-gray-600 mt-1">{gap.impact}</p>
                                   </div>
-                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                    gap.urgency === 'high' ? 'bg-red-100 text-red-700' :
-                                    gap.urgency === 'medium' ? 'bg-amber-100 text-amber-700' :
-                                    'bg-gray-100 text-gray-600'
-                                  }`}>
-                                    {gap.urgency} priority
-                                  </span>
                                 </div>
+                                
+                                {/* Evidence quote */}
+                                {gap.evidence && (
+                                  <p className="text-sm italic text-indigo-600 bg-indigo-50 p-2 rounded mb-2">
+                                    "{gap.evidence}"
+                                  </p>
+                                )}
+                                
+                                {/* Impact - handle both old and new formats */}
+                                {gap.currentImpact ? (
+                                  <div className="grid grid-cols-3 gap-2 text-sm mb-2">
+                                    {gap.currentImpact.timeImpact && (
+                                      <div className="bg-gray-50 p-2 rounded">
+                                        <p className="text-xs text-gray-500">Time Impact</p>
+                                        <p className="font-medium">{gap.currentImpact.timeImpact}</p>
+                                      </div>
+                                    )}
+                                    {gap.currentImpact.financialImpact && (
+                                      <div className="bg-gray-50 p-2 rounded">
+                                        <p className="text-xs text-gray-500">Financial Impact</p>
+                                        <p className="font-medium text-red-600">{gap.currentImpact.financialImpact}</p>
+                                      </div>
+                                    )}
+                                    {gap.currentImpact.emotionalImpact && (
+                                      <div className="bg-gray-50 p-2 rounded">
+                                        <p className="text-xs text-gray-500">Emotional Impact</p>
+                                        <p className="font-medium">{gap.currentImpact.emotionalImpact}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : gap.impact && (
+                                  <p className="text-sm text-gray-600 mb-2">{gap.impact}</p>
+                                )}
+                                
                                 {gap.rootCause && (
-                                  <p className="text-sm text-gray-500 mt-2 italic">Root cause: {gap.rootCause}</p>
+                                  <p className="text-sm text-gray-500 italic">Root cause: {gap.rootCause}</p>
+                                )}
+                                
+                                {gap.ifUnaddressed && (
+                                  <p className="text-sm text-red-600 mt-2">
+                                    <strong>If not addressed:</strong> {gap.ifUnaddressed}
+                                  </p>
                                 )}
                               </div>
                             ))}
                           </div>
+                          
+                          {/* Cost of Inaction */}
                           {generatedReport.analysis.gapAnalysis.costOfInaction && (
                             <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
                               <p className="font-medium text-red-800">Cost of Not Acting</p>
-                              <p className="text-2xl font-bold text-red-900">{generatedReport.analysis.gapAnalysis.costOfInaction.annual}</p>
-                              <p className="text-sm text-red-700">{generatedReport.analysis.gapAnalysis.costOfInaction.description}</p>
+                              <p className="text-2xl font-bold text-red-900">
+                                {generatedReport.analysis.gapAnalysis.costOfInaction.annualFinancialCost || 
+                                 generatedReport.analysis.gapAnalysis.costOfInaction.annual}
+                              </p>
+                              <p className="text-sm text-red-700">
+                                {generatedReport.analysis.gapAnalysis.costOfInaction.description}
+                              </p>
+                              {generatedReport.analysis.gapAnalysis.costOfInaction.opportunityCost && (
+                                <p className="text-sm text-red-600 mt-2">
+                                  <strong>Opportunity cost:</strong> {generatedReport.analysis.gapAnalysis.costOfInaction.opportunityCost}
+                                </p>
+                              )}
+                              {generatedReport.analysis.gapAnalysis.costOfInaction.personalCost && (
+                                <p className="text-sm text-red-600">
+                                  <strong>Personal cost:</strong> {generatedReport.analysis.gapAnalysis.costOfInaction.personalCost}
+                                </p>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1552,16 +1615,37 @@ function DiscoveryClientModal({
                                       Priority {inv.priority}
                                     </span>
                                     <h5 className="font-semibold text-lg text-gray-900">{inv.service}</h5>
+                                    {inv.recommendedTier && (
+                                      <p className="text-sm text-gray-500">{inv.recommendedTier}</p>
+                                    )}
                                   </div>
                                   <div className="text-right">
-                                    <p className="text-xl font-bold text-emerald-600">{inv.monthlyInvestment}/mo</p>
-                                    <p className="text-xs text-gray-500">{inv.annualInvestment}/year</p>
+                                    <p className="text-xl font-bold text-emerald-600">{inv.investment || inv.monthlyInvestment}</p>
+                                    <p className="text-xs text-gray-500">{inv.annualInvestment}{inv.investmentFrequency ? ` (${inv.investmentFrequency})` : '/year'}</p>
                                   </div>
                                 </div>
                                 
                                 <p className="text-gray-700 mb-3">{inv.whyThisService}</p>
                                 
-                                {inv.theirWordsConnection && (
+                                {/* Problems solved with their words */}
+                                {inv.problemsSolved && inv.problemsSolved.length > 0 && (
+                                  <div className="mb-3 space-y-2">
+                                    {inv.problemsSolved.slice(0, 2).map((problem: any, pIdx: number) => (
+                                      <div key={pIdx} className="text-sm bg-indigo-50 p-3 rounded">
+                                        <p className="font-medium text-indigo-900">{typeof problem === 'string' ? problem : problem.problem}</p>
+                                        {problem.theirWords && (
+                                          <p className="text-indigo-600 italic mt-1">"{problem.theirWords}"</p>
+                                        )}
+                                        {problem.expectedResult && (
+                                          <p className="text-gray-600 mt-1">→ {problem.expectedResult}</p>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                
+                                {/* Fallback for old format */}
+                                {inv.theirWordsConnection && !inv.problemsSolved && (
                                   <p className="text-sm italic text-indigo-600 bg-indigo-50 p-2 rounded mb-3">
                                     "{inv.theirWordsConnection}"
                                   </p>
@@ -1571,12 +1655,38 @@ function DiscoveryClientModal({
                                   <div className="flex-1">
                                     <p className="text-xs text-gray-500">Expected ROI</p>
                                     <p className="font-bold text-emerald-600">{inv.expectedROI?.multiplier} in {inv.expectedROI?.timeframe}</p>
+                                    {inv.expectedROI?.calculation && (
+                                      <p className="text-xs text-gray-500 mt-1">{inv.expectedROI.calculation}</p>
+                                    )}
                                   </div>
                                   <div className="flex-1">
-                                    <p className="text-xs text-gray-500">Outcomes</p>
-                                    <p className="text-sm text-gray-700">{inv.expectedOutcomes?.[0]}</p>
+                                    <p className="text-xs text-gray-500">Key Outcomes</p>
+                                    {inv.expectedOutcomes && (
+                                      <ul className="text-sm text-gray-700">
+                                        {inv.expectedOutcomes.slice(0, 2).map((outcome: any, oIdx: number) => (
+                                          <li key={oIdx} className="flex items-start gap-1">
+                                            <span className="text-emerald-500">✓</span>
+                                            <span>{typeof outcome === 'string' ? outcome : outcome.outcome}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
                                   </div>
                                 </div>
+                                
+                                {/* Implementation Plan Preview */}
+                                {inv.implementationPlan && (
+                                  <div className="mt-3 pt-3 border-t border-gray-100">
+                                    <p className="text-xs text-gray-500 mb-2">Implementation Plan</p>
+                                    <div className="flex gap-2 text-xs">
+                                      {inv.implementationPlan.phase1 && (
+                                        <span className="bg-gray-100 px-2 py-1 rounded">
+                                          Weeks {inv.implementationPlan.phase1.weeks}: {inv.implementationPlan.phase1.focus}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1587,18 +1697,36 @@ function DiscoveryClientModal({
                               <h5 className="font-semibold mb-3">Investment Summary</h5>
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <p className="text-emerald-100 text-sm">Total Monthly Investment</p>
-                                  <p className="text-2xl font-bold">{generatedReport.analysis.investmentSummary.totalMonthlyInvestment}</p>
+                                  <p className="text-emerald-100 text-sm">Total First Year Investment</p>
+                                  <p className="text-2xl font-bold">
+                                    {generatedReport.analysis.investmentSummary.totalFirstYearInvestment || 
+                                     generatedReport.analysis.investmentSummary.totalMonthlyInvestment}
+                                  </p>
                                 </div>
                                 <div>
-                                  <p className="text-emerald-100 text-sm">Projected Annual Return</p>
-                                  <p className="text-2xl font-bold">{generatedReport.analysis.investmentSummary.projectedAnnualReturn}</p>
+                                  <p className="text-emerald-100 text-sm">Projected First Year Return</p>
+                                  <p className="text-2xl font-bold">
+                                    {generatedReport.analysis.investmentSummary.projectedFirstYearReturn ||
+                                     generatedReport.analysis.investmentSummary.projectedAnnualReturn}
+                                  </p>
                                 </div>
                               </div>
+                              {generatedReport.analysis.investmentSummary.netBenefitYear1 && (
+                                <div className="mt-3 p-3 bg-white/10 rounded">
+                                  <p className="text-sm">
+                                    <strong>Net Benefit Year 1:</strong> {generatedReport.analysis.investmentSummary.netBenefitYear1}
+                                  </p>
+                                </div>
+                              )}
                               <div className="mt-4 pt-3 border-t border-white/20">
                                 <p className="text-sm text-emerald-100">
                                   <strong>Payback Period:</strong> {generatedReport.analysis.investmentSummary.paybackPeriod}
                                 </p>
+                                {generatedReport.analysis.investmentSummary.roiCalculation && (
+                                  <p className="text-xs text-emerald-200 mt-2">
+                                    {generatedReport.analysis.investmentSummary.roiCalculation}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           )}
