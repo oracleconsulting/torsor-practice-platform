@@ -389,6 +389,33 @@ serve(async (req) => {
       .eq('id', practiceId || client.practice_id)
       .single();
 
+    // Get financial context (team-entered data about client's financials)
+    const { data: financialContext } = await supabase
+      .from('client_financial_context')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('period_end_date', { ascending: false })
+      .limit(1)
+      .single();
+
+    // Get operational context (team knowledge about the client)
+    const { data: operationalContext } = await supabase
+      .from('client_operational_context')
+      .select('*')
+      .eq('client_id', clientId)
+      .single();
+
+    // Get pattern analysis if available
+    const { data: patternAnalysis } = await supabase
+      .from('client_pattern_analysis')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    console.log('Loaded context - Financial:', !!financialContext, 'Operational:', !!operationalContext, 'Patterns:', !!patternAnalysis);
+
     // ========================================================================
     // 2. PREPARE CONTEXT FOR AI ANALYSIS
     // ========================================================================
@@ -408,7 +435,7 @@ serve(async (req) => {
       destinationClarityScore: discovery.destination_clarity_score,
       gapScore: discovery.gap_score,
 
-      // Raw responses (their words)
+      // Raw responses (their words) - grouped by section
       responses: Object.entries(responses).map(([key, value]) => ({
         question: key,
         answer: value
@@ -429,7 +456,61 @@ serve(async (req) => {
         type: doc.context_type,
         content: doc.content?.substring(0, 500),
         date: doc.created_at
-      })) || []
+      })) || [],
+
+      // ===== ENHANCED CONTEXT FROM TEAM KNOWLEDGE =====
+      
+      // Financial context (what we KNOW about their numbers)
+      financialContext: financialContext ? {
+        periodType: financialContext.period_type,
+        periodEnd: financialContext.period_end_date,
+        revenue: financialContext.revenue,
+        grossProfit: financialContext.gross_profit,
+        grossMarginPct: financialContext.gross_margin_pct,
+        netProfit: financialContext.net_profit,
+        netMarginPct: financialContext.net_margin_pct,
+        staffCount: financialContext.staff_count,
+        staffCost: financialContext.staff_cost,
+        revenuePerHead: financialContext.revenue_per_head,
+        revenueGrowthPct: financialContext.revenue_growth_pct,
+        cashPosition: financialContext.cash_position,
+        debtorsDays: financialContext.debtors_days,
+        extractedInsights: financialContext.extracted_insights,
+        riskIndicators: financialContext.risk_indicators
+      } : null,
+
+      // Operational context (what we OBSERVE about their business)
+      operationalContext: operationalContext ? {
+        businessType: operationalContext.business_type,
+        industry: operationalContext.industry,
+        yearsTrading: operationalContext.years_trading,
+        yearsAsClient: operationalContext.years_as_client,
+        clientCount: operationalContext.client_count,
+        topClientRevenuePct: operationalContext.top_client_revenue_pct,
+        top3ClientsRevenuePct: operationalContext.top_3_clients_revenue_pct,
+        managementTeamSize: operationalContext.management_team_size,
+        ownerAgeBracket: operationalContext.owner_age_bracket,
+        successionStatus: operationalContext.succession_status,
+        servicesUsed: operationalContext.services_used,
+        observedStrengths: operationalContext.observed_strengths,
+        observedChallenges: operationalContext.observed_challenges,
+        opportunityScore: operationalContext.opportunity_score,
+        riskFactors: operationalContext.risk_factors
+      } : null,
+
+      // Pre-computed patterns (if we've run pattern analysis)
+      patternAnalysis: patternAnalysis ? {
+        patternsDetected: patternAnalysis.patterns_detected,
+        risksIdentified: patternAnalysis.risks_identified,
+        opportunitiesIdentified: patternAnalysis.opportunities_identified,
+        emotionalAnchors: patternAnalysis.emotional_anchors,
+        scores: {
+          destinationClarity: patternAnalysis.destination_clarity_score,
+          gapSeverity: patternAnalysis.gap_severity_score,
+          readiness: patternAnalysis.readiness_score,
+          opportunity: patternAnalysis.opportunity_score
+        }
+      } : null
     };
 
     // ========================================================================
@@ -441,6 +522,47 @@ Analyze this discovery assessment for ${client.name} (${client.client_company ||
 
 ## CLIENT DISCOVERY DATA
 ${JSON.stringify(clientContext, null, 2)}
+
+## IMPORTANT CONTEXT
+This client is an EXISTING client of RPGCC. We already know their financial numbers.
+The discovery assessment captures what we DON'T know: their aspirations, frustrations, emotional state, and operational reality from THEIR perspective.
+
+${clientContext.financialContext ? `
+## WE KNOW THEIR FINANCIALS:
+- Revenue: £${clientContext.financialContext.revenue?.toLocaleString() || 'Unknown'}
+- Gross Margin: ${clientContext.financialContext.grossMarginPct || 'Unknown'}%
+- Net Profit: £${clientContext.financialContext.netProfit?.toLocaleString() || 'Unknown'}
+- Staff Count: ${clientContext.financialContext.staffCount || 'Unknown'}
+- Revenue/Head: £${clientContext.financialContext.revenuePerHead?.toLocaleString() || 'Unknown'}
+- Growth Rate: ${clientContext.financialContext.revenueGrowthPct || 'Unknown'}%
+
+Use these REAL numbers to calculate specific £ impacts in your analysis.
+` : ''}
+
+${clientContext.operationalContext ? `
+## WE KNOW ABOUT THEIR BUSINESS:
+- Years Trading: ${clientContext.operationalContext.yearsTrading || 'Unknown'}
+- Years as Client: ${clientContext.operationalContext.yearsAsClient || 'Unknown'}
+- Business Type: ${clientContext.operationalContext.businessType || 'Unknown'}
+- Client Concentration: Top client = ${clientContext.operationalContext.topClientRevenuePct || 'Unknown'}% of revenue
+- Observed Strengths: ${clientContext.operationalContext.observedStrengths?.join(', ') || 'None noted'}
+- Observed Challenges: ${clientContext.operationalContext.observedChallenges?.join(', ') || 'None noted'}
+` : ''}
+
+${clientContext.patternAnalysis ? `
+## PRE-IDENTIFIED PATTERNS:
+${JSON.stringify(clientContext.patternAnalysis.patternsDetected, null, 2)}
+
+## PRE-IDENTIFIED RISKS:
+${JSON.stringify(clientContext.patternAnalysis.risksIdentified, null, 2)}
+` : ''}
+
+## ANALYSIS APPROACH
+1. Compare what THEY say (discovery responses) vs what WE know (financial/operational context)
+2. Look for disconnects - where their perception differs from reality
+3. Use their EXACT WORDS to build rapport and show we've listened
+4. Calculate specific £ impacts using their real financial data where available
+5. Connect emotional drivers to practical solutions
 
 ## AVAILABLE SERVICES & ROI DATA
 ${JSON.stringify(SERVICE_LINES, null, 2)}
