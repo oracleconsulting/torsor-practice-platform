@@ -65,14 +65,14 @@ export default function DiscoveryReportPage() {
   }, [clientSession]);
 
   const loadReport = async () => {
-    if (!clientSession?.id) return;
+    if (!clientSession?.clientId) return;
 
     try {
       // Load the client's shared discovery report
       const { data, error } = await supabase
         .from('client_reports')
         .select('*')
-        .eq('client_id', clientSession.id)
+        .eq('client_id', clientSession.clientId)
         .eq('report_type', 'discovery_analysis')
         .eq('is_shared_with_client', true)
         .order('created_at', { ascending: false })
