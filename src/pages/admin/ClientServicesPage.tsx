@@ -27,7 +27,8 @@ import {
   Upload,
   Download,
   MessageSquare,
-  Sparkles
+  Sparkles,
+  Share2
 } from 'lucide-react';
 
 
@@ -1008,6 +1009,8 @@ function DiscoveryClientModal({
   const [savingNotes, setSavingNotes] = useState(false);
   const [generatingReport, setGeneratingReport] = useState(false);
   const [generatedReport, setGeneratedReport] = useState<any>(null);
+  const [isReportShared, setIsReportShared] = useState(false);
+  const [sharingReport, setSharingReport] = useState(false);
   
   // Service assignment state
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
@@ -1050,11 +1053,26 @@ function DiscoveryClientModal({
         .select('service_line_id, service_lines(code, name)')
         .eq('client_id', clientId);
 
+      // Fetch existing report if any
+      const { data: existingReport } = await supabase
+        .from('client_reports')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('report_type', 'discovery_analysis')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
       setClient(clientData);
       setDiscovery(discoveryData);
       setDocuments(docsData || []);
       setAnalysisNotes(discoveryData?.analysis_notes || '');
       setSelectedServices(assignedServices?.map((s: any) => s.service_lines?.code).filter(Boolean) || []);
+      
+      if (existingReport) {
+        setGeneratedReport(existingReport);
+        setIsReportShared(existingReport.is_shared_with_client || false);
+      }
     } catch (error) {
       console.error('Error fetching client:', error);
     } finally {
@@ -1180,6 +1198,40 @@ function DiscoveryClientModal({
     }
   };
 
+  // Share/unshare report with client
+  const handleShareReport = async () => {
+    if (!generatedReport?.id) {
+      alert('No report to share. Please generate a report first.');
+      return;
+    }
+    
+    setSharingReport(true);
+    try {
+      const newSharedStatus = !isReportShared;
+      
+      await supabase
+        .from('client_reports')
+        .update({ 
+          is_shared_with_client: newSharedStatus,
+          shared_at: newSharedStatus ? new Date().toISOString() : null
+        })
+        .eq('id', generatedReport.id);
+      
+      setIsReportShared(newSharedStatus);
+      
+      if (newSharedStatus) {
+        alert('Report shared! The client can now view it in their portal.');
+      } else {
+        alert('Report unshared. The client can no longer see it.');
+      }
+    } catch (error) {
+      console.error('Error sharing report:', error);
+      alert('Failed to update sharing status');
+    } finally {
+      setSharingReport(false);
+    }
+  };
+
   // Assign services to client
   const handleAssignServices = async () => {
     if (selectedServices.length === 0 || !client?.practice_id) return;
@@ -1290,10 +1342,35 @@ function DiscoveryClientModal({
               ) : (
                 <>
                   <Download className="w-4 h-4" />
-                  Generate Report
+                  {generatedReport ? 'Regenerate' : 'Generate Report'}
                 </>
               )}
             </button>
+            {generatedReport && (
+              <button
+                onClick={handleShareReport}
+                disabled={sharingReport}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isReportShared 
+                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {sharingReport ? (
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : isReportShared ? (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Shared with Client
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="w-4 h-4" />
+                    Share with Client
+                  </>
+                )}
+              </button>
+            )}
             <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
               <X className="w-5 h-5 text-gray-400" />
             </button>
@@ -1620,8 +1697,21 @@ function DiscoveryClientModal({
                                     )}
                                   </div>
                                   <div className="text-right">
-                                    <p className="text-xl font-bold text-emerald-600">{inv.investment || inv.monthlyInvestment}</p>
-                                    <p className="text-xs text-gray-500">{inv.annualInvestment}{inv.investmentFrequency ? ` (${inv.investmentFrequency})` : '/year'}</p>
+                                    {inv.annualInvestment ? (
+                                      <>
+                                        <p className="text-xl font-bold text-emerald-600">{inv.annualInvestment}</p>
+                                        <p className="text-xs text-gray-500">
+                                          {inv.monthlyInvestment ? `(${inv.monthlyInvestment}/month)` : 'per year'}
+                                        </p>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <p className="text-xl font-bold text-emerald-600">{inv.investment || inv.monthlyInvestment}</p>
+                                        <p className="text-xs text-gray-500">
+                                          {inv.investmentFrequency || 'per month'}
+                                        </p>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                                 

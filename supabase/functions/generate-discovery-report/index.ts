@@ -755,8 +755,11 @@ CRITICAL REQUIREMENTS:
 - Be DETAILED - this report should feel comprehensive and personalized
 - Explain the HOW, not just the WHAT for each service
 - Show the domino effect: how fixing one thing enables the next
-- Maximum 3 service recommendations to keep it focused and achievable
+- ALWAYS recommend 2-3 services (minimum 2) - most clients need a combination approach
+- If they need financial clarity AND operational systems, recommend BOTH
+- Typical combinations: Management Accounts + 365 Method, Fractional CFO + Systems Audit
 - Make the comparison crystal clear: investment cost vs. cost of inaction
+- Order recommendations by priority (what to start with first)
 `;
 
     const openrouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {

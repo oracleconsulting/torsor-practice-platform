@@ -20,6 +20,7 @@ import ChatPage from './pages/chat/ChatPage';
 import AppointmentsPage from './pages/appointments/AppointmentsPage';
 import ServiceAssessmentPage from './pages/services/ServiceAssessmentPage';
 import DestinationDiscoveryPage from './pages/discovery/DestinationDiscoveryPage';
+import DiscoveryReportPage from './pages/discovery/DiscoveryReportPage';
 
 function App() {
   return (
@@ -64,6 +65,7 @@ function App() {
             {/* Destination Discovery Assessment */}
             <Route path="/discovery" element={<DestinationDiscoveryPage />} />
             <Route path="/discovery/complete" element={<DiscoveryCompletePage />} />
+            <Route path="/discovery/report" element={<DiscoveryReportPage />} />
           </Route>
           
           {/* Catch all - go to portal */}
@@ -75,4 +77,3 @@ function App() {
 }
 
 export default App;
-

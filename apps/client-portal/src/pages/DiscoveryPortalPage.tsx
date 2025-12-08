@@ -12,7 +12,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { 
   Compass, ChevronRight, LogOut, CheckCircle, 
   Clock, Building2, Loader2, Target, TrendingUp,
-  Settings, LineChart, Users, Briefcase, ArrowRight
+  Settings, LineChart, Users, Briefcase, ArrowRight,
+  Sparkles, FileText
 } from 'lucide-react';
 
 interface AssignedService {
@@ -39,12 +40,14 @@ export default function DiscoveryPortalPage() {
   const navigate = useNavigate();
   const [discoveryStatus, setDiscoveryStatus] = useState<'pending' | 'in_progress' | 'complete'>('pending');
   const [assignedServices, setAssignedServices] = useState<AssignedService[]>([]);
+  const [hasReport, setHasReport] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (clientSession?.clientId) {
       checkDiscoveryStatus();
       fetchAssignedServices();
+      checkForReport();
     } else {
       setLoading(false);
     }
@@ -100,6 +103,25 @@ export default function DiscoveryPortalPage() {
     }
   };
 
+  const checkForReport = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('client_reports')
+        .select('id')
+        .eq('client_id', clientSession?.clientId)
+        .eq('report_type', 'discovery_analysis')
+        .eq('is_shared_with_client', true)
+        .limit(1)
+        .single();
+
+      if (data && !error) {
+        setHasReport(true);
+      }
+    } catch (err) {
+      // No report available yet
+    }
+  };
+
   const handleLogout = async () => {
     await signOut();
     navigate('/login');
@@ -107,6 +129,10 @@ export default function DiscoveryPortalPage() {
 
   const handleStartDiscovery = () => {
     navigate('/discovery');
+  };
+
+  const handleViewReport = () => {
+    navigate('/discovery/report');
   };
 
   if (loading) {
@@ -163,7 +189,9 @@ export default function DiscoveryPortalPage() {
             Welcome, {firstName}! 👋
           </h1>
           <p className="text-gray-600">
-            Let's discover what makes your business unique and where we can help.
+            {discoveryStatus === 'complete' 
+              ? "Here's your personalized overview and next steps."
+              : "Let's discover what makes your business unique and where we can help."}
           </p>
         </div>
 
@@ -176,6 +204,31 @@ export default function DiscoveryPortalPage() {
             <div>
               <p className="font-medium text-gray-900">{clientSession.company}</p>
               <p className="text-sm text-gray-500">Your business</p>
+            </div>
+          </div>
+        )}
+
+        {/* Report Available Card - Show prominently when report is ready */}
+        {hasReport && (
+          <div className="mb-6 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-6 text-white shadow-lg">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-white/20 rounded-xl">
+                <Sparkles className="w-8 h-8" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold mb-1">Your Discovery Insights Are Ready</h2>
+                <p className="text-emerald-100 mb-4">
+                  We've analyzed your responses and prepared personalized recommendations for your business.
+                </p>
+                <button
+                  onClick={handleViewReport}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-emerald-700 font-semibold rounded-lg hover:bg-emerald-50 transition-colors"
+                >
+                  <FileText className="w-5 h-5" />
+                  View Your Personalized Report
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -208,11 +261,13 @@ export default function DiscoveryPortalPage() {
                 </h3>
                 <p className="text-gray-600 mb-4">
                   Thank you for completing your discovery assessment. 
-                  {assignedServices.length > 0 
-                    ? " Here are the services you've been enrolled in:"
-                    : " Your advisor will be in touch shortly to discuss your results."}
+                  {hasReport 
+                    ? " Your personalized insights are ready to view above."
+                    : assignedServices.length > 0 
+                      ? " Here are the services you've been enrolled in:"
+                      : " Your advisor will be in touch shortly to discuss your results."}
                 </p>
-                {assignedServices.length === 0 && (
+                {!hasReport && assignedServices.length === 0 && (
                   <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">
                     <Clock className="w-4 h-4" />
                     Awaiting advisor review
@@ -341,4 +396,3 @@ export default function DiscoveryPortalPage() {
     </div>
   );
 }
-
