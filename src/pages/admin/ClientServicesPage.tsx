@@ -1755,8 +1755,28 @@ function DiscoveryClientModal({
 
                       {/* Closing Message */}
                       {generatedReport.analysis?.closingMessage && (
-                        <div className="bg-slate-800 rounded-xl p-6 text-white text-center">
-                          <p className="text-lg">{generatedReport.analysis.closingMessage}</p>
+                        <div className="bg-slate-800 rounded-xl p-6 text-white">
+                          {typeof generatedReport.analysis.closingMessage === 'string' ? (
+                            <p className="text-lg text-center">{generatedReport.analysis.closingMessage}</p>
+                          ) : (
+                            <div className="space-y-4">
+                              {generatedReport.analysis.closingMessage.personalNote && (
+                                <p className="text-lg text-center italic">
+                                  "{generatedReport.analysis.closingMessage.personalNote}"
+                                </p>
+                              )}
+                              {generatedReport.analysis.closingMessage.callToAction && (
+                                <p className="text-center font-semibold text-emerald-300">
+                                  {generatedReport.analysis.closingMessage.callToAction}
+                                </p>
+                              )}
+                              {generatedReport.analysis.closingMessage.urgencyReminder && (
+                                <p className="text-sm text-center text-gray-300">
+                                  {generatedReport.analysis.closingMessage.urgencyReminder}
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
 
