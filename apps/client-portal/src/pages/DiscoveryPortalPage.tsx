@@ -393,6 +393,7 @@ export default function DiscoveryPortalPage() {
       <footer className="mt-auto bg-slate-800 border-t border-slate-700 py-6 text-center text-slate-300 text-xs">
         <p>RP Griffiths Chartered Certified Accountants</p>
         <p className="mt-1 text-slate-400">London Chartered Accountants and Auditors</p>
+        <p className="mt-2 text-slate-500">RPGCC is a trading name of RPG Crouch Chapman LLP</p>
       </footer>
     </div>
   );

@@ -244,8 +244,9 @@ export function SignupPage() {
         </div>
         
         {/* Footer */}
-        <div className="mt-4 text-center text-gray-400 text-xs">
+        <div className="mt-4 text-center text-slate-500 text-xs">
           <p>RP Griffiths Chartered Certified Accountants</p>
+          <p className="mt-1 text-slate-400">RPGCC is a trading name of RPG Crouch Chapman LLP</p>
         </div>
       </div>
     </div>

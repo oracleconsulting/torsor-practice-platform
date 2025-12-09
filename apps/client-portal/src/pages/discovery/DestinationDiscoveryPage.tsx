@@ -280,6 +280,7 @@ export default function DestinationDiscoveryPage() {
           {/* Footer */}
           <div className="mt-8 text-center text-slate-500 text-xs">
             <p>RP Griffiths Chartered Certified Accountants</p>
+            <p className="mt-1 text-slate-400">RPGCC is a trading name of RPG Crouch Chapman LLP</p>
           </div>
         </div>
       </div>
