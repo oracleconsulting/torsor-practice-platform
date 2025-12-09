@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Eye, EyeOff, Shield, Loader2 } from 'lucide-react';
+import { Logo } from '@/components/Logo';
 
 export function SignupPage() {
   const { practiceCode = 'rpgcc' } = useParams<{ practiceCode?: string }>();
@@ -101,13 +102,8 @@ export function SignupPage() {
       <div className="max-w-md w-full">
         {/* RPGCC Logo */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <span className="text-5xl font-bold tracking-tight text-slate-800">RPGCC</span>
-            <div className="flex gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-red-500" />
-              <div className="w-3 h-3 rounded-full bg-orange-400" />
-              <div className="w-3 h-3 rounded-full bg-blue-400" />
-            </div>
+          <div className="flex items-center justify-center mb-6">
+            <Logo variant="light" size="xl" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
             Begin Your Discovery

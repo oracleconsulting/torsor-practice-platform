@@ -15,6 +15,7 @@ import {
   Settings, LineChart, Users, Briefcase, ArrowRight,
   Sparkles, FileText
 } from 'lucide-react';
+import { Logo } from '@/components/Logo';
 
 interface AssignedService {
   id: string;
@@ -155,14 +156,7 @@ export default function DiscoveryPortalPage() {
       <header className="bg-slate-800 border-b border-slate-700">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           {/* RPGCC Logo */}
-          <div className="flex items-center gap-2">
-            <span className="text-2xl font-bold tracking-tight text-white">RPGCC</span>
-            <div className="flex gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-red-500" />
-              <div className="w-2 h-2 rounded-full bg-orange-400" />
-              <div className="w-2 h-2 rounded-full bg-blue-400" />
-            </div>
-          </div>
+          <Logo variant="dark" size="md" />
 
           {/* User Menu */}
           <div className="flex items-center gap-4">

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, CheckCircle } from 'lucide-react';
+import { Logo } from '@/components/Logo';
 
 export default function LoginPage() {
   const { user, loading, signIn, signInWithPassword } = useAuth();
@@ -52,13 +53,8 @@ export default function LoginPage() {
       <div className="min-h-screen flex items-center justify-center bg-white p-4">
         <div className="max-w-md w-full text-center">
           {/* RPGCC Logo */}
-          <div className="flex items-center justify-center gap-2 mb-8">
-            <span className="text-4xl font-bold tracking-tight text-slate-800">RPGCC</span>
-            <div className="flex gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
-              <div className="w-2.5 h-2.5 rounded-full bg-orange-400" />
-              <div className="w-2.5 h-2.5 rounded-full bg-blue-400" />
-            </div>
+          <div className="flex items-center justify-center mb-8">
+            <Logo variant="light" size="lg" />
           </div>
           
           <div className="bg-gray-50 rounded-2xl border border-gray-200 p-8">
@@ -92,13 +88,8 @@ export default function LoginPage() {
       <div className="max-w-md w-full">
         {/* RPGCC Logo */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <span className="text-5xl font-bold tracking-tight text-slate-800">RPGCC</span>
-            <div className="flex gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-red-500" />
-              <div className="w-3 h-3 rounded-full bg-orange-400" />
-              <div className="w-3 h-3 rounded-full bg-blue-400" />
-            </div>
+          <div className="flex items-center justify-center mb-6">
+            <Logo variant="light" size="xl" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">
             Welcome Back

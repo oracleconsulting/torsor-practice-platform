@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { ArrowLeft, Calendar, ChevronRight, Sparkles, Target, TrendingUp, Heart, Clock, Shield } from 'lucide-react';
+import { Logo } from '@/components/Logo';
 
 // ============================================================================
 // CLIENT-FRIENDLY DISCOVERY REPORT
@@ -167,14 +168,7 @@ export default function DiscoveryReportPage() {
             Back
           </button>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-white">RPGCC</span>
-              <div className="flex gap-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-              </div>
-            </div>
+            <Logo variant="dark" size="sm" />
             <div className="w-2 h-2 rounded-full bg-green-500"></div>
             <span className="text-sm text-slate-300">Your Discovery Insights</span>
           </div>

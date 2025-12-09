@@ -5,6 +5,7 @@
 // ============================================================================
 
 import { CheckCircle, Clock, FileText, Mail, ArrowRight } from 'lucide-react';
+import { Logo } from '@/components/Logo';
 
 interface DiscoveryCompletePageProps {
   clientName?: string;
@@ -15,13 +16,8 @@ export function DiscoveryCompletePage({ clientName }: DiscoveryCompletePageProps
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
       <div className="max-w-2xl w-full">
         {/* RPGCC Logo */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <span className="text-3xl font-bold tracking-tight text-white">RPGCC</span>
-          <div className="flex gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-red-500" />
-            <div className="w-2 h-2 rounded-full bg-orange-400" />
-            <div className="w-2 h-2 rounded-full bg-blue-400" />
-          </div>
+        <div className="flex items-center justify-center mb-8">
+          <Logo variant="dark" size="lg" />
         </div>
 
         {/* Success Animation */}
