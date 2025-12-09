@@ -198,12 +198,12 @@ export default function DestinationDiscoveryPage() {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         <div className="max-w-3xl mx-auto px-4 py-12">
           {/* RPGCC Logo */}
-          <div className="flex items-center justify-center gap-1 mb-12">
-            <span className="text-3xl font-black tracking-tight text-white">RPGCC</span>
-            <div className="flex gap-1 ml-1">
-              <div className="w-2 h-2 rounded-full bg-[#3B82F6]" />
-              <div className="w-2 h-2 rounded-full bg-[#EF4444]" />
-              <div className="w-2 h-2 rounded-full bg-[#F59E0B]" />
+          <div className="flex items-center justify-center gap-2 mb-12">
+            <span className="text-3xl font-bold tracking-tight text-white">RPGCC</span>
+            <div className="flex gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-red-500" />
+              <div className="w-2 h-2 rounded-full bg-orange-400" />
+              <div className="w-2 h-2 rounded-full bg-blue-400" />
             </div>
           </div>
 

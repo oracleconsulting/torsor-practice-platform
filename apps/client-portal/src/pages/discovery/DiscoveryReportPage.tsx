@@ -157,25 +157,33 @@ export default function DiscoveryReportPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
+      <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <button
             onClick={() => navigate('/portal')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+            className="flex items-center gap-2 text-slate-300 hover:text-white"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-white">RPGCC</span>
+              <div className="flex gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+              </div>
+            </div>
             <div className="w-2 h-2 rounded-full bg-green-500"></div>
-            <span className="text-sm text-gray-600">Your Discovery Insights</span>
+            <span className="text-sm text-slate-300">Your Discovery Insights</span>
           </div>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8 space-y-8">
         {/* Hero Section - Sympathetic Opening */}
-        <section className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-8 md:p-12 text-white">
+        <section className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-3xl p-8 md:p-12 text-white">
           <div className="flex items-center gap-2 text-blue-200 mb-4">
             <Heart className="w-5 h-5" />
             <span className="text-sm font-medium">We heard you</span>
@@ -407,7 +415,7 @@ export default function DiscoveryReportPage() {
         </section>
 
         {/* Closing Message - Encouraging */}
-        <section className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 md:p-8 text-white">
+        <section className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 md:p-8 text-white">
           <div className="flex items-center gap-2 text-indigo-200 mb-4">
             <Shield className="w-5 h-5" />
             <span className="text-sm font-medium">A Note From Us</span>
@@ -461,10 +469,11 @@ export default function DiscoveryReportPage() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-100 mt-12">
-        <div className="max-w-4xl mx-auto px-4 py-6 text-center text-sm text-gray-500">
+      <footer className="bg-slate-800 border-t border-slate-700 mt-12">
+        <div className="max-w-4xl mx-auto px-4 py-6 text-center text-sm text-slate-300">
           <p>This report was prepared specifically for you based on your discovery responses.</p>
-          <p className="mt-1">Questions? Reach out to your advisor directly.</p>
+          <p className="mt-1 text-slate-400">Questions? Reach out to your advisor directly.</p>
+          <p className="mt-2 text-xs text-slate-500">RP Griffiths Chartered Certified Accountants • London Chartered Accountants and Auditors</p>
         </div>
       </footer>
     </div>

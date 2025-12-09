@@ -101,12 +101,12 @@ export function SignupPage() {
       <div className="max-w-md w-full">
         {/* RPGCC Logo */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-1 mb-6">
-            <span className="text-5xl font-black tracking-tight text-black">RPGCC</span>
-            <div className="flex gap-1 ml-1">
-              <div className="w-3 h-3 rounded-full bg-[#3B82F6]" />
-              <div className="w-3 h-3 rounded-full bg-[#EF4444]" />
-              <div className="w-3 h-3 rounded-full bg-[#F59E0B]" />
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <span className="text-5xl font-bold tracking-tight text-slate-800">RPGCC</span>
+            <div className="flex gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-red-500" />
+              <div className="w-3 h-3 rounded-full bg-orange-400" />
+              <div className="w-3 h-3 rounded-full bg-blue-400" />
             </div>
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
@@ -214,7 +214,7 @@ export function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-black text-white font-semibold rounded-xl hover:bg-gray-800 transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-lg"
+              className="w-full py-4 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-lg"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-3">

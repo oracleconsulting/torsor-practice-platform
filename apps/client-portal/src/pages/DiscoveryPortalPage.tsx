@@ -151,28 +151,28 @@ export default function DiscoveryPortalPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Simple Header */}
-      <header className="bg-white border-b border-gray-200">
+      {/* RPGCC Branded Header */}
+      <header className="bg-slate-800 border-b border-slate-700">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           {/* RPGCC Logo */}
-          <div className="flex items-center gap-1">
-            <span className="text-2xl font-black tracking-tight text-black">RPGCC</span>
-            <div className="flex gap-1 ml-1">
-              <div className="w-2 h-2 rounded-full bg-[#3B82F6]" />
-              <div className="w-2 h-2 rounded-full bg-[#EF4444]" />
-              <div className="w-2 h-2 rounded-full bg-[#F59E0B]" />
+          <div className="flex items-center gap-2">
+            <span className="text-2xl font-bold tracking-tight text-white">RPGCC</span>
+            <div className="flex gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-red-500" />
+              <div className="w-2 h-2 rounded-full bg-orange-400" />
+              <div className="w-2 h-2 rounded-full bg-blue-400" />
             </div>
           </div>
 
           {/* User Menu */}
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-medium text-gray-900">{clientSession?.name}</p>
-              <p className="text-xs text-gray-500">{clientSession?.company || user?.email}</p>
+              <p className="text-sm font-medium text-white">{clientSession?.name}</p>
+              <p className="text-xs text-slate-300">{clientSession?.company || user?.email}</p>
             </div>
             <button 
               onClick={handleLogout}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
               title="Log out"
             >
               <LogOut className="w-5 h-5" />
@@ -210,19 +210,19 @@ export default function DiscoveryPortalPage() {
 
         {/* Report Available Card - Show prominently when report is ready */}
         {hasReport && (
-          <div className="mb-6 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-6 text-white shadow-lg">
+          <div className="mb-6 bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-6 text-white shadow-lg">
             <div className="flex items-start gap-4">
               <div className="p-3 bg-white/20 rounded-xl">
                 <Sparkles className="w-8 h-8" />
               </div>
               <div className="flex-1">
                 <h2 className="text-xl font-bold mb-1">Your Discovery Insights Are Ready</h2>
-                <p className="text-emerald-100 mb-4">
+                <p className="text-blue-100 mb-4">
                   We've analyzed your responses and prepared personalized recommendations for your business.
                 </p>
                 <button
                   onClick={handleViewReport}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-emerald-700 font-semibold rounded-lg hover:bg-emerald-50 transition-colors"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-blue-700 font-semibold rounded-lg hover:bg-blue-50 transition-colors"
                 >
                   <FileText className="w-5 h-5" />
                   View Your Personalized Report
@@ -236,7 +236,7 @@ export default function DiscoveryPortalPage() {
         {/* Discovery Assessment Card */}
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
           {/* Card Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-8 text-white">
+          <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-8 text-white">
             <div className="flex items-center gap-3 mb-3">
               <div className="p-2 bg-white/20 rounded-lg">
                 <Compass className="w-6 h-6" />
@@ -389,9 +389,10 @@ export default function DiscoveryPortalPage() {
         </div>
       </main>
 
-      {/* Simple Footer */}
-      <footer className="mt-auto py-6 text-center text-gray-400 text-xs">
+      {/* RPGCC Footer */}
+      <footer className="mt-auto bg-slate-800 border-t border-slate-700 py-6 text-center text-slate-300 text-xs">
         <p>RP Griffiths Chartered Certified Accountants</p>
+        <p className="mt-1 text-slate-400">London Chartered Accountants and Auditors</p>
       </footer>
     </div>
   );

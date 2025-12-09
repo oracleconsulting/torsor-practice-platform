@@ -52,12 +52,12 @@ export default function LoginPage() {
       <div className="min-h-screen flex items-center justify-center bg-white p-4">
         <div className="max-w-md w-full text-center">
           {/* RPGCC Logo */}
-          <div className="flex items-center justify-center gap-1 mb-8">
-            <span className="text-4xl font-black tracking-tight text-black">RPGCC</span>
-            <div className="flex gap-1 ml-1">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#3B82F6]" />
-              <div className="w-2.5 h-2.5 rounded-full bg-[#EF4444]" />
-              <div className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]" />
+          <div className="flex items-center justify-center gap-2 mb-8">
+            <span className="text-4xl font-bold tracking-tight text-slate-800">RPGCC</span>
+            <div className="flex gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+              <div className="w-2.5 h-2.5 rounded-full bg-orange-400" />
+              <div className="w-2.5 h-2.5 rounded-full bg-blue-400" />
             </div>
           </div>
           
@@ -92,12 +92,12 @@ export default function LoginPage() {
       <div className="max-w-md w-full">
         {/* RPGCC Logo */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-1 mb-6">
-            <span className="text-5xl font-black tracking-tight text-black">RPGCC</span>
-            <div className="flex gap-1 ml-1">
-              <div className="w-3 h-3 rounded-full bg-[#3B82F6]" />
-              <div className="w-3 h-3 rounded-full bg-[#EF4444]" />
-              <div className="w-3 h-3 rounded-full bg-[#F59E0B]" />
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <span className="text-5xl font-bold tracking-tight text-slate-800">RPGCC</span>
+            <div className="flex gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-red-500" />
+              <div className="w-3 h-3 rounded-full bg-orange-400" />
+              <div className="w-3 h-3 rounded-full bg-blue-400" />
             </div>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">
@@ -158,7 +158,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={submitting || !email || (usePassword && !password)}
-              className="w-full py-4 bg-black text-white font-semibold rounded-xl hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+              className="w-full py-4 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             >
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
@@ -192,8 +192,9 @@ export default function LoginPage() {
         </div>
 
         {/* Footer */}
-        <div className="mt-6 text-center text-gray-400 text-xs">
+        <div className="mt-6 text-center text-slate-500 text-xs">
           <p>RP Griffiths Chartered Certified Accountants</p>
+          <p className="mt-1 text-slate-400">London Chartered Accountants and Auditors</p>
         </div>
       </div>
     </div>
