@@ -94,7 +94,7 @@ export function SignupPage() {
       setError(err.message || 'Failed to create account. Please try again.');
       setLoading(false);
       setStatus('');
-    }
+  }
   };
 
   return (

@@ -59,16 +59,17 @@ const SECTION_ICONS: Record<string, any> = {
   'Exit & Protection': Zap
 };
 
+// Clean white background for all sections - RPGCC branding
 const SECTION_THEMES: Record<string, { bg: string; accent: string }> = {
-  'The Dream': { bg: 'from-indigo-900 to-purple-900', accent: 'indigo' },
-  'The Gap': { bg: 'from-amber-900 to-orange-900', accent: 'amber' },
-  'Tuesday Reality': { bg: 'from-slate-800 to-zinc-900', accent: 'slate' },
-  'The Real Question': { bg: 'from-emerald-900 to-teal-900', accent: 'emerald' },
-  'Financial Clarity': { bg: 'from-blue-900 to-cyan-900', accent: 'blue' },
-  'Operational Freedom': { bg: 'from-violet-900 to-purple-900', accent: 'violet' },
-  'Strategic Direction': { bg: 'from-rose-900 to-pink-900', accent: 'rose' },
-  'Growth Readiness': { bg: 'from-green-900 to-emerald-900', accent: 'green' },
-  'Exit & Protection': { bg: 'from-orange-900 to-red-900', accent: 'orange' }
+  'The Dream': { bg: 'from-slate-50 to-white', accent: 'blue' },
+  'The Gap': { bg: 'from-slate-50 to-white', accent: 'blue' },
+  'Tuesday Reality': { bg: 'from-slate-50 to-white', accent: 'blue' },
+  'The Real Question': { bg: 'from-slate-50 to-white', accent: 'blue' },
+  'Financial Clarity': { bg: 'from-slate-50 to-white', accent: 'blue' },
+  'Operational Freedom': { bg: 'from-slate-50 to-white', accent: 'blue' },
+  'Strategic Direction': { bg: 'from-slate-50 to-white', accent: 'blue' },
+  'Growth Readiness': { bg: 'from-slate-50 to-white', accent: 'blue' },
+  'Exit & Protection': { bg: 'from-slate-50 to-white', accent: 'blue' }
 };
 
 export default function DestinationDiscoveryPage() {
@@ -266,7 +267,7 @@ export default function DestinationDiscoveryPage() {
 
             <button
               onClick={() => setPhase('discovery')}
-              className="w-full py-4 bg-black text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-gray-800 transition-all shadow-lg"
+              className="w-full py-4 bg-blue-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg"
             >
               Let's Begin
               <ArrowRight className="w-5 h-5" />
@@ -286,14 +287,14 @@ export default function DestinationDiscoveryPage() {
   // Results screen
   if (phase === 'results') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className="min-h-screen bg-white">
         <div className="max-w-4xl mx-auto px-4 py-12">
           <div className="text-center mb-12">
-            <CheckCircle className="w-16 h-16 text-emerald-400 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold text-white mb-2">
+            <CheckCircle className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
               Your Path Forward
             </h1>
-            <p className="text-slate-400">
+            <p className="text-gray-600">
               Based on your responses, here's what we recommend
             </p>
           </div>
@@ -302,50 +303,50 @@ export default function DestinationDiscoveryPage() {
             {recommendations.map((rec, idx) => (
               <div 
                 key={rec.service.code}
-                className={`bg-slate-800/50 backdrop-blur rounded-2xl p-6 border ${
-                  idx === 0 ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-slate-700'
+                className={`bg-white rounded-2xl p-6 border shadow-sm ${
+                  idx === 0 ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-200'
                 }`}
               >
                 {idx === 0 && (
-                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/20 rounded-full text-indigo-400 text-sm font-medium mb-4">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-full text-blue-600 text-sm font-medium mb-4">
                     <Sparkles className="w-4 h-4" />
                     Primary Recommendation
                   </div>
                 )}
 
-                <h2 className="text-2xl font-bold text-white mb-1">
+                <h2 className="text-2xl font-bold text-gray-900 mb-1">
                   {rec.valueProposition.headline}
                 </h2>
-                <p className="text-lg text-slate-400 mb-4">
+                <p className="text-lg text-gray-600 mb-4">
                   {rec.service.name}
                 </p>
 
                 <div className="space-y-4 mb-6">
                   {rec.valueProposition.destination && (
-                    <div className="bg-slate-900/50 rounded-lg p-4">
-                      <p className="text-slate-300 italic">
+                    <div className="bg-blue-50 rounded-lg p-4">
+                      <p className="text-gray-700 italic">
                         {rec.valueProposition.destination}
                       </p>
                     </div>
                   )}
 
                   {rec.valueProposition.gap && (
-                    <p className="text-amber-400">
+                    <p className="text-gray-700">
                       {rec.valueProposition.gap}
                     </p>
                   )}
 
-                  <p className="text-white">
+                  <p className="text-gray-700">
                     {rec.valueProposition.transformation}
                   </p>
                 </div>
 
-                <div className="flex items-center justify-between pt-4 border-t border-slate-700">
+                <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                   <div>
-                    <p className="text-slate-400 text-sm">Typical investment</p>
-                    <p className="text-white font-semibold">{rec.service.typicalMonthly}/month</p>
+                    <p className="text-gray-500 text-sm">Typical investment</p>
+                    <p className="text-gray-900 font-semibold">{rec.service.typicalMonthly}/month</p>
                   </div>
-                  <button className="px-6 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors">
+                  <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                     Learn More
                   </button>
                 </div>
@@ -355,10 +356,10 @@ export default function DestinationDiscoveryPage() {
 
           <div className="mt-8 text-center">
             <button
-              onClick={() => navigate('/dashboard')}
-              className="text-slate-400 hover:text-white transition-colors"
+              onClick={() => navigate('/portal')}
+              className="text-gray-600 hover:text-gray-900 transition-colors"
             >
-              Return to Dashboard
+              Return to Portal
             </button>
           </div>
         </div>
@@ -369,8 +370,8 @@ export default function DestinationDiscoveryPage() {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
       </div>
     );
   }
@@ -379,19 +380,19 @@ export default function DestinationDiscoveryPage() {
   return (
     <div className={`min-h-screen bg-gradient-to-br ${theme.bg}`}>
       {/* Progress bar */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-slate-900/80 backdrop-blur">
-        <div className="h-1 bg-slate-700">
+      <div className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+        <div className="h-1 bg-gray-100">
           <div 
-            className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-300"
+            className="h-full bg-blue-600 transition-all duration-300"
             style={{ width: `${((currentSectionIndex + 1) / sectionOrder.length) * 100}%` }}
           />
         </div>
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-slate-400 text-sm">
+          <div className="flex items-center gap-2 text-gray-600 text-sm">
             <SectionIcon className="w-4 h-4" />
             <span>{currentSection}</span>
           </div>
-          <div className="text-slate-500 text-sm">
+          <div className="text-gray-500 text-sm">
             {currentSectionIndex + 1} of {sectionOrder.length}
           </div>
         </div>
@@ -400,10 +401,10 @@ export default function DestinationDiscoveryPage() {
       {/* Content */}
       <div className="max-w-3xl mx-auto px-4 pt-24 pb-32">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-white mb-2">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
             {currentSection}
           </h2>
-          <div className="h-1 w-24 bg-gradient-to-r from-white/50 to-transparent rounded" />
+          <div className="h-1 w-24 bg-blue-600 rounded" />
         </div>
 
         <div className="space-y-8">
@@ -420,12 +421,12 @@ export default function DestinationDiscoveryPage() {
       </div>
 
       {/* Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur border-t border-slate-700">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <button
             onClick={handlePrevious}
             disabled={currentSectionIndex === 0}
-            className="flex items-center gap-2 px-4 py-2 text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ChevronLeft className="w-5 h-5" />
             Previous
@@ -434,7 +435,7 @@ export default function DestinationDiscoveryPage() {
           <button
             onClick={handleNext}
             disabled={!canProceed || submitting}
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {submitting ? (
               <>
@@ -479,15 +480,15 @@ function QuestionCard({
     : [];
 
   return (
-    <div className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10">
+    <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
       <div className="flex gap-4">
-        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-          <span className="text-white/60 text-sm font-medium">{index}</span>
+        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+          <span className="text-blue-600 text-sm font-medium">{index}</span>
         </div>
         <div className="flex-1">
-          <label className="block text-lg text-white font-medium mb-4">
+          <label className="block text-lg text-gray-900 font-medium mb-4">
             {question.question_text}
-            {question.is_required && <span className="text-rose-400 ml-1">*</span>}
+            {question.is_required && <span className="text-red-500 ml-1">*</span>}
           </label>
 
           {question.question_type === 'text' && (
@@ -496,7 +497,7 @@ function QuestionCard({
               onChange={(e) => onChange(e.target.value)}
               placeholder={question.placeholder || ''}
               maxLength={question.char_limit || 500}
-              className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
               rows={4}
             />
           )}
@@ -509,8 +510,8 @@ function QuestionCard({
                   onClick={() => onChange(option)}
                   className={`w-full px-4 py-3 rounded-lg text-left transition-all ${
                     value === option
-                      ? 'bg-indigo-500 text-white border-2 border-indigo-400'
-                      : 'bg-slate-900/50 text-slate-300 border border-slate-600 hover:border-slate-500'
+                      ? 'bg-blue-600 text-white border-2 border-blue-500'
+                      : 'bg-gray-50 text-gray-700 border border-gray-300 hover:border-gray-400 hover:bg-gray-100'
                   }`}
                 >
                   {option}
@@ -536,12 +537,12 @@ function QuestionCard({
                     }}
                     className={`w-full px-4 py-3 rounded-lg text-left transition-all flex items-center gap-3 ${
                       selected
-                        ? 'bg-indigo-500/20 text-white border-2 border-indigo-400'
-                        : 'bg-slate-900/50 text-slate-300 border border-slate-600 hover:border-slate-500'
+                        ? 'bg-blue-50 text-gray-900 border-2 border-blue-500'
+                        : 'bg-gray-50 text-gray-700 border border-gray-300 hover:border-gray-400 hover:bg-gray-100'
                     }`}
                   >
                     <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                      selected ? 'border-indigo-400 bg-indigo-500' : 'border-slate-500'
+                      selected ? 'border-blue-500 bg-blue-600' : 'border-gray-400'
                     }`}>
                       {selected && <CheckCircle className="w-3 h-3 text-white" />}
                     </div>
@@ -553,7 +554,7 @@ function QuestionCard({
           )}
 
           {question.char_limit && question.question_type === 'text' && (
-            <p className="text-slate-500 text-sm mt-2 text-right">
+            <p className="text-gray-500 text-sm mt-2 text-right">
               {(value?.length || 0)} / {question.char_limit}
             </p>
           )}
