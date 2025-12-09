@@ -193,7 +193,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="mt-6 text-center text-slate-500 text-xs">
-          <p>RP Griffiths Chartered Certified Accountants</p>
+          <p className="font-medium text-slate-600">RPGCC</p>
           <p className="mt-1 text-slate-400">London Chartered Accountants and Auditors</p>
           <p className="mt-2 text-slate-500">RPGCC is a trading name of RPG Crouch Chapman LLP</p>
         </div>

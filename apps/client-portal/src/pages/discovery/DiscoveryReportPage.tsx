@@ -473,8 +473,8 @@ export default function DiscoveryReportPage() {
         <div className="max-w-4xl mx-auto px-4 py-6 text-center text-sm text-slate-300">
           <p>This report was prepared specifically for you based on your discovery responses.</p>
           <p className="mt-1 text-slate-400">Questions? Reach out to your advisor directly.</p>
-          <p className="mt-2 text-xs text-slate-500">RP Griffiths Chartered Certified Accountants • London Chartered Accountants and Auditors</p>
-          <p className="mt-1 text-xs text-slate-600">RPGCC is a trading name of RPG Crouch Chapman LLP</p>
+          <p className="mt-2 text-xs font-medium text-slate-300">RPGCC • London Chartered Accountants and Auditors</p>
+          <p className="mt-1 text-xs text-slate-500">RPGCC is a trading name of RPG Crouch Chapman LLP</p>
         </div>
       </footer>
     </div>

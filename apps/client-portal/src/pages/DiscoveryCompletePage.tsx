@@ -128,7 +128,7 @@ export function DiscoveryCompletePage({ clientName }: DiscoveryCompletePageProps
         {/* Footer */}
         <div className="mt-8 text-center text-slate-500 text-sm space-y-2">
           <p>You can safely close this window. We'll email you when your report is ready.</p>
-          <p className="text-xs text-slate-600">RP Griffiths Chartered Certified Accountants</p>
+          <p className="text-xs font-medium text-slate-400">RPGCC</p>
           <p className="text-xs text-slate-500">RPGCC is a trading name of RPG Crouch Chapman LLP</p>
         </div>
       </div>
