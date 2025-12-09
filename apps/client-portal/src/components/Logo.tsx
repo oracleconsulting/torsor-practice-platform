@@ -25,10 +25,10 @@ export function Logo({ variant = 'light', size = 'md', className = '', showDots 
     xl: 'h-16'
   };
 
-  // Logo source - try to load from public folder
+  // Logo source - try to load from public folder (supports both .png and .svg)
   const logoSrc = variant === 'dark' 
-    ? '/logos/rpgcc-logo-white.svg'
-    : '/logos/rpgcc-logo.svg';
+    ? '/logos/rpgcc-logo-white.png'
+    : '/logos/rpgcc-logo.png';
 
   // Text size classes
   const textSizeClasses = {
