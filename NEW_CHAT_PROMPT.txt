@@ -1,0 +1,41 @@
+Continue: Torsor Client Portal - Discovery Framework Complete
+
+We've just completed a major enhancement cycle for the Torsor Client Portal. Here's where we are:
+
+✅ COMPLETED:
+1. Discovery Assessment - 25 refined questions for existing clients (no direct financial questions)
+2. Discovery Report Generation - AI-powered comprehensive analysis with 2-3 service recommendations
+3. Client-Friendly Report View - Sympathetic design at /discovery/report
+4. Share with Client Feature - Practice team controls report visibility
+5. RPGCC Branding - Complete rebrand with actual logos, clean white/blue design
+6. Enhanced Context Framework - Financial, operational, and pattern analysis tables
+
+📁 KEY FILES:
+- Client Portal: apps/client-portal/src/pages/discovery/
+- Discovery Report: apps/client-portal/src/pages/discovery/DiscoveryReportPage.tsx
+- Practice Platform: src/pages/admin/ClientServicesPage.tsx (DiscoveryClientModal)
+- Edge Function: supabase/functions/generate-discovery-report/index.ts (deployed as DISCOVERY-REPORT-GENERATOR)
+- Logo Component: apps/client-portal/src/components/Logo.tsx
+- Logos: apps/client-portal/public/logos/rpgcc-logo.png and rpgcc-logo-white.png
+- Database Script: scripts/enhanced-discovery-framework-fixed.sql
+- Documentation: docs/COMPLETE_SYSTEM_OVERVIEW.md (comprehensive, just updated)
+
+🔧 TECHNICAL:
+- Edge Function name: DISCOVERY-REPORT-GENERATOR (uppercase)
+- AI: OpenRouter with Claude 3.5 Sonnet
+- Branding: Slate-800 headers, Blue-600 accents, white backgrounds (no purple)
+- Client Discovery Link: https://client.torsor.co.uk/signup/rpgcc
+- All deployed and working
+
+📋 CURRENT STATE:
+- Discovery assessment: Clean white UI, 25 questions, RPGCC branded
+- Report generation: Working, generates 2-3 service recommendations
+- Client view: Sympathetic report with clear pricing and ROI
+- Practice view: Can generate and share reports with clients
+- Branding: Complete with actual logos and professional colors
+
+🎯 READY FOR:
+I have big plans to continue - ready to build on this solid foundation!
+
+Repository: /Users/James.Howard/Documents/OracleConsultingAI/torsor-practice-platform
+
