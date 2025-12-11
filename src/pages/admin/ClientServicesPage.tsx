@@ -2409,6 +2409,29 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
         .eq('client_id', clientId)
         .eq('is_active', true)
         .maybeSingle();
+      
+      // Check if roadmap contains data that doesn't match client (e.g., fitness data for non-fitness client)
+      let roadmapNeedsRegeneration = false;
+      if (roadmap && roadmap.roadmap_data && clientData) {
+        const roadmapText = JSON.stringify(roadmap.roadmap_data).toLowerCase();
+        const clientEmail = (clientData.email || '').toLowerCase();
+        const clientName = (clientData.name || '').toLowerCase();
+        
+        // Check for fitness/rowing keywords
+        const hasFitnessData = roadmapText.includes('fitness equipment') || 
+                               roadmapText.includes('rowing') || 
+                               roadmapText.includes('rowgear');
+        
+        // Check if client is NOT in fitness industry
+        const isFitnessClient = clientEmail.includes('rowgear') || 
+                                clientEmail.includes('fitness') || 
+                                clientName.includes('tom');
+        
+        if (hasFitnessData && !isFitnessClient) {
+          roadmapNeedsRegeneration = true;
+          console.warn(`⚠️ Roadmap for ${clientData.email} contains fitness/rowing data but client is not in fitness industry. Roadmap needs regeneration.`);
+        }
+      }
 
       // Fetch assessment responses
       const { data: assessments } = await supabase
@@ -2438,7 +2461,8 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
           roadmap_data: roadmap.roadmap_data,
           value_analysis: roadmap.value_analysis,
           created_at: roadmap.created_at,
-          status: roadmap.status || 'pending_review'
+          status: roadmap.status || 'pending_review',
+          needsRegeneration: roadmapNeedsRegeneration
         } : null,
         assessments: assessments || [],
         context: context || [],
@@ -3045,6 +3069,35 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                 <div className="space-y-6">
                   {client?.roadmap ? (
                     <>
+                      {/* Warning if roadmap needs regeneration */}
+                      {client.roadmap.needsRegeneration && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 w-5 h-5 text-amber-600 mt-0.5">⚠️</div>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-amber-900 mb-1">
+                                Roadmap Data Integrity Issue Detected
+                              </p>
+                              <p className="text-sm text-amber-700 mb-3">
+                                This roadmap appears to contain data that doesn't match this client (e.g., fitness/rowing industry data for a non-fitness client). 
+                                This likely occurred because the roadmap was generated before assessment data was corrected.
+                              </p>
+                              <button
+                                onClick={() => {
+                                  if (confirm('Regenerate this roadmap with the correct assessment data? This will replace the current roadmap.')) {
+                                    setRegenerateOptions({ fiveYear: true, sixMonth: true, sprint: true });
+                                    handleRegenerate({ fiveYear: true, sixMonth: true, sprint: true });
+                                  }
+                                }}
+                                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm font-medium"
+                              >
+                                Regenerate Roadmap Now
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
                       {/* Roadmap Status and Actions */}
                       <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between">
                         <div>
