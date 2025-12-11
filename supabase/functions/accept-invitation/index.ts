@@ -86,17 +86,7 @@ serve(async (req) => {
 
       const { data: invitation, error } = await supabase
         .from('client_invitations')
-        .select(`
-          id,
-          email,
-          name,
-          status,
-          expires_at,
-          practice_id,
-          service_line_ids,
-          include_discovery,
-          practices:practice_id (name)
-        `)
+        .select('id, email, name, status, expires_at, practice_id, service_line_ids, include_discovery')
         .eq('invitation_token', token)
         .single();
 
@@ -126,6 +116,19 @@ serve(async (req) => {
         );
       }
 
+      // Get practice name separately (avoid foreign key join issue)
+      let practiceName = 'Your Practice';
+      if (invitation.practice_id) {
+        const { data: practice } = await supabase
+          .from('practices')
+          .select('name')
+          .eq('id', invitation.practice_id)
+          .single();
+        if (practice) {
+          practiceName = practice.name;
+        }
+      }
+
       // Get service line names
       const { data: serviceLines } = await supabase
         .from('service_lines')
@@ -138,7 +141,7 @@ serve(async (req) => {
           invitation: {
             email: invitation.email,
             name: invitation.name,
-            practiceName: (invitation.practices as any)?.name || 'Your Practice',
+            practiceName: practiceName,
             services: (serviceLines || []).map(s => s.name),
             includeDiscovery: invitation.include_discovery || false
           }
