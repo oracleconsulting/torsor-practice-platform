@@ -85,7 +85,8 @@ export default function DiscoveryPortalPage() {
           service_line:service_lines(code, name, short_description)
         `)
         .eq('client_id', clientSession?.clientId)
-        .neq('status', 'cancelled');
+        .neq('status', 'cancelled')
+        .order('created_at', { ascending: false }); // Show most recently assigned first
 
       if (error) {
         console.error('Error fetching assigned services:', error);
@@ -372,6 +373,12 @@ export default function DiscoveryPortalPage() {
                                 Start Assessments
                                 <ArrowRight className="w-4 h-4" />
                               </button>
+                            )}
+                            {/* For other services, show that they're being set up */}
+                            {service.code !== '365_method' && service.code !== '365_alignment' && (
+                              <p className="text-gray-500 text-sm">
+                                Service setup in progress...
+                              </p>
                             )}
                           </div>
                         )}
