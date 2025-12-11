@@ -3,6 +3,7 @@
 // ============================================================================
 // Shows all 3 assessments with status and ability to review/continue
 
+import { useEffect } from 'react';
 import { Layout } from '@/components/Layout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAssessmentProgress } from '@/hooks/useAssessmentProgress';
@@ -20,8 +21,15 @@ import { ASSESSMENT_LABELS } from '@torsor/shared';
 
 export default function AssessmentsPage() {
   const { clientSession } = useAuth();
-  const { progress, loading } = useAssessmentProgress();
+  const { progress, loading, refetch } = useAssessmentProgress();
   const navigate = useNavigate();
+  
+  // Refetch progress when component mounts or clientSession changes
+  useEffect(() => {
+    if (clientSession?.clientId) {
+      refetch();
+    }
+  }, [clientSession?.clientId, refetch]);
 
   const allComplete = progress?.overall === 100;
 

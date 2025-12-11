@@ -294,18 +294,29 @@ export default function Part1Page() {
       };
 
       if (assessmentId) {
-        await supabase
+        const { error: updateError } = await supabase
           .from('client_assessments')
           .update(assessmentData)
           .eq('id', assessmentId);
+        
+        if (updateError) {
+          console.error('Error updating assessment:', updateError);
+        } else {
+          console.log('✅ Assessment updated:', { completed, status: assessmentData.status });
+        }
       } else {
-        const { data } = await supabase
+        const { data, error: insertError } = await supabase
           .from('client_assessments')
           .insert(assessmentData)
           .select()
           .single();
         
-        if (data) setAssessmentId(data.id);
+        if (insertError) {
+          console.error('Error creating assessment:', insertError);
+        } else if (data) {
+          setAssessmentId(data.id);
+          console.log('✅ Assessment created:', { id: data.id, status: data.status });
+        }
       }
     } catch (error) {
       console.error('Error saving progress:', error);
@@ -326,9 +337,30 @@ export default function Part1Page() {
 
   // Navigation
   async function handleNext() {
-    await saveProgress(isLastQuestion);
+    const wasCompleted = isLastQuestion;
+    await saveProgress(wasCompleted);
     
-    if (isLastQuestion) {
+    if (wasCompleted) {
+      console.log('✅ Part 1 completed, marking as completed in database');
+      
+      // Ensure status is set to completed
+      if (assessmentId) {
+        const { error: updateError } = await supabase
+          .from('client_assessments')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+            completion_percentage: 100
+          })
+          .eq('id', assessmentId);
+        
+        if (updateError) {
+          console.error('Error marking assessment as completed:', updateError);
+        } else {
+          console.log('✅ Assessment marked as completed');
+        }
+      }
+      
       // Trigger fit assessment generation
       try {
         await supabase.functions.invoke('fit-assessment', {
@@ -342,7 +374,13 @@ export default function Part1Page() {
         console.error('Error generating fit assessment:', error);
       }
       
-      navigate('/assessment/part2');
+      // Navigate to assessments page first to refresh progress, then to part2
+      navigate('/assessments');
+      
+      // Small delay to allow progress to refresh, then navigate to part2
+      setTimeout(() => {
+        navigate('/assessment/part2');
+      }, 500);
     } else {
       setCurrentIndex(prev => prev + 1);
     }
