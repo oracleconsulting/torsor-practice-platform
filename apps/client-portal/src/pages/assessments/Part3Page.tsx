@@ -96,10 +96,12 @@ export default function Part3Page() {
            q.fieldName === 'external_channel_percentage')) {
         const value = responses[q.fieldName];
         const preRevenue = responses[`${q.fieldName}_pre_revenue`];
-        const anticipatedYears = responses[`${q.fieldName}_anticipated_revenue_years`];
+        const year1 = responses[`${q.fieldName}_anticipated_revenue_year1`];
+        const year2 = responses[`${q.fieldName}_anticipated_revenue_year2`];
+        const year3 = responses[`${q.fieldName}_anticipated_revenue_year3`];
         
         return (value !== undefined && value !== null && value !== '') ||
-               (preRevenue === true && anticipatedYears);
+               (preRevenue === true && (year1 || year2 || year3));
       }
       
       const value = responses[q.fieldName];
@@ -138,10 +140,12 @@ export default function Part3Page() {
                  q.fieldName === 'external_channel_percentage')) {
               const value = responses[q.fieldName];
               const preRevenue = responses[`${q.fieldName}_pre_revenue`];
-              const anticipatedYears = responses[`${q.fieldName}_anticipated_revenue_years`];
+              const year1 = responses[`${q.fieldName}_anticipated_revenue_year1`];
+              const year2 = responses[`${q.fieldName}_anticipated_revenue_year2`];
+              const year3 = responses[`${q.fieldName}_anticipated_revenue_year3`];
               
               return (value !== undefined && value !== null && value !== '') ||
-                     (preRevenue === true && anticipatedYears);
+                     (preRevenue === true && (year1 || year2 || year3));
             }
             
             const value = responses[q.fieldName];
@@ -514,7 +518,9 @@ function Part3QuestionCard({
                         onMatrixChange(`${question.fieldName}_pre_revenue`, true);
                       } else {
                         onMatrixChange(`${question.fieldName}_pre_revenue`, false);
-                        onMatrixChange(`${question.fieldName}_anticipated_revenue_years`, null);
+                        onMatrixChange(`${question.fieldName}_anticipated_revenue_year1`, null);
+                        onMatrixChange(`${question.fieldName}_anticipated_revenue_year2`, null);
+                        onMatrixChange(`${question.fieldName}_anticipated_revenue_year3`, null);
                       }
                     }}
                     className="w-4 h-4 text-amber-600 rounded"
@@ -523,25 +529,47 @@ function Part3QuestionCard({
                 </label>
               )}
               
-              {/* Show anticipated revenue dropdown if pre-revenue is checked */}
+              {/* Show anticipated revenue inputs if pre-revenue is checked */}
               {(question.fieldName === 'top3_customer_revenue_percentage' || 
                 question.fieldName === 'external_channel_percentage') && 
                 responses[`${question.fieldName}_pre_revenue`] === true ? (
-                <div className="ml-7">
+                <div className="ml-7 space-y-3">
                   <label className="block text-sm text-slate-600 mb-2">
-                    Anticipated revenue in the next:
+                    Anticipated revenue:
                   </label>
-                  <select
-                    value={responses[`${question.fieldName}_anticipated_revenue_years`] || ''}
-                    onChange={(e) => onMatrixChange(`${question.fieldName}_anticipated_revenue_years`, e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg 
-                               text-slate-700 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                  >
-                    <option value="">Select timeframe...</option>
-                    <option value="1">1 year</option>
-                    <option value="2">2 years</option>
-                    <option value="3">3 years</option>
-                  </select>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Year 1</label>
+                    <input
+                      type="text"
+                      value={responses[`${question.fieldName}_anticipated_revenue_year1`] || ''}
+                      onChange={(e) => onMatrixChange(`${question.fieldName}_anticipated_revenue_year1`, e.target.value)}
+                      placeholder="Enter anticipated revenue for Year 1"
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg 
+                                 text-slate-700 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Year 2</label>
+                    <input
+                      type="text"
+                      value={responses[`${question.fieldName}_anticipated_revenue_year2`] || ''}
+                      onChange={(e) => onMatrixChange(`${question.fieldName}_anticipated_revenue_year2`, e.target.value)}
+                      placeholder="Enter anticipated revenue for Year 2"
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg 
+                                 text-slate-700 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Year 3</label>
+                    <input
+                      type="text"
+                      value={responses[`${question.fieldName}_anticipated_revenue_year3`] || ''}
+                      onChange={(e) => onMatrixChange(`${question.fieldName}_anticipated_revenue_year3`, e.target.value)}
+                      placeholder="Enter anticipated revenue for Year 3"
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg 
+                                 text-slate-700 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    />
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
@@ -554,7 +582,9 @@ function Part3QuestionCard({
                       if (e.target.value && (question.fieldName === 'top3_customer_revenue_percentage' || 
                           question.fieldName === 'external_channel_percentage')) {
                         onMatrixChange(`${question.fieldName}_pre_revenue`, false);
-                        onMatrixChange(`${question.fieldName}_anticipated_revenue_years`, null);
+                        onMatrixChange(`${question.fieldName}_anticipated_revenue_year1`, null);
+                        onMatrixChange(`${question.fieldName}_anticipated_revenue_year2`, null);
+                        onMatrixChange(`${question.fieldName}_anticipated_revenue_year3`, null);
                       }
                     }}
                     className="w-24 px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"

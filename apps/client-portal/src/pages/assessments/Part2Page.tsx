@@ -95,10 +95,11 @@ export default function Part2Page() {
     const questionsToCheck = requiredQuestions.length > 0 ? requiredQuestions : allQuestions;
     
     const answeredCount = questionsToCheck.filter((q: Part2Question) => {
-      // For annual_turnover, check if either annual_turnover is set OR (pre_revenue is true AND anticipated_revenue_years is set)
+      // For annual_turnover, check if either annual_turnover is set OR (pre_revenue is true AND at least one anticipated revenue year is set)
       if (q.fieldName === 'annual_turnover') {
         return responses.annual_turnover !== undefined && responses.annual_turnover !== null && responses.annual_turnover !== '' ||
-               (responses.pre_revenue === true && responses.anticipated_revenue_years);
+               (responses.pre_revenue === true && 
+                (responses.anticipated_revenue_year1 || responses.anticipated_revenue_year2 || responses.anticipated_revenue_year3));
       }
       
       // For matrix questions, check if all matrix items are answered
@@ -552,7 +553,9 @@ function QuestionCard({
                       // If selecting a revenue option, uncheck pre-revenue
                       if (question.fieldName === 'annual_turnover') {
                         handleChange('pre_revenue', false);
-                        handleChange('anticipated_revenue_years', null);
+                        handleChange('anticipated_revenue_year1', null);
+                        handleChange('anticipated_revenue_year2', null);
+                        handleChange('anticipated_revenue_year3', null);
                       }
                     }}
                     className="w-4 h-4 text-indigo-600"
@@ -578,7 +581,9 @@ function QuestionCard({
                         handleChange('pre_revenue', true);
                       } else {
                         handleChange('pre_revenue', false);
-                        handleChange('anticipated_revenue_years', null);
+                        handleChange('anticipated_revenue_year1', null);
+                        handleChange('anticipated_revenue_year2', null);
+                        handleChange('anticipated_revenue_year3', null);
                       }
                     }}
                     className="w-4 h-4 text-indigo-600 rounded"
@@ -586,23 +591,45 @@ function QuestionCard({
                   <span className="text-slate-700 font-medium">Pre-revenue (not yet generating revenue)</span>
                 </label>
               )}
-              {/* Show anticipated revenue dropdown if pre-revenue is checked */}
+              {/* Show anticipated revenue inputs if pre-revenue is checked */}
               {question.fieldName === 'annual_turnover' && responses.pre_revenue === true && (
-                <div className="ml-7 mt-2">
+                <div className="ml-7 mt-3 space-y-3">
                   <label className="block text-sm text-slate-600 mb-2">
-                    Anticipated revenue in the next:
+                    Anticipated revenue:
                   </label>
-                  <select
-                    value={responses.anticipated_revenue_years || ''}
-                    onChange={(e) => handleChange('anticipated_revenue_years', e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg 
-                               text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  >
-                    <option value="">Select timeframe...</option>
-                    <option value="1">1 year</option>
-                    <option value="2">2 years</option>
-                    <option value="3">3 years</option>
-                  </select>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Year 1</label>
+                    <input
+                      type="text"
+                      value={responses.anticipated_revenue_year1 || ''}
+                      onChange={(e) => handleChange('anticipated_revenue_year1', e.target.value)}
+                      placeholder="Enter anticipated revenue for Year 1"
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg 
+                                 text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Year 2</label>
+                    <input
+                      type="text"
+                      value={responses.anticipated_revenue_year2 || ''}
+                      onChange={(e) => handleChange('anticipated_revenue_year2', e.target.value)}
+                      placeholder="Enter anticipated revenue for Year 2"
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg 
+                                 text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Year 3</label>
+                    <input
+                      type="text"
+                      value={responses.anticipated_revenue_year3 || ''}
+                      onChange={(e) => handleChange('anticipated_revenue_year3', e.target.value)}
+                      placeholder="Enter anticipated revenue for Year 3"
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg 
+                                 text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
                 </div>
               )}
             </div>

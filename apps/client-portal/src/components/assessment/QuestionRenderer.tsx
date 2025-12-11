@@ -345,26 +345,60 @@ export function QuestionRenderer({
             )}
             
             {isPreRevenue && isRevenueQuestion ? (
-              <div>
+              <div className="space-y-3">
                 <label className="block text-sm text-slate-400 mb-2">
-                  Anticipated revenue in the next:
+                  Anticipated revenue:
                 </label>
-                <select
-                  value={partsValue.anticipated_revenue_years || ''}
-                  onChange={(e) => {
-                    handleChange({
-                      ...partsValue,
-                      anticipated_revenue_years: e.target.value
-                    });
-                  }}
-                  className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg 
-                             text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                >
-                  <option value="">Select timeframe...</option>
-                  <option value="1">1 year</option>
-                  <option value="2">2 years</option>
-                  <option value="3">3 years</option>
-                </select>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Year 1</label>
+                    <input
+                      type="text"
+                      value={partsValue.anticipated_revenue_year1 || ''}
+                      onChange={(e) => {
+                        handleChange({
+                          ...partsValue,
+                          anticipated_revenue_year1: e.target.value
+                        });
+                      }}
+                      placeholder="Enter anticipated revenue for Year 1"
+                      className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg 
+                                 text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Year 2</label>
+                    <input
+                      type="text"
+                      value={partsValue.anticipated_revenue_year2 || ''}
+                      onChange={(e) => {
+                        handleChange({
+                          ...partsValue,
+                          anticipated_revenue_year2: e.target.value
+                        });
+                      }}
+                      placeholder="Enter anticipated revenue for Year 2"
+                      className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg 
+                                 text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Year 3</label>
+                    <input
+                      type="text"
+                      value={partsValue.anticipated_revenue_year3 || ''}
+                      onChange={(e) => {
+                        handleChange({
+                          ...partsValue,
+                          anticipated_revenue_year3: e.target.value
+                        });
+                      }}
+                      placeholder="Enter anticipated revenue for Year 3"
+                      className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg 
+                                 text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
               </div>
             ) : (
               question.parts?.map((part) => (

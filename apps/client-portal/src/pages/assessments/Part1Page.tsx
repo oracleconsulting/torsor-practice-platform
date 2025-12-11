@@ -274,8 +274,10 @@ export default function Part1Page() {
         partsValue.pre_revenue = responses.pre_revenue;
         hasValue = true;
       }
-      if (responses.anticipated_revenue_years) {
-        partsValue.anticipated_revenue_years = responses.anticipated_revenue_years;
+      if (responses.anticipated_revenue_year1 || responses.anticipated_revenue_year2 || responses.anticipated_revenue_year3) {
+        partsValue.anticipated_revenue_year1 = responses.anticipated_revenue_year1;
+        partsValue.anticipated_revenue_year2 = responses.anticipated_revenue_year2;
+        partsValue.anticipated_revenue_year3 = responses.anticipated_revenue_year3;
         hasValue = true;
       }
       if (hasValue) return partsValue;
@@ -286,11 +288,11 @@ export default function Part1Page() {
   };
   
   const currentValue = currentQuestion ? getQuestionValue(currentQuestion) : undefined;
-  // For business_turnover, check if pre-revenue is selected with anticipated_revenue_years, or if turnover fields are filled
+  // For business_turnover, check if pre-revenue is selected with at least one anticipated revenue year, or if turnover fields are filled
   const canProceed = !currentQuestion?.required || currentValue || 
     (currentQuestion?.id === 'business_turnover' && 
      responses.pre_revenue === true && 
-     responses.anticipated_revenue_years);
+     (responses.anticipated_revenue_year1 || responses.anticipated_revenue_year2 || responses.anticipated_revenue_year3));
 
   // Save progress to database
   async function saveProgress(completed = false) {
@@ -352,11 +354,13 @@ export default function Part1Page() {
       setResponses(prev => ({ ...prev, [fieldName]: value }));
     }
     
-    // If pre_revenue is being set to false, clear anticipated_revenue_years
+    // If pre_revenue is being set to false, clear anticipated_revenue fields
     if (fieldName === 'pre_revenue' && value === false) {
       setResponses(prev => {
         const updated = { ...prev };
-        delete updated.anticipated_revenue_years;
+        delete updated.anticipated_revenue_year1;
+        delete updated.anticipated_revenue_year2;
+        delete updated.anticipated_revenue_year3;
         return updated;
       });
     }
