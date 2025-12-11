@@ -61,6 +61,20 @@ export default function Part2Page() {
           .maybeSingle();
 
         if (data) {
+          // CRITICAL: Verify the loaded assessment belongs to this client
+          if (data.client_id !== clientSession.clientId) {
+            console.error('CRITICAL: Loaded assessment belongs to different client!', {
+              loadedClientId: data.client_id,
+              currentClientId: clientSession.clientId,
+              assessmentId: data.id
+            });
+            // Don't load the assessment - start fresh
+            setAssessmentId(null);
+            setResponses({});
+            setCurrentSectionIndex(0);
+            return;
+          }
+          
           setAssessmentId(data.id);
           setResponses(data.responses || {});
           setCurrentSectionIndex(data.current_section || 0);
