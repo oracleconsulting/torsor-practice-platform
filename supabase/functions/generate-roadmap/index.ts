@@ -1609,14 +1609,34 @@ serve(async (req) => {
     // Fetch Parts 1 & 2
     const { data: assessments, error: fetchError } = await supabase
       .from('client_assessments')
-      .select('assessment_type, responses')
+      .select('assessment_type, responses, client_id')
       .eq('client_id', clientId)
       .in('assessment_type', ['part1', 'part2']);
 
     if (fetchError) throw new Error(`Failed to fetch: ${fetchError.message}`);
 
+    // CRITICAL: Validate that all assessments belong to this client
+    if (assessments && assessments.length > 0) {
+      const wrongClientAssessments = assessments.filter((a: any) => a.client_id !== clientId);
+      if (wrongClientAssessments.length > 0) {
+        console.error(`SECURITY ISSUE: Found ${wrongClientAssessments.length} assessments with mismatched client_id!`);
+        throw new Error(`Data integrity error: Assessments do not match client ${clientId}`);
+      }
+    }
+
     const part1 = assessments?.find((a: any) => a.assessment_type === 'part1')?.responses || {};
     const part2 = assessments?.find((a: any) => a.assessment_type === 'part2')?.responses || {};
+
+    // Log what we're actually using for debugging
+    console.log(`=== ASSESSMENT DATA FOR CLIENT ${clientId} ===`);
+    console.log(`Part 1 keys: ${Object.keys(part1).join(', ')}`);
+    console.log(`Part 2 keys: ${Object.keys(part2).join(', ')}`);
+    console.log(`Part 1 company_name: ${part1.company_name || 'NOT SET'}`);
+    console.log(`Part 2 trading_name: ${part2.trading_name || 'NOT SET'}`);
+    console.log(`Part 2 annual_turnover: ${part2.annual_turnover || 'NOT SET'}`);
+    console.log(`Part 1 full_name: ${part1.full_name || 'NOT SET'}`);
+    if (part1.tuesday_test) console.log(`Part 1 tuesday_test preview: ${part1.tuesday_test.substring(0, 100)}...`);
+    if (part2.ten_year_vision) console.log(`Part 2 ten_year_vision preview: ${part2.ten_year_vision.substring(0, 100)}...`);
 
     // ================================================================
     // FETCH ADVISOR-PROVIDED CONTEXT (for regeneration with new info)
@@ -1664,14 +1684,21 @@ serve(async (req) => {
     try {
       const { data: contextData } = await supabase
         .from('client_context')
-        .select('id, context_type, content, priority_level, is_shared, data_source_type')
+        .select('id, context_type, content, priority_level, is_shared, data_source_type, client_id')
         .eq('client_id', clientId)
         .eq('processed', false)
         .order('priority_level', { ascending: false })
         .order('created_at', { ascending: false });
       
       if (contextData && contextData.length > 0) {
+        console.log(`Found ${contextData.length} context items for client ${clientId}`);
         for (const c of contextData) {
+          // CRITICAL: Double-check client_id matches
+          if (c.client_id && c.client_id !== clientId) {
+            console.error(`SECURITY ISSUE: Context item ${c.id} has client_id ${c.client_id} but was queried for client ${clientId}!`);
+            continue; // Skip this context item
+          }
+          
           let content = c.content;
           
           // For SHARED documents, filter content by entity
@@ -1681,6 +1708,11 @@ serve(async (req) => {
               console.log(`Skipping shared context ${c.id} - no relevant content for ${clientFirstName}`);
               continue; // Skip if no relevant content for this client
             }
+          }
+          
+          // For NON-SHARED documents, ensure they're not accidentally shared
+          if (!c.is_shared && c.content.toLowerCase().includes('tom') && c.content.toLowerCase().includes('rowgear')) {
+            console.warn(`⚠️ WARNING: Non-shared context ${c.id} contains 'tom' and 'rowgear' - may be incorrectly linked to client ${clientId}`);
           }
           
           advisorContext.push({
@@ -1699,8 +1731,21 @@ serve(async (req) => {
 
     // Build comprehensive context
     const context = buildContext(part1, part2);
-    console.log(`Context built for ${context.companyName} (${context.industry}, £${context.revenueNumeric})`);
+    console.log(`=== CONTEXT BUILT ===`);
+    console.log(`Client ID: ${clientId}`);
+    console.log(`Company Name: ${context.companyName}`);
+    console.log(`Industry: ${context.industry}`);
+    console.log(`Revenue: £${context.revenueNumeric}`);
+    console.log(`Is Pre-Revenue: ${context.isPreRevenue}`);
     console.log(`Emotional anchors: ${context.emotionalAnchors.painPhrases.length} pain, ${context.emotionalAnchors.desirePhrases.length} desire`);
+    
+    // CRITICAL: Validate context matches client expectations
+    if (context.industry === 'fitness_equipment' && !part1.tuesday_test?.toLowerCase().includes('rowing') && 
+        !part1.tuesday_test?.toLowerCase().includes('fitness') && !part2.trading_name?.toLowerCase().includes('rowgear') &&
+        !part1.company_name?.toLowerCase().includes('rowgear') && !part2.ten_year_vision?.toLowerCase().includes('rowing')) {
+      console.warn(`⚠️ WARNING: Industry detected as 'fitness_equipment' but no fitness/rowing keywords found in assessment responses!`);
+      console.warn(`This may indicate data leakage from another client.`);
+    }
 
     // ================================================================
     // BUILD ADVISOR CONTEXT INJECTION FOR PROMPTS
