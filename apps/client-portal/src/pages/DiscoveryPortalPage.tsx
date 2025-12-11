@@ -77,7 +77,7 @@ export default function DiscoveryPortalPage() {
 
   const fetchAssignedServices = async () => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('client_service_lines')
         .select(`
           id,
@@ -86,6 +86,11 @@ export default function DiscoveryPortalPage() {
         `)
         .eq('client_id', clientSession?.clientId)
         .neq('status', 'cancelled');
+
+      if (error) {
+        console.error('Error fetching assigned services:', error);
+        return;
+      }
 
       if (data) {
         const services = data
@@ -97,10 +102,13 @@ export default function DiscoveryPortalPage() {
             description: d.service_line.short_description,
             status: d.status
           }));
+        console.log('Assigned services for client:', clientSession?.clientId, services);
         setAssignedServices(services);
+      } else {
+        console.log('No assigned services found for client:', clientSession?.clientId);
       }
     } catch (err) {
-      // Handle silently
+      console.error('Error in fetchAssignedServices:', err);
     }
   };
 

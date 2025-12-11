@@ -1281,16 +1281,13 @@ function DiscoveryClientModal({
       }
 
       // Fetch uploaded documents
-      // CRITICAL: Double-check that documents belong to this client by verifying practice_members relationship
+      // Note: Using simple query to avoid PostgREST relationship ambiguity
+      // We'll validate client_id separately
       const { data: docsData, error: docsError } = await supabase
         .from('client_context')
-        .select(`
-          *,
-          practice_members!inner(id, email, name)
-        `)
+        .select('*')
         .eq('client_id', clientId)
         .eq('context_type', 'document')
-        .eq('practice_members.id', clientId) // Ensure the join matches the client_id
         .order('created_at', { ascending: false });
       
       if (docsError) {
