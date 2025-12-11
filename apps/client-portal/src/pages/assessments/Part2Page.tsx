@@ -3,7 +3,7 @@
 // ============================================================================
 // 72 questions across 12 sections, sectioned navigation
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -32,6 +32,13 @@ export default function Part2Page() {
   const [isSaving, setIsSaving] = useState(false);
   const [assessmentId, setAssessmentId] = useState<string | null>(null);
   const [showSummary, setShowSummary] = useState(isReviewMode);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const responsesRef = useRef<Record<string, any>>({});
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    responsesRef.current = responses;
+  }, [responses]);
 
   const currentSection = part2Sections[currentSectionIndex];
   const isLastSection = currentSectionIndex === part2Sections.length - 1;
@@ -73,14 +80,34 @@ export default function Part2Page() {
 
   // Calculate section completion
   const getSectionCompletion = (section: Part2Section) => {
-    const requiredQuestions = section.questions.filter((q: Part2Question) => q.required);
-    const answeredRequired = requiredQuestions.filter((q: Part2Question) => {
+    const allQuestions = section.questions;
+    const requiredQuestions = allQuestions.filter((q: Part2Question) => q.required !== false);
+    
+    // If no questions, return 0
+    if (allQuestions.length === 0) return 0;
+    
+    // If no required questions, check all questions
+    const questionsToCheck = requiredQuestions.length > 0 ? requiredQuestions : allQuestions;
+    
+    const answeredCount = questionsToCheck.filter((q: Part2Question) => {
+      // For matrix questions, check if all matrix items are answered
+      if (q.type === 'matrix' && q.matrixItems) {
+        return q.matrixItems.every((item: { fieldName: string }) => {
+          const value = responses[item.fieldName];
+          return value !== undefined && value !== null && value !== '';
+        });
+      }
+      
       const value = responses[q.fieldName];
       if (Array.isArray(value)) return value.length > 0;
+      if (typeof value === 'object' && value !== null) {
+        // For objects, check if it has any properties
+        return Object.keys(value).length > 0;
+      }
       return value !== undefined && value !== null && value !== '';
-    });
-    return requiredQuestions.length === 0 ? 100 : 
-      Math.round((answeredRequired.length / requiredQuestions.length) * 100);
+    }).length;
+    
+    return Math.round((answeredCount / questionsToCheck.length) * 100);
   };
 
   const overallCompletion = Math.round(
@@ -88,55 +115,140 @@ export default function Part2Page() {
   );
 
   // Save progress
-  async function saveProgress(completed = false) {
+  const saveProgress = useCallback(async (completed = false) => {
     if (!clientSession?.clientId || !clientSession?.practiceId) return;
 
     setIsSaving(true);
     try {
+      // Use ref to get latest responses
+      const currentResponses = responsesRef.current;
+      
+      // Recalculate completion based on current responses
+      const currentCompletion = Math.round(
+        part2Sections.reduce((sum: number, s: Part2Section) => {
+          const allQuestions = s.questions;
+          const requiredQuestions = allQuestions.filter((q: Part2Question) => q.required !== false);
+          const questionsToCheck = requiredQuestions.length > 0 ? requiredQuestions : allQuestions;
+          
+          if (questionsToCheck.length === 0) return sum;
+          
+          const answeredCount = questionsToCheck.filter((q: Part2Question) => {
+            if (q.type === 'matrix' && q.matrixItems) {
+              return q.matrixItems.every((item: { fieldName: string }) => {
+                const value = currentResponses[item.fieldName];
+                return value !== undefined && value !== null && value !== '';
+              });
+            }
+            const value = currentResponses[q.fieldName];
+            if (Array.isArray(value)) return value.length > 0;
+            if (typeof value === 'object' && value !== null) {
+              return Object.keys(value).length > 0;
+            }
+            return value !== undefined && value !== null && value !== '';
+          }).length;
+          
+          return sum + Math.round((answeredCount / questionsToCheck.length) * 100);
+        }, 0) / part2Sections.length
+      );
+
       const assessmentData = {
         practice_id: clientSession.practiceId,
         client_id: clientSession.clientId,
         assessment_type: 'part2',
-        responses,
+        responses: currentResponses,
         current_section: currentSectionIndex,
         total_sections: part2Sections.length,
-        completion_percentage: overallCompletion,
+        completion_percentage: completed ? 100 : currentCompletion,
         status: completed ? 'completed' : 'in_progress',
         ...(completed && { completed_at: new Date().toISOString() }),
         ...(!assessmentId && { started_at: new Date().toISOString() })
       };
 
       if (assessmentId) {
-        await supabase
+        const { error: updateError } = await supabase
           .from('client_assessments')
           .update(assessmentData)
           .eq('id', assessmentId);
+        
+        if (updateError) {
+          console.error('Error updating assessment:', updateError);
+        }
       } else {
-        const { data } = await supabase
+        const { data, error: insertError } = await supabase
           .from('client_assessments')
           .insert(assessmentData)
           .select()
           .single();
 
-        if (data) setAssessmentId(data.id);
+        if (insertError) {
+          console.error('Error creating assessment:', insertError);
+        } else if (data) {
+          setAssessmentId(data.id);
+        }
       }
     } catch (error) {
       console.error('Error saving progress:', error);
     } finally {
       setIsSaving(false);
     }
-  }
+  }, [clientSession?.clientId, clientSession?.practiceId, currentSectionIndex, assessmentId, part2Sections]);
 
-  // Handle changes
-  function handleChange(fieldName: string, value: any) {
-    setResponses(prev => ({ ...prev, [fieldName]: value }));
-  }
+  // Handle changes with auto-save
+  const handleChange = useCallback((fieldName: string, value: any) => {
+    setResponses(prev => {
+      const updated = { ...prev, [fieldName]: value };
+      
+      // Clear existing timeout
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      
+      // Auto-save after 2 seconds of inactivity
+      saveTimeoutRef.current = setTimeout(() => {
+        saveProgress(false);
+      }, 2000);
+      
+      return updated;
+    });
+  }, [saveProgress]);
+  
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Navigation
   async function handleNext() {
-    await saveProgress(isLastSection);
-    if (isLastSection) {
-      navigate('/assessment/part3');
+    const wasCompleted = isLastSection;
+    await saveProgress(wasCompleted);
+    
+    if (wasCompleted) {
+      console.log('✅ Part 2 completed, marking as completed in database');
+      
+      // Ensure status is set to completed
+      if (assessmentId) {
+        const { error: updateError } = await supabase
+          .from('client_assessments')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+            completion_percentage: 100
+          })
+          .eq('id', assessmentId);
+        
+        if (updateError) {
+          console.error('Error marking assessment as completed:', updateError);
+        } else {
+          console.log('✅ Assessment marked as completed');
+        }
+      }
+      
+      // Navigate to dashboard instead of part3
+      navigate('/dashboard');
     } else {
       setCurrentSectionIndex(prev => prev + 1);
     }
@@ -307,6 +419,7 @@ export default function Part2Page() {
                   onChange={(value) => handleChange(question.fieldName, value)}
                   responses={responses}
                   number={qIdx + 1}
+                  handleChange={handleChange}
                 />
               ))}
             </div>
@@ -361,13 +474,15 @@ function QuestionCard({
   value,
   onChange,
   responses,
-  number
+  number,
+  handleChange
 }: {
   question: Part2Question;
   value: any;
   onChange: (value: any) => void;
   responses: Record<string, any>;
   number: number;
+  handleChange: (fieldName: string, value: any) => void;
 }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-6">
@@ -550,12 +665,12 @@ function QuestionCard({
                     type="range"
                     min={question.min || 0}
                     max={question.max || 10}
-                    value={responses[item.fieldName] || question.min || 0}
+                    value={responses[item.fieldName] ?? question.min ?? 0}
                     onChange={(e) => {
-                      // For matrix items, we need to store in their own field
-                      onChange({ ...responses, [item.fieldName]: parseInt(e.target.value) });
+                      // For matrix items, update the individual field directly
+                      handleChange(item.fieldName, parseInt(e.target.value));
                     }}
-                    className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                    className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-indigo-600 [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-indigo-600 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
                   />
                   <span className="w-8 text-center text-sm font-medium text-indigo-600">
                     {responses[item.fieldName] ?? '-'}
