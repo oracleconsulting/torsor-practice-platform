@@ -4,7 +4,8 @@
 // Thank you screen shown after client completes discovery assessment
 // ============================================================================
 
-import { CheckCircle, Clock, FileText, Mail, ArrowRight } from 'lucide-react';
+import { CheckCircle, Clock, FileText, Mail, ArrowRight, Home } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Logo } from '@/components/Logo';
 
 interface DiscoveryCompletePageProps {
@@ -111,6 +112,20 @@ export function DiscoveryCompletePage({ clientName }: DiscoveryCompletePageProps
           </div>
         </div>
 
+        {/* Go to Dashboard Button */}
+        <div className="text-center mb-6">
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-medium shadow-lg"
+          >
+            <Home className="w-5 h-5" />
+            Go to Your Dashboard
+          </Link>
+          <p className="text-slate-400 text-sm mt-2">
+            View all your services and continue with any other assessments
+          </p>
+        </div>
+
         {/* Secondary Card - Contact */}
         <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center border border-white/10">
           <p className="text-slate-300 text-sm">
@@ -123,7 +138,7 @@ export function DiscoveryCompletePage({ clientName }: DiscoveryCompletePageProps
 
         {/* Footer */}
         <div className="mt-8 text-center text-slate-500 text-sm space-y-2">
-          <p>You can safely close this window. We'll email you when your report is ready.</p>
+          <p>You can also close this window. We'll email you when your report is ready.</p>
           <p className="text-xs font-medium text-slate-400">RPGCC</p>
           <p className="text-xs text-slate-500">RPGCC is a trading name of RPG Crouch Chapman LLP</p>
         </div>
