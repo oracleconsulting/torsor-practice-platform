@@ -206,6 +206,21 @@ export default function Part1Page() {
         console.log('Assessment query result:', { data, error });
 
         if (data) {
+          // CRITICAL: Verify the loaded assessment belongs to this client
+          if (data.client_id !== clientSession.clientId) {
+            console.error('CRITICAL: Loaded assessment belongs to different client!', {
+              loadedClientId: data.client_id,
+              currentClientId: clientSession.clientId,
+              assessmentId: data.id
+            });
+            // Don't load the assessment - start fresh
+            setAssessmentId(null);
+            setResponses({});
+            setCurrentIndex(0);
+            setAssessmentStatus('not_started');
+            return;
+          }
+          
           setAssessmentId(data.id);
           setResponses(data.responses || {});
           setCurrentIndex(data.current_section || 0);
@@ -300,9 +315,42 @@ export default function Part1Page() {
 
     setIsSaving(true);
     try {
+      // CRITICAL: Validate client_id before saving
+      const { data: clientVerify, error: verifyError } = await supabase
+        .from('practice_members')
+        .select('id, email, user_id')
+        .eq('id', clientSession.clientId)
+        .eq('member_type', 'client')
+        .single();
+      
+      if (verifyError || !clientVerify) {
+        console.error('CRITICAL: Invalid client_id when saving assessment:', clientSession.clientId, verifyError);
+        alert('Error: Unable to verify your client account. Please refresh the page and try again.');
+        return;
+      }
+      
+      // Additional check: if we have an assessmentId, verify it belongs to this client
+      if (assessmentId) {
+        const { data: existingAssessment } = await supabase
+          .from('client_assessments')
+          .select('client_id')
+          .eq('id', assessmentId)
+          .single();
+        
+        if (existingAssessment && existingAssessment.client_id !== clientSession.clientId) {
+          console.error('CRITICAL: Assessment belongs to different client!', {
+            assessmentId,
+            assessmentClientId: existingAssessment.client_id,
+            currentClientId: clientSession.clientId
+          });
+          alert('Error: Assessment data mismatch detected. Please refresh the page.');
+          return;
+        }
+      }
+
       const assessmentData = {
         practice_id: clientSession.practiceId,
-        client_id: clientSession.clientId,
+        client_id: clientSession.clientId, // Verified above
         assessment_type: 'part1',
         responses,
         current_section: currentIndex,
@@ -317,7 +365,8 @@ export default function Part1Page() {
         const { error: updateError } = await supabase
           .from('client_assessments')
           .update(assessmentData)
-          .eq('id', assessmentId);
+          .eq('id', assessmentId)
+          .eq('client_id', clientSession.clientId); // Additional safety check
         
         if (updateError) {
           console.error('Error updating assessment:', updateError);

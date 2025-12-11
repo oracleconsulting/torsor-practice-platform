@@ -1396,12 +1396,20 @@ function DiscoveryClientModal({
         // CRITICAL: Validate client_id before inserting document
         const { data: clientVerify } = await supabase
           .from('practice_members')
-          .select('id, email')
+          .select('id, email, user_id')
           .eq('id', clientId)
           .single();
         
         if (!clientVerify) {
           throw new Error(`Invalid client_id: ${clientId}. Cannot upload document.`);
+        }
+        
+        // CRITICAL: Verify storage path matches client_id
+        // Storage path format: practice_id/client_id/filename
+        const expectedPathPrefix = `${client.practice_id}/${clientId}/`;
+        if (!storagePath.startsWith(expectedPathPrefix)) {
+          console.error(`CRITICAL: Storage path ${storagePath} does not match expected prefix ${expectedPathPrefix}`);
+          throw new Error(`Storage path validation failed. Expected client_id ${clientId} in path.`);
         }
         
         await supabase.from('client_context').insert({
@@ -1824,7 +1832,17 @@ function DiscoveryClientModal({
                     <div className="space-y-3">
                       {documents.filter((doc: any) => {
                         // CRITICAL: Ensure document belongs to this client
-                        return doc.client_id === clientId;
+                        if (doc.client_id !== clientId) return false;
+                        
+                        // CRITICAL: Also check storage path matches client_id
+                        if (doc.source_file_url) {
+                          const pathMatch = doc.source_file_url.match(/\/([a-f0-9-]{36})\/[^/]+\.(pdf|doc|docx|xls|xlsx|csv|txt)/i);
+                          if (pathMatch && pathMatch[1] && pathMatch[1] !== clientId) {
+                            return false; // Storage path doesn't match current client_id
+                          }
+                        }
+                        
+                        return true;
                       }).map((doc) => (
                         <div key={doc.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
                           <div className="flex items-center gap-3">
