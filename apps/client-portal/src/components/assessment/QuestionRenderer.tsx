@@ -310,25 +310,81 @@ export function QuestionRenderer({
 
       case 'multi-part':
         const partsValue = value || {};
+        // Check if this is a revenue-related question (business_turnover)
+        const isRevenueQuestion = question.id === 'business_turnover' || 
+          (question.parts?.some(p => p.id === 'current_turnover' || p.id === 'target_turnover'));
+        const isPreRevenue = partsValue.pre_revenue === true;
+        
         return (
           <div className="space-y-4">
-            {question.parts?.map((part) => (
-              <div key={part.id}>
-                <label className="block text-sm text-slate-400 mb-2">{part.label}</label>
+            {isRevenueQuestion && (
+              <label className="flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-all
+                bg-slate-800 border-slate-600 text-slate-300 hover:border-slate-500">
                 <input
-                  type={part.type}
-                  value={partsValue[part.id] || ''}
+                  type="checkbox"
+                  checked={isPreRevenue}
+                  onChange={(e) => {
+                    const newValue = {
+                      ...partsValue,
+                      pre_revenue: e.target.checked
+                    };
+                    // Clear revenue fields if pre-revenue is checked
+                    if (e.target.checked) {
+                      question.parts?.forEach(part => {
+                        if (part.id === 'current_turnover' || part.id === 'target_turnover') {
+                          delete newValue[part.id];
+                        }
+                      });
+                    }
+                    handleChange(newValue);
+                  }}
+                  className="w-5 h-5 text-emerald-600 rounded border-slate-500 bg-slate-700 focus:ring-emerald-500"
+                />
+                <span className="text-white font-medium">Pre-revenue (not yet generating revenue)</span>
+              </label>
+            )}
+            
+            {isPreRevenue && isRevenueQuestion ? (
+              <div>
+                <label className="block text-sm text-slate-400 mb-2">
+                  Anticipated revenue in the next:
+                </label>
+                <select
+                  value={partsValue.anticipated_revenue_years || ''}
                   onChange={(e) => {
                     handleChange({
                       ...partsValue,
-                      [part.id]: e.target.value
+                      anticipated_revenue_years: e.target.value
                     });
                   }}
                   className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg 
-                             text-white placeholder-slate-400 focus:ring-2 focus:ring-emerald-500"
-                />
+                             text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                >
+                  <option value="">Select timeframe...</option>
+                  <option value="1">1 year</option>
+                  <option value="2">2 years</option>
+                  <option value="3">3 years</option>
+                </select>
               </div>
-            ))}
+            ) : (
+              question.parts?.map((part) => (
+                <div key={part.id}>
+                  <label className="block text-sm text-slate-400 mb-2">{part.label}</label>
+                  <input
+                    type={part.type}
+                    value={partsValue[part.id] || ''}
+                    onChange={(e) => {
+                      handleChange({
+                        ...partsValue,
+                        [part.id]: e.target.value
+                      });
+                    }}
+                    className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg 
+                               text-white placeholder-slate-400 focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              ))
+            )}
           </div>
         );
 
