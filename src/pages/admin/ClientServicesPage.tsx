@@ -2242,7 +2242,7 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
   const { data: currentMember } = useCurrentMember(user?.id);
   const [client, setClient] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'sprint'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'sprint' | 'assessments'>('overview');
   
   // Context form state
   const [showAddContext, setShowAddContext] = useState(false);
@@ -2297,6 +2297,13 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
         .eq('is_active', true)
         .maybeSingle();
 
+      // Fetch assessment responses
+      const { data: assessments } = await supabase
+        .from('client_assessments')
+        .select('assessment_type, responses, status, completed_at')
+        .eq('client_id', clientId)
+        .in('assessment_type', ['part1', 'part2', 'part3']);
+
       const { data: context } = await supabase
         .from('client_context')
         .select('*')
@@ -2305,7 +2312,14 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
 
       setClient({
         ...clientData,
-        roadmap,
+        roadmap: roadmap ? {
+          id: roadmap.id,
+          roadmap_data: roadmap.roadmap_data,
+          value_analysis: roadmap.value_analysis,
+          created_at: roadmap.created_at,
+          status: roadmap.status || 'pending_review'
+        } : null,
+        assessments: assessments || [],
         context: context || []
       });
     } catch (error) {
@@ -2773,12 +2787,12 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200">
-          {['overview', 'roadmap', 'context', 'sprint'].map((tab) => (
+        <div className="flex border-b border-gray-200 overflow-x-auto">
+          {['overview', 'roadmap', 'assessments', 'context', 'sprint'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as typeof activeTab)}
-              className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
+              className={`flex-1 px-6 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === tab 
                   ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50' 
                   : 'text-gray-500 hover:text-gray-700'
@@ -2848,6 +2862,57 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                       {client.roadmap.roadmap_data.summary.keyInsight && (
                         <p className="text-gray-500 mt-2 text-sm">{client.roadmap.roadmap_data.summary.keyInsight}</p>
                       )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ASSESSMENTS TAB */}
+              {activeTab === 'assessments' && (
+                <div className="space-y-6">
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                    <p className="text-sm text-blue-800">
+                      <strong>Data Source:</strong> This is the raw assessment data used to generate the roadmap. 
+                      The system extracts information from these responses to build the transformation plan.
+                    </p>
+                  </div>
+                  
+                  {client?.assessments && client.assessments.length > 0 ? (
+                    client.assessments.map((assessment: any) => (
+                      <div key={assessment.assessment_type} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                        <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-gray-900 capitalize">
+                              Part {assessment.assessment_type.replace('part', '')} Assessment
+                            </h3>
+                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                              assessment.status === 'completed' 
+                                ? 'bg-emerald-100 text-emerald-700' 
+                                : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              {assessment.status || 'in_progress'}
+                            </span>
+                          </div>
+                          {assessment.completed_at && (
+                            <p className="text-sm text-gray-500 mt-1">
+                              Completed: {new Date(assessment.completed_at).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                        <div className="p-6">
+                          <pre className="bg-gray-50 rounded-lg p-4 overflow-x-auto text-sm text-gray-700 max-h-96 overflow-y-auto">
+                            {JSON.stringify(assessment.responses, null, 2)}
+                          </pre>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
+                      <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500">No assessment data found</p>
+                      <p className="text-sm text-gray-400 mt-2">
+                        Assessment responses will appear here once the client completes their assessments.
+                      </p>
                     </div>
                   )}
                 </div>
