@@ -78,6 +78,11 @@ export default function Part2Page() {
     loadProgress();
   }, [clientSession?.clientId, isReviewMode]);
 
+  // Scroll to top when section changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentSectionIndex]);
+
   // Calculate section completion
   const getSectionCompletion = (section: Part2Section) => {
     const allQuestions = section.questions;
