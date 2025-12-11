@@ -99,40 +99,105 @@ WHERE pm.email = 'ben@atheriohq.com'
 -- FIX: Update discovery assessment to use correct client_id
 -- ============================================================
 -- WARNING: Only run this after verifying the correct client_id above
--- Replace 'CORRECT_CLIENT_ID' with the ID from Step 3
+-- This will fix Ben's discovery assessment to use the correct client_id
 
-/*
 BEGIN;
 
--- Update discovery assessment to use the correct client_id
-UPDATE destination_discovery
-SET client_id = (
-  SELECT id FROM practice_members 
-  WHERE user_id = '83015fd4-e9af-4a57-9ef5-a219b16f6127'
+-- Step 1: Find the correct client_id for Ben
+DO $$
+DECLARE
+  correct_client_id UUID;
+  wrong_client_id UUID := '1522309d-3516-4694-8a0a-69f24ab22d28';
+  ben_user_id UUID := '83015fd4-e9af-4a57-9ef5-a219b16f6127';
+BEGIN
+  -- Get the correct client_id
+  SELECT id INTO correct_client_id
+  FROM practice_members 
+  WHERE user_id = ben_user_id
     AND member_type = 'client'
-  LIMIT 1
-)
-WHERE client_id = '1522309d-3516-4694-8a0a-69f24ab22d28';
-
--- Update any service line enrollments
-UPDATE client_service_lines
-SET client_id = (
-  SELECT id FROM practice_members 
-  WHERE user_id = '83015fd4-e9af-4a57-9ef5-a219b16f6127'
-    AND member_type = 'client'
-  LIMIT 1
-)
-WHERE client_id = '1522309d-3516-4694-8a0a-69f24ab22d28';
-
--- Update any 365 alignment assessments
-UPDATE client_assessments
-SET client_id = (
-  SELECT id FROM practice_members 
-  WHERE user_id = '83015fd4-e9af-4a57-9ef5-a219b16f6127'
-    AND member_type = 'client'
-  LIMIT 1
-)
-WHERE client_id = '1522309d-3516-4694-8a0a-69f24ab22d28';
+    AND email = 'ben@atheriohq.com'
+  LIMIT 1;
+  
+  IF correct_client_id IS NULL THEN
+    RAISE EXCEPTION 'Could not find correct client_id for Ben. Check Step 3 results.';
+  END IF;
+  
+  RAISE NOTICE 'Found correct client_id: %', correct_client_id;
+  RAISE NOTICE 'Updating records from wrong client_id: %', wrong_client_id;
+  
+  -- Update discovery assessment
+  UPDATE destination_discovery
+  SET client_id = correct_client_id,
+      updated_at = NOW()
+  WHERE client_id = wrong_client_id;
+  
+  IF FOUND THEN
+    RAISE NOTICE 'Updated destination_discovery record';
+  ELSE
+    RAISE NOTICE 'No destination_discovery record found with wrong client_id';
+  END IF;
+  
+  -- Update any service line enrollments
+  UPDATE client_service_lines
+  SET client_id = correct_client_id,
+      updated_at = NOW()
+  WHERE client_id = wrong_client_id;
+  
+  IF FOUND THEN
+    RAISE NOTICE 'Updated client_service_lines records';
+  ELSE
+    RAISE NOTICE 'No client_service_lines records found with wrong client_id';
+  END IF;
+  
+  -- Update any 365 alignment assessments
+  UPDATE client_assessments
+  SET client_id = correct_client_id,
+      updated_at = NOW()
+  WHERE client_id = wrong_client_id;
+  
+  IF FOUND THEN
+    RAISE NOTICE 'Updated client_assessments records';
+  ELSE
+    RAISE NOTICE 'No client_assessments records found with wrong client_id';
+  END IF;
+  
+  -- Update any roadmaps
+  UPDATE client_roadmaps
+  SET client_id = correct_client_id,
+      updated_at = NOW()
+  WHERE client_id = wrong_client_id;
+  
+  IF FOUND THEN
+    RAISE NOTICE 'Updated client_roadmaps records';
+  ELSE
+    RAISE NOTICE 'No client_roadmaps records found with wrong client_id';
+  END IF;
+  
+  -- Update any context
+  UPDATE client_context
+  SET client_id = correct_client_id,
+      updated_at = NOW()
+  WHERE client_id = wrong_client_id;
+  
+  IF FOUND THEN
+    RAISE NOTICE 'Updated client_context records';
+  ELSE
+    RAISE NOTICE 'No client_context records found with wrong client_id';
+  END IF;
+  
+  RAISE NOTICE 'Fix completed successfully!';
+END $$;
 
 COMMIT;
-*/
+
+-- Verify the fix
+SELECT 
+  'Verification' as check_type,
+  dd.id as discovery_id,
+  dd.client_id,
+  pm.email,
+  pm.user_id,
+  pm.id as practice_member_id
+FROM destination_discovery dd
+JOIN practice_members pm ON dd.client_id = pm.id
+WHERE pm.email = 'ben@atheriohq.com';
