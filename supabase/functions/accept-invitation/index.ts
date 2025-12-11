@@ -237,20 +237,21 @@ serve(async (req) => {
       console.log(`Created new auth user: ${userId}`);
     }
 
-    // Check if practice_members record exists
+    // Check if practice_members record exists (check for client type specifically)
     const { data: existingMember } = await supabase
       .from('practice_members')
-      .select('id')
+      .select('id, user_id, member_type')
       .eq('email', clientEmail)
       .eq('practice_id', invitation.practice_id)
-      .single();
+      .eq('member_type', 'client')
+      .maybeSingle();
 
     let memberId: string;
 
     if (existingMember) {
-      // Update existing member
+      // Update existing member - ensure user_id is set
       memberId = existingMember.id;
-      await supabase
+      const { error: updateError } = await supabase
         .from('practice_members')
         .update({
           user_id: userId,
@@ -260,7 +261,16 @@ serve(async (req) => {
           updated_at: new Date().toISOString()
         })
         .eq('id', memberId);
-      console.log(`Updated existing practice_member: ${memberId}`);
+      
+      if (updateError) {
+        console.error('Error updating practice_member:', updateError);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to update client record' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      console.log(`✅ Updated existing practice_member: ${memberId} with user_id: ${userId}`);
     } else {
       // Create practice_members record
       const { data: newMember, error: memberError } = await supabase
@@ -287,8 +297,30 @@ serve(async (req) => {
       }
 
       memberId = newMember.id;
-      console.log(`Created new practice_member: ${memberId}`);
+      console.log(`✅ Created new practice_member: ${memberId} with user_id: ${userId}`);
     }
+    
+    // Verify the practice_member record was created/updated correctly
+    const { data: verifyMember } = await supabase
+      .from('practice_members')
+      .select('id, user_id, member_type, email')
+      .eq('id', memberId)
+      .single();
+    
+    if (!verifyMember || verifyMember.user_id !== userId || verifyMember.member_type !== 'client') {
+      console.error('❌ Verification failed:', verifyMember);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Failed to verify client record was created correctly' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log('✅ Verified practice_member record:', {
+      id: verifyMember.id,
+      user_id: verifyMember.user_id,
+      member_type: verifyMember.member_type,
+      email: verifyMember.email
+    });
 
     // Create client_service_lines enrollments
     const serviceLineIds = invitation.service_line_ids || [];

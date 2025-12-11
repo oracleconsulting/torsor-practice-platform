@@ -128,6 +128,11 @@ export default function InvitationPage() {
           access_token: data.session.accessToken,
           refresh_token: data.session.refreshToken
         });
+        
+        // Force refresh of client session after setting auth session
+        // This ensures the AuthContext picks up the new practice_members record
+        window.location.reload();
+        return;
       }
 
       // Determine redirect destination
@@ -135,10 +140,10 @@ export default function InvitationPage() {
       setRedirectTo(destination);
       setAccepted(true);
 
-      // Redirect after brief delay
+      // Redirect after brief delay (with page reload to refresh client session)
       setTimeout(() => {
-        navigate(destination);
-      }, 2500);
+        window.location.href = destination;
+      }, 2000);
 
     } catch (err) {
       console.error('Accept error:', err);
