@@ -547,7 +547,14 @@ function QuestionCard({
                   <input
                     type="radio"
                     checked={value === option}
-                    onChange={() => onChange(option)}
+                    onChange={() => {
+                      onChange(option);
+                      // If selecting a revenue option, uncheck pre-revenue
+                      if (question.fieldName === 'annual_turnover') {
+                        handleChange('pre_revenue', false);
+                        handleChange('anticipated_revenue_years', null);
+                      }
+                    }}
                     className="w-4 h-4 text-indigo-600"
                   />
                   <span className="text-slate-700">{option}</span>
