@@ -1340,7 +1340,8 @@ function DiscoveryClientModal({
 
       setClient(clientData);
       setDiscovery(discoveryData);
-      setDocuments(docsData || []);
+      // Use validated documents (filtered by email match)
+      setDocuments(validDocs || []);
       setAnalysisNotes(discoveryData?.analysis_notes || '');
       setSelectedServices(assignedServices?.map((s: any) => s.service_lines?.code).filter(Boolean) || []);
       
@@ -1379,9 +1380,20 @@ function DiscoveryClientModal({
           .getPublicUrl(storagePath);
         
         // Save to client_context
+        // CRITICAL: Validate client_id before inserting document
+        const { data: clientVerify } = await supabase
+          .from('practice_members')
+          .select('id, email')
+          .eq('id', clientId)
+          .single();
+        
+        if (!clientVerify) {
+          throw new Error(`Invalid client_id: ${clientId}. Cannot upload document.`);
+        }
+        
         await supabase.from('client_context').insert({
           practice_id: client.practice_id,
-          client_id: clientId,
+          client_id: clientId, // Verified above
           context_type: 'document',
           content: `Uploaded: ${file.name}`,
           source_file_url: urlData.publicUrl,
@@ -1797,7 +1809,10 @@ function DiscoveryClientModal({
 
                   {documents.length > 0 ? (
                     <div className="space-y-3">
-                      {documents.map((doc) => (
+                      {documents.filter((doc: any) => {
+                        // CRITICAL: Ensure document belongs to this client
+                        return doc.client_id === clientId;
+                      }).map((doc) => (
                         <div key={doc.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
                           <div className="flex items-center gap-3">
                             <FileText className="w-8 h-8 text-cyan-500" />
@@ -2377,6 +2392,14 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
         .eq('client_id', clientId)
         .order('created_at', { ascending: false });
 
+      // Validate documents belong to this client
+      const validDocs = (docsData || []).filter((doc: any) => {
+        if (doc.practice_members && clientInfo) {
+          return doc.practice_members.email === clientInfo.email;
+        }
+        return true;
+      });
+      
       setClient({
         ...clientData,
         roadmap: roadmap ? {
@@ -2387,7 +2410,8 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
           status: roadmap.status || 'pending_review'
         } : null,
         assessments: assessments || [],
-        context: context || []
+        context: context || [],
+        documents: validDocs || [] // Use validated documents
       });
     } catch (error) {
       console.error('Error fetching client:', error);
