@@ -2292,10 +2292,10 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
 
       const { data: roadmap } = await supabase
         .from('client_roadmaps')
-        .select('*')
+        .select('id, roadmap_data, value_analysis, created_at, status')
         .eq('client_id', clientId)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
       const { data: context } = await supabase
         .from('client_context')
