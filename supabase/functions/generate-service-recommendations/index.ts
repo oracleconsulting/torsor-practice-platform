@@ -410,8 +410,31 @@ serve(async (req) => {
 
       // Store discovery results
       if (clientId) {
+        // CRITICAL: Validate that clientId exists in practice_members before saving
+        const { data: clientCheck, error: clientError } = await supabase
+          .from('practice_members')
+          .select('id, user_id, email, member_type')
+          .eq('id', clientId)
+          .eq('member_type', 'client')
+          .maybeSingle();
+        
+        if (clientError) {
+          console.error('Error validating client_id:', clientError);
+          throw new Error(`Invalid client_id: ${clientId}`);
+        }
+        
+        if (!clientCheck) {
+          console.error(`CRITICAL: client_id ${clientId} does not exist in practice_members!`);
+          // Try to find the correct client_id by user_id if we have auth context
+          // This is a fallback for cases where clientSession.clientId is wrong
+          throw new Error(`Client ID ${clientId} not found. This may indicate a data integrity issue.`);
+        }
+        
+        console.log(`Saving discovery assessment for client_id: ${clientId}, email: ${clientCheck.email}`);
+        
         await supabase.from('destination_discovery').upsert({
           client_id: clientId,
+          practice_id: clientCheck.practice_id || null, // Ensure practice_id is set
           responses: { ...discoveryResponses, ...diagnosticResponses },
           extracted_anchors: anchors,
           destination_clarity_score: calculateClarityScore(discoveryResponses),
@@ -419,6 +442,8 @@ serve(async (req) => {
           recommended_services: recommendations,
           value_propositions: recommendations.map(r => r.valueProposition),
           completed_at: new Date().toISOString()
+        }, {
+          onConflict: 'client_id' // Update if exists, insert if not
         });
       }
 

@@ -165,11 +165,18 @@ export default function DestinationDiscoveryPage() {
         }
       });
 
+      // Validate clientSession before submitting
+      if (!clientSession?.clientId) {
+        console.error('No clientSession.clientId available - cannot save discovery assessment');
+        alert('Error: Unable to identify your client account. Please refresh the page and try again.');
+        return;
+      }
+
       // Submit to generate recommendations (saved server-side for practice team)
       const { error } = await supabase.functions.invoke('generate-service-recommendations', {
         body: {
           action: 'calculate-recommendations',
-          clientId: clientSession?.clientId,
+          clientId: clientSession.clientId,
           discoveryResponses,
           diagnosticResponses
         }

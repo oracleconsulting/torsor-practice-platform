@@ -1239,13 +1239,46 @@ function DiscoveryClientModal({
         .single();
 
       // Fetch discovery responses
-      const { data: discoveryData } = await supabase
+      // First try by client_id, but also check by email in case of ID mismatch
+      let discoveryData = null;
+      const { data: discoveryByClientId } = await supabase
         .from('destination_discovery')
         .select('*')
         .eq('client_id', clientId)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
+      
+      if (discoveryByClientId) {
+        discoveryData = discoveryByClientId;
+      } else {
+        // Fallback: Try to find discovery by matching practice_id and checking if client email matches
+        // This handles cases where client_id in discovery doesn't match practice_members.id
+        const { data: clientInfo } = await supabase
+          .from('practice_members')
+          .select('email, practice_id')
+          .eq('id', clientId)
+          .single();
+        
+        if (clientInfo) {
+          // Find discovery assessments in the same practice and check if they might belong to this client
+          const { data: allDiscoveries } = await supabase
+            .from('destination_discovery')
+            .select('*, practice_members!inner(email)')
+            .eq('practice_id', clientInfo.practice_id)
+            .order('created_at', { ascending: false });
+          
+          // Find discovery that matches this client's email
+          const matchingDiscovery = allDiscoveries?.find((d: any) => 
+            d.practice_members?.email === clientInfo.email
+          );
+          
+          if (matchingDiscovery) {
+            console.warn(`⚠️ Found discovery assessment with mismatched client_id. Expected: ${clientId}, Found: ${matchingDiscovery.client_id}`);
+            discoveryData = matchingDiscovery;
+          }
+        }
+      }
 
       // Fetch uploaded documents
       const { data: docsData } = await supabase

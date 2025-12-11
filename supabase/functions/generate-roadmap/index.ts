@@ -1756,15 +1756,18 @@ serve(async (req) => {
 ⚠️ CRITICAL: DATA SOURCE PRIORITY ⚠️
 ═══════════════════════════════════════════════════════════════════
 The following facts are from the client's OFFICIAL ASSESSMENT - use ONLY these:
+- CLIENT ID: ${clientId}
 - CLIENT NAME: ${context.userName}
 - COMPANY NAME: ${context.companyName}
 - INDUSTRY: ${context.industry}
 - REVENUE: £${context.revenueNumeric.toLocaleString()}
 - TEAM SIZE: ${context.teamSize}
 
-DO NOT use company names, industries, or financial figures from the advisor 
+⚠️ CRITICAL: DO NOT use company names, industries, or financial figures from the advisor 
 context below. The advisor context is for QUALITATIVE insights only.
-If the advisor context mentions a different company or industry, IGNORE IT.
+If the advisor context mentions a different company (like "Rowgear", "Tom", "rowing machines", 
+"fitness equipment") or industry that doesn't match ${context.companyName}, IGNORE IT COMPLETELY.
+Only use assessment data above for business facts.
 
 ═══════════════════════════════════════════════════════════════════
 ADVISOR-PROVIDED CONTEXT (FOR QUALITATIVE INSIGHTS ONLY)
