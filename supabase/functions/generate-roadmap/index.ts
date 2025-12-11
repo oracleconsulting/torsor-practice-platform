@@ -1627,6 +1627,49 @@ serve(async (req) => {
     const part1 = assessments?.find((a: any) => a.assessment_type === 'part1')?.responses || {};
     const part2 = assessments?.find((a: any) => a.assessment_type === 'part2')?.responses || {};
 
+    // CRITICAL: Validate assessment responses match the client
+    // Get client info to verify assessment data
+    const { data: clientInfo } = await supabase
+      .from('practice_members')
+      .select('email, name')
+      .eq('id', clientId)
+      .single();
+    
+    if (clientInfo) {
+      const clientEmailLower = clientInfo.email?.toLowerCase() || '';
+      const clientNameLower = clientInfo.name?.toLowerCase() || '';
+      const clientFirstName = clientNameLower.split(' ')[0] || '';
+      
+      // Check if part1 has full_name that doesn't match client
+      if (part1.full_name) {
+        const fullNameLower = part1.full_name.toLowerCase();
+        const emailMatch = clientEmailLower.includes(fullNameLower) || fullNameLower.includes(clientEmailLower.split('@')[0]);
+        const nameMatch = fullNameLower.includes(clientFirstName) || clientNameLower.includes(fullNameLower);
+        
+        if (!emailMatch && !nameMatch && fullNameLower.length > 1) {
+          console.warn(`⚠️ WARNING: Assessment full_name "${part1.full_name}" doesn't match client "${clientInfo.name}" (${clientInfo.email})`);
+          // Don't throw error, but log warning - this might be intentional (nickname, etc.)
+        }
+      }
+      
+      // Check for obvious mismatches (e.g., "Tom" in response but client is James)
+      if (part1.full_name && part1.full_name.toLowerCase().includes('tom') && 
+          !clientEmailLower.includes('tom') && !clientNameLower.includes('tom')) {
+        console.error(`CRITICAL: Assessment contains "Tom" but client is ${clientInfo.name} (${clientInfo.email})`);
+        throw new Error(`Assessment data mismatch: Assessment contains data for "Tom" but belongs to ${clientInfo.name}. Please regenerate assessments.`);
+      }
+      
+      // Check for fitness/rowing keywords if client email doesn't suggest fitness industry
+      if (!clientEmailLower.includes('rowgear') && !clientEmailLower.includes('fitness') && 
+          !clientNameLower.includes('tom')) {
+        const allText = JSON.stringify({ ...part1, ...part2 }).toLowerCase();
+        if ((allText.includes('rowing') || allText.includes('rowgear') || allText.includes('fitness equipment')) &&
+            !allText.includes(clientEmailLower.split('@')[0]) && !allText.includes(clientFirstName)) {
+          console.warn(`⚠️ WARNING: Assessment contains fitness/rowing keywords but client is ${clientInfo.name} (${clientInfo.email})`);
+        }
+      }
+    }
+
     // Log what we're actually using for debugging
     console.log(`=== ASSESSMENT DATA FOR CLIENT ${clientId} ===`);
     console.log(`Part 1 keys: ${Object.keys(part1).join(', ')}`);
