@@ -80,14 +80,37 @@ export default function Part3Page() {
 
   // Calculate section completion
   const getSectionCompletion = (section: Part3Section) => {
-    const requiredQuestions = section.questions.filter((q: Part3Question) => q.required);
-    const answeredRequired = requiredQuestions.filter((q: Part3Question) => {
+    const allQuestions = section.questions;
+    const requiredQuestions = allQuestions.filter((q: Part3Question) => q.required !== false);
+    
+    // If no questions, return 0
+    if (allQuestions.length === 0) return 0;
+    
+    // If no required questions, check all questions
+    const questionsToCheck = requiredQuestions.length > 0 ? requiredQuestions : allQuestions;
+    
+    const answeredCount = questionsToCheck.filter((q: Part3Question) => {
+      // For revenue percentage questions, check if either percentage is set OR (pre_revenue is true AND anticipated_revenue_years is set)
+      if (q.type === 'percentage' && 
+          (q.fieldName === 'top3_customer_revenue_percentage' || 
+           q.fieldName === 'external_channel_percentage')) {
+        const value = responses[q.fieldName];
+        const preRevenue = responses[`${q.fieldName}_pre_revenue`];
+        const anticipatedYears = responses[`${q.fieldName}_anticipated_revenue_years`];
+        
+        return (value !== undefined && value !== null && value !== '') ||
+               (preRevenue === true && anticipatedYears);
+      }
+      
       const value = responses[q.fieldName];
       if (Array.isArray(value)) return value.length > 0;
+      if (typeof value === 'object' && value !== null) {
+        return Object.keys(value).length > 0;
+      }
       return value !== undefined && value !== null && value !== '';
-    });
-    return requiredQuestions.length === 0 ? 100 : 
-      Math.round((answeredRequired.length / requiredQuestions.length) * 100);
+    }).length;
+    
+    return Math.round((answeredCount / questionsToCheck.length) * 100);
   };
 
   const overallCompletion = Math.round(
@@ -100,6 +123,39 @@ export default function Part3Page() {
 
     setIsSaving(true);
     try {
+      // Recalculate completion based on current responses
+      const currentCompletion = Math.round(
+        part3Sections.reduce((sum: number, s: Part3Section) => {
+          const allQuestions = s.questions;
+          const requiredQuestions = allQuestions.filter((q: Part3Question) => q.required !== false);
+          const questionsToCheck = requiredQuestions.length > 0 ? requiredQuestions : allQuestions;
+          
+          if (questionsToCheck.length === 0) return sum;
+          
+          const answeredCount = questionsToCheck.filter((q: Part3Question) => {
+            if (q.type === 'percentage' && 
+                (q.fieldName === 'top3_customer_revenue_percentage' || 
+                 q.fieldName === 'external_channel_percentage')) {
+              const value = responses[q.fieldName];
+              const preRevenue = responses[`${q.fieldName}_pre_revenue`];
+              const anticipatedYears = responses[`${q.fieldName}_anticipated_revenue_years`];
+              
+              return (value !== undefined && value !== null && value !== '') ||
+                     (preRevenue === true && anticipatedYears);
+            }
+            
+            const value = responses[q.fieldName];
+            if (Array.isArray(value)) return value.length > 0;
+            if (typeof value === 'object' && value !== null) {
+              return Object.keys(value).length > 0;
+            }
+            return value !== undefined && value !== null && value !== '';
+          }).length;
+          
+          return sum + Math.round((answeredCount / questionsToCheck.length) * 100);
+        }, 0) / part3Sections.length
+      );
+
       const assessmentData = {
         practice_id: clientSession.practiceId,
         client_id: clientSession.clientId,
@@ -107,25 +163,33 @@ export default function Part3Page() {
         responses,
         current_section: currentSectionIndex,
         total_sections: part3Sections.length,
-        completion_percentage: overallCompletion,
+        completion_percentage: completed ? 100 : currentCompletion,
         status: completed ? 'completed' : 'in_progress',
         ...(completed && { completed_at: new Date().toISOString() }),
         ...(!assessmentId && { started_at: new Date().toISOString() })
       };
 
       if (assessmentId) {
-        await supabase
+        const { error: updateError } = await supabase
           .from('client_assessments')
           .update(assessmentData)
           .eq('id', assessmentId);
+        
+        if (updateError) {
+          console.error('Error updating assessment:', updateError);
+        }
       } else {
-        const { data } = await supabase
+        const { data, error: insertError } = await supabase
           .from('client_assessments')
           .insert(assessmentData)
           .select()
           .single();
 
-        if (data) setAssessmentId(data.id);
+        if (insertError) {
+          console.error('Error creating assessment:', insertError);
+        } else if (data) {
+          setAssessmentId(data.id);
+        }
       }
     } catch (error) {
       console.error('Error saving progress:', error);
@@ -435,17 +499,73 @@ function Part3QuestionCard({
           )}
 
           {question.type === 'percentage' && (
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                value={value || ''}
-                onChange={(e) => onChange(e.target.value ? parseInt(e.target.value) : null)}
-                className="w-24 px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                placeholder="0"
-                min={0}
-                max={100}
-              />
-              <span className="text-slate-500">%</span>
+            <div className="space-y-3">
+              {/* Check if this is a revenue-related percentage question */}
+              {(question.fieldName === 'top3_customer_revenue_percentage' || 
+                question.fieldName === 'external_channel_percentage') && (
+                <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors
+                  border-slate-200 hover:border-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={responses[`${question.fieldName}_pre_revenue`] === true}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        onMatrixChange(question.fieldName, null);
+                        onMatrixChange(`${question.fieldName}_pre_revenue`, true);
+                      } else {
+                        onMatrixChange(`${question.fieldName}_pre_revenue`, false);
+                        onMatrixChange(`${question.fieldName}_anticipated_revenue_years`, null);
+                      }
+                    }}
+                    className="w-4 h-4 text-amber-600 rounded"
+                  />
+                  <span className="text-slate-700 font-medium">Pre-revenue (not yet generating revenue)</span>
+                </label>
+              )}
+              
+              {/* Show anticipated revenue dropdown if pre-revenue is checked */}
+              {(question.fieldName === 'top3_customer_revenue_percentage' || 
+                question.fieldName === 'external_channel_percentage') && 
+                responses[`${question.fieldName}_pre_revenue`] === true ? (
+                <div className="ml-7">
+                  <label className="block text-sm text-slate-600 mb-2">
+                    Anticipated revenue in the next:
+                  </label>
+                  <select
+                    value={responses[`${question.fieldName}_anticipated_revenue_years`] || ''}
+                    onChange={(e) => onMatrixChange(`${question.fieldName}_anticipated_revenue_years`, e.target.value)}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg 
+                               text-slate-700 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  >
+                    <option value="">Select timeframe...</option>
+                    <option value="1">1 year</option>
+                    <option value="2">2 years</option>
+                    <option value="3">3 years</option>
+                  </select>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={value || ''}
+                    onChange={(e) => {
+                      onChange(e.target.value ? parseInt(e.target.value) : null);
+                      // If entering a percentage, uncheck pre-revenue
+                      if (e.target.value && (question.fieldName === 'top3_customer_revenue_percentage' || 
+                          question.fieldName === 'external_channel_percentage')) {
+                        onMatrixChange(`${question.fieldName}_pre_revenue`, false);
+                        onMatrixChange(`${question.fieldName}_anticipated_revenue_years`, null);
+                      }
+                    }}
+                    className="w-24 px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    placeholder="0"
+                    min={0}
+                    max={100}
+                    disabled={responses[`${question.fieldName}_pre_revenue`] === true}
+                  />
+                  <span className="text-slate-500">%</span>
+                </div>
+              )}
             </div>
           )}
 
