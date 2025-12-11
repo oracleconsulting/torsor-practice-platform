@@ -195,9 +195,24 @@ serve(async (req) => {
     let userId: string;
 
     if (existingUser) {
-      // User exists - just use their ID
+      // User exists - update their password so they can log in
       userId = existingUser.id;
-      console.log(`Using existing auth user: ${userId}`);
+      console.log(`User exists, updating password: ${userId}`);
+      
+      const { error: updateError } = await supabase.auth.admin.updateUserById(
+        existingUser.id,
+        { password: password }
+      );
+      
+      if (updateError) {
+        console.error('Error updating user password:', updateError);
+        return new Response(
+          JSON.stringify({ success: false, error: `Failed to update password: ${updateError.message}` }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      console.log(`✅ Password updated for existing user: ${userId}`);
     } else {
       // Create new auth user
       const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
