@@ -24,24 +24,45 @@ interface AcceptRequest {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  console.log('📥 accept-invitation function called:', {
+    method: req.method,
+    url: req.url
+  });
+
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('❌ Missing environment variables:', {
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabaseServiceKey
+      });
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
+
+    console.log('📋 Request details:', { method: req.method, action, url: url.pathname });
 
     // ================================================================
     // ACTION: Validate token (GET request from frontend)
     // ================================================================
     if (req.method === 'GET' || action === 'validate') {
       const token = url.searchParams.get('token');
+      
+      console.log('🔍 Validating token:', token ? 'present' : 'missing');
       
       if (!token) {
         return new Response(
@@ -67,11 +88,14 @@ serve(async (req) => {
         .single();
 
       if (error || !invitation) {
+        console.error('❌ Invitation not found:', error);
         return new Response(
           JSON.stringify({ valid: false, error: 'Invalid invitation' }),
           { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      
+      console.log('✅ Invitation found:', { id: invitation.id, email: invitation.email, status: invitation.status });
 
       // Check if expired
       if (new Date(invitation.expires_at) < new Date()) {
