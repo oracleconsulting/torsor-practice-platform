@@ -28,7 +28,8 @@ import {
   Download,
   MessageSquare,
   Sparkles,
-  Share2
+  Share2,
+  Trash2
 } from 'lucide-react';
 
 
@@ -178,6 +179,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
     inviteType: 'discovery' as 'discovery' | 'direct'  // Discovery First or Direct Service
   });
   const [sendingInvite, setSendingInvite] = useState(false);
+  const [deletingClient, setDeletingClient] = useState<string | null>(null);
+  const [clientToDelete, setClientToDelete] = useState<{ id: string; name: string; email: string } | null>(null);
 
   // Fetch clients when service line is selected
   useEffect(() => {
@@ -486,6 +489,116 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
     }
   };
 
+  // Delete client permanently
+  const handleDeleteClient = async (clientId: string, clientName: string, clientEmail: string) => {
+    setClientToDelete({ id: clientId, name: clientName, email: clientEmail });
+  };
+
+  const confirmDeleteClient = async () => {
+    if (!clientToDelete || !currentMember?.practice_id) return;
+
+    setDeletingClient(clientToDelete.id);
+    try {
+      console.log('🗑️ Deleting client:', clientToDelete);
+
+      // Delete from client_service_lines first (foreign key constraint)
+      const { error: serviceLineError } = await supabase
+        .from('client_service_lines')
+        .delete()
+        .eq('client_id', clientToDelete.id)
+        .eq('practice_id', currentMember.practice_id);
+
+      if (serviceLineError) {
+        console.error('Error deleting client service lines:', serviceLineError);
+        throw serviceLineError;
+      }
+
+      // Delete from client_invitations
+      const { error: invitationError } = await supabase
+        .from('client_invitations')
+        .delete()
+        .eq('email', clientToDelete.email.toLowerCase())
+        .eq('practice_id', currentMember.practice_id);
+
+      if (invitationError) {
+        console.error('Error deleting client invitations:', invitationError);
+        // Don't throw - invitations might not exist
+      }
+
+      // Delete from client_assessments
+      const { error: assessmentError } = await supabase
+        .from('client_assessments')
+        .delete()
+        .eq('client_id', clientToDelete.id);
+
+      if (assessmentError) {
+        console.error('Error deleting client assessments:', assessmentError);
+        // Don't throw - assessments might not exist
+      }
+
+      // Delete from client_roadmaps
+      const { error: roadmapError } = await supabase
+        .from('client_roadmaps')
+        .delete()
+        .eq('client_id', clientToDelete.id);
+
+      if (roadmapError) {
+        console.error('Error deleting client roadmaps:', roadmapError);
+        // Don't throw - roadmaps might not exist
+      }
+
+      // Delete from service_line_assessments
+      const { error: serviceAssessmentError } = await supabase
+        .from('service_line_assessments')
+        .delete()
+        .eq('client_id', clientToDelete.id);
+
+      if (serviceAssessmentError) {
+        console.error('Error deleting service line assessments:', serviceAssessmentError);
+        // Don't throw - assessments might not exist
+      }
+
+      // Delete from destination_discovery
+      const { error: discoveryError } = await supabase
+        .from('destination_discovery')
+        .delete()
+        .eq('client_id', clientToDelete.id);
+
+      if (discoveryError) {
+        console.error('Error deleting destination discovery:', discoveryError);
+        // Don't throw - discovery might not exist
+      }
+
+      // Finally, delete the practice_member (client)
+      const { error: memberError } = await supabase
+        .from('practice_members')
+        .delete()
+        .eq('id', clientToDelete.id)
+        .eq('practice_id', currentMember.practice_id)
+        .eq('member_type', 'client');
+
+      if (memberError) {
+        console.error('Error deleting practice member:', memberError);
+        throw memberError;
+      }
+
+      console.log('✅ Client deleted successfully');
+      alert(`Client ${clientToDelete.name} has been permanently deleted.`);
+      
+      // Refresh the client list
+      if (selectedServiceLine) {
+        fetchClients();
+      }
+      
+      setClientToDelete(null);
+    } catch (error: any) {
+      console.error('❌ Error deleting client:', error);
+      alert(`Failed to delete client: ${error.message || 'Unknown error'}`);
+    } finally {
+      setDeletingClient(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -706,17 +819,27 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <a
-                            href={`/clients/${client.id}`}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setSelectedClient(client.id);
-                            }}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors text-sm font-medium"
-                          >
-                            View
-                            <ChevronRight className="w-4 h-4" />
-                          </a>
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={`/clients/${client.id}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setSelectedClient(client.id);
+                              }}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors text-sm font-medium"
+                            >
+                              View
+                              <ChevronRight className="w-4 h-4" />
+                            </a>
+                            <button
+                              onClick={() => handleDeleteClient(client.id, client.name, client.email)}
+                              disabled={deletingClient === client.id}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Delete client permanently"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -742,6 +865,52 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             clientId={selectedClient} 
             onClose={() => setSelectedClient(null)} 
           />
+        )}
+
+        {/* Delete Client Confirmation Modal */}
+        {clientToDelete && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-red-600" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">Delete Client</h2>
+              </div>
+              
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to permanently delete <strong>{clientToDelete.name}</strong> ({clientToDelete.email})?
+              </p>
+              
+              <p className="text-sm text-red-600 mb-6 bg-red-50 p-3 rounded-lg">
+                ⚠️ This action cannot be undone. This will permanently delete:
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>Client profile and account</li>
+                  <li>All service enrollments</li>
+                  <li>All assessments and progress data</li>
+                  <li>All roadmaps and plans</li>
+                  <li>All related records</li>
+                </ul>
+              </p>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setClientToDelete(null)}
+                  disabled={deletingClient === clientToDelete.id}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteClient}
+                  disabled={deletingClient === clientToDelete.id}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deletingClient === clientToDelete.id ? 'Deleting...' : 'Delete Permanently'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Invite Client Modal */}

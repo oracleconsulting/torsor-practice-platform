@@ -78,13 +78,17 @@ serve(async (req) => {
       .single();
 
     if (existingClient) {
-      // Client exists - just enrol them in the new service lines
+      console.log('📋 Existing client found, enrolling in services and sending email');
+      
+      // Client exists - enrol them in the new service lines
       const { data: serviceLines } = await supabase
         .from('service_lines')
         .select('id, code, name')
-        .in('code', serviceLineCodes);
+        .in('code', serviceLineCodes || []);
 
+      const serviceLineNames = (serviceLines || []).map(sl => sl.name);
       const enrolments = [];
+      
       for (const sl of serviceLines || []) {
         const { data: enrolment, error } = await supabase
           .from('client_service_lines')
@@ -100,6 +104,131 @@ serve(async (req) => {
           .single();
         
         if (enrolment) enrolments.push({ service: sl.name, status: 'invited' });
+      }
+
+      // Get practice and inviter details for email
+      const { data: practice } = await supabase
+        .from('practices')
+        .select('name')
+        .eq('id', practiceId)
+        .single();
+
+      const { data: inviter } = await supabase
+        .from('practice_members')
+        .select('name')
+        .eq('id', invitedBy)
+        .single();
+
+      // Generate invitation URL (existing clients can use their portal login)
+      const baseUrl = Deno.env.get('CLIENT_PORTAL_URL') || 'https://client.torsor.co.uk';
+      const invitationUrl = `${baseUrl}/login?email=${encodeURIComponent(email.toLowerCase())}`;
+
+      // Send email via Resend for existing clients too
+      const resendKey = Deno.env.get('RESEND_API_KEY');
+      const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') || 'onboarding@resend.dev';
+      
+      if (resendKey) {
+        try {
+          const discoveryIntro = includeDiscovery ? `
+            <div style="background: #fef3c7; border-radius: 8px; padding: 20px; margin: 20px 0;">
+              <p style="color: #92400e; margin: 0; font-weight: bold;">✨ First: A 15-minute Discovery</p>
+              <p style="color: #92400e; margin: 10px 0 0 0; font-size: 14px;">
+                Before we dive in, we'd love to understand where you're trying to get to. 
+                You'll complete a brief questionnaire about your goals, and we'll recommend 
+                the best path forward for you.
+              </p>
+            </div>
+          ` : '';
+
+          const servicesSection = includeDiscovery && (!serviceLineCodes || serviceLineCodes.length === 0) ? `
+            <p style="color: #64748b; line-height: 1.6;">
+              We'll help you discover which of our services best match your goals.
+            </p>
+          ` : `
+            <p style="color: #64748b; line-height: 1.6;">
+              ${inviter?.name || 'Your advisor'} at <strong>${practice?.name || 'the practice'}</strong> 
+              has invited you to join:
+            </p>
+            <ul style="color: #334155; line-height: 1.8;">
+              ${serviceLineNames.map(sn => `<li><strong>${sn}</strong></li>`).join('')}
+            </ul>
+          `;
+
+          const emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); padding: 40px; text-align: center;">
+                <h1 style="color: white; margin: 0;">You're Invited</h1>
+              </div>
+              
+              <div style="padding: 40px; background: #f8fafc;">
+                <p style="font-size: 18px; color: #334155;">Hi ${existingClient.name || name || 'there'},</p>
+                
+                ${servicesSection}
+                
+                ${discoveryIntro}
+                
+                ${customMessage ? `
+                  <div style="background: white; border-left: 4px solid #6366f1; padding: 15px; margin: 20px 0;">
+                    <p style="color: #64748b; margin: 0; font-style: italic;">"${customMessage}"</p>
+                  </div>
+                ` : ''}
+                
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${invitationUrl}" 
+                     style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); 
+                            color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px;
+                            font-weight: bold; font-size: 16px;">
+                    ${includeDiscovery ? 'Start Discovery' : 'Access Your Portal'}
+                  </a>
+                </div>
+                
+                <p style="color: #94a3b8; font-size: 14px;">
+                  You already have access to the client portal. Click the button above to log in and view your new services.
+                </p>
+              </div>
+              
+              <div style="padding: 20px; background: #1e293b; text-align: center;">
+                <p style="color: #94a3b8; margin: 0; font-size: 12px;">
+                  Powered by Torsor • Transforming businesses and lives
+                </p>
+              </div>
+            </div>
+          `;
+
+          const emailResponse = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${resendKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              from: fromEmail.includes('@') ? `Torsor <${fromEmail}>` : fromEmail,
+              to: email,
+              subject: includeDiscovery 
+                ? `You're invited to Torsor Client Portal`
+                : `You're invited to ${serviceLineNames.join(' & ')}`,
+              html: emailHtml
+            })
+          });
+
+          const responseText = await emailResponse.text();
+          console.log('📧 Resend API response status (existing client):', emailResponse.status);
+          console.log('📧 Resend API response (existing client):', responseText);
+
+          if (!emailResponse.ok) {
+            const errorData = JSON.parse(responseText || '{}');
+            console.error('❌ Resend API error (existing client):', errorData);
+            // Don't fail the whole request, but log the error
+          } else {
+            const emailData = JSON.parse(responseText);
+            console.log(`✅ Invitation email sent successfully to existing client ${email}. Email ID: ${emailData.id}`);
+          }
+        } catch (emailError) {
+          console.error('❌ Email send failed for existing client:', emailError);
+          // Don't fail the whole request if email fails
+        }
+      } else {
+        console.warn('⚠️ RESEND_API_KEY not configured - skipping email for existing client');
       }
 
       return new Response(
