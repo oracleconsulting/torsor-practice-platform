@@ -100,7 +100,7 @@ export default function UnifiedDashboardPage() {
         console.error('Error loading services:', enrollError);
       }
 
-      const serviceList: ServiceEnrollment[] = (enrollments || [])
+      let serviceList: ServiceEnrollment[] = (enrollments || [])
         .filter((e: any) => e.service_line)
         .map((e: any) => ({
           id: e.id,
@@ -111,12 +111,10 @@ export default function UnifiedDashboardPage() {
           createdAt: e.created_at,
         }));
 
-      setServices(serviceList);
-
-      // Check discovery status
+      // Check discovery status - always check even if not in service_lines
       const { data: discovery } = await supabase
         .from('destination_discovery')
-        .select('completed_at')
+        .select('completed_at, created_at')
         .eq('client_id', clientSession?.clientId)
         .single();
 
@@ -127,12 +125,37 @@ export default function UnifiedDashboardPage() {
         .eq('report_type', 'discovery_analysis')
         .single();
 
-      setDiscoveryStatus({
+      const discoveryStatusData = {
         completed: !!discovery?.completed_at,
         completedAt: discovery?.completed_at,
         hasReport: !!report,
         reportShared: report?.is_shared_with_client || false,
+      };
+      
+      setDiscoveryStatus(discoveryStatusData);
+
+      // If client has discovery data but no discovery service in list, add it
+      const hasDiscoveryService = serviceList.some(s => s.serviceCode === 'discovery');
+      if (discovery && !hasDiscoveryService) {
+        serviceList = [{
+          id: 'discovery-virtual',
+          status: discoveryStatusData.completed ? 'discovery_complete' : 'pending_discovery',
+          serviceCode: 'discovery',
+          serviceName: 'Destination Discovery',
+          serviceDescription: 'A guided assessment to help us understand your business goals, challenges, and opportunities.',
+          createdAt: discovery.created_at || new Date().toISOString(),
+        }, ...serviceList];
+      }
+      
+      // Also check if client has discovery service line enrollment but it's showing wrong status
+      serviceList = serviceList.map(s => {
+        if (s.serviceCode === 'discovery' && discoveryStatusData.completed) {
+          return { ...s, status: 'discovery_complete' };
+        }
+        return s;
       });
+
+      setServices(serviceList);
 
     } catch (err) {
       console.error('Error loading dashboard:', err);
@@ -160,15 +183,22 @@ export default function UnifiedDashboardPage() {
     // Special handling for discovery
     if (code === 'discovery') {
       if (discoveryStatus?.completed) {
+        if (discoveryStatus.reportShared) {
+          return {
+            label: 'Report Ready',
+            color: 'emerald',
+            icon: CheckCircle,
+          };
+        }
         return {
-          label: discoveryStatus.reportShared ? 'Report Ready' : 'Complete - Awaiting Report',
+          label: 'Complete',
           color: 'emerald',
           icon: CheckCircle,
         };
       }
       return {
         label: 'Start Assessment',
-        color: 'amber',
+        color: 'cyan',
         icon: Play,
       };
     }
@@ -203,7 +233,9 @@ export default function UnifiedDashboardPage() {
       case 'pending_onboarding':
         return { label: 'Ready to Start', color: 'indigo', icon: Play };
       case 'discovery_complete':
-        return { label: 'Discovery Complete', color: 'emerald', icon: CheckCircle };
+        return { label: 'Complete', color: 'emerald', icon: CheckCircle };
+      case 'pending_discovery':
+        return { label: 'Start Assessment', color: 'cyan', icon: Play };
       default:
         return { label: 'Pending', color: 'gray', icon: Clock };
     }
@@ -215,6 +247,7 @@ export default function UnifiedDashboardPage() {
       blue: 'bg-blue-100 text-blue-700 border-blue-200',
       amber: 'bg-amber-100 text-amber-700 border-amber-200',
       indigo: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+      cyan: 'bg-cyan-100 text-cyan-700 border-cyan-200',
       gray: 'bg-gray-100 text-gray-700 border-gray-200',
     };
     return colors[color] || colors.gray;
