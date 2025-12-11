@@ -122,6 +122,13 @@ serve(async (req) => {
       // Generate invitation URL (existing clients can use their portal login)
       const baseUrl = Deno.env.get('CLIENT_PORTAL_URL') || 'https://client.torsor.co.uk';
       const invitationUrl = `${baseUrl}/login?email=${encodeURIComponent(email.toLowerCase())}`;
+      
+      if (!invitationUrl || invitationUrl === 'undefined') {
+        console.error('❌ Failed to generate invitation URL for existing client');
+        throw new Error('Failed to generate invitation URL');
+      }
+      
+      console.log('🔗 Generated invitation URL for existing client:', invitationUrl);
 
       // Send email via Resend for existing clients too
       const resendKey = Deno.env.get('RESEND_API_KEY');
@@ -177,12 +184,17 @@ serve(async (req) => {
                   <a href="${invitationUrl}" 
                      style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); 
                             color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px;
-                            font-weight: bold; font-size: 16px;">
+                            font-weight: bold; font-size: 16px; border: none;">
                     ${includeDiscovery ? 'Start Discovery' : 'Access Your Portal'}
                   </a>
                 </div>
                 
-                <p style="color: #94a3b8; font-size: 14px;">
+                <p style="color: #94a3b8; font-size: 14px; text-align: center; margin-top: 20px;">
+                  If the button above doesn't work, copy and paste this link into your browser:<br>
+                  <a href="${invitationUrl}" style="color: #6366f1; text-decoration: underline; word-break: break-all;">${invitationUrl}</a>
+                </p>
+                
+                <p style="color: #94a3b8; font-size: 14px; margin-top: 20px;">
                   You already have access to the client portal. Click the button above to log in and view your new services.
                 </p>
               </div>
@@ -195,20 +207,37 @@ serve(async (req) => {
             </div>
           `;
 
+          const emailPayload = {
+            from: fromEmail.includes('@') ? `Torsor <${fromEmail}>` : fromEmail,
+            to: email,
+            subject: includeDiscovery 
+              ? `You're invited to Torsor Client Portal`
+              : `You're invited to ${serviceLineNames.join(' & ')}`,
+            html: emailHtml,
+            // Add plain text version as fallback
+            text: `Hi ${existingClient.name || name || 'there'},
+
+${inviter?.name || 'Your advisor'} at ${practice?.name || 'the practice'} has invited you to join:
+${serviceLineNames.map(sn => `- ${sn}`).join('\n')}
+
+${includeDiscovery ? 'Start your discovery journey' : 'Accept your invitation'} by clicking this link:
+${invitationUrl}
+
+This invitation expires in 7 days. If you have any questions, reply to this email or contact your advisor directly.
+
+Powered by Torsor • Transforming businesses and lives`
+          };
+
+          console.log('📧 Sending email with URL:', invitationUrl);
+          console.log('📧 Email payload (without HTML):', { ...emailPayload, html: '[HTML content]' });
+
           const emailResponse = await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${resendKey}`,
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-              from: fromEmail.includes('@') ? `Torsor <${fromEmail}>` : fromEmail,
-              to: email,
-              subject: includeDiscovery 
-                ? `You're invited to Torsor Client Portal`
-                : `You're invited to ${serviceLineNames.join(' & ')}`,
-              html: emailHtml
-            })
+            body: JSON.stringify(emailPayload)
           });
 
           const responseText = await emailResponse.text();
@@ -298,6 +327,13 @@ serve(async (req) => {
     // Build invitation URL
     const baseUrl = Deno.env.get('CLIENT_PORTAL_URL') || 'https://client.torsor.co.uk';
     const invitationUrl = `${baseUrl}/invitation/${token}`;
+    
+    if (!invitationUrl || invitationUrl === 'undefined' || !token) {
+      console.error('❌ Failed to generate invitation URL for new client');
+      throw new Error('Failed to generate invitation URL');
+    }
+    
+    console.log('🔗 Generated invitation URL for new client:', invitationUrl);
 
     // Send email via Resend (or your email provider)
     const resendKey = Deno.env.get('RESEND_API_KEY');
@@ -364,12 +400,17 @@ serve(async (req) => {
               <a href="${invitationUrl}" 
                  style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); 
                         color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px;
-                        font-weight: bold; font-size: 16px;">
+                        font-weight: bold; font-size: 16px; border: none;">
                 ${includeDiscovery ? 'Start Discovery' : 'Accept Invitation'}
               </a>
             </div>
             
-            <p style="color: #94a3b8; font-size: 14px;">
+            <p style="color: #94a3b8; font-size: 14px; text-align: center; margin-top: 20px;">
+              If the button above doesn't work, copy and paste this link into your browser:<br>
+              <a href="${invitationUrl}" style="color: #6366f1; text-decoration: underline; word-break: break-all;">${invitationUrl}</a>
+            </p>
+            
+            <p style="color: #94a3b8; font-size: 14px; margin-top: 20px;">
               This invitation expires in 7 days. If you have any questions, 
               reply to this email or contact your advisor directly.
             </p>
