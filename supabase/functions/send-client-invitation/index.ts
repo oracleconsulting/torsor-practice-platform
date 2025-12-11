@@ -70,11 +70,13 @@ serve(async (req) => {
     }
 
     // Check if email already exists as a client in this practice
+    // IMPORTANT: Filter by member_type='client' to avoid matching team members or admins
     const { data: existingClient } = await supabase
       .from('practice_members')
       .select('id, name, email')
       .eq('email', email.toLowerCase())
       .eq('practice_id', practiceId)
+      .eq('member_type', 'client')
       .single();
 
     if (existingClient) {
@@ -363,7 +365,7 @@ Powered by Torsor • Transforming businesses and lives`
         </div>
       ` : '';
 
-      const servicesSection = includeDiscovery && serviceLineCodes.length === 0 ? `
+      const servicesSection = includeDiscovery && (!serviceLineCodes || serviceLineCodes.length === 0) ? `
         <p style="color: #64748b; line-height: 1.6;">
           We'll help you discover which of our services best match your goals.
         </p>
@@ -424,20 +426,37 @@ Powered by Torsor • Transforming businesses and lives`
         </div>
       `;
 
+      const emailPayload = {
+        from: fromEmail.includes('@') ? `Torsor <${fromEmail}>` : fromEmail,
+        to: email,
+        subject: includeDiscovery 
+          ? `You're invited to Torsor Client Portal`
+          : `You're invited to ${serviceLineNames.join(' & ')}`,
+        html: emailHtml,
+        // Add plain text version as fallback
+        text: `Hi ${name || 'there'},
+
+${inviter?.name || 'Your advisor'} at ${practice?.name || 'the practice'} has invited you to join:
+${serviceLineNames.map(sn => `- ${sn}`).join('\n')}
+
+${includeDiscovery ? 'Start your discovery journey' : 'Accept your invitation'} by clicking this link:
+${invitationUrl}
+
+This invitation expires in 7 days. If you have any questions, reply to this email or contact your advisor directly.
+
+Powered by Torsor • Transforming businesses and lives`
+      };
+
+      console.log('📧 Sending email with URL:', invitationUrl);
+      console.log('📧 Email payload (without HTML):', { ...emailPayload, html: '[HTML content]' });
+
       const emailResponse = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${resendKey}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          from: fromEmail.includes('@') ? `Torsor <${fromEmail}>` : fromEmail,
-          to: email,
-          subject: includeDiscovery 
-            ? `You're invited to Torsor Client Portal`
-            : `You're invited to ${serviceLineNames.join(' & ')}`,
-          html: emailHtml
-        })
+        body: JSON.stringify(emailPayload)
       });
 
       const responseText = await emailResponse.text();
