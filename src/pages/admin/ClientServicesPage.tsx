@@ -2443,13 +2443,8 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
         .eq('client_id', clientId)
         .order('created_at', { ascending: false });
 
-      // Validate documents belong to this client
-      const validDocs = (docsData || []).filter((doc: any) => {
-        if (doc.practice_members && clientInfo) {
-          return doc.practice_members.email === clientInfo.email;
-        }
-        return true;
-      });
+      // Filter context for documents
+      const documents = (context || []).filter((c: any) => c.context_type === 'document');
       
       setClient({
         ...clientData,
@@ -2463,7 +2458,7 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
         } : null,
         assessments: assessments || [],
         context: context || [],
-        documents: validDocs || [] // Use validated documents
+        documents: documents
       });
     } catch (error) {
       console.error('Error fetching client:', error);
