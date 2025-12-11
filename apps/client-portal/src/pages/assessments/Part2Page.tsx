@@ -595,7 +595,7 @@ function QuestionCard({
               {question.fieldName === 'annual_turnover' && responses.pre_revenue === true && (
                 <div className="ml-7 mt-3 space-y-3">
                   <label className="block text-sm text-slate-600 mb-2">
-                    Anticipated revenue:
+                    Anticipated annual turnover:
                   </label>
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Year 1</label>
@@ -603,7 +603,7 @@ function QuestionCard({
                       type="text"
                       value={responses.anticipated_revenue_year1 || ''}
                       onChange={(e) => handleChange('anticipated_revenue_year1', e.target.value)}
-                      placeholder="Enter anticipated revenue for Year 1"
+                      placeholder="Enter anticipated annual turnover for Year 1"
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg 
                                  text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     />
@@ -614,7 +614,7 @@ function QuestionCard({
                       type="text"
                       value={responses.anticipated_revenue_year2 || ''}
                       onChange={(e) => handleChange('anticipated_revenue_year2', e.target.value)}
-                      placeholder="Enter anticipated revenue for Year 2"
+                      placeholder="Enter anticipated annual turnover for Year 2"
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg 
                                  text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     />
@@ -625,7 +625,7 @@ function QuestionCard({
                       type="text"
                       value={responses.anticipated_revenue_year3 || ''}
                       onChange={(e) => handleChange('anticipated_revenue_year3', e.target.value)}
-                      placeholder="Enter anticipated revenue for Year 3"
+                      placeholder="Enter anticipated annual turnover for Year 3"
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg 
                                  text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     />

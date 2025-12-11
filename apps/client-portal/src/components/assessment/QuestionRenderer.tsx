@@ -347,7 +347,7 @@ export function QuestionRenderer({
             {isPreRevenue && isRevenueQuestion ? (
               <div className="space-y-3">
                 <label className="block text-sm text-slate-400 mb-2">
-                  Anticipated revenue:
+                  Anticipated annual business turnover/revenue:
                 </label>
                 <div className="space-y-3">
                   <div>
@@ -361,7 +361,7 @@ export function QuestionRenderer({
                           anticipated_revenue_year1: e.target.value
                         });
                       }}
-                      placeholder="Enter anticipated revenue for Year 1"
+                      placeholder="Enter anticipated annual turnover/revenue for Year 1"
                       className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg 
                                  text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                     />
@@ -377,7 +377,7 @@ export function QuestionRenderer({
                           anticipated_revenue_year2: e.target.value
                         });
                       }}
-                      placeholder="Enter anticipated revenue for Year 2"
+                      placeholder="Enter anticipated annual turnover/revenue for Year 2"
                       className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg 
                                  text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                     />
@@ -393,7 +393,7 @@ export function QuestionRenderer({
                           anticipated_revenue_year3: e.target.value
                         });
                       }}
-                      placeholder="Enter anticipated revenue for Year 3"
+                      placeholder="Enter anticipated annual turnover/revenue for Year 3"
                       className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg 
                                  text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                     />

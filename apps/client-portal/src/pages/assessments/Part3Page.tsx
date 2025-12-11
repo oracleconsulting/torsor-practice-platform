@@ -535,7 +535,9 @@ function Part3QuestionCard({
                 responses[`${question.fieldName}_pre_revenue`] === true ? (
                 <div className="ml-7 space-y-3">
                   <label className="block text-sm text-slate-600 mb-2">
-                    Anticipated revenue:
+                    {question.fieldName === 'top3_customer_revenue_percentage' 
+                      ? 'Anticipated revenue from top 3 customers:'
+                      : 'Anticipated revenue through channels you don\'t control:'}
                   </label>
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Year 1</label>
@@ -543,7 +545,11 @@ function Part3QuestionCard({
                       type="text"
                       value={responses[`${question.fieldName}_anticipated_revenue_year1`] || ''}
                       onChange={(e) => onMatrixChange(`${question.fieldName}_anticipated_revenue_year1`, e.target.value)}
-                      placeholder="Enter anticipated revenue for Year 1"
+                      placeholder={
+                        question.fieldName === 'top3_customer_revenue_percentage'
+                          ? 'Enter anticipated revenue from top 3 customers for Year 1'
+                          : 'Enter anticipated revenue through uncontrolled channels for Year 1'
+                      }
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg 
                                  text-slate-700 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                     />
@@ -554,7 +560,11 @@ function Part3QuestionCard({
                       type="text"
                       value={responses[`${question.fieldName}_anticipated_revenue_year2`] || ''}
                       onChange={(e) => onMatrixChange(`${question.fieldName}_anticipated_revenue_year2`, e.target.value)}
-                      placeholder="Enter anticipated revenue for Year 2"
+                      placeholder={
+                        question.fieldName === 'top3_customer_revenue_percentage'
+                          ? 'Enter anticipated revenue from top 3 customers for Year 2'
+                          : 'Enter anticipated revenue through uncontrolled channels for Year 2'
+                      }
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg 
                                  text-slate-700 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                     />
@@ -565,7 +575,11 @@ function Part3QuestionCard({
                       type="text"
                       value={responses[`${question.fieldName}_anticipated_revenue_year3`] || ''}
                       onChange={(e) => onMatrixChange(`${question.fieldName}_anticipated_revenue_year3`, e.target.value)}
-                      placeholder="Enter anticipated revenue for Year 3"
+                      placeholder={
+                        question.fieldName === 'top3_customer_revenue_percentage'
+                          ? 'Enter anticipated revenue from top 3 customers for Year 3'
+                          : 'Enter anticipated revenue through uncontrolled channels for Year 3'
+                      }
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg 
                                  text-slate-700 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                     />
