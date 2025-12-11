@@ -59,11 +59,10 @@ LIMIT 1;
 -- FIX: Ensure Ben is enrolled in 365_method service line
 -- ============================================================
 -- This will enroll Ben in the 365 Alignment Programme if not already enrolled
+-- Run this to fix Ben's access to 365 alignment assessments
 
-/*
 BEGIN;
 
--- Get Ben's client_id
 DO $$
 DECLARE
   ben_client_id UUID;
@@ -81,6 +80,8 @@ BEGIN
     RAISE EXCEPTION 'Could not find Ben''s client record';
   END IF;
   
+  RAISE NOTICE 'Found Ben: client_id = %, practice_id = %', ben_client_id, practice_id_val;
+  
   -- Get 365_method service line ID
   SELECT id INTO service_line_id_val
   FROM service_lines
@@ -88,8 +89,10 @@ BEGIN
   LIMIT 1;
   
   IF service_line_id_val IS NULL THEN
-    RAISE EXCEPTION 'Could not find 365_method service line';
+    RAISE EXCEPTION 'Could not find 365_method service line. Please check service_lines table.';
   END IF;
+  
+  RAISE NOTICE 'Found 365_method service line: id = %', service_line_id_val;
   
   -- Check if enrollment already exists
   IF NOT EXISTS (
@@ -112,20 +115,40 @@ BEGIN
       NOW()
     );
     
-    RAISE NOTICE 'Enrolled Ben in 365_method service line';
+    RAISE NOTICE '✅ Enrolled Ben in 365_method service line';
   ELSE
     RAISE NOTICE 'Ben is already enrolled in 365_method service line';
     
-    -- Update status to pending_onboarding if it's something else
+    -- Update status to pending_onboarding if it's something else (but not active)
     UPDATE client_service_lines
-    SET status = 'pending_onboarding'
+    SET status = 'pending_onboarding',
+        updated_at = NOW()
     WHERE client_id = ben_client_id
       AND service_line_id = service_line_id_val
       AND status != 'active';
     
-    RAISE NOTICE 'Updated enrollment status to pending_onboarding';
+    IF FOUND THEN
+      RAISE NOTICE 'Updated enrollment status to pending_onboarding';
+    ELSE
+      RAISE NOTICE 'Enrollment status is already active - no change needed';
+    END IF;
   END IF;
 END $$;
 
 COMMIT;
-*/
+
+-- Verify the fix
+SELECT 
+  'Verification' as check_type,
+  csl.id,
+  csl.client_id,
+  csl.status,
+  sl.code as service_line_code,
+  sl.name as service_line_name,
+  pm.email,
+  pm.name
+FROM client_service_lines csl
+JOIN service_lines sl ON csl.service_line_id = sl.id
+JOIN practice_members pm ON csl.client_id = pm.id
+WHERE pm.email = 'ben@atheriohq.com'
+  AND sl.code = '365_method';
