@@ -83,6 +83,8 @@ export default function UnifiedDashboardPage() {
 
   const loadDashboardData = async () => {
     try {
+      console.log('📊 Loading dashboard for client:', clientSession?.clientId, clientSession?.email);
+      
       // Load all enrolled services
       const { data: enrollments, error: enrollError } = await supabase
         .from('client_service_lines')
@@ -99,6 +101,8 @@ export default function UnifiedDashboardPage() {
       if (enrollError) {
         console.error('Error loading services:', enrollError);
       }
+      
+      console.log('📋 Service enrollments:', enrollments);
 
       let serviceList: ServiceEnrollment[] = (enrollments || [])
         .filter((e: any) => e.service_line)
@@ -111,12 +115,49 @@ export default function UnifiedDashboardPage() {
           createdAt: e.created_at,
         }));
 
-      // Check discovery status - always check even if not in service_lines
-      const { data: discovery } = await supabase
+      // Check discovery status - try by client_id first
+      let { data: discovery, error: discoveryError } = await supabase
         .from('destination_discovery')
-        .select('completed_at, created_at')
+        .select('id, client_id, completed_at, created_at')
         .eq('client_id', clientSession?.clientId)
         .single();
+
+      console.log('🔍 Discovery by client_id:', discovery, discoveryError);
+
+      // If no discovery found by client_id, try by practice_id (handles ID mismatch cases)
+      if (!discovery && clientSession?.practiceId) {
+        // Get all discoveries for this practice
+        const { data: allDiscoveries, error: allDiscError } = await supabase
+          .from('destination_discovery')
+          .select('id, client_id, completed_at, created_at, practice_id')
+          .eq('practice_id', clientSession.practiceId);
+        
+        console.log('🔍 All practice discoveries:', allDiscoveries, allDiscError);
+        
+        if (allDiscoveries && allDiscoveries.length > 0) {
+          // Get practice members to match by email
+          const { data: practiceMembers } = await supabase
+            .from('practice_members')
+            .select('id, email')
+            .eq('practice_id', clientSession.practiceId)
+            .eq('member_type', 'client');
+          
+          // Find the client_id that matches our email
+          const clientMember = practiceMembers?.find((m: any) => 
+            m.email?.toLowerCase() === clientSession?.email?.toLowerCase()
+          );
+          
+          // Also check if any discovery has a client_id that's linked to our email via practice_members
+          for (const disc of allDiscoveries) {
+            const discMember = practiceMembers?.find((m: any) => m.id === disc.client_id);
+            if (discMember?.email?.toLowerCase() === clientSession?.email?.toLowerCase()) {
+              console.log('🔍 Found discovery by email match:', disc, discMember);
+              discovery = disc;
+              break;
+            }
+          }
+        }
+      }
 
       const { data: report } = await supabase
         .from('client_reports')
@@ -132,10 +173,13 @@ export default function UnifiedDashboardPage() {
         reportShared: report?.is_shared_with_client || false,
       };
       
+      console.log('✅ Discovery status:', discoveryStatusData, 'discovery:', discovery);
       setDiscoveryStatus(discoveryStatusData);
 
       // If client has discovery data but no discovery service in list, add it
       const hasDiscoveryService = serviceList.some(s => s.serviceCode === 'discovery');
+      console.log('📝 Has discovery service in list:', hasDiscoveryService, 'discovery data exists:', !!discovery);
+      
       if (discovery && !hasDiscoveryService) {
         serviceList = [{
           id: 'discovery-virtual',
