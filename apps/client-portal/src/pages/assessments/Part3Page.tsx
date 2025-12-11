@@ -125,6 +125,39 @@ export default function Part3Page() {
 
     setIsSaving(true);
     try {
+      // CRITICAL: Validate client_id before saving
+      const { data: clientVerify, error: verifyError } = await supabase
+        .from('practice_members')
+        .select('id, email, user_id')
+        .eq('id', clientSession.clientId)
+        .eq('member_type', 'client')
+        .single();
+      
+      if (verifyError || !clientVerify) {
+        console.error('CRITICAL: Invalid client_id when saving assessment:', clientSession.clientId, verifyError);
+        alert('Error: Unable to verify your client account. Please refresh the page and try again.');
+        return;
+      }
+      
+      // Additional check: if we have an assessmentId, verify it belongs to this client
+      if (assessmentId) {
+        const { data: existingAssessment } = await supabase
+          .from('client_assessments')
+          .select('client_id')
+          .eq('id', assessmentId)
+          .single();
+        
+        if (existingAssessment && existingAssessment.client_id !== clientSession.clientId) {
+          console.error('CRITICAL: Assessment belongs to different client!', {
+            assessmentId,
+            assessmentClientId: existingAssessment.client_id,
+            currentClientId: clientSession.clientId
+          });
+          alert('Error: Assessment data mismatch detected. Please refresh the page.');
+          return;
+        }
+      }
+      
       // Recalculate completion based on current responses
       const currentCompletion = Math.round(
         part3Sections.reduce((sum: number, s: Part3Section) => {
@@ -177,7 +210,8 @@ export default function Part3Page() {
         const { error: updateError } = await supabase
           .from('client_assessments')
           .update(assessmentData)
-          .eq('id', assessmentId);
+          .eq('id', assessmentId)
+          .eq('client_id', clientSession.clientId); // Additional safety check
         
         if (updateError) {
           console.error('Error updating assessment:', updateError);
