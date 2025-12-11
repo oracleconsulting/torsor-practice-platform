@@ -351,13 +351,34 @@ export default function DiscoveryPortalPage() {
                         <p className="text-gray-600 text-sm mb-3">{service.description}</p>
                         
                         {service.status === 'pending_onboarding' && (
-                          <p className="text-amber-600 text-sm">
-                            Your advisor will reach out to begin onboarding soon.
-                          </p>
+                          <div className="space-y-2">
+                            <p className="text-amber-600 text-sm">
+                              Your advisor will reach out to begin onboarding soon.
+                            </p>
+                            {/* Allow access to assessments even during onboarding for 365_method */}
+                            {(service.code === '365_method' || service.code === '365_alignment') && (
+                              <button
+                                onClick={() => navigate('/assessments')}
+                                className="inline-flex items-center gap-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium transition-colors"
+                              >
+                                Start Assessments
+                                <ArrowRight className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
                         )}
                         
                         {service.status === 'active' && (
-                          <button className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-700 text-sm font-medium">
+                          <button 
+                            onClick={() => {
+                              if (service.code === '365_method' || service.code === '365_alignment') {
+                                navigate('/assessments');
+                              } else {
+                                navigate(`/service/${service.code}/assessment`);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-700 text-sm font-medium"
+                          >
                             View Details
                             <ArrowRight className="w-4 h-4" />
                           </button>
