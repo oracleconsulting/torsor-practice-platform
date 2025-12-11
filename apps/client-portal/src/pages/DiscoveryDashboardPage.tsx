@@ -27,7 +27,8 @@ interface ServiceLine {
 
 const SERVICE_ICONS: Record<string, any> = {
   'discovery': Compass,
-  '365_alignment': Target,
+  '365_method': Target,
+  '365_alignment': Target, // Legacy alias
   'management_accounts': FileText,
   'hidden_value_audit': Award,
 };
@@ -82,7 +83,7 @@ export default function DiscoveryDashboardPage() {
 
   const getServiceLink = (code: string) => {
     if (code === 'discovery') return '/discovery';
-    if (code === '365_alignment') return '/assessments';
+    if (code === '365_method' || code === '365_alignment') return '/assessments';
     return `/service/${code}/assessment`;
   };
 
