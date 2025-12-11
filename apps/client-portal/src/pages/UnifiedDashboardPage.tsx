@@ -83,7 +83,12 @@ export default function UnifiedDashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      console.log('📊 Loading dashboard for client:', clientSession?.clientId, clientSession?.email);
+      console.log('📊 Loading dashboard for client:', {
+        clientId: clientSession?.clientId,
+        practiceId: clientSession?.practiceId,
+        email: clientSession?.email,
+        name: clientSession?.name
+      });
       
       // Load all enrolled services
       const { data: enrollments, error: enrollError } = await supabase
@@ -116,13 +121,16 @@ export default function UnifiedDashboardPage() {
         }));
 
       // Check discovery status - try by client_id first
+      // Use maybeSingle() instead of single() to avoid errors when no row exists
       let { data: discovery, error: discoveryError } = await supabase
         .from('destination_discovery')
         .select('id, client_id, completed_at, created_at')
         .eq('client_id', clientSession?.clientId)
-        .single();
+        .maybeSingle();
 
-      console.log('🔍 Discovery by client_id:', discovery, discoveryError);
+      console.log('🔍 Discovery by client_id:', clientSession?.clientId);
+      console.log('🔍 Discovery result:', discovery);
+      console.log('🔍 Discovery error:', discoveryError);
 
       // If no discovery found by client_id, try by practice_id (handles ID mismatch cases)
       if (!discovery && clientSession?.practiceId) {
@@ -173,32 +181,39 @@ export default function UnifiedDashboardPage() {
         reportShared: report?.is_shared_with_client || false,
       };
       
-      console.log('✅ Discovery status:', discoveryStatusData, 'discovery:', discovery);
+      console.log('✅ Discovery status:', discoveryStatusData);
+      console.log('✅ Discovery record:', discovery);
       setDiscoveryStatus(discoveryStatusData);
 
       // If client has discovery data but no discovery service in list, add it
       const hasDiscoveryService = serviceList.some(s => s.serviceCode === 'discovery');
-      console.log('📝 Has discovery service in list:', hasDiscoveryService, 'discovery data exists:', !!discovery);
+      console.log('📝 Has discovery service in list:', hasDiscoveryService);
+      console.log('📝 Discovery data exists:', !!discovery);
+      console.log('📝 Current serviceList before discovery add:', serviceList);
       
-      if (discovery && !hasDiscoveryService) {
-        serviceList = [{
-          id: 'discovery-virtual',
-          status: discoveryStatusData.completed ? 'discovery_complete' : 'pending_discovery',
-          serviceCode: 'discovery',
-          serviceName: 'Destination Discovery',
-          serviceDescription: 'A guided assessment to help us understand your business goals, challenges, and opportunities.',
-          createdAt: discovery.created_at || new Date().toISOString(),
-        }, ...serviceList];
-      }
-      
-      // Also check if client has discovery service line enrollment but it's showing wrong status
-      serviceList = serviceList.map(s => {
-        if (s.serviceCode === 'discovery' && discoveryStatusData.completed) {
-          return { ...s, status: 'discovery_complete' };
+      if (discovery) {
+        if (!hasDiscoveryService) {
+          console.log('➕ Adding discovery card to service list');
+          serviceList = [{
+            id: 'discovery-virtual',
+            status: discoveryStatusData.completed ? 'discovery_complete' : 'pending_discovery',
+            serviceCode: 'discovery',
+            serviceName: 'Destination Discovery',
+            serviceDescription: 'A guided assessment to help us understand your business goals, challenges, and opportunities.',
+            createdAt: discovery.created_at || new Date().toISOString(),
+          }, ...serviceList];
+        } else {
+          // Update discovery status if it exists
+          serviceList = serviceList.map(s => {
+            if (s.serviceCode === 'discovery' && discoveryStatusData.completed) {
+              return { ...s, status: 'discovery_complete' };
+            }
+            return s;
+          });
         }
-        return s;
-      });
+      }
 
+      console.log('📝 Final serviceList:', serviceList);
       setServices(serviceList);
 
     } catch (err) {
