@@ -184,19 +184,19 @@ serve(async (req) => {
                 
                 <div style="text-align: center; margin: 30px 0;">
                   <a href="${invitationUrl}" 
-                     style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); 
-                            color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px;
-                            font-weight: bold; font-size: 16px; border: none;">
+                     style="display: inline-block; background-color: #6366f1; 
+                            color: #ffffff; padding: 15px 40px; text-decoration: none; border-radius: 8px;
+                            font-weight: bold; font-size: 16px; border: 2px solid #6366f1;">
                     ${includeDiscovery ? 'Start Discovery' : 'Access Your Portal'}
                   </a>
                 </div>
                 
-                <p style="color: #94a3b8; font-size: 14px; text-align: center; margin-top: 20px;">
+                <p style="color: #64748b; font-size: 14px; text-align: center; margin-top: 20px;">
                   If the button above doesn't work, copy and paste this link into your browser:<br>
                   <a href="${invitationUrl}" style="color: #6366f1; text-decoration: underline; word-break: break-all;">${invitationUrl}</a>
                 </p>
                 
-                <p style="color: #94a3b8; font-size: 14px; margin-top: 20px;">
+                <p style="color: #64748b; font-size: 14px; margin-top: 20px;">
                   You already have access to the client portal. Click the button above to log in and view your new services.
                 </p>
               </div>
@@ -400,19 +400,19 @@ Powered by Torsor • Transforming businesses and lives`
             
             <div style="text-align: center; margin: 30px 0;">
               <a href="${invitationUrl}" 
-                 style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); 
-                        color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px;
-                        font-weight: bold; font-size: 16px; border: none;">
+                 style="display: inline-block; background-color: #6366f1; 
+                        color: #ffffff; padding: 15px 40px; text-decoration: none; border-radius: 8px;
+                        font-weight: bold; font-size: 16px; border: 2px solid #6366f1;">
                 ${includeDiscovery ? 'Start Discovery' : 'Accept Invitation'}
               </a>
             </div>
             
-            <p style="color: #94a3b8; font-size: 14px; text-align: center; margin-top: 20px;">
+            <p style="color: #64748b; font-size: 14px; text-align: center; margin-top: 20px;">
               If the button above doesn't work, copy and paste this link into your browser:<br>
               <a href="${invitationUrl}" style="color: #6366f1; text-decoration: underline; word-break: break-all;">${invitationUrl}</a>
             </p>
             
-            <p style="color: #94a3b8; font-size: 14px; margin-top: 20px;">
+            <p style="color: #64748b; font-size: 14px; margin-top: 20px;">
               This invitation expires in 7 days. If you have any questions, 
               reply to this email or contact your advisor directly.
             </p>
