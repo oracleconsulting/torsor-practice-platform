@@ -73,6 +73,7 @@ export default function DiscoveryDashboardPage() {
         status: csl.status,
       }));
 
+      console.log('Loaded service lines for client:', clientSession?.clientId, serviceLines);
       setServices(serviceLines);
     } catch (err) {
       console.error('Error loading services:', err);
@@ -151,6 +152,9 @@ export default function DiscoveryDashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {services.map((service) => {
             const Icon = SERVICE_ICONS[service.code] || FileText;
+            
+            // Debug logging
+            console.log('Service:', service.code, 'Status:', service.status, 'Link:', getServiceLink(service.code));
             
             return (
               <Link
