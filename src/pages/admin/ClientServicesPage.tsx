@@ -214,9 +214,27 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         }
       });
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to send invitation');
+      }
 
-      alert(response.data.message || 'Invitation sent successfully!');
+      // Check if the response indicates success
+      if (response.data && !response.data.success) {
+        const errorMsg = response.data.error || 'Failed to send invitation';
+        alert(`Error: ${errorMsg}${response.data.invitationUrl ? `\n\nInvitation URL (you can share this manually):\n${response.data.invitationUrl}` : ''}`);
+        
+        // If invitation was created but email failed, still close modal and refresh
+        if (response.data.invitationId) {
+          setShowInviteModal(false);
+          setInviteForm({ email: '', name: '', company: '', services: [], customMessage: '', inviteType: 'discovery' });
+          if (selectedServiceLine) {
+            fetchClients();
+          }
+        }
+        return;
+      }
+
+      alert(response.data?.message || 'Invitation sent successfully!');
       setShowInviteModal(false);
       setInviteForm({ email: '', name: '', company: '', services: [], customMessage: '', inviteType: 'discovery' });
       
@@ -224,9 +242,10 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
       if (selectedServiceLine) {
         fetchClients();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending invitation:', error);
-      alert('Failed to send invitation. Please try again.');
+      const errorMessage = error?.message || error?.error?.message || 'Failed to send invitation. Please try again.';
+      alert(`Error: ${errorMessage}\n\nPlease check:\n1. RESEND_API_KEY is configured in Supabase Edge Function secrets\n2. The email address is valid\n3. Check the browser console for more details`);
     } finally {
       setSendingInvite(false);
     }
