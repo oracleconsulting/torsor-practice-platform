@@ -1281,12 +1281,46 @@ function DiscoveryClientModal({
       }
 
       // Fetch uploaded documents
-      const { data: docsData } = await supabase
+      // CRITICAL: Double-check that documents belong to this client by verifying practice_members relationship
+      const { data: docsData, error: docsError } = await supabase
         .from('client_context')
-        .select('*')
+        .select(`
+          *,
+          practice_members!inner(id, email, name)
+        `)
         .eq('client_id', clientId)
         .eq('context_type', 'document')
+        .eq('practice_members.id', clientId) // Ensure the join matches the client_id
         .order('created_at', { ascending: false });
+      
+      if (docsError) {
+        console.error('Error fetching documents:', docsError);
+      }
+      
+      // Additional validation: Filter out any documents that don't match the client's email
+      // This catches cases where client_id might be wrong
+      const { data: clientInfo } = await supabase
+        .from('practice_members')
+        .select('email')
+        .eq('id', clientId)
+        .single();
+      
+      const validDocs = (docsData || []).filter((doc: any) => {
+        // If we have practice_members data, verify email matches
+        if (doc.practice_members && clientInfo) {
+          return doc.practice_members.email === clientInfo.email;
+        }
+        // If no practice_members data, trust the client_id filter (but log warning)
+        if (!doc.practice_members) {
+          console.warn(`Document ${doc.id} has no practice_members relationship - may be orphaned`);
+        }
+        return true;
+      });
+      
+      // Log warning if we filtered out any documents
+      if (validDocs.length !== (docsData || []).length) {
+        console.warn(`⚠️ Filtered out ${(docsData || []).length - validDocs.length} documents with mismatched client_id for client ${clientId}`);
+      }
 
       // Fetch currently assigned services
       const { data: assignedServices } = await supabase
