@@ -1371,12 +1371,21 @@ function DiscoveryClientModal({
     const files = Array.from(e.target.files || []);
     if (files.length === 0 || !client?.practice_id) return;
 
+    console.log('📤 Starting file upload:', {
+      clientId,
+      practiceId: client.practice_id,
+      clientEmail: client.email,
+      fileCount: files.length
+    });
+
     setUploading(true);
     try {
       for (const file of files) {
         const timestamp = Date.now();
         const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
         const storagePath = `${client.practice_id}/${clientId}/${timestamp}_${safeFileName}`;
+        
+        console.log('📤 Uploading file:', file.name, 'to path:', storagePath);
         
         const { error: uploadError } = await supabase.storage
           .from('client-documents')
@@ -1391,15 +1400,21 @@ function DiscoveryClientModal({
         
         // Save to client_context
         // CRITICAL: Validate client_id before inserting document
-        const { data: clientVerify } = await supabase
+        console.log('📤 Verifying client_id before insert:', clientId);
+        const { data: clientVerify, error: verifyError } = await supabase
           .from('practice_members')
           .select('id, email, user_id')
           .eq('id', clientId)
           .single();
         
+        console.log('📤 Client verification result:', clientVerify, verifyError);
+        
         if (!clientVerify) {
+          console.error('❌ Client verification FAILED for clientId:', clientId);
           throw new Error(`Invalid client_id: ${clientId}. Cannot upload document.`);
         }
+        
+        console.log('✅ Client verified:', clientVerify.email);
         
         // CRITICAL: Verify storage path matches client_id
         // Storage path format: practice_id/client_id/filename
