@@ -53,6 +53,8 @@ export default function RoadmapPage() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [part3Responses, setPart3Responses] = useState<Record<string, any> | null>(null);
 
+  const [roadmapStatus, setRoadmapStatus] = useState<string | null>(null);
+
   useEffect(() => {
     const init = async () => {
       await fetchRoadmap();
@@ -67,6 +69,16 @@ export default function RoadmapPage() {
         if (data?.responses) {
           setPart3Responses(data.responses);
         }
+        
+        // Check roadmap status
+        const { data: roadmapData } = await supabase
+          .from('client_roadmaps')
+          .select('status')
+          .eq('client_id', clientSession.clientId)
+          .eq('is_active', true)
+          .maybeSingle();
+        
+        setRoadmapStatus(roadmapData?.status || null);
       }
       setIsInitialized(true);
     };
@@ -165,28 +177,24 @@ export default function RoadmapPage() {
     );
   }
 
-  if (!roadmap) {
+  // Show placeholder if no roadmap or if roadmap status is not 'published' or 'ready_for_client'
+  if (!roadmap || (roadmapStatus && roadmapStatus !== 'published' && roadmapStatus !== 'ready_for_client')) {
     return (
-      <Layout title="Your Roadmap" subtitle="Ready to create your plan">
+      <Layout title="Your Roadmap" subtitle="Your transformation plan is being prepared">
         <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl p-12 text-center">
           <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Mountain className="w-10 h-10 text-white" />
+            <Clock className="w-10 h-10 text-white" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900">Your Transformation Awaits</h2>
+          <h2 className="text-2xl font-bold text-slate-900">Your Roadmap is Being Prepared</h2>
           <p className="text-slate-600 mt-3 max-w-md mx-auto">
-            You've completed all assessments. Now let's turn everything you've shared into a comprehensive, personalized transformation plan.
+            Your personalised roadmap will now be reviewed and generated. James will be in touch with you shortly to book a final call before presenting it.
           </p>
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
-            className="inline-flex items-center gap-3 mt-8 px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl font-medium text-lg"
-          >
-            <Sparkles className="w-5 h-5" />
-            Generate My Transformation Plan
-          </button>
-          {generateError && (
-            <p className="mt-4 text-red-600 text-sm">{generateError}</p>
-          )}
+          <div className="mt-8 p-4 bg-white/60 rounded-lg border border-indigo-100">
+            <p className="text-sm text-slate-600">
+              <Clock className="w-4 h-4 inline mr-2" />
+              We're carefully reviewing your responses and crafting your transformation plan. You'll receive an email notification once it's ready.
+            </p>
+          </div>
         </div>
       </Layout>
     );

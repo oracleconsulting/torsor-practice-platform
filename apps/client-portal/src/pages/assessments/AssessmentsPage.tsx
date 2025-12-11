@@ -124,15 +124,8 @@ export default function AssessmentsPage() {
               <div className="flex-1">
                 <h3 className="font-semibold text-emerald-900">All Assessments Complete!</h3>
                 <p className="text-emerald-700 mt-1">
-                  Your personalized roadmap is ready. View your strategic action plan and start making progress.
+                  Your personalised roadmap will now be reviewed and generated. James will be in touch with you shortly to book a final call before presenting it.
                 </p>
-                <Link
-                  to="/roadmap"
-                  className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
-                >
-                  View Your Roadmap
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
               </div>
             </div>
           </div>

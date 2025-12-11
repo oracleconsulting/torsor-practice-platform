@@ -424,7 +424,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
 
       const { data: roadmaps } = await supabase
         .from('client_roadmaps')
-        .select('client_id')
+        .select('client_id, status')
         .in('client_id', clientIds)
         .eq('is_active', true);
 
@@ -2858,6 +2858,62 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                 <div className="space-y-6">
                   {client?.roadmap ? (
                     <>
+                      {/* Roadmap Status and Actions */}
+                      <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-gray-500">Roadmap Status</p>
+                          <p className="text-lg font-semibold text-gray-900 capitalize">
+                            {client.roadmap.status || 'pending_review'}
+                          </p>
+                        </div>
+                        {client.roadmap.status !== 'published' && (
+                          <button
+                            onClick={async () => {
+                              if (!confirm('Mark this roadmap as ready and send email notification to client?')) return;
+                              
+                              try {
+                                // Update roadmap status to published
+                                const { error: updateError } = await supabase
+                                  .from('client_roadmaps')
+                                  .update({ status: 'published' })
+                                  .eq('id', client.roadmap.id);
+                                
+                                if (updateError) throw updateError;
+                                
+                                // Send email notification
+                                const { error: emailError } = await supabase.functions.invoke('notify-roadmap-ready', {
+                                  body: {
+                                    roadmapId: client.roadmap.id,
+                                    clientId: clientId
+                                  }
+                                });
+                                
+                                if (emailError) {
+                                  console.error('Email error:', emailError);
+                                  alert('Roadmap marked as ready, but email failed to send. Please check logs.');
+                                } else {
+                                  alert('Roadmap marked as ready and email sent to client!');
+                                }
+                                
+                                // Refresh client data
+                                await fetchClientDetail();
+                              } catch (error) {
+                                console.error('Error marking roadmap as ready:', error);
+                                alert('Failed to mark roadmap as ready. Please try again.');
+                              }
+                            }}
+                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
+                          >
+                            Mark as Ready & Send Email
+                          </button>
+                        )}
+                        {client.roadmap.status === 'published' && (
+                          <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium">
+                            ✓ Published
+                          </span>
+                        )}
+                      </div>
+                      
                       <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-6">
                         <h3 className="font-semibold text-indigo-900 mb-3">5-Year Vision</h3>
                         <p className="text-indigo-800 text-lg">

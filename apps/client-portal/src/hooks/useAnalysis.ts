@@ -571,12 +571,13 @@ export function useAssessmentFlow() {
 
       if (assessError) throw assessError;
 
-      // Fetch roadmap
+      // Fetch roadmap (only if published or ready_for_client)
       const { data: roadmap, error: roadmapError } = await supabase
         .from('client_roadmaps')
         .select('*')
         .eq('client_id', clientSession.clientId)
         .eq('is_active', true)
+        .in('status', ['published', 'ready_for_client'])
         .maybeSingle();
 
       if (roadmapError) throw roadmapError;
@@ -735,6 +736,7 @@ export function useRoadmap() {
         .select('*')
         .eq('client_id', clientSession.clientId)
         .eq('is_active', true)
+        .in('status', ['published', 'ready_for_client'])
         .maybeSingle();
 
       if (fetchError) throw new Error(fetchError.message);

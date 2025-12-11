@@ -25,7 +25,13 @@ export interface Client {
 }
 
 export interface ClientDetail extends Client {
-  roadmap: any | null;
+  roadmap: {
+    id: string;
+    data: any;
+    valueAnalysis: any;
+    createdAt: string;
+    status?: string;
+  } | null;
   assessmentResponses: {
     part1: any;
     part2: any;
@@ -92,7 +98,7 @@ export function useClients() {
       // Get roadmaps for all clients
       const { data: roadmaps } = await supabase
         .from('client_roadmaps')
-        .select('client_id, created_at')
+        .select('client_id, created_at, status')
         .in('client_id', clientIds)
         .eq('is_active', true);
 
@@ -191,7 +197,7 @@ export function useClientDetail(clientId: string | null) {
       // Get roadmap
       const { data: roadmap } = await supabase
         .from('client_roadmaps')
-        .select('*')
+        .select('id, roadmap_data, value_analysis, created_at, status')
         .eq('client_id', clientId)
         .eq('is_active', true)
         .maybeSingle();
@@ -272,11 +278,13 @@ export function useClientDetail(clientId: string | null) {
         },
         hasRoadmap: !!roadmap,
         roadmapGeneratedAt: roadmap?.created_at || null,
+        roadmapStatus: roadmap?.status || 'pending_review',
         roadmap: roadmap ? {
           id: roadmap.id,
           data: roadmap.roadmap_data,
           valueAnalysis: roadmap.value_analysis,
-          createdAt: roadmap.created_at
+          createdAt: roadmap.created_at,
+          status: roadmap.status || 'pending_review'
         } : null,
         assessmentResponses: {
           part1: getAssessment('part1')?.responses || null,

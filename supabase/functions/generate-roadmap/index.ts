@@ -1825,6 +1825,7 @@ DO NOT extract business facts from here - use the assessment data above.
         client_id: clientId, 
         roadmap_data: roadmapData, 
         is_active: true,
+        status: 'pending_review',
         version: newVersion,
         context_snapshot: advisorContext.length > 0 ? advisorContext : null
       })

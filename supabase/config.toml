@@ -48,6 +48,9 @@ enabled = false
 [functions]
 # Edge Functions configuration
 [functions."generate-roadmap"]
+
+[functions."notify-roadmap-ready"]
+verify_jwt = false
 verify_jwt = true
 
 [functions."generate-value-analysis"]
