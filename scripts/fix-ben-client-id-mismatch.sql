@@ -127,8 +127,7 @@ BEGIN
   
   -- Update discovery assessment
   UPDATE destination_discovery
-  SET client_id = correct_client_id,
-      updated_at = NOW()
+  SET client_id = correct_client_id
   WHERE client_id = wrong_client_id;
   
   IF FOUND THEN
@@ -139,8 +138,7 @@ BEGIN
   
   -- Update any service line enrollments
   UPDATE client_service_lines
-  SET client_id = correct_client_id,
-      updated_at = NOW()
+  SET client_id = correct_client_id
   WHERE client_id = wrong_client_id;
   
   IF FOUND THEN
@@ -151,8 +149,7 @@ BEGIN
   
   -- Update any 365 alignment assessments
   UPDATE client_assessments
-  SET client_id = correct_client_id,
-      updated_at = NOW()
+  SET client_id = correct_client_id
   WHERE client_id = wrong_client_id;
   
   IF FOUND THEN
@@ -161,10 +158,9 @@ BEGIN
     RAISE NOTICE 'No client_assessments records found with wrong client_id';
   END IF;
   
-  -- Update any roadmaps
+  -- Update any roadmaps (note: client_roadmaps may not have updated_at column)
   UPDATE client_roadmaps
-  SET client_id = correct_client_id,
-      updated_at = NOW()
+  SET client_id = correct_client_id
   WHERE client_id = wrong_client_id;
   
   IF FOUND THEN
@@ -173,17 +169,31 @@ BEGIN
     RAISE NOTICE 'No client_roadmaps records found with wrong client_id';
   END IF;
   
-  -- Update any context
-  UPDATE client_context
-  SET client_id = correct_client_id,
-      updated_at = NOW()
-  WHERE client_id = wrong_client_id;
-  
-  IF FOUND THEN
-    RAISE NOTICE 'Updated client_context records';
-  ELSE
-    RAISE NOTICE 'No client_context records found with wrong client_id';
-  END IF;
+  -- Update any context (only update updated_at if column exists)
+  BEGIN
+    UPDATE client_context
+    SET client_id = correct_client_id,
+        updated_at = NOW()
+    WHERE client_id = wrong_client_id;
+    
+    IF FOUND THEN
+      RAISE NOTICE 'Updated client_context records';
+    ELSE
+      RAISE NOTICE 'No client_context records found with wrong client_id';
+    END IF;
+  EXCEPTION
+    WHEN undefined_column THEN
+      -- If updated_at doesn't exist, just update client_id
+      UPDATE client_context
+      SET client_id = correct_client_id
+      WHERE client_id = wrong_client_id;
+      
+      IF FOUND THEN
+        RAISE NOTICE 'Updated client_context records (without updated_at)';
+      ELSE
+        RAISE NOTICE 'No client_context records found with wrong client_id';
+      END IF;
+  END;
   
   RAISE NOTICE 'Fix completed successfully!';
 END $$;
