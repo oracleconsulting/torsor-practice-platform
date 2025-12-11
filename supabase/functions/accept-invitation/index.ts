@@ -53,16 +53,29 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
+    const token = url.searchParams.get('token');
 
-    console.log('📋 Request details:', { method: req.method, action, url: url.pathname });
+    console.log('📋 Request details:', { 
+      method: req.method, 
+      action, 
+      pathname: url.pathname,
+      searchParams: url.search,
+      token: token ? 'present' : 'missing'
+    });
 
     // ================================================================
     // ACTION: Validate token (GET request from frontend)
     // ================================================================
     if (req.method === 'GET' || action === 'validate') {
-      const token = url.searchParams.get('token');
+      if (!token) {
+        console.error('❌ No token provided in request');
+        return new Response(
+          JSON.stringify({ valid: false, error: 'Missing token' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       
-      console.log('🔍 Validating token:', token ? 'present' : 'missing');
+      console.log('🔍 Validating token:', token);
       
       if (!token) {
         return new Response(

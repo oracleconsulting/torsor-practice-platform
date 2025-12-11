@@ -182,16 +182,17 @@ serve(async (req) => {
                   </div>
                 ` : ''}
                 
+                <!-- Primary button with dark text for maximum readability -->
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                   <tr>
                     <td align="center">
-                      <table cellpadding="0" cellspacing="0" border="0" style="background-color: #6366f1; border-radius: 8px;">
+                      <table cellpadding="0" cellspacing="0" border="0" style="background-color: #6366f1; border: 2px solid #6366f1; border-radius: 8px;">
                         <tr>
                           <td align="center" style="background-color: #6366f1; border-radius: 8px; padding: 15px 40px;">
                             <a href="${invitationUrl}" 
-                               style="color: #ffffff !important; text-decoration: none !important; 
+                               style="color: #ffffff; text-decoration: none; 
                                       font-weight: bold; font-size: 16px; font-family: Arial, sans-serif;
-                                      display: inline-block; -webkit-text-fill-color: #ffffff;">
+                                      display: inline-block;">
                               ${includeDiscovery ? 'Start Discovery' : 'Access Your Portal'}
                             </a>
                           </td>
@@ -200,14 +201,18 @@ serve(async (req) => {
                     </td>
                   </tr>
                 </table>
-                <!-- Fallback button with dark text for email clients that strip backgrounds -->
-                <div style="text-align: center; margin: 20px 0; padding: 15px; background-color: #f3f4f6; border: 2px solid #6366f1; border-radius: 8px;">
-                  <a href="${invitationUrl}" 
-                     style="color: #6366f1 !important; text-decoration: underline !important; 
-                            font-weight: bold; font-size: 16px; font-family: Arial, sans-serif;">
-                    ${includeDiscovery ? 'Start Discovery' : 'Access Your Portal'}
-                  </a>
-                </div>
+                <!-- Fallback link with dark text - always readable -->
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+                  <tr>
+                    <td align="center" style="padding: 15px; background-color: #f3f4f6; border: 2px solid #6366f1; border-radius: 8px;">
+                      <a href="${invitationUrl}" 
+                         style="color: #6366f1; text-decoration: underline; 
+                                font-weight: bold; font-size: 16px; font-family: Arial, sans-serif;">
+                        ${includeDiscovery ? 'Start Discovery' : 'Access Your Portal'}
+                      </a>
+                    </td>
+                  </tr>
+                </table>
                 
                 <p style="color: #64748b; font-size: 14px; text-align: center; margin-top: 20px;">
                   If the button above doesn't work, copy and paste this link into your browser:<br>
@@ -416,16 +421,17 @@ Powered by Torsor • Transforming businesses and lives`
               </div>
             ` : ''}
             
+            <!-- Primary button with dark text for maximum readability -->
             <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
               <tr>
                 <td align="center">
-                  <table cellpadding="0" cellspacing="0" border="0" style="background-color: #6366f1; border-radius: 8px;">
+                  <table cellpadding="0" cellspacing="0" border="0" style="background-color: #6366f1; border: 2px solid #6366f1; border-radius: 8px;">
                     <tr>
                       <td align="center" style="background-color: #6366f1; border-radius: 8px; padding: 15px 40px;">
                         <a href="${invitationUrl}" 
-                           style="color: #ffffff !important; text-decoration: none !important; 
+                           style="color: #ffffff; text-decoration: none; 
                                   font-weight: bold; font-size: 16px; font-family: Arial, sans-serif;
-                                  display: inline-block; -webkit-text-fill-color: #ffffff;">
+                                  display: inline-block;">
                           ${includeDiscovery ? 'Start Discovery' : 'Accept Invitation'}
                         </a>
                       </td>
@@ -434,14 +440,18 @@ Powered by Torsor • Transforming businesses and lives`
                 </td>
               </tr>
             </table>
-            <!-- Fallback button with dark text for email clients that strip backgrounds -->
-            <div style="text-align: center; margin: 20px 0; padding: 15px; background-color: #f3f4f6; border: 2px solid #6366f1; border-radius: 8px;">
-              <a href="${invitationUrl}" 
-                 style="color: #6366f1 !important; text-decoration: underline !important; 
-                        font-weight: bold; font-size: 16px; font-family: Arial, sans-serif;">
-                ${includeDiscovery ? 'Start Discovery' : 'Accept Invitation'}
-              </a>
-            </div>
+            <!-- Fallback link with dark text - always readable -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+              <tr>
+                <td align="center" style="padding: 15px; background-color: #f3f4f6; border: 2px solid #6366f1; border-radius: 8px;">
+                  <a href="${invitationUrl}" 
+                     style="color: #6366f1; text-decoration: underline; 
+                            font-weight: bold; font-size: 16px; font-family: Arial, sans-serif;">
+                    ${includeDiscovery ? 'Start Discovery' : 'Accept Invitation'}
+                  </a>
+                </td>
+              </tr>
+            </table>
             
             <p style="color: #64748b; font-size: 14px; text-align: center; margin-top: 20px;">
               If the button above doesn't work, copy and paste this link into your browser:<br>
