@@ -53,20 +53,22 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
-    const token = url.searchParams.get('token');
 
     console.log('📋 Request details:', { 
       method: req.method, 
       action, 
       pathname: url.pathname,
-      searchParams: url.search,
-      token: token ? 'present' : 'missing'
+      searchParams: url.search
     });
 
     // ================================================================
     // ACTION: Validate token (GET request from frontend)
     // ================================================================
     if (req.method === 'GET' || action === 'validate') {
+      const token = url.searchParams.get('token');
+      
+      console.log('🔍 Validating token:', token ? 'present' : 'missing');
+      
       if (!token) {
         console.error('❌ No token provided in request');
         return new Response(
@@ -76,13 +78,6 @@ serve(async (req) => {
       }
       
       console.log('🔍 Validating token:', token);
-      
-      if (!token) {
-        return new Response(
-          JSON.stringify({ valid: false, error: 'Missing token' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
 
       const { data: invitation, error } = await supabase
         .from('client_invitations')
