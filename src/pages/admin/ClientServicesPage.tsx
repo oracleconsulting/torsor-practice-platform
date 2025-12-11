@@ -1306,6 +1306,19 @@ function DiscoveryClientModal({
         .single();
       
       const validDocs = (docsData || []).filter((doc: any) => {
+        // CRITICAL: Check storage path - extract client_id from URL
+        // Storage path format: .../practice_id/client_id/filename
+        if (doc.source_file_url) {
+          const pathMatch = doc.source_file_url.match(/\/([a-f0-9-]{36})\/[^/]+\.(pdf|doc|docx|xls|xlsx|csv|txt)/i);
+          if (pathMatch && pathMatch[1]) {
+            const storagePathClientId = pathMatch[1];
+            if (storagePathClientId !== clientId) {
+              console.warn(`⚠️ Document ${doc.id} has mismatched client_id in storage path. Database: ${clientId}, Storage: ${storagePathClientId}`);
+              return false; // Exclude documents where storage path doesn't match current client_id
+            }
+          }
+        }
+        
         // If we have practice_members data, verify email matches
         if (doc.practice_members && clientInfo) {
           return doc.practice_members.email === clientInfo.email;
