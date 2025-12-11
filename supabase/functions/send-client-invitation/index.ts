@@ -37,10 +37,34 @@ serve(async (req) => {
 
     const { email, name, company, practiceId, invitedBy, serviceLineCodes, customMessage, includeDiscovery }: InvitationRequest = await req.json();
 
+    console.log('📥 Received invitation request:', {
+      email,
+      name,
+      practiceId,
+      invitedBy,
+      serviceLineCodes,
+      includeDiscovery
+    });
+
     // Validate required fields
-    if (!email || !practiceId || !invitedBy || !serviceLineCodes?.length) {
+    // For discovery invites, serviceLineCodes can be empty
+    if (!email || !practiceId || !invitedBy) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: email, practiceId, invitedBy, serviceLineCodes' }),
+        JSON.stringify({ 
+          success: false,
+          error: 'Missing required fields: email, practiceId, invitedBy' 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // For direct invites (not discovery), require at least one service
+    if (!includeDiscovery && (!serviceLineCodes || serviceLineCodes.length === 0)) {
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'For direct invitations, at least one service must be selected' 
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -95,14 +119,19 @@ serve(async (req) => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 day expiry
 
-    // Get service line IDs
-    const { data: serviceLines } = await supabase
-      .from('service_lines')
-      .select('id, code, name')
-      .in('code', serviceLineCodes);
+    // Get service line IDs (only if services are specified)
+    let serviceLineIds: string[] = [];
+    let serviceLineNames: string[] = [];
+    
+    if (serviceLineCodes && serviceLineCodes.length > 0) {
+      const { data: serviceLines } = await supabase
+        .from('service_lines')
+        .select('id, code, name')
+        .in('code', serviceLineCodes);
 
-    const serviceLineIds = (serviceLines || []).map(sl => sl.id);
-    const serviceLineNames = (serviceLines || []).map(sl => sl.name);
+      serviceLineIds = (serviceLines || []).map(sl => sl.id);
+      serviceLineNames = (serviceLines || []).map(sl => sl.name);
+    }
 
     // Create invitation record
     const { data: invitation, error: invError } = await supabase
@@ -234,7 +263,9 @@ serve(async (req) => {
         body: JSON.stringify({
           from: fromEmail.includes('@') ? `Torsor <${fromEmail}>` : fromEmail,
           to: email,
-          subject: `You're invited to ${serviceLineNames.join(' & ')}`,
+          subject: includeDiscovery 
+            ? `You're invited to Torsor Client Portal`
+            : `You're invited to ${serviceLineNames.join(' & ')}`,
           html: emailHtml
         })
       });
@@ -266,6 +297,12 @@ serve(async (req) => {
       );
     }
 
+    console.log('✅ Invitation created successfully:', {
+      invitationId: invitation.id,
+      email,
+      invitationUrl
+    });
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -280,9 +317,14 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Invitation error:', error);
+    console.error('❌ Invitation error:', error);
+    console.error('❌ Error stack:', (error as Error).stack);
     return new Response(
-      JSON.stringify({ success: false, error: (error as Error).message }),
+      JSON.stringify({ 
+        success: false, 
+        error: (error as Error).message,
+        details: (error as Error).stack
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

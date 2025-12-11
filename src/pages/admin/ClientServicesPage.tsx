@@ -201,6 +201,13 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
 
     setSendingInvite(true);
     try {
+      console.log('🚀 Starting invitation process...', {
+        email: inviteForm.email,
+        name: inviteForm.name,
+        services: inviteForm.services,
+        practiceId: currentMember.practice_id
+      });
+
       const response = await supabase.functions.invoke('send-client-invitation', {
         body: {
           email: inviteForm.email,
@@ -214,12 +221,18 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         }
       });
 
+      console.log('📦 Full response from Edge Function:', response);
+      console.log('📦 Response error:', response.error);
+      console.log('📦 Response data:', response.data);
+
       if (response.error) {
+        console.error('❌ Response has error:', response.error);
         throw new Error(response.error.message || 'Failed to send invitation');
       }
 
       // Check if the response indicates success
       if (response.data && !response.data.success) {
+        console.error('❌ Response indicates failure:', response.data);
         const errorMsg = response.data.error || 'Failed to send invitation';
         alert(`Error: ${errorMsg}${response.data.invitationUrl ? `\n\nInvitation URL (you can share this manually):\n${response.data.invitationUrl}` : ''}`);
         
@@ -234,6 +247,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         return;
       }
 
+      console.log('✅ Invitation sent successfully:', response.data);
       alert(response.data?.message || 'Invitation sent successfully!');
       setShowInviteModal(false);
       setInviteForm({ email: '', name: '', company: '', services: [], customMessage: '', inviteType: 'discovery' });
@@ -243,7 +257,13 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         fetchClients();
       }
     } catch (error: any) {
-      console.error('Error sending invitation:', error);
+      console.error('❌ Exception caught:', error);
+      console.error('❌ Error details:', {
+        message: error?.message,
+        error: error?.error,
+        stack: error?.stack,
+        fullError: error
+      });
       const errorMessage = error?.message || error?.error?.message || 'Failed to send invitation. Please try again.';
       alert(`Error: ${errorMessage}\n\nPlease check:\n1. RESEND_API_KEY is configured in Supabase Edge Function secrets\n2. The email address is valid\n3. Check the browser console for more details`);
     } finally {
