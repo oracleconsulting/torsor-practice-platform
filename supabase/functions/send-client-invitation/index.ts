@@ -182,14 +182,23 @@ serve(async (req) => {
                   </div>
                 ` : ''}
                 
-                <div style="text-align: center; margin: 30px 0;">
-                  <a href="${invitationUrl}" 
-                     style="display: inline-block; background-color: #6366f1; 
-                            color: #ffffff; padding: 15px 40px; text-decoration: none; border-radius: 8px;
-                            font-weight: bold; font-size: 16px; border: 2px solid #6366f1;">
-                    ${includeDiscovery ? 'Start Discovery' : 'Access Your Portal'}
-                  </a>
-                </div>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                  <tr>
+                    <td align="center">
+                      <table cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="background-color: #6366f1; border-radius: 8px; padding: 15px 40px;">
+                            <a href="${invitationUrl}" 
+                               style="display: inline-block; color: #ffffff; text-decoration: none; 
+                                      font-weight: bold; font-size: 16px; font-family: Arial, sans-serif;">
+                              ${includeDiscovery ? 'Start Discovery' : 'Access Your Portal'}
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
                 
                 <p style="color: #64748b; font-size: 14px; text-align: center; margin-top: 20px;">
                   If the button above doesn't work, copy and paste this link into your browser:<br>
@@ -398,14 +407,23 @@ Powered by Torsor • Transforming businesses and lives`
               </div>
             ` : ''}
             
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${invitationUrl}" 
-                 style="display: inline-block; background-color: #6366f1; 
-                        color: #ffffff; padding: 15px 40px; text-decoration: none; border-radius: 8px;
-                        font-weight: bold; font-size: 16px; border: 2px solid #6366f1;">
-                ${includeDiscovery ? 'Start Discovery' : 'Accept Invitation'}
-              </a>
-            </div>
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+              <tr>
+                <td align="center">
+                  <table cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="background-color: #6366f1; border-radius: 8px; padding: 15px 40px;">
+                        <a href="${invitationUrl}" 
+                           style="display: inline-block; color: #ffffff; text-decoration: none; 
+                                  font-weight: bold; font-size: 16px; font-family: Arial, sans-serif;">
+                          ${includeDiscovery ? 'Start Discovery' : 'Accept Invitation'}
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
             
             <p style="color: #64748b; font-size: 14px; text-align: center; margin-top: 20px;">
               If the button above doesn't work, copy and paste this link into your browser:<br>
