@@ -469,12 +469,46 @@ serve(async (req) => {
       throw new Error('No discovery data found for this client');
     }
 
-    // Get any uploaded documents/context
+    // Get any uploaded documents/context from client_context
     const { data: contextDocs } = await supabase
       .from('client_context')
       .select('*')
       .eq('client_id', clientId)
       .order('created_at', { ascending: false });
+
+    // ========================================================================
+    // FETCH FULL DOCUMENT CONTENT FROM DOCUMENT EMBEDDINGS
+    // ========================================================================
+    // Documents are stored as embeddings with full content - fetch all unique documents
+    const { data: documentEmbeddings } = await supabase
+      .from('document_embeddings')
+      .select('file_name, content, metadata, chunk_index')
+      .eq('client_id', clientId)
+      .order('file_name', { ascending: true })
+      .order('chunk_index', { ascending: true });
+
+    // Reconstruct full documents from chunks
+    const documentsByFile: Record<string, { 
+      fileName: string; 
+      content: string; 
+      dataSourceType: string;
+      processedAt: string;
+    }> = {};
+    
+    if (documentEmbeddings && documentEmbeddings.length > 0) {
+      for (const chunk of documentEmbeddings) {
+        if (!documentsByFile[chunk.file_name]) {
+          documentsByFile[chunk.file_name] = {
+            fileName: chunk.file_name,
+            content: '',
+            dataSourceType: chunk.metadata?.dataSourceType || 'general',
+            processedAt: chunk.metadata?.processedAt || ''
+          };
+        }
+        documentsByFile[chunk.file_name].content += chunk.content + '\n';
+      }
+      console.log(`Loaded ${Object.keys(documentsByFile).length} documents with full content`);
+    }
 
     // Get practice info for branding
     const { data: practice } = await supabase
@@ -604,7 +638,15 @@ serve(async (req) => {
         valueProposition: r.valueProposition
       })),
 
-      // Additional context from documents
+      // Additional context from documents - FULL CONTENT from document embeddings
+      uploadedDocuments: Object.values(documentsByFile).map(doc => ({
+        fileName: doc.fileName,
+        dataSourceType: doc.dataSourceType,
+        fullContent: doc.content.substring(0, 15000), // Include up to 15k chars per doc
+        processedAt: doc.processedAt
+      })),
+      
+      // Legacy context docs (for backward compatibility)
       additionalContext: contextDocs?.map(doc => ({
         type: doc.context_type,
         content: doc.content?.substring(0, 500),
@@ -769,6 +811,28 @@ ${clientContext.operationalContext ? `
 - Client Concentration: Top client = ${clientContext.operationalContext.topClientRevenuePct || 'Unknown'}% of revenue
 - Observed Strengths: ${clientContext.operationalContext.observedStrengths?.join(', ') || 'None noted'}
 - Observed Challenges: ${clientContext.operationalContext.observedChallenges?.join(', ') || 'None noted'}
+` : ''}
+
+${clientContext.uploadedDocuments && clientContext.uploadedDocuments.length > 0 ? `
+## UPLOADED DOCUMENTS (CRITICAL - USE THIS DATA!)
+The practice team has uploaded ${clientContext.uploadedDocuments.length} document(s) for this client.
+THESE CONTAIN REAL BUSINESS DATA - USE IT TO INFORM YOUR ANALYSIS AND MAKE SPECIFIC RECOMMENDATIONS.
+
+${clientContext.uploadedDocuments.map((doc: any, idx: number) => `
+### Document ${idx + 1}: ${doc.fileName}
+Type: ${doc.dataSourceType}
+Content:
+---
+${doc.fullContent}
+---
+`).join('\n')}
+
+IMPORTANT: Extract specific numbers, projections, and insights from these documents. 
+Use them to:
+- Validate or challenge what the client said in discovery responses
+- Calculate specific ROI figures based on real projections
+- Identify specific operational challenges or opportunities
+- Make recommendations grounded in their actual business data
 ` : ''}
 
 ## ANALYSIS APPROACH
