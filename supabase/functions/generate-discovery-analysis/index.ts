@@ -188,6 +188,260 @@ function detect365Triggers(responses: Record<string, any>): TransformationSignal
   return { lifestyleTransformation, identityShift, burnoutWithReadiness, legacyFocus, reasons };
 }
 
+// ============================================================================
+// FINANCIAL PROJECTIONS EXTRACTION
+// ============================================================================
+
+interface ExtractedProjections {
+  hasProjections: boolean;
+  currentRevenue?: number;
+  projectedRevenue?: { year: number; amount: number }[];
+  grossMargin?: number;
+  year5Revenue?: number;
+  growthMultiple?: number;
+  teamGrowth?: { current: number; projected: number };
+}
+
+function extractFinancialProjections(documents: any[]): ExtractedProjections {
+  if (!documents || documents.length === 0) {
+    return { hasProjections: false };
+  }
+  
+  // Look for financial projection documents
+  const projectionDoc = documents.find(doc => 
+    doc.fileName?.toLowerCase().includes('projection') ||
+    doc.fileName?.toLowerCase().includes('forecast') ||
+    doc.fileName?.toLowerCase().includes('5 year') ||
+    doc.fileName?.toLowerCase().includes('5-year') ||
+    doc.fileName?.toLowerCase().includes('summary') ||
+    (doc.content?.toLowerCase().includes('year 1') && doc.content?.toLowerCase().includes('year 5'))
+  );
+  
+  if (!projectionDoc) {
+    return { hasProjections: false };
+  }
+  
+  const content = projectionDoc.content || '';
+  const projectedRevenue: { year: number; amount: number }[] = [];
+  
+  // Extract revenue figures (look for patterns like "Year 1: £559K" or "Year 1 Revenue: 559,000")
+  const revenuePatterns = [
+    /year\s*1[:\s]*[£$]?([\d,]+)k?/gi,
+    /year\s*2[:\s]*[£$]?([\d,]+)k?/gi,
+    /year\s*3[:\s]*[£$]?([\d,]+)k?/gi,
+    /year\s*4[:\s]*[£$]?([\d,]+)k?/gi,
+    /year\s*5[:\s]*[£$]?([\d,]+)k?/gi,
+  ];
+  
+  for (let i = 0; i < 5; i++) {
+    const match = content.match(revenuePatterns[i]);
+    if (match && match[0]) {
+      const numMatch = match[0].match(/[\d,]+/);
+      if (numMatch) {
+        let amount = parseInt(numMatch[0].replace(/,/g, ''));
+        // If number is small, assume it's in thousands
+        if (amount < 10000 && match[0].toLowerCase().includes('k')) {
+          amount *= 1000;
+        } else if (amount < 1000) {
+          amount *= 1000; // Assume thousands
+        }
+        projectedRevenue.push({ year: i + 1, amount });
+      }
+    }
+  }
+  
+  // Extract gross margin
+  let grossMargin: number | undefined;
+  const marginMatch = content.match(/gross\s*margin[:\s]*([\d.]+)%/i);
+  if (marginMatch) {
+    grossMargin = parseFloat(marginMatch[1]) / 100;
+  }
+  
+  // Extract team size
+  let teamGrowth: { current: number; projected: number } | undefined;
+  const teamMatch = content.match(/team[:\s]*(\d+)\s*(?:→|to|->)\s*(\d+)/i);
+  if (teamMatch) {
+    teamGrowth = { current: parseInt(teamMatch[1]), projected: parseInt(teamMatch[2]) };
+  }
+  
+  const year1Rev = projectedRevenue.find(p => p.year === 1)?.amount;
+  const year5Rev = projectedRevenue.find(p => p.year === 5)?.amount;
+  
+  return {
+    hasProjections: projectedRevenue.length > 0,
+    currentRevenue: year1Rev,
+    projectedRevenue,
+    grossMargin,
+    year5Revenue: year5Rev,
+    growthMultiple: year1Rev && year5Rev ? Math.round(year5Rev / year1Rev) : undefined,
+    teamGrowth
+  };
+}
+
+function buildFinancialProjectionsContext(projections: ExtractedProjections): string {
+  if (!projections.hasProjections) return '';
+  
+  const year1 = projections.currentRevenue || 0;
+  const year5 = projections.year5Revenue || 0;
+  
+  return `
+## CLIENT FINANCIAL PROJECTIONS (from uploaded documents)
+
+Revenue Trajectory:
+${projections.projectedRevenue?.map(p => `- Year ${p.year}: £${(p.amount / 1000).toFixed(0)}K`).join('\n') || 'Not available'}
+
+${projections.growthMultiple ? `Growth: ${projections.growthMultiple}x over 5 years` : ''}
+${projections.grossMargin ? `Gross Margin: ${(projections.grossMargin * 100).toFixed(0)}%` : ''}
+${projections.teamGrowth ? `Team: ${projections.teamGrowth.current} → ${projections.teamGrowth.projected}` : ''}
+
+USE THESE PROJECTIONS FOR:
+1. Calculate investment as % of Year 1 revenue (affordability check)
+2. Show ROI in context of their growth trajectory
+3. Calculate exit value impact using their actual multiples
+4. Reference their specific margins in efficiency calculations
+
+${year1 > 0 ? `
+EXAMPLE CALCULATIONS FOR THIS CLIENT:
+- Phase 1 investment (£11,800) = ${((11800 / year1) * 100).toFixed(1)}% of Year 1 revenue
+${projections.grossMargin ? `- At ${(projections.grossMargin * 100).toFixed(0)}% gross margin, efficiency gains drop almost straight to profit` : ''}
+${year5 > 0 ? `- At Year 5 (£${(year5 / 1000000).toFixed(1)}M ARR):
+  - Founder-dependent (6x): £${((year5 * 6) / 1000000).toFixed(0)}M valuation
+  - Systematized (12x): £${((year5 * 12) / 1000000).toFixed(0)}M valuation
+  - Delta: £${(((year5 * 12) - (year5 * 6)) / 1000000).toFixed(0)}M additional value from systemization` : ''}
+` : ''}
+`;
+}
+
+// ============================================================================
+// GAP SCORE CALIBRATION
+// ============================================================================
+
+interface GapSeverity {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+}
+
+function calibrateGapScore(gaps: any[]): { score: number; counts: GapSeverity; explanation: string } {
+  const weights = {
+    critical: 3,
+    high: 2,
+    medium: 1,
+    low: 0.5
+  };
+  
+  const counts: GapSeverity = {
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0
+  };
+  
+  // Count gaps by severity (from analysis)
+  for (const gap of gaps || []) {
+    const severity = (gap.severity || gap.priority || 'medium').toLowerCase();
+    if (severity === 'critical') counts.critical++;
+    else if (severity === 'high') counts.high++;
+    else if (severity === 'medium') counts.medium++;
+    else counts.low++;
+  }
+  
+  // Calculate weighted score
+  const weightedSum = 
+    counts.critical * weights.critical +
+    counts.high * weights.high +
+    counts.medium * weights.medium +
+    counts.low * weights.low;
+  
+  // Normalize to 1-10 scale (max: 3 critical + 4 high = 17 points = 10/10)
+  const normalizedScore = Math.min(10, Math.max(1, Math.round((weightedSum / 17) * 10)));
+  
+  let explanation = '';
+  if (normalizedScore >= 9) explanation = '🚨 Crisis level - business at risk without intervention';
+  else if (normalizedScore >= 7) explanation = '⚠️ Significant gaps - multiple critical issues affecting core operations';
+  else if (normalizedScore >= 5) explanation = 'Multiple gaps - 1-2 critical issues need attention';
+  else if (normalizedScore >= 3) explanation = 'Some gaps - no critical issues blocking growth';
+  else explanation = 'Minor optimizations - business is fundamentally healthy';
+  
+  return { score: normalizedScore, counts, explanation };
+}
+
+// ============================================================================
+// ENHANCED CLOSING MESSAGE GUIDANCE
+// ============================================================================
+
+function buildClosingMessageGuidance(
+  responses: Record<string, any>,
+  affordability: AffordabilityProfile
+): string {
+  const teamSecret = responses.dd_team_secret || '';
+  const externalView = responses.dd_external_view || '';
+  const hardTruth = responses.dd_hard_truth || '';
+  const vision = responses.dd_five_year_picture || '';
+  
+  const hasVulnerability = teamSecret.toLowerCase().includes('imposter') ||
+    teamSecret.toLowerCase().includes('syndrome') ||
+    teamSecret.toLowerCase().includes('fear') ||
+    teamSecret.toLowerCase().includes('doubt');
+  
+  const hasRelationshipStrain = externalView.includes('tension') || 
+    externalView.includes('given up') ||
+    externalView.includes('married to');
+  
+  // Extract specific vision details to reference
+  const visionDetails: string[] = [];
+  if (vision.match(/\d{1,2}(am|pm)/i)) visionDetails.push('the specific time you wake up');
+  if (vision.includes('run')) visionDetails.push('your morning run');
+  if (vision.includes('school') || vision.includes('boys') || vision.includes('kids')) visionDetails.push('taking the kids to school');
+  if (vision.includes('lunch') && vision.includes('wife')) visionDetails.push('lunch with your wife');
+  if (vision.includes('padel') || vision.includes('mates')) visionDetails.push('Padel with your mates');
+  if (vision.includes('invest')) visionDetails.push('managing your investment portfolio');
+  
+  return `
+## CLOSING MESSAGE - THIS IS THE MOST IMPORTANT SECTION
+
+You're not writing marketing copy. You're having a real conversation with a real person who just told you something vulnerable.
+
+${hasVulnerability ? `
+VULNERABILITY DETECTED: They shared "${teamSecret}"
+This takes courage. Acknowledge it naturally - don't be awkward, just show you heard it.
+Example: "The imposter syndrome you mentioned? It's lying to you..."
+` : ''}
+
+${hasRelationshipStrain ? `
+RELATIONSHIP STRAIN DETECTED: Their partner views work as "${externalView}"
+This isn't about business - it's about their marriage, their kids, their life.
+Reference the personal cost, not just business metrics.
+` : ''}
+
+${visionDetails.length > 0 ? `
+VISION DETAILS TO REFERENCE:
+${visionDetails.map(d => `- ${d}`).join('\n')}
+Make inaction feel like actively choosing NOT to have these things.
+` : ''}
+
+${affordability.stage === 'pre-revenue' ? `
+FOR PRE-REVENUE CLIENT:
+DO NOT say: "Your total investment is £150,000"
+DO say: "Start with the Systems Audit and Management Accounts - that's £11,800 to get your financial house in order before you raise. The fractional support? That's Phase 2, for when you've got the capital."
+
+Tone: "We're playing the long game with you. Do what you can afford now. We'll be here when you're ready for more."
+` : ''}
+
+STRUCTURE:
+1. ACKNOWLEDGMENT (1-2 sentences) - Show you heard the vulnerability
+2. REFRAME (2-3 sentences) - Connect vision to current reality, name the gap
+3. HOPE WITH EVIDENCE (2-3 sentences) - Reference their strengths
+4. PERSONAL STAKES (2-3 sentences) - Use personal impact, not business metrics
+5. NEXT STEP (1-2 sentences) - Low pressure, high clarity, "together" language
+
+TONE: Direct but warm. Empathetic but not soft. Honest, even if uncomfortable.
+Start with something like "Ben, I want to be direct with you because I think you can handle it..."
+NOT "Dear Mr Stocken, thank you for completing our assessment..."
+`;
+}
+
 // Service line definitions (abbreviated for this function)
 const SERVICE_LINES = {
   '365_method': { name: '365 Alignment Programme', tiers: [{ name: 'Lite', price: 1500 }, { name: 'Growth', price: 4500 }, { name: 'Partner', price: 9000 }] },
@@ -294,6 +548,29 @@ serve(async (req) => {
     console.log('[Discovery] 365 Triggers:', transformationSignals);
 
     // ========================================================================
+    // EXTRACT FINANCIAL PROJECTIONS FROM DOCUMENTS
+    // ========================================================================
+    
+    const financialProjections = extractFinancialProjections(preparedData.documents || []);
+    const financialProjectionsContext = buildFinancialProjectionsContext(financialProjections);
+    
+    console.log('[Discovery] Financial Projections:', {
+      hasProjections: financialProjections.hasProjections,
+      year1: financialProjections.currentRevenue,
+      year5: financialProjections.year5Revenue,
+      growthMultiple: financialProjections.growthMultiple
+    });
+
+    // ========================================================================
+    // BUILD CLOSING MESSAGE GUIDANCE
+    // ========================================================================
+    
+    const closingGuidance = buildClosingMessageGuidance(
+      preparedData.discovery.responses,
+      affordability
+    );
+
+    // ========================================================================
     // BUILD THE ANALYSIS PROMPT
     // ========================================================================
 
@@ -388,6 +665,17 @@ Even if they have a business plan, recommend 365 because they need structured su
 
 Position 365 as: "You have a business plan. What you don't have is a structured path to becoming the person in your 5-year vision. The 365 programme bridges that gap."
 ` : 'No specific transformation triggers detected.'}
+
+${financialProjectionsContext}
+
+${closingGuidance}
+
+## GAP SCORE CALIBRATION
+When you identify gaps, score severity accurately:
+- 2 critical + 3 high gaps = 7-8/10 (NOT 5/10)
+- Use these weights: critical=3, high=2, medium=1, low=0.5
+- Max score (3 critical + 4 high = 17 points) = 10/10
+- Show the severity breakdown in your gap analysis
 
 ## AVAILABLE SERVICES
 ${JSON.stringify(SERVICE_LINES, null, 2)}
@@ -540,7 +828,8 @@ Return ONLY the JSON object.`;
           gapScore: preparedData.discovery.gapScore
         },
         affordability: affordability,
-        transformationSignals: transformationSignals.reasons.length > 0 ? transformationSignals : null
+        transformationSignals: transformationSignals.reasons.length > 0 ? transformationSignals : null,
+        financialProjections: financialProjections.hasProjections ? financialProjections : null
       },
       created_at: new Date().toISOString()
     };
@@ -581,6 +870,7 @@ Return ONLY the JSON object.`;
         },
         affordability: affordability,
         transformationSignals: transformationSignals.reasons.length > 0 ? transformationSignals : null,
+        financialProjections: financialProjections.hasProjections ? financialProjections : null,
         analysis
       },
       metadata: {
