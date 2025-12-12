@@ -17,6 +17,31 @@ BEGIN
     END IF;
 END $$;
 
+-- Add unique constraint if it doesn't exist (needed for ON CONFLICT)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'service_scoring_weights_unique_key'
+    ) THEN
+        -- First, remove any duplicates if they exist
+        DELETE FROM service_scoring_weights a
+        USING service_scoring_weights b
+        WHERE a.id > b.id
+        AND a.question_id = b.question_id
+        AND a.response_value = b.response_value
+        AND a.service_code = b.service_code;
+        
+        -- Then add the unique constraint
+        ALTER TABLE service_scoring_weights 
+        ADD CONSTRAINT service_scoring_weights_unique_key 
+        UNIQUE (question_id, response_value, service_code);
+    END IF;
+EXCEPTION WHEN others THEN
+    -- Constraint may already exist under a different name, ignore
+    RAISE NOTICE 'Could not add constraint, may already exist: %', SQLERRM;
+END $$;
+
 -- ============================================================================
 -- INVESTMENT READINESS WEIGHTS
 -- ============================================================================

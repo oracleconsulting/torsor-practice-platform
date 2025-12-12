@@ -13,7 +13,6 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { calculateCost, extractUsageFromResponse, trackLLMExecution } from '../_shared/llm-cost-tracker.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,8 +21,61 @@ const corsHeaders = {
   'Access-Control-Max-Age': '86400',
 }
 
-// Use Claude Opus 4 for premium quality discovery reports
-const MODEL = 'anthropic/claude-opus-4';
+// Use Claude Opus 4.5 for premium quality discovery reports
+const MODEL = 'anthropic/claude-opus-4.5';
+
+// ============================================================================
+// INLINE COST TRACKING (to avoid module import issues)
+// ============================================================================
+
+interface LLMUsage {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  executionTimeMs: number;
+}
+
+const PRICING: Record<string, { inputPer1M: number; outputPer1M: number }> = {
+  'anthropic/claude-opus-4.5': { inputPer1M: 15.00, outputPer1M: 75.00 },
+  'anthropic/claude-sonnet-4-20250514': { inputPer1M: 3.00, outputPer1M: 15.00 },
+  'anthropic/claude-3.5-sonnet': { inputPer1M: 3.00, outputPer1M: 15.00 },
+};
+
+function calculateCost(usage: LLMUsage): number {
+  const pricing = PRICING[usage.model];
+  if (!pricing) return 0;
+  return (usage.inputTokens / 1_000_000) * pricing.inputPer1M + 
+         (usage.outputTokens / 1_000_000) * pricing.outputPer1M;
+}
+
+function extractUsageFromResponse(response: any): { inputTokens: number; outputTokens: number } {
+  const usage = response?.usage || {};
+  return {
+    inputTokens: usage.prompt_tokens || 0,
+    outputTokens: usage.completion_tokens || 0
+  };
+}
+
+async function trackLLMExecution(supabase: any, record: any): Promise<void> {
+  const cost = calculateCost(record);
+  try {
+    await supabase.from('llm_execution_history').insert({
+      function_name: record.functionName,
+      model: record.model,
+      input_tokens: record.inputTokens,
+      output_tokens: record.outputTokens,
+      cost_usd: cost,
+      execution_time_ms: record.executionTimeMs,
+      entity_type: record.entityType,
+      entity_id: record.entityId,
+      success: record.success,
+      error_message: record.error,
+      created_at: new Date().toISOString()
+    });
+  } catch (e) {
+    console.warn('Error tracking LLM execution:', e);
+  }
+}
 
 // ============================================================================
 // SERVICE LINE DEFINITIONS WITH ACCURATE PRICING (from BSG Launch Strategy)

@@ -54,7 +54,7 @@ export const MODEL_CONFIG = {
    * Premium tier - Use for client-facing reports and critical analysis
    * Claude Opus 4.5: Highest quality reasoning, empathy, nuance detection
    */
-  premium: 'anthropic/claude-opus-4' as const,
+  premium: 'anthropic/claude-opus-4.5' as const,
   
   /**
    * Standard tier - Use for structured analysis, chat, and most tasks
@@ -85,9 +85,9 @@ export const MODEL_CONFIG = {
  * Model metadata for cost tracking and capability checking
  */
 export const MODEL_METADATA: Record<string, ModelMetadata> = {
-  'anthropic/claude-opus-4': {
-    id: 'anthropic/claude-opus-4',
-    name: 'Claude Opus 4',
+  'anthropic/claude-opus-4.5': {
+    id: 'anthropic/claude-opus-4.5',
+    name: 'Claude Opus 4.5',
     contextWindow: 200000,
     inputPricePer1M: 15.00,
     outputPricePer1M: 75.00,
