@@ -1447,7 +1447,7 @@ function DiscoveryClientModal({
     }
   };
 
-  // Generate discovery report
+  // Generate discovery report (2-stage process for reliability)
   const handleGenerateReport = async () => {
     setGeneratingReport(true);
     try {
@@ -1459,18 +1459,20 @@ function DiscoveryClientModal({
         throw new Error('No active session - please log in again');
       }
       
-      // Direct fetch to edge function
-      const functionUrl = 'https://mvdejlkiqslwrbarwxkw.supabase.co/functions/v1/DISCOVERY-REPORT-GENERATOR';
-      console.log('Calling edge function:', functionUrl);
-      console.log('Payload:', { clientId, practiceId: client?.practice_id, discoveryId: discovery?.id });
+      const baseUrl = 'https://mvdejlkiqslwrbarwxkw.supabase.co/functions/v1';
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12ZGVqbGtpcXNsd3JiYXJ3eGt3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4OTg0NDEsImV4cCI6MjA3OTQ3NDQ0MX0.NaiSmZOPExJiBBksL4R1swW4jrJg9JtNK8ktB17rXiM'
+      };
       
-      const response = await fetch(functionUrl, {
+      // ================================================================
+      // STAGE 1: Prepare data (fast - gathers all client info)
+      // ================================================================
+      console.log('Stage 1: Preparing discovery data...');
+      const prepareResponse = await fetch(`${baseUrl}/prepare-discovery-data`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12ZGVqbGtpcXNsd3JiYXJ3eGt3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4OTg0NDEsImV4cCI6MjA3OTQ3NDQ0MX0.NaiSmZOPExJiBBksL4R1swW4jrJg9JtNK8ktB17rXiM'
-        },
+        headers,
         body: JSON.stringify({
           clientId,
           practiceId: client?.practice_id,
@@ -1478,20 +1480,43 @@ function DiscoveryClientModal({
         })
       });
       
-      console.log('Response status:', response.status, response.statusText);
-      
-      const data = await response.json();
-      console.log('Response data:', data);
-      
-      if (!response.ok) {
-        throw new Error(data?.error || `HTTP ${response.status}`);
+      if (!prepareResponse.ok) {
+        const prepError = await prepareResponse.json();
+        throw new Error(prepError?.error || 'Failed to prepare data');
       }
       
-      if (data?.success && data?.report) {
-        setGeneratedReport(data.report);
+      const prepareResult = await prepareResponse.json();
+      console.log('Stage 1 complete:', prepareResult.metadata);
+      
+      if (!prepareResult.success || !prepareResult.preparedData) {
+        throw new Error(prepareResult.error || 'Failed to prepare discovery data');
+      }
+      
+      // ================================================================
+      // STAGE 2: Generate analysis (uses Claude Opus 4.5)
+      // ================================================================
+      console.log('Stage 2: Generating analysis with Claude Opus 4.5...');
+      const analysisResponse = await fetch(`${baseUrl}/generate-discovery-analysis`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          preparedData: prepareResult.preparedData
+        })
+      });
+      
+      if (!analysisResponse.ok) {
+        const analysisError = await analysisResponse.json();
+        throw new Error(analysisError?.error || 'Failed to generate analysis');
+      }
+      
+      const analysisResult = await analysisResponse.json();
+      console.log('Stage 2 complete:', analysisResult.metadata);
+      
+      if (analysisResult?.success && analysisResult?.report) {
+        setGeneratedReport(analysisResult.report);
         setActiveTab('analysis'); // Switch to analysis tab to show report
       } else {
-        throw new Error(data?.error || 'Failed to generate report');
+        throw new Error(analysisResult?.error || 'Failed to generate report');
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
