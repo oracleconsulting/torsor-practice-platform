@@ -18,6 +18,176 @@ const corsHeaders = {
 // Use Claude Opus 4.5 for premium quality analysis
 const MODEL = 'anthropic/claude-opus-4.5';
 
+// ============================================================================
+// DESTINATION CLARITY FALLBACK CALCULATION
+// ============================================================================
+
+function calculateFallbackClarity(responses: Record<string, any>): number {
+  const vision = responses.dd_five_year_picture || '';
+  
+  if (!vision || vision.length < 20) return 1;
+  
+  let score = 0;
+  
+  // Time specificity (mentions times, days, routines)
+  if (/\d{1,2}(am|pm|:\d{2})|0\d{3}/i.test(vision)) score += 2;
+  if (/morning|afternoon|evening|night/i.test(vision)) score += 1;
+  
+  // Activity richness (verbs indicating actions)
+  const activities = vision.match(/\b(wake|run|walk|take|drive|meet|call|play|work|travel|read|grab|head|pick|have|spend)\b/gi);
+  score += Math.min((activities?.length || 0), 3);
+  
+  // Relationship mentions
+  if (/wife|husband|partner|kids|children|boys|girls|family|friends|mates/i.test(vision)) score += 2;
+  
+  // Role transformation indicators
+  if (/invest|portfolio|board|advisor|chairman|step back|ceo/i.test(vision)) score += 2;
+  
+  // Length and detail
+  if (vision.length > 100) score += 1;
+  if (vision.length > 200) score += 1;
+  
+  return Math.min(score, 10);
+}
+
+// ============================================================================
+// AFFORDABILITY ASSESSMENT
+// ============================================================================
+
+interface AffordabilityProfile {
+  stage: 'pre-revenue' | 'early-revenue' | 'established' | 'scaling';
+  cashConstrained: boolean;
+  activelyRaising: boolean;
+  estimatedMonthlyCapacity: 'under_1k' | '1k_5k' | '5k_15k' | '15k_plus';
+}
+
+function assessAffordability(
+  responses: Record<string, any>,
+  financialContext?: any
+): AffordabilityProfile {
+  
+  let stage: AffordabilityProfile['stage'] = 'established';
+  
+  // Check for pre-revenue signals
+  const operationalFrustration = (responses.sd_operational_frustration || '').toLowerCase();
+  if (operationalFrustration.includes('mvp') || 
+      operationalFrustration.includes('launch') ||
+      operationalFrustration.includes('product-market') ||
+      operationalFrustration.includes('pre-revenue')) {
+    stage = 'pre-revenue';
+  }
+  
+  // Check for early-revenue signals
+  if (responses.sd_growth_blocker === "Don't have the capital" &&
+      !operationalFrustration.includes('mvp')) {
+    stage = stage === 'pre-revenue' ? 'pre-revenue' : 'early-revenue';
+  }
+  
+  // Override with financial context if available
+  if (financialContext?.revenue) {
+    if (financialContext.revenue < 100000) stage = 'pre-revenue';
+    else if (financialContext.revenue < 500000) stage = 'early-revenue';
+    else if (financialContext.revenue < 2000000) stage = 'established';
+    else stage = 'scaling';
+  }
+  
+  // Cash constraint detection
+  const cashConstrained = 
+    responses.sd_growth_blocker === "Don't have the capital" ||
+    (responses.dd_sleep_thief || []).includes('Cash flow and paying bills');
+  
+  // Fundraising detection
+  const ifIKnew = (responses.dd_if_i_knew || '').toLowerCase();
+  const activelyRaising = 
+    ifIKnew.includes('capital') ||
+    ifIKnew.includes('raise') ||
+    ifIKnew.includes('invest') ||
+    (responses.sd_exit_readiness || '').includes('investment-ready');
+  
+  // Estimate monthly capacity
+  let estimatedMonthlyCapacity: AffordabilityProfile['estimatedMonthlyCapacity'];
+  
+  switch (stage) {
+    case 'pre-revenue':
+      estimatedMonthlyCapacity = activelyRaising ? '1k_5k' : 'under_1k';
+      break;
+    case 'early-revenue':
+      estimatedMonthlyCapacity = cashConstrained ? '1k_5k' : '5k_15k';
+      break;
+    case 'established':
+      estimatedMonthlyCapacity = '5k_15k';
+      break;
+    case 'scaling':
+      estimatedMonthlyCapacity = '15k_plus';
+      break;
+  }
+  
+  return { stage, cashConstrained, activelyRaising, estimatedMonthlyCapacity };
+}
+
+// ============================================================================
+// 365 LIFESTYLE TRANSFORMATION DETECTION
+// ============================================================================
+
+interface TransformationSignals {
+  lifestyleTransformation: boolean;
+  identityShift: boolean;
+  burnoutWithReadiness: boolean;
+  legacyFocus: boolean;
+  reasons: string[];
+}
+
+function detect365Triggers(responses: Record<string, any>): TransformationSignals {
+  const visionText = (responses.dd_five_year_picture || '').toLowerCase();
+  const successDef = responses.dd_success_definition || '';
+  const reasons: string[] = [];
+  
+  // Lifestyle transformation: Vision describes fundamentally different role
+  const lifestyleTransformation = 
+    visionText.includes('invest') ||
+    visionText.includes('portfolio') ||
+    visionText.includes('advisory') ||
+    visionText.includes('board') ||
+    visionText.includes('chairman') ||
+    visionText.includes('step back') ||
+    (visionText.includes('ceo') && !visionText.includes('my ceo'));
+  
+  if (lifestyleTransformation) {
+    reasons.push('Vision describes fundamentally different role (operator → investor transition)');
+  }
+  
+  // Identity shift: Success defined as business running without them
+  const identityShift = 
+    successDef === "Creating a business that runs profitably without me" ||
+    successDef === "Building a legacy that outlasts me" ||
+    successDef === "Building something I can sell for a life-changing amount";
+  
+  if (identityShift) {
+    reasons.push(`Success defined as "${successDef}" - requires structured transition support`);
+  }
+  
+  // Burnout with high readiness
+  const burnoutWithReadiness = 
+    ['60-70 hours', '70+ hours'].includes(responses.dd_owner_hours || '') &&
+    responses.dd_change_readiness === "Completely ready - I'll do whatever it takes";
+  
+  if (burnoutWithReadiness) {
+    reasons.push('Working 60-70+ hours but completely ready for change - needs structured pathway');
+  }
+  
+  // Legacy focus
+  const legacyFocus = 
+    successDef.includes('legacy') ||
+    responses.dd_exit_thoughts === "I've already got a clear exit plan" ||
+    ['1-3 years - actively preparing', '3-5 years - need to start thinking'].includes(responses.sd_exit_timeline || '');
+  
+  if (legacyFocus) {
+    reasons.push('Legacy/exit focus requires strategic roadmap');
+  }
+  
+  return { lifestyleTransformation, identityShift, burnoutWithReadiness, legacyFocus, reasons };
+}
+
 // Service line definitions (abbreviated for this function)
 const SERVICE_LINES = {
   '365_method': { name: '365 Alignment Programme', tiers: [{ name: 'Lite', price: 1500 }, { name: 'Growth', price: 4500 }, { name: 'Partner', price: 9000 }] },
@@ -36,14 +206,29 @@ CRITICAL REQUIREMENTS:
 1. Quote client's EXACT WORDS at least 10 times throughout
 2. Calculate specific £ figures for every cost and benefit
 3. Connect every recommendation to something they specifically said
-4. Recommend at least 3 services - most clients need a combination
+4. Recommend services in PHASES based on affordability (see affordability context)
 5. Show the domino effect: how fixing one thing enables the next
 6. Make the comparison crystal clear: investment cost vs. cost of inaction
+
+INVESTMENT PHASING IS CRITICAL:
+- For pre-revenue/cash-constrained clients: PHASE services by affordability
+- Phase 1 = Start Now (under £15k/year)
+- Phase 2 = After Raise/Revenue (when they can afford it)
+- Phase 3 = At Scale (when revenue supports it)
+- HEADLINE the affordable number, not the total if-everything number
+
+365 ALIGNMENT PROGRAMME:
+This is NOT just for people without plans. It's for founders undergoing TRANSFORMATION:
+- OPERATOR → INVESTOR transition
+- FOUNDER → CHAIRMAN transition
+- BURNOUT → BALANCE transition
+If transformation signals are detected, recommend 365 even if they have a business plan.
 
 Writing style:
 - Direct and confident, backed by specific evidence
 - Empathetic but pragmatic
-- Create urgency through specific £ calculations`;
+- Create urgency through specific £ calculations
+- For pre-revenue clients: optimise for THEIR outcome, not our revenue`;
 
 serve(async (req) => {
   console.log('=== GENERATE-DISCOVERY-ANALYSIS STARTED ===');
@@ -72,6 +257,41 @@ serve(async (req) => {
     }
 
     console.log(`Generating analysis for: ${preparedData.client.name}`);
+
+    // ========================================================================
+    // CALCULATE CLARITY SCORE (with fallback)
+    // ========================================================================
+    
+    const patternClarityScore = preparedData.patternAnalysis?.destinationClarity?.score;
+    const fallbackClarityScore = calculateFallbackClarity(preparedData.discovery.responses);
+    const clarityScore = patternClarityScore ?? fallbackClarityScore;
+    const claritySource = patternClarityScore ? 'pattern_detection' : 'fallback';
+    
+    console.log('[Discovery] Clarity score:', {
+      patternDetectionScore: patternClarityScore,
+      fallbackScore: fallbackClarityScore,
+      finalScore: clarityScore,
+      source: claritySource
+    });
+
+    // ========================================================================
+    // ASSESS AFFORDABILITY
+    // ========================================================================
+    
+    const affordability = assessAffordability(
+      preparedData.discovery.responses,
+      preparedData.financialContext
+    );
+    
+    console.log('[Discovery] Affordability:', affordability);
+
+    // ========================================================================
+    // DETECT 365 TRANSFORMATION TRIGGERS
+    // ========================================================================
+    
+    const transformationSignals = detect365Triggers(preparedData.discovery.responses);
+    
+    console.log('[Discovery] 365 Triggers:', transformationSignals);
 
     // ========================================================================
     // BUILD THE ANALYSIS PROMPT
@@ -117,6 +337,57 @@ ${JSON.stringify(preparedData.discovery.recommendedServices, null, 2)}
 ${patternContext}
 ${financialContext}
 ${documentsContext}
+
+## AFFORDABILITY ASSESSMENT
+- Client Stage: ${affordability.stage}
+- Cash Constrained: ${affordability.cashConstrained}
+- Actively Raising: ${affordability.activelyRaising}
+- Estimated Monthly Capacity: ${affordability.estimatedMonthlyCapacity}
+
+${affordability.stage === 'pre-revenue' ? `
+⚠️ PRE-REVENUE CLIENT - PHASE YOUR RECOMMENDATIONS:
+
+Phase 1 - Foundation (Start Now, max £15,000/year):
+- Only recommend what they NEED NOW
+- Focus on services that help them raise or launch faster
+- Management Accounts + Systems Audit are appropriate
+
+Phase 2 - Post-Raise (After funding):
+- Fractional executives go here
+- Frame as "when you've closed your round"
+
+Phase 3 - At Scale (12+ months, when revenue supports):
+- Full operational support
+- Only mention as future horizon
+
+CRITICAL: Headline the Phase 1 number. Do NOT say "total investment £150k" to a pre-revenue startup.
+` : ''}
+
+${affordability.stage === 'early-revenue' ? `
+EARLY-REVENUE CLIENT - PHASE YOUR RECOMMENDATIONS:
+
+Phase 1 - Essential (Start Now, max £36,000/year):
+- Management Accounts and Systems Audit
+- 365 if transformation needed
+- Focus on efficiency gains that pay for themselves
+
+Phase 2 - Growth Support (3-6 months):
+- Fractional CFO at lower tier
+- As revenue stabilizes
+
+Phase 3 - Full Support (12+ months):
+- Full fractional suite when revenue supports
+` : ''}
+
+## 365 ALIGNMENT DETECTION
+${transformationSignals.reasons.length > 0 ? `
+🎯 365 TRANSFORMATION TRIGGERS DETECTED:
+${transformationSignals.reasons.map(r => `- ${r}`).join('\n')}
+
+Even if they have a business plan, recommend 365 because they need structured support for their PERSONAL transformation, not just business strategy.
+
+Position 365 as: "You have a business plan. What you don't have is a structured path to becoming the person in your 5-year vision. The 365 programme bridges that gap."
+` : 'No specific transformation triggers detected.'}
 
 ## AVAILABLE SERVICES
 ${JSON.stringify(SERVICE_LINES, null, 2)}
@@ -264,9 +535,12 @@ Return ONLY the JSON object.`;
         companyName: preparedData.client.company,
         analysis,
         discoveryScores: {
-          clarityScore: preparedData.patternAnalysis?.destinationClarity?.score || preparedData.discovery.destinationClarityScore,
+          clarityScore: clarityScore,
+          claritySource: claritySource,
           gapScore: preparedData.discovery.gapScore
-        }
+        },
+        affordability: affordability,
+        transformationSignals: transformationSignals.reasons.length > 0 ? transformationSignals : null
       },
       created_at: new Date().toISOString()
     };
@@ -301,9 +575,12 @@ Return ONLY the JSON object.`;
         client: preparedData.client,
         practice: preparedData.practice,
         discoveryScores: {
-          clarityScore: preparedData.patternAnalysis?.destinationClarity?.score || preparedData.discovery.destinationClarityScore,
+          clarityScore: clarityScore,
+          claritySource: claritySource,
           gapScore: preparedData.discovery.gapScore
         },
+        affordability: affordability,
+        transformationSignals: transformationSignals.reasons.length > 0 ? transformationSignals : null,
         analysis
       },
       metadata: {
