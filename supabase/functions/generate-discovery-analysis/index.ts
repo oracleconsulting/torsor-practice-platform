@@ -15,8 +15,8 @@ const corsHeaders = {
   'Access-Control-Max-Age': '86400',
 }
 
-// Use Claude Opus 4.5 for premium quality
-const MODEL = 'anthropic/claude-opus-4.5';
+// Use Claude Sonnet 4 for reliable analysis (Opus 4.5 may not be available on all OpenRouter tiers)
+const MODEL = 'anthropic/claude-sonnet-4-20250514';
 
 // Service line definitions (abbreviated for this function)
 const SERVICE_LINES = {
