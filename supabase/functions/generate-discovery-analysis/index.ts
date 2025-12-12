@@ -599,6 +599,30 @@ ${doc.content}
 `).join('\n')}
 ` : '';
 
+    // Build context notes section - CRITICAL for accurate analysis
+    const advisorNotes = preparedData.advisorContextNotes || [];
+    const contextNotesSection = advisorNotes.length > 0 ? `
+## ADVISOR CONTEXT NOTES (CRITICAL - TRUST THESE OVER ASSESSMENT!)
+These are dated updates from the advisor that may supersede or add context to what the assessment captured.
+The assessment captures a moment in time - these notes capture what's happened SINCE.
+
+${advisorNotes.map((note: any) => {
+  const dateStr = note.eventDate ? new Date(note.eventDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No date';
+  const futureFlag = note.isFutureEvent ? ' (PLANNED)' : '';
+  const importanceEmoji = note.importance === 'critical' ? '🚨' : note.importance === 'high' ? '⚠️' : '';
+  return `### ${importanceEmoji} ${note.title} [${dateStr}${futureFlag}]
+Type: ${note.type}
+${note.content}
+`;
+}).join('\n')}
+
+USE THIS CONTEXT TO:
+1. Update your understanding of their financial position (e.g., if they've raised funding)
+2. Adjust affordability assessment (funding changes everything)
+3. Understand upcoming milestones that affect timing (product launches, etc.)
+4. Reference these specifics in your analysis ("Given your recent seed raise...")
+` : '';
+
     const analysisPrompt = `
 Analyze this discovery assessment for ${preparedData.client.name} (${preparedData.client.company || 'their business'}).
 
@@ -614,6 +638,7 @@ ${JSON.stringify(preparedData.discovery.recommendedServices, null, 2)}
 ${patternContext}
 ${financialContext}
 ${documentsContext}
+${contextNotesSection}
 
 ## AFFORDABILITY ASSESSMENT
 - Client Stage: ${affordability.stage}

@@ -1206,7 +1206,7 @@ function DiscoveryClientModal({
   const [client, setClient] = useState<any>(null);
   const [discovery, setDiscovery] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'responses' | 'documents' | 'analysis' | 'services'>('responses');
+  const [activeTab, setActiveTab] = useState<'responses' | 'documents' | 'context' | 'analysis' | 'services'>('responses');
   
   // Document upload state
   const [uploading, setUploading] = useState(false);
@@ -1223,10 +1223,90 @@ function DiscoveryClientModal({
   // Service assignment state
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [assigningServices, setAssigningServices] = useState(false);
+  
+  // Context notes state
+  const [contextNotes, setContextNotes] = useState<any[]>([]);
+  const [showAddNote, setShowAddNote] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
+  const [newNote, setNewNote] = useState({
+    note_type: 'general' as string,
+    title: '',
+    content: '',
+    event_date: '',
+    is_future_event: false,
+    importance: 'medium' as string
+  });
 
   useEffect(() => {
     fetchClientDetail();
+    fetchContextNotes();
   }, [clientId]);
+  
+  const fetchContextNotes = async () => {
+    const { data, error } = await supabase
+      .from('client_context_notes')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('event_date', { ascending: false, nullsFirst: false });
+    
+    if (error) {
+      console.error('Error fetching context notes:', error);
+    } else {
+      setContextNotes(data || []);
+    }
+  };
+  
+  const handleSaveNote = async () => {
+    if (!newNote.title || !newNote.content) return;
+    
+    setSavingNote(true);
+    try {
+      const { error } = await supabase
+        .from('client_context_notes')
+        .insert({
+          client_id: clientId,
+          practice_id: currentMember?.practice_id,
+          note_type: newNote.note_type,
+          title: newNote.title,
+          content: newNote.content,
+          event_date: newNote.event_date || null,
+          is_future_event: newNote.is_future_event,
+          importance: newNote.importance,
+          created_by: user?.id
+        });
+      
+      if (error) throw error;
+      
+      // Reset form and refresh
+      setNewNote({
+        note_type: 'general',
+        title: '',
+        content: '',
+        event_date: '',
+        is_future_event: false,
+        importance: 'medium'
+      });
+      setShowAddNote(false);
+      fetchContextNotes();
+    } catch (error) {
+      console.error('Error saving note:', error);
+    } finally {
+      setSavingNote(false);
+    }
+  };
+  
+  const handleDeleteNote = async (noteId: string) => {
+    if (!confirm('Delete this note?')) return;
+    
+    const { error } = await supabase
+      .from('client_context_notes')
+      .delete()
+      .eq('id', noteId);
+    
+    if (!error) {
+      fetchContextNotes();
+    }
+  };
 
   const fetchClientDetail = async () => {
     setLoading(true);
@@ -1711,6 +1791,7 @@ function DiscoveryClientModal({
           {[
             { id: 'responses', label: 'Responses', icon: MessageSquare },
             { id: 'documents', label: 'Documents', icon: FileText },
+            { id: 'context', label: 'Context Notes', icon: Calendar },
             { id: 'analysis', label: 'Analysis', icon: Sparkles },
             { id: 'services', label: 'Assign Services', icon: Target }
           ].map((tab) => {
@@ -1891,6 +1972,196 @@ function DiscoveryClientModal({
                       <Upload className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                       <p className="text-gray-500">No documents uploaded yet</p>
                       <p className="text-sm text-gray-400 mt-1">Upload financials, contracts, or other relevant files</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* CONTEXT NOTES TAB */}
+              {activeTab === 'context' && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium text-gray-900">Context Notes Timeline</h4>
+                      <p className="text-sm text-gray-500">Add dated context that the assessment doesn't capture (funding, launches, key milestones)</p>
+                    </div>
+                    <button
+                      onClick={() => setShowAddNote(!showAddNote)}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 text-sm font-medium"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Note
+                    </button>
+                  </div>
+                  
+                  {/* Add Note Form */}
+                  {showAddNote && (
+                    <div className="bg-cyan-50 border border-cyan-200 rounded-xl p-6 space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Note Type</label>
+                          <select
+                            value={newNote.note_type}
+                            onChange={(e) => setNewNote({ ...newNote, note_type: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+                          >
+                            <option value="funding">💰 Funding/Investment</option>
+                            <option value="milestone">🚀 Product/Business Milestone</option>
+                            <option value="customer">🤝 Customer Win/Pilot</option>
+                            <option value="team">👥 Team Change</option>
+                            <option value="financial">📊 Financial Update</option>
+                            <option value="personal">💭 Personal/Founder</option>
+                            <option value="strategic">🎯 Strategic Decision</option>
+                            <option value="general">📝 General Note</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Importance</label>
+                          <select
+                            value={newNote.importance}
+                            onChange={(e) => setNewNote({ ...newNote, importance: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+                          >
+                            <option value="critical">🔴 Critical - Must include in analysis</option>
+                            <option value="high">🟠 High - Important context</option>
+                            <option value="medium">🟡 Medium - Good to know</option>
+                            <option value="low">🟢 Low - Background info</option>
+                          </select>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Event Date</label>
+                          <input
+                            type="date"
+                            value={newNote.event_date}
+                            onChange={(e) => setNewNote({ ...newNote, event_date: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+                          />
+                        </div>
+                        <div className="flex items-center">
+                          <label className="flex items-center gap-2 cursor-pointer mt-6">
+                            <input
+                              type="checkbox"
+                              checked={newNote.is_future_event}
+                              onChange={(e) => setNewNote({ ...newNote, is_future_event: e.target.checked })}
+                              className="w-4 h-4 text-cyan-600 border-gray-300 rounded focus:ring-cyan-500"
+                            />
+                            <span className="text-sm text-gray-700">This is a future/planned event</span>
+                          </label>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                        <input
+                          type="text"
+                          value={newNote.title}
+                          onChange={(e) => setNewNote({ ...newNote, title: e.target.value })}
+                          placeholder="e.g., Closed seed round, Product launching"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Details</label>
+                        <textarea
+                          value={newNote.content}
+                          onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
+                          placeholder="Add context the LLM should know when analyzing this client..."
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+                        />
+                      </div>
+                      
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => setShowAddNote(false)}
+                          className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSaveNote}
+                          disabled={savingNote || !newNote.title || !newNote.content}
+                          className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {savingNote ? 'Saving...' : 'Save Note'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Notes Timeline */}
+                  {contextNotes.length > 0 ? (
+                    <div className="space-y-4">
+                      {contextNotes.map((note) => {
+                        const typeIcons: Record<string, string> = {
+                          funding: '💰',
+                          milestone: '🚀',
+                          customer: '🤝',
+                          team: '👥',
+                          financial: '📊',
+                          personal: '💭',
+                          strategic: '🎯',
+                          general: '📝'
+                        };
+                        const importanceColors: Record<string, string> = {
+                          critical: 'border-l-red-500 bg-red-50',
+                          high: 'border-l-orange-500 bg-orange-50',
+                          medium: 'border-l-yellow-500 bg-yellow-50',
+                          low: 'border-l-green-500 bg-green-50'
+                        };
+                        
+                        return (
+                          <div 
+                            key={note.id} 
+                            className={`border-l-4 rounded-lg p-4 ${importanceColors[note.importance] || 'border-l-gray-300 bg-gray-50'}`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-lg">{typeIcons[note.note_type] || '📝'}</span>
+                                  <span className="font-medium text-gray-900">{note.title}</span>
+                                  {note.is_future_event && (
+                                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">
+                                      Planned
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-gray-700 text-sm">{note.content}</p>
+                                <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                                  {note.event_date && (
+                                    <span>
+                                      {note.is_future_event ? 'Planned: ' : 'Date: '}
+                                      {new Date(note.event_date).toLocaleDateString('en-GB', { 
+                                        day: 'numeric', 
+                                        month: 'short', 
+                                        year: 'numeric' 
+                                      })}
+                                    </span>
+                                  )}
+                                  <span>Added: {new Date(note.created_at).toLocaleDateString()}</span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleDeleteNote(note.id)}
+                                className="p-1 text-gray-400 hover:text-red-500"
+                                title="Delete note"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                      <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500">No context notes yet</p>
+                      <p className="text-sm text-gray-400 mt-1">Add funding updates, milestones, or other context that affects the analysis</p>
                     </div>
                   )}
                 </div>

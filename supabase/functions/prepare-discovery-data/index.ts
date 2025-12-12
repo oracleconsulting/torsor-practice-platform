@@ -127,6 +127,16 @@ serve(async (req) => {
       .eq('client_id', clientId)
       .maybeSingle();
 
+    // Get advisor context notes (date-stamped updates)
+    const { data: contextNotes } = await supabase
+      .from('client_context_notes')
+      .select('*')
+      .eq('client_id', clientId)
+      .eq('include_in_analysis', true)
+      .order('event_date', { ascending: true, nullsFirst: false });
+    
+    console.log(`Loaded ${contextNotes?.length || 0} context notes`);
+
     // ========================================================================
     // 2. RUN PATTERN DETECTION (if not skipped)
     // ========================================================================
@@ -228,7 +238,16 @@ serve(async (req) => {
       patternAnalysis: patternAnalysis,
       practice: {
         name: practice?.name || 'RPGCC'
-      }
+      },
+      // Advisor-added context notes (critical updates not captured in assessment)
+      advisorContextNotes: contextNotes?.map(note => ({
+        type: note.note_type,
+        title: note.title,
+        content: note.content,
+        eventDate: note.event_date,
+        isFutureEvent: note.is_future_event,
+        importance: note.importance
+      })) || []
     };
 
     const executionTime = Date.now() - startTime;
@@ -241,7 +260,8 @@ serve(async (req) => {
         executionTimeMs: executionTime,
         documentsCount: Object.keys(documentsByFile).length,
         hasPatternAnalysis: !!patternAnalysis,
-        hasFinancialContext: !!financialContext
+        hasFinancialContext: !!financialContext,
+        contextNotesCount: contextNotes?.length || 0
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
