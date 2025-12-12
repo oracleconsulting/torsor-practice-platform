@@ -1303,8 +1303,8 @@ function DiscoveryClientModal({
         .single();
       
       const validDocs = (docsData || []).filter((doc: any) => {
-        // CRITICAL: Check storage path - extract client_id from URL
-        // Storage path format: .../practice_id/client_id/filename
+        // Documents are already filtered by client_id in the query
+        // Just verify the storage path matches if present
         if (doc.source_file_url) {
           const pathMatch = doc.source_file_url.match(/\/([a-f0-9-]{36})\/[^/]+\.(pdf|doc|docx|xls|xlsx|csv|txt)/i);
           if (pathMatch && pathMatch[1]) {
@@ -1315,15 +1315,7 @@ function DiscoveryClientModal({
             }
           }
         }
-        
-        // If we have practice_members data, verify email matches
-        if (doc.practice_members && clientInfo) {
-          return doc.practice_members.email === clientInfo.email;
-        }
-        // If no practice_members data, trust the client_id filter (but log warning)
-        if (!doc.practice_members) {
-          console.warn(`Document ${doc.id} has no practice_members relationship - may be orphaned`);
-        }
+        // Document is valid - client_id filter already applied by query
         return true;
       });
       
