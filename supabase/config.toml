@@ -51,6 +51,9 @@ enabled = false
 [functions."generate-discovery-report"]
 verify_jwt = true
 
+[functions."DISCOVERY-REPORT-GENERATOR"]
+verify_jwt = true
+
 [functions."detect-assessment-patterns"]
 verify_jwt = true
 

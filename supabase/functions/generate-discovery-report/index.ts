@@ -21,9 +21,9 @@ const corsHeaders = {
   'Access-Control-Max-Age': '86400',
 }
 
-// Use Claude Sonnet 4 for faster discovery reports (Opus 4.5 times out on Supabase)
-// Switch back to anthropic/claude-opus-4.5 if you increase timeout limits
-const MODEL = 'anthropic/claude-sonnet-4-20250514';
+// Use Claude Opus 4.5 for premium quality discovery reports
+// Job progress is saved to database so frontend can poll for results
+const MODEL = 'anthropic/claude-opus-4.5';
 
 // ============================================================================
 // INLINE COST TRACKING (to avoid module import issues)
@@ -460,6 +460,55 @@ serve(async (req) => {
     if (!clientId) {
       throw new Error('clientId is required');
     }
+
+    // ========================================================================
+    // 0. CREATE JOB RECORD FOR TRACKING (async-friendly)
+    // ========================================================================
+    const jobId = body.jobId || crypto.randomUUID();
+    
+    // Helper to update job progress
+    async function updateJobProgress(progress: number, message: string, status: string = 'processing') {
+      try {
+        await supabase.from('report_jobs').upsert({
+          id: jobId,
+          client_id: clientId,
+          practice_id: practiceId,
+          discovery_id: discoveryId,
+          job_type: 'discovery_report',
+          status,
+          progress,
+          progress_message: message,
+          started_at: progress === 0 ? new Date().toISOString() : undefined,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+      } catch (e) {
+        console.log('Job progress update skipped (table may not exist)');
+      }
+    }
+    
+    // Helper to complete job with result
+    async function completeJob(result: any, success: boolean, errorMessage?: string) {
+      try {
+        await supabase.from('report_jobs').upsert({
+          id: jobId,
+          client_id: clientId,
+          practice_id: practiceId,
+          discovery_id: discoveryId,
+          job_type: 'discovery_report',
+          status: success ? 'completed' : 'failed',
+          progress: success ? 100 : 0,
+          progress_message: success ? 'Report generated successfully' : errorMessage,
+          result: success ? result : null,
+          error_message: success ? null : errorMessage,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+      } catch (e) {
+        console.log('Job completion update skipped (table may not exist)');
+      }
+    }
+    
+    await updateJobProgress(5, 'Starting report generation...');
 
     // ========================================================================
     // 1. FETCH ALL CLIENT DATA
@@ -1089,8 +1138,8 @@ CRITICAL REQUIREMENTS:
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 8192,   // Reduced for faster response within timeout
-        temperature: 0.3,   // Lower for faster, more consistent output
+        max_tokens: 16384,  // Full tokens for comprehensive Opus 4.5 report
+        temperature: 0.4,   // Balanced for quality and consistency
         messages: [
           { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
           { role: 'user', content: analysisPrompt }
