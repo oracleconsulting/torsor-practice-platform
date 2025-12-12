@@ -29,7 +29,8 @@ import {
   MessageSquare,
   Sparkles,
   Share2,
-  Trash2
+  Trash2,
+  Printer
 } from 'lucide-react';
 
 
@@ -1410,7 +1411,7 @@ function DiscoveryClientModal({
         .eq('report_type', 'discovery_analysis')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       setClient(clientData);
       setDiscovery(discoveryData);
@@ -1420,7 +1421,27 @@ function DiscoveryClientModal({
       setSelectedServices(assignedServices?.map((s: any) => s.service_lines?.code).filter(Boolean) || []);
       
       if (existingReport) {
-        setGeneratedReport(existingReport);
+        // Normalize the loaded report to match the generated format
+        // DB stores: { id, report_data: { analysis, discoveryScores, ... } }
+        // Generated returns: { id, analysis, discoveryScores, ... }
+        const normalizedReport = {
+          id: existingReport.id,
+          generatedAt: existingReport.report_data?.generatedAt || existingReport.created_at,
+          client: existingReport.report_data?.client || { id: clientId, name: clientData?.name },
+          practice: existingReport.report_data?.practice,
+          discoveryScores: existingReport.report_data?.discoveryScores,
+          affordability: existingReport.report_data?.affordability,
+          transformationSignals: existingReport.report_data?.transformationSignals,
+          financialProjections: existingReport.report_data?.financialProjections,
+          analysis: existingReport.report_data?.analysis,
+          // Keep raw DB fields for reference
+          _dbRecord: {
+            created_at: existingReport.created_at,
+            is_shared_with_client: existingReport.is_shared_with_client
+          }
+        };
+        console.log('[Report] Loaded existing report:', normalizedReport.id);
+        setGeneratedReport(normalizedReport);
         setIsReportShared(existingReport.is_shared_with_client || false);
       }
     } catch (error) {
@@ -1648,6 +1669,185 @@ function DiscoveryClientModal({
     }
   };
 
+  // Export report as PDF (opens print dialog)
+  const handleExportPDF = () => {
+    if (!generatedReport?.analysis) {
+      alert('No report to export. Please generate a report first.');
+      return;
+    }
+
+    const report = generatedReport;
+    const analysis = report.analysis;
+    
+    // Create a new window with print-friendly HTML
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow popups to export PDF');
+      return;
+    }
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Discovery Analysis - ${client?.name || 'Client'}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #1f2937; padding: 40px; max-width: 900px; margin: 0 auto; }
+    h1 { color: #4f46e5; font-size: 28px; margin-bottom: 8px; }
+    h2 { color: #4f46e5; font-size: 20px; margin-top: 32px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb; }
+    h3 { color: #374151; font-size: 16px; margin-top: 20px; margin-bottom: 8px; }
+    p { margin-bottom: 12px; }
+    .header { text-align: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #4f46e5; }
+    .meta { color: #6b7280; font-size: 14px; }
+    .score-grid { display: flex; gap: 24px; margin: 20px 0; }
+    .score-box { flex: 1; background: #f3f4f6; padding: 16px; border-radius: 8px; text-align: center; }
+    .score-box .label { font-size: 12px; color: #6b7280; text-transform: uppercase; }
+    .score-box .value { font-size: 28px; font-weight: bold; color: #4f46e5; }
+    .summary-box { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 24px; border-radius: 12px; margin: 24px 0; }
+    .summary-box h2 { color: white; border-bottom: none; margin-top: 0; }
+    .gap-card { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin: 12px 0; border-radius: 4px; }
+    .gap-card.critical { background: #fee2e2; border-color: #ef4444; }
+    .gap-card.high { background: #fef3c7; border-color: #f59e0b; }
+    .investment-card { background: #ecfdf5; border: 1px solid #10b981; padding: 20px; margin: 16px 0; border-radius: 8px; }
+    .investment-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+    .priority-badge { background: #10b981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .price { font-size: 24px; font-weight: bold; color: #059669; }
+    .roi { color: #059669; font-weight: 600; }
+    .outcomes { margin-top: 12px; }
+    .outcomes li { margin-left: 20px; color: #047857; }
+    .summary-totals { background: linear-gradient(135deg, #059669, #0d9488); color: white; padding: 24px; border-radius: 12px; margin: 24px 0; }
+    .summary-totals .grid { display: flex; gap: 24px; }
+    .summary-totals .item { flex: 1; text-align: center; }
+    .summary-totals .item .label { font-size: 12px; opacity: 0.9; }
+    .summary-totals .item .value { font-size: 24px; font-weight: bold; }
+    .closing { background: #1f2937; color: white; padding: 24px; border-radius: 12px; margin-top: 32px; text-align: center; }
+    .closing p { color: #d1d5db; }
+    .closing .cta { color: #34d399; font-weight: 600; margin-top: 12px; }
+    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px; text-align: center; }
+    @media print { body { padding: 20px; } .summary-box, .summary-totals, .closing { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Discovery Analysis</h1>
+    <p class="meta">${client?.name || 'Client'} ${client?.client_company ? `• ${client.client_company}` : ''}</p>
+    <p class="meta">Generated: ${new Date(report.generatedAt || new Date()).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+  </div>
+
+  <div class="score-grid">
+    <div class="score-box">
+      <div class="label">Destination Clarity</div>
+      <div class="value">${report.discoveryScores?.clarityScore || '—'}/10</div>
+    </div>
+    <div class="score-box">
+      <div class="label">Gap Score</div>
+      <div class="value">${report.discoveryScores?.gapScore || '—'}/10</div>
+    </div>
+  </div>
+
+  ${analysis?.executiveSummary ? `
+  <div class="summary-box">
+    <h2>${analysis.executiveSummary.headline || 'Executive Summary'}</h2>
+    ${analysis.executiveSummary.keyInsight ? `<p>${analysis.executiveSummary.keyInsight}</p>` : ''}
+    ${analysis.executiveSummary.situationInTheirWords ? `<p style="font-style: italic; opacity: 0.9;">"${analysis.executiveSummary.situationInTheirWords}"</p>` : ''}
+  </div>
+  ` : ''}
+
+  ${analysis?.gapAnalysis?.primaryGaps?.length ? `
+  <h2>Gap Analysis</h2>
+  ${analysis.gapAnalysis.primaryGaps.map((gap: any) => `
+    <div class="gap-card ${gap.severity || 'medium'}">
+      <h3>${gap.gap}</h3>
+      <p><strong>Category:</strong> ${gap.category || 'General'} | <strong>Severity:</strong> ${gap.severity || 'Medium'}</p>
+      ${gap.evidence ? `<p style="font-style: italic; color: #92400e;">"${gap.evidence}"</p>` : ''}
+      ${gap.currentImpact ? `<p><strong>Impact:</strong> ${gap.currentImpact.financialImpact || ''} ${gap.currentImpact.timeImpact || ''}</p>` : ''}
+    </div>
+  `).join('')}
+  ${analysis.gapAnalysis.costOfInaction ? `
+    <div class="gap-card critical">
+      <h3>Cost of Not Acting</h3>
+      <p><strong>${analysis.gapAnalysis.costOfInaction.annualFinancialCost || 'Significant'}</strong></p>
+      ${analysis.gapAnalysis.costOfInaction.personalCost ? `<p>${analysis.gapAnalysis.costOfInaction.personalCost}</p>` : ''}
+    </div>
+  ` : ''}
+  ` : ''}
+
+  ${analysis?.recommendedInvestments?.length ? `
+  <h2>Recommended Investments</h2>
+  ${analysis.recommendedInvestments.map((inv: any, idx: number) => `
+    <div class="investment-card">
+      <div class="investment-header">
+        <div>
+          <span class="priority-badge">Priority ${inv.priority || idx + 1}</span>
+          <h3 style="margin-top: 8px;">${inv.service}</h3>
+          ${inv.recommendedTier ? `<p style="color: #6b7280; font-size: 14px;">${inv.recommendedTier}</p>` : ''}
+        </div>
+        <div style="text-align: right;">
+          <div class="price">${inv.investment || 'Contact for pricing'}</div>
+          <div style="color: #6b7280; font-size: 12px;">${inv.investmentFrequency || 'per month'}</div>
+        </div>
+      </div>
+      ${inv.whyThisTier ? `<p>${inv.whyThisTier}</p>` : ''}
+      ${inv.expectedROI ? `<p class="roi">Expected ROI: ${inv.expectedROI.multiplier || ''} in ${inv.expectedROI.timeframe || ''}</p>` : ''}
+      ${inv.keyOutcomes?.length ? `
+        <ul class="outcomes">
+          ${inv.keyOutcomes.slice(0, 3).map((o: any) => `<li>✓ ${typeof o === 'string' ? o : o.outcome}</li>`).join('')}
+        </ul>
+      ` : ''}
+    </div>
+  `).join('')}
+  ` : ''}
+
+  ${analysis?.investmentSummary ? `
+  <div class="summary-totals">
+    <h2 style="color: white; border: none; margin: 0 0 16px 0;">Investment Summary</h2>
+    <div class="grid">
+      <div class="item">
+        <div class="label">First Year Investment</div>
+        <div class="value">${analysis.investmentSummary.totalFirstYearInvestment || '—'}</div>
+      </div>
+      <div class="item">
+        <div class="label">Projected Return</div>
+        <div class="value">${analysis.investmentSummary.projectedFirstYearReturn || '—'}</div>
+      </div>
+      <div class="item">
+        <div class="label">Payback Period</div>
+        <div class="value">${analysis.investmentSummary.paybackPeriod || '—'}</div>
+      </div>
+    </div>
+  </div>
+  ` : ''}
+
+  ${analysis?.closingMessage ? `
+  <div class="closing">
+    ${typeof analysis.closingMessage === 'string' 
+      ? `<p style="font-size: 18px;">${analysis.closingMessage}</p>`
+      : `
+        ${analysis.closingMessage.personalNote ? `<p style="font-size: 18px; font-style: italic;">"${analysis.closingMessage.personalNote}"</p>` : ''}
+        ${analysis.closingMessage.callToAction ? `<p class="cta">${analysis.closingMessage.callToAction}</p>` : ''}
+      `
+    }
+  </div>
+  ` : ''}
+
+  <div class="footer">
+    <p>Discovery Analysis Report • Generated by Oracle Consulting AI Platform</p>
+    <p>Confidential - For ${client?.name || 'Client'} Use Only</p>
+  </div>
+</body>
+</html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Wait for content to load then trigger print
+    printWindow.onload = () => {
+      printWindow.print();
+    };
+  };
+
   // Assign services to client
   const handleAssignServices = async () => {
     if (selectedServices.length === 0 || !client?.practice_id) return;
@@ -1763,29 +1963,38 @@ function DiscoveryClientModal({
               )}
             </button>
             {generatedReport && (
-              <button
-                onClick={handleShareReport}
-                disabled={sharingReport}
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isReportShared 
-                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {sharingReport ? (
-                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                ) : isReportShared ? (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    Shared with Client
-                  </>
-                ) : (
-                  <>
-                    <Share2 className="w-4 h-4" />
-                    Share with Client
-                  </>
-                )}
-              </button>
+              <>
+                <button
+                  onClick={handleExportPDF}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <Printer className="w-4 h-4" />
+                  Export PDF
+                </button>
+                <button
+                  onClick={handleShareReport}
+                  disabled={sharingReport}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isReportShared 
+                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {sharingReport ? (
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  ) : isReportShared ? (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Shared with Client
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="w-4 h-4" />
+                      Share with Client
+                    </>
+                  )}
+                </button>
+              </>
             )}
             <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
               <X className="w-5 h-5 text-gray-400" />
