@@ -1294,14 +1294,6 @@ function DiscoveryClientModal({
         console.error('Error fetching documents:', docsError);
       }
       
-      // Additional validation: Filter out any documents that don't match the client's email
-      // This catches cases where client_id might be wrong
-      const { data: clientInfo } = await supabase
-        .from('practice_members')
-        .select('email')
-        .eq('id', clientId)
-        .single();
-      
       const validDocs = (docsData || []).filter((doc: any) => {
         // Documents are already filtered by client_id in the query
         // Just verify the storage path matches if present
