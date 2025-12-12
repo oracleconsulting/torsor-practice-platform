@@ -19,6 +19,68 @@ const corsHeaders = {
 const MODEL = 'anthropic/claude-opus-4.5';
 
 // ============================================================================
+// MECHANICAL TEXT CLEANUP - Enforce British English & style rules
+// ============================================================================
+
+function cleanMechanical(text: string): string {
+  if (!text || typeof text !== 'string') return text;
+  
+  return text
+    // Remove em dashes, replace with comma
+    .replace(/—/g, ', ')
+    .replace(/, ,/g, ',')
+    .replace(/, \./g, '.')
+    // British English spellings
+    .replace(/\boptimize/gi, 'optimise')
+    .replace(/\boptimizing/gi, 'optimising')
+    .replace(/\boptimized/gi, 'optimised')
+    .replace(/\banalyze/gi, 'analyse')
+    .replace(/\banalyzing/gi, 'analysing')
+    .replace(/\banalyzed/gi, 'analysed')
+    .replace(/\brealize/gi, 'realise')
+    .replace(/\brealizing/gi, 'realising')
+    .replace(/\brealized/gi, 'realised')
+    .replace(/\bbehavior/gi, 'behaviour')
+    .replace(/\bbehaviors/gi, 'behaviours')
+    .replace(/\bcenter\b/gi, 'centre')
+    .replace(/\bcenters\b/gi, 'centres')
+    .replace(/\bprogram\b/gi, 'programme')
+    .replace(/\bprograms\b/gi, 'programmes')
+    .replace(/\borganize/gi, 'organise')
+    .replace(/\borganizing/gi, 'organising')
+    .replace(/\borganized/gi, 'organised')
+    .replace(/\bfavor/gi, 'favour')
+    .replace(/\bcolor/gi, 'colour')
+    .replace(/\bhonor/gi, 'honour')
+    // Clean up multiple spaces
+    .replace(/  +/g, ' ')
+    .trim();
+}
+
+// Recursively clean all string fields in an object
+function cleanAllStrings(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  
+  if (typeof obj === 'string') {
+    return cleanMechanical(obj);
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => cleanAllStrings(item));
+  }
+  
+  if (typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const key of Object.keys(obj)) {
+      cleaned[key] = cleanAllStrings(obj[key]);
+    }
+    return cleaned;
+  }
+  
+  return obj;
+}
+
+// ============================================================================
 // DESTINATION CLARITY FALLBACK CALCULATION
 // ============================================================================
 
@@ -473,10 +535,28 @@ INVESTMENT PHASING IS CRITICAL:
 
 365 ALIGNMENT PROGRAMME:
 This is NOT just for people without plans. It's for founders undergoing TRANSFORMATION:
-- OPERATOR → INVESTOR transition
-- FOUNDER → CHAIRMAN transition
-- BURNOUT → BALANCE transition
+- OPERATOR to INVESTOR transition
+- FOUNDER to CHAIRMAN transition
+- BURNOUT to BALANCE transition
 If transformation signals are detected, recommend 365 even if they have a business plan.
+
+LANGUAGE RULES (non-negotiable):
+
+1. No em dashes. Use commas or full stops instead.
+
+2. British English only: optimise, analyse, realise, behaviour, centre, programme
+
+3. Banned words (never use these): delve, realm, harness, unlock, leverage, seamless, empower, streamline, elevate, unprecedented, reimagine, holistic, foster, robust, scalable, breakthrough, disruptive, transformative, game-changer, cutting-edge, synergy, frictionless, data-driven, next-gen
+
+4. Banned patterns (never use these):
+   - "Here's the truth:" or "Here's the thing:"
+   - "In a world where..."
+   - "It's not about X. It's about Y."
+   - "Most people [X]. The few who [Y]."
+   - "The real work is..."
+   - "If you're not doing X, you're already behind"
+
+5. Write like you're talking to them in a meeting. Direct, warm, occasionally blunt. Not preachy.
 
 Writing style:
 - Direct and confident, backed by specific evidence
@@ -931,10 +1011,17 @@ Return ONLY the JSON object with no additional text.`;
         console.log('[Discovery] Investment summary:', JSON.stringify(analysis.investmentSummary, null, 2));
       }
       
+      // ======================================================================
+      // APPLY MECHANICAL TEXT CLEANUP - British English & style fixes
+      // ======================================================================
+      console.log('[Discovery] Applying mechanical text cleanup...');
+      analysis = cleanAllStrings(analysis);
+      console.log('[Discovery] Text cleanup complete');
+      
     } catch (e: any) {
       console.error('[Discovery] JSON parse error:', e.message);
       console.error('[Discovery] Failed to parse text (first 1000 chars):', analysisText.substring(0, 1000));
-      analysis = { rawAnalysis: analysisText, parseError: true };
+      analysis = { rawAnalysis: cleanMechanical(analysisText), parseError: true };
     }
 
     // ========================================================================
