@@ -59,7 +59,7 @@ function extractUsageFromResponse(response: any): { inputTokens: number; outputT
 async function trackLLMExecution(supabase: any, record: any): Promise<void> {
   const cost = calculateCost(record);
   try {
-    await supabase.from('llm_execution_history').insert({
+    const { error } = await supabase.from('llm_execution_history').insert({
       function_name: record.functionName,
       model: record.model,
       input_tokens: record.inputTokens,
@@ -72,8 +72,13 @@ async function trackLLMExecution(supabase: any, record: any): Promise<void> {
       error_message: record.error,
       created_at: new Date().toISOString()
     });
+    if (error) {
+      // Table might not exist - that's OK, just log it
+      console.log('LLM execution tracking skipped (table may not exist):', error.message);
+    }
   } catch (e) {
-    console.warn('Error tracking LLM execution:', e);
+    // Silent fail - tracking is optional
+    console.log('LLM execution tracking unavailable');
   }
 }
 
@@ -416,6 +421,9 @@ Writing style:
 // ============================================================================
 
 serve(async (req) => {
+  console.log('=== GENERATE-DISCOVERY-REPORT STARTED ===');
+  console.log('Method:', req.method);
+  
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -425,17 +433,27 @@ serve(async (req) => {
   let outputTokens = 0;
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    console.log('Initializing Supabase client...');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('Missing Supabase credentials');
+      throw new Error('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not configured');
+    }
+    
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     const openrouterKey = Deno.env.get('OPENROUTER_API_KEY');
     if (!openrouterKey) {
+      console.error('Missing OpenRouter API key');
       throw new Error('OPENROUTER_API_KEY not configured');
     }
+    console.log('Environment variables OK');
 
-    const { clientId, practiceId, discoveryId, skipPatternDetection } = await req.json();
+    const body = await req.json();
+    console.log('Request body:', JSON.stringify(body));
+    const { clientId, practiceId, discoveryId, skipPatternDetection } = body;
 
     if (!clientId) {
       throw new Error('clientId is required');
@@ -539,19 +557,28 @@ serve(async (req) => {
 
     let patternAnalysis = null;
     
-    // Check for existing pattern analysis
-    const { data: existingPatterns } = await supabase
-      .from('assessment_patterns')
-      .select('*')
-      .eq('assessment_id', discovery.id)
-      .single();
+    // Check for existing pattern analysis (skip if table doesn't exist)
+    try {
+      const { data: existingPatterns, error: patternQueryError } = await supabase
+        .from('assessment_patterns')
+        .select('*')
+        .eq('assessment_id', discovery.id)
+        .single();
 
-    if (existingPatterns) {
-      patternAnalysis = existingPatterns;
-      console.log('Using existing pattern analysis, clarity score:', existingPatterns.destination_clarity_score);
-    } else if (!skipPatternDetection) {
+      if (patternQueryError) {
+        console.log('assessment_patterns query error (table may not exist):', patternQueryError.message);
+      } else if (existingPatterns) {
+        patternAnalysis = existingPatterns;
+        console.log('Using existing pattern analysis, clarity score:', existingPatterns.destination_clarity_score);
+      }
+    } catch (e) {
+      console.log('assessment_patterns table may not exist, skipping pattern check');
+    }
+    
+    // Only try pattern detection if skipPatternDetection is false AND we don't have patterns
+    if (!patternAnalysis && !skipPatternDetection) {
       // Run pattern detection
-      console.log('Running pattern detection for assessment:', discovery.id);
+      console.log('Attempting pattern detection for assessment:', discovery.id);
       try {
         const patternResponse = await fetch(
           `${Deno.env.get('SUPABASE_URL')}/functions/v1/detect-assessment-patterns`,
@@ -569,35 +596,43 @@ serve(async (req) => {
           const patternResult = await patternResponse.json();
           if (patternResult.success) {
             // Fetch the saved pattern
-            const { data: newPatterns } = await supabase
-              .from('assessment_patterns')
-              .select('*')
-              .eq('assessment_id', discovery.id)
-              .single();
-            patternAnalysis = newPatterns;
-            console.log('Pattern detection complete, clarity score:', patternResult.patterns?.destinationClarity?.score);
+            try {
+              const { data: newPatterns } = await supabase
+                .from('assessment_patterns')
+                .select('*')
+                .eq('assessment_id', discovery.id)
+                .single();
+              patternAnalysis = newPatterns;
+              console.log('Pattern detection complete, clarity score:', patternResult.patterns?.destinationClarity?.score);
+            } catch (e) {
+              console.log('Could not fetch saved patterns (table may not exist)');
+            }
           }
         } else {
           console.warn('Pattern detection failed, continuing without it');
         }
       } catch (patternError) {
-        console.warn('Pattern detection error, continuing without it:', patternError);
+        console.warn('Pattern detection unavailable, continuing without it:', patternError);
       }
     }
 
-    // Also check legacy table for backward compatibility
+    // Also check legacy table for backward compatibility (if it exists)
     if (!patternAnalysis) {
-      const { data: legacyPatterns } = await supabase
-        .from('client_pattern_analysis')
-        .select('*')
-        .eq('client_id', clientId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-      
-      if (legacyPatterns) {
-        patternAnalysis = legacyPatterns;
-        console.log('Using legacy pattern analysis');
+      try {
+        const { data: legacyPatterns, error: legacyError } = await supabase
+          .from('client_pattern_analysis')
+          .select('*')
+          .eq('client_id', clientId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (!legacyError && legacyPatterns) {
+          patternAnalysis = legacyPatterns;
+          console.log('Using legacy pattern analysis');
+        }
+      } catch (e) {
+        console.log('Legacy pattern analysis table not available');
       }
     }
 

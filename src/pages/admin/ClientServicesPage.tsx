@@ -1460,7 +1460,7 @@ function DiscoveryClientModal({
       }
       
       // Direct fetch to edge function
-      const functionUrl = 'https://mvdejlkiqslwrbarwxkw.supabase.co/functions/v1/generate-discovery-report';
+      const functionUrl = 'https://mvdejlkiqslwrbarwxkw.supabase.co/functions/v1/DISCOVERY-REPORT-GENERATOR';
       console.log('Calling edge function:', functionUrl);
       console.log('Payload:', { clientId, practiceId: client?.practice_id, discoveryId: discovery?.id });
       

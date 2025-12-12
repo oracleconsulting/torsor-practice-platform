@@ -47,11 +47,18 @@ enabled = false
 
 [functions]
 # Edge Functions configuration
+
+[functions."generate-discovery-report"]
+verify_jwt = true
+
+[functions."detect-assessment-patterns"]
+verify_jwt = true
+
 [functions."generate-roadmap"]
+verify_jwt = true
 
 [functions."notify-roadmap-ready"]
 verify_jwt = false
-verify_jwt = true
 
 [functions."generate-value-analysis"]
 verify_jwt = true
@@ -64,6 +71,12 @@ verify_jwt = true
 
 [functions."accept-invitation"]
 verify_jwt = false  # Public endpoint for invitation acceptance
+
+[functions."generate-service-recommendations"]
+verify_jwt = true
+
+[functions."process-documents"]
+verify_jwt = true
 
 [analytics]
 enabled = false
