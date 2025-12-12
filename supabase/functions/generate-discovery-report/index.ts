@@ -21,8 +21,9 @@ const corsHeaders = {
   'Access-Control-Max-Age': '86400',
 }
 
-// Use Claude Opus 4.5 for premium quality discovery reports
-const MODEL = 'anthropic/claude-opus-4.5';
+// Use Claude Sonnet 4 for faster discovery reports (Opus 4.5 times out on Supabase)
+// Switch back to anthropic/claude-opus-4.5 if you increase timeout limits
+const MODEL = 'anthropic/claude-sonnet-4-20250514';
 
 // ============================================================================
 // INLINE COST TRACKING (to avoid module import issues)
@@ -38,6 +39,7 @@ interface LLMUsage {
 const PRICING: Record<string, { inputPer1M: number; outputPer1M: number }> = {
   'anthropic/claude-opus-4.5': { inputPer1M: 15.00, outputPer1M: 75.00 },
   'anthropic/claude-sonnet-4-20250514': { inputPer1M: 3.00, outputPer1M: 15.00 },
+  'anthropic/claude-sonnet-4': { inputPer1M: 3.00, outputPer1M: 15.00 },
   'anthropic/claude-3.5-sonnet': { inputPer1M: 3.00, outputPer1M: 15.00 },
 };
 
@@ -1087,8 +1089,8 @@ CRITICAL REQUIREMENTS:
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 16384,  // Increased for comprehensive report with Opus 4
-        temperature: 0.4,   // Slightly higher for creativity while maintaining accuracy
+        max_tokens: 8192,   // Reduced for faster response within timeout
+        temperature: 0.3,   // Lower for faster, more consistent output
         messages: [
           { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
           { role: 'user', content: analysisPrompt }
