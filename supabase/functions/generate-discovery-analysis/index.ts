@@ -705,8 +705,12 @@ When you identify gaps, score severity accurately:
 ## AVAILABLE SERVICES
 ${JSON.stringify(SERVICE_LINES, null, 2)}
 
-## OUTPUT FORMAT
-Return a JSON object with:
+## OUTPUT FORMAT - CRITICAL: USE EXACT FIELD NAMES
+
+⚠️ THE UI WILL BREAK IF YOU USE DIFFERENT FIELD NAMES ⚠️
+
+Return ONLY a valid JSON object (no markdown, no explanation, just the JSON):
+
 {
   "executiveSummary": {
     "headline": "One powerful sentence",
@@ -718,44 +722,74 @@ Return a JSON object with:
   },
   "destinationAnalysis": {
     "fiveYearVision": "Their stated destination",
-    "coreEmotionalDrivers": [{ "driver": "e.g. Freedom", "evidence": "exact quote", "whatItMeans": "interpretation" }],
-    "lifestyleGoals": ["non-business goals mentioned"]
+    "coreEmotionalDrivers": [{ "driver": "Freedom", "evidence": "exact quote", "whatItMeans": "interpretation" }],
+    "lifestyleGoals": ["non-business goals"]
   },
   "gapAnalysis": {
-    "primaryGaps": [{ "gap": "specific gap", "category": "Financial|Operational|Strategic|Personal", "severity": "critical|high|medium", "evidence": "quote", "currentImpact": { "timeImpact": "X hours/week", "financialImpact": "£X", "emotionalImpact": "how it feels" } }],
-    "costOfInaction": { "annualFinancialCost": "£X,XXX with calculation", "personalCost": "impact on life", "compoundingEffect": "how it gets worse" }
+    "primaryGaps": [{ 
+      "gap": "specific gap", 
+      "category": "Financial", 
+      "severity": "critical", 
+      "evidence": "quote", 
+      "currentImpact": { "timeImpact": "X hours/week", "financialImpact": "£X", "emotionalImpact": "how it feels" } 
+    }],
+    "costOfInaction": { 
+      "annualFinancialCost": "£X,XXX with calculation", 
+      "personalCost": "impact on life", 
+      "compoundingEffect": "how it gets worse" 
+    }
   },
   "recommendedInvestments": [
     {
-      "service": "Service name",
-      "code": "service_code",
+      "service": "Management Accounts",
+      "code": "management_accounts",
       "priority": 1,
-      "recommendedTier": "tier name",
-      "investment": "£X,XXX",
-      "investmentFrequency": "per month|per year|one-off",
-      "whyThisTier": "reasoning",
-      "problemsSolved": [{ "problem": "from their responses", "theirWords": "exact quote", "howWeSolveIt": "specific actions", "expectedResult": "measurable outcome" }],
-      "expectedROI": { "multiplier": "Xx", "timeframe": "X months", "calculation": "how we calculated" },
+      "recommendedTier": "Standard tier",
+      "investment": "£650",
+      "investmentFrequency": "per month",
+      "whyThisTier": "reasoning for this tier",
+      "problemsSolved": [{ 
+        "problem": "from their responses", 
+        "theirWords": "exact quote", 
+        "howWeSolveIt": "specific actions", 
+        "expectedResult": "measurable outcome" 
+      }],
+      "expectedROI": { 
+        "multiplier": "10x", 
+        "timeframe": "3 months", 
+        "calculation": "how we calculated" 
+      },
+      "keyOutcomes": ["Financial visibility", "Investor-ready reports"],
       "riskOfNotActing": "specific consequence"
     }
   ],
   "investmentSummary": {
-    "totalFirstYearInvestment": "£XX,XXX",
-    "projectedFirstYearReturn": "£XXX,XXX",
-    "paybackPeriod": "X months",
+    "totalFirstYearInvestment": "£11,800",
+    "projectedFirstYearReturn": "£150,000+",
+    "paybackPeriod": "3 months",
+    "netBenefitYear1": "£138,200",
+    "roiCalculation": "Based on X efficiency gains",
     "comparisonToInaction": "Clear comparison"
   },
-  "implementationRoadmap": [
-    { "phase": "Week 1-2", "title": "Getting Started", "actions": ["action 1", "action 2"] }
+  "recommendedNextSteps": [
+    { "step": 1, "action": "Schedule discovery call", "timing": "This week", "owner": "Oracle team" }
   ],
   "closingMessage": {
-    "personalNote": "Empathetic message",
+    "personalNote": "Empathetic message referencing their specific situation",
     "callToAction": "Clear next step",
     "urgencyReminder": "Why now"
   }
 }
 
-Return ONLY the JSON object.`;
+CRITICAL FIELD NAME REQUIREMENTS:
+- Use "service" NOT "serviceName" or "name"
+- Use "investment" NOT "price" or "cost"  
+- Use "investmentFrequency" NOT "frequency" or "period"
+- Use "expectedROI" with "multiplier" and "timeframe" subfields
+- Use "totalFirstYearInvestment" NOT "total" or "totalFirstYear"
+- Use "recommendedNextSteps" with "step", "action", "timing", "owner"
+
+Return ONLY the JSON object with no additional text.`;
 
     // ========================================================================
     // CALL CLAUDE OPUS 4.5
@@ -812,24 +846,94 @@ Return ONLY the JSON object.`;
       throw new Error('Empty response from AI');
     }
 
-    // Parse JSON from response
+    console.log('[Discovery] Raw LLM response length:', analysisText.length);
+    console.log('[Discovery] First 500 chars:', analysisText.substring(0, 500));
+
+    // Parse JSON from response with robust extraction
     let analysis;
     try {
       let jsonString = analysisText;
+      
+      // Try to extract JSON from markdown code blocks
       const codeBlockMatch = analysisText.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (codeBlockMatch) {
         jsonString = codeBlockMatch[1].trim();
+        console.log('[Discovery] Extracted from code block');
       }
-      if (!jsonString.startsWith('{')) {
+      
+      // Find the actual JSON object boundaries
+      if (!jsonString.trim().startsWith('{')) {
         const jsonStart = jsonString.indexOf('{');
         const jsonEnd = jsonString.lastIndexOf('}');
-        if (jsonStart !== -1 && jsonEnd !== -1) {
+        if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
           jsonString = jsonString.substring(jsonStart, jsonEnd + 1);
+          console.log('[Discovery] Extracted JSON from position', jsonStart, 'to', jsonEnd);
         }
       }
+      
       analysis = JSON.parse(jsonString);
-    } catch (e) {
-      console.error('JSON parse error, using raw text');
+      console.log('[Discovery] JSON parsed successfully');
+      
+      // Debug: Log the structure of the parsed analysis
+      console.log('[Discovery] Analysis structure:', {
+        hasExecutiveSummary: !!analysis.executiveSummary,
+        hasGapAnalysis: !!analysis.gapAnalysis,
+        hasRecommendedInvestments: !!analysis.recommendedInvestments,
+        recommendedInvestmentsCount: analysis.recommendedInvestments?.length || 0,
+        hasInvestmentSummary: !!analysis.investmentSummary,
+        hasClosingMessage: !!analysis.closingMessage
+      });
+      
+      // Debug: Log first investment if exists
+      if (analysis.recommendedInvestments?.[0]) {
+        console.log('[Discovery] First investment:', JSON.stringify(analysis.recommendedInvestments[0], null, 2));
+      }
+      
+      // Normalize investment structure in case of field name variations
+      if (analysis.recommendedInvestments && Array.isArray(analysis.recommendedInvestments)) {
+        analysis.recommendedInvestments = analysis.recommendedInvestments.map((inv: any) => ({
+          service: inv.service || inv.serviceName || inv.name || 'Unknown Service',
+          code: inv.code || inv.serviceCode || '',
+          priority: inv.priority || inv.order || 1,
+          recommendedTier: inv.recommendedTier || inv.tier || '',
+          investment: inv.investment || inv.price || inv.cost || '',
+          investmentFrequency: inv.investmentFrequency || inv.frequency || inv.period || 'per month',
+          whyThisTier: inv.whyThisTier || inv.reasoning || '',
+          problemsSolved: inv.problemsSolved || inv.problems || [],
+          expectedROI: {
+            multiplier: inv.expectedROI?.multiplier || inv.roi?.multiplier || inv.roi?.multiple || '',
+            timeframe: inv.expectedROI?.timeframe || inv.roi?.timeframe || inv.roi?.period || '',
+            calculation: inv.expectedROI?.calculation || inv.roi?.calculation || ''
+          },
+          keyOutcomes: inv.keyOutcomes || inv.outcomes || [],
+          riskOfNotActing: inv.riskOfNotActing || inv.risk || ''
+        }));
+        console.log('[Discovery] Normalized investments:', analysis.recommendedInvestments.length);
+      }
+      
+      // Normalize investment summary
+      if (analysis.investmentSummary) {
+        analysis.investmentSummary = {
+          totalFirstYearInvestment: analysis.investmentSummary.totalFirstYearInvestment || 
+                                     analysis.investmentSummary.totalFirstYear || 
+                                     analysis.investmentSummary.total || '',
+          projectedFirstYearReturn: analysis.investmentSummary.projectedFirstYearReturn || 
+                                     analysis.investmentSummary.projectedReturn || 
+                                     analysis.investmentSummary.return || '',
+          paybackPeriod: analysis.investmentSummary.paybackPeriod || 
+                          analysis.investmentSummary.payback || '',
+          netBenefitYear1: analysis.investmentSummary.netBenefitYear1 || 
+                           analysis.investmentSummary.netBenefit || '',
+          roiCalculation: analysis.investmentSummary.roiCalculation || 
+                          analysis.investmentSummary.calculation || '',
+          comparisonToInaction: analysis.investmentSummary.comparisonToInaction || ''
+        };
+        console.log('[Discovery] Investment summary:', JSON.stringify(analysis.investmentSummary, null, 2));
+      }
+      
+    } catch (e: any) {
+      console.error('[Discovery] JSON parse error:', e.message);
+      console.error('[Discovery] Failed to parse text (first 1000 chars):', analysisText.substring(0, 1000));
       analysis = { rawAnalysis: analysisText, parseError: true };
     }
 
