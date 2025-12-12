@@ -15,8 +15,8 @@ const corsHeaders = {
   'Access-Control-Max-Age': '86400',
 }
 
-// Use Claude Sonnet 4 for reliable analysis (Opus 4.5 may not be available on all OpenRouter tiers)
-const MODEL = 'anthropic/claude-sonnet-4-20250514';
+// Use Claude Opus 4.5 for premium quality analysis
+const MODEL = 'anthropic/claude-opus-4.5';
 
 // Service line definitions (abbreviated for this function)
 const SERVICE_LINES = {
@@ -177,6 +177,10 @@ Return ONLY the JSON object.`;
     // CALL CLAUDE OPUS 4.5
     // ========================================================================
 
+    // Log prompt size to help debug token limits
+    const promptSize = analysisPrompt.length;
+    const systemSize = SYSTEM_PROMPT.length;
+    console.log(`Prompt sizes - System: ${systemSize} chars, User: ${promptSize} chars, Total: ${systemSize + promptSize} chars`);
     console.log('Calling Claude Opus 4.5...');
     const llmStartTime = Date.now();
 
@@ -204,8 +208,17 @@ Return ONLY the JSON object.`;
 
     if (!openrouterResponse.ok) {
       const errorText = await openrouterResponse.text();
-      console.error('OpenRouter error:', errorText);
-      throw new Error(`AI analysis failed: ${openrouterResponse.status}`);
+      console.error('OpenRouter error status:', openrouterResponse.status);
+      console.error('OpenRouter error body:', errorText);
+      
+      // Try to parse error for more details
+      try {
+        const errorJson = JSON.parse(errorText);
+        console.error('OpenRouter error details:', JSON.stringify(errorJson, null, 2));
+        throw new Error(`AI analysis failed: ${errorJson?.error?.message || errorJson?.message || openrouterResponse.status}`);
+      } catch (e) {
+        throw new Error(`AI analysis failed: ${openrouterResponse.status} - ${errorText.substring(0, 200)}`);
+      }
     }
 
     const openrouterData = await openrouterResponse.json();
