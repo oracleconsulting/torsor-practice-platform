@@ -411,6 +411,106 @@ Supabase Edge Functions have a **60-second timeout**. The full analysis with Cla
 
 ---
 
+## Refinements Implemented (December 2025)
+
+### 1. Destination Clarity Score Fix
+```typescript
+// Fallback calculation when pattern detection unavailable
+- Time specificity (0500, morning): +2-3 points
+- Activities (wake, run, take, walk, play): +3 points
+- Relationships (wife, boys, mates): +2 points
+- Role transformation (invest, portfolio, CEO): +2 points
+- Length/detail (100+ chars): +1-2 points
+
+// Ben's vision scores 9/10:
+"I wake up at 0500..." → time +2, activities +3, relationships +2, transformation +2 = 9
+```
+
+### 2. Investment Affordability & Phasing
+```
+Client Stage Detection:
+- Pre-revenue: MVP, launch, product-market in frustrations
+- Early-revenue: <£500k, "don't have capital"
+- Established: £500k-£2M
+- Scaling: £2M+
+
+Phasing for Pre-Revenue:
+- Phase 1 (Now): Max £15k/year → Systems Audit + Management Accounts
+- Phase 2 (Post-raise): Fractional CFO, 365
+- Phase 3 (At scale): Full fractional suite
+
+HEADLINE: "Start with £11,800" NOT "Total investment £152k"
+```
+
+### 3. 365 Lifestyle Transformation Detection
+```
+Triggers (even if they have a business plan):
+- lifestyleTransformation: Vision includes "invest", "portfolio", "investment CEOs"
+- identityShift: Success = "legacy that outlasts me"
+- burnoutWithReadiness: 60-70hrs + "completely ready for change"
+- legacyFocus: Exit timeline 1-5 years
+
+Position: "You have a plan. You don't have a path to becoming that person."
+```
+
+### 4. Financial Projections Integration
+```
+Extracts from uploaded documents:
+- Revenue trajectory (Year 1-5)
+- Gross margin
+- Team growth
+- Growth multiple
+
+Calculates:
+- Investment as % of Year 1 revenue
+- Exit value delta (6x vs 12x multiple)
+- Specific ROI using their projections
+
+Example: "Phase 1 (£11,800) = 2.1% of Year 1 projected revenue"
+```
+
+### 5. Gap Score Calibration
+```
+Severity Weights:
+- Critical: 3 points
+- High: 2 points
+- Medium: 1 point
+- Low: 0.5 points
+
+Normalization: (weightedSum / 17) × 10
+
+Example:
+- 2 critical (6) + 3 high (6) = 12 points
+- Score: (12/17) × 10 = 7/10
+
+Scale:
+- 9-10: Crisis level
+- 7-8: Significant gaps
+- 5-6: Multiple gaps
+- 3-4: Some gaps
+- 1-2: Minor optimizations
+```
+
+### 6. Enhanced Closing Message
+```
+Detects and references:
+- Vulnerabilities: imposter syndrome, fear, doubt
+- Relationship strain: "tension", "given up complaining"
+- Specific vision details: morning run, school pickup, Padel
+
+Structure:
+1. Acknowledge vulnerability (1-2 sentences)
+2. Reframe current reality (2-3 sentences)
+3. Hope with evidence (2-3 sentences)
+4. Personal stakes, not business metrics (2-3 sentences)
+5. Low-pressure next step (1-2 sentences)
+
+Tone: "Ben, I want to be direct with you..."
+NOT: "Dear Mr Stocken, thank you for completing..."
+```
+
+---
+
 ## Quality Assurance
 
 ### Key Requirements for Analysis:
