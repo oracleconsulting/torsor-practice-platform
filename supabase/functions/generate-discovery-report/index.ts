@@ -4,10 +4,16 @@
 // Generates a comprehensive analysis report from discovery responses
 // Positions services as INVESTMENTS with clear ROI projections
 // Uses client's own words to build compelling value cases
+// 
+// Updated: December 2025
+// - Upgraded to Claude Opus 4 for premium quality analysis
+// - Integrates with pattern detection for pre-analysis
+// - Enhanced prompts for capital raising and lifestyle transformation
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { calculateCost, extractUsageFromResponse, trackLLMExecution } from '../_shared/llm-cost-tracker.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,6 +21,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, Accept',
   'Access-Control-Max-Age': '86400',
 }
+
+// Use Claude Opus 4 for premium quality discovery reports
+const MODEL = 'anthropic/claude-opus-4';
 
 // ============================================================================
 // SERVICE LINE DEFINITIONS WITH ACCURATE PRICING (from BSG Launch Strategy)
@@ -286,40 +295,69 @@ const SERVICE_LINES: Record<string, ServiceLine> = {
 };
 
 // ============================================================================
-// ANALYSIS PROMPTS
+// ANALYSIS PROMPTS - Enhanced December 2025
 // ============================================================================
 
-const ANALYSIS_SYSTEM_PROMPT = `You are a senior business advisor at RPGCC, a boutique accountancy and advisory practice. 
-You are analyzing a discovery assessment to produce a COMPREHENSIVE report for the practice team.
+const ANALYSIS_SYSTEM_PROMPT = `You are a senior business advisor with deep expertise in business transformation, personal development, and strategic planning. You are analyzing a discovery assessment for a client who represents a significant opportunity.
 
-Your role is to:
-1. Deeply understand what the client REALLY wants (their destination) - read between the lines
-2. Identify ALL the gaps between where they are and where they want to be
-3. Diagnose the ROOT CAUSES of their challenges (not just symptoms)
-4. Map specific problems to specific services with detailed implementation plans
-5. Frame every recommendation as an INVESTMENT with clear, quantified ROI
+CONTEXT:
+- This is an EXISTING client relationship (we know their financials)
+- Every recommendation must demonstrate clear, quantified ROI
+- The client's time is valuable - be direct and insightful
+- Pattern analysis has already been performed - use these insights
 
-Key principles:
-- Quote the client's EXACT WORDS frequently - they should see themselves in this report
-- Be SPECIFIC - no generic advice. Reference their actual situation.
-- QUANTIFY everything: hours saved, £ impact, timeline, payback period
-- Explain HOW each service solves their specific problem
-- Show the domino effect: fixing X enables Y which unlocks Z
-- Make inaction feel like the RISKIER choice with concrete costs
-- Connect emotional goals (freedom, family time) to practical solutions
+CRITICAL ANALYSIS REQUIREMENTS:
 
-Analysis depth requirements:
-- Analyze EVERY response they gave, not just the obvious ones
-- Look for patterns and connections between their answers
-- Identify what they're NOT saying but implying
-- Consider the interdependencies between their challenges
-- Think about sequencing - what needs to happen first?
+1. READ BETWEEN THE LINES
+Look beyond surface answers. What is the client's TRUE destination? What identity transformation are they seeking (e.g., operator to investor, founder to chairperson)?
+
+When they describe a detailed, time-anchored future vision (specific times, activities, people, feelings), this represents EXCEPTIONAL destination clarity (9-10/10), not poor clarity.
+
+2. ADDRESS VULNERABILITIES WITH CARE
+If the client has disclosed sensitive information (imposter syndrome, team secrets, relationship strain), acknowledge it in recommendations without embarrassing them. This disclosure indicates trust.
+
+3. CAPITAL RAISING CONTEXT
+If pattern analysis detected capital-raising signals:
+- Every service recommendation must demonstrate how it makes them MORE investable
+- Quantify the valuation impact of founder dependency
+- Frame systems/processes as investor due diligence requirements
+- Management accounts become "investor-ready reporting"
+
+4. THE PERSONAL COST IS REAL
+Calculate the personal cost of inaction in HUMAN terms:
+- Hours with family lost per year
+- Health impact of sustained high stress
+- Relationship strain trajectory
+- What they're sacrificing for the business
+
+5. SERVICE RECOMMENDATIONS
+For each recommended service:
+- Connect to their EXACT WORDS (quote them 10-15 times throughout)
+- Show the transformation pathway from current state to destination
+- Specific £ ROI calculation using their financials
+- How it reduces founder dependency
+- How it accelerates their stated timeline
+
+6. SEQUENCING
+- What must come FIRST to unlock everything else?
+- What can run in parallel?
+- What's the 90-day quick win?
+
+QUOTING REQUIREMENTS:
+- Quote their exact words 10-15 times throughout
+- Use their language and metaphors back at them
+- Reference specific numbers from their context
+
+MINIMUM REQUIREMENTS:
+- ALWAYS recommend at least 3 services (most clients need a combination approach)
+- NEVER return a destination clarity score lower than what pattern analysis found
+- ALWAYS include implementation roadmap with specific timelines
 
 Writing style:
 - Direct and confident, backed by specific evidence from their responses
 - Empathetic but pragmatic - acknowledge feelings, provide solutions
-- Use their language and metaphors back at them
-- Create urgency without being pushy`;
+- Create urgency by contrasting investment cost with inaction cost
+- Make the business case irresistible through specific £ calculations`;
 
 // ============================================================================
 // MAIN HANDLER
@@ -329,6 +367,10 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
+
+  const startTime = Date.now();
+  let inputTokens = 0;
+  let outputTokens = 0;
 
   try {
     const supabase = createClient(
@@ -341,7 +383,7 @@ serve(async (req) => {
       throw new Error('OPENROUTER_API_KEY not configured');
     }
 
-    const { clientId, practiceId, discoveryId } = await req.json();
+    const { clientId, practiceId, discoveryId, skipPatternDetection } = await req.json();
 
     if (!clientId) {
       throw new Error('clientId is required');
@@ -405,14 +447,73 @@ serve(async (req) => {
       .eq('client_id', clientId)
       .single();
 
-    // Get pattern analysis if available
-    const { data: patternAnalysis } = await supabase
-      .from('client_pattern_analysis')
+    // ========================================================================
+    // 1.5. RUN PATTERN DETECTION (Stage 2) IF NOT ALREADY DONE
+    // ========================================================================
+
+    let patternAnalysis = null;
+    
+    // Check for existing pattern analysis
+    const { data: existingPatterns } = await supabase
+      .from('assessment_patterns')
       .select('*')
-      .eq('client_id', clientId)
-      .order('created_at', { ascending: false })
-      .limit(1)
+      .eq('assessment_id', discovery.id)
       .single();
+
+    if (existingPatterns) {
+      patternAnalysis = existingPatterns;
+      console.log('Using existing pattern analysis, clarity score:', existingPatterns.destination_clarity_score);
+    } else if (!skipPatternDetection) {
+      // Run pattern detection
+      console.log('Running pattern detection for assessment:', discovery.id);
+      try {
+        const patternResponse = await fetch(
+          `${Deno.env.get('SUPABASE_URL')}/functions/v1/detect-assessment-patterns`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+            },
+            body: JSON.stringify({ assessmentId: discovery.id })
+          }
+        );
+
+        if (patternResponse.ok) {
+          const patternResult = await patternResponse.json();
+          if (patternResult.success) {
+            // Fetch the saved pattern
+            const { data: newPatterns } = await supabase
+              .from('assessment_patterns')
+              .select('*')
+              .eq('assessment_id', discovery.id)
+              .single();
+            patternAnalysis = newPatterns;
+            console.log('Pattern detection complete, clarity score:', patternResult.patterns?.destinationClarity?.score);
+          }
+        } else {
+          console.warn('Pattern detection failed, continuing without it');
+        }
+      } catch (patternError) {
+        console.warn('Pattern detection error, continuing without it:', patternError);
+      }
+    }
+
+    // Also check legacy table for backward compatibility
+    if (!patternAnalysis) {
+      const { data: legacyPatterns } = await supabase
+        .from('client_pattern_analysis')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (legacyPatterns) {
+        patternAnalysis = legacyPatterns;
+        console.log('Using legacy pattern analysis');
+      }
+    }
 
     console.log('Loaded context - Financial:', !!financialContext, 'Operational:', !!operationalContext, 'Patterns:', !!patternAnalysis);
 
@@ -517,6 +618,38 @@ serve(async (req) => {
     // 3. GENERATE AI ANALYSIS
     // ========================================================================
 
+    // Build pattern analysis context for the prompt
+    const patternContext = patternAnalysis ? {
+      destinationClarityScore: patternAnalysis.destination_clarity_score,
+      destinationClarityRationale: patternAnalysis.destination_clarity_rationale,
+      visionStrengths: patternAnalysis.vision_strengths,
+      visionGaps: patternAnalysis.vision_gaps,
+      contradictions: patternAnalysis.contradictions,
+      hiddenSignals: patternAnalysis.hidden_signals,
+      emotionalState: {
+        stressLevel: patternAnalysis.stress_level,
+        burnoutRisk: patternAnalysis.burnout_risk,
+        imposterSyndrome: patternAnalysis.imposter_syndrome,
+        relationshipStrain: patternAnalysis.relationship_strain,
+        evidence: patternAnalysis.emotional_evidence
+      },
+      truePriority: {
+        stated: patternAnalysis.stated_priority,
+        actual: patternAnalysis.actual_priority,
+        gap: patternAnalysis.priority_gap
+      },
+      capitalRaisingSignals: {
+        detected: patternAnalysis.capital_raising_detected,
+        evidence: patternAnalysis.capital_raising_evidence,
+        urgency: patternAnalysis.capital_raising_urgency
+      },
+      lifestyleTransformation: {
+        detected: patternAnalysis.lifestyle_transformation_detected,
+        type: patternAnalysis.transformation_type,
+        identity: patternAnalysis.identity_transition
+      }
+    } : null;
+
     const analysisPrompt = `
 Analyze this discovery assessment for ${client.name} (${client.client_company || 'their business'}) and produce a comprehensive report.
 
@@ -526,6 +659,43 @@ ${JSON.stringify(clientContext, null, 2)}
 ## IMPORTANT CONTEXT
 This client is an EXISTING client of RPGCC. We already know their financial numbers.
 The discovery assessment captures what we DON'T know: their aspirations, frustrations, emotional state, and operational reality from THEIR perspective.
+
+${patternContext ? `
+## PATTERN ANALYSIS RESULTS (Stage 2 Pre-Analysis)
+This analysis has already been performed by a specialized pattern detection system. USE THESE INSIGHTS.
+
+**Destination Clarity: ${patternContext.destinationClarityScore}/10**
+Rationale: ${patternContext.destinationClarityRationale}
+
+Vision Strengths: ${JSON.stringify(patternContext.visionStrengths)}
+Vision Gaps: ${JSON.stringify(patternContext.visionGaps)}
+
+**Contradictions Detected (${patternContext.contradictions?.length || 0}):**
+${JSON.stringify(patternContext.contradictions, null, 2)}
+
+**Hidden Signals (${patternContext.hiddenSignals?.length || 0}):**
+${JSON.stringify(patternContext.hiddenSignals, null, 2)}
+
+**Emotional State:**
+- Stress Level: ${patternContext.emotionalState.stressLevel}
+- Burnout Risk: ${patternContext.emotionalState.burnoutRisk}
+- Imposter Syndrome: ${patternContext.emotionalState.imposterSyndrome}
+- Relationship Strain: ${patternContext.emotionalState.relationshipStrain}
+- Evidence: ${JSON.stringify(patternContext.emotionalState.evidence)}
+
+**True Priority:**
+- Stated: ${patternContext.truePriority.stated}
+- Actual: ${patternContext.truePriority.actual}
+- Gap: ${patternContext.truePriority.gap}
+
+**Capital Raising: ${patternContext.capitalRaisingSignals.detected ? 'DETECTED - PRIORITIZE INVESTMENT READINESS' : 'Not primary focus'}**
+${patternContext.capitalRaisingSignals.detected ? `Evidence: ${JSON.stringify(patternContext.capitalRaisingSignals.evidence)}
+Urgency: ${patternContext.capitalRaisingSignals.urgency}` : ''}
+
+**Lifestyle Transformation: ${patternContext.lifestyleTransformation.detected ? 'DETECTED' : 'Not detected'}**
+${patternContext.lifestyleTransformation.detected ? `Type: ${patternContext.lifestyleTransformation.type}
+Identity Transition: ${JSON.stringify(patternContext.lifestyleTransformation.identity)}` : ''}
+` : ''}
 
 ${clientContext.financialContext ? `
 ## WE KNOW THEIR FINANCIALS:
@@ -547,14 +717,6 @@ ${clientContext.operationalContext ? `
 - Client Concentration: Top client = ${clientContext.operationalContext.topClientRevenuePct || 'Unknown'}% of revenue
 - Observed Strengths: ${clientContext.operationalContext.observedStrengths?.join(', ') || 'None noted'}
 - Observed Challenges: ${clientContext.operationalContext.observedChallenges?.join(', ') || 'None noted'}
-` : ''}
-
-${clientContext.patternAnalysis ? `
-## PRE-IDENTIFIED PATTERNS:
-${JSON.stringify(clientContext.patternAnalysis.patternsDetected, null, 2)}
-
-## PRE-IDENTIFIED RISKS:
-${JSON.stringify(clientContext.patternAnalysis.risksIdentified, null, 2)}
 ` : ''}
 
 ## ANALYSIS APPROACH
@@ -762,6 +924,8 @@ CRITICAL REQUIREMENTS:
 - Order recommendations by priority (what to start with first)
 `;
 
+    console.log(`Generating discovery report using ${MODEL} for ${client.name}`);
+
     const openrouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -771,8 +935,9 @@ CRITICAL REQUIREMENTS:
         'X-Title': 'Torsor Discovery Report'
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-3.5-sonnet',
-        max_tokens: 8192,  // Increased for comprehensive report
+        model: MODEL,
+        max_tokens: 16384,  // Increased for comprehensive report with Opus 4
+        temperature: 0.4,   // Slightly higher for creativity while maintaining accuracy
         messages: [
           { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
           { role: 'user', content: analysisPrompt }
@@ -787,7 +952,10 @@ CRITICAL REQUIREMENTS:
     }
 
     const openrouterData = await openrouterResponse.json();
-    console.log('OpenRouter response received, choices:', openrouterData.choices?.length || 0);
+    const usage = extractUsageFromResponse(openrouterData);
+    inputTokens = usage.inputTokens;
+    outputTokens = usage.outputTokens;
+    console.log('OpenRouter response received, choices:', openrouterData.choices?.length || 0, 'tokens:', inputTokens + outputTokens);
     
     const analysisText = openrouterData.choices?.[0]?.message?.content || '';
     if (!analysisText) {
@@ -906,8 +1074,25 @@ CRITICAL REQUIREMENTS:
       .eq('id', discovery.id);
 
     // ========================================================================
-    // 6. RETURN REPORT
+    // 6. TRACK COSTS AND RETURN REPORT
     // ========================================================================
+
+    const executionTimeMs = Date.now() - startTime;
+    const costUsd = calculateCost({ model: MODEL, inputTokens, outputTokens, executionTimeMs });
+
+    // Track LLM execution
+    await trackLLMExecution(supabase, {
+      functionName: 'generate-discovery-report',
+      model: MODEL,
+      inputTokens,
+      outputTokens,
+      executionTimeMs,
+      entityType: 'discovery_report',
+      entityId: savedReport?.id || discovery.id,
+      success: true
+    });
+
+    console.log(`Report generation complete. Cost: $${costUsd.toFixed(4)}, Time: ${executionTimeMs}ms`);
 
     return new Response(JSON.stringify({
       success: true,
@@ -923,21 +1108,34 @@ CRITICAL REQUIREMENTS:
           name: practice?.name || 'RPGCC'
         },
         discoveryScores: {
-          clarityScore: discovery.destination_clarity_score,
+          // Use pattern analysis score if available, otherwise rule-based
+          clarityScore: patternAnalysis?.destination_clarity_score || discovery.destination_clarity_score,
           gapScore: discovery.gap_score
         },
+        patternAnalysis: patternContext,
         analysis
+      },
+      metadata: {
+        model: MODEL,
+        tokensUsed: inputTokens + outputTokens,
+        costUsd,
+        executionTimeMs,
+        patternAnalysisIncluded: !!patternAnalysis
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error: any) {
+    const executionTimeMs = Date.now() - startTime;
     console.error('Error generating report:', error);
     const errorMessage = error?.message || String(error) || 'Unknown error';
     return new Response(JSON.stringify({ 
       success: false,
-      error: errorMessage 
+      error: errorMessage,
+      metadata: {
+        executionTimeMs
+      }
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

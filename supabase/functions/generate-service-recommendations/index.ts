@@ -156,14 +156,23 @@ async function calculateServiceScores(
   }
 
   // Boost scores based on destination discovery responses
-  const honestPriority = discoveryResponses.dd_honest_priority;
+  const honestPriority = discoveryResponses.dd_honest_priority || discoveryResponses.dd_priority_focus;
   const priorityBoosts: Record<string, string[]> = {
+    // Existing priority mappings
     'Financial clarity and control': ['management_accounts', 'fractional_cfo', 'benchmarking'],
     'My business running without me': ['systems_audit', 'fractional_coo', 'automation'],
     'Strategic direction and accountability': ['365_method', 'combined_advisory'],
     'Growing without growing problems': ['systems_audit', 'fractional_coo', 'fractional_cfo'],
     'Protecting what Ive built': ['business_advisory', 'fractional_cfo'],
-    'Better work-life balance': ['365_method', 'systems_audit', 'fractional_coo']
+    'Better work-life balance': ['365_method', 'systems_audit', 'fractional_coo'],
+    
+    // NEW: Enhanced priority mappings from dd_priority_focus
+    'Getting real financial visibility and control': ['management_accounts', 'fractional_cfo', 'benchmarking'],
+    'Building a business that runs without me': ['systems_audit', 'fractional_coo', '365_method'],
+    'Having strategic direction and accountability': ['365_method', 'combined_advisory', 'fractional_cfo'],
+    'Scaling without scaling the chaos': ['systems_audit', 'fractional_coo', 'automation'],
+    'Protecting the value Ive built': ['business_advisory', 'fractional_cfo', 'benchmarking'],
+    'Getting my time and energy back': ['365_method', 'systems_audit', 'fractional_coo']
   };
 
   if (honestPriority && priorityBoosts[honestPriority]) {
@@ -172,14 +181,51 @@ async function calculateServiceScores(
     });
   }
 
+  // ========================================================================
+  // CAPITAL RAISING DETECTION
+  // ========================================================================
+  const capitalRaisingDetected = detectCapitalRaisingIntent(discoveryResponses, diagnosticResponses);
+  if (capitalRaisingDetected) {
+    console.log('Capital raising intent detected - boosting investment readiness services');
+    scores['fractional_cfo'] = (scores['fractional_cfo'] || 0) * 1.5;
+    scores['management_accounts'] = (scores['management_accounts'] || 0) * 1.3;
+    scores['business_advisory'] = (scores['business_advisory'] || 0) * 1.3;
+    scores['systems_audit'] = (scores['systems_audit'] || 0) * 1.2; // Investors want to see operational maturity
+  }
+
+  // ========================================================================
+  // LIFESTYLE TRANSFORMATION DETECTION
+  // ========================================================================
+  const lifestyleTransformationDetected = detectLifestyleTransformation(discoveryResponses);
+  if (lifestyleTransformationDetected) {
+    console.log('Lifestyle transformation detected - boosting 365 Method and operational services');
+    scores['365_method'] = (scores['365_method'] || 0) * 1.5;
+    scores['fractional_coo'] = (scores['fractional_coo'] || 0) * 1.3;
+    scores['systems_audit'] = (scores['systems_audit'] || 0) * 1.2;
+  }
+
+  // ========================================================================
+  // BURNOUT INDICATORS
+  // ========================================================================
+  const burnoutDetected = detectBurnoutIndicators(discoveryResponses);
+  if (burnoutDetected) {
+    console.log('Burnout indicators detected - prioritizing 365 Method');
+    scores['365_method'] = (scores['365_method'] || 0) * 1.4;
+  }
+
   // Urgency multiplier
-  const urgency = discoveryResponses.dd_timeline_urgency;
+  const urgency = discoveryResponses.dd_timeline_urgency || discoveryResponses.dd_change_readiness;
   const urgencyMultiplier = {
     'Critical - I cant continue like this': 1.5,
     'Important - within the next 3 months': 1.3,
     'Significant - within the next 6 months': 1.1,
     'Moderate - sometime this year': 1.0,
-    'Low - whenever the time is right': 0.8
+    'Low - whenever the time is right': 0.8,
+    'Completely ready - Ill do whatever it takes': 1.3,
+    'Ready - as long as I understand the why': 1.2,
+    'Open - but Ill need convincing': 1.0,
+    'Hesitant - change feels risky': 0.9,
+    'Resistant - I prefer how things are': 0.7
   }[urgency] || 1.0;
 
   // Apply multiplier to all scores
@@ -191,24 +237,154 @@ async function calculateServiceScores(
 }
 
 // ============================================================================
+// CAPITAL RAISING DETECTION
+// ============================================================================
+function detectCapitalRaisingIntent(
+  discoveryResponses: Record<string, any>,
+  diagnosticResponses: Record<string, any>
+): boolean {
+  const signals: boolean[] = [
+    // Explicit growth blocker = capital
+    diagnosticResponses.sd_growth_blocker === "Dont have the capital",
+    diagnosticResponses.sd_growth_blocker === "Don't have the capital",
+    
+    // Mentions of capital/raising in open-ended responses
+    discoveryResponses.dd_if_i_knew?.toLowerCase().includes('capital'),
+    discoveryResponses.dd_if_i_knew?.toLowerCase().includes('raise'),
+    discoveryResponses.dd_if_i_knew?.toLowerCase().includes('invest'),
+    discoveryResponses.dd_if_i_knew?.toLowerCase().includes('funding'),
+    discoveryResponses.dd_what_would_change?.toLowerCase().includes('capital'),
+    discoveryResponses.dd_what_would_change?.toLowerCase().includes('invest'),
+    
+    // Investment ready signals
+    diagnosticResponses.sd_exit_readiness?.includes('investment-ready'),
+    diagnosticResponses.sd_valuation_clarity?.includes('professional valuation'),
+    
+    // Exit timeline signals (near-term)
+    diagnosticResponses.sd_exit_timeline === 'Already exploring options',
+    diagnosticResponses.sd_exit_timeline === '1-3 years - actively preparing'
+  ];
+  
+  // Need at least 2 signals to confirm capital raising intent
+  return signals.filter(Boolean).length >= 2;
+}
+
+// ============================================================================
+// LIFESTYLE TRANSFORMATION DETECTION
+// ============================================================================
+function detectLifestyleTransformation(responses: Record<string, any>): boolean {
+  const visionText = (responses.dd_five_year_picture || responses.dd_five_year_story || '').toLowerCase();
+  
+  const signals: boolean[] = [
+    // Vision describes different role
+    visionText.includes('invest'),
+    visionText.includes('portfolio'),
+    visionText.includes('ceo'),
+    visionText.includes('advisory'),
+    visionText.includes('board'),
+    visionText.includes('chairman'),
+    visionText.includes('non-executive'),
+    
+    // Vision describes lifestyle change (not just business growth)
+    visionText.includes('family'),
+    visionText.includes('children') || visionText.includes('kids') || visionText.includes('boys') || visionText.includes('girls'),
+    visionText.includes('wife') || visionText.includes('husband') || visionText.includes('spouse'),
+    visionText.includes('holiday') || visionText.includes('travel'),
+    visionText.includes('health') || visionText.includes('run') || visionText.includes('exercise') || visionText.includes('gym'),
+    
+    // Success definition indicates transition
+    responses.dd_success_definition === "Creating a business that runs profitably without me",
+    responses.dd_success_definition === "Building a legacy that outlasts me",
+    responses.dd_success_definition === "Having complete control over my time and income"
+  ];
+  
+  return signals.filter(Boolean).length >= 3;
+}
+
+// ============================================================================
+// BURNOUT DETECTION
+// ============================================================================
+function detectBurnoutIndicators(responses: Record<string, any>): boolean {
+  const signals: boolean[] = [
+    // Excessive hours
+    responses.dd_owner_hours === '60-70 hours',
+    responses.dd_owner_hours === '70+ hours',
+    
+    // No breaks
+    responses.dd_holiday_reality === 'Ive never done that',
+    responses.dd_holiday_reality === "I've never done that",
+    responses.dd_holiday_reality === 'I honestly cant remember',
+    responses.dd_holiday_reality === "I honestly can't remember",
+    
+    // Relationship strain
+    responses.dd_external_view === 'Its a significant source of tension',
+    responses.dd_external_view === "It's a significant source of tension",
+    responses.dd_external_view === 'Theyd say Im married to my business',
+    responses.dd_external_view === "They'd say I'm married to my business",
+    
+    // High firefighting
+    responses.dd_time_breakdown === '90% firefighting / 10% strategic',
+    responses.dd_time_breakdown === '70% firefighting / 30% strategic',
+    
+    // Sleep issues
+    responses.dd_sleep_thief && !responses.dd_sleep_thief.includes('Nothing - I sleep fine')
+  ];
+  
+  // Need at least 3 signals for burnout
+  return signals.filter(Boolean).length >= 3;
+}
+
+// ============================================================================
 // EMOTIONAL ANCHOR EXTRACTION
 // ============================================================================
 
 function extractEmotionalAnchors(responses: Record<string, any>): Record<string, string> {
   return {
-    fiveYearVision: responses.dd_five_year_story || '',
-    biggestChange: responses.dd_biggest_change || '',
+    // Core destination anchors
+    fiveYearVision: responses.dd_five_year_picture || responses.dd_five_year_story || '',
+    biggestChange: responses.dd_what_would_change || responses.dd_biggest_change || '',
     identityAspiration: responses.dd_destination_words || '',
     freedTimeVision: responses.dd_freed_time || '',
-    coreFeelingDesired: responses.dd_success_feeling || '',
-    currentGap: responses.dd_current_reality || '',
-    primaryObstacle: responses.dd_main_obstacle || '',
+    coreFeelingDesired: responses.dd_success_feeling || responses.dd_success_definition || '',
+    
+    // Gap analysis anchors
+    currentGap: responses.dd_current_reality || responses.dd_honest_assessment || '',
+    primaryObstacle: responses.dd_main_obstacle || responses.sd_growth_blocker || '',
     failureInsight: responses.dd_why_not_worked || '',
     costOfInaction: responses.dd_cost_of_staying || '',
-    tuesdayFrustration: responses.dd_tuesday_frustration || '',
+    
+    // Tuesday test anchors
+    tuesdayFrustration: responses.dd_tuesday_frustration || responses.dd_biggest_frustration || '',
     tuesdayMagicWand: responses.dd_tuesday_magic || '',
     tuesdayEndState: responses.dd_tuesday_energy || '',
-    operationalFrustration: responses.sd_operational_frustration || ''
+    operationalFrustration: responses.sd_operational_frustration || '',
+    
+    // NEW: Enhanced anchors for deeper analysis
+    capitalIntent: responses.dd_if_i_knew || '',
+    hiddenTruth: responses.dd_hard_truth || '',
+    teamSecret: responses.dd_team_secret || '',
+    avoidedConversation: responses.dd_avoided_conversation || '',
+    externalPerspective: responses.dd_external_view || '',
+    
+    // Team and delegation anchors
+    teamConfidence: responses.dd_team_confidence || '',
+    keyPersonRisk: responses.dd_key_person_risk || '',
+    delegationHonesty: responses.dd_delegation_honest || '',
+    
+    // Exit and timeline anchors
+    exitThoughts: responses.dd_exit_thoughts || '',
+    exitTimeline: responses.sd_exit_timeline || '',
+    changeReadiness: responses.dd_change_readiness || '',
+    
+    // Lifestyle anchors
+    ownerHours: responses.dd_owner_hours || '',
+    holidayReality: responses.dd_holiday_reality || '',
+    sleepThieves: Array.isArray(responses.dd_sleep_thief) 
+      ? responses.dd_sleep_thief.join(', ') 
+      : (responses.dd_sleep_thief || ''),
+    
+    // Final message
+    finalMessage: responses.dd_final_message || responses.dd_anything_else || ''
   };
 }
 
