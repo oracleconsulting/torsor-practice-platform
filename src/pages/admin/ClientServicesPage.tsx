@@ -1592,6 +1592,13 @@ function DiscoveryClientModal({
       const analysisResult = await analysisResponse.json();
       console.log('Stage 2 complete:', analysisResult.metadata);
       
+      // Debug: Log the full report structure
+      console.log('[Debug] Full analysis result:', analysisResult);
+      console.log('[Debug] Report object:', analysisResult?.report);
+      console.log('[Debug] Analysis object:', analysisResult?.report?.analysis);
+      console.log('[Debug] Recommended investments:', analysisResult?.report?.analysis?.recommendedInvestments);
+      console.log('[Debug] Investment summary:', analysisResult?.report?.analysis?.investmentSummary);
+      
       if (analysisResult?.success && analysisResult?.report) {
         setGeneratedReport(analysisResult.report);
         setActiveTab('analysis'); // Switch to analysis tab to show report
@@ -2296,8 +2303,12 @@ function DiscoveryClientModal({
                       {generatedReport.analysis?.recommendedInvestments && (
                         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6">
                           <h4 className="font-semibold text-emerald-900 mb-4">Recommended Investments</h4>
+                          {/* Debug: Log what we're trying to render */}
+                          {console.log('[UI Debug] Rendering investments:', generatedReport.analysis.recommendedInvestments)}
                           <div className="space-y-4">
-                            {generatedReport.analysis.recommendedInvestments.map((inv: any, idx: number) => (
+                            {generatedReport.analysis.recommendedInvestments.map((inv: any, idx: number) => {
+                              console.log(`[UI Debug] Investment ${idx}:`, inv);
+                              return (
                               <div key={idx} className="bg-white rounded-xl p-5 border border-emerald-100">
                                 <div className="flex items-start justify-between mb-3">
                                   <div>
@@ -2364,9 +2375,9 @@ function DiscoveryClientModal({
                                   </div>
                                   <div className="flex-1">
                                     <p className="text-xs text-gray-500">Key Outcomes</p>
-                                    {inv.expectedOutcomes && (
+                                    {(inv.keyOutcomes || inv.expectedOutcomes) && (
                                       <ul className="text-sm text-gray-700">
-                                        {inv.expectedOutcomes.slice(0, 2).map((outcome: any, oIdx: number) => (
+                                        {(inv.keyOutcomes || inv.expectedOutcomes).slice(0, 3).map((outcome: any, oIdx: number) => (
                                           <li key={oIdx} className="flex items-start gap-1">
                                             <span className="text-emerald-500">✓</span>
                                             <span>{typeof outcome === 'string' ? outcome : outcome.outcome}</span>
@@ -2391,7 +2402,8 @@ function DiscoveryClientModal({
                                   </div>
                                 )}
                               </div>
-                            ))}
+                            );
+                            })}
                           </div>
 
                           {/* Investment Summary */}
