@@ -16,68 +16,102 @@ const corsHeaders = {
 }
 
 // ============================================================================
-// PDF TEXT EXTRACTION
+// PDF TEXT EXTRACTION - Using unpdf library for edge/serverless environments
 // ============================================================================
 
-function extractTextFromPDF(buffer: ArrayBuffer): string {
+async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
+  const uint8Array = new Uint8Array(buffer);
+  
+  // Try unpdf first (designed for edge/serverless)
+  try {
+    console.log('[PrepareData] Attempting PDF extraction with unpdf...');
+    const { extractText } = await import('https://esm.sh/unpdf@0.11.0');
+    
+    const { text } = await extractText(uint8Array);
+    
+    if (text && text.length > 50) {
+      const hasRealText = /[a-zA-Z]{5,}/.test(text);
+      console.log(`[PrepareData] unpdf extracted: ${text.length} chars, hasRealText: ${hasRealText}`);
+      
+      if (hasRealText) {
+        console.log('[PrepareData] PDF content preview:', text.substring(0, 150));
+        return text.substring(0, 50000);
+      }
+    }
+  } catch (unpdfError) {
+    console.error('[PrepareData] unpdf error:', unpdfError);
+  }
+  
+  // Try pdf-parse as fallback
+  try {
+    console.log('[PrepareData] Attempting PDF extraction with pdf-parse...');
+    const pdfParse = (await import('https://esm.sh/pdf-parse@1.1.1')).default;
+    
+    const pdfData = await pdfParse(uint8Array);
+    
+    if (pdfData.text && pdfData.text.length > 50) {
+      const cleanedText = pdfData.text
+        .replace(/\r\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+      
+      const hasRealText = /[a-zA-Z]{5,}/.test(cleanedText);
+      console.log(`[PrepareData] pdf-parse extracted: ${cleanedText.length} chars, ${pdfData.numpages} pages, hasRealText: ${hasRealText}`);
+      
+      if (hasRealText) {
+        console.log('[PrepareData] PDF content preview:', cleanedText.substring(0, 150));
+        return cleanedText.substring(0, 50000);
+      }
+    }
+  } catch (pdfParseError) {
+    console.error('[PrepareData] pdf-parse error:', pdfParseError);
+  }
+  
+  // Final fallback: regex-based extraction for simple/uncompressed PDFs
+  console.log('[PrepareData] Falling back to regex extraction...');
+  return extractTextFromPDFFallback(buffer);
+}
+
+// Fallback regex method for simple/uncompressed PDFs
+function extractTextFromPDFFallback(buffer: ArrayBuffer): string {
   try {
     const bytes = new Uint8Array(buffer);
     const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
     
     const textMatches: string[] = [];
-    
-    // Method 1: Extract from PDF streams
-    const streamRegex = /stream\s*([\s\S]*?)\s*endstream/g;
     let match;
     
-    while ((match = streamRegex.exec(text)) !== null) {
-      const streamContent = match[1];
-      // Clean binary data and extract readable text
-      const readable = streamContent
-        .replace(/[\x00-\x1F\x7F-\xFF]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      if (readable.length > 20 && !/^[0-9\s.]+$/.test(readable)) {
-        textMatches.push(readable);
-      }
-    }
-    
-    // Method 2: Extract text between parentheses (PDF text objects)
+    // Extract text between parentheses (PDF text objects)
+    // Only keep content that looks like real text (has letters)
     const textObjRegex = /\(([^)]{3,})\)/g;
     while ((match = textObjRegex.exec(text)) !== null) {
       const content = match[1];
-      // Filter out numeric-only content
-      if (!/^[\d\s.]+$/.test(content) && content.length > 3) {
+      if (/[a-zA-Z]{2,}/.test(content) && content.length > 3) {
         textMatches.push(content);
       }
     }
     
-    // Method 3: Look for Tj and TJ operators (PDF text showing operators)
+    // Look for Tj operators
     const tjRegex = /\(([^)]+)\)\s*Tj/g;
     while ((match = tjRegex.exec(text)) !== null) {
-      if (match[1].length > 2) {
+      if (match[1].length > 2 && /[a-zA-Z]/.test(match[1])) {
         textMatches.push(match[1]);
       }
     }
     
-    // Method 4: Extract from BT...ET blocks
-    const btRegex = /BT\s*([\s\S]*?)\s*ET/g;
-    while ((match = btRegex.exec(text)) !== null) {
-      const blockContent = match[1];
-      const innerText = blockContent
-        .replace(/[\x00-\x1F\x7F-\xFF]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      if (innerText.length > 10) {
-        textMatches.push(innerText);
-      }
+    const result = [...new Set(textMatches)].join(' ').substring(0, 50000);
+    const hasRealText = /[a-zA-Z]{5,}/.test(result);
+    
+    console.log(`[PrepareData] Fallback PDF extraction: ${result.length} chars, hasRealText: ${hasRealText}`);
+    
+    if (hasRealText) {
+      console.log('[PrepareData] Fallback content preview:', result.substring(0, 150));
+      return result;
     }
     
-    const result = [...new Set(textMatches)].join(' ').substring(0, 50000);
-    console.log(`[PrepareData] PDF extraction: ${result.length} chars from ${textMatches.length} matches`);
-    return result;
+    return '';
   } catch (error) {
-    console.error('[PrepareData] PDF extraction error:', error);
+    console.error('[PrepareData] Fallback PDF extraction error:', error);
     return '';
   }
 }
@@ -101,14 +135,26 @@ async function extractTextFromBlob(fileBlob: Blob, fileName: string): Promise<st
       return text;
     }
     
-    // Handle PDFs
+    // Handle PDFs with proper library
     if (lowerName.endsWith('.pdf')) {
       const buffer = await fileBlob.arrayBuffer();
-      const text = extractTextFromPDF(buffer);
-      if (text && text.length > 50) {
+      const text = await extractTextFromPDF(buffer);
+      
+      // Validate extraction worked - must have real text content
+      const hasRealText = /[a-zA-Z]{5,}/.test(text);
+      const hasNumbers = /\d{3,}/.test(text);
+      
+      console.log('[PrepareData] PDF extraction validation:', { 
+        length: text.length, 
+        hasRealText, 
+        hasNumbers 
+      });
+      
+      if (text && text.length > 50 && hasRealText) {
         return text;
       }
-      console.log(`[PrepareData] PDF extraction returned minimal text, file may need manual processing`);
+      
+      console.log('[PrepareData] PDF extraction returned invalid/binary content');
       return '';
     }
     
