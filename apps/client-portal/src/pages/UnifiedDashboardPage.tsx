@@ -198,6 +198,8 @@ export default function UnifiedDashboardPage() {
           clientId: clientSession.clientId
         });
         
+        // Query for shared reports - use limit(1) instead of maybeSingle() 
+        // because maybeSingle() fails when there are multiple rows
         const reportResult = await supabase
           .from('client_reports')
           .select('id, is_shared_with_client, client_id, report_type, created_at')
@@ -205,9 +207,10 @@ export default function UnifiedDashboardPage() {
           .eq('report_type', 'discovery_analysis')
           .eq('is_shared_with_client', true)  // Only get shared reports
           .order('created_at', { ascending: false })
-          .maybeSingle();  // Use maybeSingle to handle no results gracefully
+          .limit(1);  // Get the most recent shared report
         
-        report = reportResult.data;
+        // Take the first result if any exist
+        report = reportResult.data?.[0] || null;
         reportError = reportResult.error;
         
         console.log('🔍 Report query result:', { 
