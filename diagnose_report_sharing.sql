@@ -26,8 +26,7 @@ SELECT
   report_type,
   is_shared_with_client,
   shared_at,
-  created_at,
-  updated_at
+  created_at
 FROM client_reports
 WHERE client_id = '34c94120-928b-402e-bb04-85edf9d6de42'  -- Replace with client_id from step 1
   AND report_type = 'discovery_analysis'
