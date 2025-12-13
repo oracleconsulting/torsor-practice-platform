@@ -804,6 +804,26 @@ Notice: DESTINATION first ("school drop-offs", "portfolio life"), INVESTMENT sec
 
 That's 5 sentences. That's enough.
 
+## CLOSING MESSAGE - HARD LIMITS
+
+MAXIMUM: 350 characters (about 5 short sentences)
+
+If your closing is longer than 350 characters, you've written too much. Cut it.
+
+STRUCTURE (4-5 sentences only):
+1. Acknowledge ONE vulnerability they shared (1 sentence)
+2. Name the destination they want (1 sentence)
+3. State the gap (1 sentence)
+4. Investment + next step (1-2 sentences)
+
+EXAMPLE (318 characters):
+"The imposter syndrome you mentioned? Common at this stage. You've raised nearly £1m, you're projecting 41x growth. The gap isn't capability. It's infrastructure. £13,300 starts that journey. Let's talk this week."
+
+BAD (too long):
+"The imposter syndrome you mentioned? Common at this stage. You've raised nearly £1m, you're launching in January, and you're projecting 41x growth. The gap isn't capability, it's infrastructure. The school drop-offs you described stay in the future until the chaos is addressed. £9,150 starts that journey. Let's talk this week."
+
+That's 383 characters - trim it.
+
 BAD PATTERNS:
 - Leading with services ("£13,300 gets you management accounts, a systems audit, and 365 programme")
 - Leading with features ("Financial visibility, operational clarity, transition roadmap")
@@ -935,6 +955,36 @@ INVESTMENT PHASING IS CRITICAL:
 - Phase 2 = After Raise/Revenue (when they can afford it)
 - Phase 3 = At Scale (when revenue supports it)
 - HEADLINE the affordable number, not the total if-everything number
+
+## INVESTMENT CALCULATION RULES
+
+CRITICAL: Be consistent with investment figures throughout the report.
+
+1. **Phase 1 Investment** = Services recommended for "now" timing
+   - Include FULL first year cost of monthly services (e.g., £650 × 12 = £7,800)
+   - Add one-time fees
+   - This is the "First Year Investment" for most clients
+   
+2. **First Year Investment** = Same as Phase 1 for most clients
+   - Only different if Phase 2 services start mid-year (rare)
+   - For 99% of clients, Phase 1 = First Year Investment
+
+3. **"Starts that journey" figure** = Phase 1 Investment (the full number)
+
+NEVER show a partial figure like "£9,150" without explaining what it includes.
+
+EXAMPLE CALCULATION (show your working):
+- Management Accounts: £650/month × 12 months = £7,800
+- Systems Audit: £4,000 (one-time)
+- 365 Programme: £1,500 (one-time)
+- **Phase 1 Total: £13,300**
+
+Use £13,300 consistently:
+- In the journey header: "This is what £13,300 and 12 months builds"
+- In the investment box: "YOUR INVESTMENT £13,300 FIRST YEAR"
+- In the closing: "£13,300 starts that journey"
+
+If you show a different number, you've made an error. Check your math.
 
 365 ALIGNMENT PROGRAMME:
 This is NOT just for people without plans. It's for founders undergoing TRANSFORMATION:
@@ -1335,18 +1385,51 @@ ${contextNotesSection}
 ${affordability.stage === 'pre-revenue' ? `
 ⚠️ PRE-REVENUE CLIENT - PHASE YOUR RECOMMENDATIONS:
 
-Phase 1 - Foundation (Start Now, max £15,000/year):
+## PHASE TIMING RULES
+
+Phases are SEQUENTIAL milestones, not overlapping activities.
+
+STANDARD PHASE STRUCTURE:
+- Phase 1: Month 1-3 (Foundation)
+- Phase 2: Month 3-6 (Build)  
+- Phase 3: Month 6-12 (Transform)
+
+TIMING RULES:
+1. Phase 2 starts AFTER Phase 1 ends (Month 3, not Month 2)
+2. Phase 3 starts AFTER Phase 2 ends (Month 6, not Month 1)
+3. Each phase timeframe should be 3-6 months, not 12 months
+
+SERVICE TIMING:
+- Monthly services (Management Accounts): Start in Phase 1, continue through all phases
+- One-time services (Systems Audit): Placed in the phase where they deliver impact
+- Long-running programmes (365): Can span phases but should show the START phase
+
+BAD EXAMPLE:
+- Phase 1: Month 1-3, Management Accounts
+- Phase 2: Month 2-4, Systems Audit  ← WRONG: overlaps
+- Phase 3: Month 1-12, 365 Programme ← WRONG: spans everything
+
+GOOD EXAMPLE:
+- Phase 1: Month 1-3, "Investor-Ready Numbers" (Management Accounts £650/month)
+- Phase 2: Month 3-6, "Operational Clarity" (Systems Audit £4,000)
+- Phase 3: Month 6-12, "The Transition" (365 Programme £1,500)
+
+The TRANSFORMATION is the narrative arc. Services enable each phase but don't define the timing.
+
+Phase 1 - Foundation (Month 1-3, Start Now, max £15,000/year):
 - Only recommend what they NEED NOW
 - Focus on services that help them raise or launch faster
 - Management Accounts + Systems Audit are appropriate
 
-Phase 2 - Post-Raise (After funding):
+Phase 2 - Post-Raise (Month 3-6, After funding):
 - Fractional executives go here
 - Frame as "when you've closed your round"
+- Starts AFTER Phase 1 ends
 
-Phase 3 - At Scale (12+ months, when revenue supports):
+Phase 3 - At Scale (Month 6-12, when revenue supports):
 - Full operational support
 - Only mention as future horizon
+- Starts AFTER Phase 2 ends
 
 CRITICAL: Headline the Phase 1 number. Do NOT say "total investment £150k" to a pre-revenue startup.
 ` : ''}
@@ -1489,12 +1572,13 @@ Return ONLY a valid JSON object (no markdown, no explanation, just the JSON):
   },
   "transformationJourney": {
     "destination": "One sentence: the life they described (e.g., 'Portfolio investor. School drop-offs. A business that runs without you.')",
-    "totalInvestment": "£X,XXX (Phase 1)",
+    "totalInvestment": "£X,XXX", // MUST match sum of all phase services (Phase 1 = First Year for most clients)
+    "investmentBreakdown": "£X,XXX management accounts + £X,XXX systems audit + £X,XXX 365 programme", // Show your working
     "totalTimeframe": "X-X months to fundamental change",
     "phases": [
       {
         "phase": 1,
-        "timeframe": "Month 1-3",
+        "timeframe": "Month 1-3", // Always starts at Month 1
         "title": "Short punchy title (e.g., 'Financial Clarity')",
         "youWillHave": "What their life/business looks like at this point. Concrete, tangible, desirable.",
         "whatChanges": "One sentence on the shift (e.g., 'The fog lifts. You stop guessing.')",
@@ -1504,7 +1588,7 @@ Return ONLY a valid JSON object (no markdown, no explanation, just the JSON):
       },
       {
         "phase": 2,
-        "timeframe": "Month 3-6",
+        "timeframe": "Month 3-6", // Starts where Phase 1 ends (NOT Month 2-4)
         "title": "Next phase title",
         "youWillHave": "Next milestone in their journey",
         "whatChanges": "What's different now",
@@ -1538,7 +1622,8 @@ Return ONLY a valid JSON object (no markdown, no explanation, just the JSON):
     }
   ],
   "investmentSummary": {
-    "totalFirstYearInvestment": "£X,XXX",
+    "totalFirstYearInvestment": "£X,XXX", // MUST match transformationJourney.totalInvestment
+    "investmentBreakdown": "Management Accounts £X,XXX (£XXX×12) + Systems Audit £X,XXX + 365 Lite £X,XXX", // Show your working
     "projectedFirstYearReturn": "£X,XXX - be CONSERVATIVE, this must be defensible",
     "paybackPeriod": "X months",
     "netBenefitYear1": "£X,XXX",

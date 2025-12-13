@@ -1117,23 +1117,56 @@ function calculateImpacts(
       
       if (hasMetrics) {
         try {
-          // Simple formula evaluation (would need more robust parser in production)
-          let result = calc.formula;
+          // Build a safe evaluation context
+          const context = {
+            metrics,
+            manualWorkPercentage: metrics.operational?.manualWorkPercentage || 0,
+            teamSize: metrics.operational?.teamSize?.current || 1,
+            currentRevenue: metrics.financial?.currentRevenue || 0,
+            grossMargin: metrics.financial?.grossMargin || 0,
+            growthMultiple: metrics.financial?.growthMultiple || 1
+          };
           
-          // Replace metric references
+          // Replace metric references with actual values
+          let formula = calc.formula;
+          
+          // Replace common metric patterns with actual values
+          formula = formula.replace(/metrics\.operational\.manualWorkPercentage/g, String(context.manualWorkPercentage));
+          formula = formula.replace(/metrics\.operational\.teamSize\.current/g, String(context.teamSize));
+          formula = formula.replace(/metrics\.financial\.currentRevenue/g, String(context.currentRevenue));
+          formula = formula.replace(/metrics\.financial\.grossMargin/g, String(context.grossMargin));
+          formula = formula.replace(/metrics\.financial\.growthMultiple/g, String(context.growthMultiple));
+          
+          // Replace any remaining metric references using getMetricValue
           for (const metric of calc.required_metrics) {
             const value = getMetricValue(metrics, metric);
-            result = result.replace(new RegExp(metric, 'g'), String(value));
+            if (value !== null) {
+              // Escape special regex characters in metric path
+              const escapedMetric = metric.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              formula = formula.replace(new RegExp(escapedMetric, 'g'), String(value));
+            }
           }
           
-          // Evaluate (simplified - would use proper expression parser)
-          const evaluated = eval(result); // In production, use a safe expression evaluator
+          // Validate formula only contains safe characters (numbers, operators, parentheses, dots, commas)
+          if (!/^[\d\s\+\-\*\/\(\)\.\,]+$/.test(formula)) {
+            console.warn(`[AdvisoryDeepDive] Unsafe formula for ${calc.calculation_name}: ${formula}`);
+            if (calc.fallback_output) {
+              impacts[`${service.serviceCode}_${calc.calculation_name}`] = calc.fallback_output;
+            }
+            continue;
+          }
+          
+          // Evaluate
+          const evaluated = eval(formula);
           
           // Format output
-          const output = calc.output_template.replace(/\{result\}/g, evaluated.toFixed(1));
+          const output = calc.output_template.replace(/\{result\}/g, 
+            typeof evaluated === 'number' ? evaluated.toFixed(0) : String(evaluated)
+          );
           impacts[`${service.serviceCode}_${calc.calculation_name}`] = output;
-        } catch (e) {
-          console.warn(`[AdvisoryDeepDive] Calculation failed for ${calc.calculation_name}:`, e);
+          
+        } catch (e: any) {
+          console.warn(`[AdvisoryDeepDive] Calculation failed for ${calc.calculation_name}:`, e.message);
           if (calc.fallback_output) {
             impacts[`${service.serviceCode}_${calc.calculation_name}`] = calc.fallback_output;
           }

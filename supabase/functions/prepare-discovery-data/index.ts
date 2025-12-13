@@ -757,7 +757,7 @@ If no financial projections exist, return: { "hasProjections": false }`;
             'X-Title': 'Torsor Discovery Analysis'
           },
           body: JSON.stringify({
-            model: 'anthropic/claude-sonnet-4.5',
+            model: 'anthropic/claude-haiku-20240307', // Faster and cheaper for structured extraction
             max_tokens: 3000,
             temperature: 0.1,
             messages: [
