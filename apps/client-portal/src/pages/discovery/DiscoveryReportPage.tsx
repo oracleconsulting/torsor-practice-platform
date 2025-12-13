@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { ArrowLeft, Calendar, ChevronRight, Sparkles, Target, TrendingUp, Heart, Clock, Shield } from 'lucide-react';
 import { Logo } from '@/components/Logo';
+import { TransformationJourney } from '../../components/discovery/TransformationJourney';
 
 // ============================================================================
 // CLIENT-FRIENDLY DISCOVERY REPORT
@@ -17,7 +18,7 @@ interface DiscoveryReport {
   report_data: {
     generatedAt: string;
     clientName: string;
-    analysis: {
+      analysis: {
       executiveSummary?: {
         headline?: string;
         destinationVision?: string;
@@ -33,12 +34,31 @@ interface DiscoveryReport {
           personalCost?: string;
         };
       };
+      transformationJourney?: {
+        destination?: string;
+        totalInvestment?: string;
+        totalTimeframe?: string;
+        phases?: Array<{
+          phase: number;
+          timeframe: string;
+          title: string;
+          youWillHave: string;
+          whatChanges: string;
+          enabledBy: string;
+          enabledByCode: string;
+          investment: string;
+        }>;
+      };
       recommendedInvestments?: any[];
       investmentSummary?: {
         totalFirstYearInvestment?: string;
+        investmentBreakdown?: string;
+        investmentAsPercentOfRevenue?: string;
         projectedFirstYearReturn?: string;
         netBenefitYear1?: string;
         paybackPeriod?: string;
+        roiCalculation?: string;
+        comparisonToInaction?: string;
       };
       closingMessage?: {
         personalNote?: string;
@@ -292,24 +312,77 @@ export default function DiscoveryReportPage() {
           </div>
 
           <div className="space-y-4">
-            {gaps.primaryGaps?.slice(0, 3).map((gap: any, idx: number) => (
-              <div key={idx} className="border border-gray-100 rounded-xl p-5">
-                <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-                    <span className="text-amber-600 font-bold">{idx + 1}</span>
+            {gaps.primaryGaps?.map((gap: any, idx: number) => {
+              // Severity color mapping
+              const severityColors = {
+                critical: { 
+                  border: 'border-l-red-500', 
+                  bg: 'bg-red-50/30', 
+                  badge: 'bg-red-100 text-red-700',
+                  icon: '🔴'
+                },
+                high: { 
+                  border: 'border-l-orange-500', 
+                  bg: 'bg-orange-50/30', 
+                  badge: 'bg-orange-100 text-orange-700',
+                  icon: '🟠'
+                },
+                medium: { 
+                  border: 'border-l-blue-400', 
+                  bg: 'bg-blue-50/30', 
+                  badge: 'bg-blue-100 text-blue-700',
+                  icon: '🟡'
+                }
+              };
+              
+              const severity = (gap.severity || 'medium').toLowerCase();
+              const colors = severityColors[severity as keyof typeof severityColors] || severityColors.medium;
+              
+              // Extract impact items
+              const impactItems: string[] = [];
+              if (gap.currentImpact?.financialImpact) impactItems.push(gap.currentImpact.financialImpact);
+              if (gap.currentImpact?.timeImpact) impactItems.push(gap.currentImpact.timeImpact);
+              if (gap.currentImpact?.emotionalImpact) impactItems.push(gap.currentImpact.emotionalImpact);
+              if (gap.impact && typeof gap.impact === 'string') impactItems.push(gap.impact);
+              if (Array.isArray(gap.impact)) impactItems.push(...gap.impact);
+              
+              return (
+                <div 
+                  key={idx} 
+                  className={`border-l-4 ${colors.border} ${colors.bg} rounded-r-xl p-5 mb-4`}
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${colors.badge}`}>
+                      {colors.icon} {severity.toUpperCase()}
+                    </span>
+                    <span className="text-xs text-gray-500 uppercase tracking-wide">
+                      {gap.category || 'GENERAL'}
+                    </span>
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 mb-1">{gap.gap}</h3>
-                    {gap.evidence && (
-                      <p className="text-sm text-indigo-600 italic mb-2">"{gap.evidence}"</p>
-                    )}
-                    <p className="text-gray-600 text-sm">
-                      {gap.rootCause || gap.impact || "This is creating friction in your journey"}
-                    </p>
-                  </div>
+                  
+                  <h3 className="font-semibold text-gray-900 mb-2 text-base md:text-lg">
+                    {gap.gap}
+                  </h3>
+                  
+                  {(gap.evidence || gap.evidenceQuote) && (
+                    <blockquote className="text-sm text-indigo-600 italic mb-3 pl-3 border-l-2 border-indigo-200">
+                      "{(gap.evidence || gap.evidenceQuote)}"
+                    </blockquote>
+                  )}
+                  
+                  {impactItems.length > 0 && (
+                    <ul className="text-sm text-gray-600 space-y-1">
+                      {impactItems.map((item, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="text-gray-400 mt-1">•</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Cost of waiting - gentle but clear */}
@@ -326,7 +399,18 @@ export default function DiscoveryReportPage() {
           )}
         </section>
 
-        {/* Recommended Path Forward */}
+        {/* Transformation Journey - The Travel Agent View */}
+        {analysis.transformationJourney && analysis.transformationJourney.phases && analysis.transformationJourney.phases.length > 0 && (
+          <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8">
+            <TransformationJourney 
+              journey={analysis.transformationJourney}
+              investmentSummary={investmentSummary}
+            />
+          </section>
+        )}
+
+        {/* Recommended Path Forward (Legacy - Keep for backward compatibility if no transformationJourney) */}
+        {(!analysis.transformationJourney || !analysis.transformationJourney.phases || analysis.transformationJourney.phases.length === 0) && investments.length > 0 && (
         <section className="bg-white rounded-2xl shadow-sm p-6 md:p-8">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
@@ -412,36 +496,63 @@ export default function DiscoveryReportPage() {
 
           {/* Investment Summary - Clean and Clear */}
           {investmentSummary.totalFirstYearInvestment && (
-            <div className="mt-8 bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl p-6 text-white">
-              <h3 className="font-semibold mb-4">Your Investment Summary</h3>
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <p className="text-slate-400 text-sm">Total Investment (Year 1)</p>
-                  <p className="text-2xl font-bold">{investmentSummary.totalFirstYearInvestment}</p>
+            <div className="mt-8 bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl p-6 md:p-8 text-white">
+              <h3 className="text-center text-sm font-medium uppercase tracking-wide text-slate-300 mb-6">
+                Your Investment
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6">
+                <div className="text-center">
+                  <p className="text-2xl md:text-3xl font-bold text-white">
+                    {investmentSummary.totalFirstYearInvestment}
+                  </p>
+                  <p className="text-xs text-slate-400 uppercase tracking-wide mt-1">
+                    First Year
+                  </p>
                 </div>
-                <div>
-                  <p className="text-slate-400 text-sm">Expected Return</p>
-                  <p className="text-2xl font-bold text-emerald-400">
-                    {investmentSummary.projectedFirstYearReturn}
+                
+                <div className="text-center border-l border-r border-slate-600 px-4 md:px-6">
+                  <p className="text-2xl md:text-3xl font-bold text-teal-400">
+                    {investmentSummary.projectedFirstYearReturn || '—'}
+                  </p>
+                  <p className="text-xs text-slate-400 uppercase tracking-wide mt-1">
+                    Projected Return
+                  </p>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-2xl md:text-3xl font-bold text-white">
+                    {investmentSummary.paybackPeriod || '—'}
+                  </p>
+                  <p className="text-xs text-slate-400 uppercase tracking-wide mt-1">
+                    Payback
                   </p>
                 </div>
               </div>
-              {investmentSummary.netBenefitYear1 && (
+              
+              {investmentSummary.investmentAsPercentOfRevenue && (
+                <p className="text-center text-sm text-slate-300 mb-2">
+                  {investmentSummary.investmentAsPercentOfRevenue}
+                </p>
+              )}
+              
+              {investmentSummary.investmentBreakdown && (
+                <p className="text-center text-xs text-slate-400">
+                  {investmentSummary.investmentBreakdown}
+                </p>
+              )}
+              
+              {investmentSummary.roiCalculation && (
                 <div className="mt-4 pt-4 border-t border-slate-700">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Net Benefit (Year 1)</span>
-                    <span className="text-lg font-bold text-emerald-400">
-                      {investmentSummary.netBenefitYear1}
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-400 mt-1">
-                    Payback in {investmentSummary.paybackPeriod || "under 6 months"}
+                  <p className="text-xs text-slate-400 text-center">
+                    {investmentSummary.roiCalculation}
                   </p>
                 </div>
               )}
             </div>
           )}
         </section>
+        )}
 
         {/* Closing Message - Encouraging */}
         <section className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 md:p-8 text-white">
