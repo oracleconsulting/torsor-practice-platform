@@ -2683,8 +2683,8 @@ function DiscoveryClientModal({
             practice_id: client.practice_id,
             client_id: clientId,
             service_line_id: sl.id,
-            status: 'pending_onboarding',
-            created_by: currentMember?.id
+            status: 'pending_onboarding'
+            // Note: created_by column doesn't exist in client_service_lines table
           })
           .select();
 
