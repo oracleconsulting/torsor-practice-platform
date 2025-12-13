@@ -1410,10 +1410,10 @@ serve(async (req) => {
       journeyFraming: 'foundations' | 'progress' | 'achievement';
     }
     
-    function detectBusinessStage(
+    const detectBusinessStage = (
       responses: Record<string, any>,
       projections: any
-    ): BusinessStageProfile {
+    ): BusinessStageProfile => {
       // Check for early-stage indicators
       const hasLongGrowthTrajectory = projections?.growthMultiple && projections.growthMultiple > 10;
       const isPreRevenue = !projections?.currentRevenue || projections.currentRevenue < 100000;
@@ -1458,7 +1458,7 @@ serve(async (req) => {
         destinationTimeframe: '6-12 months',
         journeyFraming: 'achievement'
       };
-    }
+    };
     
     const businessStage = detectBusinessStage(
       preparedData.discovery.responses,
