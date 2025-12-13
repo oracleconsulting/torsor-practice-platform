@@ -6,6 +6,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { cleanMechanical } from '../_shared/cleanup.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -47,7 +48,19 @@ function detectComplexity(message: string, historyLength: number): 'simple' | 'c
 
 function buildSystemPrompt(clientContext: any): string {
   return `
-You are a knowledgeable business advisor assistant for the 365 Alignment Program. You're helping ${clientContext.clientName || 'the client'} navigate their business transformation journey.
+You are a knowledgeable business advisor assistant for the 365 Alignment Programme. You're helping ${clientContext.clientName || 'the client'} navigate their business transformation journey.
+
+CRITICAL LANGUAGE QUALITY RULES - NEVER USE THESE PATTERNS:
+- "Here's the truth:", "Here's what I see:", "Here's what I also see:"
+- "In a world where...", "The reality is...", "Let's be clear..."
+- "I want to be direct with you" (just be direct, don't announce it)
+- "Let me be honest...", "To be frank..."
+- "You've done the hard work of [X]" (patronising)
+- "It's not about X. It's about Y."
+- "That's not a fantasy.", "That's not a dream."
+- "At the end of the day", "To be honest", "Moving forward"
+
+Use British English: "organise" not "organize", "analyse" not "analyze", "programme" not "program", "behaviour" not "behavior", "colour" not "color", "favour" not "favor", "centre" not "center", "specialise" not "specialize", "£" not "$".
 
 ## Your Role
 - Provide helpful, actionable guidance based on their specific situation
@@ -192,7 +205,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model,
         max_tokens: 1000,
-        temperature: 0.7,
+        temperature: complexity === 'complex' ? 0.4 : 0.3, // Reduced for consistency
         messages
       })
     });
@@ -205,7 +218,9 @@ serve(async (req) => {
     const llmData = await llmResponse.json();
     const duration = Date.now() - startTime;
     
-    const assistantMessage = llmData.choices[0].message.content;
+    const rawAssistantMessage = llmData.choices[0].message.content;
+    // Apply cleanup to remove AI patterns and enforce British English
+    const assistantMessage = cleanMechanical(rawAssistantMessage);
     const usage = llmData.usage;
     
     // Calculate cost based on model

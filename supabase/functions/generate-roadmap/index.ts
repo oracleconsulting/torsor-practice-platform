@@ -13,6 +13,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { cleanAllStrings } from '../_shared/cleanup.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -1908,13 +1909,16 @@ DO NOT extract business facts from here - use the assessment data above.
     
     const newVersion = (existingRoadmaps?.[0]?.version || 0) + 1;
 
+    // Apply cleanup to all string fields in roadmap data
+    const cleanedRoadmapData = cleanAllStrings(roadmapData);
+    
     // Insert new roadmap with context snapshot
     const { data: savedRoadmap, error: saveError } = await supabase
       .from('client_roadmaps')
       .insert({ 
         practice_id: practiceId, 
         client_id: clientId, 
-        roadmap_data: roadmapData, 
+        roadmap_data: cleanedRoadmapData, 
         is_active: true,
         status: 'pending_review',
         version: newVersion,

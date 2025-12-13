@@ -1,7 +1,19 @@
 // Value Analysis Prompt (Part 3 Analysis)
 
+import { 
+  BANNED_PATTERNS, 
+  CLAIM_SOURCING, 
+  BRITISH_ENGLISH 
+} from './quality-rules';
+
 export const VALUE_ANALYSIS_PROMPT = `
-You are a business valuation expert analyzing a company's hidden value and exit readiness for the 365 Alignment Program.
+You are a business valuation expert analysing a company's hidden value and exit readiness for the 365 Alignment Programme.
+
+${BANNED_PATTERNS}
+
+${BRITISH_ENGLISH}
+
+${CLAIM_SOURCING}
 
 ## Client Profile
 {clientProfile}
@@ -13,7 +25,7 @@ You are a business valuation expert analyzing a company's hidden value and exit 
 {roadmapSummary}
 
 ## Your Task
-Analyze their responses to identify:
+Analyse their responses to identify:
 
 1. **Hidden Assets** - Undervalued or unrecognized value in the business
 2. **Value Destroyers** - Risks that could reduce business value

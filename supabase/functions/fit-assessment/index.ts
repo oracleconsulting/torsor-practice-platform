@@ -6,6 +6,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { cleanAllStrings } from '../_shared/cleanup.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,34 +20,55 @@ interface FitAssessmentRequest {
 }
 
 const FIT_ASSESSMENT_PROMPT = `
-You are evaluating a potential client's fit for the 365 Alignment Program, a comprehensive business transformation service.
+You are evaluating a potential client's fit for the 365 Alignment Programme, a comprehensive business transformation service.
+
+CRITICAL LANGUAGE QUALITY RULES - NEVER USE THESE PATTERNS:
+- "Here's the truth:", "Here's what I see:", "Here's what I also see:"
+- "In a world where...", "The reality is...", "Let's be clear..."
+- "I want to be direct with you" (just be direct, don't announce it)
+- "Let me be honest...", "To be frank..."
+- "You've done the hard work of [X]" (patronising)
+- "It's not about X. It's about Y."
+- "That's not a fantasy.", "That's not a dream."
+- "At the end of the day", "To be honest", "Moving forward"
+
+Use British English: "organise" not "organize", "analyse" not "analyze", "programme" not "program", "behaviour" not "behavior", "colour" not "color", "favour" not "favor", "centre" not "center", "specialise" not "specialize", "£" not "$".
 
 ## Assessment Responses
 {part1Responses}
 
 ## Your Task
-Analyze these responses to determine:
-1. Program fit score (0-100)
-2. Key strengths that will help them succeed
-3. Potential challenges to address
-4. Personalized welcome message
+Analyse these responses to determine programme fit.
+
+IMPORTANT: 
+- Quote their actual words when describing their situation
+- Don't paraphrase into corporate speak
+- Be specific about what you observed in their responses
 
 ## Fit Criteria
 - **Excellent Fit (80-100):** Clear goals, growth mindset, time commitment available, business has potential
 - **Good Fit (60-79):** Most criteria met, some areas need attention
-- **Moderate Fit (40-59):** Significant gaps, may need pre-program work
-- **Poor Fit (0-39):** Major blockers, not ready for program
+- **Moderate Fit (40-59):** Significant gaps, may need pre-programme work
+- **Poor Fit (0-39):** Major blockers, not ready for programme
 
 ## Output Format (JSON)
 {
   "fitScore": number,
   "fitCategory": "excellent" | "good" | "moderate" | "poor",
-  "strengths": ["string", "string", "string"],
-  "challenges": ["string", "string"],
-  "recommendedFocus": "string",
-  "welcomeMessage": "string (2-3 sentences, warm and personalized)",
-  "advisorNotes": "string (internal notes for the team)"
+  "strengths": ["Quote their words or cite specific response - e.g., 'You mentioned wanting to be home for dinner by 6pm'"],
+  "challenges": ["Based on their response to X - e.g., 'You said you work 60+ hours which limits capacity'"],
+  "recommendedFocus": "One sentence on primary focus area",
+  "welcomeMessage": "2-3 sentences. Warm and personal. Reference something SPECIFIC they said. Not generic.",
+  "advisorNotes": "Internal notes for the team - concerns, opportunities, suggested approach"
 }
+
+CLAIM SOURCES - every factual claim must come from ONE of these:
+1. DIRECT QUOTE from their assessment responses (use their exact words in quotes)
+2. CALCULATION you can show working for (show the maths)
+3. INDUSTRY BENCHMARK you can cite (state the source)
+4. PATTERN FROM THEIR DATA (be explicit it's a pattern)
+
+NEVER invent statistics, quotes, or facts. If you don't have data, say "based on typical patterns" not fake specifics.
 `;
 
 serve(async (req) => {
@@ -87,7 +109,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: 'anthropic/claude-3-haiku-20240307',
         max_tokens: 1000,
-        temperature: 0.3, // Lower temp for more consistent classification
+        temperature: 0.3, // Lower temp for more consistent classification (already optimal)
         response_format: { type: 'json_object' },
         messages: [
           { role: 'user', content: prompt }
@@ -104,7 +126,9 @@ serve(async (req) => {
     const duration = Date.now() - startTime;
     
     const assessmentContent = llmData.choices[0].message.content;
-    const fitAssessment = JSON.parse(assessmentContent);
+    const rawFitAssessment = JSON.parse(assessmentContent);
+    // Apply cleanup to all string fields
+    const fitAssessment = cleanAllStrings(rawFitAssessment);
     
     const usage = llmData.usage;
     const cost = ((usage?.prompt_tokens || 0) * 0.00000025) + 

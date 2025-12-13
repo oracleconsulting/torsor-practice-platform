@@ -13,6 +13,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { cleanAllStrings } from '../_shared/cleanup.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -2939,10 +2940,13 @@ serve(async (req) => {
         generationDurationMs: Date.now() - startTime
       };
 
+      // Apply cleanup to all string fields in value analysis
+      const cleanedValueAnalysis = cleanAllStrings(valueAnalysis);
+      
       // Update roadmap with value analysis
       const { error: updateError } = await supabase
         .from('client_roadmaps')
-        .update({ value_analysis: valueAnalysis })
+        .update({ value_analysis: cleanedValueAnalysis })
         .eq('client_id', clientId)
         .eq('is_active', true);
 

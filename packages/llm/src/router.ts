@@ -25,14 +25,14 @@ const MODEL_CONFIGS: Record<ModelTier, ModelConfig> = {
   balanced: {
     model: 'anthropic/claude-sonnet-4-20250514',
     maxTokens: 4000,
-    temperature: 0.7,
+    temperature: 0.4,  // Reduced from 0.7 for consistency and quality
     fallback: 'openai/gpt-4-turbo',
     costPerMillion: { input: 3, output: 15 },
   },
   premium: {
     model: 'anthropic/claude-opus-4-5-20250514',
     maxTokens: 8000,
-    temperature: 0.7,
+    temperature: 0.4,  // Reduced from 0.7 for consistency and quality
     costPerMillion: { input: 15, output: 75 },
   },
 };
