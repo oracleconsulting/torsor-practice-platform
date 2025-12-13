@@ -173,12 +173,19 @@ export default function UnifiedDashboardPage() {
         }
       }
 
-      const { data: report } = await supabase
+      // Check for shared discovery report
+      const { data: report, error: reportError } = await supabase
         .from('client_reports')
         .select('id, is_shared_with_client')
         .eq('client_id', clientSession?.clientId)
         .eq('report_type', 'discovery_analysis')
-        .single();
+        .eq('is_shared_with_client', true)  // Only get shared reports
+        .order('created_at', { ascending: false })
+        .maybeSingle();  // Use maybeSingle to handle no results gracefully
+      
+      if (reportError && reportError.code !== 'PGRST116') {
+        console.error('🔍 Error checking for report:', reportError);
+      }
 
       const discoveryStatusData = {
         completed: !!discovery?.completed_at,
