@@ -81,6 +81,9 @@ verify_jwt = true
 [functions."process-documents"]
 verify_jwt = true
 
+[functions."advisory-deep-dive"]
+verify_jwt = true
+
 [analytics]
 enabled = false
 

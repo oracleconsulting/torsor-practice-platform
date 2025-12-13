@@ -1004,10 +1004,22 @@ serve(async (req) => {
       throw new Error('OPENROUTER_API_KEY not configured');
     }
 
-    const { preparedData } = await req.json();
+    const { preparedData, advisoryInsights } = await req.json();
 
     if (!preparedData) {
       throw new Error('preparedData is required - call prepare-discovery-data first');
+    }
+    
+    // Log if advisory insights are provided
+    if (advisoryInsights) {
+      console.log('[Discovery] Advisory insights received from Stage 2:', {
+        phase1Services: advisoryInsights.serviceRecommendations?.phase1?.services,
+        phase2Services: advisoryInsights.serviceRecommendations?.phase2?.services,
+        phase3Services: advisoryInsights.serviceRecommendations?.phase3?.services,
+        topNarrativeHooks: advisoryInsights.topNarrativeHooks?.length || 0
+      });
+    } else {
+      console.log('[Discovery] No advisory insights provided - proceeding with standard analysis');
     }
 
     console.log(`Generating analysis for: ${preparedData.client.name}`);
@@ -1286,6 +1298,58 @@ Position 365 as: "You have a business plan. What you don't have is a structured 
 ` : 'No specific transformation triggers detected.'}
 
 ${documentInsightsContext}
+
+${advisoryInsights ? `
+## ADVISORY DEEP DIVE INSIGHTS (Stage 2 Analysis)
+
+The following service recommendations and insights have been pre-analyzed using our advisory logic:
+
+### EXTRACTED METRICS
+${JSON.stringify(advisoryInsights.extractedMetrics, null, 2)}
+
+### PHASED SERVICE RECOMMENDATIONS
+**Phase 1 (Start Now):**
+${advisoryInsights.serviceRecommendations.phase1.services.map((s: string) => `- ${s}`).join('\n')}
+Total Investment: £${advisoryInsights.serviceRecommendations.phase1.totalInvestment.toLocaleString()}
+Rationale: ${advisoryInsights.serviceRecommendations.phase1.rationale}
+
+${advisoryInsights.serviceRecommendations.phase2 ? `
+**Phase 2 (${advisoryInsights.serviceRecommendations.phase2.timing}):**
+${advisoryInsights.serviceRecommendations.phase2.services.map((s: string) => `- ${s}`).join('\n')}
+Total Investment: £${advisoryInsights.serviceRecommendations.phase2.totalInvestment.toLocaleString()}
+Trigger: ${advisoryInsights.serviceRecommendations.phase2.trigger}
+` : ''}
+
+${advisoryInsights.serviceRecommendations.phase3 ? `
+**Phase 3 (${advisoryInsights.serviceRecommendations.phase3.timing}):**
+${advisoryInsights.serviceRecommendations.phase3.services.map((s: string) => `- ${s}`).join('\n')}
+Total Investment: £${advisoryInsights.serviceRecommendations.phase3.totalInvestment.toLocaleString()}
+Trigger: ${advisoryInsights.serviceRecommendations.phase3.trigger}
+` : ''}
+
+### KEY FIGURES
+${Object.entries(advisoryInsights.keyFigures || {}).map(([key, value]) => `- ${key}: ${value}`).join('\n')}
+
+### TOP NARRATIVE HOOKS
+${advisoryInsights.topNarrativeHooks?.map((hook: string) => `- ${hook}`).join('\n') || 'None provided'}
+
+### OVERSELLING CHECK
+${advisoryInsights.oversellingCheck.rulesApplied.length > 0 ? `
+Rules Applied: ${advisoryInsights.oversellingCheck.rulesApplied.join(', ')}
+Services Excluded: ${advisoryInsights.oversellingCheck.servicesExcluded.join(', ') || 'None'}
+Phase 1 Capped: ${advisoryInsights.oversellingCheck.phase1Capped ? 'Yes' : 'No'}
+${advisoryInsights.oversellingCheck.explanation ? `Explanation: ${advisoryInsights.oversellingCheck.explanation}` : ''}
+` : 'No overselling rules applied'}
+
+**USE THESE INSIGHTS TO:**
+1. Validate and refine the service recommendations in your analysis
+2. Use the narrative hooks as starting points for compelling copy
+3. Reference the key figures in your ROI calculations
+4. Respect the phasing logic - don't recommend Phase 2/3 services in Phase 1
+5. Incorporate the quantified impacts into your value propositions
+
+**IMPORTANT:** These are advisory insights, not final recommendations. You should still apply your judgment and client-specific context, but use these as a strong foundation.
+` : ''}
 
 ${projectionEnforcement}
 
@@ -1734,3 +1798,4 @@ Return ONLY the JSON object with no additional text.`;
     });
   }
 });
+

@@ -1596,14 +1596,69 @@ function DiscoveryClientModal({
       }
       
       // ================================================================
-      // STAGE 2: Generate analysis (uses Claude Opus 4.5)
+      // STAGE 2: Advisory Deep Dive (service matching & insights)
       // ================================================================
-      console.log('Stage 2: Generating analysis with Claude Opus 4.5...');
+      console.log('Stage 2: Running advisory deep dive...');
+      console.log('Stage 2 URL:', `${baseUrl}/advisory-deep-dive`);
+      console.log('Stage 2 preparedData client:', prepareResult.preparedData?.client?.name);
+      
+      let advisoryInsights = null;
+      
+      try {
+        const advisoryResponse = await fetch(`${baseUrl}/advisory-deep-dive`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            preparedData: prepareResult.preparedData
+          })
+        });
+        
+        console.log('Stage 2 response status:', advisoryResponse.status, advisoryResponse.statusText);
+        
+        if (!advisoryResponse.ok) {
+          const errorText = await advisoryResponse.text();
+          console.error('Stage 2 failed with status:', advisoryResponse.status);
+          console.error('Stage 2 error response:', errorText);
+          
+          try {
+            const advisoryError = JSON.parse(errorText);
+            console.warn('Stage 2 error details:', advisoryError);
+          } catch (e) {
+            console.warn('Stage 2 error (non-JSON):', errorText);
+          }
+          
+          console.warn('Continuing to Stage 3 without advisory insights');
+        } else {
+          const advisoryResult = await advisoryResponse.json();
+          console.log('Stage 2 complete:', advisoryResult.metadata);
+          
+          if (advisoryResult.success && advisoryResult.advisoryInsights) {
+            advisoryInsights = advisoryResult.advisoryInsights;
+            console.log('✅ Stage 2 insights received:', {
+              phase1Services: advisoryInsights.serviceRecommendations?.phase1?.services,
+              phase2Services: advisoryInsights.serviceRecommendations?.phase2?.services,
+              phase3Services: advisoryInsights.serviceRecommendations?.phase3?.services
+            });
+          } else {
+            console.warn('⚠️ Stage 2 returned but no insights:', advisoryResult);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Stage 2 exception:', error);
+        console.error('Error details:', error instanceof Error ? error.message : String(error));
+        console.warn('Continuing to Stage 3 without advisory insights');
+      }
+      
+      // ================================================================
+      // STAGE 3: Generate analysis (uses Claude Opus 4.5)
+      // ================================================================
+      console.log('Stage 3: Generating analysis with Claude Opus 4.5...');
       const analysisResponse = await fetch(`${baseUrl}/generate-discovery-analysis`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          preparedData: prepareResult.preparedData
+          preparedData: prepareResult.preparedData,
+          advisoryInsights: advisoryInsights
         })
       });
       
@@ -1613,7 +1668,7 @@ function DiscoveryClientModal({
       }
       
       const analysisResult = await analysisResponse.json();
-      console.log('Stage 2 complete:', analysisResult.metadata);
+      console.log('Stage 3 complete:', analysisResult.metadata);
       
       // Debug: Log the full report structure
       console.log('[Debug] Full analysis result:', analysisResult);
