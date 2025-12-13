@@ -22,60 +22,64 @@ const corsHeaders = {
 async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
   const uint8Array = new Uint8Array(buffer);
   
-  // Try unpdf first (designed for edge/serverless)
+  // Use unpdf - specifically designed for edge/serverless environments
+  // It bundles pdf.js without the worker dependency
   try {
     console.log('[PrepareData] Attempting PDF extraction with unpdf...');
-    const { extractText } = await import('https://esm.sh/unpdf@0.11.0');
     
-    const { text } = await extractText(uint8Array);
+    // Import unpdf with explicit configuration
+    const unpdf = await import('https://esm.sh/unpdf@0.12.1?bundle');
     
-    if (text && text.length > 50) {
-      const hasRealText = /[a-zA-Z]{5,}/.test(text);
+    // Extract text using unpdf
+    const result = await unpdf.extractText(uint8Array, { mergePages: true });
+    const text = result.text || '';
+    
+    if (text && text.length > 20) {
+      const hasRealText = /[a-zA-Z]{3,}/.test(text);
       console.log(`[PrepareData] unpdf extracted: ${text.length} chars, hasRealText: ${hasRealText}`);
       
       if (hasRealText) {
-        console.log('[PrepareData] PDF content preview:', text.substring(0, 150));
+        console.log('[PrepareData] PDF content preview:', text.substring(0, 200));
         return text.substring(0, 50000);
       }
     }
-  } catch (unpdfError) {
-    console.error('[PrepareData] unpdf error:', unpdfError);
+    
+    console.log('[PrepareData] unpdf returned empty or non-text content');
+  } catch (unpdfError: any) {
+    console.error('[PrepareData] unpdf error:', unpdfError?.message || unpdfError);
   }
   
-  // Try pdfjs-dist as fallback (Mozilla PDF.js - browser/edge compatible)
+  // Fallback: Try using unpdf's getDocumentProxy for more control
   try {
-    console.log('[PrepareData] Attempting PDF extraction with pdfjs-dist...');
-    const pdfjsLib = await import('https://esm.sh/pdfjs-dist@4.0.379/build/pdf.min.mjs');
+    console.log('[PrepareData] Trying unpdf getDocumentProxy...');
+    const unpdf = await import('https://esm.sh/unpdf@0.12.1?bundle');
     
-    // Disable worker (not available in Edge Functions)
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-    
-    const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
-    const pdf = await loadingTask.promise;
-    
+    const pdf = await unpdf.getDocumentProxy(uint8Array);
     let fullText = '';
+    
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
       const pageText = textContent.items
+        .filter((item: any) => item.str)
         .map((item: any) => item.str)
         .join(' ');
-      fullText += pageText + '\n\n';
+      fullText += pageText + '\n';
     }
     
     fullText = fullText.trim();
     
-    if (fullText && fullText.length > 50) {
-      const hasRealText = /[a-zA-Z]{5,}/.test(fullText);
-      console.log(`[PrepareData] pdfjs-dist extracted: ${fullText.length} chars, ${pdf.numPages} pages, hasRealText: ${hasRealText}`);
+    if (fullText && fullText.length > 20) {
+      const hasRealText = /[a-zA-Z]{3,}/.test(fullText);
+      console.log(`[PrepareData] unpdf proxy extracted: ${fullText.length} chars, ${pdf.numPages} pages, hasRealText: ${hasRealText}`);
       
       if (hasRealText) {
-        console.log('[PrepareData] PDF content preview:', fullText.substring(0, 150));
+        console.log('[PrepareData] PDF content preview:', fullText.substring(0, 200));
         return fullText.substring(0, 50000);
       }
     }
-  } catch (pdfjsError) {
-    console.error('[PrepareData] pdfjs-dist error:', pdfjsError);
+  } catch (proxyError: any) {
+    console.error('[PrepareData] unpdf proxy error:', proxyError?.message || proxyError);
   }
   
   // Final fallback: regex-based extraction for simple/uncompressed PDFs
