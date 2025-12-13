@@ -66,9 +66,15 @@ export default function DiscoveryReportPage() {
   }, [clientSession]);
 
   const loadReport = async () => {
-    if (!clientSession?.clientId) return;
+    if (!clientSession?.clientId) {
+      console.log('[Report] No client session, cannot load report');
+      setLoading(false);
+      return;
+    }
 
     try {
+      console.log('[Report] Loading report for client:', clientSession.clientId);
+      
       // Load the client's shared discovery report
       const { data, error } = await supabase
         .from('client_reports')
@@ -78,15 +84,44 @@ export default function DiscoveryReportPage() {
         .eq('is_shared_with_client', true)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error loading report:', error);
+      if (error) {
+        console.error('[Report] Error loading report:', error);
+        if (error.code !== 'PGRST116') {
+          // PGRST116 is "no rows returned" which is fine
+          console.error('[Report] Query error details:', {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint
+          });
+        }
       }
 
-      setReport(data);
+      if (data) {
+        console.log('[Report] Report loaded successfully:', {
+          id: data.id,
+          clientId: data.client_id,
+          isShared: data.is_shared_with_client,
+          sharedAt: data.shared_at,
+          createdAt: data.created_at
+        });
+        setReport(data);
+      } else {
+        console.log('[Report] No shared report found for client:', clientSession.clientId);
+        // Check if there are any reports (even unshared ones) for debugging
+        const { data: allReports } = await supabase
+          .from('client_reports')
+          .select('id, client_id, is_shared_with_client, created_at')
+          .eq('client_id', clientSession.clientId)
+          .eq('report_type', 'discovery_analysis')
+          .order('created_at', { ascending: false })
+          .limit(5);
+        console.log('[Report] All reports for client (for debugging):', allReports);
+      }
     } catch (err) {
-      console.error('Error:', err);
+      console.error('[Report] Exception loading report:', err);
     } finally {
       setLoading(false);
     }

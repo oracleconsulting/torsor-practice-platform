@@ -1710,13 +1710,28 @@ function DiscoveryClientModal({
     try {
       const newSharedStatus = !isReportShared;
       
-      await supabase
+      console.log('[Share] Updating report:', {
+        reportId: generatedReport.id,
+        clientId: generatedReport.client?.id || client?.id,
+        newSharedStatus
+      });
+      
+      const { data, error } = await supabase
         .from('client_reports')
         .update({ 
           is_shared_with_client: newSharedStatus,
           shared_at: newSharedStatus ? new Date().toISOString() : null
         })
-        .eq('id', generatedReport.id);
+        .eq('id', generatedReport.id)
+        .select();
+      
+      if (error) {
+        console.error('[Share] Error updating report:', error);
+        alert(`Failed to update sharing status: ${error.message}`);
+        return;
+      }
+      
+      console.log('[Share] Report updated successfully:', data);
       
       setIsReportShared(newSharedStatus);
       
@@ -1725,9 +1740,9 @@ function DiscoveryClientModal({
       } else {
         alert('Report unshared. The client can no longer see it.');
       }
-    } catch (error) {
-      console.error('Error sharing report:', error);
-      alert('Failed to update sharing status');
+    } catch (error: any) {
+      console.error('[Share] Error sharing report:', error);
+      alert(`Failed to update sharing status: ${error?.message || 'Unknown error'}`);
     } finally {
       setSharingReport(false);
     }
