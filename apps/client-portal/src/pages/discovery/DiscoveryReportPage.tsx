@@ -35,7 +35,10 @@ interface DiscoveryReport {
         };
       };
       transformationJourney?: {
+        destinationLabel?: string;
         destination?: string;
+        destinationContext?: string;
+        journeyLabel?: string;
         totalInvestment?: string;
         totalTimeframe?: string;
         phases?: Array<{

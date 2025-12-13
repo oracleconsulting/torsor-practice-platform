@@ -1401,6 +1401,71 @@ serve(async (req) => {
     const documentInsightsContext = buildDocumentInsightsContext(documentInsights);
 
     // ========================================================================
+    // BUSINESS STAGE DETECTION - For realistic timeframe calibration
+    // ========================================================================
+    
+    interface BusinessStageProfile {
+      stage: 'early-stage' | 'scaling' | 'established' | 'lifestyle';
+      destinationTimeframe: '3-5 years' | '2-3 years' | '12-18 months' | '6-12 months';
+      journeyFraming: 'foundations' | 'progress' | 'achievement';
+    }
+    
+    function detectBusinessStage(
+      responses: Record<string, any>,
+      projections: any
+    ): BusinessStageProfile {
+      // Check for early-stage indicators
+      const hasLongGrowthTrajectory = projections?.growthMultiple && projections.growthMultiple > 10;
+      const isPreRevenue = !projections?.currentRevenue || projections.currentRevenue < 100000;
+      const mentionsLaunching = (responses.sd_business_overview || '').toLowerCase().includes('launch');
+      const mentionsRaising = (responses.sd_business_overview || '').toLowerCase().includes('raising') || 
+                              (responses.sd_business_overview || '').toLowerCase().includes('investors') ||
+                              (responses.sd_raising_capital || '').toLowerCase().includes('yes');
+      const hasLongExitTimeline = ['3-5 years', '5+ years', 'Not thinking about it'].includes(responses.sd_exit_timeline || '');
+      
+      // Check for established indicators
+      const hasNearExitTimeline = ['1-2 years', 'Within 12 months'].includes(responses.sd_exit_timeline || '');
+      const mentionsSteppingBack = (responses.dd_five_year_picture || '').toLowerCase().includes('step back') ||
+                                    (responses.dd_five_year_picture || '').toLowerCase().includes('retirement');
+      
+      // Determine stage
+      if ((hasLongGrowthTrajectory || isPreRevenue || mentionsLaunching || mentionsRaising) && hasLongExitTimeline) {
+        return {
+          stage: 'early-stage',
+          destinationTimeframe: '3-5 years',
+          journeyFraming: 'foundations'
+        };
+      }
+      
+      if (hasNearExitTimeline || mentionsSteppingBack) {
+        return {
+          stage: 'established',
+          destinationTimeframe: '12-18 months',
+          journeyFraming: 'achievement'
+        };
+      }
+      
+      if (hasLongGrowthTrajectory && !isPreRevenue) {
+        return {
+          stage: 'scaling',
+          destinationTimeframe: '2-3 years',
+          journeyFraming: 'progress'
+        };
+      }
+      
+      return {
+        stage: 'lifestyle',
+        destinationTimeframe: '6-12 months',
+        journeyFraming: 'achievement'
+      };
+    }
+    
+    const businessStage = detectBusinessStage(
+      preparedData.discovery.responses,
+      financialProjections
+    );
+
+    // ========================================================================
     // BUILD PROJECTION ENFORCEMENT (if projections available)
     // ========================================================================
     
@@ -1537,6 +1602,56 @@ USE THIS CONTEXT TO:
 - Frame context note facts as external knowledge: "Given your..." not "You said..."
 ` : '';
 
+    // Build business stage context
+    const stageContext = `
+## BUSINESS STAGE ASSESSMENT
+Stage: ${businessStage.stage}
+Destination Timeframe: ${businessStage.destinationTimeframe}
+Journey Framing: ${businessStage.journeyFraming}
+
+${businessStage.stage === 'early-stage' ? `
+⚠️ CRITICAL: This is an early-stage/high-growth client.
+- Their ultimate destination is 3-5 YEARS away, NOT 12 months
+- Frame the hero as "YOUR 5-YEAR DESTINATION" 
+- Frame the journey as "THE FOUNDATIONS" not "achieving the dream"
+- DO NOT promise they'll be a portfolio investor in 12 months
+- Use "destinationLabel": "YOUR 5-YEAR DESTINATION"
+- Use "destinationContext": "This is what the next 5 years builds."
+- Use "journeyLabel": "THE FOUNDATIONS (12 months)"
+- Use "totalTimeframe": "12 months to operational foundations; 3-5 years to full destination"
+` : ''}
+
+${businessStage.stage === 'established' ? `
+This is an established client looking to step back.
+- Their destination is achievable in 12-18 months
+- Frame as "IN 12 MONTHS, YOU COULD BE..."
+- Use "destinationLabel": "IN 12-18 MONTHS, YOU COULD BE..."
+- Use "destinationContext": "This is what £13,300 and 12 months builds."
+- Use "journeyLabel": "YOUR JOURNEY"
+- Use "totalTimeframe": "12-18 months to fundamental change"
+` : ''}
+
+${businessStage.stage === 'scaling' ? `
+This is a scaling business with high growth trajectory.
+- Their destination is 2-3 years away
+- Frame as meaningful progress toward destination
+- Use "destinationLabel": "YOUR 2-3 YEAR DESTINATION"
+- Use "destinationContext": "This is what the next 2-3 years builds."
+- Use "journeyLabel": "YOUR JOURNEY"
+- Use "totalTimeframe": "12 months to operational foundations; 2-3 years to full destination"
+` : ''}
+
+${businessStage.stage === 'lifestyle' ? `
+This is a lifestyle business seeking work-life balance.
+- Their destination is achievable in 6-12 months
+- Frame as "IN 12 MONTHS, YOU COULD BE..."
+- Use "destinationLabel": "IN 12 MONTHS, YOU COULD BE..."
+- Use "destinationContext": "This is what £13,300 and 12 months builds."
+- Use "journeyLabel": "YOUR JOURNEY"
+- Use "totalTimeframe": "6-12 months to fundamental change"
+` : ''}
+`;
+
     const analysisPrompt = `
 Analyse this discovery assessment for ${preparedData.client.name} (${preparedData.client.company || 'their business'}).
 
@@ -1553,6 +1668,7 @@ ${patternContext}
 ${financialContext}
 ${documentsContext}
 ${contextNotesSection}
+${stageContext}
 
 ## AFFORDABILITY ASSESSMENT
 - Client Stage: ${affordability.stage}
@@ -1844,9 +1960,57 @@ CRITICAL FIELD NAME REQUIREMENTS:
 
 TRANSFORMATION JOURNEY PHILOSOPHY:
 You are a travel agent selling a holiday, not an airline selling seats.
-- The DESTINATION is the life they described (school drop-offs, freedom, the portfolio)
-- The PHASES are the journey milestones (what their life looks like at Month 3, Month 6, Month 12)
-- The SERVICES are just the planes that get them there (footnotes, not headlines)
+
+CRITICAL: DESTINATION TIMEFRAME MUST BE REALISTIC
+- The ULTIMATE DESTINATION is the life they described (school drop-offs, freedom, the portfolio)
+- BUT: The timeframe to reach that destination depends on their business stage
+- The 12-MONTH JOURNEY is about BUILDING THE FOUNDATION, not achieving the final destination
+
+TIMEFRAME CALIBRATION (use financial projections if available):
+
+1. PRE-REVENUE / EARLY-STAGE STARTUPS (like clients with 5-year growth trajectories):
+   - Ultimate destination: 3-5 YEARS away
+   - 12-month milestone: "The infrastructure that makes it possible"
+   - Frame as: "In 12 months, you'll have the foundations for..."
+   - Hero text: "YOUR 5-YEAR DESTINATION" (not "In 12 months")
+   - DO NOT promise they'll be a "portfolio investor" in 12 months when they haven't launched yet!
+
+2. ESTABLISHED BUSINESSES (stable revenue, looking to exit or step back):
+   - Ultimate destination: 12-18 months away
+   - 12-month milestone: Meaningful progress toward destination
+   - Frame as: "IN 12 MONTHS, YOU COULD BE..."
+
+3. LIFESTYLE BUSINESSES (owner wants work-life balance, not scaling):
+   - Ultimate destination: 6-12 months away
+   - 12-month milestone: The destination itself
+   - Frame as: "In 12 months, you could be..."
+
+HOW TO DETECT BUSINESS STAGE:
+- Check for growth projections showing 5+ year trajectory → Early-stage
+- Check for "launching soon" or "pre-revenue" language → Early-stage
+- Check for exit timeline of 3-5 years → Established
+- Check for mentions of "raising capital" or "investors" → Early-stage/Scaling
+- Check for "stepping back" or "retirement" → Established
+
+ADJUST THE HERO SECTION ACCORDINGLY:
+
+For early-stage (Ben's case):
+{
+  "destinationLabel": "YOUR 5-YEAR DESTINATION",
+  "destination": "Portfolio investor. School drop-offs. A business that runs without you.",
+  "destinationContext": "This is what the next 5 years builds.",
+  "journeyLabel": "THE FOUNDATIONS (12 months)",
+  "totalTimeframe": "12 months to operational foundations; 3-5 years to full destination"
+}
+
+For established businesses:
+{
+  "destinationLabel": "IN 12-18 MONTHS, YOU COULD BE...",
+  "destination": "Portfolio investor. School drop-offs. A business that runs without you.",
+  "destinationContext": "This is what £13,300 and 12 months builds.",
+  "journeyLabel": "YOUR JOURNEY",
+  "totalTimeframe": "12-18 months to fundamental change"
+}
 
 Write "youWillHave" as if describing a postcard from that point in the journey:
 BAD: "Monthly financial visibility and investor-ready reporting" (feature list)
@@ -1856,11 +2020,16 @@ Write "whatChanges" as the shift they'll feel:
 BAD: "Improved financial oversight"
 GOOD: "The fog lifts. You stop guessing."
 
-EXAMPLE TRANSFORMATION JOURNEY FOR A FOUNDER WANTING FREEDOM:
+TRANSFORMATION JOURNEY SCHEMA - ADJUST TIMEFRAME TO BUSINESS STAGE:
+
+For EARLY-STAGE / HIGH-GROWTH clients (e.g., pre-revenue startup with 5-year projections):
 {
+  "destinationLabel": "YOUR 5-YEAR DESTINATION",
   "destination": "Portfolio investor. School drop-offs. A business that runs without you.",
+  "destinationContext": "This is what the next 5 years builds.",
+  "journeyLabel": "THE FOUNDATIONS (12 months)",
   "totalInvestment": "£13,300 (Phase 1)",
-  "totalTimeframe": "6-12 months to fundamental change",
+  "totalTimeframe": "12 months to operational foundations; 3-5 years to full destination",
   "phases": [
     {
       "phase": 1,

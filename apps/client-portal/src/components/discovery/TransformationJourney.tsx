@@ -18,9 +18,12 @@ export interface TransformationPhase {
 }
 
 export interface TransformationJourneyData {
-  destination?: string;
+  destinationLabel?: string;      // "YOUR 5-YEAR DESTINATION" or "IN 12 MONTHS..."
+  destination?: string;           // The vision quote
+  destinationContext?: string;    // "This is what 5 years builds" or "This is what £13,300 builds"
+  journeyLabel?: string;          // "THE FOUNDATIONS" or "YOUR JOURNEY"
   totalInvestment?: string;
-  totalTimeframe?: string;
+  totalTimeframe?: string;        // "12 months to foundations; 3-5 years to destination"
   phases?: TransformationPhase[];
 }
 
@@ -37,11 +40,15 @@ export interface InvestmentSummaryData {
 // ============================================================================
 
 export function DestinationHero({ 
+  destinationLabel,
   destination, 
+  destinationContext,
   totalInvestment,
   totalTimeframe 
 }: Readonly<{ 
+  destinationLabel?: string;
   destination?: string;
+  destinationContext?: string;
   totalInvestment?: string;
   totalTimeframe?: string;
 }>) {
@@ -51,19 +58,24 @@ export function DestinationHero({
   return (
     <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-6 md:p-8 text-white mb-8">
       <p className="text-emerald-200 text-sm font-medium uppercase tracking-wide mb-2">
-        In 12 months, you could be...
+        {destinationLabel || "In 12 months, you could be..."}
       </p>
       <div className="bg-white/15 border border-white/30 rounded-xl p-6 md:p-8 mb-4">
         <h2 className="text-xl md:text-2xl font-bold mb-3 leading-tight italic">
           "{destination}"
         </h2>
       </div>
-      {totalInvestment && (
+      {destinationContext && (
+        <p className="text-emerald-100 text-base md:text-lg">
+          {destinationContext}
+        </p>
+      )}
+      {!destinationContext && totalInvestment && (
         <p className="text-emerald-100 text-base md:text-lg">
           This is what {totalInvestment} and 12 months builds.
         </p>
       )}
-      {totalTimeframe && !totalInvestment && (
+      {!destinationContext && !totalInvestment && totalTimeframe && (
         <p className="text-emerald-100 text-base md:text-lg">
           {totalTimeframe}
         </p>
@@ -208,7 +220,9 @@ export function TransformationJourney({
     <div className="transformation-journey">
       {/* The destination - lead with where they're going */}
       <DestinationHero 
+        destinationLabel={journey.destinationLabel}
         destination={journey.destination}
+        destinationContext={journey.destinationContext}
         totalInvestment={journey.totalInvestment}
         totalTimeframe={journey.totalTimeframe}
       />
@@ -218,7 +232,7 @@ export function TransformationJourney({
       
       {/* Section title */}
       <h3 className="text-lg font-semibold text-gray-900 mb-2">
-        Your Journey
+        {journey.journeyLabel || "Your Journey"}
       </h3>
       <p className="text-gray-600 text-sm mb-6">
         The path from here to your destination
