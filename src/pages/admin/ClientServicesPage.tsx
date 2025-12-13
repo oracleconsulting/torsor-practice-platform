@@ -4,6 +4,7 @@ import { Navigation } from '../../components/Navigation';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { supabase } from '../../lib/supabase';
+import { RPGCC_LOGO_LIGHT, RPGCC_LOGO_DARK, RPGCC_COLORS } from '../../constants/brandAssets';
 import { 
   Users, 
   CheckCircle, 
@@ -1669,183 +1670,741 @@ function DiscoveryClientModal({
     }
   };
 
-  // Export report as PDF (opens print dialog)
+  // Export report as PDF (opens print dialog) - RPGCC Branded Version
   const handleExportPDF = () => {
-    if (!generatedReport?.analysis) {
-      alert('No report to export. Please generate a report first.');
-      return;
-    }
+    if (!generatedReport?.analysis) return;
 
-    const report = generatedReport;
-    const analysis = report.analysis;
-    
-    // Create a new window with print-friendly HTML
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert('Please allow popups to export PDF');
-      return;
-    }
+    const analysis = generatedReport.analysis;
+    const clarityScore = generatedReport.discoveryScores?.clarityScore || 0;
+    const gapScore = generatedReport.discoveryScores?.gapScore || 0;
+    const clientName = generatedReport.client?.name || client?.name || 'Client';
+    const companyName = generatedReport.client?.company || client?.client_company || '';
+    const generatedDate = generatedReport.generatedAt 
+      ? new Date(generatedReport.generatedAt).toLocaleDateString('en-GB', { 
+          day: 'numeric', 
+          month: 'long', 
+          year: 'numeric' 
+        })
+      : new Date().toLocaleDateString('en-GB', { 
+          day: 'numeric', 
+          month: 'long', 
+          year: 'numeric' 
+        });
 
-    const htmlContent = `
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Discovery Analysis - ${client?.name || 'Client'}</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #1f2937; padding: 40px; max-width: 900px; margin: 0 auto; }
-    h1 { color: #4f46e5; font-size: 28px; margin-bottom: 8px; }
-    h2 { color: #4f46e5; font-size: 20px; margin-top: 32px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb; }
-    h3 { color: #374151; font-size: 16px; margin-top: 20px; margin-bottom: 8px; }
-    p { margin-bottom: 12px; }
-    .header { text-align: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #4f46e5; }
-    .meta { color: #6b7280; font-size: 14px; }
-    .score-grid { display: flex; gap: 24px; margin: 20px 0; }
-    .score-box { flex: 1; background: #f3f4f6; padding: 16px; border-radius: 8px; text-align: center; }
-    .score-box .label { font-size: 12px; color: #6b7280; text-transform: uppercase; }
-    .score-box .value { font-size: 28px; font-weight: bold; color: #4f46e5; }
-    .summary-box { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 24px; border-radius: 12px; margin: 24px 0; }
-    .summary-box h2 { color: white; border-bottom: none; margin-top: 0; }
-    .gap-card { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin: 12px 0; border-radius: 4px; }
-    .gap-card.critical { background: #fee2e2; border-color: #ef4444; }
-    .gap-card.high { background: #fef3c7; border-color: #f59e0b; }
-    .investment-card { background: #ecfdf5; border: 1px solid #10b981; padding: 20px; margin: 16px 0; border-radius: 8px; }
-    .investment-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-    .priority-badge { background: #10b981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-    .price { font-size: 24px; font-weight: bold; color: #059669; }
-    .roi { color: #059669; font-weight: 600; }
-    .outcomes { margin-top: 12px; }
-    .outcomes li { margin-left: 20px; color: #047857; }
-    .summary-totals { background: linear-gradient(135deg, #059669, #0d9488); color: white; padding: 24px; border-radius: 12px; margin: 24px 0; }
-    .summary-totals .grid { display: flex; gap: 24px; }
-    .summary-totals .item { flex: 1; text-align: center; }
-    .summary-totals .item .label { font-size: 12px; opacity: 0.9; }
-    .summary-totals .item .value { font-size: 24px; font-weight: bold; }
-    .closing { background: #1f2937; color: white; padding: 24px; border-radius: 12px; margin-top: 32px; text-align: center; }
-    .closing p { color: #d1d5db; }
-    .closing .cta { color: #34d399; font-weight: 600; margin-top: 12px; }
-    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px; text-align: center; }
-    @media print { body { padding: 20px; } .summary-box, .summary-totals, .closing { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>Discovery Analysis</h1>
-    <p class="meta">${client?.name || 'Client'} ${client?.client_company ? `• ${client.client_company}` : ''}</p>
-    <p class="meta">Generated: ${new Date(report.generatedAt || new Date()).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-  </div>
-
-  <div class="score-grid">
-    <div class="score-box">
-      <div class="label">Destination Clarity</div>
-      <div class="value">${report.discoveryScores?.clarityScore || '—'}/10</div>
-    </div>
-    <div class="score-box">
-      <div class="label">Gap Score</div>
-      <div class="value">${report.discoveryScores?.gapScore || '—'}/10</div>
-    </div>
-  </div>
-
-  ${analysis?.executiveSummary ? `
-  <div class="summary-box">
-    <h2>${analysis.executiveSummary.headline || 'Executive Summary'}</h2>
-    ${analysis.executiveSummary.keyInsight ? `<p>${analysis.executiveSummary.keyInsight}</p>` : ''}
-    ${analysis.executiveSummary.situationInTheirWords ? `<p style="font-style: italic; opacity: 0.9;">"${analysis.executiveSummary.situationInTheirWords}"</p>` : ''}
-  </div>
-  ` : ''}
-
-  ${analysis?.gapAnalysis?.primaryGaps?.length ? `
-  <h2>Gap Analysis</h2>
-  ${analysis.gapAnalysis.primaryGaps.map((gap: any) => `
-    <div class="gap-card ${gap.severity || 'medium'}">
-      <h3>${gap.gap}</h3>
-      <p><strong>Category:</strong> ${gap.category || 'General'} | <strong>Severity:</strong> ${gap.severity || 'Medium'}</p>
-      ${gap.evidence ? `<p style="font-style: italic; color: #92400e;">"${gap.evidence}"</p>` : ''}
-      ${gap.currentImpact ? `<p><strong>Impact:</strong> ${gap.currentImpact.financialImpact || ''} ${gap.currentImpact.timeImpact || ''}</p>` : ''}
-    </div>
-  `).join('')}
-  ${analysis.gapAnalysis.costOfInaction ? `
-    <div class="gap-card critical">
-      <h3>Cost of Not Acting</h3>
-      <p><strong>${analysis.gapAnalysis.costOfInaction.annualFinancialCost || 'Significant'}</strong></p>
-      ${analysis.gapAnalysis.costOfInaction.personalCost ? `<p>${analysis.gapAnalysis.costOfInaction.personalCost}</p>` : ''}
-    </div>
-  ` : ''}
-  ` : ''}
-
-  ${analysis?.recommendedInvestments?.length ? `
-  <h2>Recommended Investments</h2>
-  ${analysis.recommendedInvestments.map((inv: any, idx: number) => `
-    <div class="investment-card">
-      <div class="investment-header">
-        <div>
-          <span class="priority-badge">Priority ${inv.priority || idx + 1}</span>
-          <h3 style="margin-top: 8px;">${inv.service}</h3>
-          ${inv.recommendedTier ? `<p style="color: #6b7280; font-size: 14px;">${inv.recommendedTier}</p>` : ''}
+    // Gap Analysis HTML
+    const gapsHtml = (analysis.gapAnalysis?.primaryGaps || []).map((gap: any) => `
+      <div class="gap-card severity-${gap.severity || 'medium'}">
+        <div class="gap-header">
+          <span class="gap-category">${gap.category || 'General'}</span>
+          <span class="severity-badge severity-${gap.severity || 'medium'}">${gap.severity || 'medium'}</span>
         </div>
-        <div style="text-align: right;">
-          <div class="price">${inv.investment || 'Contact for pricing'}</div>
-          <div style="color: #6b7280; font-size: 12px;">${inv.investmentFrequency || 'per month'}</div>
+        <h3 class="gap-title">${gap.gap || 'Gap identified'}</h3>
+        <blockquote class="gap-evidence">"${gap.evidence || ''}"</blockquote>
+        <div class="gap-impact">
+          <strong>Impact:</strong> ${gap.currentImpact?.financialImpact || ''} ${gap.currentImpact?.timeImpact ? '• ' + gap.currentImpact.timeImpact : ''}
         </div>
       </div>
-      ${inv.whyThisTier ? `<p>${inv.whyThisTier}</p>` : ''}
-      ${inv.expectedROI ? `<p class="roi">Expected ROI: ${inv.expectedROI.multiplier || ''} in ${inv.expectedROI.timeframe || ''}</p>` : ''}
-      ${inv.keyOutcomes?.length ? `
-        <ul class="outcomes">
-          ${inv.keyOutcomes.slice(0, 3).map((o: any) => `<li>✓ ${typeof o === 'string' ? o : o.outcome}</li>`).join('')}
-        </ul>
-      ` : ''}
-    </div>
-  `).join('')}
-  ` : ''}
+    `).join('');
 
-  ${analysis?.investmentSummary ? `
-  <div class="summary-totals">
-    <h2 style="color: white; border: none; margin: 0 0 16px 0;">Investment Summary</h2>
-    <div class="grid">
-      <div class="item">
-        <div class="label">First Year Investment</div>
-        <div class="value">${analysis.investmentSummary.totalFirstYearInvestment || '—'}</div>
-      </div>
-      <div class="item">
-        <div class="label">Projected Return</div>
-        <div class="value">${analysis.investmentSummary.projectedFirstYearReturn || '—'}</div>
-      </div>
-      <div class="item">
-        <div class="label">Payback Period</div>
-        <div class="value">${analysis.investmentSummary.paybackPeriod || '—'}</div>
-      </div>
-    </div>
-  </div>
-  ` : ''}
+    // Investment Recommendations HTML
+    const investmentsHtml = (analysis.recommendedInvestments || []).map((inv: any) => {
+      const outcomes = (inv.keyOutcomes || inv.expectedOutcomes || []).map((o: any) => 
+        `<div class="outcome-item">${typeof o === 'string' ? o : o.outcome}</div>`
+      ).join('');
 
-  ${analysis?.closingMessage ? `
-  <div class="closing">
-    ${typeof analysis.closingMessage === 'string' 
-      ? `<p style="font-size: 18px;">${analysis.closingMessage}</p>`
+      return `
+        <div class="investment-card">
+          <div class="investment-priority">
+            <span class="priority-number">${inv.priority || 1}</span>
+            <span class="priority-label">Priority</span>
+          </div>
+          <div class="investment-content">
+            <div class="investment-header">
+              <div class="investment-info">
+                <h3 class="service-name">${inv.service || inv.serviceName || 'Service'}</h3>
+                <span class="service-tier">${inv.recommendedTier || ''}</span>
+              </div>
+              <div class="investment-price">
+                <span class="price-amount">${inv.investment || inv.price || ''}</span>
+                <span class="price-frequency">${inv.investmentFrequency || inv.frequency || 'per month'}</span>
+              </div>
+            </div>
+            <p class="investment-rationale">${inv.whyThisTier || ''}</p>
+            ${inv.expectedROI ? `
+              <div class="investment-roi">
+                <span class="roi-label">Expected ROI:</span>
+                <span class="roi-value">${inv.expectedROI.multiplier || ''}</span>
+                <span class="roi-timeframe">in ${inv.expectedROI.timeframe || '12 months'}</span>
+              </div>
+            ` : ''}
+            <div class="outcomes-list">${outcomes}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Closing Message
+    const closingMessage = analysis.closingMessage;
+    const closingHtml = typeof closingMessage === 'string' 
+      ? `<p class="closing-text">${closingMessage}</p>`
       : `
-        ${analysis.closingMessage.personalNote ? `<p style="font-size: 18px; font-style: italic;">"${analysis.closingMessage.personalNote}"</p>` : ''}
-        ${analysis.closingMessage.callToAction ? `<p class="cta">${analysis.closingMessage.callToAction}</p>` : ''}
-      `
-    }
-  </div>
-  ` : ''}
+        <blockquote class="personal-note">${closingMessage?.personalNote || ''}</blockquote>
+        <div class="call-to-action">
+          <p class="cta-text">${closingMessage?.callToAction || ''}</p>
+        </div>
+      `;
 
-  <div class="footer">
-    <p>Discovery Analysis Report • Generated by Oracle Consulting AI Platform</p>
-    <p>Confidential - For ${client?.name || 'Client'} Use Only</p>
-  </div>
-</body>
-</html>
+    const pdfContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Discovery Analysis - ${clientName}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+          
+          :root {
+            --brand-navy-dark: ${RPGCC_COLORS.navyDark};
+            --brand-navy: ${RPGCC_COLORS.navy};
+            --brand-blue-light: ${RPGCC_COLORS.blueLight};
+            --brand-teal: ${RPGCC_COLORS.teal};
+            --brand-orange: ${RPGCC_COLORS.orange};
+            --brand-red: ${RPGCC_COLORS.red};
+            --text-primary: ${RPGCC_COLORS.textPrimary};
+            --text-secondary: ${RPGCC_COLORS.textSecondary};
+            --text-muted: ${RPGCC_COLORS.textMuted};
+            --bg-light: ${RPGCC_COLORS.bgLight};
+          }
+          
+          * { box-sizing: border-box; }
+          
+          body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            line-height: 1.7;
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            background: white;
+          }
+          
+          /* Cover Page */
+          .cover-page {
+            page-break-after: always;
+            background: linear-gradient(180deg, var(--brand-navy-dark) 0%, var(--brand-navy) 100%);
+            min-height: 100vh;
+            padding: 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            color: white;
+          }
+          .cover-logo {
+            height: 50px;
+            margin-bottom: 12px;
+          }
+          .tagline {
+            color: var(--brand-blue-light);
+            font-size: 14px;
+            letter-spacing: 0.5px;
+          }
+          .cover-content {
+            text-align: center;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          }
+          .cover-title {
+            font-size: 52px;
+            font-weight: 300;
+            margin: 0 0 24px 0;
+            letter-spacing: -1px;
+          }
+          .client-name {
+            font-size: 28px;
+            font-weight: 600;
+            margin: 0;
+          }
+          .company-name {
+            font-size: 20px;
+            color: var(--brand-blue-light);
+            margin: 8px 0 0 0;
+          }
+          .cover-footer {
+            text-align: center;
+          }
+          .cover-footer p {
+            margin: 4px 0;
+            font-size: 13px;
+            color: rgba(255,255,255,0.7);
+          }
+          
+          /* Main Content */
+          .content {
+            padding: 40px 50px;
+            max-width: 900px;
+            margin: 0 auto;
+          }
+          
+          /* Scores Row */
+          .scores-row {
+            display: flex;
+            gap: 24px;
+            margin: 0 0 32px 0;
+          }
+          .score-card {
+            flex: 1;
+            background: var(--brand-navy);
+            color: white;
+            padding: 24px;
+            text-align: center;
+            border-radius: 8px;
+          }
+          .score-value {
+            font-size: 48px;
+            font-weight: 700;
+          }
+          .score-max {
+            font-size: 20px;
+            font-weight: 400;
+            opacity: 0.7;
+          }
+          .score-label {
+            font-size: 13px;
+            margin-top: 8px;
+            color: var(--brand-blue-light);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          }
+          
+          /* Executive Summary */
+          .executive-summary {
+            background: white;
+            border-left: 5px solid var(--brand-navy);
+            padding: 28px 32px;
+            margin: 0 0 32px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+          }
+          .section-badge {
+            display: inline-block;
+            background: var(--brand-navy);
+            color: white;
+            padding: 6px 16px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 2px;
+          }
+          .headline {
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--brand-navy);
+            margin: 20px 0 16px 0;
+            line-height: 1.4;
+          }
+          .situation-quote {
+            font-style: italic;
+            color: var(--text-secondary);
+            border-left: 3px solid var(--brand-blue-light);
+            padding-left: 16px;
+            margin: 16px 0;
+            font-size: 14px;
+            line-height: 1.7;
+          }
+          .insight-box {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            padding: 16px 20px;
+            border-radius: 6px;
+            margin-top: 20px;
+          }
+          .insight-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #0369a1;
+            font-weight: 600;
+          }
+          .insight-text {
+            margin: 8px 0 0 0;
+            color: var(--brand-navy);
+            font-size: 14px;
+          }
+          
+          /* Section Headers */
+          .section-header {
+            margin: 40px 0 24px 0;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #e5e7eb;
+          }
+          .section-title {
+            font-size: 26px;
+            font-weight: 600;
+            color: var(--brand-navy);
+            margin: 0;
+          }
+          .section-subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin: 6px 0 0 0;
+          }
+          
+          /* Gap Cards */
+          .gap-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 24px;
+            margin: 16px 0;
+            page-break-inside: avoid;
+          }
+          .gap-card.severity-critical { border-left: 4px solid var(--brand-red); }
+          .gap-card.severity-high { border-left: 4px solid var(--brand-orange); }
+          .gap-card.severity-medium { border-left: 4px solid var(--brand-blue-light); }
+          .gap-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+          }
+          .gap-category {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            font-weight: 600;
+          }
+          .severity-badge {
+            font-size: 10px;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+          }
+          .severity-badge.severity-critical { background: #fef2f2; color: #dc2626; }
+          .severity-badge.severity-high { background: #fffbeb; color: #d97706; }
+          .severity-badge.severity-medium { background: #f0f9ff; color: #0369a1; }
+          .gap-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0 0 12px 0;
+          }
+          .gap-evidence {
+            font-style: italic;
+            color: var(--text-secondary);
+            background: #f9fafb;
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin: 12px 0;
+            font-size: 13px;
+            border: none;
+          }
+          .gap-impact {
+            font-size: 13px;
+            color: var(--text-muted);
+          }
+          
+          /* Cost of Inaction */
+          .cost-of-inaction {
+            background: linear-gradient(135deg, var(--brand-navy-dark), var(--brand-navy));
+            color: white;
+            padding: 32px;
+            border-radius: 12px;
+            margin: 24px 0;
+            text-align: center;
+            page-break-inside: avoid;
+          }
+          .coi-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 16px;
+          }
+          .coi-icon { font-size: 24px; }
+          .coi-label {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--brand-blue-light);
+          }
+          .coi-amount {
+            font-size: 28px;
+            font-weight: 700;
+            color: #f87171;
+            margin-bottom: 12px;
+          }
+          .coi-personal {
+            font-size: 14px;
+            color: rgba(255,255,255,0.85);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.7;
+          }
+          
+          /* Investment Cards */
+          .investment-card {
+            display: flex;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            page-break-inside: avoid;
+          }
+          .investment-priority {
+            background: var(--brand-teal);
+            color: white;
+            padding: 24px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 80px;
+          }
+          .priority-number {
+            font-size: 36px;
+            font-weight: 700;
+          }
+          .priority-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
+          }
+          .investment-content {
+            flex: 1;
+            padding: 24px;
+          }
+          .investment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+          }
+          .service-name {
+            font-size: 19px;
+            font-weight: 600;
+            color: var(--brand-navy);
+            margin: 0;
+          }
+          .service-tier {
+            font-size: 13px;
+            color: var(--text-muted);
+            display: block;
+            margin-top: 4px;
+          }
+          .investment-price {
+            text-align: right;
+          }
+          .price-amount {
+            font-size: 26px;
+            font-weight: 700;
+            color: var(--brand-teal);
+          }
+          .price-frequency {
+            display: block;
+            font-size: 12px;
+            color: var(--text-muted);
+          }
+          .investment-rationale {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin: 0 0 16px 0;
+          }
+          .investment-roi {
+            background: #f0fdfa;
+            border: 1px solid #99f6e4;
+            padding: 10px 16px;
+            border-radius: 6px;
+            display: inline-block;
+            margin-bottom: 16px;
+          }
+          .roi-label {
+            font-size: 12px;
+            color: var(--text-muted);
+          }
+          .roi-value {
+            font-weight: 700;
+            color: var(--brand-teal);
+            margin: 0 4px;
+          }
+          .roi-timeframe {
+            font-size: 12px;
+            color: var(--text-muted);
+          }
+          .outcomes-list {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 6px;
+          }
+          .outcome-item {
+            font-size: 13px;
+            color: #374151;
+            padding: 4px 0;
+          }
+          .outcome-item::before {
+            content: '✓';
+            color: var(--brand-teal);
+            font-weight: 600;
+            margin-right: 8px;
+          }
+          
+          /* Investment Summary */
+          .investment-summary {
+            background: linear-gradient(135deg, var(--brand-teal), #0f766e);
+            color: white;
+            padding: 40px;
+            border-radius: 16px;
+            margin: 32px 0;
+            page-break-inside: avoid;
+          }
+          .summary-grid {
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+          }
+          .summary-stat {
+            padding: 0 24px;
+          }
+          .summary-stat:not(:last-child) {
+            border-right: 1px solid rgba(255,255,255,0.2);
+          }
+          .stat-label {
+            display: block;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.85;
+            margin-bottom: 8px;
+          }
+          .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+          }
+          .summary-stat.highlight .stat-value {
+            color: #fef3c7;
+          }
+          
+          /* Closing Section */
+          .closing-section {
+            background: var(--brand-navy-dark);
+            color: white;
+            padding: 40px;
+            border-radius: 16px;
+            margin: 32px 0;
+            page-break-inside: avoid;
+          }
+          .personal-note {
+            font-size: 15px;
+            line-height: 1.8;
+            font-style: italic;
+            color: rgba(255,255,255,0.9);
+            border: none;
+            padding: 0;
+            margin: 0 0 24px 0;
+          }
+          .closing-text {
+            font-size: 15px;
+            line-height: 1.8;
+            color: rgba(255,255,255,0.9);
+            margin: 0;
+          }
+          .call-to-action {
+            background: rgba(91, 192, 235, 0.15);
+            border: 1px solid rgba(91, 192, 235, 0.3);
+            padding: 20px 24px;
+            border-radius: 8px;
+            text-align: center;
+          }
+          .cta-text {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--brand-blue-light);
+            margin: 0;
+          }
+          
+          /* Footer */
+          .document-footer {
+            margin-top: 48px;
+            padding-top: 24px;
+            border-top: 2px solid #e5e7eb;
+            text-align: center;
+          }
+          .footer-logo {
+            height: 30px;
+            margin-bottom: 12px;
+          }
+          .footer-text {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin: 4px 0;
+          }
+          .footer-confidential {
+            font-size: 12px;
+            color: #9ca3af;
+            margin: 4px 0;
+          }
+          .footer-regulatory {
+            font-size: 10px;
+            color: #9ca3af;
+            margin: 8px 0 0 0;
+          }
+          
+          /* Print Styles */
+          @media print {
+            body {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
+            .cover-page {
+              page-break-after: always;
+            }
+            .section-header {
+              page-break-after: avoid;
+            }
+            .gap-card, .investment-card, .investment-summary, .closing-section, .cost-of-inaction {
+              page-break-inside: avoid;
+            }
+          }
+          
+          @page {
+            size: A4;
+            margin: 15mm;
+          }
+        </style>
+      </head>
+      <body>
+        <!-- Cover Page -->
+        <div class="cover-page">
+          <div class="cover-header">
+            <img src="${RPGCC_LOGO_LIGHT}" alt="RPGCC" class="cover-logo" />
+            <div class="tagline">Chartered Accountants, Auditors, Tax & Business Advisers</div>
+          </div>
+          <div class="cover-content">
+            <h1 class="cover-title">Discovery Analysis</h1>
+            <div class="cover-meta">
+              <p class="client-name">${clientName}</p>
+              ${companyName ? `<p class="company-name">${companyName}</p>` : ''}
+            </div>
+          </div>
+          <div class="cover-footer">
+            <p>Generated: ${generatedDate}</p>
+            <p>Registered to carry on audit work in the UK by ICAEW</p>
+          </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="content">
+          <!-- Scores -->
+          <div class="scores-row">
+            <div class="score-card">
+              <div class="score-value">${clarityScore}<span class="score-max">/10</span></div>
+              <div class="score-label">Destination Clarity</div>
+            </div>
+            <div class="score-card">
+              <div class="score-value">${gapScore}<span class="score-max">/10</span></div>
+              <div class="score-label">Gap Score</div>
+            </div>
+          </div>
+          
+          <!-- Executive Summary -->
+          <div class="executive-summary">
+            <div class="summary-header">
+              <span class="section-badge">Executive Summary</span>
+            </div>
+            <h2 class="headline">${analysis.executiveSummary?.headline || ''}</h2>
+            ${analysis.executiveSummary?.situationInTheirWords ? `
+              <blockquote class="situation-quote">"${analysis.executiveSummary.situationInTheirWords}"</blockquote>
+            ` : ''}
+            ${analysis.executiveSummary?.criticalInsight ? `
+              <div class="insight-box">
+                <span class="insight-label">Key Insight</span>
+                <p class="insight-text">${analysis.executiveSummary.criticalInsight}</p>
+              </div>
+            ` : ''}
+          </div>
+          
+          <!-- Gap Analysis -->
+          <div class="section-header">
+            <h2 class="section-title">Gap Analysis</h2>
+            <p class="section-subtitle">What's currently holding you back</p>
+          </div>
+          
+          ${gapsHtml}
+          
+          ${analysis.gapAnalysis?.costOfInaction ? `
+            <div class="cost-of-inaction">
+              <div class="coi-header">
+                <span class="coi-icon">⚠</span>
+                <span class="coi-label">Cost of Not Acting</span>
+              </div>
+              <div class="coi-amount">${analysis.gapAnalysis.costOfInaction.annualFinancialCost || ''}</div>
+              <p class="coi-personal">${analysis.gapAnalysis.costOfInaction.personalCost || ''}</p>
+            </div>
+          ` : ''}
+          
+          <!-- Recommended Investments -->
+          <div class="section-header">
+            <h2 class="section-title">Recommended Investments</h2>
+            <p class="section-subtitle">Your path forward</p>
+          </div>
+          
+          ${investmentsHtml}
+          
+          <!-- Investment Summary -->
+          ${analysis.investmentSummary ? `
+            <div class="investment-summary">
+              <div class="summary-grid">
+                <div class="summary-stat">
+                  <span class="stat-label">First Year Investment</span>
+                  <span class="stat-value">${analysis.investmentSummary.totalFirstYearInvestment || ''}</span>
+                </div>
+                <div class="summary-stat highlight">
+                  <span class="stat-label">Projected Return</span>
+                  <span class="stat-value">${analysis.investmentSummary.projectedFirstYearReturn || ''}</span>
+                </div>
+                <div class="summary-stat">
+                  <span class="stat-label">Payback Period</span>
+                  <span class="stat-value">${analysis.investmentSummary.paybackPeriod || ''}</span>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+          
+          <!-- Closing Message -->
+          ${closingMessage ? `
+            <div class="closing-section">
+              ${closingHtml}
+            </div>
+          ` : ''}
+          
+          <!-- Footer -->
+          <div class="document-footer">
+            <img src="${RPGCC_LOGO_DARK}" alt="RPGCC" class="footer-logo" />
+            <p class="footer-text">Discovery Analysis Report • Generated by Oracle Consulting</p>
+            <p class="footer-confidential">Confidential - Prepared for ${clientName}</p>
+            <p class="footer-regulatory">RPG Crouch Chapman LLP is registered to carry on audit work in the UK by ICAEW</p>
+          </div>
+        </div>
+      </body>
+      </html>
     `;
 
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    
-    // Wait for content to load then trigger print
-    printWindow.onload = () => {
-      printWindow.print();
-    };
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(pdfContent);
+      printWindow.document.close();
+      printWindow.onload = () => {
+        setTimeout(() => {
+          printWindow.print();
+        }, 500);
+      };
+    }
   };
 
   // Assign services to client
