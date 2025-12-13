@@ -1692,22 +1692,32 @@ function DiscoveryClientModal({
           year: 'numeric' 
         });
 
-    // Gap Analysis HTML
-    const gapsHtml = (analysis.gapAnalysis?.primaryGaps || []).map((gap: any) => `
+    // Check if we have the new Transformation Journey data
+    const hasTransformationJourney = analysis.transformationJourney?.phases?.length > 0;
+    const destination = analysis.transformationJourney?.destination || '';
+    const totalInvestment = analysis.transformationJourney?.totalInvestment || analysis.investmentSummary?.totalFirstYearInvestment || '';
+
+    // Gap Analysis HTML - Improved with visual severity indicators
+    const gapsHtml = (analysis.gapAnalysis?.primaryGaps || []).map((gap: any) => {
+      const severityIcon = gap.severity === 'critical' ? '🔴' : gap.severity === 'high' ? '🟠' : '🟡';
+      return `
       <div class="gap-card severity-${gap.severity || 'medium'}">
         <div class="gap-header">
+          <span class="severity-indicator">${severityIcon}</span>
+          <span class="severity-text severity-${gap.severity || 'medium'}">${(gap.severity || 'medium').toUpperCase()}</span>
+          <span class="gap-divider">|</span>
           <span class="gap-category">${gap.category || 'General'}</span>
-          <span class="severity-badge severity-${gap.severity || 'medium'}">${gap.severity || 'medium'}</span>
         </div>
         <h3 class="gap-title">${gap.gap || 'Gap identified'}</h3>
         <blockquote class="gap-evidence">"${gap.evidence || ''}"</blockquote>
-        <div class="gap-impact">
-          <strong>Impact:</strong> ${gap.currentImpact?.financialImpact || ''} ${gap.currentImpact?.timeImpact ? '• ' + gap.currentImpact.timeImpact : ''}
+        <div class="gap-impacts">
+          ${gap.currentImpact?.financialImpact ? `<span class="impact-item">• ${gap.currentImpact.financialImpact}</span>` : ''}
+          ${gap.currentImpact?.timeImpact ? `<span class="impact-item">• ${gap.currentImpact.timeImpact}</span>` : ''}
         </div>
       </div>
-    `).join('');
+    `}).join('');
 
-    // Investment Recommendations HTML
+    // Investment Recommendations HTML (Legacy fallback)
     const investmentsHtml = (analysis.recommendedInvestments || []).map((inv: any) => {
       const outcomes = (inv.keyOutcomes || inv.expectedOutcomes || []).map((o: any) => 
         `<div class="outcome-item">${typeof o === 'string' ? o : o.outcome}</div>`
@@ -1744,59 +1754,34 @@ function DiscoveryClientModal({
       `;
     }).join('');
 
-    // Closing Message
+    // Closing Message - Elevated as hero section
     const closingMessage = analysis.closingMessage;
-    const closingHtml = typeof closingMessage === 'string' 
-      ? `<p class="closing-text">${closingMessage}</p>`
-      : `
-        <blockquote class="personal-note">${closingMessage?.personalNote || ''}</blockquote>
-        <div class="call-to-action">
-          <p class="cta-text">${closingMessage?.callToAction || ''}</p>
-        </div>
-      `;
+    const personalNote = typeof closingMessage === 'string' ? closingMessage : closingMessage?.personalNote || '';
+    const callToAction = typeof closingMessage === 'string' ? 'Let\'s talk this week.' : closingMessage?.callToAction || 'Let\'s talk this week.';
 
-    // Check if we have the new Transformation Journey data
-    const hasTransformationJourney = analysis.transformationJourney?.phases?.length > 0;
-    
-    // Transformation Journey HTML (the "travel agent" view)
-    const journeyHtml = hasTransformationJourney ? `
-      <!-- Destination Hero -->
-      <div class="destination-hero">
-        <p class="destination-label">Your Destination</p>
-        <h2 class="destination-title">${analysis.transformationJourney.destination}</h2>
-        <p class="destination-timeframe">${analysis.transformationJourney.totalTimeframe}</p>
-      </div>
-      
-      <!-- Journey Phases -->
-      <div class="section-header">
-        <h2 class="section-title">Your Journey</h2>
-        <p class="section-subtitle">The path from here to your destination</p>
-      </div>
-      
-      <div class="journey-phases">
-        ${analysis.transformationJourney.phases.map((phase: any, idx: number) => `
-          <div class="journey-phase">
-            <div class="phase-connector">
-              <div class="phase-number">${phase.phase}</div>
-              ${idx < analysis.transformationJourney.phases.length - 1 ? '<div class="phase-line"></div>' : ''}
-            </div>
-            <div class="phase-content">
-              <span class="phase-timeframe">${phase.timeframe}</span>
-              <h3 class="phase-title">${phase.title}</h3>
-              <div class="phase-postcard">
-                <p class="postcard-label">You'll have</p>
-                <p class="postcard-content">${phase.youWillHave}</p>
-              </div>
-              <p class="phase-shift">"${phase.whatChanges}"</p>
-              <div class="phase-footer">
-                <span class="enabled-by">Enabled by: <strong>${phase.enabledBy}</strong></span>
-                <span class="phase-investment">${phase.investment}</span>
-              </div>
-            </div>
+    // Journey Phases HTML - Improved timeline visualization
+    const journeyPhasesHtml = hasTransformationJourney ? analysis.transformationJourney.phases.map((phase: any) => `
+      <div class="journey-phase">
+        <div class="phase-header">
+          <div class="phase-badge">${phase.phase}</div>
+          <div class="phase-meta">
+            <span class="phase-timeframe">${phase.timeframe}</span>
+            <h3 class="phase-title">${phase.title}</h3>
           </div>
-        `).join('')}
+        </div>
+        <div class="phase-body">
+          <div class="phase-postcard">
+            <p class="postcard-label">You'll have</p>
+            <p class="postcard-content">${phase.youWillHave}</p>
+          </div>
+          <p class="phase-shift">"${phase.whatChanges}"</p>
+        </div>
+        <div class="phase-footer">
+          <span class="enabled-by">Enabled by: <strong>${phase.enabledBy}</strong></span>
+          <span class="phase-investment">${phase.investment}</span>
+        </div>
       </div>
-    ` : '';
+    `).join('') : '';
 
     const pdfContent = `
       <!DOCTYPE html>
@@ -1819,636 +1804,595 @@ function DiscoveryClientModal({
             --bg-light: ${RPGCC_COLORS.bgLight};
           }
           
-          * { box-sizing: border-box; }
+          * { box-sizing: border-box; margin: 0; padding: 0; }
           
           body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            line-height: 1.7;
+            line-height: 1.6;
             color: var(--text-primary);
-            margin: 0;
-            padding: 0;
             background: white;
           }
           
-          /* Cover Page */
+          /* ==================== PAGE 1: COVER ==================== */
           .cover-page {
             page-break-after: always;
             background: linear-gradient(180deg, var(--brand-navy-dark) 0%, var(--brand-navy) 100%);
             min-height: 100vh;
-            padding: 60px;
+            padding: 50px;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
             color: white;
           }
-          .cover-logo {
-            height: 50px;
-            margin-bottom: 12px;
+          .cover-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
           }
+          .cover-logo { height: 40px; }
           .tagline {
             color: var(--brand-blue-light);
-            font-size: 14px;
+            font-size: 13px;
             letter-spacing: 0.5px;
           }
           .cover-content {
-            text-align: center;
             flex: 1;
             display: flex;
             flex-direction: column;
             justify-content: center;
+            text-align: center;
+            padding: 60px 0;
           }
           .cover-title {
-            font-size: 52px;
+            font-size: 48px;
             font-weight: 300;
-            margin: 0 0 24px 0;
+            margin: 0 0 32px 0;
             letter-spacing: -1px;
           }
-          .client-name {
-            font-size: 28px;
+          .cover-client {
+            font-size: 26px;
             font-weight: 600;
-            margin: 0;
+            margin: 0 0 8px 0;
           }
-          .company-name {
-            font-size: 20px;
+          .cover-company {
+            font-size: 18px;
             color: var(--brand-blue-light);
-            margin: 8px 0 0 0;
+            margin: 0 0 40px 0;
+          }
+          .cover-destination-preview {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 12px;
+            padding: 24px 32px;
+            max-width: 600px;
+            margin: 0 auto;
+          }
+          .destination-intro {
+            font-size: 14px;
+            color: var(--brand-blue-light);
+            margin: 0 0 12px 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          }
+          .destination-preview-text {
+            font-size: 20px;
+            font-weight: 500;
+            font-style: italic;
+            line-height: 1.5;
+            margin: 0;
           }
           .cover-footer {
             text-align: center;
+            font-size: 12px;
+            color: rgba(255,255,255,0.6);
           }
-          .cover-footer p {
-            margin: 4px 0;
-            font-size: 13px;
-            color: rgba(255,255,255,0.7);
-          }
+          .cover-footer p { margin: 4px 0; }
           
-          /* Main Content */
-          .content {
+          /* ==================== CONTENT PAGES ==================== */
+          .content-page {
             padding: 40px 50px;
             max-width: 900px;
             margin: 0 auto;
+            page-break-after: always;
+          }
+          .content-page:last-child {
+            page-break-after: auto;
           }
           
-          /* Scores Row */
+          /* Scores Row - Compact */
           .scores-row {
             display: flex;
-            gap: 24px;
-            margin: 0 0 32px 0;
+            gap: 16px;
+            margin: 0 0 24px 0;
           }
           .score-card {
             flex: 1;
             background: var(--brand-navy);
             color: white;
-            padding: 24px;
+            padding: 16px 20px;
             text-align: center;
             border-radius: 8px;
           }
           .score-value {
-            font-size: 48px;
+            font-size: 36px;
             font-weight: 700;
           }
           .score-max {
-            font-size: 20px;
+            font-size: 16px;
             font-weight: 400;
-            opacity: 0.7;
+            opacity: 0.6;
           }
           .score-label {
-            font-size: 13px;
-            margin-top: 8px;
+            font-size: 11px;
+            margin-top: 4px;
             color: var(--brand-blue-light);
             text-transform: uppercase;
             letter-spacing: 1px;
           }
           
-          /* Executive Summary */
+          /* Executive Summary - Condensed */
           .executive-summary {
-            background: white;
-            border-left: 5px solid var(--brand-navy);
-            padding: 28px 32px;
-            margin: 0 0 32px 0;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border-left: 4px solid var(--brand-navy);
+            padding: 20px 24px;
+            margin: 0 0 24px 0;
+            background: #f8fafc;
           }
-          .section-badge {
+          .summary-badge {
             display: inline-block;
             background: var(--brand-navy);
             color: white;
-            padding: 6px 16px;
-            font-size: 11px;
+            padding: 4px 12px;
+            font-size: 10px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 1px;
             border-radius: 2px;
+            margin-bottom: 12px;
           }
           .headline {
-            font-size: 22px;
+            font-size: 20px;
             font-weight: 600;
             color: var(--brand-navy);
-            margin: 20px 0 16px 0;
+            margin: 0 0 12px 0;
             line-height: 1.4;
           }
           .situation-quote {
             font-style: italic;
             color: var(--text-secondary);
-            border-left: 3px solid var(--brand-blue-light);
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 0;
             padding-left: 16px;
-            margin: 16px 0;
-            font-size: 14px;
-            line-height: 1.7;
-          }
-          .insight-box {
-            background: #f0f9ff;
-            border: 1px solid #bae6fd;
-            padding: 16px 20px;
-            border-radius: 6px;
-            margin-top: 20px;
-          }
-          .insight-label {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #0369a1;
-            font-weight: 600;
-          }
-          .insight-text {
-            margin: 8px 0 0 0;
-            color: var(--brand-navy);
-            font-size: 14px;
+            border-left: 2px solid var(--brand-blue-light);
           }
           
-          /* Section Headers */
+          /* Section Headers - Compact */
           .section-header {
-            margin: 40px 0 24px 0;
-            padding-bottom: 16px;
+            margin: 32px 0 16px 0;
+            padding-bottom: 12px;
             border-bottom: 2px solid #e5e7eb;
           }
           .section-title {
-            font-size: 26px;
+            font-size: 22px;
             font-weight: 600;
             color: var(--brand-navy);
-            margin: 0;
           }
           .section-subtitle {
-            font-size: 14px;
+            font-size: 13px;
             color: var(--text-muted);
-            margin: 6px 0 0 0;
+            margin-top: 4px;
           }
           
-          /* Gap Cards */
+          /* Gap Cards - Improved with visual severity */
           .gap-card {
             background: white;
             border: 1px solid #e5e7eb;
             border-radius: 8px;
-            padding: 24px;
-            margin: 16px 0;
+            padding: 16px 20px;
+            margin: 12px 0;
             page-break-inside: avoid;
           }
-          .gap-card.severity-critical { border-left: 4px solid var(--brand-red); }
-          .gap-card.severity-high { border-left: 4px solid var(--brand-orange); }
+          .gap-card.severity-critical { border-left: 4px solid var(--brand-red); background: #fef7f7; }
+          .gap-card.severity-high { border-left: 4px solid var(--brand-orange); background: #fffcf5; }
           .gap-card.severity-medium { border-left: 4px solid var(--brand-blue-light); }
           .gap-header {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
+            gap: 8px;
+            margin-bottom: 8px;
+          }
+          .severity-indicator { font-size: 14px; }
+          .severity-text {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .severity-text.severity-critical { color: #dc2626; }
+          .severity-text.severity-high { color: #d97706; }
+          .severity-text.severity-medium { color: #0369a1; }
+          .gap-divider {
+            color: #d1d5db;
+            font-size: 12px;
           }
           .gap-category {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--text-muted);
-            font-weight: 600;
-          }
-          .severity-badge {
             font-size: 10px;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-weight: 600;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            font-weight: 500;
           }
-          .severity-badge.severity-critical { background: #fef2f2; color: #dc2626; }
-          .severity-badge.severity-high { background: #fffbeb; color: #d97706; }
-          .severity-badge.severity-medium { background: #f0f9ff; color: #0369a1; }
           .gap-title {
-            font-size: 17px;
+            font-size: 15px;
             font-weight: 600;
             color: var(--text-primary);
-            margin: 0 0 12px 0;
+            margin: 0 0 8px 0;
           }
           .gap-evidence {
             font-style: italic;
             color: var(--text-secondary);
-            background: #f9fafb;
-            padding: 12px 16px;
+            background: rgba(0,0,0,0.03);
+            padding: 10px 14px;
             border-radius: 4px;
-            margin: 12px 0;
+            margin: 0 0 8px 0;
             font-size: 13px;
             border: none;
           }
-          .gap-impact {
-            font-size: 13px;
+          .gap-impacts {
+            font-size: 12px;
             color: var(--text-muted);
           }
+          .impact-item {
+            display: inline-block;
+            margin-right: 12px;
+          }
           
-          /* Cost of Inaction */
+          /* Cost of Inaction - Footer banner style */
           .cost-of-inaction {
             background: linear-gradient(135deg, var(--brand-navy-dark), var(--brand-navy));
             color: white;
-            padding: 32px;
+            padding: 24px 32px;
             border-radius: 12px;
             margin: 24px 0;
-            text-align: center;
-            page-break-inside: avoid;
-          }
-          .coi-header {
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 8px;
-            margin-bottom: 16px;
+            justify-content: space-between;
+            page-break-inside: avoid;
           }
-          .coi-icon { font-size: 24px; }
+          .coi-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+          }
+          .coi-icon { font-size: 28px; }
           .coi-label {
-            font-size: 13px;
+            font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 1px;
             color: var(--brand-blue-light);
+            margin-bottom: 4px;
           }
           .coi-amount {
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 700;
-            color: #f87171;
-            margin-bottom: 12px;
+            color: #fca5a5;
           }
           .coi-personal {
             font-size: 14px;
             color: rgba(255,255,255,0.85);
-            max-width: 600px;
-            margin: 0 auto;
-            line-height: 1.7;
+            max-width: 400px;
+            line-height: 1.5;
           }
           
-          /* Investment Cards */
-          .investment-card {
+          /* ==================== DESTINATION PAGE ==================== */
+          .destination-hero {
+            background: linear-gradient(135deg, var(--brand-teal), #0f766e);
+            color: white;
+            padding: 48px 40px;
+            border-radius: 16px;
+            text-align: center;
+            margin-bottom: 32px;
+            page-break-inside: avoid;
+          }
+          .destination-intro-text {
+            font-size: 16px;
+            opacity: 0.9;
+            margin-bottom: 20px;
+          }
+          .destination-quote-box {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 12px;
+            padding: 28px 36px;
+            margin: 0 auto 24px;
+            max-width: 600px;
+          }
+          .destination-quote {
+            font-size: 24px;
+            font-weight: 600;
+            font-style: italic;
+            line-height: 1.4;
+            margin: 0;
+          }
+          .destination-investment-line {
+            font-size: 15px;
+            opacity: 0.9;
+          }
+          
+          /* Timeline Preview */
+          .timeline-preview {
             display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0;
+            margin: 24px 0 8px;
+            padding: 0 20px;
+          }
+          .timeline-dot {
+            width: 12px;
+            height: 12px;
+            background: var(--brand-teal);
+            border-radius: 50%;
+            border: 2px solid white;
+          }
+          .timeline-line {
+            flex: 1;
+            max-width: 100px;
+            height: 2px;
+            background: linear-gradient(90deg, var(--brand-teal), #99f6e4);
+          }
+          .timeline-labels {
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            font-size: 11px;
+            color: var(--text-muted);
+            max-width: 500px;
+            margin: 0 auto;
+          }
+          
+          /* ==================== JOURNEY PHASES ==================== */
+          .journey-phase {
             background: white;
             border: 1px solid #e5e7eb;
             border-radius: 12px;
-            overflow: hidden;
-            margin: 20px 0;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-            page-break-inside: avoid;
-          }
-          .investment-priority {
-            background: var(--brand-teal);
-            color: white;
-            padding: 24px 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-width: 80px;
-          }
-          .priority-number {
-            font-size: 36px;
-            font-weight: 700;
-          }
-          .priority-label {
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-top: 4px;
-          }
-          .investment-content {
-            flex: 1;
-            padding: 24px;
-          }
-          .investment-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 16px;
-          }
-          .service-name {
-            font-size: 19px;
-            font-weight: 600;
-            color: var(--brand-navy);
-            margin: 0;
-          }
-          .service-tier {
-            font-size: 13px;
-            color: var(--text-muted);
-            display: block;
-            margin-top: 4px;
-          }
-          .investment-price {
-            text-align: right;
-          }
-          .price-amount {
-            font-size: 26px;
-            font-weight: 700;
-            color: var(--brand-teal);
-          }
-          .price-frequency {
-            display: block;
-            font-size: 12px;
-            color: var(--text-muted);
-          }
-          .investment-rationale {
-            font-size: 14px;
-            color: var(--text-secondary);
-            line-height: 1.7;
-            margin: 0 0 16px 0;
-          }
-          .investment-roi {
-            background: #f0fdfa;
-            border: 1px solid #99f6e4;
-            padding: 10px 16px;
-            border-radius: 6px;
-            display: inline-block;
-            margin-bottom: 16px;
-          }
-          .roi-label {
-            font-size: 12px;
-            color: var(--text-muted);
-          }
-          .roi-value {
-            font-weight: 700;
-            color: var(--brand-teal);
-            margin: 0 4px;
-          }
-          .roi-timeframe {
-            font-size: 12px;
-            color: var(--text-muted);
-          }
-          .outcomes-list {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 6px;
-          }
-          .outcome-item {
-            font-size: 13px;
-            color: #374151;
-            padding: 4px 0;
-          }
-          .outcome-item::before {
-            content: '✓';
-            color: var(--brand-teal);
-            font-weight: 600;
-            margin-right: 8px;
-          }
-          
-          /* Investment Summary */
-          .investment-summary {
-            background: linear-gradient(135deg, var(--brand-teal), #0f766e);
-            color: white;
-            padding: 40px;
-            border-radius: 16px;
-            margin: 32px 0;
-            page-break-inside: avoid;
-          }
-          .summary-grid {
-            display: flex;
-            justify-content: space-around;
-            text-align: center;
-          }
-          .summary-stat {
-            padding: 0 24px;
-          }
-          .summary-stat:not(:last-child) {
-            border-right: 1px solid rgba(255,255,255,0.2);
-          }
-          .stat-label {
-            display: block;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            opacity: 0.85;
-            margin-bottom: 8px;
-          }
-          .stat-value {
-            font-size: 32px;
-            font-weight: 700;
-          }
-          .summary-stat.highlight .stat-value {
-            color: #fef3c7;
-          }
-          
-          /* Closing Section */
-          .closing-section {
-            background: var(--brand-navy-dark);
-            color: white;
-            padding: 40px;
-            border-radius: 16px;
-            margin: 32px 0;
-            page-break-inside: avoid;
-          }
-          .personal-note {
-            font-size: 15px;
-            line-height: 1.8;
-            font-style: italic;
-            color: rgba(255,255,255,0.9);
-            border: none;
-            padding: 0;
-            margin: 0 0 24px 0;
-          }
-          .closing-text {
-            font-size: 15px;
-            line-height: 1.8;
-            color: rgba(255,255,255,0.9);
-            margin: 0;
-          }
-          .call-to-action {
-            background: rgba(91, 192, 235, 0.15);
-            border: 1px solid rgba(91, 192, 235, 0.3);
             padding: 20px 24px;
-            border-radius: 8px;
-            text-align: center;
-          }
-          .cta-text {
-            font-size: 17px;
-            font-weight: 600;
-            color: var(--brand-blue-light);
-            margin: 0;
-          }
-          
-          /* Transformation Journey Styles */
-          .destination-hero {
-            background: linear-gradient(135deg, #059669, #0d9488);
-            color: white;
-            padding: 40px;
-            border-radius: 16px;
-            margin: 0 0 32px 0;
-            text-align: center;
+            margin-bottom: 16px;
             page-break-inside: avoid;
           }
-          .destination-label {
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            opacity: 0.85;
-            margin: 0 0 12px 0;
-          }
-          .destination-title {
-            font-size: 28px;
-            font-weight: 700;
-            margin: 0 0 16px 0;
-            line-height: 1.3;
-          }
-          .destination-timeframe {
-            font-size: 16px;
-            opacity: 0.9;
-            margin: 0;
-          }
-          .journey-phases {
-            margin: 0 0 32px 0;
-          }
-          .journey-phase {
+          .phase-header {
             display: flex;
-            gap: 20px;
-            margin-bottom: 24px;
-            page-break-inside: avoid;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 16px;
           }
-          .phase-connector {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            width: 48px;
-            flex-shrink: 0;
-          }
-          .phase-number {
-            width: 48px;
-            height: 48px;
+          .phase-badge {
+            width: 40px;
+            height: 40px;
             background: var(--brand-teal);
             color: white;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 700;
             flex-shrink: 0;
           }
-          .phase-line {
-            width: 2px;
-            flex: 1;
-            background: linear-gradient(180deg, var(--brand-teal), #99f6e4);
-            margin-top: 8px;
-          }
-          .phase-content {
-            flex: 1;
-            padding-bottom: 16px;
-          }
+          .phase-meta { flex: 1; }
           .phase-timeframe {
             display: inline-block;
             background: #f0fdfa;
             color: #0d9488;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 11px;
             font-weight: 600;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
           }
           .phase-title {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 600;
-            color: var(--text-primary);
-            margin: 0 0 12px 0;
+            color: var(--brand-navy);
+            margin: 0;
+          }
+          .phase-body {
+            margin-bottom: 12px;
           }
           .phase-postcard {
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 10px;
           }
           .postcard-label {
-            font-size: 11px;
+            font-size: 10px;
             text-transform: uppercase;
             letter-spacing: 1px;
             color: var(--text-muted);
-            margin: 0 0 8px 0;
+            margin-bottom: 6px;
           }
           .postcard-content {
-            font-size: 15px;
+            font-size: 14px;
             color: var(--text-primary);
             line-height: 1.6;
-            margin: 0;
           }
           .phase-shift {
             font-style: italic;
             color: var(--brand-teal);
-            font-size: 14px;
-            margin: 0 0 12px 0;
+            font-size: 13px;
           }
           .phase-footer {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 13px;
+            font-size: 12px;
             color: var(--text-muted);
+            padding-top: 12px;
+            border-top: 1px solid #e5e7eb;
           }
-          .enabled-by strong {
-            color: var(--text-secondary);
-          }
+          .enabled-by strong { color: var(--text-secondary); }
           .phase-investment {
             font-weight: 600;
-            color: var(--text-secondary);
+            color: var(--brand-teal);
           }
           
-          /* Footer */
-          .document-footer {
-            margin-top: 48px;
-            padding-top: 24px;
-            border-top: 2px solid #e5e7eb;
+          /* ==================== INVESTMENT & CLOSING PAGE ==================== */
+          .investment-summary {
+            background: linear-gradient(135deg, var(--brand-teal), #0f766e);
+            color: white;
+            padding: 32px 40px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            page-break-inside: avoid;
+          }
+          .summary-title {
+            text-align: center;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            opacity: 0.85;
+            margin-bottom: 24px;
+          }
+          .summary-grid {
+            display: flex;
+            justify-content: space-around;
             text-align: center;
           }
-          .footer-logo {
-            height: 30px;
+          .summary-stat { padding: 0 20px; }
+          .summary-stat:not(:last-child) {
+            border-right: 1px solid rgba(255,255,255,0.2);
+          }
+          .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 4px;
+          }
+          .stat-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.8;
+          }
+          .summary-stat.highlight .stat-value { color: #fef3c7; }
+          .summary-context {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+            font-size: 13px;
+            opacity: 0.9;
+          }
+          
+          /* Closing Message - Hero Treatment */
+          .closing-hero {
+            background: var(--brand-navy-dark);
+            color: white;
+            padding: 36px 40px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            page-break-inside: avoid;
+          }
+          .closing-quote {
+            font-size: 16px;
+            line-height: 1.8;
+            font-style: italic;
+            margin: 0 0 24px 0;
+            padding: 24px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+          }
+          .cta-button {
+            display: block;
+            background: var(--brand-teal);
+            color: white;
+            text-align: center;
+            padding: 16px 32px;
+            border-radius: 8px;
+            font-size: 17px;
+            font-weight: 600;
+            text-decoration: none;
+            max-width: 280px;
+            margin: 0 auto;
+          }
+          
+          /* Footer - Inline with content */
+          .document-footer {
+            text-align: center;
+            padding: 24px 0;
+            border-top: 1px solid #e5e7eb;
+          }
+          .footer-logo { height: 28px; margin-bottom: 10px; }
+          .footer-text {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin: 3px 0;
+          }
+          
+          /* Legacy Investment Cards */
+          .investment-card {
+            display: flex;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 16px 0;
+            page-break-inside: avoid;
+          }
+          .investment-priority {
+            background: var(--brand-teal);
+            color: white;
+            padding: 20px 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 70px;
+          }
+          .priority-number { font-size: 28px; font-weight: 700; }
+          .priority-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; }
+          .investment-content { flex: 1; padding: 20px; }
+          .investment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
             margin-bottom: 12px;
           }
-          .footer-text {
+          .service-name { font-size: 17px; font-weight: 600; color: var(--brand-navy); margin: 0; }
+          .service-tier { font-size: 12px; color: var(--text-muted); }
+          .investment-price { text-align: right; }
+          .price-amount { font-size: 22px; font-weight: 700; color: var(--brand-teal); }
+          .price-frequency { font-size: 11px; color: var(--text-muted); }
+          .investment-rationale { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin: 0 0 12px 0; }
+          .investment-roi {
+            background: #f0fdfa;
+            border: 1px solid #99f6e4;
+            padding: 8px 12px;
+            border-radius: 6px;
+            display: inline-block;
+            margin-bottom: 12px;
             font-size: 12px;
-            color: var(--text-muted);
-            margin: 4px 0;
           }
-          .footer-confidential {
-            font-size: 12px;
-            color: #9ca3af;
-            margin: 4px 0;
-          }
-          .footer-regulatory {
-            font-size: 10px;
-            color: #9ca3af;
-            margin: 8px 0 0 0;
-          }
+          .roi-label { color: var(--text-muted); }
+          .roi-value { font-weight: 700; color: var(--brand-teal); margin: 0 4px; }
+          .roi-timeframe { color: var(--text-muted); }
+          .outcomes-list { display: grid; gap: 4px; }
+          .outcome-item { font-size: 12px; color: #374151; }
+          .outcome-item::before { content: '✓'; color: var(--brand-teal); font-weight: 600; margin-right: 6px; }
           
           /* Print Styles */
           @media print {
-            body {
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              color-adjust: exact !important;
-            }
-            .cover-page {
-              page-break-after: always;
-            }
-            .section-header {
-              page-break-after: avoid;
-            }
-            .gap-card, .investment-card, .investment-summary, .closing-section, .cost-of-inaction {
-              page-break-inside: avoid;
-            }
+            body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            .cover-page, .content-page { page-break-after: always; }
+            .content-page:last-child { page-break-after: auto; }
+            .gap-card, .journey-phase, .investment-summary, .closing-hero, .cost-of-inaction { page-break-inside: avoid; }
           }
           
-          @page {
-            size: A4;
-            margin: 15mm;
-          }
+          @page { size: A4; margin: 12mm; }
         </style>
       </head>
       <body>
-        <!-- Cover Page -->
+        <!-- PAGE 1: COVER -->
         <div class="cover-page">
           <div class="cover-header">
             <img src="${RPGCC_LOGO_LIGHT}" alt="RPGCC" class="cover-logo" />
@@ -2456,24 +2400,27 @@ function DiscoveryClientModal({
           </div>
           <div class="cover-content">
             <h1 class="cover-title">Discovery Analysis</h1>
-            <div class="cover-meta">
-              <p class="client-name">${clientName}</p>
-              ${companyName ? `<p class="company-name">${companyName}</p>` : ''}
-            </div>
+            <p class="cover-client">${clientName}</p>
+            ${companyName ? `<p class="cover-company">${companyName}</p>` : ''}
+            ${hasTransformationJourney && destination ? `
+              <div class="cover-destination-preview">
+                <p class="destination-intro">Your path to</p>
+                <p class="destination-preview-text">"${destination}"</p>
+              </div>
+            ` : ''}
           </div>
           <div class="cover-footer">
-            <p>Generated: ${generatedDate}</p>
+            <p>${generatedDate}</p>
             <p>Registered to carry on audit work in the UK by ICAEW</p>
           </div>
         </div>
         
-        <!-- Main Content -->
-        <div class="content">
-          <!-- Scores -->
+        <!-- PAGE 2: EXECUTIVE SUMMARY + GAPS -->
+        <div class="content-page">
           <div class="scores-row">
             <div class="score-card">
               <div class="score-value">${clarityScore}<span class="score-max">/10</span></div>
-              <div class="score-label">Destination Clarity</div>
+              <div class="score-label">Clarity</div>
             </div>
             <div class="score-card">
               <div class="score-value">${gapScore}<span class="score-max">/10</span></div>
@@ -2481,24 +2428,14 @@ function DiscoveryClientModal({
             </div>
           </div>
           
-          <!-- Executive Summary -->
           <div class="executive-summary">
-            <div class="summary-header">
-              <span class="section-badge">Executive Summary</span>
-            </div>
+            <span class="summary-badge">Executive Summary</span>
             <h2 class="headline">${analysis.executiveSummary?.headline || ''}</h2>
             ${analysis.executiveSummary?.situationInTheirWords ? `
               <blockquote class="situation-quote">"${analysis.executiveSummary.situationInTheirWords}"</blockquote>
             ` : ''}
-            ${analysis.executiveSummary?.criticalInsight ? `
-              <div class="insight-box">
-                <span class="insight-label">Key Insight</span>
-                <p class="insight-text">${analysis.executiveSummary.criticalInsight}</p>
-              </div>
-            ` : ''}
           </div>
           
-          <!-- Gap Analysis -->
           <div class="section-header">
             <h2 class="section-title">Gap Analysis</h2>
             <p class="section-subtitle">What's currently holding you back</p>
@@ -2508,58 +2445,100 @@ function DiscoveryClientModal({
           
           ${analysis.gapAnalysis?.costOfInaction ? `
             <div class="cost-of-inaction">
-              <div class="coi-header">
-                <span class="coi-icon">⚠</span>
-                <span class="coi-label">Cost of Not Acting</span>
+              <div class="coi-left">
+                <span class="coi-icon">⚠️</span>
+                <div>
+                  <p class="coi-label">Cost of Not Acting</p>
+                  <p class="coi-amount">${analysis.gapAnalysis.costOfInaction.annualFinancialCost || ''}</p>
+                </div>
               </div>
-              <div class="coi-amount">${analysis.gapAnalysis.costOfInaction.annualFinancialCost || ''}</div>
               <p class="coi-personal">${analysis.gapAnalysis.costOfInaction.personalCost || ''}</p>
             </div>
           ` : ''}
+        </div>
+        
+        ${hasTransformationJourney ? `
+        <!-- PAGE 3: THE DESTINATION -->
+        <div class="content-page">
+          <div class="destination-hero">
+            <p class="destination-intro-text">In 12 months, you could be...</p>
+            <div class="destination-quote-box">
+              <p class="destination-quote">${destination}</p>
+            </div>
+            <p class="destination-investment-line">This is what ${totalInvestment} and 12 months builds.</p>
+          </div>
           
-          ${hasTransformationJourney ? journeyHtml : `
-          <!-- Recommended Investments (Legacy View) -->
+          <div class="timeline-preview">
+            <div class="timeline-dot"></div>
+            <div class="timeline-line"></div>
+            <div class="timeline-dot"></div>
+            <div class="timeline-line"></div>
+            <div class="timeline-dot"></div>
+            <div class="timeline-line"></div>
+            <div class="timeline-dot"></div>
+          </div>
+          <div class="timeline-labels">
+            <span>Now</span>
+            <span>Month 3</span>
+            <span>Month 6</span>
+            <span>Month 12</span>
+          </div>
+          
+          <div class="section-header">
+            <h2 class="section-title">Your Journey</h2>
+            <p class="section-subtitle">The path from here to your destination</p>
+          </div>
+          
+          ${journeyPhasesHtml}
+        </div>
+        ` : `
+        <!-- LEGACY: Recommended Investments -->
+        <div class="content-page">
           <div class="section-header">
             <h2 class="section-title">Recommended Investments</h2>
             <p class="section-subtitle">Your path forward</p>
           </div>
-          
           ${investmentsHtml}
-          `}
-          
-          <!-- Investment Summary -->
+        </div>
+        `}
+        
+        <!-- FINAL PAGE: INVESTMENT & CLOSING -->
+        <div class="content-page">
           ${analysis.investmentSummary ? `
             <div class="investment-summary">
+              <p class="summary-title">Your Investment</p>
               <div class="summary-grid">
                 <div class="summary-stat">
-                  <span class="stat-label">First Year Investment</span>
-                  <span class="stat-value">${analysis.investmentSummary.totalFirstYearInvestment || ''}</span>
+                  <p class="stat-value">${analysis.investmentSummary.totalFirstYearInvestment || ''}</p>
+                  <p class="stat-label">First Year</p>
                 </div>
                 <div class="summary-stat highlight">
-                  <span class="stat-label">Projected Return</span>
-                  <span class="stat-value">${analysis.investmentSummary.projectedFirstYearReturn || ''}</span>
+                  <p class="stat-value">${analysis.investmentSummary.projectedFirstYearReturn || ''}</p>
+                  <p class="stat-label">Projected Return</p>
                 </div>
                 <div class="summary-stat">
-                  <span class="stat-label">Payback Period</span>
-                  <span class="stat-value">${analysis.investmentSummary.paybackPeriod || ''}</span>
+                  <p class="stat-value">${analysis.investmentSummary.paybackPeriod || ''}</p>
+                  <p class="stat-label">Payback</p>
                 </div>
               </div>
+              ${generatedReport.financialProjections?.grossMargin ? `
+                <p class="summary-context">At your ${Math.round(generatedReport.financialProjections.grossMargin * 100)}% gross margins, efficiency gains go straight to profit.</p>
+              ` : ''}
             </div>
           ` : ''}
           
-          <!-- Closing Message -->
-          ${closingMessage ? `
-            <div class="closing-section">
-              ${closingHtml}
+          ${personalNote ? `
+            <div class="closing-hero">
+              <blockquote class="closing-quote">${personalNote}</blockquote>
+              <div class="cta-button">${callToAction}</div>
             </div>
           ` : ''}
           
-          <!-- Footer -->
           <div class="document-footer">
             <img src="${RPGCC_LOGO_DARK}" alt="RPGCC" class="footer-logo" />
-            <p class="footer-text">Discovery Analysis Report • Generated by Oracle Consulting</p>
-            <p class="footer-confidential">Confidential - Prepared for ${clientName}</p>
-            <p class="footer-regulatory">RPG Crouch Chapman LLP is registered to carry on audit work in the UK by ICAEW</p>
+            <p class="footer-text">Discovery Analysis Report • Confidential</p>
+            <p class="footer-text">Prepared for ${clientName} by Oracle Consulting</p>
+            <p class="footer-text">RPG Crouch Chapman LLP • Registered to carry on audit work by ICAEW</p>
           </div>
         </div>
       </body>
