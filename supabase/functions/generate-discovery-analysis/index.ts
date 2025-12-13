@@ -398,8 +398,8 @@ Extract everything you can find - revenue, margins, team size, customer counts, 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-sonnet-4-5', // Better extraction quality
-        max_tokens: 2000,
+        model: 'anthropic/claude-sonnet-4.5', // Better extraction quality
+        max_tokens: 4000, // Increased to prevent truncation
         temperature: 0.1, // Low temp for consistent extraction
         messages: [
           { role: 'user', content: extractionPrompt }
@@ -417,20 +417,49 @@ Extract everything you can find - revenue, margins, team size, customer counts, 
     
     console.log('[DocExtract] Raw extraction response length:', content.length);
     
-    // Parse the JSON response
+    // Parse the JSON response with robust extraction
     let extracted: DocumentInsights;
     try {
-      // Clean potential markdown wrapping - handle all variations
       let jsonString = content.trim();
       
-      // Remove opening code fence with optional language tag
-      jsonString = jsonString.replace(/^```(?:json)?\s*\n?/i, '');
+      // Method 1: Extract from code block if present (handles ```json ... ```)
+      const codeBlockMatch = jsonString.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+      if (codeBlockMatch) {
+        jsonString = codeBlockMatch[1].trim();
+        console.log('[DocExtract] Extracted from code block');
+      } else {
+        // Method 2: Manual removal of fences at start/end
+        jsonString = jsonString.replace(/^```(?:json)?\s*\n?/i, '');
+        jsonString = jsonString.replace(/\n?```\s*$/g, '');
+        jsonString = jsonString.trim();
+      }
       
-      // Remove closing code fence
-      jsonString = jsonString.replace(/\n?```\s*$/g, '');
+      // Method 3: Find JSON object start if still not clean
+      if (!jsonString.startsWith('{')) {
+        const jsonStart = jsonString.indexOf('{');
+        if (jsonStart !== -1) {
+          jsonString = jsonString.substring(jsonStart);
+          console.log('[DocExtract] Found JSON start at position', jsonStart);
+        }
+      }
       
-      // Trim again after removing fences
-      jsonString = jsonString.trim();
+      // Method 4: Find the matching closing brace using brace counting
+      if (jsonString.startsWith('{')) {
+        let braceCount = 0;
+        let jsonEnd = -1;
+        for (let i = 0; i < jsonString.length; i++) {
+          if (jsonString[i] === '{') braceCount++;
+          if (jsonString[i] === '}') braceCount--;
+          if (braceCount === 0) {
+            jsonEnd = i;
+            break;
+          }
+        }
+        if (jsonEnd !== -1 && jsonEnd < jsonString.length - 1) {
+          jsonString = jsonString.substring(0, jsonEnd + 1);
+          console.log('[DocExtract] Trimmed to valid JSON ending at position', jsonEnd);
+        }
+      }
       
       console.log('[DocExtract] Cleaned JSON length:', jsonString.length, 'preview:', jsonString.substring(0, 100));
       
@@ -471,9 +500,39 @@ Extract everything you can find - revenue, margins, team size, customer counts, 
       
       return extracted;
       
-    } catch (parseError) {
-      console.error('[DocExtract] JSON parse error:', parseError);
-      console.error('[DocExtract] Raw content:', content.substring(0, 500));
+    } catch (parseError: any) {
+      console.error('[DocExtract] JSON parse error:', parseError.message);
+      console.error('[DocExtract] Raw content (first 500):', content.substring(0, 500));
+      
+      // Fallback: Try to extract key data using regex
+      try {
+        const hasProjectionsMatch = content.match(/"hasProjections"\s*:\s*(true|false)/);
+        const year1Match = content.match(/"year"\s*:\s*1\s*,\s*"amount"\s*:\s*(\d+)/);
+        const year5Match = content.match(/"year"\s*:\s*5\s*,\s*"amount"\s*:\s*(\d+)/);
+        const grossMarginMatch = content.match(/"grossMargin"\s*:\s*([\d.]+)/);
+        
+        if (hasProjectionsMatch && year1Match) {
+          console.log('[DocExtract] Fallback regex extraction succeeded');
+          const year1 = parseInt(year1Match[1]);
+          const year5 = year5Match ? parseInt(year5Match[1]) : undefined;
+          const grossMargin = grossMarginMatch ? parseFloat(grossMarginMatch[1]) : undefined;
+          
+          return {
+            financialProjections: {
+              hasProjections: true,
+              currentRevenue: year1,
+              year5Revenue: year5,
+              growthMultiple: year5 && year1 ? Math.round(year5 / year1) : undefined,
+              grossMargin: grossMargin
+            },
+            businessContext: { stage: 'unknown' },
+            relevantQuotes: []
+          };
+        }
+      } catch (fallbackError) {
+        console.error('[DocExtract] Fallback extraction also failed');
+      }
+      
       return emptyResult;
     }
     
