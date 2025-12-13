@@ -194,7 +194,7 @@ export default function UnifiedDashboardPage() {
         console.log('🔍 Practice member check (RLS verification):', {
           pmCheck,
           pmError,
-          authUid: authUser.data.user?.id,
+          authUid: authUser?.user?.id,
           clientId: clientSession.clientId
         });
         
