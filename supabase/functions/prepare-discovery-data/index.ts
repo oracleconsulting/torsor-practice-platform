@@ -42,29 +42,40 @@ async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
     console.error('[PrepareData] unpdf error:', unpdfError);
   }
   
-  // Try pdf-parse as fallback
+  // Try pdfjs-dist as fallback (Mozilla PDF.js - browser/edge compatible)
   try {
-    console.log('[PrepareData] Attempting PDF extraction with pdf-parse...');
-    const pdfParse = (await import('https://esm.sh/pdf-parse@1.1.1')).default;
+    console.log('[PrepareData] Attempting PDF extraction with pdfjs-dist...');
+    const pdfjsLib = await import('https://esm.sh/pdfjs-dist@4.0.379/build/pdf.min.mjs');
     
-    const pdfData = await pdfParse(uint8Array);
+    // Disable worker (not available in Edge Functions)
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
     
-    if (pdfData.text && pdfData.text.length > 50) {
-      const cleanedText = pdfData.text
-        .replace(/\r\n/g, '\n')
-        .replace(/\n{3,}/g, '\n\n')
-        .trim();
-      
-      const hasRealText = /[a-zA-Z]{5,}/.test(cleanedText);
-      console.log(`[PrepareData] pdf-parse extracted: ${cleanedText.length} chars, ${pdfData.numpages} pages, hasRealText: ${hasRealText}`);
+    const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
+    const pdf = await loadingTask.promise;
+    
+    let fullText = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
+      fullText += pageText + '\n\n';
+    }
+    
+    fullText = fullText.trim();
+    
+    if (fullText && fullText.length > 50) {
+      const hasRealText = /[a-zA-Z]{5,}/.test(fullText);
+      console.log(`[PrepareData] pdfjs-dist extracted: ${fullText.length} chars, ${pdf.numPages} pages, hasRealText: ${hasRealText}`);
       
       if (hasRealText) {
-        console.log('[PrepareData] PDF content preview:', cleanedText.substring(0, 150));
-        return cleanedText.substring(0, 50000);
+        console.log('[PrepareData] PDF content preview:', fullText.substring(0, 150));
+        return fullText.substring(0, 50000);
       }
     }
-  } catch (pdfParseError) {
-    console.error('[PrepareData] pdf-parse error:', pdfParseError);
+  } catch (pdfjsError) {
+    console.error('[PrepareData] pdfjs-dist error:', pdfjsError);
   }
   
   // Final fallback: regex-based extraction for simple/uncompressed PDFs
