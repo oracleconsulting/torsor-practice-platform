@@ -2621,8 +2621,25 @@ function DiscoveryClientModal({
       console.log('🔧 Assigning services:', {
         selectedServices,
         clientId,
+        clientName: client?.name,
+        clientEmail: client?.email,
         practiceId: client.practice_id
       });
+
+      // CRITICAL: Verify client exists before proceeding
+      const { data: clientVerify, error: verifyError } = await supabase
+        .from('practice_members')
+        .select('id, name, email, practice_id')
+        .eq('id', clientId)
+        .single();
+
+      if (verifyError || !clientVerify) {
+        console.error('❌ Client verification failed:', verifyError);
+        alert(`Error: Client not found. Cannot assign services.`);
+        return;
+      }
+
+      console.log('✅ Client verified:', clientVerify);
 
       // Get service line IDs
       const { data: serviceLines, error: serviceLinesError } = await supabase
@@ -2649,20 +2666,8 @@ function DiscoveryClientModal({
         alert(`Warning: Some services not found in database: ${missingCodes.join(', ')}. Only found services will be assigned.`);
       }
 
-      // Remove existing assignments
-      const { error: deleteError } = await supabase
-        .from('client_service_lines')
-        .delete()
-        .eq('client_id', clientId);
-
-      if (deleteError) {
-        console.error('❌ Error deleting existing assignments:', deleteError);
-        throw deleteError;
-      }
-
-      console.log('✅ Deleted existing assignments');
-
-      // Add new assignments
+      // CRITICAL: Use a transaction-like approach - insert new ones first, then delete old ones
+      // This prevents data loss if inserts fail
       const insertResults = [];
       for (const sl of serviceLines) {
         const { data, error: insertError } = await supabase
@@ -2686,30 +2691,58 @@ function DiscoveryClientModal({
       }
 
       const failedInserts = insertResults.filter(r => !r.success);
-      if (failedInserts.length > 0) {
-        console.error('❌ Failed to assign some services:', failedInserts);
-        alert(`Warning: Failed to assign some services. Check console for details.`);
+      const successfulInserts = insertResults.filter(r => r.success);
+
+      // Only delete old assignments if we successfully inserted at least one
+      if (successfulInserts.length > 0) {
+        // Get IDs of services we just inserted
+        const newServiceLineIds = successfulInserts.map(r => r.data?.[0]?.service_line_id).filter(Boolean);
+        
+        // Delete old assignments that aren't in our new list
+        const { error: deleteError } = await supabase
+          .from('client_service_lines')
+          .delete()
+          .eq('client_id', clientId)
+          .not('service_line_id', 'in', `(${newServiceLineIds.join(',')})`);
+
+        if (deleteError) {
+          console.error('❌ Error cleaning up old assignments:', deleteError);
+          // Don't throw - new assignments are already in place
+        } else {
+          console.log('✅ Cleaned up old assignments');
+        }
+      } else {
+        console.error('❌ No services were successfully inserted. Not deleting old assignments to prevent data loss.');
+        alert(`Error: Failed to assign any services. Old assignments preserved. Check console for details.`);
+        return;
       }
 
-      // Update client status
-      const { error: updateError } = await supabase
-        .from('practice_members')
-        .update({ program_status: 'enrolled' })
-        .eq('id', clientId);
+      if (failedInserts.length > 0) {
+        console.error('❌ Failed to assign some services:', failedInserts);
+        alert(`Warning: Failed to assign some services: ${failedInserts.map(f => f.code).join(', ')}. Check console for details.`);
+      }
 
-      if (updateError) {
-        console.error('❌ Error updating client status:', updateError);
-        // Don't throw - service assignment succeeded
+      // Update client status (only if we have successful assignments)
+      if (successfulInserts.length > 0) {
+        const { error: updateError } = await supabase
+          .from('practice_members')
+          .update({ program_status: 'enrolled' })
+          .eq('id', clientId);
+
+        if (updateError) {
+          console.error('❌ Error updating client status:', updateError);
+          // Don't throw - service assignment succeeded
+        }
       }
 
       console.log('✅ Service assignment complete:', {
         totalSelected: selectedServices.length,
         foundInDB: serviceLines.length,
-        successfullyAssigned: insertResults.filter(r => r.success).length,
+        successfullyAssigned: successfulInserts.length,
         failed: failedInserts.length
       });
 
-      alert(`Services assigned successfully! ${insertResults.filter(r => r.success).length} of ${serviceLines.length} services assigned.`);
+      alert(`Services assigned successfully! ${successfulInserts.length} of ${serviceLines.length} services assigned.`);
       onRefresh();
     } catch (error) {
       console.error('❌ Error assigning services:', error);
