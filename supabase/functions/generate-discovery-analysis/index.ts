@@ -2033,6 +2033,7 @@ Return ONLY the JSON object with no additional text.`;
           totalFirstYearInvestment: analysis.investmentSummary.totalFirstYearInvestment || 
                                      analysis.investmentSummary.totalFirstYear || 
                                      analysis.investmentSummary.total || '',
+          investmentBreakdown: analysis.investmentSummary.investmentBreakdown || '',
           investmentAsPercentOfRevenue: analysis.investmentSummary.investmentAsPercentOfRevenue || '',
           projectedFirstYearReturn: analysis.investmentSummary.projectedFirstYearReturn || 
                                      analysis.investmentSummary.projectedReturn || 
