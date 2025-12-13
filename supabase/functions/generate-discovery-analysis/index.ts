@@ -1072,15 +1072,13 @@ serve(async (req) => {
     console.log('[Discovery] 365 Triggers:', transformationSignals);
 
     // ========================================================================
-    // EXTRACT DOCUMENT INSIGHTS (LLM-Based)
+    // USE DOCUMENT INSIGHTS FROM STAGE 1 (or extract if not available)
     // ========================================================================
     
-    console.log('[Discovery] Extracting document insights...');
-    // Check if Stage 1 already extracted document insights
     let documentInsights: DocumentInsights;
     
     if (preparedData.documentInsights?.hasProjections) {
-      console.log('[Discovery] Using document insights from Stage 1:', {
+      console.log('[Discovery] Using document insights from Stage 1');
         hasProjections: true,
         revenueYears: preparedData.documentInsights.financialProjections?.projectedRevenue?.length || 0,
         teamYears: preparedData.documentInsights.financialProjections?.projectedTeamSize?.length || 0
@@ -1126,18 +1124,19 @@ serve(async (req) => {
       });
     } else {
       // Fall back to extracting ourselves (backward compatibility)
-      console.log('[Discovery] No Stage 1 insights, extracting documents...');
+      console.log('[Discovery] Extracting document insights (Stage 1 had none)...');
       documentInsights = await extractDocumentInsights(
         preparedData.documents || [],
         openrouterKey
       );
       
+      const financialProjections = documentInsights.financialProjections;
       console.log('[Discovery] Document insights extracted:', {
-        hasProjections: documentInsights.financialProjections.hasProjections,
-        growthMultiple: documentInsights.financialProjections.growthMultiple,
+        hasProjections: financialProjections.hasProjections,
+        growthMultiple: financialProjections.growthMultiple,
         businessStage: documentInsights.businessContext.stage,
-        year1: documentInsights.financialProjections.currentRevenue,
-        year5: documentInsights.financialProjections.year5Revenue
+        year1: financialProjections.currentRevenue,
+        year5: financialProjections.year5Revenue
       });
     }
     

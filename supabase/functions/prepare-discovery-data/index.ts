@@ -674,58 +674,78 @@ serve(async (req) => {
         return { hasProjections: false };
       }
 
-      // Combine document content (cap at 15k to leave room for response)
-      const combinedContent = documents
-        .map(d => `=== ${d.fileName} ===\n${d.content}`)
-        .join('\n\n')
-        .substring(0, 15000);
-
-      console.log('[PrepareData] Extracting document insights, total content length:', combinedContent.length);
-
+      // Combine document content
+      const documentContent = documents
+        .map((doc, i) => `\n--- DOCUMENT ${i + 1}: ${doc.fileName} ---\n${doc.content}\n`)
+        .filter(Boolean)
+        .join('\n');
+      
+      if (!documentContent || documentContent.length < 100) {
+        console.log('[PrepareData] Insufficient document content for extraction');
+        return { hasProjections: false };
+      }
+      
+      console.log('[PrepareData] Extracting insights from documents, content length:', documentContent.length);
+      
       const extractionPrompt = `You are a financial analyst extracting structured data from business documents.
 
-DOCUMENT CONTENT:
-${combinedContent}
+Analyze the following document(s) and extract ALL financial and business information.
 
-TASK: Extract any financial projections, business metrics, and key facts. Return ONLY valid JSON.
+<documents>
+${documentContent.substring(0, 30000)}
+</documents>
 
-If no projections found, return: { "hasProjections": false }
+Return a JSON object with this EXACT structure (use null for missing data):
 
-If projections found, return:
 {
   "hasProjections": true,
   "financialProjections": {
     "projectedRevenue": [
-      { "year": 1, "amount": 559000, "note": "Year 1 projection" },
-      { "year": 5, "amount": 22700000, "note": "Year 5 projection" }
+      { "year": 1, "amount": 559000 },
+      { "year": 2, "amount": 3100000 },
+      { "year": 3, "amount": 7100000 },
+      { "year": 4, "amount": 13100000 },
+      { "year": 5, "amount": 22700000 }
     ],
-    "projectedEBITDA": [...],
-    "projectedGrossMargin": [{ "year": 1, "percent": 90 }],
-    "projectedTeamSize": [{ "year": 1, "count": 3 }, { "year": 5, "count": 51 }],
-    "projectedCustomers": [...]
+    "projectedGrossMargin": [
+      { "year": 1, "percent": 90 }
+    ],
+    "projectedTeamSize": [
+      { "year": 1, "count": 3 },
+      { "year": 5, "count": 28 }
+    ],
+    "projectedCustomers": [
+      { "year": 1, "count": 650 },
+      { "year": 5, "count": 5100 }
+    ]
   },
   "businessContext": {
-    "businessModel": "B2B SaaS",
+    "businessModel": "B2B SaaS with Pro and Enterprise tiers",
     "industry": "Technology",
-    "revenueModel": "Subscription",
-    "keyMetrics": ["MRR", "ARR", "Churn"],
-    "growthStrategy": "Enterprise sales"
+    "revenueModel": "Monthly subscriptions + annual enterprise contracts",
+    "fundingStatus": "Raised £1m seed",
+    "launchTimeline": "Launching January 2025"
   },
   "extractedFacts": [
-    "Raised £1M to date",
-    "Launching January 2025",
-    "Target 90% gross margins"
-  ],
-  "warnings": ["Projections are aggressive", "Key hires assumed"]
+    "Year 1 revenue £559k",
+    "Year 5 revenue £22.7M",
+    "41x growth over 5 years",
+    "90% gross margin",
+    "Team grows from 3 to 28",
+    "Raised nearly £1m"
+  ]
 }
 
-Rules:
-- Extract ONLY data explicitly stated in the documents
-- Convert all currency to GBP (£) numbers only
-- Years should be 1, 2, 3, 4, 5 (not calendar years)
-- If team growth is mentioned, extract it
-- If margins are mentioned, extract them
-- Return valid JSON only, no markdown`;
+RULES:
+1. All amounts in GBP as raw numbers (559000 not "£559K")
+2. Percentages as whole numbers (90 not 0.90)
+3. Extract ALL years if projections exist (Year 1-5)
+4. Include team size projections if found
+5. Include customer/subscriber projections if found
+6. extractedFacts should be specific claims that can be quoted
+7. Return ONLY valid JSON, no markdown
+
+If no financial projections exist, return: { "hasProjections": false }`;
 
       try {
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -737,8 +757,8 @@ Rules:
             'X-Title': 'Torsor Discovery Analysis'
           },
           body: JSON.stringify({
-            model: 'anthropic/claude-sonnet-4-20250514',
-            max_tokens: 4000,
+            model: 'anthropic/claude-sonnet-4.5',
+            max_tokens: 3000,
             temperature: 0.1,
             messages: [
               { role: 'user', content: extractionPrompt }
@@ -754,29 +774,59 @@ Rules:
         const result = await response.json();
         const content = result.choices?.[0]?.message?.content || '';
         
-        console.log('[PrepareData] Raw extraction response length:', content.length);
+        console.log('[PrepareData] Extraction response length:', content.length);
 
-        // Parse JSON from response (handle markdown code blocks)
-        let jsonStr = content;
-        if (content.includes('```json')) {
-          jsonStr = content.split('```json')[1].split('```')[0].trim();
-        } else if (content.includes('```')) {
-          jsonStr = content.split('```')[1].split('```')[0].trim();
-        }
-
-        const insights = JSON.parse(jsonStr) as DocumentInsights;
+        // Parse JSON with robust extraction
+        let jsonString = content.trim();
         
-        console.log('[PrepareData] Successfully extracted:', {
-          hasProjections: insights.hasProjections,
-          revenueYears: insights.financialProjections?.projectedRevenue?.length || 0,
-          teamYears: insights.financialProjections?.projectedTeamSize?.length || 0,
-          businessModel: insights.businessContext?.businessModel
+        // Remove markdown code blocks if present
+        const codeBlockMatch = jsonString.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+        if (codeBlockMatch) {
+          jsonString = codeBlockMatch[1].trim();
+        }
+        
+        // Find JSON boundaries
+        if (!jsonString.startsWith('{')) {
+          const jsonStart = jsonString.indexOf('{');
+          if (jsonStart !== -1) jsonString = jsonString.substring(jsonStart);
+        }
+        
+        // Find matching closing brace
+        let braceCount = 0;
+        let jsonEnd = -1;
+        for (let i = 0; i < jsonString.length; i++) {
+          if (jsonString[i] === '{') braceCount++;
+          if (jsonString[i] === '}') braceCount--;
+          if (braceCount === 0) { jsonEnd = i; break; }
+        }
+        if (jsonEnd !== -1) jsonString = jsonString.substring(0, jsonEnd + 1);
+        
+        const extracted = JSON.parse(jsonString);
+        
+        // Calculate growth multiple if we have the data
+        if (extracted.financialProjections?.projectedRevenue?.length >= 2) {
+          const revenues = extracted.financialProjections.projectedRevenue;
+          const year1 = revenues.find((r: any) => r.year === 1)?.amount;
+          const year5 = revenues.find((r: any) => r.year === 5)?.amount;
+          
+          if (year1 && year5) {
+            extracted.growthMultiple = Math.round(year5 / year1);
+            console.log('[PrepareData] Calculated growth multiple:', extracted.growthMultiple);
+          }
+        }
+        
+        console.log('[PrepareData] Document insights extracted:', {
+          hasProjections: extracted.hasProjections,
+          revenueYears: extracted.financialProjections?.projectedRevenue?.length || 0,
+          teamYears: extracted.financialProjections?.projectedTeamSize?.length || 0,
+          growthMultiple: extracted.growthMultiple,
+          factsCount: extracted.extractedFacts?.length || 0
         });
+        
+        return extracted;
 
-        return insights;
-
-      } catch (error) {
-        console.error('[PrepareData] Document extraction error:', error);
+      } catch (error: any) {
+        console.error('[PrepareData] Document extraction error:', error.message);
         return { hasProjections: false };
       }
     }
@@ -784,18 +834,17 @@ Rules:
     const openrouterKey = Deno.env.get('OPENROUTER_API_KEY');
     let documentInsights: DocumentInsights = { hasProjections: false };
 
-    if (Object.keys(documentsByFile).length > 0 && openrouterKey) {
-      console.log('[PrepareData] Extracting structured data from documents...');
-      documentInsights = await extractDocumentInsights(
-        Object.values(documentsByFile).map(d => ({
-          fileName: d.fileName,
-          content: d.content
-        })),
-        openrouterKey
-      );
+    const documentsArray = Object.values(documentsByFile).map(doc => ({
+      fileName: doc.fileName,
+      content: doc.content
+    }));
+    
+    if (documentsArray.length > 0 && openrouterKey) {
+      console.log('[PrepareData] Extracting structured insights from documents...');
+      documentInsights = await extractDocumentInsights(documentsArray, openrouterKey);
       console.log('[PrepareData] Document insights:', {
         hasProjections: documentInsights.hasProjections,
-        hasBusinessContext: !!documentInsights.businessContext
+        extractedFacts: documentInsights.extractedFacts?.length || 0
       });
     } else {
       console.log('[PrepareData] Skipping document extraction - no docs or no API key');
