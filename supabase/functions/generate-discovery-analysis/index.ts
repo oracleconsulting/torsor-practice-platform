@@ -2098,14 +2098,59 @@ Return ONLY the JSON object with no additional text.`;
       created_at: new Date().toISOString()
     };
 
-    const { data: savedReport, error: saveError } = await supabase
+    // Check if a report already exists for this client/discovery combination
+    const { data: existingReport } = await supabase
       .from('client_reports')
-      .insert(report)
-      .select()
-      .single();
+      .select('id, is_shared_with_client, shared_at')
+      .eq('client_id', preparedData.client.id)
+      .eq('discovery_id', preparedData.discovery.id)
+      .eq('report_type', 'discovery_analysis')
+      .maybeSingle();
 
-    if (saveError) {
-      console.error('Error saving report:', saveError);
+    let savedReport;
+    let saveError;
+
+    if (existingReport) {
+      // Update existing report, preserving sharing status
+      console.log('[Discovery] Updating existing report:', existingReport.id);
+      const { data: updatedReport, error: updateError } = await supabase
+        .from('client_reports')
+        .update({
+          report_data: report.report_data,
+          // Preserve sharing status and shared_at timestamp
+          is_shared_with_client: existingReport.is_shared_with_client,
+          shared_at: existingReport.shared_at
+        })
+        .eq('id', existingReport.id)
+        .select()
+        .single();
+      
+      savedReport = updatedReport;
+      saveError = updateError;
+      
+      if (saveError) {
+        console.error('[Discovery] Error updating report:', saveError);
+      } else {
+        console.log('[Discovery] Report updated successfully, sharing status preserved:', {
+          isShared: existingReport.is_shared_with_client,
+          sharedAt: existingReport.shared_at
+        });
+      }
+    } else {
+      // Insert new report
+      console.log('[Discovery] Creating new report');
+      const { data: insertedReport, error: insertError } = await supabase
+        .from('client_reports')
+        .insert(report)
+        .select()
+        .single();
+      
+      savedReport = insertedReport;
+      saveError = insertError;
+      
+      if (saveError) {
+        console.error('[Discovery] Error inserting report:', saveError);
+      }
     }
 
     // Update discovery record
