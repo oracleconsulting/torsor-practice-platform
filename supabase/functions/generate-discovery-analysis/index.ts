@@ -1078,7 +1078,7 @@ serve(async (req) => {
     let documentInsights: DocumentInsights;
     
     if (preparedData.documentInsights?.hasProjections) {
-      console.log('[Discovery] Using document insights from Stage 1');
+      console.log('[Discovery] Using document insights from Stage 1', {
         hasProjections: true,
         revenueYears: preparedData.documentInsights.financialProjections?.projectedRevenue?.length || 0,
         teamYears: preparedData.documentInsights.financialProjections?.projectedTeamSize?.length || 0
@@ -1098,6 +1098,35 @@ serve(async (req) => {
         }
       }
       
+      // Extract funding status and launch timeline from extractedFacts
+      const facts = stage1Insights.extractedFacts || [];
+      const fundingStatus = facts.find((f: string) => 
+        f.toLowerCase().includes('raised') || 
+        f.toLowerCase().includes('funding') ||
+        f.toLowerCase().includes('£') && f.toLowerCase().includes('seed')
+      );
+      const launchTimeline = facts.find((f: string) => 
+        f.toLowerCase().includes('launch') || 
+        f.toLowerCase().includes('january') ||
+        f.toLowerCase().includes('february') ||
+        f.toLowerCase().includes('march')
+      );
+      
+      // Determine stage from revenue projections
+      let stage: 'pre-revenue' | 'early-revenue' | 'growth' | 'established' | 'unknown' = 'unknown';
+      if (fp?.projectedRevenue?.length) {
+        const year1 = fp.projectedRevenue.find((r: any) => r.year === 1);
+        if (year1) {
+          const rev = year1.amount;
+          if (rev >= 10000000) stage = 'established';
+          else if (rev >= 2000000) stage = 'established';
+          else if (rev >= 500000) stage = 'growth';
+          else if (rev >= 100000) stage = 'early-revenue';
+          else if (rev > 0) stage = 'early-revenue';
+          else stage = 'pre-revenue';
+        }
+      }
+      
       documentInsights = {
         financialProjections: {
           hasProjections: true,
@@ -1108,12 +1137,12 @@ serve(async (req) => {
           grossMargin: fp?.projectedGrossMargin?.[0]?.percent ? fp.projectedGrossMargin[0].percent / 100 : undefined
         },
         businessContext: {
-          stage: stage1Insights.businessContext?.businessModel ? 'growth' : 'unknown',
-          businessModel: stage1Insights.businessContext?.businessModel,
-          industry: stage1Insights.businessContext?.industry,
-          revenueModel: stage1Insights.businessContext?.revenueModel
+          stage: stage,
+          model: stage1Insights.businessContext?.businessModel,
+          fundingStatus: fundingStatus || undefined,
+          launchTimeline: launchTimeline || undefined
         },
-        relevantQuotes: stage1Insights.extractedFacts || []
+        relevantQuotes: facts
       };
       
       console.log('[Discovery] Converted Stage 1 insights:', {
