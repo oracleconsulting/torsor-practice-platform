@@ -297,6 +297,15 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
 
       // Special handling for Discovery clients
       if (serviceLineCode === 'discovery') {
+        // First, get all clients who have a destination_discovery record
+        const { data: discoveries } = await supabase
+          .from('destination_discovery')
+          .select('client_id, completed_at, practice_id')
+          .eq('practice_id', practiceId);
+
+        const discoveryClientIds = discoveries?.map(d => d.client_id) || [];
+
+        // Get clients with discovery status OR clients who have a discovery record
         const { data: discoveryClients } = await supabase
           .from('practice_members')
           .select(`
@@ -310,18 +319,16 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           `)
           .eq('practice_id', practiceId)
           .eq('member_type', 'client')
-          .in('program_status', ['discovery', 'discovery_complete', 'discovery_in_progress'])
+          .or(`program_status.in.(discovery,discovery_complete,discovery_in_progress),id.in.(${discoveryClientIds.join(',')})`)
           .order('created_at', { ascending: false });
 
-        // Also check destination_discovery for completion
-        const clientIds = discoveryClients?.map(c => c.id) || [];
-        const { data: discoveries } = await supabase
-          .from('destination_discovery')
-          .select('client_id, completed_at')
-          .in('client_id', clientIds);
+        // Create a map of discoveries for quick lookup
+        const discoveryMap = new Map(
+          discoveries?.map(d => [d.client_id, d]) || []
+        );
 
         const enrichedClients: Client[] = (discoveryClients || []).map(client => {
-          const discovery = discoveries?.find(d => d.client_id === client.id);
+          const discovery = discoveryMap.get(client.id);
           const isComplete = discovery?.completed_at || client.program_status === 'discovery_complete';
           return {
             id: client.id,
