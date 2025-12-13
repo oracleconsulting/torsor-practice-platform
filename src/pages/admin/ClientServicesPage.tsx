@@ -2618,40 +2618,102 @@ function DiscoveryClientModal({
     
     setAssigningServices(true);
     try {
+      console.log('🔧 Assigning services:', {
+        selectedServices,
+        clientId,
+        practiceId: client.practice_id
+      });
+
       // Get service line IDs
-      const { data: serviceLines } = await supabase
+      const { data: serviceLines, error: serviceLinesError } = await supabase
         .from('service_lines')
-        .select('id, code')
+        .select('id, code, name')
         .in('code', selectedServices);
 
+      if (serviceLinesError) {
+        console.error('❌ Error fetching service lines:', serviceLinesError);
+        throw serviceLinesError;
+      }
+
+      console.log('📋 Found service lines:', serviceLines);
+
+      if (!serviceLines || serviceLines.length === 0) {
+        alert(`No service lines found for codes: ${selectedServices.join(', ')}. Please check the service codes.`);
+        return;
+      }
+
+      if (serviceLines.length !== selectedServices.length) {
+        const foundCodes = serviceLines.map(sl => sl.code);
+        const missingCodes = selectedServices.filter(code => !foundCodes.includes(code));
+        console.warn('⚠️ Some service codes not found:', missingCodes);
+        alert(`Warning: Some services not found in database: ${missingCodes.join(', ')}. Only found services will be assigned.`);
+      }
+
       // Remove existing assignments
-      await supabase
+      const { error: deleteError } = await supabase
         .from('client_service_lines')
         .delete()
         .eq('client_id', clientId);
 
+      if (deleteError) {
+        console.error('❌ Error deleting existing assignments:', deleteError);
+        throw deleteError;
+      }
+
+      console.log('✅ Deleted existing assignments');
+
       // Add new assignments
-      for (const sl of serviceLines || []) {
-        await supabase.from('client_service_lines').insert({
-          practice_id: client.practice_id,
-          client_id: clientId,
-          service_line_id: sl.id,
-          status: 'pending_onboarding',
-          created_by: currentMember?.id
-        });
+      const insertResults = [];
+      for (const sl of serviceLines) {
+        const { data, error: insertError } = await supabase
+          .from('client_service_lines')
+          .insert({
+            practice_id: client.practice_id,
+            client_id: clientId,
+            service_line_id: sl.id,
+            status: 'pending_onboarding',
+            created_by: currentMember?.id
+          })
+          .select();
+
+        if (insertError) {
+          console.error(`❌ Error inserting service ${sl.code}:`, insertError);
+          insertResults.push({ code: sl.code, success: false, error: insertError });
+        } else {
+          console.log(`✅ Successfully assigned service: ${sl.code} (${sl.name})`);
+          insertResults.push({ code: sl.code, success: true, data });
+        }
+      }
+
+      const failedInserts = insertResults.filter(r => !r.success);
+      if (failedInserts.length > 0) {
+        console.error('❌ Failed to assign some services:', failedInserts);
+        alert(`Warning: Failed to assign some services. Check console for details.`);
       }
 
       // Update client status
-      await supabase
+      const { error: updateError } = await supabase
         .from('practice_members')
         .update({ program_status: 'enrolled' })
         .eq('id', clientId);
 
-      alert('Services assigned successfully!');
+      if (updateError) {
+        console.error('❌ Error updating client status:', updateError);
+        // Don't throw - service assignment succeeded
+      }
+
+      console.log('✅ Service assignment complete:', {
+        totalSelected: selectedServices.length,
+        foundInDB: serviceLines.length,
+        successfullyAssigned: insertResults.filter(r => r.success).length,
+        failed: failedInserts.length
+      });
+
+      alert(`Services assigned successfully! ${insertResults.filter(r => r.success).length} of ${serviceLines.length} services assigned.`);
       onRefresh();
     } catch (error) {
-      console.error('Error assigning services:', error);
-      alert('Failed to assign services. Please try again.');
+      console.error('❌ Error assigning services:', error);
+      alert(`Failed to assign services: ${error instanceof Error ? error.message : 'Unknown error'}. Check console for details.`);
     } finally {
       setAssigningServices(false);
     }

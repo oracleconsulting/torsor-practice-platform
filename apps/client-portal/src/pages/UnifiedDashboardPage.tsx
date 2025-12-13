@@ -104,6 +104,12 @@ export default function UnifiedDashboardPage() {
         .order('created_at', { ascending: false });
 
       if (enrollError) {
+        console.error('❌ Error loading service enrollments:', enrollError);
+      }
+      
+      console.log('📋 Raw enrollments from DB:', enrollments);
+
+      if (enrollError) {
         console.error('Error loading services:', enrollError);
       }
       
