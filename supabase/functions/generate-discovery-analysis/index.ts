@@ -1022,6 +1022,74 @@ serve(async (req) => {
     });
 
     // ========================================================================
+    // BUILD PROJECTION ENFORCEMENT (if projections available)
+    // ========================================================================
+    
+    let projectionEnforcement = '';
+    
+    if (financialProjections.hasProjections) {
+      const y1 = financialProjections.currentRevenue || 0;
+      const y5 = financialProjections.year5Revenue || 0;
+      const gm = financialProjections.grossMargin || 0;
+      const mult = financialProjections.growthMultiple || 0;
+      const phase1 = 13300; // Base phase 1 investment
+      
+      const investmentPct = y1 > 0 ? ((phase1 / y1) * 100).toFixed(1) : null;
+      const founderDepVal = y5 > 0 ? (y5 * 6 / 1000000).toFixed(0) : null;
+      const systemisedVal = y5 > 0 ? (y5 * 12 / 1000000).toFixed(0) : null;
+      const infraDelta = y5 > 0 ? ((y5 * 6) / 1000000).toFixed(0) : null;
+      
+      projectionEnforcement = `
+## ⚠️ MANDATORY: USE THEIR FINANCIAL PROJECTIONS EXPLICITLY
+
+Their documents contain real financial data. This differentiates a generic report from a personalised one.
+
+### Extracted Numbers (verified from their documents):
+${y1 > 0 ? `- Year 1 Revenue: £${y1.toLocaleString()}` : ''}
+${y5 > 0 ? `- Year 5 Revenue: £${y5.toLocaleString()}` : ''}
+${mult > 0 ? `- Growth Multiple: ${mult.toFixed(0)}x over 5 years` : ''}
+${gm > 0 ? `- Gross Margin: ${(gm * 100).toFixed(0)}%` : ''}
+
+### REQUIRED in your output:
+
+**1. Executive Summary** - Reference their scale:
+${y5 > 0 ? `- Use "£${(y5/1000000).toFixed(1)}M trajectory" or "${mult.toFixed(0)}x growth" in the headline` : '- Reference their growth ambitions'}
+
+**2. Investment Context** - Show the math:
+${investmentPct ? `- "£${phase1.toLocaleString()} represents ${investmentPct}% of Year 1 revenue"` : ''}
+${gm > 0.7 ? `- "At ${(gm*100).toFixed(0)}% gross margins, efficiency savings go straight to profit"` : ''}
+
+**3. Valuation Impact** (if Year 5 > £1M):
+${y5 > 1000000 ? `- Founder-dependent (6x): £${founderDepVal}M
+- Systemised (10-12x): £${systemisedVal}M  
+- Infrastructure value: £${infraDelta}M difference
+- Use this in closing: "The delta between 6x and 12x at your scale is £${infraDelta}M. That's what infrastructure is worth."` : ''}
+
+**4. Closing Message** - ONE killer projection stat:
+Pick the single most impactful:
+${investmentPct ? `- "£${phase1.toLocaleString()} is ${investmentPct}% of your Year 1 revenue"` : ''}
+${mult > 20 ? `- "${mult.toFixed(0)}x growth only happens with infrastructure"` : ''}
+${infraDelta ? `- "£${infraDelta}M is what the infrastructure is worth at exit"` : ''}
+
+### DO NOT:
+- Mention projections without connecting to investment decision
+- Use round/generic numbers when you have their exact figures
+- Bury the projection data in the middle of the report
+- List all the stats - pick the most powerful ONE for each section
+`;
+    } else {
+      projectionEnforcement = `
+## NO FINANCIAL PROJECTIONS AVAILABLE
+
+No projection documents provided. Use assessment-based framing:
+- Frame costs in terms of hours and manual work they mentioned
+- Use industry benchmarks cautiously (state they're estimates)
+- Focus on operational efficiency rather than revenue multiples
+- Don't invent growth rates or revenue figures
+`;
+    }
+
+    // ========================================================================
     // BUILD CLOSING MESSAGE GUIDANCE
     // ========================================================================
     
@@ -1159,6 +1227,8 @@ Position 365 as: "You have a business plan. What you don't have is a structured 
 ` : 'No specific transformation triggers detected.'}
 
 ${documentInsightsContext}
+
+${projectionEnforcement}
 
 ${closingGuidance}
 
