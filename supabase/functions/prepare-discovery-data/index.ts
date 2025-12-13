@@ -640,6 +640,167 @@ serve(async (req) => {
     
     console.log(`[PrepareData] === Total documents loaded: ${Object.keys(documentsByFile).length} ===`);
 
+    // ========================================================================
+    // EXTRACT STRUCTURED DATA FROM DOCUMENTS
+    // ========================================================================
+
+    interface DocumentInsights {
+      hasProjections: boolean;
+      financialProjections?: {
+        projectedRevenue?: Array<{ year: number; amount: number; note?: string }>;
+        projectedEBITDA?: Array<{ year: number; amount: number; marginPercent?: number }>;
+        projectedGrossMargin?: Array<{ year: number; percent: number }>;
+        projectedTeamSize?: Array<{ year: number; count: number }>;
+        projectedCustomers?: Array<{ year: number; count: number }>;
+      };
+      businessContext?: {
+        businessModel?: string;
+        industry?: string;
+        revenueModel?: string;
+        keyMetrics?: string[];
+        growthStrategy?: string;
+      };
+      extractedFacts?: string[];
+      warnings?: string[];
+    }
+
+    async function extractDocumentInsights(
+      documents: Array<{ fileName: string; content: string }>,
+      openrouterKey: string
+    ): Promise<DocumentInsights> {
+      // Skip if no documents or no API key
+      if (!documents.length || !openrouterKey) {
+        console.log('[PrepareData] No documents to extract insights from');
+        return { hasProjections: false };
+      }
+
+      // Combine document content (cap at 15k to leave room for response)
+      const combinedContent = documents
+        .map(d => `=== ${d.fileName} ===\n${d.content}`)
+        .join('\n\n')
+        .substring(0, 15000);
+
+      console.log('[PrepareData] Extracting document insights, total content length:', combinedContent.length);
+
+      const extractionPrompt = `You are a financial analyst extracting structured data from business documents.
+
+DOCUMENT CONTENT:
+${combinedContent}
+
+TASK: Extract any financial projections, business metrics, and key facts. Return ONLY valid JSON.
+
+If no projections found, return: { "hasProjections": false }
+
+If projections found, return:
+{
+  "hasProjections": true,
+  "financialProjections": {
+    "projectedRevenue": [
+      { "year": 1, "amount": 559000, "note": "Year 1 projection" },
+      { "year": 5, "amount": 22700000, "note": "Year 5 projection" }
+    ],
+    "projectedEBITDA": [...],
+    "projectedGrossMargin": [{ "year": 1, "percent": 90 }],
+    "projectedTeamSize": [{ "year": 1, "count": 3 }, { "year": 5, "count": 51 }],
+    "projectedCustomers": [...]
+  },
+  "businessContext": {
+    "businessModel": "B2B SaaS",
+    "industry": "Technology",
+    "revenueModel": "Subscription",
+    "keyMetrics": ["MRR", "ARR", "Churn"],
+    "growthStrategy": "Enterprise sales"
+  },
+  "extractedFacts": [
+    "Raised £1M to date",
+    "Launching January 2025",
+    "Target 90% gross margins"
+  ],
+  "warnings": ["Projections are aggressive", "Key hires assumed"]
+}
+
+Rules:
+- Extract ONLY data explicitly stated in the documents
+- Convert all currency to GBP (£) numbers only
+- Years should be 1, 2, 3, 4, 5 (not calendar years)
+- If team growth is mentioned, extract it
+- If margins are mentioned, extract them
+- Return valid JSON only, no markdown`;
+
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openrouterKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://torsor.co.uk',
+            'X-Title': 'Torsor Discovery Analysis'
+          },
+          body: JSON.stringify({
+            model: 'anthropic/claude-sonnet-4-20250514',
+            max_tokens: 4000,
+            temperature: 0.1,
+            messages: [
+              { role: 'user', content: extractionPrompt }
+            ]
+          })
+        });
+
+        if (!response.ok) {
+          console.error('[PrepareData] OpenRouter error:', response.status);
+          return { hasProjections: false };
+        }
+
+        const result = await response.json();
+        const content = result.choices?.[0]?.message?.content || '';
+        
+        console.log('[PrepareData] Raw extraction response length:', content.length);
+
+        // Parse JSON from response (handle markdown code blocks)
+        let jsonStr = content;
+        if (content.includes('```json')) {
+          jsonStr = content.split('```json')[1].split('```')[0].trim();
+        } else if (content.includes('```')) {
+          jsonStr = content.split('```')[1].split('```')[0].trim();
+        }
+
+        const insights = JSON.parse(jsonStr) as DocumentInsights;
+        
+        console.log('[PrepareData] Successfully extracted:', {
+          hasProjections: insights.hasProjections,
+          revenueYears: insights.financialProjections?.projectedRevenue?.length || 0,
+          teamYears: insights.financialProjections?.projectedTeamSize?.length || 0,
+          businessModel: insights.businessContext?.businessModel
+        });
+
+        return insights;
+
+      } catch (error) {
+        console.error('[PrepareData] Document extraction error:', error);
+        return { hasProjections: false };
+      }
+    }
+
+    const openrouterKey = Deno.env.get('OPENROUTER_API_KEY');
+    let documentInsights: DocumentInsights = { hasProjections: false };
+
+    if (Object.keys(documentsByFile).length > 0 && openrouterKey) {
+      console.log('[PrepareData] Extracting structured data from documents...');
+      documentInsights = await extractDocumentInsights(
+        Object.values(documentsByFile).map(d => ({
+          fileName: d.fileName,
+          content: d.content
+        })),
+        openrouterKey
+      );
+      console.log('[PrepareData] Document insights:', {
+        hasProjections: documentInsights.hasProjections,
+        hasBusinessContext: !!documentInsights.businessContext
+      });
+    } else {
+      console.log('[PrepareData] Skipping document extraction - no docs or no API key');
+    }
+
     // Get practice info
     const { data: practice } = await supabase
       .from('practices')
@@ -749,6 +910,9 @@ serve(async (req) => {
         content: doc.content.substring(0, 20000), // Cap at 20k per doc
         source: doc.source
       })),
+      
+      // NEW: Structured data extracted from documents
+      documentInsights: documentInsights,
       contextDocs: contextDocs?.map(doc => ({
         type: doc.context_type,
         content: doc.content?.substring(0, 500)

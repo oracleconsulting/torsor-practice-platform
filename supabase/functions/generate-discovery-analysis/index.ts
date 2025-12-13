@@ -1076,21 +1076,73 @@ serve(async (req) => {
     // ========================================================================
     
     console.log('[Discovery] Extracting document insights...');
-    const documentInsights = await extractDocumentInsights(
-      preparedData.documents || [],
-      openrouterKey
-    );
+    // Check if Stage 1 already extracted document insights
+    let documentInsights: DocumentInsights;
+    
+    if (preparedData.documentInsights?.hasProjections) {
+      console.log('[Discovery] Using document insights from Stage 1:', {
+        hasProjections: true,
+        revenueYears: preparedData.documentInsights.financialProjections?.projectedRevenue?.length || 0,
+        teamYears: preparedData.documentInsights.financialProjections?.projectedTeamSize?.length || 0
+      });
+      
+      // Convert Stage 1 format to Stage 3 format
+      const stage1Insights = preparedData.documentInsights;
+      const fp = stage1Insights.financialProjections;
+      
+      // Calculate growth multiple
+      let growthMultiple: number | undefined;
+      if (fp?.projectedRevenue?.length) {
+        const year1 = fp.projectedRevenue.find((r: any) => r.year === 1);
+        const year5 = fp.projectedRevenue.find((r: any) => r.year === 5);
+        if (year1 && year5 && year1.amount > 0) {
+          growthMultiple = Math.round(year5.amount / year1.amount);
+        }
+      }
+      
+      documentInsights = {
+        financialProjections: {
+          hasProjections: true,
+          currentRevenue: fp?.projectedRevenue?.find((r: any) => r.year === 1)?.amount,
+          year5Revenue: fp?.projectedRevenue?.find((r: any) => r.year === 5)?.amount,
+          projectedRevenue: fp?.projectedRevenue?.map((r: any) => ({ year: r.year, amount: r.amount })),
+          growthMultiple: growthMultiple,
+          grossMargin: fp?.projectedGrossMargin?.[0]?.percent ? fp.projectedGrossMargin[0].percent / 100 : undefined
+        },
+        businessContext: {
+          stage: stage1Insights.businessContext?.businessModel ? 'growth' : 'unknown',
+          businessModel: stage1Insights.businessContext?.businessModel,
+          industry: stage1Insights.businessContext?.industry,
+          revenueModel: stage1Insights.businessContext?.revenueModel
+        },
+        relevantQuotes: stage1Insights.extractedFacts || []
+      };
+      
+      console.log('[Discovery] Converted Stage 1 insights:', {
+        hasProjections: documentInsights.financialProjections.hasProjections,
+        growthMultiple: documentInsights.financialProjections.growthMultiple,
+        year1: documentInsights.financialProjections.currentRevenue,
+        year5: documentInsights.financialProjections.year5Revenue
+      });
+    } else {
+      // Fall back to extracting ourselves (backward compatibility)
+      console.log('[Discovery] No Stage 1 insights, extracting documents...');
+      documentInsights = await extractDocumentInsights(
+        preparedData.documents || [],
+        openrouterKey
+      );
+      
+      console.log('[Discovery] Document insights extracted:', {
+        hasProjections: documentInsights.financialProjections.hasProjections,
+        growthMultiple: documentInsights.financialProjections.growthMultiple,
+        businessStage: documentInsights.businessContext.stage,
+        year1: documentInsights.financialProjections.currentRevenue,
+        year5: documentInsights.financialProjections.year5Revenue
+      });
+    }
     
     const financialProjections = documentInsights.financialProjections;
     const documentInsightsContext = buildDocumentInsightsContext(documentInsights);
-    
-    console.log('[Discovery] Document insights extracted:', {
-      hasProjections: financialProjections.hasProjections,
-      growthMultiple: financialProjections.growthMultiple,
-      businessStage: documentInsights.businessContext.stage,
-      year1: financialProjections.currentRevenue,
-      year5: financialProjections.year5Revenue
-    });
 
     // ========================================================================
     // BUILD PROJECTION ENFORCEMENT (if projections available)

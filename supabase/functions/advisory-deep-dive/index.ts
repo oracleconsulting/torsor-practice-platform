@@ -35,6 +35,25 @@ interface PreparedData {
     content: string;
     source: string;
   }>;
+  documentInsights?: {
+    hasProjections: boolean;
+    financialProjections?: {
+      projectedRevenue?: Array<{ year: number; amount: number; note?: string }>;
+      projectedEBITDA?: Array<{ year: number; amount: number; marginPercent?: number }>;
+      projectedGrossMargin?: Array<{ year: number; percent: number }>;
+      projectedTeamSize?: Array<{ year: number; count: number }>;
+      projectedCustomers?: Array<{ year: number; count: number }>;
+    };
+    businessContext?: {
+      businessModel?: string;
+      industry?: string;
+      revenueModel?: string;
+      keyMetrics?: string[];
+      growthStrategy?: string;
+    };
+    extractedFacts?: string[];
+    warnings?: string[];
+  };
   financialContext: {
     periodType: string;
     periodEnd: string;
@@ -147,7 +166,8 @@ type BusinessStage = 'pre_revenue' | 'early_revenue' | 'growth' | 'established' 
 
 interface AffordabilityProfile {
   estimatedMonthlyCapacity: 'under_1k' | '1k_5k' | '5k_15k' | '15k_plus';
-  reasoning: string;
+  cashConstrained: boolean;
+  activelyRaising: boolean;
 }
 
 interface ExtractedMetrics {
@@ -384,168 +404,335 @@ async function loadNarrativeTemplates(supabase: any): Promise<NarrativeTemplate[
 // CORE LOGIC FUNCTIONS
 // ============================================================================
 
+function determineBusinessStageFromData(
+  revenue: number | undefined,
+  responses: Record<string, any>,
+  docInsights: any
+): BusinessStage {
+  // If we have projected Year 1 revenue from documents, use that
+  if (docInsights?.hasProjections) {
+    const year1Rev = docInsights.financialProjections?.projectedRevenue?.find((r: any) => r.year === 1);
+    if (year1Rev) {
+      revenue = year1Rev.amount;
+    }
+  }
+
+  // Check for capital raising signals (changes stage interpretation)
+  const isRaising = detectCapitalRaising(responses);
+  
+  // Revenue-based staging
+  if (revenue) {
+    if (revenue >= 10000000) return 'scaling';
+    if (revenue >= 2000000) return 'established';
+    if (revenue >= 500000) return 'growth';
+    if (revenue >= 100000) return 'early_revenue';
+    if (revenue > 0) return 'early_revenue'; // Any revenue = early_revenue
+  }
+
+  // If raising capital with projections, they're at least early_revenue stage
+  if (isRaising && docInsights?.hasProjections) {
+    return 'early_revenue';
+  }
+
+  // Check for extractedFacts that might indicate stage
+  const facts = docInsights?.extractedFacts || [];
+  if (facts.some((f: string) => f.toLowerCase().includes('raised') || f.toLowerCase().includes('funding'))) {
+    return 'early_revenue'; // Has raised = at least early revenue
+  }
+
+  // Fall back to response signals
+  const frustration = String(responses.sd_operational_frustration || '').toLowerCase();
+  if (frustration.includes('mvp') || frustration.includes('launch')) {
+    return 'pre_revenue';
+  }
+
+  // Default to growth if unclear but has data
+  if (docInsights?.hasProjections) {
+    return 'growth';
+  }
+
+  return 'pre_revenue';
+}
+
 function determineBusinessStage(preparedData: PreparedData): BusinessStage {
   const responses = preparedData.discovery.responses;
   const financial = preparedData.financialContext;
+  const docInsights = preparedData.documentInsights;
   
-  // Check financial context first (most reliable)
-  if (financial?.revenue) {
-    if (financial.revenue < 100000) return 'pre_revenue';
-    if (financial.revenue < 500000) return 'early_revenue';
-    if (financial.revenue < 2000000) return 'growth';
-    if (financial.revenue < 10000000) return 'established';
-    return 'scaling';
-  }
+  let revenue = financial?.revenue;
   
-  // Fall back to assessment signals
-  const operationalFrustration = (responses.sd_operational_frustration || '').toLowerCase();
-  if (operationalFrustration.includes('mvp') || 
-      operationalFrustration.includes('pre-revenue') ||
-      operationalFrustration.includes('launch')) {
-    return 'pre_revenue';
-  }
-  
-  if (responses.sd_growth_blocker === "Don't have the capital") {
-    return 'early_revenue';
-  }
-  
-  // Default to growth if unclear
-  return 'growth';
+  return determineBusinessStageFromData(revenue, responses, docInsights);
 }
 
-function assessAffordability(preparedData: PreparedData): AffordabilityProfile {
-  const financial = preparedData.financialContext;
-  const stage = determineBusinessStage(preparedData);
-  
-  // Use revenue to estimate capacity
-  if (financial?.revenue) {
-    const monthlyRevenue = financial.revenue / 12;
-    if (monthlyRevenue < 1000) {
-      return { estimatedMonthlyCapacity: 'under_1k', reasoning: 'Very limited monthly revenue' };
-    }
-    if (monthlyRevenue < 5000) {
-      return { estimatedMonthlyCapacity: '1k_5k', reasoning: 'Limited monthly capacity' };
-    }
-    if (monthlyRevenue < 15000) {
-      return { estimatedMonthlyCapacity: '5k_15k', reasoning: 'Moderate monthly capacity' };
-    }
-    return { estimatedMonthlyCapacity: '15k_plus', reasoning: 'Strong monthly capacity' };
-  }
-  
-  // Fall back to stage-based estimation
-  if (stage === 'pre_revenue') {
-    return { estimatedMonthlyCapacity: 'under_1k', reasoning: 'Pre-revenue stage' };
-  }
-  if (stage === 'early_revenue') {
-    return { estimatedMonthlyCapacity: '1k_5k', reasoning: 'Early revenue stage' };
-  }
-  
-  return { estimatedMonthlyCapacity: '5k_15k', reasoning: 'Growth or established stage' };
-}
-
-async function extractMetricsFromDocuments(
-  documents: PreparedData['documents'],
-  financialContext: PreparedData['financialContext'],
+function assessAffordability(
+  revenue: number | undefined,
   responses: Record<string, any>,
-  apiKey: string
-): Promise<ExtractedMetrics> {
-  const metrics: ExtractedMetrics = {
-    financial: {},
+  docInsights: any
+): AffordabilityProfile {
+  const isRaising = detectCapitalRaising(responses);
+  const hasProjections = docInsights?.hasProjections;
+  
+  // Check extractedFacts for funding info
+  const facts = docInsights?.extractedFacts || [];
+  const hasRaisedFunding = facts.some((f: string) => 
+    f.toLowerCase().includes('raised') || 
+    (f.toLowerCase().includes('£') && f.toLowerCase().includes('funding'))
+  );
+  
+  // Estimate monthly capacity
+  let estimatedMonthlyCapacity: 'under_1k' | '1k_5k' | '5k_15k' | '15k_plus' = 'under_1k';
+  
+  if (revenue) {
+    const monthlyRevenue = revenue / 12;
+    // Can typically afford 5-10% of revenue on advisory
+    if (monthlyRevenue > 150000) {
+      estimatedMonthlyCapacity = '15k_plus';
+    } else if (monthlyRevenue > 50000) {
+      estimatedMonthlyCapacity = '5k_15k';
+    } else if (monthlyRevenue > 8000) {
+      estimatedMonthlyCapacity = '1k_5k';
+    }
+  } else if (isRaising || hasRaisedFunding) {
+    // Raising or has raised = can afford advisory
+    estimatedMonthlyCapacity = '1k_5k';
+  } else if (hasProjections) {
+    // Has projections = some level of sophistication
+    estimatedMonthlyCapacity = '1k_5k';
+  }
+
+  console.log('[AdvisoryDeepDive] Affordability:', {
+    revenue,
+    activelyRaising: isRaising,
+    hasRaisedFunding,
+    hasProjections,
+    estimatedMonthlyCapacity
+  });
+
+  return {
+    estimatedMonthlyCapacity,
+    cashConstrained: estimatedMonthlyCapacity === 'under_1k' && !isRaising,
+    activelyRaising: isRaising
+  };
+}
+
+function extractMetricsFromPreparedData(preparedData: PreparedData): ExtractedMetrics {
+  const responses = preparedData.discovery?.responses || {};
+  const docInsights = preparedData.documentInsights || { hasProjections: false };
+  const financialContext = preparedData.financialContext;
+  
+  // Calculate key metrics from document insights
+  let currentRevenue: number | undefined;
+  let projectedRevenue: Array<{ year: number; amount: number }> | undefined;
+  let growthMultiple: number | undefined;
+  let teamCurrent: number | undefined;
+  let teamProjected: number | undefined;
+  let teamGrowthMultiple: number | undefined;
+  let grossMargin: number | undefined;
+
+  // Extract from document projections
+  if (docInsights.hasProjections && docInsights.financialProjections) {
+    const fp = docInsights.financialProjections;
+    
+    // Revenue
+    if (fp.projectedRevenue?.length) {
+      projectedRevenue = fp.projectedRevenue;
+      const year1 = fp.projectedRevenue.find((r: any) => r.year === 1);
+      const year5 = fp.projectedRevenue.find((r: any) => r.year === 5);
+      
+      if (year1) currentRevenue = year1.amount;
+      
+      if (year1 && year5 && year1.amount > 0) {
+        growthMultiple = Math.round(year5.amount / year1.amount);
+      }
+    }
+    
+    // Team size
+    if (fp.projectedTeamSize?.length) {
+      const team1 = fp.projectedTeamSize.find((t: any) => t.year === 1);
+      const team5 = fp.projectedTeamSize.find((t: any) => t.year === 5);
+      
+      if (team1) teamCurrent = team1.count;
+      if (team5) teamProjected = team5.count;
+      
+      if (team1 && team5 && team1.count > 0) {
+        teamGrowthMultiple = Math.round(team5.count / team1.count);
+      }
+    }
+    
+    // Gross margin
+    if (fp.projectedGrossMargin?.length) {
+      const gm = fp.projectedGrossMargin[0];
+      if (gm) grossMargin = gm.percent / 100; // Convert to decimal
+    }
+  }
+
+  // Fall back to financialContext if no document projections
+  if (!currentRevenue && financialContext?.revenue) {
+    currentRevenue = financialContext.revenue;
+  }
+  if (!grossMargin && financialContext?.grossMarginPct) {
+    grossMargin = financialContext.grossMarginPct / 100;
+  }
+  if (!teamCurrent && financialContext?.staffCount) {
+    teamCurrent = financialContext.staffCount;
+  }
+
+  console.log('[AdvisoryDeepDive] Extracted metrics:', {
+    hasProjections: docInsights.hasProjections,
+    currentRevenue,
+    growthMultiple,
+    teamCurrent,
+    teamProjected,
+    teamGrowthMultiple,
+    grossMargin
+  });
+
+  return {
+    financial: {
+      currentRevenue,
+      projectedRevenue,
+      growthMultiple,
+      grossMargin
+    },
     operational: {
-      teamSize: { current: financialContext?.staffCount || 0 }
+      teamSize: { current: teamCurrent || 1, projected: teamProjected },
+      teamGrowthMultiple,
+      manualWorkPercentage: extractManualWorkPercentage(responses),
+      founderDependencyLevel: extractFounderDependency(responses)
+    },
+    customer: {
+      // Extract from documents if available
     },
     context: {
-      businessStage: 'growth',
-      capitalRaising: false,
-      burnoutRisk: false,
-      lifestyleTransformation: false
+      businessStage: determineBusinessStageFromData(currentRevenue, responses, docInsights),
+      capitalRaising: detectCapitalRaising(responses),
+      exitTimeline: extractExitTimeline(responses),
+      burnoutRisk: detectBurnoutRisk(responses),
+      lifestyleTransformation: detectLifestyleTransformation(responses, preparedData.discovery?.extractedAnchors)
     }
   };
-  
-  // Extract from financial context
-  if (financialContext) {
-    metrics.financial.currentRevenue = financialContext.revenue;
-    metrics.financial.grossMargin = financialContext.grossMarginPct;
-    metrics.operational.teamSize.current = financialContext.staffCount;
-  }
-  
-  // Extract from assessment responses
-  if (responses.sd_manual_work) {
-    const manualWorkMatch = responses.sd_manual_work.match(/(\d+)/);
-    if (manualWorkMatch) {
-      metrics.operational.manualWorkPercentage = parseInt(manualWorkMatch[1]);
-    }
-  }
-  
-  if (responses.sd_founder_dependency) {
-    metrics.operational.founderDependencyLevel = responses.sd_founder_dependency;
-  }
-  
-  // If documents exist, use LLM to extract projections
-  if (documents && documents.length > 0) {
-    try {
-      const documentContent = documents.map(d => d.content).join('\n\n');
-      
-      const extractionPrompt = `Extract financial and operational metrics from the following client documents.
-
-Documents:
-${documentContent}
-
-Extract and return JSON with this structure:
-{
-  "financial": {
-    "projectedRevenue": [{"year": 1, "amount": 559000}, {"year": 5, "amount": 22700000}],
-    "growthMultiple": 41,
-    "grossMargin": 90,
-    "ebitdaMargin": {"year1": 10, "year5": 25}
-  },
-  "operational": {
-    "teamSize": {"current": 3, "projected": 51},
-    "teamGrowthMultiple": 17
-  }
 }
 
-Only include metrics that are explicitly stated in the documents. Return valid JSON only.`;
-
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://torsor-practice-platform.com',
-          'X-Title': 'Torsor Practice Platform'
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          messages: [{ role: 'user', content: extractionPrompt }],
-          temperature: 0.1,
-          max_tokens: 2000
-        })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const content = data.choices[0]?.message?.content || '';
-        
-        // Extract JSON from response
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const extracted = JSON.parse(jsonMatch[0]);
-          
-          if (extracted.financial) {
-            Object.assign(metrics.financial, extracted.financial);
-          }
-          if (extracted.operational) {
-            Object.assign(metrics.operational, extracted.operational);
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('[AdvisoryDeepDive] Document extraction failed:', e);
-    }
+function extractManualWorkPercentage(responses: Record<string, any>): number | undefined {
+  const manual = String(responses.sd_manual_work || '').toLowerCase();
+  
+  if (manual.includes('over half') || manual.includes('50%') || manual.includes('more than 50')) {
+    return 55;
+  }
+  if (manual.includes('31-50') || manual.includes('about half')) {
+    return 40;
+  }
+  if (manual.includes('11-30')) {
+    return 20;
+  }
+  if (manual.includes('under 10') || manual.includes('less than 10')) {
+    return 5;
   }
   
-  return metrics;
+  return undefined;
+}
+
+function extractFounderDependency(responses: Record<string, any>): string {
+  const dependency = String(responses.sd_founder_dependency || '').toLowerCase();
+  const holiday = String(responses.dd_holiday_reality || '').toLowerCase();
+  
+  if (dependency.includes('chaos') || dependency.includes('essential to everything')) {
+    return 'chaos';
+  }
+  if (holiday.includes('disaster') || holiday.includes('struggle')) {
+    return 'chaos';
+  }
+  if (dependency.includes('struggle') || dependency.includes('difficult')) {
+    return 'struggle';
+  }
+  if (dependency.includes('fine') || dependency.includes('cope')) {
+    return 'manageable';
+  }
+  
+  return 'unknown';
+}
+
+function extractExitTimeline(responses: Record<string, any>): string | undefined {
+  return responses.sd_exit_timeline;
+}
+
+function detectCapitalRaising(responses: Record<string, any>): boolean {
+  // Check multiple signals
+  const frustration = String(responses.sd_operational_frustration || '').toLowerCase();
+  const growthBlocker = String(responses.sd_growth_blocker || '').toLowerCase();
+  const raising = String(responses.sd_raising_capital || '').toLowerCase();
+  const ifIKnew = String(responses.dd_if_i_knew || '').toLowerCase();
+  
+  const signals = [
+    frustration.includes('capital') || frustration.includes('funding'),
+    frustration.includes('not going fast enough') && growthBlocker.includes('capital'),
+    growthBlocker.includes("don't have the capital"),
+    growthBlocker.includes('funding'),
+    raising.includes('yes') || raising.includes('actively'),
+    frustration.includes('raise') && frustration.includes('faster'),
+    ifIKnew.includes('capital') || ifIKnew.includes('raise') || ifIKnew.includes('investors') || ifIKnew.includes('funding')
+  ];
+  
+  const detected = signals.filter(Boolean).length >= 1;
+  console.log('[AdvisoryDeepDive] Capital raising signals:', { signals, detected });
+  return detected;
+}
+
+function detectLifestyleTransformation(responses: Record<string, any>, anchors: any): boolean {
+  // Check vision for lifestyle indicators
+  const visionText = String(responses.dd_five_year_picture || responses.dd_future_vision || '').toLowerCase();
+  const successDef = String(responses.dd_success_definition || '').toLowerCase();
+  const hours = String(responses.dd_owner_hours || '');
+  
+  const visionSignals = [
+    visionText.includes('school'),
+    visionText.includes('drop-off') || visionText.includes('drop off'),
+    visionText.includes('investor'),
+    visionText.includes('without me') || visionText.includes('without you'),
+    visionText.includes('portfolio'),
+    visionText.includes('chairman'),
+    visionText.includes('step back'),
+    visionText.includes('0500') || visionText.includes('5am'),
+    visionText.includes('run') && visionText.includes('morning')
+  ];
+  
+  const successSignals = [
+    successDef.includes('without me'),
+    successDef.includes('runs without'),
+    successDef.includes('legacy'),
+    successDef.includes('exit') || successDef.includes('sell')
+  ];
+  
+  const hoursSignal = hours.includes('60') || hours.includes('70');
+  
+  const detected = (visionSignals.filter(Boolean).length >= 2) ||
+                   (successSignals.filter(Boolean).length >= 1 && hoursSignal);
+  
+  console.log('[AdvisoryDeepDive] Lifestyle transformation signals:', { 
+    visionSignals: visionSignals.filter(Boolean).length,
+    successSignals: successSignals.filter(Boolean).length,
+    hoursSignal,
+    detected 
+  });
+  
+  return detected;
+}
+
+function detectBurnoutRisk(responses: Record<string, any>): boolean {
+  const hours = String(responses.dd_owner_hours || '');
+  const external = String(responses.dd_external_view || '').toLowerCase();
+  const holiday = String(responses.dd_holiday_reality || '').toLowerCase();
+  
+  const detected = (hours.includes('60') || hours.includes('70')) ||
+                   external.includes('worried') ||
+                   external.includes('tension') ||
+                   external.includes('strain') ||
+                   external.includes('married to my business') ||
+                   holiday.includes('never') ||
+                   holiday.includes("can't remember") ||
+                   holiday.includes('more than 2 years');
+  
+  return detected;
 }
 
 function detectPatterns(
@@ -553,12 +740,10 @@ function detectPatterns(
   patternAnalysis: PreparedData['patternAnalysis']
 ): DetectedPatterns {
   return {
-    capitalRaising: patternAnalysis?.capitalRaisingSignals?.detected || false,
-    lifestyleTransformation: patternAnalysis?.lifestyleTransformation?.detected || false,
-    burnoutRisk: patternAnalysis?.emotionalState?.burnoutRisk === 'high' || 
-                 responses.dd_owner_hours === '60-70 hours' ||
-                 responses.dd_owner_hours === '70+ hours',
-    founderDependency: responses.sd_founder_dependency === "Chaos - I'm essential to everything",
+    capitalRaising: detectCapitalRaising(responses),
+    lifestyleTransformation: detectLifestyleTransformation(responses, null),
+    burnoutRisk: detectBurnoutRisk(responses),
+    founderDependency: extractFounderDependency(responses) === 'chaos',
     highGrowth: false // Will be set based on metrics
   };
 }
@@ -1238,25 +1423,18 @@ serve(async (req) => {
         loadNarrativeTemplates(supabase)
       ]);
 
-    // Determine stage and affordability
-    const businessStage = determineBusinessStage(preparedData);
-    const affordability = assessAffordability(preparedData);
+    // Extract metrics from prepared data (uses documentInsights from Stage 1)
+    const extractedMetrics = extractMetricsFromPreparedData(preparedData);
     
-    console.log(`[AdvisoryDeepDive] Stage: ${businessStage}, Affordability: ${affordability.estimatedMonthlyCapacity}`);
-
-    // Extract metrics
-    const extractedMetrics = await extractMetricsFromDocuments(
-      preparedData.documents,
-      preparedData.financialContext,
+    // Determine stage and affordability (using extracted metrics)
+    const businessStage = extractedMetrics.context.businessStage;
+    const affordability = assessAffordability(
+      extractedMetrics.financial.currentRevenue,
       preparedData.discovery.responses,
-      openrouterKey
+      preparedData.documentInsights
     );
     
-    // Set business stage in metrics
-    extractedMetrics.context.businessStage = businessStage;
-    extractedMetrics.context.capitalRaising = preparedData.patternAnalysis?.capitalRaisingSignals?.detected || false;
-    extractedMetrics.context.burnoutRisk = preparedData.patternAnalysis?.emotionalState?.burnoutRisk === 'high';
-    extractedMetrics.context.lifestyleTransformation = preparedData.patternAnalysis?.lifestyleTransformation?.detected || false;
+    console.log(`[AdvisoryDeepDive] Stage: ${businessStage}, Affordability: ${affordability.estimatedMonthlyCapacity}`);
     
     console.log(`[AdvisoryDeepDive] Extracted metrics:`, {
       hasFinancialProjections: !!extractedMetrics.financial?.projectedRevenue?.length,
