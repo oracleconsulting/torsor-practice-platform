@@ -272,7 +272,7 @@ function detect365Triggers(responses: Record<string, any>): TransformationSignal
 }
 
 // ============================================================================
-// FINANCIAL PROJECTIONS EXTRACTION
+// INTELLIGENT DOCUMENT EXTRACTION (LLM-Based)
 // ============================================================================
 
 interface ExtractedProjections {
@@ -283,116 +283,290 @@ interface ExtractedProjections {
   year5Revenue?: number;
   growthMultiple?: number;
   teamGrowth?: { current: number; projected: number };
+  ebitdaMargin?: { year1?: number; year5?: number };
+  customerMetrics?: { year1?: number; year5?: number };
+  rawInsights?: string;
 }
 
-function extractFinancialProjections(documents: any[]): ExtractedProjections {
+interface DocumentInsights {
+  financialProjections: ExtractedProjections;
+  businessContext: {
+    stage: 'pre-revenue' | 'early-revenue' | 'growth' | 'established' | 'unknown';
+    model?: string;
+    fundingStatus?: string;
+    launchTimeline?: string;
+    keyRisks?: string[];
+    keyStrengths?: string[];
+  };
+  relevantQuotes: string[];
+}
+
+async function extractDocumentInsights(
+  documents: any[],
+  openrouterKey: string
+): Promise<DocumentInsights> {
+  
+  const emptyResult: DocumentInsights = {
+    financialProjections: { hasProjections: false },
+    businessContext: { stage: 'unknown' },
+    relevantQuotes: []
+  };
+  
   if (!documents || documents.length === 0) {
-    return { hasProjections: false };
+    console.log('[DocExtract] No documents to process');
+    return emptyResult;
   }
   
-  // Look for financial projection documents
-  const projectionDoc = documents.find(doc => 
-    doc.fileName?.toLowerCase().includes('projection') ||
-    doc.fileName?.toLowerCase().includes('forecast') ||
-    doc.fileName?.toLowerCase().includes('5 year') ||
-    doc.fileName?.toLowerCase().includes('5-year') ||
-    doc.fileName?.toLowerCase().includes('summary') ||
-    (doc.content?.toLowerCase().includes('year 1') && doc.content?.toLowerCase().includes('year 5'))
-  );
+  // Combine all document content
+  const documentContent = documents.map((doc, i) => {
+    const content = doc.content || doc.text || '';
+    if (!content) return '';
+    return `\n--- DOCUMENT ${i + 1}: ${doc.fileName || 'Unnamed'} ---\n${content}\n`;
+  }).filter(Boolean).join('\n');
   
-  if (!projectionDoc) {
-    return { hasProjections: false };
+  if (!documentContent || documentContent.length < 50) {
+    console.log('[DocExtract] Insufficient document content');
+    return emptyResult;
   }
   
-  const content = projectionDoc.content || '';
-  const projectedRevenue: { year: number; amount: number }[] = [];
+  console.log('[DocExtract] Processing documents, total content length:', documentContent.length);
   
-  // Extract revenue figures (look for patterns like "Year 1: £559K" or "Year 1 Revenue: 559,000")
-  const revenuePatterns = [
-    /year\s*1[:\s]*[£$]?([\d,]+)k?/gi,
-    /year\s*2[:\s]*[£$]?([\d,]+)k?/gi,
-    /year\s*3[:\s]*[£$]?([\d,]+)k?/gi,
-    /year\s*4[:\s]*[£$]?([\d,]+)k?/gi,
-    /year\s*5[:\s]*[£$]?([\d,]+)k?/gi,
-  ];
-  
-  for (let i = 0; i < 5; i++) {
-    const match = content.match(revenuePatterns[i]);
-    if (match && match[0]) {
-      const numMatch = match[0].match(/[\d,]+/);
-      if (numMatch) {
-        let amount = parseInt(numMatch[0].replace(/,/g, ''));
-        // If number is small, assume it's in thousands
-        if (amount < 10000 && match[0].toLowerCase().includes('k')) {
-          amount *= 1000;
-        } else if (amount < 1000) {
-          amount *= 1000; // Assume thousands
+  const extractionPrompt = `You are a financial analyst extracting structured data from business documents.
+
+Analyze the following document(s) and extract ALL financial and business information you can find.
+
+<documents>
+${documentContent}
+</documents>
+
+Return a JSON object with this EXACT structure (use null for missing data, not empty strings):
+
+{
+  "financialProjections": {
+    "hasProjections": true/false,
+    "projectedRevenue": [
+      { "year": 1, "amount": 559000 },
+      { "year": 2, "amount": 3100000 },
+      ...
+    ],
+    "currentRevenue": <number or null - Year 1 revenue>,
+    "year5Revenue": <number or null>,
+    "growthMultiple": <number or null - e.g., 41 for 41x growth>,
+    "grossMargin": <decimal 0-1, e.g., 0.90 for 90%>,
+    "ebitdaMargin": {
+      "year1": <decimal or null>,
+      "year5": <decimal or null>
+    },
+    "teamGrowth": {
+      "current": <number>,
+      "projected": <number - Year 5 team size>
+    },
+    "customerMetrics": {
+      "year1": <number or null>,
+      "year5": <number or null>
+    }
+  },
+  "businessContext": {
+    "stage": "pre-revenue" | "early-revenue" | "growth" | "established",
+    "model": "<business model description, e.g., 'B2B SaaS with Pro and Enterprise tiers'>",
+    "fundingStatus": "<e.g., 'Raised £1m seed' or null>",
+    "launchTimeline": "<e.g., 'Launching January 2025' or null>",
+    "keyStrengths": ["<strength 1>", "<strength 2>"],
+    "keyRisks": ["<risk 1>", "<risk 2>"]
+  },
+  "relevantQuotes": [
+    "<any specific numbers or statements worth quoting directly>"
+  ]
+}
+
+CRITICAL RULES:
+1. All monetary amounts should be in GBP (£) as raw numbers (559000 not "£559K")
+2. Percentages as decimals (0.90 not 90 or "90%")
+3. If you can calculate growth multiple (Year5/Year1), include it
+4. If data is ambiguous or missing, use null
+5. Return ONLY valid JSON, no markdown, no explanation
+
+Extract everything you can find - revenue, margins, team size, customer counts, growth rates, pricing, churn, etc.`;
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openrouterKey}`,
+        'HTTP-Referer': 'https://torsor.co.uk',
+        'X-Title': 'Torsor Document Extraction',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'anthropic/claude-3-haiku-20240307', // Fast & cheap for extraction
+        max_tokens: 2000,
+        temperature: 0.1, // Low temp for consistent extraction
+        messages: [
+          { role: 'user', content: extractionPrompt }
+        ]
+      }),
+    });
+    
+    if (!response.ok) {
+      console.error('[DocExtract] API error:', response.status, await response.text());
+      return emptyResult;
+    }
+    
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    
+    console.log('[DocExtract] Raw extraction response length:', content.length);
+    
+    // Parse the JSON response
+    let extracted: DocumentInsights;
+    try {
+      // Clean potential markdown wrapping
+      let jsonString = content.trim();
+      if (jsonString.startsWith('```')) {
+        jsonString = jsonString.replace(/```json?\n?/g, '').replace(/```$/g, '').trim();
+      }
+      
+      extracted = JSON.parse(jsonString);
+      
+      // Validate structure
+      if (!extracted.financialProjections) {
+        extracted.financialProjections = { hasProjections: false };
+      }
+      if (!extracted.businessContext) {
+        extracted.businessContext = { stage: 'unknown' };
+      }
+      if (!extracted.relevantQuotes) {
+        extracted.relevantQuotes = [];
+      }
+      
+      // Calculate growth multiple if we have the data but it wasn't calculated
+      if (extracted.financialProjections.projectedRevenue?.length >= 2) {
+        const revenues = extracted.financialProjections.projectedRevenue;
+        const year1 = revenues.find(r => r.year === 1)?.amount;
+        const year5 = revenues.find(r => r.year === 5)?.amount;
+        
+        if (year1 && year5 && !extracted.financialProjections.growthMultiple) {
+          extracted.financialProjections.growthMultiple = Math.round(year5 / year1);
         }
-        projectedRevenue.push({ year: i + 1, amount });
+        if (year1) extracted.financialProjections.currentRevenue = year1;
+        if (year5) extracted.financialProjections.year5Revenue = year5;
+        
+        extracted.financialProjections.hasProjections = true;
+      }
+      
+      console.log('[DocExtract] Successfully extracted:', {
+        hasProjections: extracted.financialProjections.hasProjections,
+        revenueYears: extracted.financialProjections.projectedRevenue?.length || 0,
+        growthMultiple: extracted.financialProjections.growthMultiple,
+        businessStage: extracted.businessContext.stage
+      });
+      
+      return extracted;
+      
+    } catch (parseError) {
+      console.error('[DocExtract] JSON parse error:', parseError);
+      console.error('[DocExtract] Raw content:', content.substring(0, 500));
+      return emptyResult;
+    }
+    
+  } catch (error) {
+    console.error('[DocExtract] Extraction error:', error);
+    return emptyResult;
+  }
+}
+
+// Build context string for the main prompt
+function buildDocumentInsightsContext(insights: DocumentInsights): string {
+  if (!insights.financialProjections.hasProjections && insights.businessContext.stage === 'unknown') {
+    return '';
+  }
+  
+  const fp = insights.financialProjections;
+  const bc = insights.businessContext;
+  
+  let context = `\n## EXTRACTED DOCUMENT INSIGHTS (LLM-Parsed)\n`;
+  
+  if (fp.hasProjections) {
+    context += `\n### Financial Projections\n`;
+    
+    if (fp.projectedRevenue && fp.projectedRevenue.length > 0) {
+      context += `Revenue Trajectory:\n`;
+      fp.projectedRevenue.forEach(r => {
+        const formatted = r.amount >= 1000000 
+          ? `£${(r.amount / 1000000).toFixed(1)}M`
+          : `£${(r.amount / 1000).toFixed(0)}K`;
+        context += `- Year ${r.year}: ${formatted}\n`;
+      });
+    }
+    
+    if (fp.growthMultiple) {
+      context += `\nGrowth Multiple: ${fp.growthMultiple}x over 5 years\n`;
+    }
+    
+    if (fp.grossMargin) {
+      context += `Gross Margin: ${(fp.grossMargin * 100).toFixed(0)}%\n`;
+    }
+    
+    if (fp.ebitdaMargin?.year1 || fp.ebitdaMargin?.year5) {
+      context += `EBITDA Margin: ${fp.ebitdaMargin.year1 ? (fp.ebitdaMargin.year1 * 100).toFixed(0) + '% Y1' : ''} ${fp.ebitdaMargin.year5 ? '→ ' + (fp.ebitdaMargin.year5 * 100).toFixed(0) + '% Y5' : ''}\n`;
+    }
+    
+    if (fp.teamGrowth?.current && fp.teamGrowth?.projected) {
+      context += `Team Growth: ${fp.teamGrowth.current} → ${fp.teamGrowth.projected} people\n`;
+    }
+    
+    if (fp.customerMetrics?.year1 || fp.customerMetrics?.year5) {
+      context += `Customers: ${fp.customerMetrics.year1 || '?'} Y1 → ${fp.customerMetrics.year5 || '?'} Y5\n`;
+    }
+    
+    // Investment context calculations
+    if (fp.currentRevenue && fp.currentRevenue > 0) {
+      const phase1Investment = 13300; // Could be dynamic
+      const pctOfRevenue = ((phase1Investment / fp.currentRevenue) * 100).toFixed(1);
+      context += `\n### Investment Context\n`;
+      context += `- Phase 1 investment (£${phase1Investment.toLocaleString()}) = ${pctOfRevenue}% of Year 1 revenue\n`;
+      
+      if (fp.grossMargin && fp.grossMargin > 0.5) {
+        context += `- At ${(fp.grossMargin * 100).toFixed(0)}% gross margin, efficiency gains go almost straight to profit\n`;
+      }
+      
+      if (fp.year5Revenue && fp.year5Revenue > 1000000) {
+        const y5m = fp.year5Revenue / 1000000;
+        const founderDependent = y5m * 6;
+        const systemised = y5m * 12;
+        context += `- At Year 5 £${y5m.toFixed(1)}M ARR:\n`;
+        context += `  - Founder-dependent (6x): £${founderDependent.toFixed(0)}M valuation\n`;
+        context += `  - Systemised (12x): £${systemised.toFixed(0)}M valuation\n`;
+        context += `  - Infrastructure delta: £${(systemised - founderDependent).toFixed(0)}M additional value\n`;
       }
     }
   }
   
-  // Extract gross margin
-  let grossMargin: number | undefined;
-  const marginMatch = content.match(/gross\s*margin[:\s]*([\d.]+)%/i);
-  if (marginMatch) {
-    grossMargin = parseFloat(marginMatch[1]) / 100;
+  if (bc.stage !== 'unknown') {
+    context += `\n### Business Context\n`;
+    context += `- Stage: ${bc.stage}\n`;
+    if (bc.model) context += `- Model: ${bc.model}\n`;
+    if (bc.fundingStatus) context += `- Funding: ${bc.fundingStatus}\n`;
+    if (bc.launchTimeline) context += `- Timeline: ${bc.launchTimeline}\n`;
+    if (bc.keyStrengths?.length) context += `- Strengths: ${bc.keyStrengths.join(', ')}\n`;
+    if (bc.keyRisks?.length) context += `- Risks: ${bc.keyRisks.join(', ')}\n`;
   }
   
-  // Extract team size
-  let teamGrowth: { current: number; projected: number } | undefined;
-  const teamMatch = content.match(/team[:\s]*(\d+)\s*(?:→|to|->)\s*(\d+)/i);
-  if (teamMatch) {
-    teamGrowth = { current: parseInt(teamMatch[1]), projected: parseInt(teamMatch[2]) };
+  if (insights.relevantQuotes?.length > 0) {
+    context += `\n### Key Data Points\n`;
+    insights.relevantQuotes.slice(0, 5).forEach(q => {
+      context += `- "${q}"\n`;
+    });
   }
   
-  const year1Rev = projectedRevenue.find(p => p.year === 1)?.amount;
-  const year5Rev = projectedRevenue.find(p => p.year === 5)?.amount;
+  context += `\n### How to Use This Data\n`;
+  context += `1. Reference specific projections to show you understand their business\n`;
+  context += `2. Calculate investment as % of their actual revenue\n`;
+  context += `3. Show valuation impact using their growth trajectory\n`;
+  context += `4. Connect efficiency gains to their margins\n`;
+  context += `5. Quote specific numbers to build credibility\n`;
   
-  return {
-    hasProjections: projectedRevenue.length > 0,
-    currentRevenue: year1Rev,
-    projectedRevenue,
-    grossMargin,
-    year5Revenue: year5Rev,
-    growthMultiple: year1Rev && year5Rev ? Math.round(year5Rev / year1Rev) : undefined,
-    teamGrowth
-  };
-}
-
-function buildFinancialProjectionsContext(projections: ExtractedProjections): string {
-  if (!projections.hasProjections) return '';
-  
-  const year1 = projections.currentRevenue || 0;
-  const year5 = projections.year5Revenue || 0;
-  
-  return `
-## CLIENT FINANCIAL PROJECTIONS (from uploaded documents)
-
-Revenue Trajectory:
-${projections.projectedRevenue?.map(p => `- Year ${p.year}: £${(p.amount / 1000).toFixed(0)}K`).join('\n') || 'Not available'}
-
-${projections.growthMultiple ? `Growth: ${projections.growthMultiple}x over 5 years` : ''}
-${projections.grossMargin ? `Gross Margin: ${(projections.grossMargin * 100).toFixed(0)}%` : ''}
-${projections.teamGrowth ? `Team: ${projections.teamGrowth.current} → ${projections.teamGrowth.projected}` : ''}
-
-USE THESE PROJECTIONS FOR:
-1. Calculate investment as % of Year 1 revenue (affordability check)
-2. Show ROI in context of their growth trajectory
-3. Calculate exit value impact using their actual multiples
-4. Reference their specific margins in efficiency calculations
-
-${year1 > 0 ? `
-EXAMPLE CALCULATIONS FOR THIS CLIENT:
-- Phase 1 investment (£11,800) = ${((11800 / year1) * 100).toFixed(1)}% of Year 1 revenue
-${projections.grossMargin ? `- At ${(projections.grossMargin * 100).toFixed(0)}% gross margin, efficiency gains drop almost straight to profit` : ''}
-${year5 > 0 ? `- At Year 5 (£${(year5 / 1000000).toFixed(1)}M ARR):
-  - Founder-dependent (6x): £${((year5 * 6) / 1000000).toFixed(0)}M valuation
-  - Systemised (12x): £${((year5 * 12) / 1000000).toFixed(0)}M valuation
-  - Delta: £${(((year5 * 12) - (year5 * 6)) / 1000000).toFixed(0)}M additional value from systemisation` : ''}
-` : ''}
-`;
+  return context;
 }
 
 // ============================================================================
@@ -771,6 +945,18 @@ serve(async (req) => {
 
     console.log(`Generating analysis for: ${preparedData.client.name}`);
 
+    // Debug: Log what documents we received
+    if (preparedData.documents && preparedData.documents.length > 0) {
+      console.log('[Discovery] Documents received:', preparedData.documents.map((d: any) => ({
+        fileName: d.fileName,
+        hasContent: !!(d.content || d.text),
+        contentLength: (d.content || d.text || '').length,
+        contentPreview: (d.content || d.text || '').substring(0, 300)
+      })));
+    } else {
+      console.log('[Discovery] No documents in preparedData');
+    }
+
     // ========================================================================
     // CALCULATE CLARITY SCORE (with fallback)
     // ========================================================================
@@ -807,17 +993,24 @@ serve(async (req) => {
     console.log('[Discovery] 365 Triggers:', transformationSignals);
 
     // ========================================================================
-    // EXTRACT FINANCIAL PROJECTIONS FROM DOCUMENTS
+    // EXTRACT DOCUMENT INSIGHTS (LLM-Based)
     // ========================================================================
     
-    const financialProjections = extractFinancialProjections(preparedData.documents || []);
-    const financialProjectionsContext = buildFinancialProjectionsContext(financialProjections);
+    console.log('[Discovery] Extracting document insights...');
+    const documentInsights = await extractDocumentInsights(
+      preparedData.documents || [],
+      openrouterKey
+    );
     
-    console.log('[Discovery] Financial Projections:', {
+    const financialProjections = documentInsights.financialProjections;
+    const documentInsightsContext = buildDocumentInsightsContext(documentInsights);
+    
+    console.log('[Discovery] Document insights extracted:', {
       hasProjections: financialProjections.hasProjections,
+      growthMultiple: financialProjections.growthMultiple,
+      businessStage: documentInsights.businessContext.stage,
       year1: financialProjections.currentRevenue,
-      year5: financialProjections.year5Revenue,
-      growthMultiple: financialProjections.growthMultiple
+      year5: financialProjections.year5Revenue
     });
 
     // ========================================================================
@@ -957,7 +1150,7 @@ Even if they have a business plan, recommend 365 because they need structured su
 Position 365 as: "You have a business plan. What you don't have is a structured path to becoming the person in your 5-year vision. The 365 programme bridges that gap."
 ` : 'No specific transformation triggers detected.'}
 
-${financialProjectionsContext}
+${documentInsightsContext}
 
 ${closingGuidance}
 
@@ -1336,7 +1529,8 @@ Return ONLY the JSON object with no additional text.`;
         },
         affordability: affordability,
         transformationSignals: transformationSignals.reasons.length > 0 ? transformationSignals : null,
-        financialProjections: financialProjections.hasProjections ? financialProjections : null
+        financialProjections: financialProjections.hasProjections ? financialProjections : null,
+        documentInsights: documentInsights.businessContext.stage !== 'unknown' ? documentInsights : null
       },
       created_at: new Date().toISOString()
     };
@@ -1380,6 +1574,7 @@ Return ONLY the JSON object with no additional text.`;
         affordability: affordability,
         transformationSignals: transformationSignals.reasons.length > 0 ? transformationSignals : null,
         financialProjections: financialProjections.hasProjections ? financialProjections : null,
+        documentInsights: documentInsights.businessContext.stage !== 'unknown' ? documentInsights : null,
         analysis
       },
       metadata: {
