@@ -2,8 +2,6 @@
 // Components for rendering the "travel agent" view of the discovery analysis
 // Sells the destination, not the planes
 
-import React from 'react';
-
 // ============================================================================
 // TYPES
 // ============================================================================
