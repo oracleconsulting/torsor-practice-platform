@@ -654,11 +654,12 @@ interface GapCalibration {
 }
 
 function calibrateGapScore(gaps: any[]): GapCalibration {
+  // Revised weights: critical=2, high=1, medium=0.5
   const weights = {
-    critical: 3,
-    high: 2,
-    medium: 1,
-    low: 0.5
+    critical: 2,
+    high: 1,
+    medium: 0.5,
+    low: 0.25
   };
   
   const counts: GapSeverity = {
@@ -677,15 +678,17 @@ function calibrateGapScore(gaps: any[]): GapCalibration {
     else counts.low++;
   }
   
-  // Calculate weighted score
+  // Calculate weighted score with base of 3
+  const baseScore = 3;
   const weightedSum = 
+    baseScore +
     counts.critical * weights.critical +
     counts.high * weights.high +
     counts.medium * weights.medium +
     counts.low * weights.low;
   
-  // Normalize to 1-10 scale (max: 3 critical + 4 high = 17 points = 10/10)
-  const normalizedScore = Math.min(10, Math.max(1, Math.round((weightedSum / 17) * 10)));
+  // Cap at 10 and round conservatively
+  const normalizedScore = Math.min(10, Math.max(1, Math.round(weightedSum)));
   
   let explanation = '';
   if (normalizedScore >= 9) explanation = 'Crisis level, business at risk without intervention';
@@ -833,9 +836,38 @@ BAD PATTERNS:
 - Therapy-speak ("That takes courage, not credentials")
 - False intimacy with strangers ("We're in this together", "Call me")
 
+## CONTEXT NOTE URGENCY - USE TIME-SENSITIVE DETAILS
+
+ALWAYS check advisorContextNotes for:
+- Upcoming launches ("Launching January" → "before your January launch")
+- Funding rounds ("Raising Series A" → "before you go to investors")
+- Deadlines ("Board meeting next month" → "before your board meeting")
+- Milestones ("Product launch Q1" → "before Q1 launch")
+
+If a time-sensitive event exists within 3 months:
+1. Reference it in the closing
+2. Use it as the call-to-action urgency
+
+EXAMPLE:
+Without context: "Let's talk this week."
+With context: "Let's talk this week, before the January launch."
+
+The second version creates real urgency tied to THEIR timeline.
+
+### Context Note Extraction
+
+Look for these patterns in advisorContextNotes:
+- "Launching [month]" → deadline
+- "Raising" / "fundraising" → investor urgency
+- "Board" / "meeting" → governance deadline
+- Dates within next 90 days → immediate urgency
+
+If found, the closing MUST reference it.
+
 CALL TO ACTION:
 One sentence. Professional but direct.
 Good: "Let's talk this week."
+Good: "Let's talk this week, before the January launch." (with context)
 Good: "Book a call when you're ready."
 Good: "We should talk."
 Bad: "Call me." (too casual for someone you've never met)
@@ -949,6 +981,72 @@ GOOD: "£78,000/year in manual work that could be automated" (actual labour cost
 BAD: "£492,000 minimum cost of inaction"
 GOOD: "£75,000-£100,000 in direct inefficiency, plus the harder-to-quantify cost of investor readiness"
 
+## LABOUR WASTE CALCULATION - USE THEIR ACTUAL DATA
+
+When the client says "over half our effort is manual" or similar:
+
+1. CHECK if we have staff costs from their projections
+   - documentInsights.financialProjections may contain staffCosts, overheads, or team costs
+   - Check Year 1 projections for staff/team costs
+   - If Year 1 staff costs = £198,000, use that EXACT number
+
+2. CALCULATE actual waste:
+   - "Over half" = 55% (conservative estimate)
+   - "About half" = 50%
+   - "31-50%" = 40%
+   - "11-30%" = 20%
+   - Waste = Staff Costs × Manual Work %
+   - £198,000 × 55% = £109,000
+
+3. DO NOT default to generic estimates (£30-40k) when you have their actual numbers
+
+4. SHOW THE CALCULATION in the report:
+   "£109,000/year in labour inefficiency (55% of £198k Year 1 staff costs)"
+
+This makes the report credible and specific to THEM, not generic.
+
+### Projection-Based Calculations Priority
+
+ALWAYS prefer calculations from their projections over generic estimates:
+- Staff costs from projections > industry average
+- Their gross margin (90%) > assumed margin
+- Their revenue (£559k) > "early stage" assumptions
+- Their team size (3→28) > generic growth assumptions
+
+## VALUATION IMPACT - ALWAYS CALCULATE FOR FOUNDER DEPENDENCY
+
+When founder dependency is detected AND we have Year 5 projections:
+
+1. GET Year 5 revenue from documentInsights.financialProjections.year5Revenue
+2. ESTIMATE EBITDA:
+   - Use their gross margin if available (e.g., 90% gross margin → assume 40-50% EBITDA for SaaS)
+   - Or assume 40-50% EBITDA margin for SaaS businesses
+   - Or use 30-40% for services businesses
+3. CALCULATE valuation delta:
+   - Founder-dependent: EBITDA × 6
+   - Systemised: EBITDA × 12
+   - Delta = Systemised - Founder-dependent
+
+4. SHOW THIS IN THE GAP:
+   "At your Year 5 projections (£22.7M), founder dependency costs you:
+   - Founder-dependent (6x): £68M valuation
+   - Systemised (12x): £136M valuation
+   - Infrastructure delta: £68M in lost value"
+
+Or more simply:
+"6x vs 12x at £22.7M ARR = £136M difference in exit value"
+
+This is not speculation - it's standard M&A math. Use it.
+
+### When to Include Valuation Impact
+
+ALWAYS include when:
+- founderDependency = true (from advisoryInsights or pattern detection)
+- Year 5 revenue > £5M
+- Client has mentioned exit/legacy/investor goals
+
+The number makes the founder dependency gap REAL and URGENT.
+
 INVESTMENT PHASING IS CRITICAL:
 - For pre-revenue/cash-constrained clients: PHASE services by affordability
 - Phase 1 = Start Now (under £15k/year)
@@ -985,6 +1083,86 @@ Use £13,300 consistently:
 - In the closing: "£13,300 starts that journey"
 
 If you show a different number, you've made an error. Check your math.
+
+## INVESTMENT FRAMING - ALWAYS SHOW % OF REVENUE
+
+When we have Year 1 revenue projections:
+
+1. CALCULATE: Investment ÷ Year 1 Revenue × 100
+   - £13,300 ÷ £559,000 = 2.38% ≈ 2.4%
+
+2. USE in investment summary:
+   "£13,300 - that's 2.4% of your Year 1 revenue"
+
+3. USE in closing:
+   "2.4% of Year 1 revenue buys you investor-ready numbers, operational clarity, and a transition path"
+
+This reframes the investment from "expense" to "rounding error on your growth trajectory."
+
+### Framing Hierarchy
+
+Best → Worst:
+1. "2.4% of Year 1 revenue" (specific, powerful)
+2. "Less than one month's staff costs" (relatable if staff costs known)
+3. "£13,300 for the year" (okay but not compelling)
+4. "£13,300" (never use alone in closing)
+
+Always use the most powerful framing you have data for.
+
+## REVENUE TRAJECTORY - SHOW THE ARC
+
+When we have multi-year revenue projections, show the trajectory.
+
+INSTEAD OF:
+"You're building for £22.7M ARR"
+
+USE:
+"You're building from £559k to £22.7M over 5 years - 41x growth"
+
+OR in gap analysis:
+"Your projections show £559k → £3.1M → £7.1M → £13.1M → £22.7M. 
+Current systems won't survive that trajectory."
+
+The trajectory shows:
+1. The SCALE of ambition (not just end state)
+2. The SPEED of growth (41x isn't incremental)
+3. Why infrastructure matters NOW (Year 2 is 5.5x growth alone)
+
+### Where to Use Trajectory
+
+- Executive summary headline: Include Year 5 target AND growth multiple
+- Gap analysis (systems): Reference Year 2 growth spike specifically
+- Cost of inaction: "Another year at current trajectory means..."
+- Closing: Can reference "41x growth" as credibility marker
+
+## PAYBACK CALCULATION - BE PRECISE
+
+Calculate payback from actual efficiency gains:
+
+1. Investment: £13,300
+2. Annual efficiency gain: Use calculated labour waste (e.g., £109,000)
+3. Conservative capture rate: 30% in Year 1 = £32,700
+4. Monthly savings = Annual savings ÷ 12
+5. Payback = Investment ÷ Monthly savings
+
+Round to nearest quarter:
+- < 3.5 months → "3 months"
+- 3.5-4.5 months → "3-4 months"
+- 4.5-5.5 months → "4-5 months"
+- 5.5-6.5 months → "5-6 months"
+
+EXAMPLE CALCULATION:
+- £13,300 investment
+- £109,000 annual waste × 30% = £32,700 captured
+- £32,700 ÷ 12 = £2,725/month savings
+- Payback = £13,300 ÷ £2,725 = 4.9 months → **"4-5 months"**
+
+Or with 40% capture rate:
+- £109,000 × 40% = £43,600
+- £43,600 ÷ 12 = £3,633/month
+- Payback = £13,300 ÷ £3,633 = 3.7 months → **"3-4 months"**
+
+Use the calculation, don't guess. Show your working in the ROI calculation field.
 
 365 ALIGNMENT PROGRAMME:
 This is NOT just for people without plans. It's for founders undergoing TRANSFORMATION:
@@ -1518,12 +1696,28 @@ ${projectionEnforcement}
 
 ${closingGuidance}
 
-## GAP SCORE CALIBRATION
-When you identify gaps, score severity accurately:
-- 2 critical + 3 high gaps = 7-8/10 (NOT 5/10)
-- Use these weights: critical=3, high=2, medium=1, low=0.5
-- Max score (3 critical + 4 high = 17 points) = 10/10
-- Show the severity breakdown in your gap analysis
+## GAP SCORE CALIBRATION - REVISED
+
+Score based on severity counts:
+- Each CRITICAL gap = 2 points
+- Each HIGH gap = 1 point
+- Each MEDIUM gap = 0.5 points
+
+Base score = 3 (everyone has some gaps)
+Final score = Base + Critical×2 + High×1 + Medium×0.5 (cap at 10)
+
+EXAMPLES:
+- 2 critical + 2 high = 3 + 4 + 2 = 9 → show as 8/10 (round conservatively)
+- 2 critical + 1 high = 3 + 4 + 1 = 8 → show as 7/10
+- 1 critical + 2 high = 3 + 2 + 2 = 7 → show as 6/10
+- 0 critical + 3 high = 3 + 0 + 3 = 6 → show as 5/10
+
+For Ben Stocken example:
+- 2 CRITICAL (financial visibility, founder dependency)
+- 2 HIGH (manual work, systems at scale)
+- Score = 3 + 4 + 2 = 9 → **display as 7 or 8/10**
+
+A score of 6/10 with 2 critical gaps undersells the urgency.
 
 ## AVAILABLE SERVICES
 ${JSON.stringify(SERVICE_LINES, null, 2)}
@@ -1624,8 +1818,9 @@ Return ONLY a valid JSON object (no markdown, no explanation, just the JSON):
   "investmentSummary": {
     "totalFirstYearInvestment": "£X,XXX", // MUST match transformationJourney.totalInvestment
     "investmentBreakdown": "Management Accounts £X,XXX (£XXX×12) + Systems Audit £X,XXX + 365 Lite £X,XXX", // Show your working
+    "investmentAsPercentOfRevenue": "X.X% of Year 1 revenue", // ALWAYS include if Year 1 revenue available
     "projectedFirstYearReturn": "£X,XXX - be CONSERVATIVE, this must be defensible",
-    "paybackPeriod": "X months",
+    "paybackPeriod": "X-X months", // Calculate precisely (see payback calculation rules)
     "netBenefitYear1": "£X,XXX",
     "roiCalculation": "Show your working - only count real, measurable savings",
     "comparisonToInaction": "Clear comparison"
