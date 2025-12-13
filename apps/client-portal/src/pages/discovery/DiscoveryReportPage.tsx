@@ -400,7 +400,10 @@ export default function DiscoveryReportPage() {
         </section>
 
         {/* Transformation Journey - The Travel Agent View */}
-        {analysis.transformationJourney && analysis.transformationJourney.phases && analysis.transformationJourney.phases.length > 0 && (
+        {analysis.transformationJourney && 
+         analysis.transformationJourney.destination && 
+         analysis.transformationJourney.phases && 
+         analysis.transformationJourney.phases.length > 0 && (
           <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8">
             <TransformationJourney 
               journey={analysis.transformationJourney}

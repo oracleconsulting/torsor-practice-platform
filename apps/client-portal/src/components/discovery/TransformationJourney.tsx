@@ -18,16 +18,16 @@ export interface TransformationPhase {
 }
 
 export interface TransformationJourneyData {
-  destination: string;
-  totalInvestment: string;
-  totalTimeframe: string;
-  phases: TransformationPhase[];
+  destination?: string;
+  totalInvestment?: string;
+  totalTimeframe?: string;
+  phases?: TransformationPhase[];
 }
 
 export interface InvestmentSummaryData {
-  totalFirstYearInvestment: string;
-  projectedFirstYearReturn: string;
-  paybackPeriod: string;
+  totalFirstYearInvestment?: string;
+  projectedFirstYearReturn?: string;
+  paybackPeriod?: string;
   investmentAsPercentOfRevenue?: string;
 }
 
@@ -41,10 +41,13 @@ export function DestinationHero({
   totalInvestment,
   totalTimeframe 
 }: Readonly<{ 
-  destination: string;
+  destination?: string;
   totalInvestment?: string;
   totalTimeframe?: string;
 }>) {
+  if (!destination) {
+    return null;
+  }
   return (
     <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-6 md:p-8 text-white mb-8">
       <p className="text-emerald-200 text-sm font-medium uppercase tracking-wide mb-2">
@@ -167,8 +170,12 @@ export function JourneyPhaseCard({
 export function JourneyTimeline({ 
   phases 
 }: Readonly<{ 
-  phases: TransformationPhase[];
+  phases?: TransformationPhase[];
 }>) {
+  if (!phases || phases.length === 0) {
+    return null;
+  }
+  
   return (
     <div className="space-y-2">
       {phases.map((phase, index) => (
@@ -193,7 +200,7 @@ export function TransformationJourney({
   journey: TransformationJourneyData;
   investmentSummary?: InvestmentSummaryData;
 }>) {
-  if (!journey?.phases?.length) {
+  if (!journey?.phases?.length || !journey.destination) {
     return null;
   }
 
