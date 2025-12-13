@@ -1881,10 +1881,13 @@ Return ONLY a valid JSON object (no markdown, no explanation, just the JSON):
     }
   },
   "transformationJourney": {
+    "destinationLabel": "YOUR 5-YEAR DESTINATION" or "IN 12 MONTHS, YOU COULD BE..." (based on business stage),
     "destination": "One sentence: the life they described (e.g., 'Portfolio investor. School drop-offs. A business that runs without you.')",
+    "destinationContext": "This is what the next 5 years builds." or "This is what £13,300 and 12 months builds." (based on stage),
+    "journeyLabel": "THE FOUNDATIONS (12 months)" or "YOUR JOURNEY" (based on stage),
     "totalInvestment": "£X,XXX", // MUST match sum of all phase services (Phase 1 = First Year for most clients)
     "investmentBreakdown": "£X,XXX management accounts + £X,XXX systems audit + £X,XXX 365 programme", // Show your working
-    "totalTimeframe": "X-X months to fundamental change",
+    "totalTimeframe": "12 months to operational foundations; 3-5 years to full destination" or "12-18 months to fundamental change" (based on stage),
     "phases": [
       {
         "phase": 1,
