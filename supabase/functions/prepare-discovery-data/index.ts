@@ -82,52 +82,39 @@ function extractTextFromPDF(buffer: ArrayBuffer): string {
   }
 }
 
-// Extract text from file URL
-async function extractTextFromUrl(
-  supabase: any,
-  fileUrl: string,
-  fileName: string
-): Promise<string> {
+// Extract text content from a Blob based on file type
+async function extractTextFromBlob(fileBlob: Blob, fileName: string): Promise<string> {
   try {
-    console.log(`[PrepareData] Fetching document: ${fileName}`);
-    
-    // Fetch the file
-    const response = await fetch(fileUrl);
-    if (!response.ok) {
-      console.error(`[PrepareData] Failed to fetch ${fileName}: ${response.status}`);
-      return '';
-    }
-    
     const lowerName = fileName.toLowerCase();
     
     // Handle text-based files
     if (lowerName.endsWith('.txt') || lowerName.endsWith('.md') || lowerName.endsWith('.csv')) {
-      const text = await response.text();
+      const text = await fileBlob.text();
       console.log(`[PrepareData] Text file extracted: ${text.length} chars`);
       return text;
     }
     
     // Handle JSON files
     if (lowerName.endsWith('.json')) {
-      const text = await response.text();
+      const text = await fileBlob.text();
       console.log(`[PrepareData] JSON file extracted: ${text.length} chars`);
       return text;
     }
     
     // Handle PDFs
     if (lowerName.endsWith('.pdf')) {
-      const buffer = await response.arrayBuffer();
+      const buffer = await fileBlob.arrayBuffer();
       const text = extractTextFromPDF(buffer);
       if (text && text.length > 50) {
         return text;
       }
       console.log(`[PrepareData] PDF extraction returned minimal text, file may need manual processing`);
-      return `[PDF Document: ${fileName} - Content could not be fully extracted]`;
+      return '';
     }
     
     // For other files, try reading as text
     try {
-      const text = await response.text();
+      const text = await fileBlob.text();
       // Check if it's readable text
       if (text && text.length > 0 && !/[\x00-\x08\x0E-\x1F]/.test(text.substring(0, 500))) {
         console.log(`[PrepareData] Generic text extracted: ${text.length} chars`);
@@ -137,20 +124,124 @@ async function extractTextFromUrl(
       // Ignore
     }
     
-    return `[Binary file: ${fileName}]`;
+    return '';
   } catch (error) {
     console.error(`[PrepareData] Error extracting from ${fileName}:`, error);
     return '';
   }
 }
 
-// Load documents from client_context that haven't been embedded yet
-async function loadUnprocessedDocuments(
+// ============================================================================
+// LOAD DOCUMENTS DIRECTLY FROM SUPABASE STORAGE
+// ============================================================================
+// Storage structure: client-documents/{client_uuid}/{timestamp}_{filename}
+// Example: client-documents/34c94120-928b-402e-bb04-85edf9d6de42/1765496833302_Atherio_5_Year_Summary.pdf
+
+interface LoadedDocument {
+  fileName: string;
+  content: string;
+  source: string;
+}
+
+async function loadClientDocumentsFromStorage(
   supabase: any,
   clientId: string
-): Promise<Array<{ fileName: string; content: string; source: string }>> {
+): Promise<LoadedDocument[]> {
   
-  const documents: Array<{ fileName: string; content: string; source: string }> = [];
+  console.log('[PrepareData] === Loading documents from storage ===');
+  console.log('[PrepareData] Client folder:', clientId);
+  
+  const documents: LoadedDocument[] = [];
+  
+  try {
+    // List all files in the client's folder
+    const { data: files, error: listError } = await supabase.storage
+      .from('client-documents')
+      .list(clientId, {
+        limit: 50,
+        sortBy: { column: 'created_at', order: 'desc' }
+      });
+    
+    if (listError) {
+      console.error('[PrepareData] Error listing storage:', listError);
+      return documents;
+    }
+    
+    if (!files || files.length === 0) {
+      console.log('[PrepareData] No files found in client storage folder');
+      
+      // Debug: Check if the folder exists by listing root
+      const { data: rootFiles } = await supabase.storage
+        .from('client-documents')
+        .list('', { limit: 10 });
+      console.log('[PrepareData] Root bucket folders:', rootFiles?.map((f: any) => f.name) || 'none');
+      
+      return documents;
+    }
+    
+    console.log('[PrepareData] Found files in storage:', files.map((f: any) => f.name));
+    
+    for (const file of files) {
+      // Skip if it's a folder (id is null for folders)
+      if (file.id === null) {
+        console.log('[PrepareData] Skipping folder:', file.name);
+        continue;
+      }
+      
+      const storagePath = `${clientId}/${file.name}`;
+      console.log('[PrepareData] Downloading file:', storagePath);
+      
+      try {
+        // Download the file
+        const { data: fileBlob, error: downloadError } = await supabase.storage
+          .from('client-documents')
+          .download(storagePath);
+        
+        if (downloadError || !fileBlob) {
+          console.error('[PrepareData] Download error for', file.name, downloadError);
+          continue;
+        }
+        
+        console.log('[PrepareData] Downloaded file, size:', fileBlob.size, 'bytes');
+        
+        // Extract text from the file
+        const content = await extractTextFromBlob(fileBlob, file.name);
+        
+        if (content && content.length > 10) {
+          // Clean filename: remove timestamp prefix (e.g., "1765496833302_" -> "")
+          const cleanName = file.name.replace(/^\d+_/, '');
+          
+          documents.push({
+            fileName: cleanName,
+            content: content.substring(0, 25000), // Cap at 25k per doc
+            source: 'storage'
+          });
+          
+          console.log('[PrepareData] ✓ Loaded:', cleanName, 'content length:', content.length);
+        } else {
+          console.log('[PrepareData] ✗ No content extracted from:', file.name);
+        }
+        
+      } catch (err) {
+        console.error('[PrepareData] Error processing file:', file.name, err);
+      }
+    }
+    
+  } catch (error) {
+    console.error('[PrepareData] Storage loading error:', error);
+  }
+  
+  console.log('[PrepareData] === Total documents from storage:', documents.length, '===');
+  return documents;
+}
+
+// Fallback: Load documents from client_context table if storage approach fails
+async function loadDocumentsFromClientContext(
+  supabase: any,
+  clientId: string
+): Promise<LoadedDocument[]> {
+  
+  const documents: LoadedDocument[] = [];
   
   // Get documents from client_context with source_file_url
   const { data: contextDocs, error } = await supabase
@@ -188,20 +279,28 @@ async function loadUnprocessedDocuments(
       fileName = fileName.replace(/^\d+_/, '');
     }
     
-    console.log(`[PrepareData] Processing document: ${fileName}`);
+    console.log(`[PrepareData] Fetching via URL: ${fileName}`);
     
-    // Extract text from the file
-    const content = await extractTextFromUrl(supabase, doc.source_file_url, fileName);
-    
-    if (content && content.length > 10) {
-      documents.push({
-        fileName,
-        content: content.substring(0, 20000), // Cap at 20k per doc
-        source: 'client_context'
-      });
-      console.log(`[PrepareData] Loaded document: ${fileName}, ${content.length} chars`);
-    } else {
-      console.log(`[PrepareData] Skipped document ${fileName}: insufficient content`);
+    try {
+      const response = await fetch(doc.source_file_url);
+      if (!response.ok) {
+        console.error(`[PrepareData] Failed to fetch ${fileName}: ${response.status}`);
+        continue;
+      }
+      
+      const blob = await response.blob();
+      const content = await extractTextFromBlob(blob, fileName);
+      
+      if (content && content.length > 10) {
+        documents.push({
+          fileName,
+          content: content.substring(0, 25000),
+          source: 'client_context'
+        });
+        console.log(`[PrepareData] Loaded via URL: ${fileName}, ${content.length} chars`);
+      }
+    } catch (fetchError) {
+      console.error(`[PrepareData] Error fetching ${fileName}:`, fetchError);
     }
   }
   
@@ -268,7 +367,18 @@ serve(async (req) => {
       .eq('client_id', clientId)
       .order('created_at', { ascending: false });
 
-    // Get full document content from embeddings (already processed documents)
+    // ========================================================================
+    // LOAD DOCUMENTS - Try multiple sources
+    // ========================================================================
+    
+    const documentsByFile: Record<string, { 
+      fileName: string; 
+      content: string; 
+      dataSourceType: string;
+      source: string;
+    }> = {};
+
+    // Source 1: Document embeddings (already processed documents)
     const { data: documentEmbeddings } = await supabase
       .from('document_embeddings')
       .select('file_name, content, metadata, chunk_index')
@@ -276,14 +386,6 @@ serve(async (req) => {
       .order('file_name', { ascending: true })
       .order('chunk_index', { ascending: true });
 
-    // Reconstruct full documents from chunks (embedded documents)
-    const documentsByFile: Record<string, { 
-      fileName: string; 
-      content: string; 
-      dataSourceType: string;
-      source: string;
-    }> = {};
-    
     if (documentEmbeddings && documentEmbeddings.length > 0) {
       for (const chunk of documentEmbeddings) {
         if (!documentsByFile[chunk.file_name]) {
@@ -301,18 +403,11 @@ serve(async (req) => {
       console.log('[PrepareData] No documents in embeddings table');
     }
 
-    // ========================================================================
-    // LOAD UNPROCESSED DOCUMENTS FROM STORAGE
-    // ========================================================================
-    // Documents uploaded via simple uploader may not be in embeddings yet
-    // Fetch them directly from storage and extract text
+    // Source 2: Direct from Supabase Storage (primary method for unprocessed docs)
+    // Storage structure: client-documents/{client_id}/{timestamp}_{filename}
+    const storageDocuments = await loadClientDocumentsFromStorage(supabase, clientId);
     
-    console.log('[PrepareData] Checking for unprocessed documents in client_context...');
-    const unprocessedDocs = await loadUnprocessedDocuments(supabase, clientId);
-    
-    // Merge with embedded documents (unprocessed take precedence if fresher)
-    for (const doc of unprocessedDocs) {
-      // Only add if not already in embeddings
+    for (const doc of storageDocuments) {
       if (!documentsByFile[doc.fileName]) {
         documentsByFile[doc.fileName] = {
           fileName: doc.fileName,
@@ -320,13 +415,31 @@ serve(async (req) => {
           dataSourceType: 'general',
           source: doc.source
         };
-        console.log(`[PrepareData] Added unprocessed document: ${doc.fileName}`);
+        console.log(`[PrepareData] Added from storage: ${doc.fileName}`);
       } else {
-        console.log(`[PrepareData] Document ${doc.fileName} already in embeddings, skipping`);
+        console.log(`[PrepareData] ${doc.fileName} already loaded from embeddings`);
+      }
+    }
+
+    // Source 3: Fallback - client_context URLs (if storage approach missed any)
+    if (Object.keys(documentsByFile).length === 0) {
+      console.log('[PrepareData] No documents found via storage, trying client_context URLs...');
+      const contextDocuments = await loadDocumentsFromClientContext(supabase, clientId);
+      
+      for (const doc of contextDocuments) {
+        if (!documentsByFile[doc.fileName]) {
+          documentsByFile[doc.fileName] = {
+            fileName: doc.fileName,
+            content: doc.content,
+            dataSourceType: 'general',
+            source: doc.source
+          };
+          console.log(`[PrepareData] Added from client_context: ${doc.fileName}`);
+        }
       }
     }
     
-    console.log(`[PrepareData] Total documents loaded: ${Object.keys(documentsByFile).length}`);
+    console.log(`[PrepareData] === Total documents loaded: ${Object.keys(documentsByFile).length} ===`);
 
     // Get practice info
     const { data: practice } = await supabase
