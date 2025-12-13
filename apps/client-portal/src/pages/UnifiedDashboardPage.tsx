@@ -174,45 +174,72 @@ export default function UnifiedDashboardPage() {
       }
 
       // Check for shared discovery report
-      console.log('🔍 Checking for shared report with client_id:', clientSession?.clientId);
-      const { data: report, error: reportError } = await supabase
-        .from('client_reports')
-        .select('id, is_shared_with_client, client_id, report_type, created_at')
-        .eq('client_id', clientSession?.clientId)
-        .eq('report_type', 'discovery_analysis')
-        .eq('is_shared_with_client', true)  // Only get shared reports
-        .order('created_at', { ascending: false })
-        .maybeSingle();  // Use maybeSingle to handle no results gracefully
+      let report: any = null;
+      let reportError: any = null;
       
-      console.log('🔍 Report query result:', { 
-        report, 
-        reportError,
-        hasReport: !!report,
-        clientId: clientSession?.clientId
-      });
-      
-      if (reportError) {
-        console.error('🔍 Error checking for report:', {
-          code: reportError.code,
-          message: reportError.message,
-          details: reportError.details,
-          hint: reportError.hint
+      if (!clientSession?.clientId) {
+        console.warn('⚠️ No clientId available, skipping report check');
+      } else {
+        console.log('🔍 Checking for shared report with client_id:', clientSession.clientId);
+        
+        // First, verify we can query practice_members (RLS check)
+        const { data: pmCheck, error: pmError } = await supabase
+          .from('practice_members')
+          .select('id, user_id, member_type')
+          .eq('id', clientSession.clientId)
+          .eq('member_type', 'client')
+          .maybeSingle();
+        
+        const { data: authUser } = await supabase.auth.getUser();
+        console.log('🔍 Practice member check (RLS verification):', {
+          pmCheck,
+          pmError,
+          authUid: authUser.data.user?.id,
+          clientId: clientSession.clientId
+        });
+        
+        const reportResult = await supabase
+          .from('client_reports')
+          .select('id, is_shared_with_client, client_id, report_type, created_at')
+          .eq('client_id', clientSession.clientId)
+          .eq('report_type', 'discovery_analysis')
+          .eq('is_shared_with_client', true)  // Only get shared reports
+          .order('created_at', { ascending: false })
+          .maybeSingle();  // Use maybeSingle to handle no results gracefully
+        
+        report = reportResult.data;
+        reportError = reportResult.error;
+        
+        console.log('🔍 Report query result:', { 
+          report, 
+          reportError,
+          hasReport: !!report,
+          clientId: clientSession.clientId
+        });
+        
+        if (reportError) {
+          console.error('🔍 Error checking for report:', {
+            code: reportError.code,
+            message: reportError.message,
+            details: reportError.details,
+            hint: reportError.hint
+          });
+        }
+        
+        // Also check ALL reports (for debugging) - remove filter to see what's there
+        const { data: allReports, error: allReportsError } = await supabase
+          .from('client_reports')
+          .select('id, is_shared_with_client, client_id, report_type, created_at')
+          .eq('client_id', clientSession.clientId)
+          .eq('report_type', 'discovery_analysis')
+          .order('created_at', { ascending: false });
+        
+        console.log('🔍 All reports for client (debug):', {
+          allReports,
+          allReportsError,
+          count: allReports?.length || 0
         });
       }
-      
-      // Also check ALL reports (for debugging) - remove filter to see what's there
-      const { data: allReports, error: allReportsError } = await supabase
-        .from('client_reports')
-        .select('id, is_shared_with_client, client_id, report_type, created_at')
-        .eq('client_id', clientSession?.clientId)
-        .eq('report_type', 'discovery_analysis')
-        .order('created_at', { ascending: false });
-      
-      console.log('🔍 All reports for client (debug):', {
-        allReports,
-        allReportsError,
-        count: allReports?.length || 0
-      });
 
       const discoveryStatusData = {
         completed: !!discovery?.completed_at,
