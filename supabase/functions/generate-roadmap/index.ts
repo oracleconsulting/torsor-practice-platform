@@ -1554,7 +1554,7 @@ async function callLLM(prompt: string, maxTokens = 8000): Promise<string> {
     body: JSON.stringify({
       model: 'anthropic/claude-3.5-sonnet',
       max_tokens: maxTokens,
-      temperature: 0.7,
+      temperature: 0.4, // Reduced from 0.7 for consistency and quality
       messages: [
         { 
           role: 'system', 
