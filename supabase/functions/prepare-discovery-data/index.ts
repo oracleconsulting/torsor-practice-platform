@@ -15,6 +15,199 @@ const corsHeaders = {
   'Access-Control-Max-Age': '86400',
 }
 
+// ============================================================================
+// PDF TEXT EXTRACTION
+// ============================================================================
+
+function extractTextFromPDF(buffer: ArrayBuffer): string {
+  try {
+    const bytes = new Uint8Array(buffer);
+    const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    
+    const textMatches: string[] = [];
+    
+    // Method 1: Extract from PDF streams
+    const streamRegex = /stream\s*([\s\S]*?)\s*endstream/g;
+    let match;
+    
+    while ((match = streamRegex.exec(text)) !== null) {
+      const streamContent = match[1];
+      // Clean binary data and extract readable text
+      const readable = streamContent
+        .replace(/[\x00-\x1F\x7F-\xFF]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (readable.length > 20 && !/^[0-9\s.]+$/.test(readable)) {
+        textMatches.push(readable);
+      }
+    }
+    
+    // Method 2: Extract text between parentheses (PDF text objects)
+    const textObjRegex = /\(([^)]{3,})\)/g;
+    while ((match = textObjRegex.exec(text)) !== null) {
+      const content = match[1];
+      // Filter out numeric-only content
+      if (!/^[\d\s.]+$/.test(content) && content.length > 3) {
+        textMatches.push(content);
+      }
+    }
+    
+    // Method 3: Look for Tj and TJ operators (PDF text showing operators)
+    const tjRegex = /\(([^)]+)\)\s*Tj/g;
+    while ((match = tjRegex.exec(text)) !== null) {
+      if (match[1].length > 2) {
+        textMatches.push(match[1]);
+      }
+    }
+    
+    // Method 4: Extract from BT...ET blocks
+    const btRegex = /BT\s*([\s\S]*?)\s*ET/g;
+    while ((match = btRegex.exec(text)) !== null) {
+      const blockContent = match[1];
+      const innerText = blockContent
+        .replace(/[\x00-\x1F\x7F-\xFF]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (innerText.length > 10) {
+        textMatches.push(innerText);
+      }
+    }
+    
+    const result = [...new Set(textMatches)].join(' ').substring(0, 50000);
+    console.log(`[PrepareData] PDF extraction: ${result.length} chars from ${textMatches.length} matches`);
+    return result;
+  } catch (error) {
+    console.error('[PrepareData] PDF extraction error:', error);
+    return '';
+  }
+}
+
+// Extract text from file URL
+async function extractTextFromUrl(
+  supabase: any,
+  fileUrl: string,
+  fileName: string
+): Promise<string> {
+  try {
+    console.log(`[PrepareData] Fetching document: ${fileName}`);
+    
+    // Fetch the file
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      console.error(`[PrepareData] Failed to fetch ${fileName}: ${response.status}`);
+      return '';
+    }
+    
+    const lowerName = fileName.toLowerCase();
+    
+    // Handle text-based files
+    if (lowerName.endsWith('.txt') || lowerName.endsWith('.md') || lowerName.endsWith('.csv')) {
+      const text = await response.text();
+      console.log(`[PrepareData] Text file extracted: ${text.length} chars`);
+      return text;
+    }
+    
+    // Handle JSON files
+    if (lowerName.endsWith('.json')) {
+      const text = await response.text();
+      console.log(`[PrepareData] JSON file extracted: ${text.length} chars`);
+      return text;
+    }
+    
+    // Handle PDFs
+    if (lowerName.endsWith('.pdf')) {
+      const buffer = await response.arrayBuffer();
+      const text = extractTextFromPDF(buffer);
+      if (text && text.length > 50) {
+        return text;
+      }
+      console.log(`[PrepareData] PDF extraction returned minimal text, file may need manual processing`);
+      return `[PDF Document: ${fileName} - Content could not be fully extracted]`;
+    }
+    
+    // For other files, try reading as text
+    try {
+      const text = await response.text();
+      // Check if it's readable text
+      if (text && text.length > 0 && !/[\x00-\x08\x0E-\x1F]/.test(text.substring(0, 500))) {
+        console.log(`[PrepareData] Generic text extracted: ${text.length} chars`);
+        return text;
+      }
+    } catch (e) {
+      // Ignore
+    }
+    
+    return `[Binary file: ${fileName}]`;
+  } catch (error) {
+    console.error(`[PrepareData] Error extracting from ${fileName}:`, error);
+    return '';
+  }
+}
+
+// Load documents from client_context that haven't been embedded yet
+async function loadUnprocessedDocuments(
+  supabase: any,
+  clientId: string
+): Promise<Array<{ fileName: string; content: string; source: string }>> {
+  
+  const documents: Array<{ fileName: string; content: string; source: string }> = [];
+  
+  // Get documents from client_context with source_file_url
+  const { data: contextDocs, error } = await supabase
+    .from('client_context')
+    .select('id, content, source_file_url, context_type, created_at')
+    .eq('client_id', clientId)
+    .eq('context_type', 'document')
+    .not('source_file_url', 'is', null)
+    .order('created_at', { ascending: false });
+  
+  if (error) {
+    console.error('[PrepareData] Error loading context docs:', error);
+    return documents;
+  }
+  
+  if (!contextDocs || contextDocs.length === 0) {
+    console.log('[PrepareData] No document records in client_context');
+    return documents;
+  }
+  
+  console.log(`[PrepareData] Found ${contextDocs.length} document records in client_context`);
+  
+  for (const doc of contextDocs) {
+    if (!doc.source_file_url) continue;
+    
+    // Extract filename from the 'Uploaded: filename' content or URL
+    let fileName = 'Unknown';
+    if (doc.content && doc.content.startsWith('Uploaded: ')) {
+      fileName = doc.content.replace('Uploaded: ', '').trim();
+    } else {
+      // Extract from URL
+      const urlParts = doc.source_file_url.split('/');
+      fileName = urlParts[urlParts.length - 1] || 'Unknown';
+      // Clean timestamp prefix if present
+      fileName = fileName.replace(/^\d+_/, '');
+    }
+    
+    console.log(`[PrepareData] Processing document: ${fileName}`);
+    
+    // Extract text from the file
+    const content = await extractTextFromUrl(supabase, doc.source_file_url, fileName);
+    
+    if (content && content.length > 10) {
+      documents.push({
+        fileName,
+        content: content.substring(0, 20000), // Cap at 20k per doc
+        source: 'client_context'
+      });
+      console.log(`[PrepareData] Loaded document: ${fileName}, ${content.length} chars`);
+    } else {
+      console.log(`[PrepareData] Skipped document ${fileName}: insufficient content`);
+    }
+  }
+  
+  return documents;
+}
+
 serve(async (req) => {
   console.log('=== PREPARE-DISCOVERY-DATA STARTED ===');
   
@@ -75,7 +268,7 @@ serve(async (req) => {
       .eq('client_id', clientId)
       .order('created_at', { ascending: false });
 
-    // Get full document content from embeddings
+    // Get full document content from embeddings (already processed documents)
     const { data: documentEmbeddings } = await supabase
       .from('document_embeddings')
       .select('file_name, content, metadata, chunk_index')
@@ -83,11 +276,12 @@ serve(async (req) => {
       .order('file_name', { ascending: true })
       .order('chunk_index', { ascending: true });
 
-    // Reconstruct full documents from chunks
+    // Reconstruct full documents from chunks (embedded documents)
     const documentsByFile: Record<string, { 
       fileName: string; 
       content: string; 
       dataSourceType: string;
+      source: string;
     }> = {};
     
     if (documentEmbeddings && documentEmbeddings.length > 0) {
@@ -96,13 +290,43 @@ serve(async (req) => {
           documentsByFile[chunk.file_name] = {
             fileName: chunk.file_name,
             content: '',
-            dataSourceType: chunk.metadata?.dataSourceType || 'general'
+            dataSourceType: chunk.metadata?.dataSourceType || 'general',
+            source: 'embeddings'
           };
         }
         documentsByFile[chunk.file_name].content += chunk.content + '\n';
       }
-      console.log(`Loaded ${Object.keys(documentsByFile).length} documents`);
+      console.log(`[PrepareData] Loaded ${Object.keys(documentsByFile).length} documents from embeddings`);
+    } else {
+      console.log('[PrepareData] No documents in embeddings table');
     }
+
+    // ========================================================================
+    // LOAD UNPROCESSED DOCUMENTS FROM STORAGE
+    // ========================================================================
+    // Documents uploaded via simple uploader may not be in embeddings yet
+    // Fetch them directly from storage and extract text
+    
+    console.log('[PrepareData] Checking for unprocessed documents in client_context...');
+    const unprocessedDocs = await loadUnprocessedDocuments(supabase, clientId);
+    
+    // Merge with embedded documents (unprocessed take precedence if fresher)
+    for (const doc of unprocessedDocs) {
+      // Only add if not already in embeddings
+      if (!documentsByFile[doc.fileName]) {
+        documentsByFile[doc.fileName] = {
+          fileName: doc.fileName,
+          content: doc.content,
+          dataSourceType: 'general',
+          source: doc.source
+        };
+        console.log(`[PrepareData] Added unprocessed document: ${doc.fileName}`);
+      } else {
+        console.log(`[PrepareData] Document ${doc.fileName} already in embeddings, skipping`);
+      }
+    }
+    
+    console.log(`[PrepareData] Total documents loaded: ${Object.keys(documentsByFile).length}`);
 
     // Get practice info
     const { data: practice } = await supabase
@@ -210,7 +434,8 @@ serve(async (req) => {
       documents: Object.values(documentsByFile).map(doc => ({
         fileName: doc.fileName,
         dataSourceType: doc.dataSourceType,
-        content: doc.content.substring(0, 15000) // Cap at 15k per doc
+        content: doc.content.substring(0, 20000), // Cap at 20k per doc
+        source: doc.source
       })),
       contextDocs: contextDocs?.map(doc => ({
         type: doc.context_type,
