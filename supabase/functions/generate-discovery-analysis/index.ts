@@ -420,11 +420,19 @@ Extract everything you can find - revenue, margins, team size, customer counts, 
     // Parse the JSON response
     let extracted: DocumentInsights;
     try {
-      // Clean potential markdown wrapping
+      // Clean potential markdown wrapping - handle all variations
       let jsonString = content.trim();
-      if (jsonString.startsWith('```')) {
-        jsonString = jsonString.replace(/```json?\n?/g, '').replace(/```$/g, '').trim();
-      }
+      
+      // Remove opening code fence with optional language tag
+      jsonString = jsonString.replace(/^```(?:json)?\s*\n?/i, '');
+      
+      // Remove closing code fence
+      jsonString = jsonString.replace(/\n?```\s*$/g, '');
+      
+      // Trim again after removing fences
+      jsonString = jsonString.trim();
+      
+      console.log('[DocExtract] Cleaned JSON length:', jsonString.length, 'preview:', jsonString.substring(0, 100));
       
       extracted = JSON.parse(jsonString);
       
