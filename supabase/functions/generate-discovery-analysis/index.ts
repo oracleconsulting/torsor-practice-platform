@@ -52,6 +52,27 @@ function cleanMechanical(text: string): string {
     .replace(/\bfavor/gi, 'favour')
     .replace(/\bcolor/gi, 'colour')
     .replace(/\bhonor/gi, 'honour')
+    .replace(/\brecognize/gi, 'recognise')
+    .replace(/\brecognizing/gi, 'recognising')
+    .replace(/\brecognized/gi, 'recognised')
+    .replace(/\bspecialize/gi, 'specialise')
+    .replace(/\bspecializing/gi, 'specialising')
+    .replace(/\bspecialized/gi, 'specialised')
+    // Clean up "Here's" patterns that slip through
+    .replace(/Here's the thing[:\s]*/gi, '')
+    .replace(/Here's the truth[:\s]*/gi, '')
+    .replace(/Here's what I see[:\s]*/gi, '')
+    .replace(/Here's what we see[:\s]*/gi, '')
+    .replace(/Here's what I also see[:\s]*/gi, '')
+    .replace(/But here's what I also see[:\s]*/gi, '')
+    .replace(/Here's another[^.]+\.\s*/gi, '')
+    // Clean up "hard work of" patterns
+    .replace(/You've done the hard work of [^.]+\.\s*/gi, '')
+    // Clean up "It doesn't mean X. It means Y." patterns
+    .replace(/It doesn't mean [^.]+\. It means /gi, 'It means ')
+    // Clean up "That's not a fantasy" patterns
+    .replace(/That's not a fantasy\.\s*/gi, '')
+    .replace(/That's not a dream\.\s*/gi, '')
     // Clean up multiple spaces
     .replace(/  +/g, ' ')
     .trim();
@@ -215,7 +236,7 @@ function detect365Triggers(responses: Record<string, any>): TransformationSignal
     (visionText.includes('ceo') && !visionText.includes('my ceo'));
   
   if (lifestyleTransformation) {
-    reasons.push('Vision describes fundamentally different role (operator → investor transition)');
+    reasons.push('Vision describes fundamentally different role (operator to investor transition)');
   }
   
   // Identity shift: Success defined as business running without them
@@ -225,7 +246,7 @@ function detect365Triggers(responses: Record<string, any>): TransformationSignal
     successDef === "Building something I can sell for a life-changing amount";
   
   if (identityShift) {
-    reasons.push(`Success defined as "${successDef}" - requires structured transition support`);
+    reasons.push(`Success defined as "${successDef}" requires structured transition support`);
   }
   
   // Burnout with high readiness
@@ -234,7 +255,7 @@ function detect365Triggers(responses: Record<string, any>): TransformationSignal
     responses.dd_change_readiness === "Completely ready - I'll do whatever it takes";
   
   if (burnoutWithReadiness) {
-    reasons.push('Working 60-70+ hours but completely ready for change - needs structured pathway');
+    reasons.push('Working 60-70+ hours but completely ready for change, needs structured pathway');
   }
   
   // Legacy focus
@@ -244,7 +265,7 @@ function detect365Triggers(responses: Record<string, any>): TransformationSignal
     ['1-3 years - actively preparing', '3-5 years - need to start thinking'].includes(responses.sd_exit_timeline || '');
   
   if (legacyFocus) {
-    reasons.push('Legacy/exit focus requires strategic roadmap');
+    reasons.push('Legacy or exit focus requires strategic roadmap');
   }
   
   return { lifestyleTransformation, identityShift, burnoutWithReadiness, legacyFocus, reasons };
@@ -368,8 +389,8 @@ EXAMPLE CALCULATIONS FOR THIS CLIENT:
 ${projections.grossMargin ? `- At ${(projections.grossMargin * 100).toFixed(0)}% gross margin, efficiency gains drop almost straight to profit` : ''}
 ${year5 > 0 ? `- At Year 5 (£${(year5 / 1000000).toFixed(1)}M ARR):
   - Founder-dependent (6x): £${((year5 * 6) / 1000000).toFixed(0)}M valuation
-  - Systematized (12x): £${((year5 * 12) / 1000000).toFixed(0)}M valuation
-  - Delta: £${(((year5 * 12) - (year5 * 6)) / 1000000).toFixed(0)}M additional value from systemization` : ''}
+  - Systemised (12x): £${((year5 * 12) / 1000000).toFixed(0)}M valuation
+  - Delta: £${(((year5 * 12) - (year5 * 6)) / 1000000).toFixed(0)}M additional value from systemisation` : ''}
 ` : ''}
 `;
 }
@@ -385,7 +406,13 @@ interface GapSeverity {
   low: number;
 }
 
-function calibrateGapScore(gaps: any[]): { score: number; counts: GapSeverity; explanation: string } {
+interface GapCalibration {
+  score: number;
+  counts: GapSeverity;
+  explanation: string;
+}
+
+function calibrateGapScore(gaps: any[]): GapCalibration {
   const weights = {
     critical: 3,
     high: 2,
@@ -420,11 +447,11 @@ function calibrateGapScore(gaps: any[]): { score: number; counts: GapSeverity; e
   const normalizedScore = Math.min(10, Math.max(1, Math.round((weightedSum / 17) * 10)));
   
   let explanation = '';
-  if (normalizedScore >= 9) explanation = '🚨 Crisis level - business at risk without intervention';
-  else if (normalizedScore >= 7) explanation = '⚠️ Significant gaps - multiple critical issues affecting core operations';
-  else if (normalizedScore >= 5) explanation = 'Multiple gaps - 1-2 critical issues need attention';
-  else if (normalizedScore >= 3) explanation = 'Some gaps - no critical issues blocking growth';
-  else explanation = 'Minor optimizations - business is fundamentally healthy';
+  if (normalizedScore >= 9) explanation = 'Crisis level, business at risk without intervention';
+  else if (normalizedScore >= 7) explanation = 'Significant gaps, multiple critical issues affecting core operations';
+  else if (normalizedScore >= 5) explanation = 'Multiple gaps, 1-2 critical issues need attention';
+  else if (normalizedScore >= 3) explanation = 'Some gaps, no critical issues blocking growth';
+  else explanation = 'Minor optimisations, business is fundamentally healthy';
   
   return { score: normalizedScore, counts, explanation };
 }
@@ -463,48 +490,121 @@ function buildClosingMessageGuidance(
   return `
 ## CLOSING MESSAGE - THIS IS THE MOST IMPORTANT SECTION
 
-You're not writing marketing copy. You're having a real conversation with a real person who just told you something vulnerable.
+⚠️ CRITICAL: DO NOT INVENT FACTS
+Only reference things the client actually said OR that appear in the ADVISOR CONTEXT NOTES. 
+- If they didn't mention a valuation, don't say "you've had a professional valuation"
+- If they didn't mention funding, don't say "you've raised a seed round" (unless it's in context notes)
+- If context notes mention funding: "Given your recent raise..." NOT "You said you raised..."
+Hallucinating facts destroys trust instantly. One invented fact undermines the entire report.
+
+You're not writing marketing copy. You're having a blunt conversation with someone who respects directness.
 
 ${hasVulnerability ? `
 VULNERABILITY DETECTED: They shared "${teamSecret}"
-This takes courage. Acknowledge it naturally - don't be awkward, just show you heard it.
-Example: "The imposter syndrome you mentioned? It's lying to you..."
+Acknowledge it briefly. One sentence. Don't dwell or get therapy-speak.
+Example: "The [thing they mentioned]? It's not unusual at this stage. What matters is what you do next."
+NOT: "[Thing they mentioned]? It's lying to you. You're building something real, something you want to outlast you. That takes courage, not credentials."
 ` : ''}
 
 ${hasRelationshipStrain ? `
 RELATIONSHIP STRAIN DETECTED: Their partner views work as "${externalView}"
-This isn't about business - it's about their marriage, their kids, their life.
-Reference the personal cost, not just business metrics.
+State it plainly as a cost of the current situation. Don't soften it, but don't dramatise it either.
+Example: "That tension at home? It's the cost of 70-hour weeks without the systems to support them."
 ` : ''}
 
 ${visionDetails.length > 0 ? `
-VISION DETAILS TO REFERENCE:
+VISION DETAILS AVAILABLE (pick ONE only):
 ${visionDetails.map(d => `- ${d}`).join('\n')}
-Make inaction feel like actively choosing NOT to have these things.
+
+Pick the single most impactful one. ONE. Not two. Not three.
+BAD: "morning runs, school drop-offs, Padel with mates"
+BAD: "taking your boys to school, managing a portfolio, building something that outlasts you"
+GOOD: "the school drop-offs you described"
+GOOD: "the portfolio life you want"
 ` : ''}
 
 ${affordability.stage === 'pre-revenue' ? `
 FOR PRE-REVENUE CLIENT:
-DO NOT say: "Your total investment is £150,000"
-DO say: "Start with the Systems Audit and Management Accounts - that's £11,800 to get your financial house in order before you raise. The fractional support? That's Phase 2, for when you've got the capital."
-
-Tone: "We're playing the long game with you. Do what you can afford now. We'll be here when you're ready for more."
+State the Phase 1 number. Mention Phase 2 exists. Move on.
+Example: "£[X] gets [specific outcomes]. The [bigger service] comes later, after you've raised."
 ` : ''}
 
-STRUCTURE:
-1. ACKNOWLEDGMENT (1-2 sentences) - Show you heard the vulnerability
-2. REFRAME (2-3 sentences) - Connect vision to current reality, name the gap
-3. HOPE WITH EVIDENCE (2-3 sentences) - Reference their strengths
-4. PERSONAL STAKES (2-3 sentences) - Use personal impact, not business metrics
-5. NEXT STEP (1-2 sentences) - Low pressure, high clarity, "together" language
+WRITING STYLE - THIS IS CRITICAL:
+- Short sentences. Punch, don't pad.
+- No "I believe in you" energy. State facts.
+- No explaining why you're not being salesy. That's salesy.
+- No parallel structures ("hard work / easier work", "not X, but Y").
+- No over-explaining ("It doesn't mean X. It means Y." - just say what it means)
+- Professional but direct. Senior consultant who's seen this before, not a motivational coach.
+- Credible and authoritative, but approachable. Not corporate, not casual.
+- Cut anything that sounds like you're building to a point. Just make the point.
 
-TONE: Direct but warm. Empathetic but not soft. Honest, even if uncomfortable.
-Start with something like "Ben, I want to be direct with you because I think you can handle it..."
-NOT "Dear Mr Stocken, thank you for completing our assessment..."
+TONE CALIBRATION:
+Too casual: "Call me, mate"
+Too corporate: "We would welcome the opportunity to schedule a discovery session"
+Right tone: "Let's talk this week." or "Book a call when you're ready."
+
+Too casual: "You've got this"
+Too corporate: "We are confident in your ability to execute"
+Right tone: "You've built something real. Now build the infrastructure to match."
+
+STRUCTURE (keep it tight):
+1. Acknowledge one thing they shared (1 sentence)
+2. Name the gap between where they are and the destination they described (1-2 sentences)
+3. Paint the destination, then mention the investment (1-2 sentences) - DESTINATION FIRST
+4. Close with next step (1 sentence)
+
+Total: 5-6 sentences MAX. Not a paragraph. Not a speech.
+
+EXAMPLE (adapt to each client):
+"The imposter syndrome? Common at this stage. You're operating in chaos, and the school drop-offs stay in the future until that changes. In 12 months you could have investor-ready numbers, a team that runs without you, and a path to the portfolio life you described. £13,300 starts that journey. Let's talk this week."
+
+Notice: DESTINATION first ("school drop-offs", "portfolio life"), INVESTMENT second ("£13,300 starts that journey").
+
+That's 5 sentences. That's enough.
+
+BAD PATTERNS:
+- Leading with services ("£13,300 gets you management accounts, a systems audit, and 365 programme")
+- Leading with features ("Financial visibility, operational clarity, transition roadmap")
+- Over-explaining ("It doesn't mean you're not capable. It means you're operating without infrastructure." - just say the second part)
+- Listing vision details ("taking your boys to school, managing a portfolio, building something" - pick ONE)
+- "That's not a fantasy. But it requires..." (variant of It's not X. It's Y.)
+- Therapy-speak ("That takes courage, not credentials")
+- False intimacy with strangers ("We're in this together", "Call me")
+
+CALL TO ACTION:
+One sentence. Professional but direct.
+Good: "Let's talk this week."
+Good: "Book a call when you're ready."
+Good: "We should talk."
+Bad: "Call me." (too casual for someone you've never met)
+Bad: "Let's schedule a call this week. Not a sales pitch. A conversation about which of these three starting points makes the most sense for where you are right now." (over-explains)
+
+BANNED PHRASES IN CLOSING:
+- "I want to be direct with you" (just be direct)
+- "because I think you can handle it"
+- "playing the long game with you" (sounds like manipulation)
+- "Not a sales pitch. A conversation about..."
+- "You've done the hard work of X" or "You've done the hard work of getting X" (patronising)
+- "I believe in you" or any variant
+- Any sentence starting with "Here's"
+- "What I also see:" or "What I notice:"
+- "Call me" (too casual for strangers)
+- "We're in this together" (false intimacy)
+- "That's not a fantasy. But it..." (variant of It's not X. It's Y.)
+- "It doesn't mean X. It means Y." (over-explaining)
+- Listing more than 2 vision details (don't list "morning runs, school drop-offs, Padel with mates" - pick ONE)
+- Listing more than 2 goals (don't list "taking boys to school, managing a portfolio, building something" - pick ONE)
+
+ALLOWED:
+- "Let's talk this week."
+- "Book a call when you're ready."
+- "Start with what you can afford."
+- "We're here when you're ready for more."
 `;
 }
 
-// Service line definitions (abbreviated for this function)
+// Service line definitions
 const SERVICE_LINES = {
   '365_method': { name: '365 Alignment Programme', tiers: [{ name: 'Lite', price: 1500 }, { name: 'Growth', price: 4500 }, { name: 'Partner', price: 9000 }] },
   'fractional_cfo': { name: 'Fractional CFO Services', tiers: [{ name: '2 days/month', price: 4000, isMonthly: true }] },
@@ -516,15 +616,77 @@ const SERVICE_LINES = {
   'benchmarking': { name: 'Benchmarking Services', tiers: [{ name: 'Full Package', price: 3500 }] }
 };
 
-const SYSTEM_PROMPT = `You are a senior business advisor analyzing a discovery assessment. Generate a comprehensive, personalized report.
+const SYSTEM_PROMPT = `You are a senior business advisor analysing a discovery assessment. Generate a comprehensive, personalised report.
+
+## THE TRAVEL AGENT PRINCIPLE
+
+You are a travel agent selling a holiday, NOT an airline selling seats.
+
+THE DESTINATION is the life they described in their assessment - the school drop-offs, the freedom, the portfolio investor lifestyle, the business that runs without them.
+
+THE JOURNEY is how they get there - what their life looks like at Month 3, Month 6, Month 12. Each phase is a postcard from their future.
+
+THE SERVICES are just the planes. They're how you get there, not why you go. Nobody books a holiday because of seat pitch. They book because of the beach.
+
+When you write this report:
+- Lead with where they're going, not what they're buying
+- Describe each phase as "here's what your life looks like" not "here's what the service does"
+- Services are footnotes that "enable" each phase, not headlines
+
+BAD (selling planes): "Management Accounts - £650/month - Monthly financial visibility, investor-ready reporting"
+GOOD (selling destination): "Month 1-3: Investor-ready numbers. Answers when VCs ask questions. You stop guessing."
 
 CRITICAL REQUIREMENTS:
 1. Quote client's EXACT WORDS at least 10 times throughout
 2. Calculate specific £ figures for every cost and benefit
-3. Connect every recommendation to something they specifically said
+3. Structure as a TRANSFORMATION JOURNEY, not a service list
 4. Recommend services in PHASES based on affordability (see affordability context)
-5. Show the domino effect: how fixing one thing enables the next
+5. Show the domino effect: how each phase enables the next
 6. Make the comparison crystal clear: investment cost vs. cost of inaction
+
+⚠️ DO NOT HALLUCINATE FACTS:
+Only reference things the client actually said in their responses OR that appear in the ADVISOR CONTEXT NOTES.
+
+STRICT VERIFICATION RULES:
+- If they said "investment-ready" that does NOT mean they've had a professional valuation
+- If they've raised funding, you can say "you've raised funding" but NOT "you've had a professional valuation" unless explicitly stated
+- If context notes mention funding, reference it as "Given your recent funding..." not as something they said in the assessment
+- NEVER infer credentials, achievements, or milestones that aren't explicitly stated
+- When in doubt, don't include it
+
+CLAIM SOURCES - every factual claim must come from ONE of these:
+1. DIRECT QUOTE from their assessment responses (use exact quotes)
+2. ADVISOR CONTEXT NOTES (reference as "Given [context]..." or "Your recent [milestone]...")
+3. CALCULATED from known data (show your working)
+
+If you cannot point to the source, DO NOT include the claim.
+
+EXAMPLES OF PROHIBITED INFERENCES:
+- "investment-ready" → "professionally valued" ❌
+- "raised funding" → "investors believe in you" ❌  
+- "has a board" → "experienced governance" ❌
+- "working 60-70 hours" → "dedicated founder" ❌ (editorialising)
+
+EXAMPLES OF VALID CLAIMS:
+- "You said you're 'investment-ready'" ✅ (direct quote)
+- "Given your recent £1m raise..." ✅ (from context notes)
+- "50% manual work on a 3-person team = ~£40k in labour waste" ✅ (calculated)
+
+⚠️ FINANCIAL CALCULATIONS MUST BE CREDIBLE:
+- Use CONSERVATIVE estimates, not inflated ones
+- Don't value founder time at £200/hour as "cost" - that's not real money lost
+- Real costs: actual labour waste (hours × actual wage), revenue leakage, direct inefficiency
+- Opportunity cost is NOT the same as actual cost - be clear about the difference
+- If manual work is 50% of a £100k payroll, the waste is £50k, not £500k
+- Projected returns should be realistic and defensible, not inflated for impact
+- A credible advisor gives conservative numbers that hold up to scrutiny
+- An inflated number destroys trust faster than a conservative one builds it
+
+BAD: "£364,000/year trapped in operations" (values founder time as billable - it's not)
+GOOD: "£78,000/year in manual work that could be automated" (actual labour cost)
+
+BAD: "£492,000 minimum cost of inaction"
+GOOD: "£75,000-£100,000 in direct inefficiency, plus the harder-to-quantify cost of investor readiness"
 
 INVESTMENT PHASING IS CRITICAL:
 - For pre-revenue/cash-constrained clients: PHASE services by affordability
@@ -542,27 +704,44 @@ If transformation signals are detected, recommend 365 even if they have a busine
 
 LANGUAGE RULES (non-negotiable):
 
-1. No em dashes. Use commas or full stops instead.
+1. No em dashes (the long dash). Use commas or full stops instead.
 
-2. British English only: optimise, analyse, realise, behaviour, centre, programme
+2. British English only: optimise, analyse, realise, behaviour, centre, programme, organisation, recognise, specialise
 
-3. Banned words (never use these): delve, realm, harness, unlock, leverage, seamless, empower, streamline, elevate, unprecedented, reimagine, holistic, foster, robust, scalable, breakthrough, disruptive, transformative, game-changer, cutting-edge, synergy, frictionless, data-driven, next-gen
+3. Banned words (never use these): delve, realm, harness, unlock, leverage, seamless, empower, streamline, elevate, unprecedented, reimagine, holistic, foster, robust, scalable, breakthrough, disruptive, transformative, game-changer, cutting-edge, synergy, frictionless, data-driven, next-gen, paradigm, innovative
 
-4. Banned patterns (never use these):
-   - "Here's the truth:" or "Here's the thing:"
+4. Banned patterns (never use these, they sound like AI):
+   - Any sentence starting with "Here's" (e.g. "Here's the truth:", "Here's the thing:", "Here's what I see:", "Here's what I also see:")
+   - Any sentence containing "what I see:" or "what I notice:" or "what I also see:"
    - "In a world where..."
    - "It's not about X. It's about Y."
+   - "That's not a fantasy. But it..." or "That's not X. It's Y." (same pattern, different words)
+   - "It doesn't mean X. It means Y." (over-explaining)
    - "Most people [X]. The few who [Y]."
    - "The real work is..."
    - "If you're not doing X, you're already behind"
+   - "Let me be clear:" or "To be clear:"
+   - "At the end of the day..."
+   - "It goes without saying..."
+   - "I want to be direct with you" (just be direct, don't announce it)
+   - "because I think you can handle it"
+   - "playing the long game with you" (sounds manipulative)
+   - "Not a sales pitch. A conversation about..."
+   - "You've done the hard work of X" (patronising)
+   - Parallel structures like "You've done X. Now do Y." or "hard work / easier work"
+   - Listing multiple vision details ("morning runs, school drop-offs, Padel" - pick ONE)
+   - Listing multiple goals ("taking your boys to school, managing a portfolio, building something" - pick ONE)
 
-5. Write like you're talking to them in a meeting. Direct, warm, occasionally blunt. Not preachy.
+5. Write like a senior consultant in a meeting. Direct. Credible. Professional but not corporate. Has an edge but not casual.
 
 Writing style:
-- Direct and confident, backed by specific evidence
-- Empathetic but pragmatic
-- Create urgency through specific £ calculations
-- For pre-revenue clients: optimise for THEIR outcome, not our revenue`;
+- Short sentences punch. Use them.
+- State facts, not feelings. No "I believe in you" energy.
+- Don't explain why you're being direct. Just be direct.
+- Vary sentence length but favour short.
+- For pre-revenue clients: optimise for THEIR outcome, not our revenue
+- Authoritative but approachable. Not therapy-speak. Not LinkedIn motivation.
+- This could go to a stranger. Keep it professional with an edge.`;
 
 serve(async (req) => {
   console.log('=== GENERATE-DISCOVERY-ANALYSIS STARTED ===');
@@ -679,12 +858,12 @@ ${doc.content}
 `).join('\n')}
 ` : '';
 
-    // Build context notes section - CRITICAL for accurate analysis
+    // Build context notes section
     const advisorNotes = preparedData.advisorContextNotes || [];
     const contextNotesSection = advisorNotes.length > 0 ? `
 ## ADVISOR CONTEXT NOTES (CRITICAL - TRUST THESE OVER ASSESSMENT!)
 These are dated updates from the advisor that may supersede or add context to what the assessment captured.
-The assessment captures a moment in time - these notes capture what's happened SINCE.
+The assessment captures a moment in time, these notes capture what's happened SINCE.
 
 ${advisorNotes.map((note: any) => {
   const dateStr = note.eventDate ? new Date(note.eventDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No date';
@@ -700,11 +879,18 @@ USE THIS CONTEXT TO:
 1. Update your understanding of their financial position (e.g., if they've raised funding)
 2. Adjust affordability assessment (funding changes everything)
 3. Understand upcoming milestones that affect timing (product launches, etc.)
-4. Reference these specifics in your analysis ("Given your recent seed raise...")
+4. Reference these specifics in your analysis ("Given your recent raise..." or "With your January launch...")
+
+⚠️ CONTEXT NOTES RULES:
+- You CAN reference facts stated in context notes
+- You CANNOT infer unstated facts from context notes
+- "Raised £1m" does NOT mean "professionally valued" unless valuation is explicitly stated
+- "Launching in January" does NOT mean "product is ready" unless explicitly stated
+- Frame context note facts as external knowledge: "Given your..." not "You said..."
 ` : '';
 
     const analysisPrompt = `
-Analyze this discovery assessment for ${preparedData.client.name} (${preparedData.client.company || 'their business'}).
+Analyse this discovery assessment for ${preparedData.client.name} (${preparedData.client.company || 'their business'}).
 
 ## CLIENT DISCOVERY RESPONSES
 ${JSON.stringify(preparedData.discovery.responses, null, 2)}
@@ -755,7 +941,7 @@ Phase 1 - Essential (Start Now, max £36,000/year):
 
 Phase 2 - Growth Support (3-6 months):
 - Fractional CFO at lower tier
-- As revenue stabilizes
+- As revenue stabilises
 
 Phase 3 - Full Support (12+ months):
 - Full fractional suite when revenue supports
@@ -789,21 +975,29 @@ ${JSON.stringify(SERVICE_LINES, null, 2)}
 
 ⚠️ THE UI WILL BREAK IF YOU USE DIFFERENT FIELD NAMES ⚠️
 
+BEFORE generating the report, mentally verify each factual claim has a source.
+
 Return ONLY a valid JSON object (no markdown, no explanation, just the JSON):
 
 {
+  "verifiedFacts": {
+    "fromResponses": ["list of facts directly quoted from their assessment responses"],
+    "fromContextNotes": ["list of facts from advisor context notes"],
+    "calculated": ["list of calculated figures with working shown"]
+  },
   "executiveSummary": {
-    "headline": "One powerful sentence",
+    "headline": "Destination vs current reality in one sentence (e.g., 'You're building for legacy but operating in chaos.')",
     "situationInTheirWords": "2-3 sentences using their EXACT quotes",
-    "destinationVision": "What they really want",
-    "currentReality": "Where they are now",
-    "criticalInsight": "The most important insight",
-    "urgencyStatement": "Why acting now matters"
+    "destinationVision": "The life they described - ONE specific detail, not a list",
+    "currentReality": "Where they are now - concrete, not abstract",
+    "criticalInsight": "The gap between destination and reality",
+    "urgencyStatement": "Why the destination stays distant without action"
   },
   "destinationAnalysis": {
-    "fiveYearVision": "Their stated destination",
-    "coreEmotionalDrivers": [{ "driver": "Freedom", "evidence": "exact quote", "whatItMeans": "interpretation" }],
-    "lifestyleGoals": ["non-business goals"]
+    "theDestination": "Paint the picture: what does their life look like when they arrive? Use THEIR words and details.",
+    "fiveYearVision": "Their stated destination in their words",
+    "coreEmotionalDrivers": [{ "driver": "Freedom/Legacy/Security", "evidence": "exact quote", "whatItMeans": "why this matters to them" }],
+    "lifestyleGoals": ["Pick ONE specific non-business goal they mentioned - the postcard image"]
   },
   "gapAnalysis": {
     "primaryGaps": [{ 
@@ -811,63 +1005,145 @@ Return ONLY a valid JSON object (no markdown, no explanation, just the JSON):
       "category": "Financial", 
       "severity": "critical", 
       "evidence": "quote", 
-      "currentImpact": { "timeImpact": "X hours/week", "financialImpact": "£X", "emotionalImpact": "how it feels" } 
+      "currentImpact": { "timeImpact": "X hours/week", "financialImpact": "£X - REAL cost, not opportunity cost", "emotionalImpact": "how it feels" } 
     }],
     "costOfInaction": { 
-      "annualFinancialCost": "£X,XXX with calculation", 
-      "personalCost": "impact on life", 
-      "compoundingEffect": "how it gets worse" 
+      "annualFinancialCost": "£X,XXX - use REAL costs only (labour waste, revenue leakage), not inflated opportunity costs", 
+      "personalCost": "The destination stays distant - reference ONE specific thing they want that won't happen", 
+      "compoundingEffect": "How another year of inaction pushes the destination further away" 
     }
+  },
+  "transformationJourney": {
+    "destination": "One sentence: the life they described (e.g., 'Portfolio investor. School drop-offs. A business that runs without you.')",
+    "totalInvestment": "£X,XXX (Phase 1)",
+    "totalTimeframe": "X-X months to fundamental change",
+    "phases": [
+      {
+        "phase": 1,
+        "timeframe": "Month 1-3",
+        "title": "Short punchy title (e.g., 'Financial Clarity')",
+        "youWillHave": "What their life/business looks like at this point. Concrete, tangible, desirable.",
+        "whatChanges": "One sentence on the shift (e.g., 'The fog lifts. You stop guessing.')",
+        "enabledBy": "Service name - this is the plane, not the destination",
+        "enabledByCode": "service_code_for_ui",
+        "investment": "£X,XXX/frequency"
+      },
+      {
+        "phase": 2,
+        "timeframe": "Month 3-6",
+        "title": "Next phase title",
+        "youWillHave": "Next milestone in their journey",
+        "whatChanges": "What's different now",
+        "enabledBy": "Service name",
+        "enabledByCode": "service_code",
+        "investment": "£X,XXX"
+      },
+      {
+        "phase": 3,
+        "timeframe": "Month 6-12",
+        "title": "The destination phase",
+        "youWillHave": "The life they described. Reference ONE specific vision detail.",
+        "whatChanges": "The fundamental transformation",
+        "enabledBy": "Service name",
+        "enabledByCode": "service_code",
+        "investment": "£X,XXX"
+      }
+    ]
   },
   "recommendedInvestments": [
     {
-      "service": "Management Accounts",
-      "code": "management_accounts",
+      "service": "Service name",
+      "code": "service_code",
       "priority": 1,
-      "recommendedTier": "Standard tier",
-      "investment": "£650",
-      "investmentFrequency": "per month",
-      "whyThisTier": "reasoning for this tier",
-      "problemsSolved": [{ 
-        "problem": "from their responses", 
-        "theirWords": "exact quote", 
-        "howWeSolveIt": "specific actions", 
-        "expectedResult": "measurable outcome" 
-      }],
-      "expectedROI": { 
-        "multiplier": "10x", 
-        "timeframe": "3 months", 
-        "calculation": "how we calculated" 
-      },
-      "keyOutcomes": ["Financial visibility", "Investor-ready reports"],
-      "riskOfNotActing": "specific consequence"
+      "recommendedTier": "tier name",
+      "investment": "£X,XXX",
+      "investmentFrequency": "per month or one-time",
+      "whyThisService": "Why they need this based on their responses",
+      "expectedROI": "Xx in Y months",
+      "keyOutcomes": ["Outcome 1", "Outcome 2", "Outcome 3"]
     }
   ],
   "investmentSummary": {
-    "totalFirstYearInvestment": "£11,800",
-    "projectedFirstYearReturn": "£150,000+",
-    "paybackPeriod": "3 months",
-    "netBenefitYear1": "£138,200",
-    "roiCalculation": "Based on X efficiency gains",
+    "totalFirstYearInvestment": "£X,XXX",
+    "projectedFirstYearReturn": "£X,XXX - be CONSERVATIVE, this must be defensible",
+    "paybackPeriod": "X months",
+    "netBenefitYear1": "£X,XXX",
+    "roiCalculation": "Show your working - only count real, measurable savings",
     "comparisonToInaction": "Clear comparison"
   },
   "recommendedNextSteps": [
     { "step": 1, "action": "Schedule discovery call", "timing": "This week", "owner": "Oracle team" }
   ],
   "closingMessage": {
-    "personalNote": "Empathetic message referencing their specific situation",
-    "callToAction": "Clear next step",
-    "urgencyReminder": "Why now"
+    "personalNote": "Acknowledge vulnerability, name the destination they want, state the gap. DESTINATION FIRST, investment second.",
+    "callToAction": "One sentence. Let's talk this week.",
+    "urgencyReminder": "Why the destination stays distant without action - ONE sentence"
   }
 }
 
 CRITICAL FIELD NAME REQUIREMENTS:
-- Use "service" NOT "serviceName" or "name"
-- Use "investment" NOT "price" or "cost"  
-- Use "investmentFrequency" NOT "frequency" or "period"
-- Use "expectedROI" with "multiplier" and "timeframe" subfields
+- Include BOTH "transformationJourney" AND "recommendedInvestments" (for backwards compatibility)
+- transformationJourney phases need: "phase", "timeframe", "title", "youWillHave", "whatChanges", "enabledBy", "enabledByCode", "investment"
+- recommendedInvestments need: "service", "code", "priority", "recommendedTier", "investment", "investmentFrequency", "whyThisService", "expectedROI", "keyOutcomes"
 - Use "totalFirstYearInvestment" NOT "total" or "totalFirstYear"
 - Use "recommendedNextSteps" with "step", "action", "timing", "owner"
+
+TRANSFORMATION JOURNEY PHILOSOPHY:
+You are a travel agent selling a holiday, not an airline selling seats.
+- The DESTINATION is the life they described (school drop-offs, freedom, the portfolio)
+- The PHASES are the journey milestones (what their life looks like at Month 3, Month 6, Month 12)
+- The SERVICES are just the planes that get them there (footnotes, not headlines)
+
+Write "youWillHave" as if describing a postcard from that point in the journey:
+BAD: "Monthly financial visibility and investor-ready reporting" (feature list)
+GOOD: "Investor-ready numbers. Answers when VCs ask questions. Decisions based on data, not gut." (what life feels like)
+
+Write "whatChanges" as the shift they'll feel:
+BAD: "Improved financial oversight"
+GOOD: "The fog lifts. You stop guessing."
+
+EXAMPLE TRANSFORMATION JOURNEY FOR A FOUNDER WANTING FREEDOM:
+{
+  "destination": "Portfolio investor. School drop-offs. A business that runs without you.",
+  "totalInvestment": "£13,300 (Phase 1)",
+  "totalTimeframe": "6-12 months to fundamental change",
+  "phases": [
+    {
+      "phase": 1,
+      "timeframe": "Month 1-3",
+      "title": "Financial Clarity",
+      "youWillHave": "Investor-ready numbers. Answers when VCs ask questions. Decisions based on data, not gut.",
+      "whatChanges": "The fog lifts. You stop guessing.",
+      "enabledBy": "Management Accounts",
+      "enabledByCode": "management_accounts",
+      "investment": "£650/month"
+    },
+    {
+      "phase": 2,
+      "timeframe": "Month 3-6",
+      "title": "Operational Freedom",
+      "youWillHave": "A team that runs without firefighting. Manual work mapped and prioritised for automation. Your evenings back.",
+      "whatChanges": "You work ON the business, not IN it.",
+      "enabledBy": "Systems Audit",
+      "enabledByCode": "systems_audit",
+      "investment": "£4,000"
+    },
+    {
+      "phase": 3,
+      "timeframe": "Month 6-12",
+      "title": "The Transition",
+      "youWillHave": "A structured path from operator to investor. The school drop-offs you described. Progress toward the portfolio life.",
+      "whatChanges": "You become optional to daily operations.",
+      "enabledBy": "365 Alignment Programme",
+      "enabledByCode": "365_lite",
+      "investment": "£1,500"
+    }
+  ]
+}
+
+Notice: Every "youWillHave" describes LIFE, not FEATURES. The services are afterthoughts.
+
+NOTE: Output BOTH transformationJourney AND recommendedInvestments. The frontend will transition from the old view to the new view, and needs both during the migration.
 
 Return ONLY the JSON object with no additional text.`;
 
@@ -909,7 +1185,6 @@ Return ONLY the JSON object with no additional text.`;
       console.error('OpenRouter error status:', openrouterResponse.status);
       console.error('OpenRouter error body:', errorText);
       
-      // Try to parse error for more details
       try {
         const errorJson = JSON.parse(errorText);
         console.error('OpenRouter error details:', JSON.stringify(errorJson, null, 2));
@@ -958,11 +1233,18 @@ Return ONLY the JSON object with no additional text.`;
       console.log('[Discovery] Analysis structure:', {
         hasExecutiveSummary: !!analysis.executiveSummary,
         hasGapAnalysis: !!analysis.gapAnalysis,
+        hasTransformationJourney: !!analysis.transformationJourney,
+        transformationJourneyPhases: analysis.transformationJourney?.phases?.length || 0,
         hasRecommendedInvestments: !!analysis.recommendedInvestments,
         recommendedInvestmentsCount: analysis.recommendedInvestments?.length || 0,
         hasInvestmentSummary: !!analysis.investmentSummary,
         hasClosingMessage: !!analysis.closingMessage
       });
+      
+      // Debug: Log first transformation phase if exists
+      if (analysis.transformationJourney?.phases?.[0]) {
+        console.log('[Discovery] First transformation phase:', JSON.stringify(analysis.transformationJourney.phases[0], null, 2));
+      }
       
       // Debug: Log first investment if exists
       if (analysis.recommendedInvestments?.[0]) {
@@ -988,7 +1270,7 @@ Return ONLY the JSON object with no additional text.`;
           keyOutcomes: inv.keyOutcomes || inv.outcomes || [],
           riskOfNotActing: inv.riskOfNotActing || inv.risk || ''
         }));
-        console.log('[Discovery] Normalized investments:', analysis.recommendedInvestments.length);
+        console.log('[Discovery] Normalised investments:', analysis.recommendedInvestments.length);
       }
       
       // Normalize investment summary
@@ -1025,6 +1307,13 @@ Return ONLY the JSON object with no additional text.`;
     }
 
     // ========================================================================
+    // CALIBRATE GAP SCORE FROM ANALYSIS
+    // ========================================================================
+    
+    const gapCalibration = calibrateGapScore(analysis.gapAnalysis?.primaryGaps || []);
+    console.log('[Discovery] Gap calibration:', gapCalibration);
+
+    // ========================================================================
     // SAVE REPORT TO DATABASE
     // ========================================================================
 
@@ -1041,7 +1330,9 @@ Return ONLY the JSON object with no additional text.`;
         discoveryScores: {
           clarityScore: clarityScore,
           claritySource: claritySource,
-          gapScore: preparedData.discovery.gapScore
+          gapScore: gapCalibration.score,
+          gapCounts: gapCalibration.counts,
+          gapExplanation: gapCalibration.explanation
         },
         affordability: affordability,
         transformationSignals: transformationSignals.reasons.length > 0 ? transformationSignals : null,
@@ -1082,7 +1373,9 @@ Return ONLY the JSON object with no additional text.`;
         discoveryScores: {
           clarityScore: clarityScore,
           claritySource: claritySource,
-          gapScore: preparedData.discovery.gapScore
+          gapScore: gapCalibration.score,
+          gapCounts: gapCalibration.counts,
+          gapExplanation: gapCalibration.explanation
         },
         affordability: affordability,
         transformationSignals: transformationSignals.reasons.length > 0 ? transformationSignals : null,

@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { supabase } from '../../lib/supabase';
 import { RPGCC_LOGO_LIGHT, RPGCC_LOGO_DARK, RPGCC_COLORS } from '../../constants/brandAssets';
+import { TransformationJourney } from '../../components/discovery';
 import { 
   Users, 
   CheckCircle, 
@@ -1754,6 +1755,49 @@ function DiscoveryClientModal({
         </div>
       `;
 
+    // Check if we have the new Transformation Journey data
+    const hasTransformationJourney = analysis.transformationJourney?.phases?.length > 0;
+    
+    // Transformation Journey HTML (the "travel agent" view)
+    const journeyHtml = hasTransformationJourney ? `
+      <!-- Destination Hero -->
+      <div class="destination-hero">
+        <p class="destination-label">Your Destination</p>
+        <h2 class="destination-title">${analysis.transformationJourney.destination}</h2>
+        <p class="destination-timeframe">${analysis.transformationJourney.totalTimeframe}</p>
+      </div>
+      
+      <!-- Journey Phases -->
+      <div class="section-header">
+        <h2 class="section-title">Your Journey</h2>
+        <p class="section-subtitle">The path from here to your destination</p>
+      </div>
+      
+      <div class="journey-phases">
+        ${analysis.transformationJourney.phases.map((phase: any, idx: number) => `
+          <div class="journey-phase">
+            <div class="phase-connector">
+              <div class="phase-number">${phase.phase}</div>
+              ${idx < analysis.transformationJourney.phases.length - 1 ? '<div class="phase-line"></div>' : ''}
+            </div>
+            <div class="phase-content">
+              <span class="phase-timeframe">${phase.timeframe}</span>
+              <h3 class="phase-title">${phase.title}</h3>
+              <div class="phase-postcard">
+                <p class="postcard-label">You'll have</p>
+                <p class="postcard-content">${phase.youWillHave}</p>
+              </div>
+              <p class="phase-shift">"${phase.whatChanges}"</p>
+              <div class="phase-footer">
+                <span class="enabled-by">Enabled by: <strong>${phase.enabledBy}</strong></span>
+                <span class="phase-investment">${phase.investment}</span>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    ` : '';
+
     const pdfContent = `
       <!DOCTYPE html>
       <html>
@@ -2227,6 +2271,131 @@ function DiscoveryClientModal({
             margin: 0;
           }
           
+          /* Transformation Journey Styles */
+          .destination-hero {
+            background: linear-gradient(135deg, #059669, #0d9488);
+            color: white;
+            padding: 40px;
+            border-radius: 16px;
+            margin: 0 0 32px 0;
+            text-align: center;
+            page-break-inside: avoid;
+          }
+          .destination-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            opacity: 0.85;
+            margin: 0 0 12px 0;
+          }
+          .destination-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0 0 16px 0;
+            line-height: 1.3;
+          }
+          .destination-timeframe {
+            font-size: 16px;
+            opacity: 0.9;
+            margin: 0;
+          }
+          .journey-phases {
+            margin: 0 0 32px 0;
+          }
+          .journey-phase {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 24px;
+            page-break-inside: avoid;
+          }
+          .phase-connector {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 48px;
+            flex-shrink: 0;
+          }
+          .phase-number {
+            width: 48px;
+            height: 48px;
+            background: var(--brand-teal);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 700;
+            flex-shrink: 0;
+          }
+          .phase-line {
+            width: 2px;
+            flex: 1;
+            background: linear-gradient(180deg, var(--brand-teal), #99f6e4);
+            margin-top: 8px;
+          }
+          .phase-content {
+            flex: 1;
+            padding-bottom: 16px;
+          }
+          .phase-timeframe {
+            display: inline-block;
+            background: #f0fdfa;
+            color: #0d9488;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 8px;
+          }
+          .phase-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0 0 12px 0;
+          }
+          .phase-postcard {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+          }
+          .postcard-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin: 0 0 8px 0;
+          }
+          .postcard-content {
+            font-size: 15px;
+            color: var(--text-primary);
+            line-height: 1.6;
+            margin: 0;
+          }
+          .phase-shift {
+            font-style: italic;
+            color: var(--brand-teal);
+            font-size: 14px;
+            margin: 0 0 12px 0;
+          }
+          .phase-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            color: var(--text-muted);
+          }
+          .enabled-by strong {
+            color: var(--text-secondary);
+          }
+          .phase-investment {
+            font-weight: 600;
+            color: var(--text-secondary);
+          }
+          
           /* Footer */
           .document-footer {
             margin-top: 48px;
@@ -2348,13 +2517,15 @@ function DiscoveryClientModal({
             </div>
           ` : ''}
           
-          <!-- Recommended Investments -->
+          ${hasTransformationJourney ? journeyHtml : `
+          <!-- Recommended Investments (Legacy View) -->
           <div class="section-header">
             <h2 class="section-title">Recommended Investments</h2>
             <p class="section-subtitle">Your path forward</p>
           </div>
           
           ${investmentsHtml}
+          `}
           
           <!-- Investment Summary -->
           ${analysis.investmentSummary ? `
@@ -3067,8 +3238,20 @@ function DiscoveryClientModal({
                         </div>
                       )}
 
-                      {/* Recommended Investments */}
-                      {generatedReport.analysis?.recommendedInvestments && (
+                      {/* Transformation Journey (new "travel agent" view) */}
+                      {generatedReport.analysis?.transformationJourney?.phases?.length > 0 && (
+                        <TransformationJourney 
+                          journey={generatedReport.analysis.transformationJourney}
+                          investmentSummary={generatedReport.analysis.investmentSummary || {
+                            totalFirstYearInvestment: generatedReport.analysis.transformationJourney.totalInvestment,
+                            projectedFirstYearReturn: '',
+                            paybackPeriod: ''
+                          }}
+                        />
+                      )}
+
+                      {/* Recommended Investments (legacy view - shown if no transformationJourney) */}
+                      {!generatedReport.analysis?.transformationJourney?.phases?.length && generatedReport.analysis?.recommendedInvestments && (
                         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6">
                           <h4 className="font-semibold text-emerald-900 mb-4">Recommended Investments</h4>
                           {/* Debug: Log what we're trying to render */}
