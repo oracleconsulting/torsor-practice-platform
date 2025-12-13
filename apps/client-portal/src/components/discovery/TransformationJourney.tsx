@@ -50,9 +50,11 @@ export function DestinationHero({
       <p className="text-emerald-200 text-sm font-medium uppercase tracking-wide mb-2">
         In 12 months, you could be...
       </p>
-      <h2 className="text-xl md:text-2xl font-bold mb-4 leading-tight italic">
-        "{destination}"
-      </h2>
+      <div className="bg-white/15 border border-white/30 rounded-xl p-6 md:p-8 mb-4">
+        <h2 className="text-xl md:text-2xl font-bold mb-3 leading-tight italic">
+          "{destination}"
+        </h2>
+      </div>
       {totalInvestment && (
         <p className="text-emerald-100 text-base md:text-lg">
           This is what {totalInvestment} and 12 months builds.
@@ -168,22 +170,14 @@ export function JourneyTimeline({
   phases: TransformationPhase[];
 }>) {
   return (
-    <div className="mb-8">
-      <h3 className="text-lg font-semibold text-gray-900 mb-2">
-        Your Journey
-      </h3>
-      <p className="text-gray-600 text-sm mb-6">
-        The path from here to your destination
-      </p>
-      <div className="space-y-2">
-        {phases.map((phase, index) => (
-          <JourneyPhaseCard 
-            key={phase.phase} 
-            phase={phase} 
-            isLast={index === phases.length - 1}
-          />
-        ))}
-      </div>
+    <div className="space-y-2">
+      {phases.map((phase, index) => (
+        <JourneyPhaseCard 
+          key={phase.phase} 
+          phase={phase} 
+          isLast={index === phases.length - 1}
+        />
+      ))}
     </div>
   );
 }
@@ -214,6 +208,14 @@ export function TransformationJourney({
       
       {/* Timeline visual */}
       <TimelineVisual />
+      
+      {/* Section title */}
+      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+        Your Journey
+      </h3>
+      <p className="text-gray-600 text-sm mb-6">
+        The path from here to your destination
+      </p>
       
       {/* The journey - vertical timeline */}
       <JourneyTimeline phases={journey.phases} />
