@@ -398,7 +398,7 @@ Extract everything you can find - revenue, margins, team size, customer counts, 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-3-haiku-20240307', // Fast & cheap for extraction
+        model: 'anthropic/claude-sonnet-4-5', // Better extraction quality
         max_tokens: 2000,
         temperature: 0.1, // Low temp for consistent extraction
         messages: [
