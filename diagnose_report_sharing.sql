@@ -72,3 +72,32 @@ FROM client_reports
 WHERE id = '00a97356-b27c-4af0-b256-09176d381cca'  -- Replace with report ID
   AND is_shared_with_client = true;
 
+-- 6. Verify client_id matches practice_members.id
+SELECT 
+  pm.id as practice_members_id,
+  pm.email,
+  pm.name,
+  cr.client_id as report_client_id,
+  CASE 
+    WHEN pm.id = cr.client_id THEN '✅ MATCH - Client IDs match'
+    ELSE '❌ MISMATCH - Client IDs do not match!'
+  END as id_match_status
+FROM practice_members pm
+CROSS JOIN client_reports cr
+WHERE pm.email = 'ben@atheriohq.com'
+  AND pm.member_type = 'client'
+  AND cr.id = '00a97356-b27c-4af0-b256-09176d381cca';
+
+-- 7. Test the exact query the client portal uses
+-- This simulates what the client portal query does
+SELECT 
+  cr.*
+FROM client_reports cr
+INNER JOIN practice_members pm ON pm.id = cr.client_id
+WHERE pm.email = 'ben@atheriohq.com'
+  AND pm.member_type = 'client'
+  AND cr.report_type = 'discovery_analysis'
+  AND cr.is_shared_with_client = true
+ORDER BY cr.created_at DESC
+LIMIT 1;
+
