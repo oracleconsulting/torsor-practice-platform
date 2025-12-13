@@ -132,10 +132,10 @@ async function extractTextFromBlob(fileBlob: Blob, fileName: string): Promise<st
 }
 
 // ============================================================================
-// LOAD DOCUMENTS DIRECTLY FROM SUPABASE STORAGE
+// LOAD DOCUMENTS FROM STORAGE
 // ============================================================================
-// Storage structure: client-documents/{client_uuid}/{timestamp}_{filename}
-// Example: client-documents/34c94120-928b-402e-bb04-85edf9d6de42/1765496833302_Atherio_5_Year_Summary.pdf
+// Uses client_context records to find document paths, then downloads via
+// storage API with signed URLs to bypass access policy issues.
 
 interface LoadedDocument {
   fileName: string;
@@ -143,100 +143,255 @@ interface LoadedDocument {
   source: string;
 }
 
+// Extract storage path from a Supabase public URL
+// URL format: https://xxx.supabase.co/storage/v1/object/public/client-documents/path/to/file.pdf
+function extractStoragePathFromUrl(url: string): string | null {
+  if (!url) return null;
+  
+  // Match pattern: /client-documents/...
+  const match = url.match(/\/client-documents\/(.+)$/);
+  if (match) {
+    return decodeURIComponent(match[1]);
+  }
+  
+  // Also try without leading slash
+  const match2 = url.match(/client-documents\/(.+)$/);
+  if (match2) {
+    return decodeURIComponent(match2[1]);
+  }
+  
+  return null;
+}
+
+async function loadClientDocuments(
+  supabase: any,
+  clientId: string,
+  practiceId?: string
+): Promise<LoadedDocument[]> {
+  
+  console.log('[PrepareData] === Loading client documents ===');
+  console.log('[PrepareData] Client ID:', clientId);
+  console.log('[PrepareData] Practice ID:', practiceId || 'not provided');
+  
+  const documents: LoadedDocument[] = [];
+  
+  // ========================================================================
+  // Method 1: Get document records from client_context and use storage paths
+  // ========================================================================
+  
+  const { data: contextDocs, error: contextError } = await supabase
+    .from('client_context')
+    .select('id, content, source_file_url, context_type, created_at')
+    .eq('client_id', clientId)
+    .eq('context_type', 'document')
+    .not('source_file_url', 'is', null)
+    .order('created_at', { ascending: false });
+  
+  if (contextError) {
+    console.error('[PrepareData] Error loading client_context:', contextError);
+  }
+  
+  if (contextDocs && contextDocs.length > 0) {
+    console.log(`[PrepareData] Found ${contextDocs.length} document records in client_context`);
+    
+    for (const doc of contextDocs) {
+      console.log('[PrepareData] Processing record:', {
+        id: doc.id,
+        content: doc.content?.substring(0, 50),
+        url: doc.source_file_url?.substring(0, 100) + '...'
+      });
+      
+      // Extract filename
+      let fileName = 'Unknown';
+      if (doc.content && doc.content.startsWith('Uploaded: ')) {
+        fileName = doc.content.replace('Uploaded: ', '').trim();
+      }
+      
+      // Extract storage path from URL
+      const storagePath = extractStoragePathFromUrl(doc.source_file_url);
+      
+      if (storagePath) {
+        console.log('[PrepareData] Extracted storage path:', storagePath);
+        
+        // Try downloading directly using the storage path
+        try {
+          const { data: fileBlob, error: downloadError } = await supabase.storage
+            .from('client-documents')
+            .download(storagePath);
+          
+          if (downloadError) {
+            console.error('[PrepareData] Direct download failed:', downloadError.message);
+            
+            // Fallback: Try creating a signed URL
+            console.log('[PrepareData] Trying signed URL approach...');
+            const { data: signedUrlData, error: signedError } = await supabase.storage
+              .from('client-documents')
+              .createSignedUrl(storagePath, 120); // 2 minutes
+            
+            if (signedError || !signedUrlData?.signedUrl) {
+              console.error('[PrepareData] Signed URL failed:', signedError?.message);
+              continue;
+            }
+            
+            console.log('[PrepareData] Fetching via signed URL...');
+            const response = await fetch(signedUrlData.signedUrl);
+            if (!response.ok) {
+              console.error('[PrepareData] Signed URL fetch failed:', response.status);
+              continue;
+            }
+            
+            const blob = await response.blob();
+            const content = await extractTextFromBlob(blob, fileName);
+            
+            if (content && content.length > 10) {
+              const cleanName = fileName.replace(/^\d+_/, '');
+              documents.push({
+                fileName: cleanName,
+                content: content.substring(0, 25000),
+                source: 'signed_url'
+              });
+              console.log('[PrepareData] ✓ Loaded via signed URL:', cleanName, 'length:', content.length);
+            }
+            continue;
+          }
+          
+          // Direct download succeeded
+          console.log('[PrepareData] Downloaded file, size:', fileBlob.size, 'bytes');
+          
+          const content = await extractTextFromBlob(fileBlob, storagePath);
+          
+          if (content && content.length > 10) {
+            const cleanName = fileName.replace(/^\d+_/, '') || storagePath.split('/').pop()?.replace(/^\d+_/, '') || 'Document';
+            documents.push({
+              fileName: cleanName,
+              content: content.substring(0, 25000),
+              source: 'storage_download'
+            });
+            console.log('[PrepareData] ✓ Loaded via download:', cleanName, 'length:', content.length);
+          } else {
+            console.log('[PrepareData] ✗ No content extracted from:', storagePath);
+          }
+          
+        } catch (err) {
+          console.error('[PrepareData] Error processing:', storagePath, err);
+        }
+      } else {
+        // No storage path extracted, try fetching the URL directly
+        console.log('[PrepareData] No storage path extracted, trying direct URL fetch...');
+        try {
+          const response = await fetch(doc.source_file_url);
+          if (response.ok) {
+            const blob = await response.blob();
+            const content = await extractTextFromBlob(blob, fileName);
+            
+            if (content && content.length > 10) {
+              const cleanName = fileName.replace(/^\d+_/, '');
+              documents.push({
+                fileName: cleanName,
+                content: content.substring(0, 25000),
+                source: 'direct_url'
+              });
+              console.log('[PrepareData] ✓ Loaded via direct URL:', cleanName, 'length:', content.length);
+            }
+          } else {
+            console.error('[PrepareData] Direct URL fetch failed:', response.status);
+          }
+        } catch (urlError) {
+          console.error('[PrepareData] URL fetch error:', urlError);
+        }
+      }
+    }
+  } else {
+    console.log('[PrepareData] No document records in client_context');
+  }
+  
+  // ========================================================================
+  // Method 2: Try listing storage folders directly (fallback if client_context empty)
+  // ========================================================================
+  
+  if (documents.length === 0) {
+    console.log('[PrepareData] No documents from client_context, trying direct storage listing...');
+    
+    // Try multiple path patterns
+    const pathsToTry = [
+      clientId,  // Just client ID
+      practiceId ? `${practiceId}/${clientId}` : null,  // practice/client
+    ].filter(Boolean) as string[];
+    
+    for (const basePath of pathsToTry) {
+      console.log('[PrepareData] Trying storage path:', basePath);
+      
+      const { data: files, error: listError } = await supabase.storage
+        .from('client-documents')
+        .list(basePath, { limit: 50 });
+      
+      if (listError) {
+        console.log('[PrepareData] List error for', basePath, ':', listError.message);
+        continue;
+      }
+      
+      if (files && files.length > 0) {
+        console.log('[PrepareData] Found files at', basePath, ':', files.map((f: any) => f.name));
+        
+        for (const file of files) {
+          if (file.id === null) continue; // Skip folders
+          
+          const fullPath = `${basePath}/${file.name}`;
+          
+          try {
+            const { data: fileBlob, error: dlError } = await supabase.storage
+              .from('client-documents')
+              .download(fullPath);
+            
+            if (dlError || !fileBlob) {
+              console.error('[PrepareData] Download error:', dlError?.message);
+              continue;
+            }
+            
+            const content = await extractTextFromBlob(fileBlob, file.name);
+            
+            if (content && content.length > 10) {
+              const cleanName = file.name.replace(/^\d+_/, '');
+              documents.push({
+                fileName: cleanName,
+                content: content.substring(0, 25000),
+                source: 'storage_list'
+              });
+              console.log('[PrepareData] ✓ Loaded from listing:', cleanName, 'length:', content.length);
+            }
+          } catch (err) {
+            console.error('[PrepareData] Error downloading', fullPath, err);
+          }
+        }
+        
+        if (documents.length > 0) break; // Found files, stop trying paths
+      }
+    }
+  }
+  
+  console.log('[PrepareData] === Total documents loaded:', documents.length, '===');
+  return documents;
+}
+
+// Legacy function name for compatibility
 async function loadClientDocumentsFromStorage(
   supabase: any,
   clientId: string
 ): Promise<LoadedDocument[]> {
-  
-  console.log('[PrepareData] === Loading documents from storage ===');
-  console.log('[PrepareData] Client folder:', clientId);
-  
-  const documents: LoadedDocument[] = [];
-  
-  try {
-    // List all files in the client's folder
-    const { data: files, error: listError } = await supabase.storage
-      .from('client-documents')
-      .list(clientId, {
-        limit: 50,
-        sortBy: { column: 'created_at', order: 'desc' }
-      });
-    
-    if (listError) {
-      console.error('[PrepareData] Error listing storage:', listError);
-      return documents;
-    }
-    
-    if (!files || files.length === 0) {
-      console.log('[PrepareData] No files found in client storage folder');
-      
-      // Debug: Check if the folder exists by listing root
-      const { data: rootFiles } = await supabase.storage
-        .from('client-documents')
-        .list('', { limit: 10 });
-      console.log('[PrepareData] Root bucket folders:', rootFiles?.map((f: any) => f.name) || 'none');
-      
-      return documents;
-    }
-    
-    console.log('[PrepareData] Found files in storage:', files.map((f: any) => f.name));
-    
-    for (const file of files) {
-      // Skip if it's a folder (id is null for folders)
-      if (file.id === null) {
-        console.log('[PrepareData] Skipping folder:', file.name);
-        continue;
-      }
-      
-      const storagePath = `${clientId}/${file.name}`;
-      console.log('[PrepareData] Downloading file:', storagePath);
-      
-      try {
-        // Download the file
-        const { data: fileBlob, error: downloadError } = await supabase.storage
-          .from('client-documents')
-          .download(storagePath);
-        
-        if (downloadError || !fileBlob) {
-          console.error('[PrepareData] Download error for', file.name, downloadError);
-          continue;
-        }
-        
-        console.log('[PrepareData] Downloaded file, size:', fileBlob.size, 'bytes');
-        
-        // Extract text from the file
-        const content = await extractTextFromBlob(fileBlob, file.name);
-        
-        if (content && content.length > 10) {
-          // Clean filename: remove timestamp prefix (e.g., "1765496833302_" -> "")
-          const cleanName = file.name.replace(/^\d+_/, '');
-          
-          documents.push({
-            fileName: cleanName,
-            content: content.substring(0, 25000), // Cap at 25k per doc
-            source: 'storage'
-          });
-          
-          console.log('[PrepareData] ✓ Loaded:', cleanName, 'content length:', content.length);
-        } else {
-          console.log('[PrepareData] ✗ No content extracted from:', file.name);
-        }
-        
-      } catch (err) {
-        console.error('[PrepareData] Error processing file:', file.name, err);
-      }
-    }
-    
-  } catch (error) {
-    console.error('[PrepareData] Storage loading error:', error);
-  }
-  
-  console.log('[PrepareData] === Total documents from storage:', documents.length, '===');
-  return documents;
+  return loadClientDocuments(supabase, clientId);
 }
 
-// Fallback: Load documents from client_context table if storage approach fails
+// Legacy fallback function
 async function loadDocumentsFromClientContext(
+  supabase: any,
+  clientId: string
+): Promise<LoadedDocument[]> {
+  // This is now integrated into loadClientDocuments
+  return [];
+}
+
+// Placeholder for any remaining old code that calls this pattern
+async function _legacyLoadDocumentsFromClientContext(
   supabase: any,
   clientId: string
 ): Promise<LoadedDocument[]> {
@@ -403,9 +558,10 @@ serve(async (req) => {
       console.log('[PrepareData] No documents in embeddings table');
     }
 
-    // Source 2: Direct from Supabase Storage (primary method for unprocessed docs)
-    // Storage structure: client-documents/{client_id}/{timestamp}_{filename}
-    const storageDocuments = await loadClientDocumentsFromStorage(supabase, clientId);
+    // Source 2: Load from storage using client_context paths and signed URLs
+    // This handles the case where storage listing fails due to bucket policies
+    const actualPracticeId = practiceId || client.practice_id;
+    const storageDocuments = await loadClientDocuments(supabase, clientId, actualPracticeId);
     
     for (const doc of storageDocuments) {
       if (!documentsByFile[doc.fileName]) {
@@ -415,27 +571,9 @@ serve(async (req) => {
           dataSourceType: 'general',
           source: doc.source
         };
-        console.log(`[PrepareData] Added from storage: ${doc.fileName}`);
+        console.log(`[PrepareData] Added from ${doc.source}: ${doc.fileName}`);
       } else {
         console.log(`[PrepareData] ${doc.fileName} already loaded from embeddings`);
-      }
-    }
-
-    // Source 3: Fallback - client_context URLs (if storage approach missed any)
-    if (Object.keys(documentsByFile).length === 0) {
-      console.log('[PrepareData] No documents found via storage, trying client_context URLs...');
-      const contextDocuments = await loadDocumentsFromClientContext(supabase, clientId);
-      
-      for (const doc of contextDocuments) {
-        if (!documentsByFile[doc.fileName]) {
-          documentsByFile[doc.fileName] = {
-            fileName: doc.fileName,
-            content: doc.content,
-            dataSourceType: 'general',
-            source: doc.source
-          };
-          console.log(`[PrepareData] Added from client_context: ${doc.fileName}`);
-        }
       }
     }
     
