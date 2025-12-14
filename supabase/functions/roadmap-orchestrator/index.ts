@@ -127,16 +127,25 @@ serve(async (req) => {
       
       console.log(`[${iterations}] Calling ${functionName} for client ${queueItem.client_id}, stage ${queueItem.stage_type}`);
       
+      // Build request body - value_analysis needs additional params
+      const requestBody: Record<string, any> = {
+        clientId: queueItem.client_id,
+        practiceId: queueItem.practice_id,
+      };
+      
+      // Value analysis requires action and part3Responses
+      if (queueItem.stage_type === 'value_analysis') {
+        requestBody.action = 'generate-analysis';
+        requestBody.part3Responses = {}; // Empty object - will use defaults from assessment data
+      }
+      
       const response = await fetch(functionUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          clientId: queueItem.client_id,
-          practiceId: queueItem.practice_id,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
