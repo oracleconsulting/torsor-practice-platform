@@ -18,7 +18,8 @@ const STAGE_FUNCTIONS: Record<string, string> = {
   'fit_assessment': 'generate-fit-profile',
   'five_year_vision': 'generate-five-year-vision',
   'six_month_shift': 'generate-six-month-shift',
-  'sprint_plan': 'generate-sprint-plan',
+  'sprint_plan_part1': 'generate-sprint-plan-part1',
+  'sprint_plan_part2': 'generate-sprint-plan-part2',
   'value_analysis': 'generate-value-analysis',
 };
 
