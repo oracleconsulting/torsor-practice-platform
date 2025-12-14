@@ -2,8 +2,10 @@
 // EDGE FUNCTION: generate-fit-profile
 // ============================================================================
 // Triggered: Immediately after Part 1 (Life Design) is completed
-// Purpose: Analyze responses to determine fit and create personalized message
-// Output: Fit assessment, journey recommendation, personalized insights
+// Purpose: Create the opening chapter of their transformation story
+// Output: North Star, Opening Reflection, Fit Signals, Archetype
+// 
+// Philosophy: This is not a report. This is a mirror that makes them feel SEEN.
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -15,15 +17,20 @@ const corsHeaders = {
 };
 
 // ============================================================================
-// FIT ANALYSIS
+// FIT ANALYSIS (Rule-based scoring - kept for objectivity)
 // ============================================================================
 
 interface FitSignals {
   readinessScore: number;
+  readinessExplanation: string;
   commitmentScore: number;
+  commitmentExplanation: string;
   clarityScore: number;
+  clarityExplanation: string;
   urgencyScore: number;
+  urgencyExplanation: string;
   coachabilityScore: number;
+  coachabilityExplanation: string;
   overallFit: 'excellent' | 'good' | 'needs_discussion' | 'not_ready';
 }
 
@@ -34,102 +41,160 @@ function analyzeFitSignals(part1: Record<string, any>): FitSignals {
   let urgencyScore = 50;
   let coachabilityScore = 50;
 
+  // Track explanations based on their actual answers
+  const readinessReasons: string[] = [];
+  const commitmentReasons: string[] = [];
+  const clarityReasons: string[] = [];
+  const urgencyReasons: string[] = [];
+  const coachabilityReasons: string[] = [];
+
   // ---- READINESS SIGNALS ----
-  
-  // Tuesday test length and detail (longer = more thought = more ready)
   const tuesdayTest = part1.tuesday_test || part1.ninety_day_fantasy || '';
-  if (tuesdayTest.length > 200) readinessScore += 20;
-  else if (tuesdayTest.length > 100) readinessScore += 10;
-  else if (tuesdayTest.length < 30) readinessScore -= 15;
+  if (tuesdayTest.length > 200) {
+    readinessScore += 20;
+    readinessReasons.push('Your Tuesday Test shows detailed, concrete thinking');
+  } else if (tuesdayTest.length > 100) {
+    readinessScore += 10;
+    readinessReasons.push('You have a clear picture of what you want');
+  } else if (tuesdayTest.length < 30) {
+    readinessScore -= 15;
+    readinessReasons.push('Your vision could use more specificity');
+  }
 
-  // Specific time mentions in tuesday test (concrete thinking)
-  if (/\d{1,2}(?::\d{2})?\s*(?:am|pm)/i.test(tuesdayTest)) readinessScore += 10;
+  if (/\d{1,2}(?::\d{2})?\s*(?:am|pm)/i.test(tuesdayTest)) {
+    readinessScore += 10;
+    readinessReasons.push('You think in specific times—that\'s concrete planning');
+  }
 
-  // Emergency log mentions (awareness of problems)
   const emergencyLog = part1.emergency_log || '';
-  if (emergencyLog.length > 50) readinessScore += 10;
+  if (emergencyLog.length > 50) {
+    readinessScore += 10;
+    readinessReasons.push('You\'re aware of what\'s pulling you back into the business');
+  }
 
   // ---- COMMITMENT SIGNALS ----
-
-  // Time commitment
   const commitment = part1.commitment_hours || '';
-  if (commitment.includes('20+') || commitment.includes('20 hours')) commitmentScore += 25;
-  else if (commitment.includes('15-20') || commitment.includes('15 hours')) commitmentScore += 15;
-  else if (commitment.includes('10-15')) commitmentScore += 5;
-  else if (commitment.includes('5-10') || commitment.includes('less')) commitmentScore -= 15;
+  if (commitment.includes('20+') || commitment.includes('20 hours')) {
+    commitmentScore += 25;
+    commitmentReasons.push('20+ hours/week shows serious commitment');
+  } else if (commitment.includes('15-20') || commitment.includes('15 hours')) {
+    commitmentScore += 15;
+    commitmentReasons.push('15-20 hours is solid time investment');
+  } else if (commitment.includes('10-15')) {
+    commitmentScore += 5;
+    commitmentReasons.push('10-15 hours is workable but tight');
+  } else if (commitment.includes('5-10') || commitment.includes('less')) {
+    commitmentScore -= 15;
+    commitmentReasons.push('Limited time availability may slow progress');
+  }
 
-  // Sacrifices acknowledged (realistic expectations)
   const sacrifices = part1.sacrifices || [];
-  if (sacrifices.length >= 3) commitmentScore += 15;
-  else if (sacrifices.length >= 1) commitmentScore += 5;
-  else commitmentScore -= 10;
+  if (sacrifices.length >= 3) {
+    commitmentScore += 15;
+    commitmentReasons.push('You\'ve acknowledged real trade-offs');
+  } else if (sacrifices.length >= 1) {
+    commitmentScore += 5;
+  } else {
+    commitmentScore -= 10;
+    commitmentReasons.push('Consider what you\'re willing to sacrifice');
+  }
 
-  // Income investment willingness (implied by desired vs current gap)
   const currentIncome = parseIncome(part1.current_income);
   const desiredIncome = parseIncome(part1.desired_income);
-  if (desiredIncome > currentIncome * 2) commitmentScore += 10; // Ambitious
-  if (desiredIncome > 0 && currentIncome > 0) commitmentScore += 5; // Both specified
+  if (desiredIncome > currentIncome * 2) {
+    commitmentScore += 10;
+    commitmentReasons.push('Ambitious income goals—good, this takes courage');
+  }
 
   // ---- CLARITY SIGNALS ----
-
-  // 10-year vision clarity
   const tenYearVision = part1.ten_year_vision || '';
-  if (tenYearVision.length > 100) clarityScore += 20;
-  else if (tenYearVision.length > 50) clarityScore += 10;
-  else if (tenYearVision.length < 20 && tenYearVision.length > 0) clarityScore -= 10;
+  if (tenYearVision.length > 100) {
+    clarityScore += 20;
+    clarityReasons.push('Your 10-year vision is well-articulated');
+  } else if (tenYearVision.length > 50) {
+    clarityScore += 10;
+  } else if (tenYearVision.length < 20 && tenYearVision.length > 0) {
+    clarityScore -= 10;
+    clarityReasons.push('Your long-term vision could use more detail');
+  }
 
-  // Relationship mirror depth (self-awareness)
   const relationshipMirror = part1.relationship_mirror || '';
-  if (relationshipMirror.length > 75) clarityScore += 15;
-  if (relationshipMirror.toLowerCase().includes('feel')) clarityScore += 5;
+  if (relationshipMirror.length > 75) {
+    clarityScore += 15;
+    clarityReasons.push('You\'re self-aware about your relationship with the business');
+  }
+  if (relationshipMirror.toLowerCase().includes('feel')) {
+    clarityScore += 5;
+    clarityReasons.push('You connect with how the business makes you feel');
+  }
 
-  // Danger zone awareness
   const dangerZone = part1.danger_zone || '';
-  if (dangerZone.length > 30) clarityScore += 10;
+  if (dangerZone.length > 30) {
+    clarityScore += 10;
+    clarityReasons.push('You know your danger zone—awareness is power');
+  }
 
   // ---- URGENCY SIGNALS ----
-
-  // Family feedback (external pressure)
   const familyFeedback = part1.family_feedback || '';
-  if (familyFeedback.length > 50) urgencyScore += 15;
+  if (familyFeedback.length > 50) {
+    urgencyScore += 15;
+    urgencyReasons.push('Your family\'s feedback suggests this matters to more than just you');
+  }
   if (familyFeedback.toLowerCase().includes('worried') || 
       familyFeedback.toLowerCase().includes('concern') ||
-      familyFeedback.toLowerCase().includes('never see')) urgencyScore += 10;
+      familyFeedback.toLowerCase().includes('never see')) {
+    urgencyScore += 10;
+    urgencyReasons.push('People who love you are noticing the toll');
+  }
 
-  // Money worry intensity
   const moneyWorry = part1.money_worry || '';
   if (moneyWorry.length > 50) urgencyScore += 10;
   if (moneyWorry.toLowerCase().includes('keep me up') ||
       moneyWorry.toLowerCase().includes('cant sleep') ||
-      moneyWorry.toLowerCase().includes("can't sleep")) urgencyScore += 15;
+      moneyWorry.toLowerCase().includes("can't sleep")) {
+    urgencyScore += 15;
+    urgencyReasons.push('This is affecting your sleep—that\'s a body signal to pay attention to');
+  }
 
-  // Two week break impact (business dependency)
   const twoWeekBreak = part1.two_week_break_impact || '';
   if (twoWeekBreak.toLowerCase().includes('disaster') ||
       twoWeekBreak.toLowerCase().includes('collapse') ||
-      twoWeekBreak.toLowerCase().includes('stop')) urgencyScore += 15;
+      twoWeekBreak.toLowerCase().includes('stop')) {
+    urgencyScore += 15;
+    urgencyReasons.push('The business can\'t survive without you—that\'s both the problem and the opportunity');
+  }
 
   // ---- COACHABILITY SIGNALS ----
-
-  // Help fears (willingness to be vulnerable)
   const helpFears = part1.help_fears || '';
-  if (helpFears.length > 30) coachabilityScore += 15; // Acknowledged fears = self-aware
+  if (helpFears.length > 30) {
+    coachabilityScore += 15;
+    coachabilityReasons.push('Acknowledging fears about getting help shows self-awareness');
+  }
   if (helpFears.toLowerCase().includes('control') ||
-      helpFears.toLowerCase().includes('trust')) coachabilityScore += 5; // Knows their blockers
+      helpFears.toLowerCase().includes('trust')) {
+    coachabilityScore += 5;
+    coachabilityReasons.push('You know what holds you back from accepting help');
+  }
 
-  // Last excitement (still has passion)
   const lastExcitement = part1.last_excitement || '';
-  if (lastExcitement.length > 30) coachabilityScore += 10;
+  if (lastExcitement.length > 30) {
+    coachabilityScore += 10;
+    coachabilityReasons.push('You still have passion for parts of this');
+  }
 
-  // Secret pride (has strengths to build on)
   const secretPride = part1.secret_pride || '';
-  if (secretPride.length > 30) coachabilityScore += 10;
+  if (secretPride.length > 30) {
+    coachabilityScore += 10;
+    coachabilityReasons.push('You have strengths you don\'t fully acknowledge');
+  }
 
-  // Magic away task (problem-focused vs victim)
   const magicAway = part1.magic_away_task || '';
-  if (magicAway.length > 20) coachabilityScore += 5;
+  if (magicAway.length > 20) {
+    coachabilityScore += 5;
+    coachabilityReasons.push('You can articulate what you want to stop doing');
+  }
 
-  // Normalize scores to 0-100
+  // Normalize scores
   readinessScore = Math.max(0, Math.min(100, readinessScore));
   commitmentScore = Math.max(0, Math.min(100, commitmentScore));
   clarityScore = Math.max(0, Math.min(100, clarityScore));
@@ -147,10 +212,15 @@ function analyzeFitSignals(part1: Record<string, any>): FitSignals {
 
   return {
     readinessScore,
+    readinessExplanation: readinessReasons.join('. ') || 'Ready to move forward',
     commitmentScore,
+    commitmentExplanation: commitmentReasons.join('. ') || 'Commitment level assessed',
     clarityScore,
+    clarityExplanation: clarityReasons.join('. ') || 'Vision clarity assessed',
     urgencyScore,
+    urgencyExplanation: urgencyReasons.join('. ') || 'Urgency level assessed',
     coachabilityScore,
+    coachabilityExplanation: coachabilityReasons.join('. ') || 'Openness to change assessed',
     overallFit
   };
 }
@@ -162,69 +232,146 @@ function parseIncome(str: string | undefined): number {
 }
 
 // ============================================================================
-// FIT MESSAGE GENERATION
+// NARRATIVE FIT PROFILE GENERATION (LLM-powered)
 // ============================================================================
 
-async function generateFitMessage(part1: Record<string, any>, signals: FitSignals): Promise<any> {
+interface NarrativeFitProfile {
+  northStar: string;
+  tagline: string;
+  openingReflection: string;
+  archetype: string;
+  archetypeExplanation: string;
+  journeyRecommendation: string;
+  journeyReasoning: string;
+}
+
+async function generateNarrativeProfile(part1: Record<string, any>, signals: FitSignals): Promise<NarrativeFitProfile> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   
+  if (!openRouterKey) {
+    console.warn('OPENROUTER_API_KEY not found, using template-based generation');
+    return generateTemplateNarrativeProfile(part1, signals);
+  }
+
+  // Extract all the context we need
   const userName = part1.full_name || 'there';
+  const companyName = part1.company_name || part1.business_name || 'your business';
   const tuesdayTest = part1.tuesday_test || part1.ninety_day_fantasy || '';
   const relationshipMirror = part1.relationship_mirror || '';
   const familyFeedback = part1.family_feedback || '';
   const dangerZone = part1.danger_zone || '';
   const secretPride = part1.secret_pride || '';
   const helpFears = part1.help_fears || '';
-  const commitment = part1.commitment_hours || '';
+  const moneyWorry = part1.money_worry || '';
+  const magicAwayTask = part1.magic_away_task || '';
+  const tenYearVision = part1.ten_year_vision || '';
+  const winningBy2030 = part1.winning_by_2030 || part1.winning_2030 || '';
+  const sixMonthShifts = part1.six_month_shifts || '';
+  const currentIncome = part1.current_income || '';
+  const desiredIncome = part1.desired_income || '';
+  const currentHours = part1.current_working_hours || part1.working_hours || '';
+  const targetHours = part1.target_working_hours || part1.desired_hours || '';
+  const teamSize = part1.team_size || part1.team || '';
 
-  // If no OpenRouter key, use template-based generation
-  if (!openRouterKey) {
-    console.warn('OPENROUTER_API_KEY not found, using template-based generation');
-    return generateTemplateFitMessage(part1, signals);
-  }
+  const prompt = `You are crafting the opening of someone's transformation story. This is not a report—it's a mirror that makes them feel truly SEEN.
 
-  console.log('Using OpenRouter API for fit message generation');
+THE PERSON:
+Name: ${userName}
+Company: ${companyName}
+Their words about their ideal Tuesday: "${tuesdayTest}"
+Their relationship with their business: "${relationshipMirror}"
+What family says: "${familyFeedback}"
+What keeps them up at night: "${moneyWorry}"
+What they'd magic away: "${magicAwayTask}"
+What they're secretly proud of: "${secretPride}"
+Their fears about getting help: "${helpFears}"
+Their danger zone: "${dangerZone}"
+Their 10-year vision: "${tenYearVision}"
+What winning looks like: "${winningBy2030}"
+What needs to shift in 6 months: "${sixMonthShifts}"
 
-  const prompt = `You are James, a warm but direct business advisor who has just received Part 1 (Life Design) responses from ${userName}. You need to write a personalized fit message that makes them feel understood and excited about the next step.
+THEIR NUMBERS:
+Current income: ${currentIncome}
+Desired income: ${desiredIncome}
+Current hours: ${currentHours}/week
+Desired hours: ${targetHours}/week
+Team: ${teamSize}
 
-THEIR RESPONSES:
-- Tuesday Test/90-Day Fantasy: "${tuesdayTest}"
-- How business feels: "${relationshipMirror}"
-- Family feedback: "${familyFeedback}"
-- Danger zone: "${dangerZone}"
-- Secret pride: "${secretPride}"
-- Help fears: "${helpFears}"
-- Time commitment: "${commitment}"
+FIT SCORES (for context):
+- Readiness: ${signals.readinessScore}/100 - ${signals.readinessExplanation}
+- Commitment: ${signals.commitmentScore}/100 - ${signals.commitmentExplanation}
+- Clarity: ${signals.clarityScore}/100 - ${signals.clarityExplanation}
+- Urgency: ${signals.urgencyScore}/100 - ${signals.urgencyExplanation}
+- Coachability: ${signals.coachabilityScore}/100 - ${signals.coachabilityExplanation}
+- Overall Fit: ${signals.overallFit}
 
-FIT ANALYSIS:
-- Readiness: ${signals.readinessScore}/100
-- Commitment: ${signals.commitmentScore}/100
-- Clarity: ${signals.clarityScore}/100
-- Urgency: ${signals.urgencyScore}/100
-- Coachability: ${signals.coachabilityScore}/100
-- Overall: ${signals.overallFit}
+---
 
-Write a message that:
-1. Opens by reflecting back something specific they said that shows you GET them
-2. Acknowledges where they are without judgment
-3. Shows you understand their fears about getting help
-4. Builds confidence by referencing their secret pride
-5. Creates clarity about what comes next
-6. Ends with energy and forward momentum
+CREATE:
 
-Keep it warm, personal, and under 400 words. Use their exact words where impactful.
+1. A NORTH STAR (one sentence, max 30 words)
+   - Must use THEIR exact words from tuesdayTest, winningBy2030, or tenYearVision
+   - Must capture LIFE goal, not just business goal
+   - If they mentioned family, partner, kids, travel—include it
+   - Must be memorable enough to tattoo
+   
+   BAD: "Build a successful service business"
+   GOOD: "Working 1-2 days a week, earning £10k/month, with the freedom to start a family and travel with Zaneta—without being the backstop that gets called whenever plans are made."
 
-Return JSON:
+2. A TAGLINE (max 10 words)
+   - Their business identity + their life aspiration
+   
+   BAD: "Professional services"
+   GOOD: "Britain's Rowing Specialist—With Freedom to Live"
+
+3. AN OPENING REFLECTION (exactly 3 paragraphs, ~200 words total)
+   
+   PARAGRAPH 1: Mirror their pain. Use their EXACT words.
+   Start with: "You said..." or a direct quote. Show you heard them.
+   Example: "You said you can go from wanting to burn it all down to feeling like the happiest man alive within hours. That emotional rollercoaster isn't sustainable—especially not if you want what you said you want."
+   
+   PARAGRAPH 2: Name the pattern they're caught in.
+   What's really going on beneath the surface? What are they actually building toward?
+   Example: "What you're describing isn't just burnout. It's the weight of being irreplaceable. Every call, every emergency, every 'just this once'—they add up to a prison you built with your own success."
+   
+   PARAGRAPH 3: Show them their strength they don't fully see.
+   Reference their secret pride. End with hope.
+   Example: "But here's what I see: someone who's built something real. Your customers trust you. Your reputation precedes you. That's not nothing—that's a foundation. The question isn't whether you can change this. It's whether you're ready to."
+
+4. ARCHETYPE (choose one)
+   - freedom_seeker: Wants time/autonomy back (mentions family, travel, lifestyle)
+   - empire_builder: Wants to scale and dominate market
+   - lifestyle_designer: Wants business to fund specific life (country house, etc.)
+   - impact_maker: Wants to change their industry
+   - balanced_achiever: Wants sustainable success without sacrifice
+   
+   With 1-2 sentence explanation of WHY this archetype based on their specific answers.
+
+5. JOURNEY RECOMMENDATION
+   - "365_method" | "needs_discussion" | "not_ready"
+   - With honest reasoning (2-3 sentences)
+
+OUTPUT AS JSON:
 {
-  "headline": "Short, punchy headline for their journey",
-  "openingReflection": "2-3 sentences showing you understood their Tuesday Test/relationship with business",
-  "acknowledgment": "2-3 sentences validating where they are",
-  "strengthSpotlight": "1-2 sentences highlighting their secret pride or what you see in them",
-  "fearAddress": "1-2 sentences addressing their help fears directly",
-  "nextStepClarity": "2-3 sentences explaining Part 2 and what happens after",
-  "closingEnergy": "1-2 sentences of momentum and encouragement",
-  "callToAction": "Clear, specific next step"
-}`;
+  "northStar": "string - their exact words woven into a powerful statement",
+  "tagline": "string - max 10 words",
+  "openingReflection": "string - exactly 3 paragraphs that make them feel seen",
+  "archetype": "freedom_seeker|empire_builder|lifestyle_designer|impact_maker|balanced_achiever",
+  "archetypeExplanation": "string - why this fits them specifically",
+  "journeyRecommendation": "365_method|needs_discussion|not_ready",
+  "journeyReasoning": "string - honest explanation"
+}
+
+CRITICAL RULES:
+1. Use THEIR words, not business clichés
+2. If they said "burn it down"—write "burn it down"
+3. If they mentioned a partner's name, use it
+4. If they mentioned specific numbers (£10k, 2 days/week), use them
+5. The opening reflection should make them feel slightly emotional
+6. This should read like a letter from someone who truly gets them
+`;
+
+  console.log('Generating narrative fit profile with LLM...');
 
   try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -236,13 +383,16 @@ Return JSON:
         'X-Title': 'Torsor 365 Fit Profile'
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-3.5-sonnet',
-        max_tokens: 2000,
-        temperature: 0.8,
+        model: 'anthropic/claude-sonnet-4.5',
+        max_tokens: 2500,
+        temperature: 0.7,
         messages: [
           { 
             role: 'system', 
-            content: 'You write warm, personal messages that make founders feel truly understood. Use their exact words. Be encouraging but honest.' 
+            content: `You craft transformational narratives that make business owners feel truly understood. 
+You use their exact words—not business jargon. You mirror their emotions. You see what they don't see about themselves.
+McKinsey rigour. Tolkien wonder. Human truth.
+Return only valid JSON.`
           },
           { role: 'user', content: prompt }
         ]
@@ -252,147 +402,99 @@ Return JSON:
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`OpenRouter error (status ${response.status}):`, errorText);
-      console.error('Falling back to template fit message');
-      return generateTemplateFitMessage(part1, signals);
+      return generateTemplateNarrativeProfile(part1, signals);
     }
 
     const data = await response.json();
-    const content = data.choices[0].message.content;
+    console.log('LLM response received');
     
-    // Extract JSON
+    const content = data.choices[0].message.content;
     const cleaned = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
     const start = cleaned.indexOf('{');
     const end = cleaned.lastIndexOf('}');
+    
     if (start === -1 || end === -1) {
-      return generateTemplateFitMessage(part1, signals);
+      console.error('Failed to find JSON in response');
+      return generateTemplateNarrativeProfile(part1, signals);
     }
     
-    return JSON.parse(cleaned.substring(start, end + 1));
+    const parsed = JSON.parse(cleaned.substring(start, end + 1));
+    console.log('Narrative profile parsed successfully');
+    return parsed;
+    
   } catch (e) {
     console.error('LLM error:', e);
-    console.error('Error details:', {
-      message: e instanceof Error ? e.message : String(e),
-      name: e instanceof Error ? e.name : 'Unknown',
-      stack: e instanceof Error ? e.stack : undefined
-    });
-    console.error('Falling back to template fit message');
-    return generateTemplateFitMessage(part1, signals);
+    return generateTemplateNarrativeProfile(part1, signals);
   }
 }
 
-function generateTemplateFitMessage(part1: Record<string, any>, signals: FitSignals): any {
+function generateTemplateNarrativeProfile(part1: Record<string, any>, signals: FitSignals): NarrativeFitProfile {
   const userName = part1.full_name?.split(' ')[0] || 'there';
   const tuesdayTest = part1.tuesday_test || part1.ninety_day_fantasy || '';
   const secretPride = part1.secret_pride || '';
-  const helpFears = part1.help_fears || '';
-  const commitment = part1.commitment_hours || '';
+  const relationshipMirror = part1.relationship_mirror || '';
+  const desiredIncome = part1.desired_income || '';
+  const desiredHours = part1.target_working_hours || part1.desired_hours || '';
 
-  const fitMessages = {
-    excellent: {
-      headline: `${userName}, You're Ready for This`,
-      openingReflection: `I read your Tuesday Test carefully. ${tuesdayTest.length > 50 ? `"${tuesdayTest.substring(0, 100)}..." - that's not just a dream, that's a clear picture of what you want.` : "The clarity in your vision is striking."}`,
-      acknowledgment: "You've done the hard work of being honest about where you are. That takes courage, and it's exactly why this will work for you.",
-      strengthSpotlight: secretPride ? `And when you mentioned "${secretPride.substring(0, 80)}" - that's a real strength we'll build on.` : "Your self-awareness is a genuine asset.",
-      fearAddress: helpFears ? `I hear your concern about ${helpFears.toLowerCase().includes('control') ? 'losing control' : helpFears.toLowerCase().includes('trust') ? 'trusting someone' : 'getting help'}. We'll move at your pace, always.` : "Taking this step takes courage. We'll make it worth it.",
-      nextStepClarity: `Part 2 dives into the business specifics - numbers, team, bottlenecks. With ${commitment || 'the time you can commit'}, we'll build something sustainable.`,
-      closingEnergy: "Let's turn that Tuesday vision into your reality.",
-      callToAction: "Start Part 2 when you're ready →"
-    },
-    good: {
-      headline: `${userName}, Let's Build Your Path`,
-      openingReflection: tuesdayTest ? `Your Tuesday Test shows someone who knows what they want - "${tuesdayTest.substring(0, 80)}..."` : "You've got a vision. Now let's make it real.",
-      acknowledgment: "You're in a good place to make changes. Not perfect - nobody is - but ready enough to take action.",
-      strengthSpotlight: secretPride ? `Don't underestimate your strengths - "${secretPride.substring(0, 60)}" matters more than you think.` : "You've got more going for you than you might realize.",
-      fearAddress: "Whatever's held you back from getting help before - we'll address it head on.",
-      nextStepClarity: "Part 2 gets specific about your business. The clearer picture we have, the more targeted your roadmap will be.",
-      closingEnergy: "You've started something. Let's keep the momentum going.",
-      callToAction: "Continue to Part 2 →"
-    },
-    needs_discussion: {
-      headline: `${userName}, Let's Talk First`,
-      openingReflection: "I appreciate you sharing where you are. There's a lot going on, and that's okay.",
-      acknowledgment: "Being honest about challenges is the first step. You've done that.",
-      strengthSpotlight: secretPride ? `I see your strength in "${secretPride.substring(0, 50)}" - we'll build from there.` : "Everyone has strengths to build on. We'll find yours.",
-      fearAddress: "Before diving deeper, it might help to have a quick chat to make sure this is the right fit and timing for you.",
-      nextStepClarity: "Part 2 is ready when you are, but you might benefit from a 15-minute call first to align expectations.",
-      closingEnergy: "No pressure. The right time is when you're ready.",
-      callToAction: "Book a quick fit call or continue to Part 2 →"
-    },
-    not_ready: {
-      headline: `${userName}, Let's Be Honest`,
-      openingReflection: "Thank you for taking the time to complete Part 1. Your honesty is appreciated.",
-      acknowledgment: "From what you've shared, it sounds like there might be some things to sort out first before diving into a structured program.",
-      strengthSpotlight: "That's not a judgment - it's just about timing.",
-      fearAddress: "Sometimes the best thing is to focus on stabilising before optimising.",
-      nextStepClarity: "You're welcome to continue to Part 2, or take some time and come back when the timing feels right.",
-      closingEnergy: "Either way, you've taken a step by reflecting on these questions.",
-      callToAction: "Continue when ready or book a call to discuss →"
-    }
-  };
+  // Build North Star from their answers
+  let northStar = '';
+  if (tuesdayTest) {
+    const shortened = tuesdayTest.length > 100 ? tuesdayTest.substring(0, 100) + '...' : tuesdayTest;
+    northStar = shortened;
+  } else if (desiredIncome && desiredHours) {
+    northStar = `Earning ${desiredIncome} while working ${desiredHours} hours per week, with the freedom to live on your own terms.`;
+  } else {
+    northStar = 'Building a business that works for you, not the other way around.';
+  }
 
-  return fitMessages[signals.overallFit];
-}
-
-// ============================================================================
-// JOURNEY RECOMMENDATIONS
-// ============================================================================
-
-function generateJourneyRecommendation(signals: FitSignals, part1: Record<string, any>): any {
-  const commitment = part1.commitment_hours || '';
-  const currentIncome = parseIncome(part1.current_income);
-  const desiredIncome = parseIncome(part1.desired_income);
-
-  // Determine recommended pace
-  let pace: 'intensive' | 'steady' | 'gradual' = 'steady';
-  if (signals.urgencyScore >= 70 && signals.commitmentScore >= 70) pace = 'intensive';
-  else if (signals.commitmentScore < 50 || commitment.includes('5-10')) pace = 'gradual';
-
-  // Determine focus areas based on responses
-  const focusAreas: string[] = [];
+  // Build opening reflection
+  let openingReflection = '';
   
-  if (part1.two_week_break_impact?.toLowerCase().includes('disaster') || 
-      part1.two_week_break_impact?.toLowerCase().includes('stop')) {
-    focusAreas.push('Systems & Delegation');
+  if (relationshipMirror) {
+    openingReflection += `You described your relationship with your business as "${relationshipMirror.substring(0, 150)}${relationshipMirror.length > 150 ? '...' : ''}" That's honest. And it tells me you're ready to look at this clearly.\n\n`;
+  } else {
+    openingReflection += `Taking the time to reflect on these questions shows you're serious about change. That matters.\n\n`;
   }
   
-  if (part1.money_worry?.length > 50) {
-    focusAreas.push('Financial Stability');
-  }
+  openingReflection += `What you're experiencing—the push and pull, the desire for freedom while carrying the weight of responsibility—that's not a weakness. It's a signal. The business you've built has outgrown its current structure.\n\n`;
   
-  if (part1.family_feedback?.toLowerCase().includes('never see') ||
-      part1.family_feedback?.toLowerCase().includes('worried')) {
-    focusAreas.push('Work-Life Balance');
+  if (secretPride) {
+    openingReflection += `And here's what I see that you might not: "${secretPride.substring(0, 100)}${secretPride.length > 100 ? '...' : ''}" That's real. That's a foundation we can build on.`;
+  } else {
+    openingReflection += `The fact that you're here, doing this work, tells me something important: you haven't given up. You're looking for a path forward. Let's find it together.`;
   }
 
-  if (desiredIncome > currentIncome * 1.5) {
-    focusAreas.push('Growth Strategy');
-  }
-
-  if (focusAreas.length === 0) {
-    focusAreas.push('Sustainable Growth', 'Time Freedom');
+  // Determine archetype
+  let archetype = 'balanced_achiever';
+  let archetypeExplanation = 'You want sustainable success without sacrificing what matters.';
+  
+  const combined = (tuesdayTest + ' ' + (part1.ten_year_vision || '') + ' ' + (part1.winning_by_2030 || '')).toLowerCase();
+  
+  if (combined.includes('family') || combined.includes('kids') || combined.includes('travel') || combined.includes('freedom')) {
+    archetype = 'freedom_seeker';
+    archetypeExplanation = 'Your answers point to one thing: freedom. Time with family, travel, life on your terms. The business is meant to serve that vision.';
+  } else if (combined.includes('scale') || combined.includes('dominate') || combined.includes('market leader')) {
+    archetype = 'empire_builder';
+    archetypeExplanation = 'You\'re not just building a business—you\'re building something that matters. Scale and impact drive you.';
+  } else if (combined.includes('country') || combined.includes('house') || combined.includes('retire')) {
+    archetype = 'lifestyle_designer';
+    archetypeExplanation = 'You have a specific vision of what life should look like. The business is the vehicle to get there.';
   }
 
   return {
-    recommendedPace: pace,
-    paceDescription: {
-      intensive: '12-week sprint with weekly check-ins',
-      steady: '12-week program with bi-weekly milestones',
-      gradual: 'Flexible pace over 16-20 weeks'
-    }[pace],
-    primaryFocus: focusAreas.slice(0, 2),
-    expectedTimeline: {
-      intensive: '3 months to transformation',
-      steady: '3-4 months to significant progress',
-      gradual: '4-5 months for sustainable change'
-    }[pace],
-    weeklyCommitment: commitment || '10-15 hours',
-    keyMilestones: [
-      'Part 2: Business Deep Dive (next step)',
-      'Roadmap Generation (after Part 2)',
-      'Week 4: First major wins',
-      'Week 8: Momentum locked in',
-      'Week 12: Transformation complete'
-    ]
+    northStar,
+    tagline: `${userName}'s Journey to Freedom`,
+    openingReflection,
+    archetype,
+    archetypeExplanation,
+    journeyRecommendation: signals.overallFit === 'not_ready' ? 'not_ready' : signals.overallFit === 'needs_discussion' ? 'needs_discussion' : '365_method',
+    journeyReasoning: signals.overallFit === 'excellent' 
+      ? 'Your scores show you\'re ready for this. Let\'s build your roadmap.'
+      : signals.overallFit === 'good'
+      ? 'Good foundation. Part 2 will help us get specific about where to focus.'
+      : signals.overallFit === 'needs_discussion'
+      ? 'Before diving in, a quick conversation would help align expectations.'
+      : 'The timing might not be right. Let\'s talk about what needs to happen first.'
   };
 }
 
@@ -442,7 +544,7 @@ serve(async (req) => {
     // Retry logic to handle race conditions
     while (attempts < maxAttempts) {
       attempts++;
-      console.log(`Attempt ${attempts}: Creating fit_assessment stage with version ${nextVersion} (max found: ${maxVersion})`);
+      console.log(`Attempt ${attempts}: Creating fit_assessment stage with version ${nextVersion}`);
 
       const { data, error } = await supabase
         .from('roadmap_stages')
@@ -453,7 +555,7 @@ serve(async (req) => {
           version: nextVersion,
           status: 'generating',
           generation_started_at: new Date().toISOString(),
-          model_used: 'anthropic/claude-3.5-sonnet'
+          model_used: 'anthropic/claude-sonnet-4.5'
         })
         .select()
         .single();
@@ -464,14 +566,12 @@ serve(async (req) => {
         break;
       }
 
-      // If it's a unique constraint violation, try next version
       if (error.code === '23505' || error.message?.includes('unique constraint')) {
-        console.log(`Version ${nextVersion} already exists, trying ${nextVersion + 1}`);
+        console.log(`Version ${nextVersion} exists, trying ${nextVersion + 1}`);
         nextVersion++;
         continue;
       }
 
-      // Other errors, throw immediately
       stageError = error;
       break;
     }
@@ -494,27 +594,61 @@ serve(async (req) => {
 
     const part1 = assessment.responses;
 
-    // Analyze fit signals
+    // Also fetch client info for company name
+    const { data: clientInfo } = await supabase
+      .from('practice_members')
+      .select('name, client_company')
+      .eq('id', clientId)
+      .single();
+
+    if (clientInfo) {
+      part1.full_name = part1.full_name || clientInfo.name;
+      part1.company_name = part1.company_name || clientInfo.client_company;
+    }
+
+    // Analyze fit signals (rule-based)
     const signals = analyzeFitSignals(part1);
     console.log(`Fit signals: ${signals.overallFit} (avg: ${Math.round((signals.readinessScore + signals.commitmentScore + signals.clarityScore + signals.urgencyScore + signals.coachabilityScore) / 5)})`);
 
-    // Generate personalized fit message
-    const fitMessage = await generateFitMessage(part1, signals);
-    console.log('Fit message generated');
+    // Generate narrative profile (LLM-powered)
+    const narrativeProfile = await generateNarrativeProfile(part1, signals);
+    console.log('Narrative profile generated');
 
-    // Generate journey recommendation
-    const journeyRecommendation = generateJourneyRecommendation(signals, part1);
-
-    // Build fit profile
+    // Build complete fit profile
     const fitProfile = {
-      signals,
-      message: fitMessage,
-      journeyRecommendation,
+      // Core narrative elements
+      northStar: narrativeProfile.northStar,
+      tagline: narrativeProfile.tagline,
+      openingReflection: narrativeProfile.openingReflection,
+      
+      // Archetype
+      archetype: narrativeProfile.archetype,
+      archetypeExplanation: narrativeProfile.archetypeExplanation,
+      
+      // Fit signals with explanations
+      fitSignals: {
+        readinessScore: signals.readinessScore,
+        readinessExplanation: signals.readinessExplanation,
+        commitmentScore: signals.commitmentScore,
+        commitmentExplanation: signals.commitmentExplanation,
+        clarityScore: signals.clarityScore,
+        clarityExplanation: signals.clarityExplanation,
+        urgencyScore: signals.urgencyScore,
+        urgencyExplanation: signals.urgencyExplanation,
+        coachabilityScore: signals.coachabilityScore,
+        coachabilityExplanation: signals.coachabilityExplanation,
+        overallFit: signals.overallFit
+      },
+      
+      // Journey recommendation
+      journeyRecommendation: narrativeProfile.journeyRecommendation,
+      journeyReasoning: narrativeProfile.journeyReasoning,
+      
+      // Metadata
       generatedAt: new Date().toISOString(),
       unlocksPartTwo: signals.overallFit !== 'not_ready'
     };
 
-    // Calculate duration
     const duration = Date.now() - startTime;
 
     // Update stage record
@@ -528,7 +662,7 @@ serve(async (req) => {
       })
       .eq('id', stage.id);
 
-    // Also store fit profile with Part 1 assessment (backward compatibility)
+    // Also store with Part 1 assessment (backward compatibility)
     await supabase
       .from('client_assessments')
       .update({ 
@@ -538,7 +672,7 @@ serve(async (req) => {
       .eq('client_id', clientId)
       .eq('assessment_type', 'part1');
 
-    console.log('Fit profile complete!');
+    console.log(`Fit profile complete! North Star: "${fitProfile.northStar.substring(0, 50)}..."`);
 
     return new Response(JSON.stringify({
       success: true,
@@ -547,17 +681,17 @@ serve(async (req) => {
       unlocksPartTwo: fitProfile.unlocksPartTwo,
       duration,
       summary: {
+        northStar: fitProfile.northStar,
+        tagline: fitProfile.tagline,
+        archetype: fitProfile.archetype,
         overallFit: signals.overallFit,
-        headline: fitMessage.headline,
         scores: {
           readiness: signals.readinessScore,
           commitment: signals.commitmentScore,
           clarity: signals.clarityScore,
           urgency: signals.urgencyScore,
           coachability: signals.coachabilityScore
-        },
-        recommendedPace: journeyRecommendation.recommendedPace,
-        primaryFocus: journeyRecommendation.primaryFocus
+        }
       }
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
@@ -567,4 +701,3 @@ serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
-
