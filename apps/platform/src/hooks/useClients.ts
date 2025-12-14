@@ -345,7 +345,7 @@ export function useClientDetail(clientId: string | null) {
 
     try {
       // With the new staged architecture, we queue all stages for regeneration
-      // The orchestrator will process them in order
+      // The orchestrator (running via cron) will process them in order
       const stages = [
         'fit_assessment',
         'five_year_vision',
@@ -353,6 +353,13 @@ export function useClientDetail(clientId: string | null) {
         'sprint_plan',
         'value_analysis'
       ];
+
+      // First, clear any existing pending items for this client to avoid duplicates
+      await supabase
+        .from('generation_queue')
+        .delete()
+        .eq('client_id', clientId)
+        .eq('status', 'pending');
 
       // Queue all stages for regeneration
       const queuePromises = stages.map(stageType => 
@@ -370,28 +377,34 @@ export function useClientDetail(clientId: string | null) {
       const errors = results.filter(r => r.error);
       if (errors.length > 0) {
         console.error('Errors queueing stages:', errors);
-        throw new Error(`Failed to queue ${errors.length} stage(s) for regeneration`);
+        const errorMessages = errors.map(e => e.error?.message || 'Unknown error').join('; ');
+        throw new Error(`Failed to queue ${errors.length} stage(s) for regeneration: ${errorMessages}`);
       }
 
-      // Trigger the orchestrator to start processing
-      // Note: The orchestrator can be triggered via cron or manually
-      // For now, we'll also try to invoke it directly
-      try {
-        await supabase.functions.invoke('roadmap-orchestrator', {
-          body: {}
-        });
-      } catch (orchestratorError) {
-        // Orchestrator might not be available or might be triggered by cron
-        // This is not critical - the queue will be processed eventually
-        console.log('Orchestrator not available, queue will be processed by cron');
+      // Verify at least some items were queued successfully
+      const successCount = results.filter(r => !r.error && r.data).length;
+      if (successCount === 0) {
+        throw new Error('Failed to queue any stages. Please check database permissions and table structure.');
       }
+
+      console.log(`Successfully queued ${successCount} stages for regeneration`);
+
+      // Note: The orchestrator runs via cron and will pick up these queued items
+      // No need to invoke it directly - it will process the queue automatically
 
       // Refresh client data
       await fetchClient();
       return true;
 
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       console.error('Error regenerating roadmap:', err);
+      console.error('Error details:', {
+        message: errorMessage,
+        clientId,
+        practiceId: teamMember?.practiceId,
+        error: err
+      });
       return false;
     }
   }, [teamMember, clientId, fetchClient]);

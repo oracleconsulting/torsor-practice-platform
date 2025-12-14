@@ -59,13 +59,19 @@ export default function ClientDetailPage() {
     if (!confirmed) return;
 
     setRegenerating(true);
-    const success = await regenerateRoadmap();
-    setRegenerating(false);
-    
-    if (success) {
-      alert('Roadmap regeneration queued successfully. Stages will be regenerated in the background. This may take several minutes.');
-    } else {
-      alert('Failed to queue roadmap regeneration. Please try again or contact support.');
+    try {
+      const success = await regenerateRoadmap();
+      
+      if (success) {
+        alert('Roadmap regeneration queued successfully. Stages will be regenerated in the background. This may take several minutes.');
+      } else {
+        alert('Failed to queue roadmap regeneration. Please check the console for details or contact support.');
+      }
+    } catch (error) {
+      console.error('Unexpected error during regeneration:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
+    } finally {
+      setRegenerating(false);
     }
   };
 
