@@ -380,41 +380,14 @@ export function useClientDetail(clientId: string | null) {
         throw new Error(`Failed to queue regeneration: ${queueError.message}`);
       }
 
-      console.log('Queued fit_assessment successfully');
+      console.log('✓ Queued fit_assessment successfully');
 
-      // Start the process by calling the first stage function directly
-      // This will generate fit_assessment, which triggers the next stage via database trigger
-      // Then we call the orchestrator to process the rest of the chain
+      // Call orchestrator to process the queue
+      // The orchestrator will process fit_assessment first, which triggers the next stage via database trigger
+      // Then it continues processing the rest of the chain automatically
       try {
-        console.log('Starting generation by calling first stage function...');
-        console.log('Calling generate-fit-profile with:', { clientId, practiceId: teamMember.practiceId });
+        console.log('🚀 Triggering orchestrator to start processing...');
         
-        // Call fit_assessment function directly to start the chain
-        const fitResponse = await supabase.functions.invoke(
-          'generate-fit-profile',
-          {
-            body: {
-              clientId,
-              practiceId: teamMember.practiceId
-            }
-          }
-        );
-
-        console.log('Fit profile function response:', fitResponse);
-
-        if (fitResponse.error) {
-          console.error('Fit assessment function error:', fitResponse.error);
-          // Don't throw - continue to orchestrator
-        } else {
-          console.log('Fit assessment started successfully:', fitResponse.data);
-        }
-
-        // Small delay to let fit_assessment complete and trigger next stage
-        console.log('Waiting 3 seconds for fit_assessment to complete...');
-        await new Promise(resolve => setTimeout(resolve, 3000));
-
-        // Now call orchestrator to process the rest of the chain
-        console.log('Triggering orchestrator to process remaining stages...');
         const orchestratorResponse = await supabase.functions.invoke(
           'roadmap-orchestrator',
           {
@@ -425,18 +398,20 @@ export function useClientDetail(clientId: string | null) {
         console.log('Orchestrator response:', orchestratorResponse);
 
         if (orchestratorResponse.error) {
-          console.warn('Orchestrator returned error (non-fatal):', orchestratorResponse.error);
+          console.warn('⚠️ Orchestrator returned error:', orchestratorResponse.error);
+          // Queue is set up, so this is non-fatal - stages will be processed
         } else {
-          console.log('Orchestrator started successfully:', orchestratorResponse.data);
+          console.log('✅ Orchestrator started successfully:', orchestratorResponse.data);
         }
       } catch (invokeError: any) {
         // FunctionsFetchError or other errors - log but don't fail
-        console.error('Function invocation error (non-fatal - queue is set up):', invokeError);
+        console.error('❌ Orchestrator invocation error (queue is set up, this is OK):', invokeError);
         console.error('Error details:', {
           message: invokeError?.message,
           name: invokeError?.name,
-          stack: invokeError?.stack
+          type: typeof invokeError
         });
+        // Don't throw - queue is set up and will be processed
       }
 
       // Refresh client data
