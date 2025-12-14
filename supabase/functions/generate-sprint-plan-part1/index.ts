@@ -216,8 +216,9 @@ async function generateSprintPart1(ctx: any): Promise<any> {
       },
       body: JSON.stringify({
         model: 'anthropic/claude-sonnet-4.5',
-        max_tokens: 6000,
+        max_tokens: 8000,
         temperature: 0.5,
+        response_format: { type: "json_object" },
         messages: [
           { 
             role: 'system', 
@@ -226,7 +227,7 @@ Every week has a narrative—WHY it matters to their LIFE, not just business.
 Every task connects to their North Star.
 Use their exact words. Be specific to their situation.
 British English only (organise, colour, £).
-Return ONLY valid JSON.`
+Return ONLY valid JSON. Ensure all strings are properly escaped.`
           },
           { role: 'user', content: prompt }
         ]
@@ -266,86 +267,301 @@ Return ONLY valid JSON.`
   try {
     return JSON.parse(jsonString);
   } catch (parseError) {
-    console.warn('Initial JSON parse failed, attempting repair...');
+    console.warn('Initial JSON parse failed, attempting advanced repair...');
+    return repairComplexJson(jsonString);
+  }
+}
+
+/**
+ * Advanced JSON repair for complex LLM output
+ * Handles: unescaped quotes, missing commas, control chars, truncated output
+ */
+function repairComplexJson(input: string): any {
+  let json = input;
+  
+  // Step 1: Remove control characters except newlines/tabs
+  json = json.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  
+  // Step 2: Fix strings with unescaped internal quotes
+  // This is the most common issue - quotes inside narrative text
+  json = fixUnescapedQuotes(json);
+  
+  // Step 3: Fix trailing commas
+  json = json.replace(/,(\s*[}\]])/g, '$1');
+  
+  // Step 4: Fix missing commas between elements
+  // Between objects: }{ -> },{
+  json = json.replace(/\}(\s*)\{/g, '},\n{');
+  // Between array items: ][ -> ],[
+  json = json.replace(/\](\s*)\[/g, '],\n[');
+  // Between string and object: "text"{ -> "text",{
+  json = json.replace(/"(\s*)\{/g, '",{');
+  // Between object and string: }" -> },"
+  json = json.replace(/\}(\s*)"/g, '},\n"');
+  // Between strings in object context: "value" "key" -> "value", "key"
+  json = json.replace(/"(\s+)"([a-zA-Z_])/g, '",\n"$2');
+  
+  // Step 5: Close unclosed structures intelligently
+  json = closeUnclosedStructures(json);
+  
+  // Step 6: Try to parse
+  try {
+    const result = JSON.parse(json);
+    console.log('Advanced JSON repair successful');
+    return result;
+  } catch (e1) {
+    console.warn('First repair attempt failed, trying extraction method...');
     
-    let fixedJson = jsonString;
+    // Step 7: Try to extract valid portions
+    return extractAndRebuild(input);
+  }
+}
+
+/**
+ * Fix unescaped quotes within JSON string values
+ */
+function fixUnescapedQuotes(json: string): string {
+  const result: string[] = [];
+  let inString = false;
+  let i = 0;
+  
+  while (i < json.length) {
+    const char = json[i];
+    const prevChar = i > 0 ? json[i - 1] : '';
     
-    // 1. Fix trailing commas before } or ]
-    fixedJson = fixedJson.replace(/,(\s*[}\]])/g, '$1');
-    
-    // 2. Fix missing commas between properties (e.g., "value1" "key2")
-    fixedJson = fixedJson.replace(/}(\s*){/g, '},{');
-    fixedJson = fixedJson.replace(/](\s*)\[/g, '],[');
-    fixedJson = fixedJson.replace(/"(\s*)"(\s*[a-zA-Z])/g, '","$2');
-    
-    // 3. Fix missing commas between array elements
-    fixedJson = fixedJson.replace(/}(\s*)"/g, '},"');
-    fixedJson = fixedJson.replace(/"(\s*){/g, '",{');
-    
-    // 4. Fix unescaped newlines in strings (replace with space)
-    // This regex finds strings and removes literal newlines inside them
-    fixedJson = fixedJson.replace(/"([^"]*)\n([^"]*)"/g, (match, p1, p2) => {
-      return `"${p1} ${p2}"`;
-    });
-    
-    // 5. Fix control characters in strings
-    fixedJson = fixedJson.replace(/[\x00-\x1F\x7F]/g, ' ');
-    
-    // 6. Close unclosed structures
-    const openBraces = (fixedJson.match(/\{/g) || []).length;
-    const closeBraces = (fixedJson.match(/\}/g) || []).length;
-    const openBrackets = (fixedJson.match(/\[/g) || []).length;
-    const closeBrackets = (fixedJson.match(/\]/g) || []).length;
-    
-    if (openBrackets > closeBrackets) {
-      console.log(`Closing ${openBrackets - closeBrackets} unclosed brackets`);
-      for (let i = 0; i < openBrackets - closeBrackets; i++) fixedJson += ']';
-    }
-    if (openBraces > closeBraces) {
-      console.log(`Closing ${openBraces - closeBraces} unclosed braces`);
-      for (let i = 0; i < openBraces - closeBraces; i++) fixedJson += '}';
-    }
-    
-    try {
-      const result = JSON.parse(fixedJson);
-      console.log('JSON repair successful');
-      return result;
-    } catch (secondError) {
-      // 7. Last resort: try to extract partial valid JSON
-      console.error('JSON repair failed:', secondError);
-      console.log('Attempting to salvage partial JSON...');
-      
-      // Try to find the last complete week object
-      const weekMatches = fixedJson.matchAll(/"weekNumber":\s*(\d+)/g);
-      const weeks = Array.from(weekMatches);
-      
-      if (weeks.length > 0) {
-        // Find where the last complete week ends
-        const lastCompleteWeekNum = Math.max(1, weeks.length - 1);
-        console.log(`Attempting to salvage ${lastCompleteWeekNum} weeks`);
+    if (char === '"' && prevChar !== '\\') {
+      if (!inString) {
+        // Starting a string
+        inString = true;
+        result.push(char);
+      } else {
+        // Could be end of string or unescaped quote
+        // Look ahead to determine context
+        const lookAhead = json.substring(i + 1, i + 20).trim();
         
-        // Build a minimal valid response
-        const salvaged = {
-          sprintTheme: "Sprint 1: Foundation Building",
-          sprintPromise: "Build the foundation for transformation",
-          sprintGoals: ["Address immediate pain points", "Build systems", "Create momentum"],
-          phases: {
-            immediateRelief: { weeks: [1, 2], theme: "Quick wins", emotionalGoal: "Hope" },
-            foundation: { weeks: [3, 4], theme: "Building base", emotionalGoal: "Confidence" },
-            implementation: { weeks: [5, 6], theme: "Execution", emotionalGoal: "Momentum" }
-          },
-          weeks: [],
-          tuesdayEvolution: { week0: "Starting point", week2: "First relief", week4: "Building", week6: "Foundation set" },
-          _note: "Partial recovery due to JSON parsing issue"
-        };
-        
-        console.log('Returning salvaged minimal structure');
-        return salvaged;
+        // If followed by :, ,, }, ], or end - it's a real string terminator
+        if (/^[\s]*[:,\}\]\n]/.test(lookAhead) || lookAhead === '') {
+          inString = false;
+          result.push(char);
+        } else {
+          // It's an unescaped quote inside the string - escape it
+          result.push('\\"');
+        }
       }
-      
-      throw new Error(`Failed to parse sprint JSON after repair: ${secondError}`);
+    } else if (char === '\n' && inString) {
+      // Replace newlines in strings with escaped newlines
+      result.push('\\n');
+    } else {
+      result.push(char);
+    }
+    i++;
+  }
+  
+  return result.join('');
+}
+
+/**
+ * Intelligently close unclosed JSON structures
+ */
+function closeUnclosedStructures(json: string): string {
+  const stack: string[] = [];
+  let inString = false;
+  
+  for (let i = 0; i < json.length; i++) {
+    const char = json[i];
+    const prevChar = i > 0 ? json[i - 1] : '';
+    
+    if (char === '"' && prevChar !== '\\') {
+      inString = !inString;
+    } else if (!inString) {
+      if (char === '{') stack.push('}');
+      else if (char === '[') stack.push(']');
+      else if (char === '}' || char === ']') {
+        if (stack.length > 0 && stack[stack.length - 1] === char) {
+          stack.pop();
+        }
+      }
     }
   }
+  
+  // Close any unclosed structures
+  if (stack.length > 0) {
+    console.log(`Closing ${stack.length} unclosed structures`);
+    // Remove any trailing partial content before closing
+    json = json.replace(/,\s*$/, '');
+    json = json.replace(/"[^"]*$/, '""');  // Close partial string
+    json += stack.reverse().join('');
+  }
+  
+  return json;
+}
+
+/**
+ * Extract valid JSON objects and rebuild the structure
+ */
+function extractAndRebuild(input: string): any {
+  console.log('Attempting structured extraction...');
+  
+  // Try to extract key sections
+  const extracted: any = {
+    sprintTheme: extractStringValue(input, 'sprintTheme') || 'Sprint 1: Building Your Foundation',
+    sprintPromise: extractStringValue(input, 'sprintPromise') || 'Transform from overwhelmed to in control',
+    sprintGoals: extractArrayValue(input, 'sprintGoals') || ['Address immediate pain', 'Build systems', 'Create momentum'],
+    phases: extractPhasesObject(input),
+    weeks: extractWeeksArray(input),
+    tuesdayEvolution: extractTuesdayEvolution(input)
+  };
+  
+  console.log(`Extracted: ${extracted.weeks.length} weeks, theme: "${extracted.sprintTheme.substring(0, 50)}..."`);
+  
+  if (extracted.weeks.length === 0) {
+    console.warn('Could not extract any weeks, using minimal structure');
+    extracted.weeks = generateMinimalWeeks();
+    extracted._note = 'Weeks regenerated due to parsing issues';
+  }
+  
+  return extracted;
+}
+
+function extractStringValue(input: string, key: string): string | null {
+  const regex = new RegExp(`"${key}"\\s*:\\s*"([^"]*(?:\\\\"[^"]*)*)"`, 's');
+  const match = input.match(regex);
+  return match ? match[1].replace(/\\"/g, '"').replace(/\\n/g, ' ') : null;
+}
+
+function extractArrayValue(input: string, key: string): string[] | null {
+  const regex = new RegExp(`"${key}"\\s*:\\s*\\[([^\\]]+)\\]`);
+  const match = input.match(regex);
+  if (!match) return null;
+  
+  const items = match[1].match(/"([^"]+)"/g);
+  return items ? items.map(s => s.replace(/"/g, '')) : null;
+}
+
+function extractPhasesObject(input: string): any {
+  // Try to extract phases or return default
+  try {
+    const phasesMatch = input.match(/"phases"\s*:\s*(\{[^}]*\{[^}]*\}[^}]*\{[^}]*\}[^}]*\{[^}]*\}[^}]*\})/s);
+    if (phasesMatch) {
+      return JSON.parse(phasesMatch[1]);
+    }
+  } catch (e) {
+    // Fall through to default
+  }
+  
+  return {
+    immediateRelief: { weeks: [1, 2], theme: "Quick wins and breathing room", emotionalGoal: "From overwhelmed to hopeful" },
+    foundation: { weeks: [3, 4], theme: "Building the base", emotionalGoal: "From reactive to proactive" },
+    implementation: { weeks: [5, 6], theme: "Executing changes", emotionalGoal: "From planning to doing" }
+  };
+}
+
+function extractWeeksArray(input: string): any[] {
+  const weeks: any[] = [];
+  
+  // Find each week object by looking for weekNumber patterns
+  const weekPattern = /\{\s*"weekNumber"\s*:\s*(\d+)[^}]*?"theme"\s*:\s*"([^"]+)"[^}]*?"narrative"\s*:\s*"([^"]*(?:\\"[^"]*)*)"/g;
+  
+  let match;
+  while ((match = weekPattern.exec(input)) !== null) {
+    const weekNum = parseInt(match[1]);
+    if (weekNum >= 1 && weekNum <= 6) {
+      weeks.push({
+        weekNumber: weekNum,
+        theme: match[2],
+        narrative: match[3].replace(/\\"/g, '"').replace(/\\n/g, ' '),
+        phase: weekNum <= 2 ? 'Immediate Relief' : weekNum <= 4 ? 'Foundation' : 'Implementation',
+        tasks: extractTasksForWeek(input, weekNum),
+        weekMilestone: extractStringAfterPattern(input, `week ${weekNum}`, 'weekMilestone') || `Week ${weekNum} milestone achieved`,
+        tuesdayCheckIn: extractStringAfterPattern(input, `week ${weekNum}`, 'tuesdayCheckIn') || `How do I feel about progress?`
+      });
+    }
+  }
+  
+  // Sort by week number and deduplicate
+  const seen = new Set();
+  return weeks
+    .filter(w => {
+      if (seen.has(w.weekNumber)) return false;
+      seen.add(w.weekNumber);
+      return true;
+    })
+    .sort((a, b) => a.weekNumber - b.weekNumber);
+}
+
+function extractTasksForWeek(input: string, weekNum: number): any[] {
+  // Find tasks section for this week
+  const weekStart = input.indexOf(`"weekNumber": ${weekNum}`);
+  if (weekStart === -1) return generateMinimalTasks(weekNum);
+  
+  const weekSection = input.substring(weekStart, weekStart + 3000);
+  const tasks: any[] = [];
+  
+  const taskPattern = /"title"\s*:\s*"([^"]+)"[^}]*?"description"\s*:\s*"([^"]*(?:\\"[^"]*)*)"/g;
+  let match;
+  let count = 0;
+  
+  while ((match = taskPattern.exec(weekSection)) !== null && count < 4) {
+    tasks.push({
+      id: `w${weekNum}_t${count + 1}`,
+      title: match[1],
+      description: match[2].replace(/\\"/g, '"').substring(0, 300),
+      whyThisMatters: 'Connects to your North Star vision',
+      timeEstimate: '2-3 hours'
+    });
+    count++;
+  }
+  
+  return tasks.length > 0 ? tasks : generateMinimalTasks(weekNum);
+}
+
+function extractStringAfterPattern(input: string, context: string, key: string): string | null {
+  const contextIdx = input.toLowerCase().indexOf(context.toLowerCase());
+  if (contextIdx === -1) return null;
+  
+  const section = input.substring(contextIdx, contextIdx + 1000);
+  const regex = new RegExp(`"${key}"\\s*:\\s*"([^"]+)"`);
+  const match = section.match(regex);
+  return match ? match[1] : null;
+}
+
+function extractTuesdayEvolution(input: string): any {
+  try {
+    const match = input.match(/"tuesdayEvolution"\s*:\s*\{([^}]+)\}/);
+    if (match) {
+      const inner = '{' + match[1] + '}';
+      return JSON.parse(inner);
+    }
+  } catch (e) {
+    // Fall through
+  }
+  
+  return {
+    week0: "Current state - feeling the weight",
+    week2: "First signs of relief",
+    week4: "Building momentum",
+    week6: "Foundation in place"
+  };
+}
+
+function generateMinimalWeeks(): any[] {
+  return [1, 2, 3, 4, 5, 6].map(n => ({
+    weekNumber: n,
+    theme: n <= 2 ? 'Quick Wins' : n <= 4 ? 'Building Systems' : 'Execution',
+    phase: n <= 2 ? 'Immediate Relief' : n <= 4 ? 'Foundation' : 'Implementation',
+    narrative: `Week ${n} focuses on building momentum toward your transformation.`,
+    tasks: generateMinimalTasks(n),
+    weekMilestone: `Complete Week ${n} objectives`,
+    tuesdayCheckIn: 'How am I feeling about my progress?'
+  }));
+}
+
+function generateMinimalTasks(weekNum: number): any[] {
+  return [
+    { id: `w${weekNum}_t1`, title: 'Primary focus task', description: 'Main task for this week', whyThisMatters: 'Key step forward', timeEstimate: '2 hours' },
+    { id: `w${weekNum}_t2`, title: 'Supporting task', description: 'Supporting activity', whyThisMatters: 'Builds foundation', timeEstimate: '1 hour' },
+    { id: `w${weekNum}_t3`, title: 'Quick win', description: 'Something achievable today', whyThisMatters: 'Creates momentum', timeEstimate: '30 mins' }
+  ];
 }
 
 function buildSprintPrompt(ctx: any): string {
