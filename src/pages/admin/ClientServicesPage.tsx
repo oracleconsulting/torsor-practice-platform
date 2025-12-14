@@ -3802,15 +3802,86 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
         .eq('id', clientId)
         .single();
 
-      const { data: roadmap } = await supabase
-        .from('client_roadmaps')
-        .select('id, roadmap_data, value_analysis, created_at, status')
+      // First, try to fetch from new staged architecture (roadmap_stages)
+      const { data: stagesData, error: stagesError } = await supabase
+        .from('roadmap_stages')
+        .select('*')
         .eq('client_id', clientId)
-        .eq('is_active', true)
-        .maybeSingle();
+        .in('status', ['published', 'approved', 'generated'])
+        .order('created_at', { ascending: true });
+
+      console.log('[fetchClientDetail] roadmap_stages result:', { 
+        count: stagesData?.length || 0, 
+        error: stagesError,
+        stageTypes: stagesData?.map(s => `${s.stage_type}:${s.status}`) || []
+      });
+
+      let roadmap: any = null;
+      let roadmapNeedsRegeneration = false;
+
+      // If we have staged data, build roadmap from it
+      if (stagesData && stagesData.length > 0) {
+        const stagesMap: Record<string, any> = {};
+        stagesData.forEach(stage => {
+          const content = stage.approved_content || stage.generated_content;
+          if (content) {
+            stagesMap[stage.stage_type] = content;
+          }
+        });
+
+        // Build roadmap data structure from stages
+        const roadmapData: any = {};
+        
+        if (stagesMap['fit_assessment']) {
+          roadmapData.fitProfile = stagesMap['fit_assessment'];
+        }
+        if (stagesMap['five_year_vision']) {
+          roadmapData.fiveYearVision = stagesMap['five_year_vision'];
+        }
+        if (stagesMap['six_month_shift']) {
+          roadmapData.sixMonthShift = stagesMap['six_month_shift'];
+        }
+        // Handle both old sprint_plan and new split sprint_plan_part1/part2
+        if (stagesMap['sprint_plan']) {
+          roadmapData.sprint = stagesMap['sprint_plan'];
+        } else if (stagesMap['sprint_plan_part2']) {
+          roadmapData.sprint = stagesMap['sprint_plan_part2'];
+        } else if (stagesMap['sprint_plan_part1']) {
+          roadmapData.sprint = stagesMap['sprint_plan_part1'];
+        }
+
+        const valueAnalysis = stagesMap['value_analysis'] || null;
+
+        console.log('[fetchClientDetail] Built roadmap from stages:', {
+          hasVision: !!roadmapData.fiveYearVision,
+          hasShift: !!roadmapData.sixMonthShift,
+          hasSprint: !!roadmapData.sprint,
+          hasValueAnalysis: !!valueAnalysis
+        });
+
+        roadmap = {
+          id: stagesData[0].id,
+          roadmap_data: roadmapData,
+          value_analysis: valueAnalysis,
+          created_at: stagesData[0].created_at,
+          status: 'generated' // Staged data is generated
+        };
+      } else {
+        // Fallback to old client_roadmaps table
+        console.log('[fetchClientDetail] No staged data, falling back to client_roadmaps');
+        const { data: legacyRoadmap } = await supabase
+          .from('client_roadmaps')
+          .select('id, roadmap_data, value_analysis, created_at, status')
+          .eq('client_id', clientId)
+          .eq('is_active', true)
+          .maybeSingle();
+        
+        if (legacyRoadmap) {
+          roadmap = legacyRoadmap;
+        }
+      }
       
       // Check if roadmap contains data that doesn't match client (e.g., fitness data for non-fitness client)
-      let roadmapNeedsRegeneration = false;
       if (roadmap && roadmap.roadmap_data && clientData) {
         const roadmapText = JSON.stringify(roadmap.roadmap_data).toLowerCase();
         const clientEmail = (clientData.email || '').toLowerCase();
