@@ -396,11 +396,54 @@ ${QUALITY_RULES}`
     throw new Error('Failed to parse sprint JSON');
   }
   
+  let jsonString = cleaned.substring(start, end + 1);
+  
+  // Try to parse as-is first
   try {
-    return JSON.parse(cleaned.substring(start, end + 1));
+    return JSON.parse(jsonString);
   } catch (parseError) {
     console.error('JSON parse error:', parseError);
-    let fixedJson = cleaned.substring(start, end + 1).replace(/,(\s*[}\]])/g, '$1');
-    return JSON.parse(fixedJson);
+    console.log('Attempting JSON repair...');
+    
+    // Apply fixes in sequence
+    let fixedJson = jsonString;
+    
+    // 1. Fix trailing commas before } or ]
+    fixedJson = fixedJson.replace(/,(\s*[}\]])/g, '$1');
+    
+    // 2. Fix missing commas between elements (common LLM issue)
+    fixedJson = fixedJson.replace(/}(\s*){/g, '},{');
+    fixedJson = fixedJson.replace(/](\s*)\[/g, '],[');
+    fixedJson = fixedJson.replace(/"(\s*)"/g, '","');
+    
+    // 3. Fix unclosed structures
+    const openBraces = (fixedJson.match(/\{/g) || []).length;
+    const closeBraces = (fixedJson.match(/\}/g) || []).length;
+    const openBrackets = (fixedJson.match(/\[/g) || []).length;
+    const closeBrackets = (fixedJson.match(/\]/g) || []).length;
+    
+    if (openBrackets > closeBrackets) {
+      console.log(`Closing ${openBrackets - closeBrackets} unclosed brackets`);
+      for (let i = 0; i < openBrackets - closeBrackets; i++) {
+        fixedJson += ']';
+      }
+    }
+    if (openBraces > closeBraces) {
+      console.log(`Closing ${openBraces - closeBraces} unclosed braces`);
+      for (let i = 0; i < openBraces - closeBraces; i++) {
+        fixedJson += '}';
+      }
+    }
+    
+    // 4. Try to parse fixed JSON
+    try {
+      const result = JSON.parse(fixedJson);
+      console.log('JSON repair successful');
+      return result;
+    } catch (secondError) {
+      console.error('JSON repair failed:', secondError);
+      console.error('JSON preview (first 500):', fixedJson.substring(0, 500));
+      throw new Error(`Failed to parse sprint JSON after repair: ${secondError}`);
+    }
   }
 }
