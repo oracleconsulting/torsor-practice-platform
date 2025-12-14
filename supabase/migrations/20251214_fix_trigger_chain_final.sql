@@ -39,11 +39,16 @@ BEGIN
       -- Log for debugging
       RAISE NOTICE 'trigger_next_stage: % completed, queuing %', NEW.stage_type, next_stage;
       
-      INSERT INTO generation_queue (practice_id, client_id, stage_type, depends_on_stage, status)
-      VALUES (NEW.practice_id, NEW.client_id, next_stage, NEW.stage_type, 'pending')
-      ON CONFLICT (client_id, stage_type) 
-      WHERE status = 'pending'
-      DO NOTHING;
+      -- Check if already queued/processing to avoid duplicates
+      IF NOT EXISTS (
+        SELECT 1 FROM generation_queue 
+        WHERE client_id = NEW.client_id 
+        AND stage_type = next_stage 
+        AND status IN ('pending', 'processing')
+      ) THEN
+        INSERT INTO generation_queue (practice_id, client_id, stage_type, depends_on_stage, status)
+        VALUES (NEW.practice_id, NEW.client_id, next_stage, NEW.stage_type, 'pending');
+      END IF;
     END IF;
   END IF;
   
