@@ -70,15 +70,28 @@ export default function RoadmapPage() {
           setPart3Responses(data.responses);
         }
         
-        // Check roadmap status
-        const { data: roadmapData } = await supabase
-          .from('client_roadmaps')
+        // Check roadmap status from staged architecture
+        const { data: stagesStatus } = await supabase
+          .from('roadmap_stages')
           .select('status')
           .eq('client_id', clientSession.clientId)
-          .eq('is_active', true)
+          .in('status', ['published', 'approved'])
+          .limit(1)
           .maybeSingle();
         
-        setRoadmapStatus(roadmapData?.status || null);
+        if (stagesStatus) {
+          setRoadmapStatus('published');
+        } else {
+          // Fallback to old table
+          const { data: roadmapData } = await supabase
+            .from('client_roadmaps')
+            .select('status')
+            .eq('client_id', clientSession.clientId)
+            .eq('is_active', true)
+            .maybeSingle();
+          
+          setRoadmapStatus(roadmapData?.status || null);
+        }
       }
       setIsInitialized(true);
     };
@@ -177,8 +190,8 @@ export default function RoadmapPage() {
     );
   }
 
-  // Show placeholder if no roadmap or if roadmap status is not 'published' or 'ready_for_client'
-  if (!roadmap || (roadmapStatus && roadmapStatus !== 'published' && roadmapStatus !== 'ready_for_client')) {
+  // Show placeholder if no roadmap or if roadmap status is not 'published' or 'ready_for_client' or 'approved'
+  if (!roadmap || (roadmapStatus && roadmapStatus !== 'published' && roadmapStatus !== 'ready_for_client' && roadmapStatus !== 'approved')) {
     return (
       <Layout title="Your Roadmap" subtitle="Your transformation plan is being prepared">
         <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl p-12 text-center">
@@ -215,24 +228,25 @@ export default function RoadmapPage() {
         {/* ================================================================
             NAVIGATION TABS
         ================================================================ */}
-        <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1.5">
+        <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1.5 overflow-x-auto">
           {[
-            { id: 'vision', label: '5-Year Vision', icon: Mountain },
-            { id: 'shift', label: '6-Month Shift', icon: Compass },
-            { id: 'sprint', label: '12-Week Sprint', icon: Flag },
-            { id: 'value', label: 'Value Analysis', icon: TrendingUp }
+            { id: 'vision', label: '5-Year Vision', icon: Mountain, shortLabel: 'Vision' },
+            { id: 'shift', label: '6-Month Shift', icon: Compass, shortLabel: '6-Month' },
+            { id: 'sprint', label: '12-Week Sprint', icon: Flag, shortLabel: '12-Week' },
+            { id: 'value', label: 'Value Analysis', icon: TrendingUp, shortLabel: 'Value' }
           ].map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as ViewTab)}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-medium transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-medium transition-all whitespace-nowrap min-w-fit ${
                 activeTab === tab.id 
                   ? 'bg-indigo-600 text-white shadow-md' 
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              <tab.icon className="w-4 h-4" />
+              <tab.icon className="w-4 h-4 flex-shrink-0" />
               <span className="hidden sm:inline">{tab.label}</span>
+              <span className="sm:hidden">{tab.shortLabel}</span>
             </button>
           ))}
         </div>

@@ -713,7 +713,7 @@ export function useAssessmentFlow() {
 }
 
 // ============================================================================
-// useRoadmap - Fetch existing roadmap
+// useRoadmap - Fetch existing roadmap from staged architecture
 // ============================================================================
 
 export function useRoadmap() {
@@ -731,6 +731,60 @@ export function useRoadmap() {
     setError(null);
 
     try {
+      // First, try to fetch from new staged architecture (roadmap_stages)
+      const { data: stagesData, error: stagesError } = await supabase
+        .from('roadmap_stages')
+        .select('*')
+        .eq('client_id', clientSession.clientId)
+        .in('status', ['published', 'approved'])
+        .order('created_at', { ascending: true });
+
+      if (stagesError && stagesError.code !== 'PGRST116') {
+        console.warn('Error fetching from roadmap_stages:', stagesError);
+      }
+
+      // If we have staged data, use it
+      if (stagesData && stagesData.length > 0) {
+        const stagesMap: Record<string, any> = {};
+        stagesData.forEach(stage => {
+          const content = stage.approved_content || stage.generated_content;
+          if (content) {
+            stagesMap[stage.stage_type] = content;
+          }
+        });
+
+        // Build roadmap data structure from stages
+        const roadmapData: any = {};
+        
+        if (stagesMap['five_year_vision']) {
+          roadmapData.fiveYearVision = stagesMap['five_year_vision'];
+        }
+        
+        if (stagesMap['six_month_shift']) {
+          roadmapData.sixMonthShift = stagesMap['six_month_shift'];
+        }
+        
+        if (stagesMap['sprint_plan']) {
+          roadmapData.sprint = stagesMap['sprint_plan'];
+        }
+
+        // Get value analysis
+        let valueAnalysis = null;
+        if (stagesMap['value_analysis']) {
+          valueAnalysis = stagesMap['value_analysis'];
+        }
+
+        setRoadmap({
+          id: stagesData[0].id,
+          roadmapData,
+          valueAnalysis,
+          createdAt: stagesData[0].created_at,
+          isActive: true
+        });
+        return { roadmapData, valueAnalysis };
+      }
+
+      // Fallback to old client_roadmaps table for backwards compatibility
       const { data, error: fetchError } = await supabase
         .from('client_roadmaps')
         .select('*')
@@ -739,7 +793,9 @@ export function useRoadmap() {
         .in('status', ['published', 'ready_for_client'])
         .maybeSingle();
 
-      if (fetchError) throw new Error(fetchError.message);
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw new Error(fetchError.message);
+      }
 
       if (data) {
         setRoadmap({
