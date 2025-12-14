@@ -51,10 +51,18 @@ serve(async (req) => {
         .limit(1)
         .maybeSingle();
 
-      if (queueError || !queueItem) {
-        // Queue is empty
+      if (queueError) {
+        console.error('Error querying queue:', queueError);
         break;
       }
+
+      if (!queueItem) {
+        // Queue is empty - log for debugging
+        console.log(`[${iterations}] No pending items in queue`);
+        break;
+      }
+
+      console.log(`[${iterations}] Found queue item: ${queueItem.stage_type} for client ${queueItem.client_id}`);
 
       // Check dependency is complete
       if (queueItem.depends_on_stage) {
@@ -131,15 +139,24 @@ serve(async (req) => {
       });
 
       if (!response.ok) {
-        const error = await response.text();
-        console.error(`Function ${functionName} failed:`, error);
+        const errorText = await response.text();
+        console.error(`Function ${functionName} failed (status ${response.status}):`, errorText);
+        
+        // Try to parse error for better logging
+        let errorMessage = errorText;
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorJson.message || errorText;
+        } catch {
+          // Not JSON, use as-is
+        }
         
         // Mark as failed
         await supabase
           .from('generation_queue')
           .update({ 
             status: 'failed', 
-            last_error: error.substring(0, 500),
+            last_error: errorMessage.substring(0, 500),
             completed_at: new Date().toISOString()
           })
           .eq('id', queueItem.id);
