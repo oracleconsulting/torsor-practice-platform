@@ -341,9 +341,17 @@ export function useClientDetail(clientId: string | null) {
   }, [teamMember, clientId, fetchClient]);
 
   const regenerateRoadmap = useCallback(async () => {
-    if (!teamMember || !clientId) return false;
+    console.log('=== REGENERATE ROADMAP CALLED ===');
+    console.log('teamMember:', teamMember);
+    console.log('clientId:', clientId);
+    
+    if (!teamMember || !clientId) {
+      console.error('Missing teamMember or clientId');
+      return false;
+    }
 
     try {
+      console.log('Starting roadmap regeneration process...');
       // With the new staged architecture, we only need to queue the first stage
       // The database trigger will auto-chain subsequent stages as each completes
       // The orchestrator will process all stages in sequence
