@@ -38,9 +38,10 @@ const MODEL_CONFIGS: Record<ModelTier, ModelConfig> = {
 };
 
 // Task to tier mapping
+// QUALITY FIRST: Roadmap generation is the flagship output - use premium model
 const TASK_TO_TIER: Record<LLMTaskType, ModelTier> = {
   fit_assessment: 'fast',
-  roadmap_generation: 'balanced',
+  roadmap_generation: 'premium', // Upgraded to premium - this is what clients see
   value_analysis: 'balanced',
   chat_completion: 'fast', // May upgrade based on complexity
   meeting_agenda: 'fast',

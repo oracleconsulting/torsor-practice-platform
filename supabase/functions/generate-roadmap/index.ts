@@ -33,6 +33,13 @@ interface EmotionalAnchors {
   specificQuotes: Record<string, string>;
 }
 
+interface FinancialContext {
+  hasData: boolean;
+  summary: string;
+  concerns: string[];
+  highlights: string[];
+}
+
 interface RoadmapContext {
   userName: string;
   companyName: string;
@@ -61,6 +68,7 @@ interface RoadmapContext {
   teamSize: string;
   growthBottleneck: string;
   ninetyDayPriorities: string[];
+  sixMonthShifts?: string; // NEW: Their explicit 6-month shift answer
   threeExpertsNeeded: string;
   currentWorkingHours: number;
   targetWorkingHours: number;
@@ -69,6 +77,7 @@ interface RoadmapContext {
   emotionalAnchors: EmotionalAnchors;
   roiData: any;
   industryContext: string;
+  financialContext: FinancialContext | null; // NEW: Financial context from accounts/data
 }
 
 // ============================================================================
@@ -553,10 +562,104 @@ function isGeneralAdvice(line: string): boolean {
 }
 
 // ============================================================================
+// FINANCIAL CONTEXT PROCESSING
+// ============================================================================
+
+function processFinancialContext(
+  clientContext: any[], 
+  part1: Record<string, any>,
+  part2: Record<string, any>
+): FinancialContext {
+  const result: FinancialContext = {
+    hasData: false,
+    summary: '',
+    concerns: [],
+    highlights: []
+  };
+
+  // Look for accounts data in client context
+  const accountsContext = clientContext.find(c => 
+    c.data_source_type === 'accounts' || 
+    c.context_type === 'accounts' ||
+    (c.content && (
+      c.content.toLowerCase().includes('turnover') ||
+      c.content.toLowerCase().includes('profit') ||
+      c.content.toLowerCase().includes('revenue') ||
+      c.content.toLowerCase().includes('ebitda')
+    ))
+  );
+
+  if (accountsContext && accountsContext.content) {
+    result.hasData = true;
+    // Extract key financial figures (basic parsing - could be enhanced)
+    const content = accountsContext.content.toLowerCase();
+    const revenueMatch = content.match(/revenue[:\s]+£?([\d,]+)/i) || content.match(/turnover[:\s]+£?([\d,]+)/i);
+    const profitMatch = content.match(/profit[:\s]+£?([\d,]+)/i) || content.match(/ebitda[:\s]+£?([\d,]+)/i);
+    
+    if (revenueMatch) {
+      const revenue = parseInt(revenueMatch[1].replace(/,/g, ''));
+      result.highlights.push(`Revenue: £${revenue.toLocaleString()}`);
+    }
+    if (profitMatch) {
+      const profit = parseInt(profitMatch[1].replace(/,/g, ''));
+      result.highlights.push(`Profit: £${profit.toLocaleString()}`);
+    }
+    
+    result.summary = accountsContext.content.substring(0, 500); // First 500 chars
+  }
+
+  // Use stated figures from assessment
+  const statedRevenue = part1.current_turnover || part2.annual_turnover;
+  const statedIncome = part1.current_income;
+  const desiredIncome = part1.desired_income;
+
+  if (statedRevenue && !result.hasData) {
+    result.highlights.push(`Stated revenue: ${statedRevenue}`);
+  }
+
+  if (statedIncome && desiredIncome) {
+    const current = parseIncome(statedIncome);
+    const desired = parseIncome(desiredIncome);
+    if (desired > current) {
+      const gap = desired - current;
+      result.highlights.push(`Income gap to close: £${gap.toLocaleString()}/month`);
+    }
+  }
+
+  // Check for financial visibility gaps
+  if (part2.financial_visibility === 'Quarterly accounts' || 
+      part2.financial_visibility === 'Annual accounts only' ||
+      part2.financial_visibility === 'Never - I dont get meaningful management information') {
+    result.concerns.push('Limited financial visibility - only quarterly/annual accounts');
+  }
+
+  if (part2.profit_eaters?.includes("Don't know") || 
+      part2.profit_eaters?.includes("Not sure")) {
+    result.concerns.push("Doesn't know what's eating profits");
+  }
+
+  // Build summary
+  if (result.concerns.length > 0 || result.highlights.length > 0) {
+    result.summary = [
+      result.highlights.length > 0 ? `Key figures: ${result.highlights.join('; ')}` : '',
+      result.concerns.length > 0 ? `Concerns: ${result.concerns.join('; ')}` : ''
+    ].filter(Boolean).join('\n');
+  }
+
+  return result;
+}
+
+function parseIncome(str: string | undefined): number {
+  if (!str) return 0;
+  const cleaned = str.replace(/[£,\s]/g, '').replace(/k$/i, '000');
+  return parseInt(cleaned) || 0;
+}
+
+// ============================================================================
 // CONTEXT BUILDER
 // ============================================================================
 
-function buildContext(part1: Record<string, any>, part2: Record<string, any>): RoadmapContext {
+function buildContext(part1: Record<string, any>, part2: Record<string, any>, financialContext?: FinancialContext): RoadmapContext {
   const emotionalAnchors = extractEmotionalAnchors(part1, part2);
   
   // Parse revenue
@@ -630,7 +733,9 @@ function buildContext(part1: Record<string, any>, part2: Record<string, any>): R
     isPreRevenue: revenueNumeric === 0,
     emotionalAnchors,
     roiData: null,
-    industryContext: ''
+    industryContext: '',
+    sixMonthShifts: part2.six_month_shifts || part2.sixMonthShifts || '', // Extract their explicit answer
+    financialContext: financialContext || null
   };
 
   // Add calculated data
@@ -1552,13 +1657,23 @@ async function callLLM(prompt: string, maxTokens = 8000): Promise<string> {
       'X-Title': 'Torsor 365 Roadmap'
     },
     body: JSON.stringify({
-      model: 'anthropic/claude-3.5-sonnet',
+      // QUALITY FIRST - Use Opus 4.5 for roadmap generation (flagship output)
+      model: 'anthropic/claude-opus-4-5-20250514',
       max_tokens: maxTokens,
-      temperature: 0.4, // Reduced from 0.7 for consistency and quality
+      temperature: 0.4, // Lower for consistency and quality
       messages: [
         { 
           role: 'system', 
-          content: 'You create deeply personal transformation narratives that make founders feel truly understood. Write in second person. Use their exact quotes. Always return valid JSON. Be specific to their industry and situation.' 
+          content: `You are creating a deeply personal business transformation plan using The 365 Method.
+
+CRITICAL RULES:
+1. Use the client's EXACT words from their assessment responses
+2. Every factual claim must have a verifiable source
+3. Use British English throughout
+4. Be specific to their situation - no generic advice
+5. Every task needs: what, how, time, deliverable, tool, milestone connection
+
+Return ONLY valid JSON. No markdown, no explanation, just the JSON object.`
         },
         { role: 'user', content: prompt }
       ]
@@ -1773,8 +1888,15 @@ serve(async (req) => {
       console.log('No client_context table or no context found');
     }
 
+    // Process financial context from uploaded accounts/data
+    const financialContext = processFinancialContext(
+      advisorContext,
+      part1,
+      part2
+    );
+    
     // Build comprehensive context
-    const context = buildContext(part1, part2);
+    const context = buildContext(part1, part2, financialContext);
     console.log(`=== CONTEXT BUILT ===`);
     console.log(`Client ID: ${clientId}`);
     console.log(`Company Name: ${context.companyName}`);

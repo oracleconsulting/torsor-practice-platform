@@ -33,31 +33,80 @@ INSTEAD: Write directly. Say what you mean. Use their words.
 `;
 
 export const CLAIM_SOURCING = `
-CLAIM SOURCES - every factual claim must come from ONE of these:
+## CLAIM SOURCING REQUIREMENTS - CRITICAL
 
-1. DIRECT QUOTE from their assessment responses
-   - Use their exact words in quotes
-   - Example: You said you're "trapped in the salon"
+Every factual claim MUST have a verifiable source:
 
-2. CALCULATION you can show working for
-   - Show the maths
-   - Example: At 60 hours/week and £45/hour, that's £140k opportunity cost
+### Allowed Sources:
+1. **DIRECT_QUOTE** - Client's exact words from their assessment responses
+   - Format: As you said, "[exact quote]"
+   - Example: As you said, "I'm just a one man band that got big"
 
-3. INDUSTRY BENCHMARK you can cite
-   - State the source
-   - Example: Typical salon owner-operators work 50-55 hours (industry average)
+2. **ASSESSMENT_RESPONSE** - Specific answer they gave
+   - Format: Based on your [question_name] response
+   - Example: Based on your "Six Month Shifts" answer: "more staff, better processes and training, a GM"
 
-4. PATTERN FROM THEIR DATA
-   - Be explicit it's a pattern
-   - Example: Your responses suggest a pattern of...
+3. **FINANCIAL_DATA** - From uploaded accounts or stated figures
+   - Format: Your [year] accounts show / You stated revenue of
+   - Example: Your 2025 accounts show revenue of £217k, up 47% from £147k
 
-NEVER:
-- Invent statistics
-- Make up quotes they didn't say
-- Claim specific figures without basis
-- Say "studies show" without a study
+4. **CALCULATED** - Mathematical calculation from their data
+   - Format: Calculated: [formula] = [result]
+   - Example: Calculated: £3,600/month × 12 = £43,200/year current income
 
-If you don't have data, say "based on typical patterns" not fake specifics.
+### FORBIDDEN:
+- Invented statistics ("60% reduction in firefighting" without source)
+- Assumed industry benchmarks without stating source
+- Generic claims ("most business owners find...")
+- Round numbers that weren't calculated ("save 10 hours/week")
+
+If you cannot source a claim, DO NOT make it.
+`;
+
+export const USE_THEIR_EXPLICIT_ANSWERS = `
+## MANDATORY: USE THEIR EXPLICIT ANSWERS
+
+The client answered specific questions about their vision. YOU MUST USE THESE:
+
+### For 5-Year Vision:
+- USE their "tuesday_test" answer - this IS their 5-year vision
+- USE their "winning_2030" answer - this IS their success definition
+- USE their "ten_year_vision" answer - this IS their long-term direction
+- USE their "desired_income" - this IS their target income
+
+### For 6-Month Shift:
+- USE their "six_month_shifts" answer - THEY TOLD YOU what they want in 6 months
+- USE their "ninety_day_priorities" - these are THEIR priorities, not yours
+- USE their "growth_bottleneck" - this IS the problem to solve
+
+### For 12-Week Sprint:
+- USE their "monday_frustration" - address this in Week 1-2
+- USE their "magic_away_task" - eliminate this early
+- USE their "emergency_log" - these are the fires to stop
+- USE their "growth_trap" answers - these ARE the blockers
+
+DO NOT invent priorities. USE THEIRS.
+`;
+
+export const FINANCIAL_CONTEXT_RULES = `
+## FINANCIAL CONTEXT - USE IT
+
+If financial data is provided (accounts, projections), YOU MUST:
+
+1. **Reference specific figures** - not "your revenue" but "your £217k revenue"
+2. **Note trends** - "revenue up 47% but profit down 62%"
+3. **Flag concerns** - if margin dropped, SAY SO
+4. **Calculate gaps** - current income vs desired income = gap to close
+
+### Example Financial Analysis:
+"Your 2025 accounts show:
+- Revenue: £217k (up 47% from £147k) ✅
+- Operating profit: £15k (DOWN 62% from £40k) ⚠️
+- Gross margin: 37% (down from 47%) ⚠️
+
+This means you're working harder for less profit. Before hiring a GM, we need to understand where the profit went. Week 1-2 tasks will address this."
+
+DO NOT ignore financial red flags to be "positive". Address them.
 `;
 
 export const BRITISH_ENGLISH = `
@@ -101,6 +150,8 @@ EVERY TASK MUST INCLUDE:
 2. How to do it (method or format)
 3. Time estimate (how long it should take)
 4. Deliverable (what the output looks like)
+5. Tool - Specific tool to use (from their list or recommended)
+6. Connection - Which 6-month milestone this enables
 `;
 
 export const TIMEFRAME_CALIBRATION = `
