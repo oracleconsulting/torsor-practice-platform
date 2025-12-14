@@ -3781,20 +3781,13 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
   
   // Analysis generation state
   const [generatingValueAnalysis, setGeneratingValueAnalysis] = useState(false);
-  const [regenerateOptions, setRegenerateOptions] = useState({
-    fiveYear: false,
-    sixMonth: false,
-    sprint: true
-  });
-  const [showRegenerateOptions, setShowRegenerateOptions] = useState(false);
+  // Regenerate state (no longer using selective options - regenerates all stages)
+  const [regenerating, setRegenerating] = useState(false);
   
   // Sprint editing state
   const [editingTask, setEditingTask] = useState<{weekNumber: number, taskId: string, original: any} | null>(null);
   const [editedTask, setEditedTask] = useState<{title: string, description: string}>({ title: '', description: '' });
   const [savingTask, setSavingTask] = useState(false);
-  
-  // Regeneration state
-  const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     fetchClientDetail();
@@ -4164,53 +4157,90 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
   };
 
   // ================================================================
-  // REGENERATE ROADMAP FUNCTIONALITY (with selective options)
+  // REGENERATE ROADMAP FUNCTIONALITY (staged architecture)
   // ================================================================
-  const handleRegenerate = async (sections?: { fiveYear?: boolean, sixMonth?: boolean, sprint?: boolean }) => {
-    if (!client?.practice_id) return;
-    
-    const opts = sections || regenerateOptions;
-    const selectedSections = [];
-    if (opts.fiveYear) selectedSections.push('5-Year Vision');
-    if (opts.sixMonth) selectedSections.push('6-Month Shift');
-    if (opts.sprint) selectedSections.push('12-Week Sprint');
-    
-    if (selectedSections.length === 0) {
-      alert('Please select at least one section to regenerate.');
-      return;
-    }
+  const handleRegenerate = async () => {
+    if (!client?.practice_id || !clientId) return;
     
     const unprocessedContext = client.context?.filter((c: any) => !c.processed) || [];
     const contextMsg = unprocessedContext.length > 0 
       ? `\n${unprocessedContext.length} new context item(s) will be incorporated.` 
       : '';
     
-    if (!confirm(`Regenerate ${selectedSections.join(', ')}?${contextMsg}`)) return;
+    if (!confirm(`This will regenerate all roadmap stages (Fit Assessment, 5-Year Vision, 6-Month Shift, 12-Week Sprint, and Value Analysis). The process will start immediately and run through all stages automatically. This may take 2-3 minutes.${contextMsg}\n\nContinue?`)) return;
     
     setRegenerating(true);
-    setShowRegenerateOptions(false);
+    
     try {
-      const response = await supabase.functions.invoke('generate-roadmap', {
-        body: {
-          clientId,
-          practiceId: client.practice_id,
-          regenerate: true,
-          sections: {
-            fiveYear: opts.fiveYear,
-            sixMonth: opts.sixMonth,
-            sprint: opts.sprint
-          }
-        }
-      });
+      console.log('=== REGENERATE ROADMAP CALLED ===');
+      console.log('clientId:', clientId);
+      console.log('practiceId:', client.practice_id);
 
-      if (response.error) throw response.error;
+      // Clear any existing pending items for this client
+      await supabase
+        .from('generation_queue')
+        .delete()
+        .eq('client_id', clientId)
+        .eq('status', 'pending');
+
+      // Queue only the first stage - the rest will be auto-queued by database triggers
+      const { error: queueError } = await supabase
+        .from('generation_queue')
+        .insert({
+          practice_id: client.practice_id,
+          client_id: clientId,
+          stage_type: 'fit_assessment', // Start with the first stage
+          priority: 10 // High priority for manual regeneration
+        })
+        .select()
+        .single();
+
+      if (queueError) {
+        console.error('Error queueing first stage:', queueError);
+        throw new Error(`Failed to queue regeneration: ${queueError.message}`);
+      }
+
+      console.log('✓ Queued fit_assessment successfully');
+
+      // Call orchestrator to process the queue
+      // The orchestrator will process fit_assessment first, which triggers the next stage via database trigger
+      // Then it continues processing the rest of the chain automatically
+      try {
+        console.log('🚀 Triggering orchestrator to start processing...');
+        
+        const orchestratorResponse = await supabase.functions.invoke(
+          'roadmap-orchestrator',
+          {
+            body: {}
+          }
+        );
+
+        console.log('Orchestrator response:', orchestratorResponse);
+
+        if (orchestratorResponse.error) {
+          console.warn('⚠️ Orchestrator returned error:', orchestratorResponse.error);
+          // Queue is set up, so this is non-fatal - stages will be processed
+        } else {
+          console.log('✅ Orchestrator started successfully:', orchestratorResponse.data);
+        }
+      } catch (invokeError: any) {
+        // FunctionsFetchError or other errors - log but don't fail
+        console.error('❌ Orchestrator invocation error (queue is set up, this is OK):', invokeError);
+        console.error('Error details:', {
+          message: invokeError?.message,
+          name: invokeError?.name,
+          type: typeof invokeError
+        });
+        // Don't throw - queue is set up and will be processed
+      }
 
       // Refresh client data
       await fetchClientDetail();
-      alert(`${selectedSections.join(', ')} regenerated successfully!`);
+      
+      alert('Roadmap regeneration started! The process is running through all stages automatically. This may take 2-3 minutes. You can refresh the page in a few moments to see progress.');
     } catch (error) {
       console.error('Error regenerating roadmap:', error);
-      alert('Failed to regenerate roadmap. Please try again.');
+      alert(`Failed to start roadmap regeneration: ${error instanceof Error ? error.message : 'Unknown error'}. Please check the console for details.`);
     } finally {
       setRegenerating(false);
     }
@@ -4251,77 +4281,25 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
               )}
             </button>
 
-            {/* Regenerate Dropdown */}
+            {/* Regenerate Button */}
             {client?.roadmap && (
-              <div className="relative">
-                <button
-                  onClick={() => setShowRegenerateOptions(!showRegenerateOptions)}
-                  disabled={regenerating}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400 text-sm font-medium"
-                >
-                  {regenerating ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Regenerating...
-                    </>
-                  ) : (
-                    <>
-                      <TrendingUp className="w-4 h-4" />
-                      Regenerate
-                      <ChevronRight className={`w-4 h-4 transition-transform ${showRegenerateOptions ? 'rotate-90' : ''}`} />
-                    </>
-                  )}
-                </button>
-                
-                {showRegenerateOptions && !regenerating && (
-                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 z-50 p-4">
-                    <p className="text-sm font-medium text-gray-900 mb-3">Select sections to regenerate:</p>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={regenerateOptions.fiveYear}
-                          onChange={(e) => setRegenerateOptions({ ...regenerateOptions, fiveYear: e.target.checked })}
-                          className="w-4 h-4 text-indigo-600 rounded"
-                        />
-                        <span className="text-sm text-gray-700">5-Year Vision</span>
-                      </label>
-                      <label className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={regenerateOptions.sixMonth}
-                          onChange={(e) => setRegenerateOptions({ ...regenerateOptions, sixMonth: e.target.checked })}
-                          className="w-4 h-4 text-indigo-600 rounded"
-                        />
-                        <span className="text-sm text-gray-700">6-Month Shift</span>
-                      </label>
-                      <label className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={regenerateOptions.sprint}
-                          onChange={(e) => setRegenerateOptions({ ...regenerateOptions, sprint: e.target.checked })}
-                          className="w-4 h-4 text-indigo-600 rounded"
-                        />
-                        <span className="text-sm text-gray-700">12-Week Sprint</span>
-                      </label>
-                    </div>
-                    <div className="mt-4 pt-3 border-t border-gray-200 flex gap-2">
-                      <button
-                        onClick={() => handleRegenerate({ sprint: true })}
-                        className="flex-1 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                      >
-                        Sprint Only
-                      </button>
-                      <button
-                        onClick={() => handleRegenerate()}
-                        className="flex-1 px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                      >
-                        Regenerate
-                      </button>
-                    </div>
-                  </div>
+              <button
+                onClick={handleRegenerate}
+                disabled={regenerating}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400 text-sm font-medium"
+              >
+                {regenerating ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Regenerating...
+                  </>
+                ) : (
+                  <>
+                    <TrendingUp className="w-4 h-4" />
+                    Regenerate Roadmap
+                  </>
                 )}
-              </div>
+              </button>
             )}
             
             <button
@@ -4486,8 +4464,7 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                               <button
                                 onClick={() => {
                                   if (confirm('Regenerate this roadmap with the correct assessment data? This will replace the current roadmap.')) {
-                                    setRegenerateOptions({ fiveYear: true, sixMonth: true, sprint: true });
-                                    handleRegenerate({ fiveYear: true, sixMonth: true, sprint: true });
+                                    handleRegenerate();
                                   }
                                 }}
                                 className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm font-medium"
