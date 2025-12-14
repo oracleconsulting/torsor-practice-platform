@@ -286,7 +286,7 @@ CREATE POLICY "Practice members can view their practice's roadmap stages"
   ON roadmap_stages FOR SELECT
   USING (
     practice_id IN (
-      SELECT practice_id FROM practice_members WHERE id = auth.uid()
+      SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
     )
   );
 
@@ -295,7 +295,7 @@ CREATE POLICY "Practice members can update their practice's roadmap stages"
   ON roadmap_stages FOR UPDATE
   USING (
     practice_id IN (
-      SELECT practice_id FROM practice_members WHERE id = auth.uid()
+      SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
     )
   );
 
@@ -304,7 +304,7 @@ CREATE POLICY "Practice members can insert roadmap stages"
   ON roadmap_stages FOR INSERT
   WITH CHECK (
     practice_id IN (
-      SELECT practice_id FROM practice_members WHERE id = auth.uid()
+      SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
     )
   );
 
@@ -313,7 +313,7 @@ CREATE POLICY "Practice members can view their practice's feedback"
   ON generation_feedback FOR SELECT
   USING (
     practice_id IN (
-      SELECT practice_id FROM practice_members WHERE id = auth.uid()
+      SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
     )
   );
 
@@ -321,7 +321,7 @@ CREATE POLICY "Practice members can insert feedback"
   ON generation_feedback FOR INSERT
   WITH CHECK (
     practice_id IN (
-      SELECT practice_id FROM practice_members WHERE id = auth.uid()
+      SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
     )
   );
 
@@ -329,7 +329,7 @@ CREATE POLICY "Practice members can view their practice's queue"
   ON generation_queue FOR SELECT
   USING (
     practice_id IN (
-      SELECT practice_id FROM practice_members WHERE id = auth.uid()
+      SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
     )
   );
 
@@ -337,7 +337,7 @@ CREATE POLICY "Practice members can insert into their practice's queue"
   ON generation_queue FOR INSERT
   WITH CHECK (
     practice_id IN (
-      SELECT practice_id FROM practice_members WHERE id = auth.uid()
+      SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
     )
   );
 
@@ -345,7 +345,7 @@ CREATE POLICY "Practice members can update their practice's queue"
   ON generation_queue FOR UPDATE
   USING (
     practice_id IN (
-      SELECT practice_id FROM practice_members WHERE id = auth.uid()
+      SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
     )
   );
 
