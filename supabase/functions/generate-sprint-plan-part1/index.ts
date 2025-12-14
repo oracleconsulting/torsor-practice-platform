@@ -370,7 +370,8 @@ ${QUALITY_RULES}`
   try {
     return JSON.parse(jsonString);
   } catch (parseError) {
-    console.error('JSON parse error:', parseError);
+    // This is expected - LLMs often produce slightly malformed JSON
+    console.warn('Initial JSON parse failed (will attempt repair):', parseError);
     console.log('Attempting JSON repair...');
     
     // Apply fixes in sequence
