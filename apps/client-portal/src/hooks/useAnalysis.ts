@@ -724,9 +724,11 @@ export function useRoadmap() {
 
   const fetchRoadmap = useCallback(async () => {
     if (!clientSession?.clientId) {
+      console.log('[useRoadmap] No clientSession.clientId, returning null');
       return null;
     }
 
+    console.log('[useRoadmap] Fetching roadmap for clientId:', clientSession.clientId);
     setLoading(true);
     setError(null);
 
@@ -740,12 +742,19 @@ export function useRoadmap() {
         .in('status', ['published', 'approved', 'generated'])
         .order('created_at', { ascending: true });
 
+      console.log('[useRoadmap] roadmap_stages query result:', { 
+        stagesCount: stagesData?.length || 0, 
+        stagesError,
+        stageTypes: stagesData?.map(s => `${s.stage_type}:${s.status}`) || []
+      });
+
       if (stagesError && stagesError.code !== 'PGRST116') {
-        console.warn('Error fetching from roadmap_stages:', stagesError);
+        console.warn('[useRoadmap] Error fetching from roadmap_stages:', stagesError);
       }
 
       // If we have staged data, use it
       if (stagesData && stagesData.length > 0) {
+        console.log('[useRoadmap] Using staged data, stages found:', stagesData.length);
         const stagesMap: Record<string, any> = {};
         stagesData.forEach(stage => {
           const content = stage.approved_content || stage.generated_content;
@@ -793,6 +802,7 @@ export function useRoadmap() {
       }
 
       // Fallback to old client_roadmaps table for backwards compatibility
+      console.log('[useRoadmap] No staged data found, falling back to client_roadmaps');
       const { data, error: fetchError } = await supabase
         .from('client_roadmaps')
         .select('*')
@@ -801,11 +811,14 @@ export function useRoadmap() {
         .in('status', ['published', 'ready_for_client'])
         .maybeSingle();
 
+      console.log('[useRoadmap] client_roadmaps fallback result:', { data: !!data, fetchError });
+
       if (fetchError && fetchError.code !== 'PGRST116') {
         throw new Error(fetchError.message);
       }
 
       if (data) {
+        console.log('[useRoadmap] Using fallback client_roadmaps data');
         setRoadmap({
           id: data.id,
           roadmapData: data.roadmap_data,
@@ -816,6 +829,7 @@ export function useRoadmap() {
         return data;
       }
 
+      console.log('[useRoadmap] No roadmap data found in either table');
       return null;
 
     } catch (err) {
