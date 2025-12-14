@@ -2847,6 +2847,25 @@ serve(async (req) => {
       console.log(`Generating comprehensive value analysis for client ${clientId}...`);
       const startTime = Date.now();
 
+      // Create stage record
+      const { data: stage, error: stageError } = await supabase
+        .from('roadmap_stages')
+        .insert({
+          practice_id: practiceId,
+          client_id: clientId,
+          stage_type: 'value_analysis',
+          status: 'generating',
+          generation_started_at: new Date().toISOString(),
+          model_used: 'anthropic/claude-sonnet-4-20250514'
+        })
+        .select()
+        .single();
+
+      if (stageError) {
+        console.warn('Could not create stage record:', stageError.message);
+        // Continue anyway - backward compatibility
+      }
+
       const { data: assessments } = await supabase
         .from('client_assessments')
         .select('assessment_type, responses')
@@ -2942,8 +2961,22 @@ serve(async (req) => {
 
       // Apply cleanup to all string fields in value analysis
       const cleanedValueAnalysis = cleanAllStrings(valueAnalysis);
+      const duration = Date.now() - startTime;
       
-      // Update roadmap with value analysis
+      // Update stage record if it was created
+      if (stage) {
+        await supabase
+          .from('roadmap_stages')
+          .update({
+            status: 'generated',
+            generated_content: cleanedValueAnalysis,
+            generation_completed_at: new Date().toISOString(),
+            generation_duration_ms: duration
+          })
+          .eq('id', stage.id);
+      }
+      
+      // Update roadmap with value analysis (backward compatibility)
       const { error: updateError } = await supabase
         .from('client_roadmaps')
         .update({ value_analysis: cleanedValueAnalysis })
@@ -2968,7 +3001,9 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({
         success: true,
+        stageId: stage?.id,
         valueAnalysis,
+        duration,
         summary: {
           overallScore,
           scoreInterpretation: valueAnalysis.scoreInterpretation,

@@ -392,17 +392,34 @@ function generateJourneyRecommendation(signals: FitSignals, part1: Record<string
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
+  const startTime = Date.now();
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
   try {
     const { clientId, practiceId } = await req.json();
 
-    if (!clientId) {
-      return new Response(JSON.stringify({ error: 'Missing clientId' }),
+    if (!clientId || !practiceId) {
+      return new Response(JSON.stringify({ error: 'Missing clientId or practiceId' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     console.log(`Generating fit profile for client ${clientId}...`);
+
+    // Create stage record
+    const { data: stage, error: stageError } = await supabase
+      .from('roadmap_stages')
+      .insert({
+        practice_id: practiceId,
+        client_id: clientId,
+        stage_type: 'fit_assessment',
+        status: 'generating',
+        generation_started_at: new Date().toISOString(),
+        model_used: 'anthropic/claude-3.5-sonnet'
+      })
+      .select()
+      .single();
+
+    if (stageError) throw stageError;
 
     // Fetch Part 1 responses
     const { data: assessment, error: fetchError } = await supabase
@@ -413,8 +430,7 @@ serve(async (req) => {
       .single();
 
     if (fetchError || !assessment) {
-      return new Response(JSON.stringify({ error: 'Part 1 not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      throw new Error('Part 1 not found');
     }
 
     const part1 = assessment.responses;
@@ -439,8 +455,22 @@ serve(async (req) => {
       unlocksPartTwo: signals.overallFit !== 'not_ready'
     };
 
-    // Store fit profile with Part 1 assessment
-    const { error: updateError } = await supabase
+    // Calculate duration
+    const duration = Date.now() - startTime;
+
+    // Update stage record
+    await supabase
+      .from('roadmap_stages')
+      .update({
+        status: 'generated',
+        generated_content: fitProfile,
+        generation_completed_at: new Date().toISOString(),
+        generation_duration_ms: duration
+      })
+      .eq('id', stage.id);
+
+    // Also store fit profile with Part 1 assessment (backward compatibility)
+    await supabase
       .from('client_assessments')
       .update({ 
         fit_profile: fitProfile,
@@ -449,16 +479,14 @@ serve(async (req) => {
       .eq('client_id', clientId)
       .eq('assessment_type', 'part1');
 
-    if (updateError) {
-      console.error('Failed to store fit profile:', updateError);
-    }
-
     console.log('Fit profile complete!');
 
     return new Response(JSON.stringify({
       success: true,
+      stageId: stage.id,
       fitProfile,
       unlocksPartTwo: fitProfile.unlocksPartTwo,
+      duration,
       summary: {
         overallFit: signals.overallFit,
         headline: fitMessage.headline,
