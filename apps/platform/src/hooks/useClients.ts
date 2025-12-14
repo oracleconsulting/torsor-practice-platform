@@ -344,15 +344,47 @@ export function useClientDetail(clientId: string | null) {
     if (!teamMember || !clientId) return false;
 
     try {
-      const { error } = await supabase.functions.invoke('generate-roadmap', {
-        body: {
-          clientId,
-          practiceId: teamMember.practiceId,
-          regenerate: true
-        }
-      });
+      // With the new staged architecture, we queue all stages for regeneration
+      // The orchestrator will process them in order
+      const stages = [
+        'fit_assessment',
+        'five_year_vision',
+        'six_month_shift',
+        'sprint_plan',
+        'value_analysis'
+      ];
 
-      if (error) throw error;
+      // Queue all stages for regeneration
+      const queuePromises = stages.map(stageType => 
+        supabase.from('generation_queue').insert({
+          practice_id: teamMember.practiceId,
+          client_id: clientId,
+          stage_type: stageType,
+          priority: 10 // High priority for manual regeneration
+        })
+      );
+
+      const results = await Promise.all(queuePromises);
+      
+      // Check for errors
+      const errors = results.filter(r => r.error);
+      if (errors.length > 0) {
+        console.error('Errors queueing stages:', errors);
+        throw new Error(`Failed to queue ${errors.length} stage(s) for regeneration`);
+      }
+
+      // Trigger the orchestrator to start processing
+      // Note: The orchestrator can be triggered via cron or manually
+      // For now, we'll also try to invoke it directly
+      try {
+        await supabase.functions.invoke('roadmap-orchestrator', {
+          body: {}
+        });
+      } catch (orchestratorError) {
+        // Orchestrator might not be available or might be triggered by cron
+        // This is not critical - the queue will be processed eventually
+        console.log('Orchestrator not available, queue will be processed by cron');
+      }
 
       // Refresh client data
       await fetchClient();

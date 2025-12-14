@@ -53,9 +53,20 @@ export default function ClientDetailPage() {
   };
 
   const handleRegenerate = async () => {
+    const confirmed = confirm(
+      'This will regenerate all roadmap stages. The process will run in the background and may take several minutes. Continue?'
+    );
+    if (!confirmed) return;
+
     setRegenerating(true);
-    await regenerateRoadmap();
+    const success = await regenerateRoadmap();
     setRegenerating(false);
+    
+    if (success) {
+      alert('Roadmap regeneration queued successfully. Stages will be regenerated in the background. This may take several minutes.');
+    } else {
+      alert('Failed to queue roadmap regeneration. Please try again or contact support.');
+    }
   };
 
   if (loading || !client) {
