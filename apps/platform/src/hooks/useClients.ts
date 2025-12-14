@@ -377,51 +377,59 @@ export function useClientDetail(clientId: string | null) {
       // Start the process by calling the first stage function directly
       // This will generate fit_assessment, which triggers the next stage via database trigger
       // Then we call the orchestrator to process the rest of the chain
-      (async () => {
-        try {
-          console.log('Starting generation by calling first stage function...');
-          
-          // Call fit_assessment function directly to start the chain
-          const { error: fitError } = await supabase.functions.invoke(
-            'generate-fit-profile',
-            {
-              body: {
-                clientId,
-                practiceId: teamMember.practiceId
-              }
+      try {
+        console.log('Starting generation by calling first stage function...');
+        console.log('Calling generate-fit-profile with:', { clientId, practiceId: teamMember.practiceId });
+        
+        // Call fit_assessment function directly to start the chain
+        const fitResponse = await supabase.functions.invoke(
+          'generate-fit-profile',
+          {
+            body: {
+              clientId,
+              practiceId: teamMember.practiceId
             }
-          );
-
-          if (fitError) {
-            console.warn('Fit assessment function error (non-fatal):', fitError);
-          } else {
-            console.log('Fit assessment started successfully');
           }
+        );
 
-          // Small delay to let fit_assessment complete and trigger next stage
-          await new Promise(resolve => setTimeout(resolve, 3000));
+        console.log('Fit profile function response:', fitResponse);
 
-          // Now call orchestrator to process the rest of the chain
-          console.log('Triggering orchestrator to process remaining stages...');
-          const { data: orchestratorResult, error: orchestratorError } = await supabase.functions.invoke(
-            'roadmap-orchestrator',
-            {
-              body: {}
-            }
-          );
-
-          if (orchestratorError) {
-            console.warn('Orchestrator returned error (non-fatal):', orchestratorError);
-          } else {
-            console.log('Orchestrator started successfully:', orchestratorResult);
-          }
-        } catch (invokeError: any) {
-          // FunctionsFetchError or other errors - completely non-fatal
-          // The queue is set up and stages will be processed
-          console.log('Function invocation failed (this is OK - queue will be processed):', 
-            invokeError?.message || invokeError);
+        if (fitResponse.error) {
+          console.error('Fit assessment function error:', fitResponse.error);
+          // Don't throw - continue to orchestrator
+        } else {
+          console.log('Fit assessment started successfully:', fitResponse.data);
         }
-      })();
+
+        // Small delay to let fit_assessment complete and trigger next stage
+        console.log('Waiting 3 seconds for fit_assessment to complete...');
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        // Now call orchestrator to process the rest of the chain
+        console.log('Triggering orchestrator to process remaining stages...');
+        const orchestratorResponse = await supabase.functions.invoke(
+          'roadmap-orchestrator',
+          {
+            body: {}
+          }
+        );
+
+        console.log('Orchestrator response:', orchestratorResponse);
+
+        if (orchestratorResponse.error) {
+          console.warn('Orchestrator returned error (non-fatal):', orchestratorResponse.error);
+        } else {
+          console.log('Orchestrator started successfully:', orchestratorResponse.data);
+        }
+      } catch (invokeError: any) {
+        // FunctionsFetchError or other errors - log but don't fail
+        console.error('Function invocation error (non-fatal - queue is set up):', invokeError);
+        console.error('Error details:', {
+          message: invokeError?.message,
+          name: invokeError?.name,
+          stack: invokeError?.stack
+        });
+      }
 
       // Refresh client data
       await fetchClient();
