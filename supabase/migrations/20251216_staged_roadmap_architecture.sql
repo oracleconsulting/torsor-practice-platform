@@ -224,8 +224,11 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger next stage generation
+-- SECURITY DEFINER allows the trigger to bypass RLS when inserting into generation_queue
 CREATE OR REPLACE FUNCTION trigger_next_stage()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SECURITY DEFINER
+AS $$
 DECLARE
   next_stage TEXT;
 BEGIN
@@ -329,4 +332,21 @@ CREATE POLICY "Practice members can view their practice's queue"
       SELECT practice_id FROM practice_members WHERE id = auth.uid()
     )
   );
+
+CREATE POLICY "Practice members can insert into their practice's queue"
+  ON generation_queue FOR INSERT
+  WITH CHECK (
+    practice_id IN (
+      SELECT practice_id FROM practice_members WHERE id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Practice members can update their practice's queue"
+  ON generation_queue FOR UPDATE
+  USING (
+    practice_id IN (
+      SELECT practice_id FROM practice_members WHERE id = auth.uid()
+    )
+  );
+
 
