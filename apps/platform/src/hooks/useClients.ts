@@ -344,15 +344,9 @@ export function useClientDetail(clientId: string | null) {
     if (!teamMember || !clientId) return false;
 
     try {
-      // With the new staged architecture, we queue all stages for regeneration
-      // The orchestrator (running via cron) will process them in order
-      const stages = [
-        'fit_assessment',
-        'five_year_vision',
-        'six_month_shift',
-        'sprint_plan',
-        'value_analysis'
-      ];
+      // With the new staged architecture, we only need to queue the first stage
+      // The database trigger will auto-chain subsequent stages as each completes
+      // The orchestrator will process all stages in sequence
 
       // First, clear any existing pending items for this client to avoid duplicates
       await supabase
@@ -361,36 +355,41 @@ export function useClientDetail(clientId: string | null) {
         .eq('client_id', clientId)
         .eq('status', 'pending');
 
-      // Queue all stages for regeneration
-      const queuePromises = stages.map(stageType => 
-        supabase.from('generation_queue').insert({
+      // Queue only the first stage - the rest will be auto-queued by database triggers
+      const { data, error: queueError } = await supabase
+        .from('generation_queue')
+        .insert({
           practice_id: teamMember.practiceId,
           client_id: clientId,
-          stage_type: stageType,
+          stage_type: 'fit_assessment', // Start with the first stage
           priority: 10 // High priority for manual regeneration
         })
+        .select()
+        .single();
+
+      if (queueError) {
+        console.error('Error queueing first stage:', queueError);
+        throw new Error(`Failed to queue regeneration: ${queueError.message}`);
+      }
+
+      console.log('Queued fit_assessment, triggering orchestrator...');
+
+      // Immediately trigger the orchestrator to start processing
+      // The orchestrator will process all stages in sequence until complete
+      const { data: orchestratorResult, error: orchestratorError } = await supabase.functions.invoke(
+        'roadmap-orchestrator',
+        {
+          body: {}
+        }
       );
 
-      const results = await Promise.all(queuePromises);
-      
-      // Check for errors
-      const errors = results.filter(r => r.error);
-      if (errors.length > 0) {
-        console.error('Errors queueing stages:', errors);
-        const errorMessages = errors.map(e => e.error?.message || 'Unknown error').join('; ');
-        throw new Error(`Failed to queue ${errors.length} stage(s) for regeneration: ${errorMessages}`);
+      if (orchestratorError) {
+        console.error('Error invoking orchestrator:', orchestratorError);
+        // Don't throw - the queue is set up, cron will pick it up if orchestrator fails
+        console.log('Orchestrator invocation failed, but queue is set up. Stages will be processed automatically.');
+      } else {
+        console.log('Orchestrator response:', orchestratorResult);
       }
-
-      // Verify at least some items were queued successfully
-      const successCount = results.filter(r => !r.error && r.data).length;
-      if (successCount === 0) {
-        throw new Error('Failed to queue any stages. Please check database permissions and table structure.');
-      }
-
-      console.log(`Successfully queued ${successCount} stages for regeneration`);
-
-      // Note: The orchestrator runs via cron and will pick up these queued items
-      // No need to invoke it directly - it will process the queue automatically
 
       // Refresh client data
       await fetchClient();

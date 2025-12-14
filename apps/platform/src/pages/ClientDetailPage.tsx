@@ -54,7 +54,7 @@ export default function ClientDetailPage() {
 
   const handleRegenerate = async () => {
     const confirmed = confirm(
-      'This will regenerate all roadmap stages. The process will run in the background and may take several minutes. Continue?'
+      'This will regenerate all roadmap stages. The process will start immediately and run through all stages automatically. This may take 2-3 minutes. Continue?'
     );
     if (!confirmed) return;
 
@@ -63,9 +63,9 @@ export default function ClientDetailPage() {
       const success = await regenerateRoadmap();
       
       if (success) {
-        alert('Roadmap regeneration queued successfully. Stages will be regenerated in the background. This may take several minutes.');
+        alert('Roadmap regeneration started! The process is running through all stages automatically. This may take 2-3 minutes. You can refresh the page to see progress.');
       } else {
-        alert('Failed to queue roadmap regeneration. Please check the console for details or contact support.');
+        alert('Failed to start roadmap regeneration. Please check the console for details or contact support.');
       }
     } catch (error) {
       console.error('Unexpected error during regeneration:', error);
