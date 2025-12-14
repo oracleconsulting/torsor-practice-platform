@@ -98,7 +98,7 @@ serve(async (req) => {
         version: nextVersion,
         status: 'generating',
         generation_started_at: new Date().toISOString(),
-        model_used: 'anthropic/claude-3.5-sonnet'
+        model_used: 'anthropic/claude-sonnet-4.5'
       })
       .select()
       .single();
@@ -389,35 +389,62 @@ Before including any task, verify:
 □ Addresses something THEY mentioned
 □ Uses British English`;
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openRouterKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://torsor.co.uk',
-      'X-Title': 'Torsor 365 Sprint'
-    },
-    body: JSON.stringify({
-      model: 'anthropic/claude-3.5-sonnet',
-      max_tokens: 16000, // Increased to handle large sprint plans
-      temperature: 0.4,
-      messages: [
-        { 
-          role: 'system', 
-          content: `Create 12-week sprint plans with specific, actionable tasks. Every task must link to a milestone. Use their exact words. Return only valid JSON.
-${QUALITY_RULES}`
-        },
-        { role: 'user', content: prompt }
-      ]
-    })
-  });
+  console.log('Making OpenRouter API request for sprint plan...');
+  console.log(`Prompt length: ${prompt.length} characters`);
+  
+  // Create abort controller for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    console.error('OpenRouter request timed out after 55 seconds');
+    controller.abort();
+  }, 55000); // 55 second timeout (leaving buffer for Edge Function limit)
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`LLM error: ${response.status} - ${error}`);
+  let data: any;
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openRouterKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://torsor.co.uk',
+        'X-Title': 'Torsor 365 Sprint'
+      },
+      body: JSON.stringify({
+        model: 'anthropic/claude-sonnet-4.5',
+        max_tokens: 12000, // Reduced slightly for faster response
+        temperature: 0.4,
+        messages: [
+          { 
+            role: 'system', 
+            content: `Create 12-week sprint plans with specific, actionable tasks. Every task must link to a milestone. Use their exact words. Return only valid JSON.
+${QUALITY_RULES}`
+          },
+          { role: 'user', content: prompt }
+        ]
+      }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+    console.log(`OpenRouter response status: ${response.status}`);
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error(`OpenRouter error response: ${error}`);
+      throw new Error(`LLM error: ${response.status} - ${error}`);
+    }
+
+    data = await response.json();
+    console.log(`OpenRouter response received, content length: ${data.choices?.[0]?.message?.content?.length || 0} chars`);
+  } catch (fetchError: any) {
+    clearTimeout(timeoutId);
+    if (fetchError.name === 'AbortError') {
+      throw new Error('OpenRouter request timed out after 55 seconds - sprint plan may be too complex');
+    }
+    console.error('Fetch error:', fetchError);
+    throw fetchError;
   }
 
-  const data = await response.json();
   const content = data.choices[0].message.content;
   const cleaned = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
   const start = cleaned.indexOf('{');

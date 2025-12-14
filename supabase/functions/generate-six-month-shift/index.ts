@@ -90,7 +90,7 @@ serve(async (req) => {
         version: nextVersion,
         status: 'generating',
         generation_started_at: new Date().toISOString(),
-        model_used: 'anthropic/claude-3.5-sonnet'
+        model_used: 'anthropic/claude-sonnet-4.5'
       })
       .select()
       .single();
@@ -314,7 +314,7 @@ Return as JSON:
       'X-Title': 'Torsor 365 Shift'
     },
     body: JSON.stringify({
-      model: 'anthropic/claude-3.5-sonnet',
+      model: 'anthropic/claude-sonnet-4.5',
       max_tokens: 4000,
       temperature: 0.4,
       messages: [
