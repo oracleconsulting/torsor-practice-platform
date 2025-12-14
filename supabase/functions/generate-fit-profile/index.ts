@@ -406,7 +406,7 @@ serve(async (req) => {
     console.log(`Generating fit profile for client ${clientId}...`);
 
     // Check for existing stage record to determine version
-    const { data: existingStages } = await supabase
+    const { data: existingStages, error: queryError } = await supabase
       .from('roadmap_stages')
       .select('version')
       .eq('client_id', clientId)
@@ -414,28 +414,60 @@ serve(async (req) => {
       .order('version', { ascending: false })
       .limit(1);
 
-    const nextVersion = existingStages && existingStages.length > 0 
-      ? existingStages[0].version + 1 
-      : 1;
+    if (queryError) {
+      console.error('Error querying existing stages:', queryError);
+    }
 
-    console.log(`Creating fit_assessment stage with version ${nextVersion}`);
+    const maxVersion = existingStages && existingStages.length > 0 
+      ? existingStages[0].version 
+      : 0;
 
-    // Create stage record
-    const { data: stage, error: stageError } = await supabase
-      .from('roadmap_stages')
-      .insert({
-        practice_id: practiceId,
-        client_id: clientId,
-        stage_type: 'fit_assessment',
-        version: nextVersion,
-        status: 'generating',
-        generation_started_at: new Date().toISOString(),
-        model_used: 'anthropic/claude-3.5-sonnet'
-      })
-      .select()
-      .single();
+    let nextVersion = maxVersion + 1;
+    let stage = null;
+    let stageError = null;
+    let attempts = 0;
+    const maxAttempts = 5;
 
-    if (stageError) throw stageError;
+    // Retry logic to handle race conditions
+    while (attempts < maxAttempts) {
+      attempts++;
+      console.log(`Attempt ${attempts}: Creating fit_assessment stage with version ${nextVersion} (max found: ${maxVersion})`);
+
+      const { data, error } = await supabase
+        .from('roadmap_stages')
+        .insert({
+          practice_id: practiceId,
+          client_id: clientId,
+          stage_type: 'fit_assessment',
+          version: nextVersion,
+          status: 'generating',
+          generation_started_at: new Date().toISOString(),
+          model_used: 'anthropic/claude-3.5-sonnet'
+        })
+        .select()
+        .single();
+
+      if (!error) {
+        stage = data;
+        stageError = null;
+        break;
+      }
+
+      // If it's a unique constraint violation, try next version
+      if (error.code === '23505' || error.message?.includes('unique constraint')) {
+        console.log(`Version ${nextVersion} already exists, trying ${nextVersion + 1}`);
+        nextVersion++;
+        continue;
+      }
+
+      // Other errors, throw immediately
+      stageError = error;
+      break;
+    }
+
+    if (stageError || !stage) {
+      throw stageError || new Error(`Failed to create stage after ${attempts} attempts`);
+    }
 
     // Fetch Part 1 responses
     const { data: assessment, error: fetchError } = await supabase
