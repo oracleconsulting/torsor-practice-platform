@@ -413,10 +413,33 @@ ${QUALITY_RULES}`
   const end = cleaned.lastIndexOf('}');
   
   if (start === -1 || end === -1) {
-    throw new Error('Failed to parse sprint JSON');
+    throw new Error('Failed to parse sprint JSON: No JSON object found in response');
   }
   
-  return JSON.parse(cleaned.substring(start, end + 1));
+  const jsonString = cleaned.substring(start, end + 1);
+  
+  try {
+    return JSON.parse(jsonString);
+  } catch (parseError) {
+    console.error('JSON parse error:', parseError);
+    console.error('JSON string length:', jsonString.length);
+    console.error('JSON string preview (first 500 chars):', jsonString.substring(0, 500));
+    console.error('JSON string preview (last 500 chars):', jsonString.substring(Math.max(0, jsonString.length - 500)));
+    
+    // Try to find and fix common JSON issues
+    let fixedJson = jsonString;
+    
+    // Fix trailing commas in arrays and objects
+    fixedJson = fixedJson.replace(/,(\s*[}\]])/g, '$1');
+    
+    // Try parsing again
+    try {
+      return JSON.parse(fixedJson);
+    } catch (secondError) {
+      console.error('JSON parse error after fix attempt:', secondError);
+      throw new Error(`Failed to parse sprint JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}. JSON length: ${jsonString.length}, Position: ${parseError instanceof SyntaxError && 'position' in parseError ? parseError.position : 'unknown'}`);
+    }
+  }
 }
 
 
