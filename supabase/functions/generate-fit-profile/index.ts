@@ -179,8 +179,11 @@ async function generateFitMessage(part1: Record<string, any>, signals: FitSignal
 
   // If no OpenRouter key, use template-based generation
   if (!openRouterKey) {
+    console.warn('OPENROUTER_API_KEY not found, using template-based generation');
     return generateTemplateFitMessage(part1, signals);
   }
+
+  console.log('Using OpenRouter API for fit message generation');
 
   const prompt = `You are James, a warm but direct business advisor who has just received Part 1 (Life Design) responses from ${userName}. You need to write a personalized fit message that makes them feel understood and excited about the next step.
 
@@ -247,7 +250,9 @@ Return JSON:
     });
 
     if (!response.ok) {
-      console.error('OpenRouter error, using template');
+      const errorText = await response.text();
+      console.error(`OpenRouter error (status ${response.status}):`, errorText);
+      console.error('Falling back to template fit message');
       return generateTemplateFitMessage(part1, signals);
     }
 
@@ -265,6 +270,12 @@ Return JSON:
     return JSON.parse(cleaned.substring(start, end + 1));
   } catch (e) {
     console.error('LLM error:', e);
+    console.error('Error details:', {
+      message: e instanceof Error ? e.message : String(e),
+      name: e instanceof Error ? e.name : 'Unknown',
+      stack: e instanceof Error ? e.stack : undefined
+    });
+    console.error('Falling back to template fit message');
     return generateTemplateFitMessage(part1, signals);
   }
 }
