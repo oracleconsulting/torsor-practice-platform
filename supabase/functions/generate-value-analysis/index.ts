@@ -121,6 +121,133 @@ function cleanAllStrings(obj: any): any {
 
 type BusinessStage = 'pre_revenue' | 'early_revenue' | 'growth' | 'scale' | 'mature';
 
+// ============================================================================
+// NARRATIVE SUMMARY GENERATOR
+// ============================================================================
+// Creates "The Uncomfortable Truth" - a narrative that surfaces financial 
+// insights emotionally, making the client feel seen and the data meaningful
+// ============================================================================
+
+async function generateNarrativeSummary(
+  stageContext: StageContext,
+  financialData: any,
+  overallScore: number,
+  totalOpportunity: number,
+  riskRegister: any[],
+  valueGaps: any[],
+  fitProfile: any,
+  vision: any
+): Promise<any> {
+  const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
+  if (!openRouterKey) {
+    console.warn('OPENROUTER_API_KEY not configured - skipping narrative summary');
+    return null;
+  }
+
+  const criticalRisks = riskRegister.filter(r => r.severity === 'Critical');
+  const quickWins = valueGaps.filter(g => g.effort === 'Low').slice(0, 3);
+
+  const prompt = `Create a VALUE ANALYSIS narrative summary for ${stageContext.companyName}.
+
+## THEIR NORTH STAR
+"${fitProfile?.northStar || 'Building a business that gives them freedom'}"
+
+## THE NUMBERS
+
+Revenue: £${financialData.revenue?.toLocaleString() || 'Unknown'}
+Gross Margin: ${Math.round((financialData.grossMargin || 0.3) * 100)}%
+Net Profit: £${financialData.netProfit?.toLocaleString() || 'Unknown'}
+Year-on-Year Growth: ${Math.round((financialData.yearOnYearGrowth || 0) * 100)}%
+Overall Score: ${overallScore}/100
+Total Opportunity: £${totalOpportunity.toLocaleString()}
+
+## CRITICAL RISKS (${criticalRisks.length})
+${criticalRisks.map(r => `- ${r.risk}: ${r.description}`).join('\n') || 'No critical risks identified'}
+
+## QUICK WINS
+${quickWins.map(qw => `- ${qw.gap}: £${qw.opportunity?.toLocaleString()} opportunity`).join('\n') || 'No quick wins identified'}
+
+## YOUR TASK
+
+Create a narrative summary with:
+
+1. **uncomfortableTruth** (2-3 sentences)
+   - The ONE thing they need to hear
+   - If profit is dropping while revenue grows, say it
+   - If they're underpricing, say it
+   - If margins are compressed, say it
+   - Be direct but not harsh
+
+2. **whatThisRealleMeans** (2-3 sentences)
+   - Translate the numbers into life impact
+   - Connect to their North Star
+   - Example: "This £136k opportunity isn't just money—it's the difference between working 60 hours a week and having Tuesdays free"
+
+3. **beforeYouDoAnythingElse** (1-2 sentences)
+   - The FIRST thing to fix
+   - Usually the critical risk or the biggest margin leak
+
+4. **theGoodNews** (1-2 sentences)
+   - What's working that they should recognise
+   - The foundation they've built
+
+Return as JSON:
+{
+  "uncomfortableTruth": "string",
+  "whatThisReallyMeans": "string",
+  "beforeYouDoAnythingElse": "string",
+  "theGoodNews": "string"
+}
+
+RULES:
+- Be direct, not corporate
+- Use their exact situation, not generic advice
+- If the numbers show a problem, SAY IT
+- British English (£, organise, colour)`;
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openRouterKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://torsor.co.uk',
+        'X-Title': 'Torsor Value Narrative'
+      },
+      body: JSON.stringify({
+        model: 'anthropic/claude-sonnet-4.5',
+        max_tokens: 1500,
+        temperature: 0.6,
+        messages: [
+          { 
+            role: 'system', 
+            content: 'You surface financial truths that clients need to hear. Be direct but human. Return only valid JSON.'
+          },
+          { role: 'user', content: prompt }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      console.error(`Narrative LLM error: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const content = data.choices[0].message.content;
+    const cleaned = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    
+    if (start === -1 || end === -1) return null;
+    
+    return JSON.parse(cleaned.substring(start, end + 1));
+  } catch (error) {
+    console.error('Narrative generation error:', error);
+    return null;
+  }
+}
+
 interface StageContext {
   stage: BusinessStage;
   revenue: number;
@@ -2997,6 +3124,28 @@ serve(async (req) => {
         .select('content, type, priority')
         .eq('client_id', clientId);
 
+      // Fetch previous stages for narrative context
+      const { data: fitStage } = await supabase
+        .from('roadmap_stages')
+        .select('generated_content, approved_content')
+        .eq('client_id', clientId)
+        .eq('stage_type', 'fit_assessment')
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const { data: visionStage } = await supabase
+        .from('roadmap_stages')
+        .select('generated_content, approved_content')
+        .eq('client_id', clientId)
+        .eq('stage_type', 'five_year_vision')
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const fitProfile = fitStage?.approved_content || fitStage?.generated_content || {};
+      const vision = visionStage?.approved_content || visionStage?.generated_content || {};
+
       // Calculate all analysis components
       const assetScores = calculateAssetScores(part3Responses, stageContext);
       const valueGaps = identifyValueGaps(part3Responses, assetScores, stageContext);
@@ -3033,7 +3182,27 @@ serve(async (req) => {
       const overallScore = valuationImpact.valueDrivers.overallScore;
       const totalOpportunity = valuationImpact.totalOpportunity;
 
+      // Generate narrative summary (The Uncomfortable Truth)
+      console.log('Generating narrative summary...');
+      const narrativeSummary = await generateNarrativeSummary(
+        stageContext,
+        financialData,
+        overallScore,
+        totalOpportunity,
+        riskRegister,
+        valueGaps,
+        fitProfile,
+        vision
+      );
+
       const valueAnalysis = {
+        // NEW: Narrative Summary (The Uncomfortable Truth)
+        narrativeSummary: narrativeSummary || {
+          uncomfortableTruth: `Your overall score is ${overallScore}/100 with £${totalOpportunity.toLocaleString()} in identified opportunities.`,
+          whatThisReallyMeans: 'This represents the gap between where you are and where you could be.',
+          beforeYouDoAnythingElse: riskRegister.find(r => r.severity === 'Critical')?.risk || 'Address your highest-impact opportunity first.',
+          theGoodNews: overallScore >= 60 ? 'You have a solid foundation to build on.' : 'Every business starts somewhere—the key is knowing where to focus.'
+        },
         businessStage: stageContext.stage,
         stageContext,
         
@@ -3134,7 +3303,10 @@ serve(async (req) => {
           quickWins: valueGaps.filter(g => g.effort === 'Low').length,
           valuationUplift: `${valuationImpact.percentageIncrease}%`,
           currentValuation: valuationImpact.currentValuation,
-          potentialValuation: valuationImpact.potentialValuation
+          potentialValuation: valuationImpact.potentialValuation,
+          // Narrative summary for display
+          uncomfortableTruth: valueAnalysis.narrativeSummary?.uncomfortableTruth,
+          whatThisReallyMeans: valueAnalysis.narrativeSummary?.whatThisReallyMeans
         }
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
