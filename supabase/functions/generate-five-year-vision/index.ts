@@ -134,7 +134,7 @@ serve(async (req) => {
         version: nextVersion,
         status: 'generating',
         generation_started_at: new Date().toISOString(),
-        model_used: 'anthropic/claude-opus-4-5-20250514'
+        model_used: 'anthropic/claude-opus-4'
       })
       .select()
       .single();
@@ -281,7 +281,7 @@ async function generateVision(ctx: VisionContext): Promise<any> {
       'X-Title': 'Torsor 365 Vision'
     },
     body: JSON.stringify({
-      model: 'anthropic/claude-opus-4-5-20250514',
+      model: 'anthropic/claude-opus-4',
       max_tokens: 6000,
       temperature: 0.4,
       messages: [
