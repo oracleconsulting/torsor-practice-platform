@@ -1,10 +1,12 @@
 // ============================================================================
 // GENERATE SPRINT PLAN PART 2 (Weeks 7-12)
 // ============================================================================
-// Generates second half of sprint plan: Momentum + Embed + Measure
-// Model: Claude Sonnet 4.5
-// Timeout budget: 60s
-// Depends on: sprint_plan_part1
+// Purpose: Complete the transformation journey
+// Weeks 7-8: Momentum - Scale what works
+// Weeks 9-10: Embed - Lock in gains, create habits
+// Weeks 11-12: Measure - Assess progress, plan next sprint
+// 
+// This is where the transformation becomes real and sustainable
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -14,33 +16,6 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-const QUALITY_RULES = `
-## CRITICAL RULES
-
-### 1. CONTINUATION
-- Build on Weeks 1-6 progress
-- Reference completed milestones
-- Avoid repeating tasks from Part 1
-
-### 2. TASK SPECIFICITY
-Every task MUST have:
-- Specific action (not "improve marketing")
-- Time estimate
-- Deliverable (tangible output)
-- Connection to 6-month milestone
-
-### 3. NO FILLER WEEKS
-- Every week must have meaningful tasks
-- No generic "review progress" tasks
-
-### 4. BRITISH ENGLISH
-- organise not organize
-- £ not $
-
-### 5. LINK TO MILESTONES
-Every task must show which 6-month milestone it enables.
-`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -61,7 +36,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Check for existing stage record to determine version
+    // Check for existing stage
     const { data: existingStages } = await supabase
       .from('roadmap_stages')
       .select('version')
@@ -76,7 +51,6 @@ serve(async (req) => {
 
     console.log(`Creating sprint_plan_part2 stage with version ${nextVersion}`);
 
-    // Create stage record
     const { data: stage, error: stageError } = await supabase
       .from('roadmap_stages')
       .insert({
@@ -93,7 +67,16 @@ serve(async (req) => {
 
     if (stageError) throw stageError;
 
-    // Fetch dependencies - need part1, vision, and shift
+    // Fetch dependencies
+    const { data: fitStage } = await supabase
+      .from('roadmap_stages')
+      .select('generated_content, approved_content')
+      .eq('client_id', clientId)
+      .eq('stage_type', 'fit_assessment')
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     const { data: part1Stage } = await supabase
       .from('roadmap_stages')
       .select('generated_content, approved_content')
@@ -121,6 +104,7 @@ serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
+    const fitProfile = fitStage?.approved_content || fitStage?.generated_content || {};
     const sprintPart1 = part1Stage?.approved_content || part1Stage?.generated_content;
     const vision = visionStage?.approved_content || visionStage?.generated_content;
     const shift = shiftStage?.approved_content || shiftStage?.generated_content;
@@ -139,29 +123,22 @@ serve(async (req) => {
     const part1Data = assessments?.find(a => a.assessment_type === 'part1')?.responses || {};
     const part2Data = assessments?.find(a => a.assessment_type === 'part2')?.responses || {};
 
-    // Fetch client details
     const { data: client } = await supabase
       .from('practice_members')
       .select('name, client_company')
       .eq('id', clientId)
       .single();
 
-    // Build context
-    const context = buildSprintContext(part1Data, part2Data, client, vision, shift, sprintPart1);
+    const context = buildSprintContext(part1Data, part2Data, client, fitProfile, vision, shift, sprintPart1);
 
-    console.log(`Calling LLM for sprint_plan_part2 (weeks 7-12) generation (client: ${clientId})...`);
+    console.log(`Generating weeks 7-12 for ${context.userName}...`);
 
-    // Generate sprint part 2
     const sprintPart2 = await generateSprintPart2(context);
-
-    // Merge with part 1 to create complete sprint plan
     const completeSprint = mergeSprints(sprintPart1, sprintPart2);
 
-    console.log(`LLM response received, updating stage record...`);
-
-    // Update stage with merged result
     const duration = Date.now() - startTime;
-    const { error: updateError } = await supabase
+    
+    await supabase
       .from('roadmap_stages')
       .update({
         status: 'generated',
@@ -170,11 +147,6 @@ serve(async (req) => {
         generation_duration_ms: duration
       })
       .eq('id', stage.id);
-
-    if (updateError) {
-      console.error('Failed to update stage record:', updateError);
-      throw updateError;
-    }
 
     console.log(`Sprint plan part 2 (weeks 7-12) generated for client ${clientId} in ${duration}ms`);
 
@@ -191,55 +163,56 @@ serve(async (req) => {
   }
 });
 
-function buildSprintContext(part1: any, part2: any, client: any, vision: any, shift: any, sprintPart1: any) {
+function buildSprintContext(part1: any, part2: any, client: any, fitProfile: any, vision: any, shift: any, sprintPart1: any) {
   return {
-    userName: client?.name?.split(' ')[0] || 'there',
+    userName: client?.name?.split(' ')[0] || part1.full_name?.split(' ')[0] || 'there',
     companyName: client?.client_company || part2.trading_name || part1.company_name || 'your business',
     
-    // Vision & Shift context
-    northStar: vision?.northStar,
-    yearOneMilestone: vision?.yearMilestones?.year1,
-    shiftMilestones: shift?.keyMilestones || [],
+    // From fit profile
+    northStar: fitProfile.northStar || vision?.northStar || '',
+    archetype: fitProfile.archetype || 'balanced_achiever',
     
-    // Sprint Part 1 context (what's already been planned)
+    // From vision
+    year1Milestone: vision?.yearMilestones?.year1 || {},
+    tuesdayTest: part1.tuesday_test || vision?.visualisation || '',
+    
+    // From shift
+    shiftMilestones: shift?.keyMilestones || [],
+    tuesdayEvolutionShift: shift?.tuesdayEvolution || {},
+    
+    // Sprint Part 1 context
     sprintTheme: sprintPart1.sprintTheme,
+    sprintPromise: sprintPart1.sprintPromise,
     sprintGoals: sprintPart1.sprintGoals,
     phases: sprintPart1.phases,
     weeks1to6: sprintPart1.weeks,
-    tuesdayEvolutionSoFar: sprintPart1.tuesdayEvolution,
+    tuesdayEvolutionPart1: sprintPart1.tuesdayEvolution,
     
-    // Their answers for context
+    // Their context
     dangerZone: part1.danger_zone || '',
     relationshipMirror: part1.relationship_mirror || '',
-    tuesdayTest: part1.tuesday_test || '',
     commitmentHours: part1.commitment_hours || '10-15 hours',
-    teamSize: part2.team_size || 'solo',
+    teamSize: part2.team_size || part2.staff_count || 'small team',
+    toolsUsed: part2.tools_used || part2.current_tools || [],
   };
 }
 
 function mergeSprints(part1: any, part2: any): any {
-  // Combine the weeks arrays
   const allWeeks = [...(part1.weeks || []), ...(part2.weeks || [])];
-  
-  // Merge phases
-  const mergedPhases = {
-    ...part1.phases,
-    ...part2.phases
-  };
-  
-  // Merge tuesday evolution
-  const mergedTuesdayEvolution = {
-    ...part1.tuesdayEvolution,
-    ...part2.tuesdayEvolution
-  };
   
   return {
     sprintTheme: part1.sprintTheme,
     sprintPromise: part1.sprintPromise,
     sprintGoals: part1.sprintGoals,
-    phases: mergedPhases,
+    phases: {
+      ...part1.phases,
+      ...part2.phases
+    },
     weeks: allWeeks,
-    tuesdayEvolution: mergedTuesdayEvolution,
+    tuesdayEvolution: {
+      ...part1.tuesdayEvolution,
+      ...part2.tuesdayEvolution
+    },
     backslidePreventions: part2.backslidePreventions || [],
     nextSprintPreview: part2.nextSprintPreview || 'Sprint 2 will build on this foundation'
   };
@@ -249,88 +222,7 @@ async function generateSprintPart2(ctx: any): Promise<any> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!openRouterKey) throw new Error('OPENROUTER_API_KEY not configured');
   
-  // Summarize weeks 1-6 for context
-  const weeks1to6Summary = ctx.weeks1to6?.map((w: any) => 
-    `Week ${w.weekNumber} (${w.phase}): ${w.theme} - ${w.tasks?.length || 0} tasks`
-  ).join('\n') || 'Weeks 1-6 planned';
-  
-  const prompt = `Create Weeks 7-12 of a Sprint plan for ${ctx.userName} at ${ctx.companyName}.
-
-## CONTEXT FROM WEEKS 1-6 (already generated)
-
-Sprint Theme: ${ctx.sprintTheme}
-Goals: ${ctx.sprintGoals?.join(', ')}
-
-What's been covered:
-${weeks1to6Summary}
-
-Tuesday Evolution so far:
-- Week 0: ${ctx.tuesdayEvolutionSoFar?.week0}
-- Week 4: ${ctx.tuesdayEvolutionSoFar?.week4}
-
-## THE 6-MONTH MILESTONES
-
-${ctx.shiftMilestones?.map((m: any, i: number) => `
-Milestone ${i + 1}: ${m.milestone}
-- Target Month: ${m.targetMonth}
-`).join('\n') || 'Continue toward goals'}
-
-## THEIR TIME BUDGET
-Available: ${ctx.commitmentHours}
-Team: ${ctx.teamSize}
-
-## YOUR TASK: Generate ONLY Weeks 7-12
-
-Create weeks 7-12 where:
-- Weeks 7-8: "Momentum" - Scale what works from weeks 1-6
-- Weeks 9-10: "Embed" - Lock in gains, create habits
-- Weeks 11-12: "Measure" - Assess progress, plan next sprint
-
-Return as JSON:
-
-{
-  "phases": {
-    "weeks7_8": { "name": "Momentum", "purpose": "Scale what works" },
-    "weeks9_10": { "name": "Embed", "purpose": "Lock in gains" },
-    "weeks11_12": { "name": "Measure", "purpose": "Assess and plan next sprint" }
-  },
-  "weeks": [
-    {
-      "weekNumber": 7,
-      "phase": "Momentum",
-      "theme": "Week 7: [Specific action building on weeks 1-6]",
-      "focus": "Scale successful changes",
-      "tasks": [
-        {
-          "id": "w7_t1",
-          "title": "[SPECIFIC action]",
-          "description": "[Step-by-step - 2-3 sentences]",
-          "why": "Builds on weeks 1-6 progress",
-          "category": "Operations|Financial|Team|Systems|Marketing|Product",
-          "priority": "high|medium",
-          "estimatedHours": 2,
-          "deliverable": "[Tangible output]",
-          "enablesMilestone": "[6-month milestone name]"
-        }
-      ],
-      "weekMilestone": "By end of Week 7: [specific outcome]"
-    }
-    // Continue for weeks 8-12
-  ],
-  "tuesdayEvolution": {
-    "week8": "New patterns forming - [specific change]",
-    "week12": "Progress toward: '${ctx.tuesdayTest?.substring(0, 50) || 'your vision'}...'"
-  },
-  "backslidePreventions": [
-    {
-      "trigger": "${ctx.dangerZone}",
-      "response": "If this happens, [specific action]"
-    }
-  ],
-  "nextSprintPreview": "Sprint 2 will build on this foundation to [next phase]"
-}
-
-Generate 3-4 tasks per week. Use British English. Don't repeat tasks from weeks 1-6.`;
+  const prompt = buildSprintPrompt(ctx);
 
   console.log('Making OpenRouter API request for sprint part 2...');
   console.log(`Prompt length: ${prompt.length} characters`);
@@ -354,12 +246,16 @@ Generate 3-4 tasks per week. Use British English. Don't repeat tasks from weeks 
       body: JSON.stringify({
         model: 'anthropic/claude-sonnet-4.5',
         max_tokens: 6000,
-        temperature: 0.4,
+        temperature: 0.5,
         messages: [
           { 
             role: 'system', 
-            content: `Create sprint plans (weeks 7-12 only) continuing from weeks 1-6. Return only valid JSON.
-${QUALITY_RULES}`
+            content: `You complete transformation journeys, not task lists.
+Weeks 7-12 build on weeks 1-6 progress. This is where the transformation becomes sustainable.
+Every week has a narrative—WHY it matters.
+Every task connects to their North Star.
+British English only (organise, colour, £).
+Return ONLY valid JSON.`
           },
           { role: 'user', content: prompt }
         ]
@@ -372,7 +268,6 @@ ${QUALITY_RULES}`
 
     if (!response.ok) {
       const error = await response.text();
-      console.error(`OpenRouter error response: ${error}`);
       throw new Error(`LLM error: ${response.status} - ${error}`);
     }
 
@@ -383,7 +278,6 @@ ${QUALITY_RULES}`
     if (fetchError.name === 'AbortError') {
       throw new Error('OpenRouter request timed out after 50 seconds');
     }
-    console.error('Fetch error:', fetchError);
     throw fetchError;
   }
 
@@ -398,26 +292,16 @@ ${QUALITY_RULES}`
   
   let jsonString = cleaned.substring(start, end + 1);
   
-  // Try to parse as-is first
   try {
     return JSON.parse(jsonString);
   } catch (parseError) {
-    // This is expected - LLMs often produce slightly malformed JSON
-    console.warn('Initial JSON parse failed (will attempt repair):', parseError);
-    console.log('Attempting JSON repair...');
+    console.warn('Initial JSON parse failed, attempting repair...');
     
-    // Apply fixes in sequence
     let fixedJson = jsonString;
-    
-    // 1. Fix trailing commas before } or ]
     fixedJson = fixedJson.replace(/,(\s*[}\]])/g, '$1');
-    
-    // 2. Fix missing commas between elements (common LLM issue)
     fixedJson = fixedJson.replace(/}(\s*){/g, '},{');
     fixedJson = fixedJson.replace(/](\s*)\[/g, '],[');
-    fixedJson = fixedJson.replace(/"(\s*)"/g, '","');
     
-    // 3. Fix unclosed structures
     const openBraces = (fixedJson.match(/\{/g) || []).length;
     const closeBraces = (fixedJson.match(/\}/g) || []).length;
     const openBrackets = (fixedJson.match(/\[/g) || []).length;
@@ -425,27 +309,148 @@ ${QUALITY_RULES}`
     
     if (openBrackets > closeBrackets) {
       console.log(`Closing ${openBrackets - closeBrackets} unclosed brackets`);
-      for (let i = 0; i < openBrackets - closeBrackets; i++) {
-        fixedJson += ']';
-      }
+      for (let i = 0; i < openBrackets - closeBrackets; i++) fixedJson += ']';
     }
     if (openBraces > closeBraces) {
       console.log(`Closing ${openBraces - closeBraces} unclosed braces`);
-      for (let i = 0; i < openBraces - closeBraces; i++) {
-        fixedJson += '}';
-      }
+      for (let i = 0; i < openBraces - closeBraces; i++) fixedJson += '}';
     }
     
-    // 4. Try to parse fixed JSON
     try {
       const result = JSON.parse(fixedJson);
       console.log('JSON repair successful');
       return result;
     } catch (secondError) {
       console.error('JSON repair failed:', secondError);
-      console.error('JSON preview (first 500):', fixedJson.substring(0, 500));
       throw new Error(`Failed to parse sprint JSON after repair: ${secondError}`);
     }
   }
 }
 
+function buildSprintPrompt(ctx: any): string {
+  const weeks1to6Summary = ctx.weeks1to6?.map((w: any) => 
+    `Week ${w.weekNumber}: "${w.theme}" - ${w.tasks?.length || 0} tasks - Milestone: ${w.weekMilestone || 'Set'}`
+  ).join('\n') || 'Weeks 1-6 completed';
+
+  return `Create Weeks 7-12 of the transformation journey for ${ctx.userName} at ${ctx.companyName}.
+
+## THE NORTH STAR
+"${ctx.northStar}"
+
+## CONTEXT FROM WEEKS 1-6 (already completed)
+
+Sprint Theme: ${ctx.sprintTheme}
+Sprint Promise: ${ctx.sprintPromise}
+
+Progress Made:
+${weeks1to6Summary}
+
+Tuesday Evolution So Far:
+- Week 0: ${ctx.tuesdayEvolutionPart1?.week0 || ctx.relationshipMirror || 'Starting point'}
+- Week 2: ${ctx.tuesdayEvolutionPart1?.week2 || 'First signs of relief'}
+- Week 4: ${ctx.tuesdayEvolutionPart1?.week4 || 'Building momentum'}
+- Week 6: ${ctx.tuesdayEvolutionPart1?.week6 || 'Foundation in place'}
+
+## THE 6-MONTH MILESTONES
+${ctx.shiftMilestones?.map((m: any, i: number) => `
+Milestone ${i + 1}: ${m.milestone}
+- Target Month: ${m.targetMonth}
+- Measurable: ${m.measurable || 'Progress indicator'}
+`).join('\n') || 'Continue toward goals'}
+
+## YEAR 1 DESTINATION
+Headline: ${ctx.year1Milestone?.headline || 'The Reclamation'}
+Emotional Shift: ${ctx.year1Milestone?.emotionalShift || 'From trapped to free'}
+
+## THEIR DANGER ZONE (watch for this)
+"${ctx.dangerZone}"
+
+## THEIR CONSTRAINTS
+Time: ${ctx.commitmentHours}
+Team: ${ctx.teamSize}
+Tools: ${ctx.toolsUsed?.join(', ') || 'Not specified'}
+
+---
+
+## YOUR TASK: Create Weeks 7-12
+
+Each week needs:
+1. **Theme** - Max 6 words, emotionally resonant
+2. **Narrative** - 2-3 sentences on WHY this week matters
+3. **Tasks** - 3-4 tasks with "whyThisMatters"
+4. **Week Milestone** - What's TRUE by Friday
+5. **Tuesday Check-In** - Emotional progress question
+
+Return this JSON:
+
+{
+  "phases": {
+    "momentum": {
+      "weeks": [7, 8],
+      "theme": "Scaling what works",
+      "emotionalGoal": "From 'this might work' to 'this IS working'"
+    },
+    "embed": {
+      "weeks": [9, 10],
+      "theme": "Locking in gains",
+      "emotionalGoal": "From effort to habit"
+    },
+    "measure": {
+      "weeks": [11, 12],
+      "theme": "Assessing and planning",
+      "emotionalGoal": "From uncertainty to clarity"
+    }
+  },
+  
+  "weeks": [
+    {
+      "weekNumber": 7,
+      "theme": "The Revenue Visibility Dashboard",
+      "phase": "Momentum",
+      "narrative": "You've built the foundation. Now let's see what's working. This week is about getting clear visibility on the numbers that matter—because you can't scale what you can't see.",
+      "tasks": [
+        {
+          "id": "w7_t1",
+          "title": "Specific action title",
+          "description": "2-3 sentences, step by step",
+          "whyThisMatters": "Connection to their North Star or Year 1 goal",
+          "milestone": "Which 6-month milestone this serves",
+          "tools": "Specific tools",
+          "timeEstimate": "2 hours",
+          "deliverable": "Tangible output",
+          "celebrationMoment": "What to notice when done"
+        }
+      ],
+      "weekMilestone": "By end of Week 7: [specific, measurable achievement]",
+      "tuesdayCheckIn": "Do I feel [emotion]? Am I seeing [indicator]?"
+    }
+    // Weeks 8-12 follow same structure
+  ],
+  
+  "tuesdayEvolution": {
+    "week8": "Systems starting to run themselves - [specific change]",
+    "week10": "New habits forming - [specific change]",
+    "week12": "Approaching the vision: '${ctx.tuesdayTest?.substring(0, 50) || ctx.year1Milestone?.emotionalShift || 'their transformation'}...'"
+  },
+  
+  "backslidePreventions": [
+    {
+      "trigger": "When ${ctx.dangerZone || 'old patterns emerge'}",
+      "response": "Specific action to take",
+      "reminder": "Why this matters - connection to North Star"
+    }
+  ],
+  
+  "nextSprintPreview": "Sprint 2 will build on this foundation by [specific next phase toward Year 1 milestone]"
+}
+
+## CRITICAL RULES
+
+1. BUILD on weeks 1-6—don't repeat tasks
+2. Every task needs "whyThisMatters" connecting to North Star
+3. Week themes should feel like chapter titles, not project phases
+4. Tuesday check-ins measure EMOTIONAL state
+5. Backslide preventions must address their stated danger_zone
+6. Week 12 should feel like an achievement AND a launchpad for Sprint 2
+7. Use their exact words where possible`;
+}

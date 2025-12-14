@@ -1,10 +1,12 @@
 // ============================================================================
 // GENERATE SPRINT PLAN PART 1 (Weeks 1-6)
 // ============================================================================
-// Generates first half of sprint plan: Immediate Relief + Foundation + Implementation
-// Model: Claude Sonnet 4.5
-// Timeout budget: 60s
-// Depends on: six_month_shift
+// Purpose: Create a transformation journey, not a task list
+// Weeks 1-2: Immediate Relief - prove they're not trapped
+// Weeks 3-4: Foundation - build the base
+// Weeks 5-6: Implementation - execute changes
+// 
+// Philosophy: Every task serves their North Star, not just business metrics
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -14,37 +16,6 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-const QUALITY_RULES = `
-## CRITICAL RULES
-
-### 1. USE THEIR EXPLICIT ANSWERS
-- "monday_frustration" → Address in Week 1-2
-- "magic_away_task" → Eliminate early
-- "ninety_day_priorities" → Must address at least 2 in Weeks 1-4
-- "tools_used" → Use these tools in tasks
-
-### 2. TASK SPECIFICITY
-Every task MUST have:
-- Specific action (not "improve marketing")
-- Specific tool (from their list or recommended)
-- Time estimate
-- Deliverable (tangible output)
-- Connection to 6-month milestone
-
-### 3. NO FILLER WEEKS
-- No "journal for 15 minutes" × 3
-- Every week must have meaningful tasks
-- No generic "review progress" tasks
-
-### 4. BRITISH ENGLISH
-- organise not organize
-- colour not color
-- £ not $
-
-### 5. LINK TO MILESTONES
-Every task must show which 6-month milestone it enables.
-`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -65,7 +36,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Check for existing stage record to determine version
+    // Check for existing stage
     const { data: existingStages } = await supabase
       .from('roadmap_stages')
       .select('version')
@@ -80,7 +51,6 @@ serve(async (req) => {
 
     console.log(`Creating sprint_plan_part1 stage with version ${nextVersion}`);
 
-    // Create stage record
     const { data: stage, error: stageError } = await supabase
       .from('roadmap_stages')
       .insert({
@@ -98,6 +68,15 @@ serve(async (req) => {
     if (stageError) throw stageError;
 
     // Fetch dependencies
+    const { data: fitStage } = await supabase
+      .from('roadmap_stages')
+      .select('generated_content, approved_content')
+      .eq('client_id', clientId)
+      .eq('stage_type', 'fit_assessment')
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     const { data: visionStage } = await supabase
       .from('roadmap_stages')
       .select('generated_content, approved_content')
@@ -116,6 +95,7 @@ serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
+    const fitProfile = fitStage?.approved_content || fitStage?.generated_content || {};
     const vision = visionStage?.approved_content || visionStage?.generated_content;
     const shift = shiftStage?.approved_content || shiftStage?.generated_content;
 
@@ -133,26 +113,21 @@ serve(async (req) => {
     const part1 = assessments?.find(a => a.assessment_type === 'part1')?.responses || {};
     const part2 = assessments?.find(a => a.assessment_type === 'part2')?.responses || {};
 
-    // Fetch client details
     const { data: client } = await supabase
       .from('practice_members')
       .select('name, client_company')
       .eq('id', clientId)
       .single();
 
-    // Build context
-    const context = buildSprintContext(part1, part2, client, vision, shift);
+    const context = buildSprintContext(part1, part2, client, fitProfile, vision, shift);
 
-    console.log(`Calling LLM for sprint_plan_part1 (weeks 1-6) generation (client: ${clientId})...`);
+    console.log(`Generating weeks 1-6 for ${context.userName}...`);
 
-    // Generate sprint part 1
     const sprintPart1 = await generateSprintPart1(context);
 
-    console.log(`LLM response received, updating stage record...`);
-
-    // Update stage
     const duration = Date.now() - startTime;
-    const { error: updateError } = await supabase
+    
+    await supabase
       .from('roadmap_stages')
       .update({
         status: 'generated',
@@ -161,11 +136,6 @@ serve(async (req) => {
         generation_duration_ms: duration
       })
       .eq('id', stage.id);
-
-    if (updateError) {
-      console.error('Failed to update stage record:', updateError);
-      throw updateError;
-    }
 
     console.log(`Sprint plan part 1 (weeks 1-6) generated for client ${clientId} in ${duration}ms`);
 
@@ -182,28 +152,39 @@ serve(async (req) => {
   }
 });
 
-function buildSprintContext(part1: any, part2: any, client: any, vision: any, shift: any) {
+function buildSprintContext(part1: any, part2: any, client: any, fitProfile: any, vision: any, shift: any) {
   return {
-    userName: client?.name?.split(' ')[0] || 'there',
+    userName: client?.name?.split(' ')[0] || part1.full_name?.split(' ')[0] || 'there',
     companyName: client?.client_company || part2.trading_name || part1.company_name || 'your business',
     
-    // Vision & Shift context
-    northStar: vision.northStar,
-    yearOneMilestone: vision.yearMilestones?.year1,
-    shiftMilestones: shift.keyMilestones || [],
+    // From fit profile
+    northStar: fitProfile.northStar || vision.northStar || '',
+    archetype: fitProfile.archetype || 'balanced_achiever',
     
-    // Their explicit answers
+    // From vision
+    year1Milestone: vision.yearMilestones?.year1 || {},
+    tuesdayTest: part1.tuesday_test || vision.visualisation || '',
+    
+    // From shift
+    shiftMilestones: shift.keyMilestones || [],
+    shiftStatement: shift.shiftStatement || '',
+    tuesdayEvolution: shift.tuesdayEvolution || {},
+    quickWins: shift.quickWins || [],
+    
+    // Their pain points (USE THESE)
     mondayFrustration: part2.monday_frustration || part1.monday_frustration || '',
     magicAwayTask: part1.magic_away_task || '',
-    ninetyDayPriorities: part2.ninety_day_priorities || part1.ninety_day_priorities || [],
+    emergencyLog: part1.emergency_log || '',
     growthBottleneck: part2.growth_bottleneck || part1.growth_bottleneck || '',
     dangerZone: part1.danger_zone || '',
     relationshipMirror: part1.relationship_mirror || '',
-    tuesdayTest: part1.tuesday_test || '',
+    
+    // Their priorities
+    ninetyDayPriorities: part2.ninety_day_priorities || part1.ninety_day_priorities || [],
     
     // Context
     commitmentHours: part1.commitment_hours || '10-15 hours',
-    teamSize: part2.team_size || 'solo',
+    teamSize: part2.team_size || part2.staff_count || 'small team',
     toolsUsed: part2.tools_used || part2.current_tools || [],
   };
 }
@@ -212,93 +193,7 @@ async function generateSprintPart1(ctx: any): Promise<any> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!openRouterKey) throw new Error('OPENROUTER_API_KEY not configured');
   
-  const prompt = `Create Weeks 1-6 of a Sprint plan for ${ctx.userName} at ${ctx.companyName}.
-
-## THE 6-MONTH MILESTONES (every task must connect to one)
-
-${ctx.shiftMilestones.map((m: any, i: number) => `
-Milestone ${i + 1}: ${m.milestone}
-- Target Month: ${m.targetMonth}
-- Measurable: ${m.measurable}
-`).join('\n')}
-
-## THEIR IMMEDIATE PROBLEMS (address in Weeks 1-4)
-
-### Monday Frustration (Week 1-2):
-"${ctx.mondayFrustration}"
-
-### Magic Away Task (eliminate early):
-"${ctx.magicAwayTask}"
-
-### 90-Day Priorities (they selected these):
-${ctx.ninetyDayPriorities?.map((p: string, i: number) => `${i + 1}. ${p}`).join('\n') || 'Not specified'}
-
-### Growth Bottleneck:
-"${ctx.growthBottleneck}"
-
-## THEIR TOOLS (use these in tasks)
-${ctx.toolsUsed?.length > 0 ? ctx.toolsUsed.map((t: string) => `- ${t}`).join('\n') : '- No specific tools mentioned'}
-
-## THEIR TIME BUDGET
-Available: ${ctx.commitmentHours}
-Team: ${ctx.teamSize}
-
-## CONTEXT
-- North Star: ${ctx.northStar}
-- Year 1 Target: ${ctx.yearOneMilestone?.measurable || 'Not specified'}
-
-## YOUR TASK: Generate ONLY Weeks 1-6
-
-Create weeks 1-6 where:
-- Weeks 1-2: "Immediate Relief" - address monday_frustration, magic_away_task
-- Weeks 3-4: "Foundation" - build systems for growth_bottleneck
-- Weeks 5-6: "Implementation" - execute changes
-
-Return as JSON:
-
-{
-  "sprintTheme": "90 days to [their specific outcome]",
-  "sprintPromise": "Transform from '${ctx.relationshipMirror}' to '[their tuesday_test outcome]'",
-  "sprintGoals": [
-    "${ctx.ninetyDayPriorities?.[0] || 'Address immediate pain points'}",
-    "${ctx.ninetyDayPriorities?.[1] || 'Build foundation for growth'}",
-    "Eliminate: ${ctx.magicAwayTask}"
-  ],
-  "phases": {
-    "weeks1_2": { "name": "Immediate Relief", "purpose": "Address: '${ctx.mondayFrustration || ctx.magicAwayTask}'" },
-    "weeks3_4": { "name": "Foundation", "purpose": "Build systems for: '${ctx.growthBottleneck}'" },
-    "weeks5_6": { "name": "Implementation", "purpose": "Execute changes" }
-  },
-  "weeks": [
-    {
-      "weekNumber": 1,
-      "phase": "Immediate Relief",
-      "theme": "Week 1: [Specific action]",
-      "focus": "Address: '${ctx.mondayFrustration?.substring(0, 50) || 'immediate pain'}'",
-      "tasks": [
-        {
-          "id": "w1_t1",
-          "title": "[SPECIFIC action]",
-          "description": "[Step-by-step - 2-3 sentences]",
-          "why": "Addresses your stated frustration",
-          "category": "Operations|Financial|Team|Systems|Marketing|Product",
-          "priority": "critical|high|medium",
-          "estimatedHours": 2,
-          "deliverable": "[Tangible output]",
-          "enablesMilestone": "[6-month milestone name]"
-        }
-      ],
-      "weekMilestone": "By end of Week 1: [specific outcome]"
-    }
-    // Continue for weeks 2-6
-  ],
-  "tuesdayEvolution": {
-    "week0": "${ctx.relationshipMirror || 'Current state'}",
-    "week4": "First signs of relief - [specific change]"
-  }
-}
-
-Generate 3-4 tasks per week. Use British English.`;
+  const prompt = buildSprintPrompt(ctx);
 
   console.log('Making OpenRouter API request for sprint part 1...');
   console.log(`Prompt length: ${prompt.length} characters`);
@@ -322,12 +217,16 @@ Generate 3-4 tasks per week. Use British English.`;
       body: JSON.stringify({
         model: 'anthropic/claude-sonnet-4.5',
         max_tokens: 6000,
-        temperature: 0.4,
+        temperature: 0.5,
         messages: [
           { 
             role: 'system', 
-            content: `Create sprint plans (weeks 1-6 only) with specific, actionable tasks. Return only valid JSON.
-${QUALITY_RULES}`
+            content: `You create transformation journeys, not task lists.
+Every week has a narrative—WHY it matters to their LIFE, not just business.
+Every task connects to their North Star.
+Use their exact words. Be specific to their situation.
+British English only (organise, colour, £).
+Return ONLY valid JSON.`
           },
           { role: 'user', content: prompt }
         ]
@@ -340,7 +239,6 @@ ${QUALITY_RULES}`
 
     if (!response.ok) {
       const error = await response.text();
-      console.error(`OpenRouter error response: ${error}`);
       throw new Error(`LLM error: ${response.status} - ${error}`);
     }
 
@@ -351,7 +249,6 @@ ${QUALITY_RULES}`
     if (fetchError.name === 'AbortError') {
       throw new Error('OpenRouter request timed out after 50 seconds');
     }
-    console.error('Fetch error:', fetchError);
     throw fetchError;
   }
 
@@ -366,26 +263,16 @@ ${QUALITY_RULES}`
   
   let jsonString = cleaned.substring(start, end + 1);
   
-  // Try to parse as-is first
   try {
     return JSON.parse(jsonString);
   } catch (parseError) {
-    // This is expected - LLMs often produce slightly malformed JSON
-    console.warn('Initial JSON parse failed (will attempt repair):', parseError);
-    console.log('Attempting JSON repair...');
+    console.warn('Initial JSON parse failed, attempting repair...');
     
-    // Apply fixes in sequence
     let fixedJson = jsonString;
-    
-    // 1. Fix trailing commas before } or ]
     fixedJson = fixedJson.replace(/,(\s*[}\]])/g, '$1');
-    
-    // 2. Fix missing commas between elements (common LLM issue)
     fixedJson = fixedJson.replace(/}(\s*){/g, '},{');
     fixedJson = fixedJson.replace(/](\s*)\[/g, '],[');
-    fixedJson = fixedJson.replace(/"(\s*)"/g, '","');
     
-    // 3. Fix unclosed structures
     const openBraces = (fixedJson.match(/\{/g) || []).length;
     const closeBraces = (fixedJson.match(/\}/g) || []).length;
     const openBrackets = (fixedJson.match(/\[/g) || []).length;
@@ -393,28 +280,134 @@ ${QUALITY_RULES}`
     
     if (openBrackets > closeBrackets) {
       console.log(`Closing ${openBrackets - closeBrackets} unclosed brackets`);
-      for (let i = 0; i < openBrackets - closeBrackets; i++) {
-        fixedJson += ']';
-      }
+      for (let i = 0; i < openBrackets - closeBrackets; i++) fixedJson += ']';
     }
     if (openBraces > closeBraces) {
       console.log(`Closing ${openBraces - closeBraces} unclosed braces`);
-      for (let i = 0; i < openBraces - closeBraces; i++) {
-        fixedJson += '}';
-      }
+      for (let i = 0; i < openBraces - closeBraces; i++) fixedJson += '}';
     }
     
-    // 4. Try to parse fixed JSON
     try {
       const result = JSON.parse(fixedJson);
       console.log('JSON repair successful');
       return result;
     } catch (secondError) {
       console.error('JSON repair failed:', secondError);
-      console.error('JSON preview (first 500):', fixedJson.substring(0, 500));
-      console.error('JSON preview (around error):', fixedJson.substring(23300, 23500));
       throw new Error(`Failed to parse sprint JSON after repair: ${secondError}`);
     }
   }
 }
 
+function buildSprintPrompt(ctx: any): string {
+  return `Create Weeks 1-6 of a transformation journey for ${ctx.userName} at ${ctx.companyName}.
+
+## THE NORTH STAR (filter every task through this)
+"${ctx.northStar}"
+
+## THE 6-MONTH MILESTONES (every task serves one of these)
+${ctx.shiftMilestones.map((m: any, i: number) => `
+Milestone ${i + 1}: ${m.milestone}
+- Target Month: ${m.targetMonth}
+- Measurable: ${m.measurable}
+- Why it matters: ${m.whyItMatters || 'Key step toward their vision'}
+`).join('\n')}
+
+## THEIR IMMEDIATE PAIN (address in Weeks 1-2)
+
+Monday frustration: "${ctx.mondayFrustration}"
+What they'd magic away: "${ctx.magicAwayTask}"
+Emergency log: "${ctx.emergencyLog}"
+Their relationship with business: "${ctx.relationshipMirror}"
+Danger zone: "${ctx.dangerZone}"
+
+## THEIR 90-DAY PRIORITIES (they selected these)
+${ctx.ninetyDayPriorities?.map((p: string, i: number) => `${i + 1}. ${p}`).join('\n') || 'Not specified'}
+
+## QUICK WINS FROM SHIFT PLAN
+${ctx.quickWins?.map((qw: any) => `- ${qw.timing}: ${qw.win}`).join('\n') || 'Week 1: Address magic_away_task'}
+
+## THEIR CONSTRAINTS
+Time available: ${ctx.commitmentHours}
+Team: ${ctx.teamSize}
+Tools they use: ${ctx.toolsUsed?.join(', ') || 'Not specified'}
+
+---
+
+## YOUR TASK: Create Weeks 1-6
+
+Each week needs:
+1. **Theme** - Max 6 words, emotionally resonant (not "Process Documentation Phase")
+2. **Narrative** - 2-3 sentences on WHY this week matters to their LIFE
+3. **Tasks** - 3-4 specific tasks with "whyThisMatters" connecting to their north star
+4. **Week Milestone** - What's TRUE by Friday
+5. **Tuesday Check-In** - Emotional progress question
+
+Return this JSON:
+
+{
+  "sprintTheme": "One sentence: the overarching transformation theme",
+  "sprintPromise": "What's TRUE about ${ctx.userName}'s life at Week 6 that isn't true today",
+  "sprintGoals": ["3-4 high-level outcomes tied to their priorities"],
+  
+  "phases": {
+    "immediateRelief": {
+      "weeks": [1, 2],
+      "theme": "Quick wins and hope restoration",
+      "emotionalGoal": "From overwhelmed to 'I can do this'"
+    },
+    "foundation": {
+      "weeks": [3, 4],
+      "theme": "Building the base",
+      "emotionalGoal": "From reactive to proactive"
+    },
+    "implementation": {
+      "weeks": [5, 6],
+      "theme": "Executing changes",
+      "emotionalGoal": "From planning to doing"
+    }
+  },
+  
+  "weeks": [
+    {
+      "weekNumber": 1,
+      "theme": "Reclaim Your Mornings",
+      "phase": "Immediate Relief",
+      "narrative": "This week is about one thing: proving to yourself that you're not trapped. You said '${ctx.magicAwayTask?.substring(0, 50) || ctx.mondayFrustration?.substring(0, 50)}...' Let's address that first. By Friday, you'll feel the first crack of daylight.",
+      "tasks": [
+        {
+          "id": "w1_t1",
+          "title": "Action-oriented, specific title",
+          "description": "2-3 sentences explaining exactly what to do, step by step. Be specific.",
+          "whyThisMatters": "Connection to their North Star: '${ctx.northStar?.substring(0, 50)}...' or to their immediate pain",
+          "milestone": "Which 6-month milestone this serves",
+          "tools": "Specific tools to use",
+          "timeEstimate": "2 hours",
+          "deliverable": "Tangible output they can show",
+          "celebrationMoment": "What to notice when done - the small win to acknowledge"
+        }
+      ],
+      "weekMilestone": "By end of Week 1: [specific, measurable, feels like an achievement]",
+      "tuesdayCheckIn": "Do I feel [specific emotion]? Have I [specific indicator]?"
+    }
+    // Weeks 2-6 follow same structure
+  ],
+  
+  "tuesdayEvolution": {
+    "week0": "${ctx.relationshipMirror || 'Current state - the weight they carry'}",
+    "week2": "First signs of relief - [specific change]",
+    "week4": "Building momentum - [specific change]",
+    "week6": "Foundation in place - [specific change approaching shift.tuesdayEvolution.month1]"
+  }
+}
+
+## CRITICAL RULES
+
+1. Week 1-2 MUST address magic_away_task and monday_frustration
+2. Every task needs "whyThisMatters" connecting to their North Star or immediate pain
+3. Tasks must fit within their stated commitment_hours (${ctx.commitmentHours})
+4. Use their specific tools (${ctx.toolsUsed?.join(', ') || 'or recommend appropriate ones'})
+5. The narrative for each week should make them FEEL something
+6. Tuesday check-ins measure EMOTIONAL state, not task completion
+7. Week themes should be memorable (not "Week 1: Process Review")
+8. Celebration moments help them recognise progress they might miss`;
+}
