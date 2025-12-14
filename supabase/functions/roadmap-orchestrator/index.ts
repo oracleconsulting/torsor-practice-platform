@@ -34,7 +34,7 @@ serve(async (req) => {
     );
 
     const processedStages: string[] = [];
-    const maxIterations = 10; // Prevent infinite loops
+    const maxIterations = 20; // Increased to handle all 5 stages plus retries
     let iterations = 0;
 
     // Process queue items in sequence until queue is empty or dependencies aren't ready
@@ -177,8 +177,26 @@ serve(async (req) => {
       processedStages.push(queueItem.stage_type);
       console.log(`✓ Completed ${queueItem.stage_type}`);
 
-      // Small delay to allow database triggers to fire and queue next stage
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait longer to allow database triggers to fire and queue next stage
+      // Also check if a new item was queued before continuing
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // After waiting, check if a new item was queued by the trigger
+      // This ensures we process value_analysis even if it was queued after we started
+      const { data: newQueueItem } = await supabase
+        .from('generation_queue')
+        .select('*')
+        .eq('status', 'pending')
+        .eq('client_id', queueItem.client_id)
+        .order('priority', { ascending: false })
+        .order('queued_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      
+      if (newQueueItem) {
+        console.log(`New item queued after ${queueItem.stage_type} completed: ${newQueueItem.stage_type}`);
+        // Don't increment iterations here - we'll process it in the next loop iteration
+      }
     }
 
     return new Response(JSON.stringify({ 
