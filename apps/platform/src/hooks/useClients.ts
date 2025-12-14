@@ -372,37 +372,32 @@ export function useClientDetail(clientId: string | null) {
         throw new Error(`Failed to queue regeneration: ${queueError.message}`);
       }
 
-      console.log('Queued fit_assessment, triggering orchestrator...');
+      console.log('Queued fit_assessment successfully');
 
-      // Immediately trigger the orchestrator to start processing
-      // The orchestrator will process all stages in sequence until complete
-      // If this fails, the queue is still set up and will be processed
-      let orchestratorStarted = false;
-      try {
-        const { data: orchestratorResult, error: orchestratorError } = await supabase.functions.invoke(
-          'roadmap-orchestrator',
-          {
-            body: {}
-          }
-        );
+      // Try to trigger the orchestrator immediately (optional - queue will be processed anyway)
+      // Use a separate async function so errors don't affect the main flow
+      (async () => {
+        try {
+          console.log('Attempting to trigger orchestrator...');
+          const { data: orchestratorResult, error: orchestratorError } = await supabase.functions.invoke(
+            'roadmap-orchestrator',
+            {
+              body: {}
+            }
+          );
 
-        if (orchestratorError) {
-          console.warn('Orchestrator invocation returned error (non-fatal):', orchestratorError);
-          // Check if it's a real error or just a "queue empty" response
-          if (orchestratorError.message && !orchestratorError.message.includes('Queue empty')) {
-            console.warn('Orchestrator may not be available, but queue is set up. Processing will happen automatically.');
+          if (orchestratorError) {
+            console.warn('Orchestrator returned error (non-fatal):', orchestratorError);
           } else {
-            orchestratorStarted = true;
+            console.log('Orchestrator started successfully:', orchestratorResult);
           }
-        } else {
-          orchestratorStarted = true;
-          console.log('Orchestrator started successfully:', orchestratorResult);
+        } catch (invokeError: any) {
+          // FunctionsFetchError or other errors - completely non-fatal
+          // The queue is set up and will be processed automatically
+          console.log('Orchestrator invocation failed (this is OK - queue will be processed automatically):', 
+            invokeError?.message || invokeError);
         }
-      } catch (invokeError) {
-        // FunctionsFetchError or other network errors - non-fatal
-        console.warn('Could not invoke orchestrator directly (this is OK):', invokeError);
-        console.log('Queue is set up. Stages will be processed automatically by the orchestrator.');
-      }
+      })();
 
       // Refresh client data
       await fetchClient();
