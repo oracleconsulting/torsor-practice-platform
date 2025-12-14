@@ -2971,7 +2971,7 @@ serve(async (req) => {
           version: nextVersion,
           status: 'generating',
           generation_started_at: new Date().toISOString(),
-          model_used: 'anthropic/claude-sonnet-4.5'
+          model_used: 'rule-based-v1'
         })
         .select()
         .single();
@@ -3080,7 +3080,7 @@ serve(async (req) => {
       
       // Update stage record if it was created
       if (stage) {
-        await supabase
+        const { error: stageUpdateError } = await supabase
           .from('roadmap_stages')
           .update({
             status: 'generated',
@@ -3089,6 +3089,12 @@ serve(async (req) => {
             generation_duration_ms: duration
           })
           .eq('id', stage.id);
+        
+        if (stageUpdateError) {
+          console.error('Failed to update value_analysis stage:', stageUpdateError);
+        } else {
+          console.log(`Value analysis stage updated to 'generated' for client ${clientId} in ${duration}ms`);
+        }
       }
       
       // Update roadmap with value analysis (backward compatibility)

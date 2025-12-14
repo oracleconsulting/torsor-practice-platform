@@ -713,3 +713,4 @@ Both formats use the same underlying data structure but present it differently:
 
 The styling is consistent with RPGCC brand guidelines, using navy, teal, and blue as primary colors, with appropriate accents for different content types (red for critical gaps, orange for high severity, emerald for investments, etc.).
 
+

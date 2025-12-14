@@ -18,3 +18,4 @@ export const RPGCC_COLORS = {
 } as const;
 
 export type RPGCCColor = keyof typeof RPGCC_COLORS;
+

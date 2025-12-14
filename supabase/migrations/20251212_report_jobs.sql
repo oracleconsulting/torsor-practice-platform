@@ -49,3 +49,4 @@ CREATE OR REPLACE TRIGGER set_report_jobs_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 COMMENT ON TABLE report_jobs IS 'Tracks async report generation jobs for polling';
+

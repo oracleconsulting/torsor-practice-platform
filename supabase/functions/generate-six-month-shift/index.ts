@@ -90,7 +90,7 @@ serve(async (req) => {
         version: nextVersion,
         status: 'generating',
         generation_started_at: new Date().toISOString(),
-        model_used: 'anthropic/claude-sonnet-4'
+        model_used: 'anthropic/claude-3.5-sonnet'
       })
       .select()
       .single();
@@ -131,12 +131,16 @@ serve(async (req) => {
     // Build context
     const context = buildShiftContext(part1, part2, client, vision);
 
+    console.log(`Calling LLM for six_month_shift generation (client: ${clientId})...`);
+
     // Generate shift
     const shift = await generateShift(context);
 
+    console.log(`LLM response received, updating stage record...`);
+
     // Update stage
     const duration = Date.now() - startTime;
-    await supabase
+    const { error: updateError } = await supabase
       .from('roadmap_stages')
       .update({
         status: 'generated',
@@ -145,6 +149,13 @@ serve(async (req) => {
         generation_duration_ms: duration
       })
       .eq('id', stage.id);
+
+    if (updateError) {
+      console.error('Failed to update stage record:', updateError);
+      throw updateError;
+    }
+
+    console.log(`Six month shift generated for client ${clientId} in ${duration}ms`);
 
     return new Response(JSON.stringify({ success: true, stageId: stage.id, duration }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -292,6 +303,8 @@ Return as JSON:
   "connectionToVision": "How completing this shift moves toward: ${ctx.northStar}"
 }`;
 
+  console.log('Making OpenRouter API request...');
+  
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -301,7 +314,7 @@ Return as JSON:
       'X-Title': 'Torsor 365 Shift'
     },
     body: JSON.stringify({
-      model: 'anthropic/claude-sonnet-4',
+      model: 'anthropic/claude-3.5-sonnet',
       max_tokens: 4000,
       temperature: 0.4,
       messages: [
@@ -315,22 +328,42 @@ ${QUALITY_RULES}`
     })
   });
 
+  console.log(`OpenRouter response status: ${response.status}`);
+
   if (!response.ok) {
     const error = await response.text();
+    console.error(`LLM API error: ${response.status} - ${error}`);
     throw new Error(`LLM error: ${response.status} - ${error}`);
   }
 
   const data = await response.json();
+  
+  if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+    console.error('Invalid LLM response structure:', JSON.stringify(data).substring(0, 500));
+    throw new Error('Invalid LLM response structure');
+  }
+  
   const content = data.choices[0].message.content;
+  console.log(`LLM response length: ${content.length} characters`);
+  
   const cleaned = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
   
   if (start === -1 || end === -1) {
-    throw new Error('Failed to parse shift JSON');
+    console.error('Failed to find JSON in response:', cleaned.substring(0, 500));
+    throw new Error('Failed to parse shift JSON - no JSON object found');
   }
   
-  return JSON.parse(cleaned.substring(start, end + 1));
+  try {
+    const parsed = JSON.parse(cleaned.substring(start, end + 1));
+    console.log('Successfully parsed shift JSON');
+    return parsed;
+  } catch (parseError) {
+    console.error('JSON parse error:', parseError);
+    console.error('Raw content to parse:', cleaned.substring(start, Math.min(start + 500, end + 1)));
+    throw new Error(`Failed to parse shift JSON: ${(parseError as Error).message}`);
+  }
 }
 
 

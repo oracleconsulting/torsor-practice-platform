@@ -68,3 +68,4 @@ CREATE POLICY "Practice members can manage reports"
 COMMENT ON POLICY "Clients can view their own shared reports" ON client_reports IS 
   'Allows clients to read their own discovery analysis reports when is_shared_with_client = true';
 
+

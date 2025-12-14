@@ -62,3 +62,4 @@ FROM client_reports
 WHERE client_id = '34c94120-928b-402e-bb04-85edf9d6de42'
   AND report_type = 'discovery_analysis';
 
+

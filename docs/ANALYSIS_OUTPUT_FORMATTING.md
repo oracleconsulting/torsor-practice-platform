@@ -793,3 +793,4 @@ LANGUAGE RULES (non-negotiable):
 | Database Migration | `supabase/migrations/20251212_assessment_patterns.sql` |
 | System Doc | `docs/DISCOVERY_ASSESSMENT_SYSTEM.md` |
 | This Doc | `docs/ANALYSIS_OUTPUT_FORMATTING.md` |
+

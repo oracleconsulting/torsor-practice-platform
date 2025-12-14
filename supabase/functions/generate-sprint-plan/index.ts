@@ -98,7 +98,7 @@ serve(async (req) => {
         version: nextVersion,
         status: 'generating',
         generation_started_at: new Date().toISOString(),
-        model_used: 'anthropic/claude-sonnet-4'
+        model_used: 'anthropic/claude-3.5-sonnet'
       })
       .select()
       .single();
@@ -151,12 +151,16 @@ serve(async (req) => {
     // Build context
     const context = buildSprintContext(part1, part2, client, vision, shift);
 
+    console.log(`Calling LLM for sprint_plan generation (client: ${clientId})...`);
+
     // Generate sprint
     const sprint = await generateSprint(context);
 
+    console.log(`LLM response received, updating stage record...`);
+
     // Update stage
     const duration = Date.now() - startTime;
-    await supabase
+    const { error: updateError } = await supabase
       .from('roadmap_stages')
       .update({
         status: 'generated',
@@ -165,6 +169,13 @@ serve(async (req) => {
         generation_duration_ms: duration
       })
       .eq('id', stage.id);
+
+    if (updateError) {
+      console.error('Failed to update stage record:', updateError);
+      throw updateError;
+    }
+
+    console.log(`Sprint plan generated for client ${clientId} in ${duration}ms`);
 
     return new Response(JSON.stringify({ success: true, stageId: stage.id, duration }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -387,7 +398,7 @@ Before including any task, verify:
       'X-Title': 'Torsor 365 Sprint'
     },
     body: JSON.stringify({
-      model: 'anthropic/claude-sonnet-4',
+      model: 'anthropic/claude-3.5-sonnet',
       max_tokens: 16000, // Increased to handle large sprint plans
       temperature: 0.4,
       messages: [

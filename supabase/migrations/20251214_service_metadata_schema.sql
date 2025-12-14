@@ -1009,3 +1009,4 @@ SELECT 'Audit Insights Table',
        CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'audit_advisory_insights') 
             THEN 'Created' ELSE 'Failed' END;
 
+
