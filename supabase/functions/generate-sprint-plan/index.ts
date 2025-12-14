@@ -73,6 +73,21 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
+    // Check for existing stage record to determine version
+    const { data: existingStages } = await supabase
+      .from('roadmap_stages')
+      .select('version')
+      .eq('client_id', clientId)
+      .eq('stage_type', 'sprint_plan')
+      .order('version', { ascending: false })
+      .limit(1);
+
+    const nextVersion = existingStages && existingStages.length > 0 
+      ? existingStages[0].version + 1 
+      : 1;
+
+    console.log(`Creating sprint_plan stage with version ${nextVersion}`);
+
     // Create stage record
     const { data: stage, error: stageError } = await supabase
       .from('roadmap_stages')
@@ -80,6 +95,7 @@ serve(async (req) => {
         practice_id: practiceId,
         client_id: clientId,
         stage_type: 'sprint_plan',
+        version: nextVersion,
         status: 'generating',
         generation_started_at: new Date().toISOString(),
         model_used: 'anthropic/claude-sonnet-4-20250514'
@@ -402,4 +418,5 @@ ${QUALITY_RULES}`
   
   return JSON.parse(cleaned.substring(start, end + 1));
 }
+
 

@@ -109,6 +109,21 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
+    // Check for existing stage record to determine version
+    const { data: existingStages } = await supabase
+      .from('roadmap_stages')
+      .select('version')
+      .eq('client_id', clientId)
+      .eq('stage_type', 'five_year_vision')
+      .order('version', { ascending: false })
+      .limit(1);
+
+    const nextVersion = existingStages && existingStages.length > 0 
+      ? existingStages[0].version + 1 
+      : 1;
+
+    console.log(`Creating five_year_vision stage with version ${nextVersion}`);
+
     // Create stage record
     const { data: stage, error: stageError } = await supabase
       .from('roadmap_stages')
@@ -116,6 +131,7 @@ serve(async (req) => {
         practice_id: practiceId,
         client_id: clientId,
         stage_type: 'five_year_vision',
+        version: nextVersion,
         status: 'generating',
         generation_started_at: new Date().toISOString(),
         model_used: 'anthropic/claude-opus-4-5-20250514'
@@ -425,4 +441,5 @@ Return as JSON:
   "emotionalCore": "2-3 sentences on what they're REALLY seeking underneath it all. Reference their family_feedback and sacrifices. Why does this matter to them specifically?"
 }`;
 }
+
 
