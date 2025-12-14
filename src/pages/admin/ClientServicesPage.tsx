@@ -4202,12 +4202,35 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
 
       console.log('✓ Queued fit_assessment successfully');
 
-      // Call orchestrator to process the queue
-      // The orchestrator will process fit_assessment first, which triggers the next stage via database trigger
-      // Then it continues processing the rest of the chain automatically
+      // Start the generation process by calling the first stage function directly
+      // This will generate fit_assessment, which triggers the next stage via database trigger
+      // Then we call the orchestrator to process the rest of the chain
       try {
-        console.log('🚀 Triggering orchestrator to start processing...');
-        
+        console.log('🚀 Starting generation by calling first stage function...');
+        console.log(`Calling generate-fit-profile with: {clientId: ${clientId}, practiceId: ${client.practice_id}}`);
+
+        // Call fit_assessment function directly to start the chain
+        const fitResponse = await supabase.functions.invoke(
+          'generate-fit-profile',
+          {
+            body: {
+              clientId,
+              practiceId: client.practice_id
+            }
+          }
+        );
+
+        if (fitResponse.error) {
+          console.warn('⚠️ Fit assessment function error (non-fatal):', fitResponse.error);
+        } else {
+          console.log('✅ Fit assessment started successfully:', fitResponse.data);
+        }
+
+        // Small delay to let fit_assessment complete and trigger next stage
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        // Now call orchestrator to process the rest of the chain
+        console.log('🚀 Triggering orchestrator to process remaining stages...');
         const orchestratorResponse = await supabase.functions.invoke(
           'roadmap-orchestrator',
           {
@@ -4218,14 +4241,14 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
         console.log('Orchestrator response:', orchestratorResponse);
 
         if (orchestratorResponse.error) {
-          console.warn('⚠️ Orchestrator returned error:', orchestratorResponse.error);
-          // Queue is set up, so this is non-fatal - stages will be processed
+          console.warn('⚠️ Orchestrator returned error (non-fatal):', orchestratorResponse.error);
+          // Queue is set up and first stage is processing, so this is non-fatal
         } else {
           console.log('✅ Orchestrator started successfully:', orchestratorResponse.data);
         }
       } catch (invokeError: any) {
         // FunctionsFetchError or other errors - log but don't fail
-        console.error('❌ Orchestrator invocation error (queue is set up, this is OK):', invokeError);
+        console.error('❌ Function invocation error (queue is set up, this is OK):', invokeError);
         console.error('Error details:', {
           message: invokeError?.message,
           name: invokeError?.name,
