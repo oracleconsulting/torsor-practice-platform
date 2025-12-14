@@ -376,23 +376,39 @@ export function useClientDetail(clientId: string | null) {
 
       // Immediately trigger the orchestrator to start processing
       // The orchestrator will process all stages in sequence until complete
-      const { data: orchestratorResult, error: orchestratorError } = await supabase.functions.invoke(
-        'roadmap-orchestrator',
-        {
-          body: {}
-        }
-      );
+      // If this fails, the queue is still set up and will be processed
+      let orchestratorStarted = false;
+      try {
+        const { data: orchestratorResult, error: orchestratorError } = await supabase.functions.invoke(
+          'roadmap-orchestrator',
+          {
+            body: {}
+          }
+        );
 
-      if (orchestratorError) {
-        console.error('Error invoking orchestrator:', orchestratorError);
-        // Don't throw - the queue is set up, cron will pick it up if orchestrator fails
-        console.log('Orchestrator invocation failed, but queue is set up. Stages will be processed automatically.');
-      } else {
-        console.log('Orchestrator response:', orchestratorResult);
+        if (orchestratorError) {
+          console.warn('Orchestrator invocation returned error (non-fatal):', orchestratorError);
+          // Check if it's a real error or just a "queue empty" response
+          if (orchestratorError.message && !orchestratorError.message.includes('Queue empty')) {
+            console.warn('Orchestrator may not be available, but queue is set up. Processing will happen automatically.');
+          } else {
+            orchestratorStarted = true;
+          }
+        } else {
+          orchestratorStarted = true;
+          console.log('Orchestrator started successfully:', orchestratorResult);
+        }
+      } catch (invokeError) {
+        // FunctionsFetchError or other network errors - non-fatal
+        console.warn('Could not invoke orchestrator directly (this is OK):', invokeError);
+        console.log('Queue is set up. Stages will be processed automatically by the orchestrator.');
       }
 
       // Refresh client data
       await fetchClient();
+      
+      // Always return true if queue was set up successfully
+      // The orchestrator will process it whether we called it directly or not
       return true;
 
     } catch (err) {
