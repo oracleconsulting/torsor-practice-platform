@@ -298,10 +298,28 @@ Return ONLY valid JSON.`
     console.warn('Initial JSON parse failed, attempting repair...');
     
     let fixedJson = jsonString;
+    
+    // 1. Fix trailing commas before } or ]
     fixedJson = fixedJson.replace(/,(\s*[}\]])/g, '$1');
+    
+    // 2. Fix missing commas between properties
     fixedJson = fixedJson.replace(/}(\s*){/g, '},{');
     fixedJson = fixedJson.replace(/](\s*)\[/g, '],[');
+    fixedJson = fixedJson.replace(/"(\s*)"(\s*[a-zA-Z])/g, '","$2');
     
+    // 3. Fix missing commas between array elements
+    fixedJson = fixedJson.replace(/}(\s*)"/g, '},"');
+    fixedJson = fixedJson.replace(/"(\s*){/g, '",{');
+    
+    // 4. Fix unescaped newlines in strings
+    fixedJson = fixedJson.replace(/"([^"]*)\n([^"]*)"/g, (match, p1, p2) => {
+      return `"${p1} ${p2}"`;
+    });
+    
+    // 5. Fix control characters in strings
+    fixedJson = fixedJson.replace(/[\x00-\x1F\x7F]/g, ' ');
+    
+    // 6. Close unclosed structures
     const openBraces = (fixedJson.match(/\{/g) || []).length;
     const closeBraces = (fixedJson.match(/\}/g) || []).length;
     const openBrackets = (fixedJson.match(/\[/g) || []).length;

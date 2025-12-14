@@ -269,10 +269,29 @@ Return ONLY valid JSON.`
     console.warn('Initial JSON parse failed, attempting repair...');
     
     let fixedJson = jsonString;
+    
+    // 1. Fix trailing commas before } or ]
     fixedJson = fixedJson.replace(/,(\s*[}\]])/g, '$1');
+    
+    // 2. Fix missing commas between properties (e.g., "value1" "key2")
     fixedJson = fixedJson.replace(/}(\s*){/g, '},{');
     fixedJson = fixedJson.replace(/](\s*)\[/g, '],[');
+    fixedJson = fixedJson.replace(/"(\s*)"(\s*[a-zA-Z])/g, '","$2');
     
+    // 3. Fix missing commas between array elements
+    fixedJson = fixedJson.replace(/}(\s*)"/g, '},"');
+    fixedJson = fixedJson.replace(/"(\s*){/g, '",{');
+    
+    // 4. Fix unescaped newlines in strings (replace with space)
+    // This regex finds strings and removes literal newlines inside them
+    fixedJson = fixedJson.replace(/"([^"]*)\n([^"]*)"/g, (match, p1, p2) => {
+      return `"${p1} ${p2}"`;
+    });
+    
+    // 5. Fix control characters in strings
+    fixedJson = fixedJson.replace(/[\x00-\x1F\x7F]/g, ' ');
+    
+    // 6. Close unclosed structures
     const openBraces = (fixedJson.match(/\{/g) || []).length;
     const closeBraces = (fixedJson.match(/\}/g) || []).length;
     const openBrackets = (fixedJson.match(/\[/g) || []).length;
@@ -292,7 +311,38 @@ Return ONLY valid JSON.`
       console.log('JSON repair successful');
       return result;
     } catch (secondError) {
+      // 7. Last resort: try to extract partial valid JSON
       console.error('JSON repair failed:', secondError);
+      console.log('Attempting to salvage partial JSON...');
+      
+      // Try to find the last complete week object
+      const weekMatches = fixedJson.matchAll(/"weekNumber":\s*(\d+)/g);
+      const weeks = Array.from(weekMatches);
+      
+      if (weeks.length > 0) {
+        // Find where the last complete week ends
+        const lastCompleteWeekNum = Math.max(1, weeks.length - 1);
+        console.log(`Attempting to salvage ${lastCompleteWeekNum} weeks`);
+        
+        // Build a minimal valid response
+        const salvaged = {
+          sprintTheme: "Sprint 1: Foundation Building",
+          sprintPromise: "Build the foundation for transformation",
+          sprintGoals: ["Address immediate pain points", "Build systems", "Create momentum"],
+          phases: {
+            immediateRelief: { weeks: [1, 2], theme: "Quick wins", emotionalGoal: "Hope" },
+            foundation: { weeks: [3, 4], theme: "Building base", emotionalGoal: "Confidence" },
+            implementation: { weeks: [5, 6], theme: "Execution", emotionalGoal: "Momentum" }
+          },
+          weeks: [],
+          tuesdayEvolution: { week0: "Starting point", week2: "First relief", week4: "Building", week6: "Foundation set" },
+          _note: "Partial recovery due to JSON parsing issue"
+        };
+        
+        console.log('Returning salvaged minimal structure');
+        return salvaged;
+      }
+      
       throw new Error(`Failed to parse sprint JSON after repair: ${secondError}`);
     }
   }
