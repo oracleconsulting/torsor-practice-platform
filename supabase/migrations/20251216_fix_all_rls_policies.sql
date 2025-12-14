@@ -98,6 +98,7 @@ BEGIN
       WHEN 'fit_assessment' THEN 'five_year_vision'
       WHEN 'five_year_vision' THEN 'six_month_shift'
       WHEN 'six_month_shift' THEN 'sprint_plan'
+      WHEN 'sprint_plan' THEN 'value_analysis'
       ELSE NULL
     END;
     
