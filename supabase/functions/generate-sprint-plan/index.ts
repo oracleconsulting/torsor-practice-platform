@@ -388,7 +388,7 @@ Before including any task, verify:
     },
     body: JSON.stringify({
       model: 'anthropic/claude-sonnet-4',
-      max_tokens: 8000,
+      max_tokens: 16000, // Increased to handle large sprint plans
       temperature: 0.4,
       messages: [
         { 
@@ -417,6 +417,36 @@ ${QUALITY_RULES}`
   }
   
   const jsonString = cleaned.substring(start, end + 1);
+  
+  // Check if JSON appears to be truncated (common when hitting token limits)
+  const openBraces = (jsonString.match(/\{/g) || []).length;
+  const closeBraces = (jsonString.match(/\}/g) || []).length;
+  const openBrackets = (jsonString.match(/\[/g) || []).length;
+  const closeBrackets = (jsonString.match(/\]/g) || []).length;
+  
+  if (openBraces > closeBraces || openBrackets > closeBrackets) {
+    console.warn(`JSON appears incomplete: ${openBraces - closeBraces} unclosed braces, ${openBrackets - closeBrackets} unclosed brackets`);
+    console.warn('This likely means the LLM response was truncated. Attempting to close incomplete structures...');
+    
+    // Try to close incomplete structures
+    let fixedJson = jsonString;
+    // Close any unclosed arrays first
+    for (let i = 0; i < openBrackets - closeBrackets; i++) {
+      fixedJson += ']';
+    }
+    // Close any unclosed objects
+    for (let i = 0; i < openBraces - closeBraces; i++) {
+      fixedJson += '}';
+    }
+    
+    console.log('Attempting to parse fixed (closed) JSON...');
+    try {
+      return JSON.parse(fixedJson);
+    } catch (fixError) {
+      console.error('Failed to parse even after closing structures:', fixError);
+      // Fall through to original error handling
+    }
+  }
   
   try {
     return JSON.parse(jsonString);
