@@ -732,11 +732,12 @@ export function useRoadmap() {
 
     try {
       // First, try to fetch from new staged architecture (roadmap_stages)
+      // Include 'generated' status for testing, plus published/approved for production
       const { data: stagesData, error: stagesError } = await supabase
         .from('roadmap_stages')
         .select('*')
         .eq('client_id', clientSession.clientId)
-        .in('status', ['published', 'approved'])
+        .in('status', ['published', 'approved', 'generated'])
         .order('created_at', { ascending: true });
 
       if (stagesError && stagesError.code !== 'PGRST116') {
@@ -764,8 +765,15 @@ export function useRoadmap() {
           roadmapData.sixMonthShift = stagesMap['six_month_shift'];
         }
         
+        // Handle both old sprint_plan and new split sprint_plan_part1/part2
         if (stagesMap['sprint_plan']) {
           roadmapData.sprint = stagesMap['sprint_plan'];
+        } else if (stagesMap['sprint_plan_part2']) {
+          // sprint_plan_part2 contains the merged complete sprint plan
+          roadmapData.sprint = stagesMap['sprint_plan_part2'];
+        } else if (stagesMap['sprint_plan_part1']) {
+          // Fallback to part1 if part2 isn't ready yet
+          roadmapData.sprint = stagesMap['sprint_plan_part1'];
         }
 
         // Get value analysis
