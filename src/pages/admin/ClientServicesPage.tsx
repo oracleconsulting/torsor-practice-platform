@@ -4202,6 +4202,9 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
 
       console.log('✓ Queued fit_assessment successfully');
 
+      // Small delay to ensure the queue item is committed and visible
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Call orchestrator to process the queue
       // The orchestrator will process fit_assessment first, which triggers the next stage via database trigger
       // Then it continues processing the rest of the chain automatically
