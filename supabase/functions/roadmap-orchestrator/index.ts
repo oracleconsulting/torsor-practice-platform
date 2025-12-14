@@ -1,8 +1,9 @@
 // ============================================================================
 // ROADMAP ORCHESTRATOR
 // ============================================================================
-// Polls the generation queue and triggers appropriate stage functions
-// Run via pg_cron every 30 seconds or via webhook
+// Processes the generation queue and triggers appropriate stage functions
+// Called manually when roadmap regeneration is requested
+// Processes all queued stages in sequence until complete
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -67,9 +68,24 @@ serve(async (req) => {
           .maybeSingle();
 
         if (!depStage || (depStage.status !== 'generated' && depStage.status !== 'approved' && depStage.status !== 'published')) {
-          // Dependency not ready, skip for now (will be picked up on next run)
-          console.log(`Dependency ${queueItem.depends_on_stage} not ready for ${queueItem.stage_type}`);
-          break;
+          // Dependency not ready yet - wait a moment and check again
+          console.log(`Dependency ${queueItem.depends_on_stage} not ready for ${queueItem.stage_type}, waiting...`);
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+          // Check one more time
+          const { data: depStageRetry } = await supabase
+            .from('roadmap_stages')
+            .select('status')
+            .eq('client_id', queueItem.client_id)
+            .eq('stage_type', queueItem.depends_on_stage)
+            .order('version', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (!depStageRetry || (depStageRetry.status !== 'generated' && depStageRetry.status !== 'approved' && depStageRetry.status !== 'published')) {
+            // Still not ready, break and let user retry if needed
+            console.log(`Dependency still not ready after wait`);
+            break;
+          }
         }
       }
 

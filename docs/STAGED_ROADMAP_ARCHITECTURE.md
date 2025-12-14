@@ -91,18 +91,19 @@ Learning database for continuous improvement:
 ## Edge Functions
 
 ### 1. `roadmap-orchestrator`
-**Purpose**: Polls the generation queue and triggers appropriate stage functions
+**Purpose**: Processes the generation queue and triggers appropriate stage functions
 
 **Trigger**: 
-- Run via pg_cron every 30 seconds
-- Or call directly via webhook
+- Called manually when roadmap regeneration is requested
+- Processes all queued stages in sequence until complete
 
 **Flow**:
 1. Get next `pending` item from queue
-2. Check dependencies are complete
+2. Check dependencies are complete (wait if needed)
 3. Mark as `processing`
 4. Call appropriate stage function
 5. Mark as `completed` or `failed`
+6. Repeat until queue is empty or dependencies aren't ready
 
 ### 2. `generate-fit-profile`
 **Stage**: `fit_assessment`  
@@ -230,30 +231,13 @@ supabase functions deploy generate-sprint-plan
 supabase functions deploy generate-value-analysis
 ```
 
-### 3. Set Up pg_cron Job
-```sql
--- Run orchestrator every 30 seconds
-SELECT cron.schedule(
-  'roadmap-orchestrator',
-  '*/30 * * * * *',  -- Every 30 seconds
-  $$
-  SELECT net.http_post(
-    url := current_setting('app.settings.supabase_url') || '/functions/v1/roadmap-orchestrator',
-    headers := jsonb_build_object(
-      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key')
-    )
-  );
-  $$
-);
-```
-
-### 4. Add Route to Platform App
+### 3. Add Route to Platform App
 ```typescript
 // apps/platform/src/routes.tsx
 <Route path="/clients/:clientId/roadmap-review" element={<RoadmapReviewPage />} />
 ```
 
-### 5. Trigger Generation
+### 4. Trigger Generation
 To start the pipeline for a client:
 
 ```typescript
@@ -311,7 +295,7 @@ GROUP BY stage_type, edit_type;
 2. ✅ Edge functions created
 3. ✅ React components created
 4. ⏳ Add route to platform app
-5. ⏳ Set up pg_cron job
+5. ✅ Orchestrator runs on-demand (no cron needed)
 6. ⏳ Test full pipeline with real client
 7. ⏳ Build feedback review page for practice team
 8. ⏳ Integrate client task completion with feedback capture
@@ -341,9 +325,9 @@ GROUP BY stage_type, edit_type;
 - Check function: `SELECT * FROM pg_proc WHERE proname = 'trigger_next_stage';`
 
 ### Queue Not Processing
-- Verify pg_cron job is running
 - Check orchestrator function logs
 - Manually trigger: `POST /functions/v1/roadmap-orchestrator`
+- Verify queue items exist: `SELECT * FROM generation_queue WHERE status = 'pending';`
 
 ---
 
@@ -361,4 +345,5 @@ GROUP BY stage_type, edit_type;
 | `apps/platform/src/components/roadmap/StageReview.tsx` | Review component |
 | `apps/platform/src/pages/clients/RoadmapReviewPage.tsx` | Review page |
 | `apps/client-portal/src/components/tasks/TaskCompletionModal.tsx` | Feedback capture |
+
 
