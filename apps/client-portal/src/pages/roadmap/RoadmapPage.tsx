@@ -278,8 +278,55 @@ export default function RoadmapPage() {
               </div>
             )}
 
-            {/* Transformation Story */}
-            {vision?.transformationStory && (
+            {/* Transformation Narrative (NEW format) */}
+            {vision?.transformationNarrative && (
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-6">
+                  <h2 className="text-xl font-bold text-white">Your Transformation Story</h2>
+                </div>
+                
+                <div className="divide-y divide-slate-200">
+                  {/* Current Reality */}
+                  {vision.transformationNarrative.currentReality && (
+                    <div className="p-8 bg-gradient-to-r from-red-50 to-orange-50">
+                      <h3 className="text-lg font-bold text-red-900 mb-4">Your Current Reality</h3>
+                      <div className="prose prose-slate max-w-none">
+                        {vision.transformationNarrative.currentReality.split('\n\n').map((p: string, i: number) => (
+                          <p key={i} className="text-slate-700 leading-relaxed mb-4">{p}</p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Turning Point */}
+                  {vision.transformationNarrative.turningPoint && (
+                    <div className="p-8 bg-gradient-to-r from-amber-50 to-yellow-50">
+                      <h3 className="text-lg font-bold text-amber-900 mb-4">The Turning Point</h3>
+                      <div className="prose prose-slate max-w-none">
+                        {vision.transformationNarrative.turningPoint.split('\n\n').map((p: string, i: number) => (
+                          <p key={i} className="text-slate-700 leading-relaxed mb-4">{p}</p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Achieved Vision */}
+                  {vision.transformationNarrative.achievedVision && (
+                    <div className="p-8 bg-gradient-to-r from-emerald-50 to-teal-50">
+                      <h3 className="text-lg font-bold text-emerald-900 mb-4">Your Vision Achieved</h3>
+                      <div className="prose prose-slate max-w-none">
+                        {vision.transformationNarrative.achievedVision.split('\n\n').map((p: string, i: number) => (
+                          <p key={i} className="text-slate-700 leading-relaxed mb-4">{p}</p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Transformation Story (LEGACY format) */}
+            {vision?.transformationStory && !vision?.transformationNarrative && (
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
                 <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-6">
                   <h2 className="text-xl font-bold text-white">Your Transformation Story</h2>
@@ -331,6 +378,14 @@ export default function RoadmapPage() {
               </div>
             )}
 
+            {/* The Choice */}
+            {vision?.theChoice && (
+              <div className="bg-slate-100 rounded-2xl p-6 border border-slate-200">
+                <h3 className="text-lg font-bold text-slate-900 mb-3">The Choice</h3>
+                <p className="text-slate-700 leading-relaxed">{vision.theChoice}</p>
+              </div>
+            )}
+
             {/* Year Milestones */}
             {vision?.yearMilestones && (
               <div className="space-y-4">
@@ -342,9 +397,9 @@ export default function RoadmapPage() {
                   
                   const yearNum = index === 0 ? 1 : index === 1 ? 3 : 5;
                   const colors = [
-                    { gradient: 'from-emerald-500 to-teal-600', bg: 'bg-emerald-50 border-emerald-200' },
-                    { gradient: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50 border-blue-200' },
-                    { gradient: 'from-purple-500 to-pink-600', bg: 'bg-purple-50 border-purple-200' }
+                    { gradient: 'from-emerald-500 to-teal-600', bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-800' },
+                    { gradient: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50 border-blue-200', text: 'text-blue-800' },
+                    { gradient: 'from-purple-500 to-pink-600', bg: 'bg-purple-50 border-purple-200', text: 'text-purple-800' }
                   ];
                   
                   return (
@@ -362,6 +417,12 @@ export default function RoadmapPage() {
                               <div className="mt-4 p-3 bg-white/60 rounded-lg">
                                 <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Measurable Results</p>
                                 <p className="text-sm font-medium text-slate-900">{milestone.measurable}</p>
+                              </div>
+                            )}
+                            {milestone.emotionalShift && (
+                              <div className="mt-3 flex items-center gap-2">
+                                <Sparkles className={`w-4 h-4 ${colors[index].text}`} />
+                                <p className={`text-sm italic ${colors[index].text}`}>{milestone.emotionalShift}</p>
                               </div>
                             )}
                           </div>
@@ -393,16 +454,105 @@ export default function RoadmapPage() {
         ================================================================ */}
         {activeTab === 'shift' && shift && (
           <div className="space-y-6">
-            {/* Shift Overview */}
+            {/* Shift Statement (NEW format) */}
             <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-8 text-white">
               <div className="flex items-center gap-3 mb-4">
                 <Compass className="w-6 h-6" />
                 <h2 className="text-xl font-bold">Your 6-Month Shift</h2>
               </div>
-              <p className="text-lg opacity-95 leading-relaxed">{shift.shiftOverview || shift.overview}</p>
+              <p className="text-lg opacity-95 leading-relaxed">
+                {shift.shiftStatement || shift.shiftOverview || shift.overview || 'Your transformation begins here'}
+              </p>
             </div>
 
-            {/* Monthly Phases */}
+            {/* Key Milestones (NEW format) */}
+            {shift.keyMilestones && shift.keyMilestones.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-slate-900 px-2">Key Milestones</h3>
+                {shift.keyMilestones.map((milestone: any, index: number) => (
+                  <div key={index} className="bg-white rounded-xl border border-amber-200 overflow-hidden">
+                    <div className="p-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-amber-100 text-amber-600 flex flex-col items-center justify-center flex-shrink-0">
+                          <span className="text-xs uppercase tracking-wide">Month</span>
+                          <span className="text-xl font-bold">{milestone.targetMonth}</span>
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-lg font-bold text-slate-900">{milestone.milestone}</h4>
+                          {milestone.description && (
+                            <p className="text-slate-600 mt-2">{milestone.description}</p>
+                          )}
+                          {milestone.measurable && (
+                            <div className="mt-3 p-3 bg-amber-50 rounded-lg">
+                              <p className="text-xs text-amber-600 uppercase tracking-wide mb-1">Target</p>
+                              <p className="text-sm font-medium text-amber-900">{milestone.measurable}</p>
+                            </div>
+                          )}
+                          {milestone.whyItMatters && (
+                            <p className="mt-3 text-sm text-amber-700 italic">
+                              <Sparkles className="w-4 h-4 inline mr-1" />
+                              {milestone.whyItMatters}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Tuesday Evolution (NEW format) */}
+            {shift.tuesdayEvolution && (
+              <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 text-white">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-amber-400" />
+                  How Your Tuesdays Will Change
+                </h3>
+                <div className="space-y-3">
+                  {Object.entries(shift.tuesdayEvolution).map(([month, desc]: [string, any]) => (
+                    <div key={month} className="flex items-start gap-3">
+                      <span className="text-amber-400 text-sm font-medium w-20 flex-shrink-0">{month}</span>
+                      <span className="text-slate-300">{desc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Quick Wins (NEW format) */}
+            {shift.quickWins && shift.quickWins.length > 0 && (
+              <div className="bg-emerald-50 rounded-xl p-6 border border-emerald-200">
+                <h3 className="text-lg font-bold text-emerald-900 mb-4 flex items-center gap-2">
+                  <Zap className="w-5 h-5" />
+                  Quick Wins to Start
+                </h3>
+                <div className="space-y-3">
+                  {shift.quickWins.map((qw: any, index: number) => (
+                    <div key={index} className="flex items-start gap-3 bg-white p-3 rounded-lg">
+                      <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-slate-900">{qw.win || qw}</p>
+                        {qw.impact && (
+                          <p className="text-xs text-emerald-600 mt-1">{qw.impact}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Connection to Vision */}
+            {shift.connectionToVision && (
+              <div className="bg-indigo-50 rounded-xl p-6 border border-indigo-200">
+                <h3 className="text-sm font-semibold text-indigo-800 uppercase tracking-wide mb-2">Connection to Your Vision</h3>
+                <p className="text-slate-700">{shift.connectionToVision}</p>
+              </div>
+            )}
+
+            {/* Monthly Phases (LEGACY format) */}
+            {!shift.keyMilestones && (
             <div className="space-y-4">
               {['month1_2', 'month3_4', 'month5_6'].map((monthKey, index) => {
                 const month = shift[monthKey];
@@ -461,23 +611,6 @@ export default function RoadmapPage() {
                 );
               })}
             </div>
-
-            {/* Quick Wins */}
-            {shift.quickWins && shift.quickWins.length > 0 && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6">
-                <h3 className="font-bold text-emerald-900 mb-4 flex items-center gap-2">
-                  <Zap className="w-5 h-5" />
-                  Quick Wins
-                </h3>
-                <ul className="space-y-2">
-                  {shift.quickWins.map((win: string, i: number) => (
-                    <li key={i} className="flex items-start gap-2 text-emerald-700">
-                      <span className="text-emerald-500 font-bold">→</span>
-                      {win}
-                    </li>
-                  ))}
-                </ul>
-              </div>
             )}
 
             {/* Danger Mitigation */}
