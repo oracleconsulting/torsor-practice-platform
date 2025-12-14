@@ -4626,8 +4626,52 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                       {client.roadmap.roadmap_data?.sixMonthShift && (
                         <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
                           <h3 className="font-semibold text-amber-900 mb-3">6-Month Shift</h3>
-                          <p className="text-amber-800">
-                            {client.roadmap.roadmap_data.sixMonthShift.shiftOverview || client.roadmap.roadmap_data.sixMonthShift.overview}
+                          <p className="text-amber-800 font-medium mb-4">
+                            {client.roadmap.roadmap_data.sixMonthShift.shiftStatement || client.roadmap.roadmap_data.sixMonthShift.shiftOverview || client.roadmap.roadmap_data.sixMonthShift.overview || 'Shift plan generated'}
+                          </p>
+                          {client.roadmap.roadmap_data.sixMonthShift.keyMilestones && (
+                            <div className="space-y-2">
+                              {client.roadmap.roadmap_data.sixMonthShift.keyMilestones.map((milestone: any, idx: number) => (
+                                <div key={idx} className="flex items-start gap-3 text-sm">
+                                  <span className="bg-amber-200 text-amber-800 px-2 py-0.5 rounded text-xs font-medium">
+                                    Month {milestone.targetMonth}
+                                  </span>
+                                  <span className="text-amber-900">{milestone.milestone}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Value Analysis Summary */}
+                      {client.roadmap.value_analysis && (
+                        <div className="bg-purple-50 border border-purple-200 rounded-xl p-6">
+                          <h3 className="font-semibold text-purple-900 mb-3">Value Analysis</h3>
+                          <div className="grid grid-cols-3 gap-4 mb-4">
+                            <div className="text-center">
+                              <p className="text-3xl font-bold text-purple-600">
+                                {client.roadmap.value_analysis.overallScore || '—'}/100
+                              </p>
+                              <p className="text-xs text-purple-700">Business Score</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-3xl font-bold text-green-600">
+                                £{(client.roadmap.value_analysis.totalOpportunity || client.roadmap.value_analysis.businessValuation?.baselineValue || 0).toLocaleString()}
+                              </p>
+                              <p className="text-xs text-purple-700">
+                                {client.roadmap.value_analysis.totalOpportunity ? 'Opportunity' : 'Valuation'}
+                              </p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-3xl font-bold text-red-500">
+                                {client.roadmap.value_analysis.riskRegister?.filter((r: any) => r.severity === 'Critical').length || 0}
+                              </p>
+                              <p className="text-xs text-purple-700">Critical Risks</p>
+                            </div>
+                          </div>
+                          <p className="text-sm text-purple-800">
+                            {client.roadmap.value_analysis.scoreInterpretation || 'Analysis complete'}
                           </p>
                         </div>
                       )}
