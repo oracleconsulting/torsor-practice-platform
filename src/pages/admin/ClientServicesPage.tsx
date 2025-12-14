@@ -4609,12 +4609,102 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                         )}
                       </div>
                       
+                      {/* Fit Profile (North Star) */}
+                      {client.roadmap.roadmap_data?.fitProfile && (
+                        <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-xl p-6">
+                          <h3 className="font-semibold text-cyan-900 mb-3 flex items-center gap-2">
+                            <Compass className="w-5 h-5" />
+                            Their North Star
+                          </h3>
+                          <p className="text-cyan-900 text-lg font-medium italic mb-4">
+                            "{client.roadmap.roadmap_data.fitProfile.northStar || 'Not yet defined'}"
+                          </p>
+                          {client.roadmap.roadmap_data.fitProfile.tagline && (
+                            <p className="text-sm text-cyan-700 mb-4 font-medium">
+                              {client.roadmap.roadmap_data.fitProfile.tagline}
+                            </p>
+                          )}
+                          {client.roadmap.roadmap_data.fitProfile.openingReflection && (
+                            <div className="mt-4 pt-4 border-t border-cyan-200">
+                              <h4 className="text-sm font-medium text-cyan-800 mb-2">Opening Reflection</h4>
+                              <p className="text-sm text-cyan-700 whitespace-pre-line leading-relaxed">
+                                {client.roadmap.roadmap_data.fitProfile.openingReflection}
+                              </p>
+                            </div>
+                          )}
+                          {client.roadmap.roadmap_data.fitProfile.archetype && (
+                            <div className="mt-4 flex items-center gap-2">
+                              <span className="px-3 py-1 bg-cyan-200 text-cyan-800 rounded-full text-xs font-medium capitalize">
+                                {client.roadmap.roadmap_data.fitProfile.archetype.replace('_', ' ')}
+                              </span>
+                              {client.roadmap.roadmap_data.fitProfile.archetypeExplanation && (
+                                <span className="text-xs text-cyan-600">
+                                  {client.roadmap.roadmap_data.fitProfile.archetypeExplanation}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 5-Year Vision with Transformation Narrative */}
                       <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-6">
-                        <h3 className="font-semibold text-indigo-900 mb-3">5-Year Vision</h3>
-                        <p className="text-indigo-800 text-lg">
+                        <h3 className="font-semibold text-indigo-900 mb-3 flex items-center gap-2">
+                          <Target className="w-5 h-5" />
+                          5-Year Vision
+                        </h3>
+                        <p className="text-indigo-800 text-lg font-medium mb-4">
                           {client.roadmap.roadmap_data?.fiveYearVision?.tagline || 'Vision not generated'}
                         </p>
-                        {client.roadmap.roadmap_data?.fiveYearVision?.transformationStory?.currentReality && (
+                        
+                        {/* Transformation Narrative */}
+                        {client.roadmap.roadmap_data?.fiveYearVision?.transformationNarrative && (
+                          <div className="space-y-4 mt-4 pt-4 border-t border-indigo-200">
+                            {client.roadmap.roadmap_data.fiveYearVision.transformationNarrative.currentReality && (
+                              <div>
+                                <h4 className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-1">Current Reality</h4>
+                                <p className="text-sm text-indigo-800 leading-relaxed">
+                                  {client.roadmap.roadmap_data.fiveYearVision.transformationNarrative.currentReality}
+                                </p>
+                              </div>
+                            )}
+                            {client.roadmap.roadmap_data.fiveYearVision.transformationNarrative.turningPoint && (
+                              <div>
+                                <h4 className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-1">The Turning Point</h4>
+                                <p className="text-sm text-indigo-800 leading-relaxed">
+                                  {client.roadmap.roadmap_data.fiveYearVision.transformationNarrative.turningPoint}
+                                </p>
+                              </div>
+                            )}
+                            {client.roadmap.roadmap_data.fiveYearVision.transformationNarrative.achievedVision && (
+                              <div>
+                                <h4 className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-1">The Achieved Vision</h4>
+                                <p className="text-sm text-indigo-800 leading-relaxed">
+                                  {client.roadmap.roadmap_data.fiveYearVision.transformationNarrative.achievedVision}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Year Milestones */}
+                        {client.roadmap.roadmap_data?.fiveYearVision?.yearMilestones && (
+                          <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-indigo-200">
+                            {['year1', 'year3', 'year5'].map((year) => {
+                              const milestone = client.roadmap.roadmap_data.fiveYearVision.yearMilestones[year];
+                              if (!milestone) return null;
+                              return (
+                                <div key={year} className="text-center">
+                                  <p className="text-xs text-indigo-500 uppercase">Year {year.replace('year', '')}</p>
+                                  <p className="text-sm font-medium text-indigo-900">{milestone.headline || milestone.story?.substring(0, 50)}</p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Legacy format support */}
+                        {client.roadmap.roadmap_data?.fiveYearVision?.transformationStory?.currentReality && !client.roadmap.roadmap_data?.fiveYearVision?.transformationNarrative && (
                           <div className="mt-4 pt-4 border-t border-indigo-200">
                             <p className="text-sm text-indigo-700">
                               {client.roadmap.roadmap_data.fiveYearVision.transformationStory.currentReality.narrative}
@@ -4625,20 +4715,63 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
 
                       {client.roadmap.roadmap_data?.sixMonthShift && (
                         <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
-                          <h3 className="font-semibold text-amber-900 mb-3">6-Month Shift</h3>
-                          <p className="text-amber-800 font-medium mb-4">
+                          <h3 className="font-semibold text-amber-900 mb-3 flex items-center gap-2">
+                            <Calendar className="w-5 h-5" />
+                            6-Month Shift
+                          </h3>
+                          <p className="text-amber-800 font-medium mb-4 text-lg">
                             {client.roadmap.roadmap_data.sixMonthShift.shiftStatement || client.roadmap.roadmap_data.sixMonthShift.shiftOverview || client.roadmap.roadmap_data.sixMonthShift.overview || 'Shift plan generated'}
                           </p>
+                          
+                          {/* Key Milestones */}
                           {client.roadmap.roadmap_data.sixMonthShift.keyMilestones && (
-                            <div className="space-y-2">
+                            <div className="space-y-3 mb-4">
                               {client.roadmap.roadmap_data.sixMonthShift.keyMilestones.map((milestone: any, idx: number) => (
-                                <div key={idx} className="flex items-start gap-3 text-sm">
-                                  <span className="bg-amber-200 text-amber-800 px-2 py-0.5 rounded text-xs font-medium">
-                                    Month {milestone.targetMonth}
+                                <div key={idx} className="flex items-start gap-3 bg-amber-100/50 rounded-lg p-3">
+                                  <span className="bg-amber-300 text-amber-900 px-2 py-0.5 rounded text-xs font-bold flex-shrink-0">
+                                    M{milestone.targetMonth}
                                   </span>
-                                  <span className="text-amber-900">{milestone.milestone}</span>
+                                  <div className="flex-1">
+                                    <p className="text-amber-900 font-medium">{milestone.milestone}</p>
+                                    {milestone.measurable && (
+                                      <p className="text-xs text-amber-700 mt-1">Target: {milestone.measurable}</p>
+                                    )}
+                                    {milestone.whyItMatters && (
+                                      <p className="text-xs text-amber-600 mt-1 italic">{milestone.whyItMatters}</p>
+                                    )}
+                                  </div>
                                 </div>
                               ))}
+                            </div>
+                          )}
+
+                          {/* Tuesday Evolution */}
+                          {client.roadmap.roadmap_data.sixMonthShift.tuesdayEvolution && (
+                            <div className="mt-4 pt-4 border-t border-amber-200">
+                              <h4 className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-2">Tuesday Evolution</h4>
+                              <div className="space-y-2 text-sm">
+                                {Object.entries(client.roadmap.roadmap_data.sixMonthShift.tuesdayEvolution).map(([month, desc]: [string, any]) => (
+                                  <div key={month} className="flex items-center gap-2">
+                                    <span className="text-amber-500 text-xs font-medium w-16">{month}</span>
+                                    <span className="text-amber-800">{desc}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Quick Wins */}
+                          {client.roadmap.roadmap_data.sixMonthShift.quickWins && client.roadmap.roadmap_data.sixMonthShift.quickWins.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-amber-200">
+                              <h4 className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-2">Quick Wins</h4>
+                              <div className="space-y-2">
+                                {client.roadmap.roadmap_data.sixMonthShift.quickWins.slice(0, 3).map((qw: any, idx: number) => (
+                                  <div key={idx} className="flex items-center gap-2 text-sm">
+                                    <CheckCircle className="w-4 h-4 text-green-500" />
+                                    <span className="text-amber-800">{qw.win || qw}</span>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -4647,32 +4780,89 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                       {/* Value Analysis Summary */}
                       {client.roadmap.value_analysis && (
                         <div className="bg-purple-50 border border-purple-200 rounded-xl p-6">
-                          <h3 className="font-semibold text-purple-900 mb-3">Value Analysis</h3>
+                          <h3 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                            <TrendingUp className="w-5 h-5" />
+                            Value Analysis
+                          </h3>
+
+                          {/* The Uncomfortable Truth - Narrative Summary */}
+                          {client.roadmap.value_analysis.narrativeSummary && (
+                            <div className="bg-purple-100 rounded-lg p-4 mb-4 border-l-4 border-purple-600">
+                              <h4 className="text-sm font-bold text-purple-900 mb-2">The Uncomfortable Truth</h4>
+                              <p className="text-purple-800 font-medium mb-2">
+                                {client.roadmap.value_analysis.narrativeSummary.uncomfortableTruth}
+                              </p>
+                              {client.roadmap.value_analysis.narrativeSummary.whatThisReallyMeans && (
+                                <p className="text-sm text-purple-700 mb-2">
+                                  {client.roadmap.value_analysis.narrativeSummary.whatThisReallyMeans}
+                                </p>
+                              )}
+                              {client.roadmap.value_analysis.narrativeSummary.beforeYouDoAnythingElse && (
+                                <div className="mt-3 pt-3 border-t border-purple-200">
+                                  <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Before anything else</p>
+                                  <p className="text-sm text-purple-900 font-medium">
+                                    {client.roadmap.value_analysis.narrativeSummary.beforeYouDoAnythingElse}
+                                  </p>
+                                </div>
+                              )}
+                              {client.roadmap.value_analysis.narrativeSummary.theGoodNews && (
+                                <div className="mt-3 pt-3 border-t border-purple-200">
+                                  <p className="text-xs font-semibold text-green-600 uppercase tracking-wide">The Good News</p>
+                                  <p className="text-sm text-purple-800">
+                                    {client.roadmap.value_analysis.narrativeSummary.theGoodNews}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Key Metrics Grid */}
                           <div className="grid grid-cols-3 gap-4 mb-4">
-                            <div className="text-center">
+                            <div className="text-center bg-white rounded-lg p-3">
                               <p className="text-3xl font-bold text-purple-600">
                                 {client.roadmap.value_analysis.overallScore || '—'}/100
                               </p>
                               <p className="text-xs text-purple-700">Business Score</p>
                             </div>
-                            <div className="text-center">
+                            <div className="text-center bg-white rounded-lg p-3">
                               <p className="text-3xl font-bold text-green-600">
-                                £{(client.roadmap.value_analysis.totalOpportunity || client.roadmap.value_analysis.businessValuation?.baselineValue || 0).toLocaleString()}
+                                £{(client.roadmap.value_analysis.totalOpportunity || client.roadmap.value_analysis.businessValuation?.currentValue || 0).toLocaleString()}
                               </p>
                               <p className="text-xs text-purple-700">
-                                {client.roadmap.value_analysis.totalOpportunity ? 'Opportunity' : 'Valuation'}
+                                {client.roadmap.value_analysis.totalOpportunity ? 'Opportunity' : 'Current Value'}
                               </p>
                             </div>
-                            <div className="text-center">
+                            <div className="text-center bg-white rounded-lg p-3">
                               <p className="text-3xl font-bold text-red-500">
                                 {client.roadmap.value_analysis.riskRegister?.filter((r: any) => r.severity === 'Critical').length || 0}
                               </p>
                               <p className="text-xs text-purple-700">Critical Risks</p>
                             </div>
                           </div>
+                          
                           <p className="text-sm text-purple-800">
                             {client.roadmap.value_analysis.scoreInterpretation || 'Analysis complete'}
                           </p>
+
+                          {/* Business Valuation Snapshot */}
+                          {client.roadmap.value_analysis.businessValuation && (
+                            <div className="mt-4 pt-4 border-t border-purple-200">
+                              <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                  <p className="text-purple-600 text-xs uppercase tracking-wide">Current Valuation</p>
+                                  <p className="text-purple-900 font-semibold">
+                                    £{(client.roadmap.value_analysis.businessValuation.currentValue || 0).toLocaleString()}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-purple-600 text-xs uppercase tracking-wide">Potential Valuation</p>
+                                  <p className="text-green-700 font-semibold">
+                                    £{(client.roadmap.value_analysis.businessValuation.potentialValue || 0).toLocaleString()}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
 
