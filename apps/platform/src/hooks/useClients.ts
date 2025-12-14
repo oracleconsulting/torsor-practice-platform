@@ -374,11 +374,35 @@ export function useClientDetail(clientId: string | null) {
 
       console.log('Queued fit_assessment successfully');
 
-      // Try to trigger the orchestrator immediately (optional - queue will be processed anyway)
-      // Use a separate async function so errors don't affect the main flow
+      // Start the process by calling the first stage function directly
+      // This will generate fit_assessment, which triggers the next stage via database trigger
+      // Then we call the orchestrator to process the rest of the chain
       (async () => {
         try {
-          console.log('Attempting to trigger orchestrator...');
+          console.log('Starting generation by calling first stage function...');
+          
+          // Call fit_assessment function directly to start the chain
+          const { error: fitError } = await supabase.functions.invoke(
+            'generate-fit-profile',
+            {
+              body: {
+                clientId,
+                practiceId: teamMember.practiceId
+              }
+            }
+          );
+
+          if (fitError) {
+            console.warn('Fit assessment function error (non-fatal):', fitError);
+          } else {
+            console.log('Fit assessment started successfully');
+          }
+
+          // Small delay to let fit_assessment complete and trigger next stage
+          await new Promise(resolve => setTimeout(resolve, 3000));
+
+          // Now call orchestrator to process the rest of the chain
+          console.log('Triggering orchestrator to process remaining stages...');
           const { data: orchestratorResult, error: orchestratorError } = await supabase.functions.invoke(
             'roadmap-orchestrator',
             {
@@ -393,8 +417,8 @@ export function useClientDetail(clientId: string | null) {
           }
         } catch (invokeError: any) {
           // FunctionsFetchError or other errors - completely non-fatal
-          // The queue is set up and will be processed automatically
-          console.log('Orchestrator invocation failed (this is OK - queue will be processed automatically):', 
+          // The queue is set up and stages will be processed
+          console.log('Function invocation failed (this is OK - queue will be processed):', 
             invokeError?.message || invokeError);
         }
       })();

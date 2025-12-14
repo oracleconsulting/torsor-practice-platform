@@ -63,7 +63,13 @@ export default function ClientDetailPage() {
       const success = await regenerateRoadmap();
       
       if (success) {
-        alert('Roadmap regeneration started! The process is running through all stages automatically. This may take 2-3 minutes. You can refresh the page to see progress.');
+        // Show success message
+        alert('Roadmap regeneration started! The process is running through all stages automatically. This may take 2-3 minutes. You can refresh the page in a few moments to see progress.');
+        
+        // Refresh after a delay to show progress
+        setTimeout(() => {
+          fetchClient();
+        }, 5000);
       } else {
         alert('Failed to start roadmap regeneration. Please check the console for details or contact support.');
       }
