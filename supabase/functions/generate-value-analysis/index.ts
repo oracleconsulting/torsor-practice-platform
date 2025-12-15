@@ -909,17 +909,19 @@ function extractFinancialsFromContext(
     console.log(`Using actual revenue from responses: £${revenue.toLocaleString()}`);
   }
 
+  // Calculate gross margin (needed for fallback calculation)
+  const actualGrossMarginStr = part3Responses?.actual_gross_margin;
+  const grossMarginStr = actualGrossMarginStr || part2Responses.gross_margin || part2Responses.profit_margin || '30%';
+  const grossMarginPct = parseFloat(String(grossMarginStr).replace('%', '')) / 100 || 0.3;
+
   // Check for actual gross profit
   const actualGrossProfit = parseActualCurrency(part3Responses?.actual_gross_profit);
   if (actualGrossProfit && actualGrossProfit > 0) {
     grossProfit = actualGrossProfit;
     console.log(`Using actual gross profit: £${grossProfit.toLocaleString()}`);
   } else {
-    // Parse gross margin
-    const actualGrossMargin = part3Responses?.actual_gross_margin;
-    const grossMarginStr = actualGrossMargin || part2Responses.gross_margin || part2Responses.profit_margin || '30%';
-    const grossMargin = parseFloat(String(grossMarginStr).replace('%', '')) / 100 || 0.3;
-    grossProfit = revenue * grossMargin;
+    // Calculate from revenue and margin
+    grossProfit = revenue * grossMarginPct;
   }
 
   // Check for actual net profit
