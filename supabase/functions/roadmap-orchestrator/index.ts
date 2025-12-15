@@ -246,12 +246,21 @@ serve(async (req) => {
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
         
-        if (fetchError.name === 'AbortError') {
-          // Timeout - function is still running
-          console.log(`⏳ ${functionName} timed out (still running in background)`);
+        const errorMsg = fetchError.message || '';
+        const isTimeoutOrConnectionError = 
+          fetchError.name === 'AbortError' ||
+          errorMsg.includes('connection closed') ||
+          errorMsg.includes('timed out') ||
+          errorMsg.includes('timeout') ||
+          errorMsg.includes('TIMEOUT');
+        
+        if (isTimeoutOrConnectionError) {
+          // Timeout or connection error - function may have completed
+          console.log(`⏳ ${functionName} connection issue: ${errorMsg.substring(0, 100)}`);
+          console.log(`⏳ Checking if ${queueItem.stage_type} was saved despite connection error...`);
           
-          // Wait a bit then check if stage was saved
-          await new Promise(resolve => setTimeout(resolve, 5000));
+          // Wait longer for the function to finish saving
+          await new Promise(resolve => setTimeout(resolve, 10000));
           
           const { data: savedStage } = await supabase
             .from('roadmap_stages')
@@ -264,13 +273,32 @@ serve(async (req) => {
             .maybeSingle();
           
           if (savedStage) {
-            console.log(`✓ ${queueItem.stage_type} was saved despite timeout`);
+            console.log(`✓ ${queueItem.stage_type} WAS SAVED despite connection error - continuing pipeline`);
             functionCompleted = true;
           } else {
-            // Still running - leave as processing, user can resume later
-            console.log(`⏳ ${queueItem.stage_type} still processing - will be picked up on resume`);
-            processedStages.push(`${queueItem.stage_type} (started)`);
-            continue; // Move to next without marking complete
+            // Try one more time after another wait
+            console.log(`⏳ Stage not found yet, waiting 10 more seconds...`);
+            await new Promise(resolve => setTimeout(resolve, 10000));
+            
+            const { data: savedStage2 } = await supabase
+              .from('roadmap_stages')
+              .select('id, status')
+              .eq('client_id', queueItem.client_id)
+              .eq('stage_type', queueItem.stage_type)
+              .in('status', ['generated', 'approved', 'published'])
+              .order('version', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            
+            if (savedStage2) {
+              console.log(`✓ ${queueItem.stage_type} found on second check - continuing pipeline`);
+              functionCompleted = true;
+            } else {
+              // Still not saved - leave as processing for resume
+              console.log(`⏳ ${queueItem.stage_type} still processing - will be picked up on resume`);
+              processedStages.push(`${queueItem.stage_type} (started)`);
+              continue;
+            }
           }
         } else {
           console.error(`Function ${functionName} fetch error:`, fetchError);
