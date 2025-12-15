@@ -4231,8 +4231,7 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
   // ROADMAP PIPELINE CONTROLS (staged architecture)
   // ================================================================
   
-  // State for pipeline status
-  const [_pipelineStatus, setPipelineStatus] = useState<any>(null);
+  // State for pipeline controls
   const [resuming, setResuming] = useState(false);
 
   // Check pipeline status
@@ -4250,7 +4249,6 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
         return;
       }
       
-      setPipelineStatus(response.data);
       console.log('Pipeline status:', response.data);
       
       // Show status in alert for now
@@ -4304,34 +4302,6 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
       alert('Failed to resume: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setResuming(false);
-    }
-  };
-
-  // Retry a specific stage (available for future per-stage retry buttons)
-  const _handleRetryStage = async (stageType: string) => {
-    if (!clientId || !client?.practice_id) return;
-    
-    if (!confirm(`Retry generating ${stageType.replace(/_/g, ' ')}?`)) return;
-    
-    try {
-      const response = await supabase.functions.invoke('roadmap-orchestrator', {
-        body: { action: 'retry', clientId, practiceId: client.practice_id, stageType }
-      });
-      
-      if (response.error) {
-        alert('Failed to retry: ' + response.error.message);
-        return;
-      }
-      
-      // Process the queue
-      await supabase.functions.invoke('roadmap-orchestrator', {
-        body: { action: 'process' }
-      });
-      
-      alert(`Queued retry for ${stageType}. Processing now...`);
-      await fetchClientDetail();
-    } catch (error) {
-      console.error('Retry error:', error);
     }
   };
 
