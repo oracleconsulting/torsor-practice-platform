@@ -20,6 +20,160 @@ const corsHeaders = {
 };
 
 // ============================================================================
+// PDF TEXT EXTRACTION (Simple binary pattern extraction)
+// ============================================================================
+
+function extractTextFromPdfBuffer(buffer: ArrayBuffer): string {
+  try {
+    const uint8Array = new Uint8Array(buffer);
+    const textDecoder = new TextDecoder('utf-8', { fatal: false });
+    
+    // Convert buffer to string - will contain both binary and text
+    const rawContent = textDecoder.decode(uint8Array);
+    
+    // Extract text streams from PDF - look for text between BT (begin text) and ET (end text)
+    const textMatches: string[] = [];
+    
+    // Method 1: Extract from text streams (BT...ET blocks)
+    const btEtPattern = /BT\s*([\s\S]*?)\s*ET/g;
+    let match;
+    while ((match = btEtPattern.exec(rawContent)) !== null) {
+      // Extract actual text from within parentheses (Tj/TJ operators)
+      const textInBlock = match[1];
+      const stringPattern = /\(([^)]+)\)/g;
+      let strMatch;
+      while ((strMatch = stringPattern.exec(textInBlock)) !== null) {
+        const text = strMatch[1]
+          .replace(/\\n/g, '\n')
+          .replace(/\\r/g, '')
+          .replace(/\\\(/g, '(')
+          .replace(/\\\)/g, ')')
+          .replace(/\\\\/g, '\\');
+        if (text.trim() && !/^[\x00-\x1F]+$/.test(text)) {
+          textMatches.push(text.trim());
+        }
+      }
+    }
+    
+    // Method 2: Look for readable text patterns with numbers (financial data)
+    const financialPattern = /(?:Sales|Turnover|Revenue|Gross\s+Profit|Net\s+Profit|Cost\s+of\s+Sales|Materials|Subcontractor)[:\s]*£?\s*([\d,]+(?:\.\d{2})?)/gi;
+    let finMatch;
+    while ((finMatch = financialPattern.exec(rawContent)) !== null) {
+      textMatches.push(finMatch[0]);
+    }
+    
+    // Method 3: Extract any readable numbers in financial range (10k-10m)
+    const numberPattern = /(\d{1,3}(?:,\d{3})+(?:\.\d{2})?)/g;
+    const numbers: string[] = [];
+    let numMatch;
+    while ((numMatch = numberPattern.exec(rawContent)) !== null) {
+      const value = parseFloat(numMatch[1].replace(/,/g, ''));
+      if (value >= 10000 && value <= 10000000) {
+        numbers.push(numMatch[1]);
+      }
+    }
+    
+    // Combine all extracted text
+    let result = textMatches.join(' ');
+    
+    // If we found financial-looking numbers but not much text, add context
+    if (numbers.length > 0 && result.length < 100) {
+      result += '\nExtracted financial figures: ' + numbers.join(', ');
+    }
+    
+    console.log(`[extractTextFromPdfBuffer] Extracted ${result.length} chars, ${textMatches.length} text blocks, ${numbers.length} numbers`);
+    
+    return result;
+  } catch (error) {
+    console.error('[extractTextFromPdfBuffer] Error:', error);
+    return '';
+  }
+}
+
+// Parse financial metrics from extracted text
+function parseFinancialMetrics(text: string): Record<string, any> {
+  const metrics: Record<string, any> = {};
+  const normalized = text.replace(/\s+/g, ' ');
+  
+  // Helper to extract currency values with multiple patterns
+  const extractValue = (patterns: RegExp[]): number | null => {
+    for (const pattern of patterns) {
+      const match = normalized.match(pattern);
+      if (match) {
+        const value = parseFloat(match[1].replace(/,/g, ''));
+        if (!isNaN(value) && value > 0) return value;
+      }
+    }
+    return null;
+  };
+
+  // Turnover/Sales
+  const turnover = extractValue([
+    /sales[:\s]+£?\s*([\d,]+)/i,
+    /turnover[:\s]+£?\s*([\d,]+)/i,
+    /revenue[:\s]+£?\s*([\d,]+)/i,
+  ]);
+  if (turnover && turnover > 10000) {
+    metrics.turnover = turnover;
+    console.log(`[parseFinancialMetrics] Found turnover: £${turnover.toLocaleString()}`);
+  }
+
+  // Gross Profit
+  const grossProfit = extractValue([
+    /gross\s+profit[:\s]+£?\s*([\d,]+)/i,
+  ]);
+  if (grossProfit && grossProfit > 0) {
+    metrics.gross_profit = grossProfit;
+  }
+
+  // Cost of Sales
+  const costOfSales = extractValue([
+    /cost\s+of\s+sales[:\s]+£?\s*\(?([\d,]+)\)?/i,
+  ]);
+  if (costOfSales && costOfSales > 0) {
+    metrics.cost_of_sales = costOfSales;
+  }
+
+  // Materials
+  const materials = extractValue([
+    /materials[:\s]+£?\s*([\d,]+)/i,
+  ]);
+  if (materials && materials > 0) {
+    metrics.materials = materials;
+  }
+
+  // Subcontractor costs
+  const subcontractor = extractValue([
+    /subcontractor[:\s]+£?\s*([\d,]+)/i,
+  ]);
+  if (subcontractor && subcontractor > 0) {
+    metrics.subcontractor_costs = subcontractor;
+  }
+
+  // Net Profit
+  const netProfit = extractValue([
+    /net\s+profit[:\s]+£?\s*([\d,]+)/i,
+    /profit\s+(?:after\s+tax|for\s+(?:the\s+)?year)[:\s]+£?\s*([\d,]+)/i,
+  ]);
+  if (netProfit !== null) {
+    metrics.net_profit = netProfit;
+  }
+
+  // Calculate gross margin if we have both
+  if (metrics.turnover && metrics.gross_profit) {
+    metrics.gross_margin_pct = Math.round((metrics.gross_profit / metrics.turnover) * 10000) / 100;
+  }
+
+  // Look for year
+  const yearMatch = text.match(/(?:year\s+ended|31\s+(?:january|jan))\s+(\d{4})/i);
+  if (yearMatch) {
+    metrics.year = parseInt(yearMatch[1]);
+  }
+
+  return metrics;
+}
+
+// ============================================================================
 // CLEANUP UTILITIES (inlined to avoid _shared import issues)
 // ============================================================================
 
@@ -3349,10 +3503,88 @@ serve(async (req) => {
       const stageContext = determineBusinessStage(part1, part2, part3Responses);
 
       // Fetch any uploaded context documents (like accounts)
-      const { data: contextDocs } = await supabase
+      const { data: contextDocs, error: contextError } = await supabase
         .from('client_context')
-        .select('content, context_type, priority_level, extracted_metrics, applies_to')
+        .select('id, content, context_type, priority_level, extracted_metrics, applies_to, source_file_url')
         .eq('client_id', clientId);
+
+      if (contextError) {
+        console.warn('Error fetching context docs:', contextError.message);
+      }
+
+      // Auto-parse any documents that have PDFs but no extracted_metrics
+      for (const doc of contextDocs || []) {
+        const hasExtractedData = doc.extracted_metrics && Object.keys(doc.extracted_metrics).length > 0;
+        
+        if (!hasExtractedData && doc.source_file_url) {
+          console.log(`[ValueAnalysis] Document ${doc.id} needs parsing - attempting inline extraction`);
+          
+          try {
+            // Parse source_file_url to get PDF URLs
+            const fileUrls = typeof doc.source_file_url === 'string'
+              ? JSON.parse(doc.source_file_url)
+              : doc.source_file_url || [];
+
+            let extractedText = doc.content || '';
+            const extractedMetrics: Record<string, any> = {};
+
+            for (const file of fileUrls) {
+              if (file.fileType === 'application/pdf') {
+                console.log(`[ValueAnalysis] Fetching and parsing PDF: ${file.fileName}`);
+                
+                try {
+                  // Download the PDF
+                  const pdfResponse = await fetch(file.fileUrl);
+                  if (!pdfResponse.ok) {
+                    console.error(`Failed to download PDF: ${pdfResponse.status}`);
+                    continue;
+                  }
+
+                  // Get PDF as text using simple extraction
+                  // For PDFs, we'll try to extract basic text patterns
+                  const pdfBuffer = await pdfResponse.arrayBuffer();
+                  const pdfText = extractTextFromPdfBuffer(pdfBuffer);
+                  
+                  if (pdfText) {
+                    extractedText += `\n\n=== Extracted from: ${file.fileName} ===\n${pdfText}`;
+                    
+                    // Extract financial metrics from text
+                    const metrics = parseFinancialMetrics(pdfText);
+                    Object.assign(extractedMetrics, metrics);
+                    
+                    console.log(`[ValueAnalysis] Extracted ${pdfText.length} chars, metrics:`, metrics);
+                  }
+                } catch (pdfError) {
+                  console.error(`Error parsing PDF ${file.fileName}:`, pdfError);
+                }
+              }
+            }
+
+            // Update document with extracted content if we got anything
+            if (Object.keys(extractedMetrics).length > 0 || extractedText !== doc.content) {
+              const { error: updateError } = await supabase
+                .from('client_context')
+                .update({
+                  content: extractedText,
+                  extracted_metrics: extractedMetrics,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', doc.id);
+
+              if (updateError) {
+                console.error(`Error updating doc ${doc.id}:`, updateError);
+              } else {
+                // Update local copy for this run
+                doc.content = extractedText;
+                doc.extracted_metrics = extractedMetrics;
+                console.log(`[ValueAnalysis] Updated document ${doc.id} with extracted data`);
+              }
+            }
+          } catch (parseError) {
+            console.error(`Error parsing documents for ${doc.id}:`, parseError);
+          }
+        }
+      }
 
       // Fetch previous stages for narrative context
       const { data: fitStage } = await supabase
