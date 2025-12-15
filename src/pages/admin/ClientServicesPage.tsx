@@ -4232,7 +4232,7 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
   // ================================================================
   
   // State for pipeline status
-  const [pipelineStatus, setPipelineStatus] = useState<any>(null);
+  const [_pipelineStatus, setPipelineStatus] = useState<any>(null);
   const [resuming, setResuming] = useState(false);
 
   // Check pipeline status
@@ -4307,8 +4307,8 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
     }
   };
 
-  // Retry a specific stage
-  const handleRetryStage = async (stageType: string) => {
+  // Retry a specific stage (available for future per-stage retry buttons)
+  const _handleRetryStage = async (stageType: string) => {
     if (!clientId || !client?.practice_id) return;
     
     if (!confirm(`Retry generating ${stageType.replace(/_/g, ' ')}?`)) return;
