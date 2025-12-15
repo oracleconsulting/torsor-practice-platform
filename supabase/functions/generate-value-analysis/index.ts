@@ -90,6 +90,118 @@ function extractTextFromPdfBuffer(buffer: ArrayBuffer): string {
   }
 }
 
+// Use LLM to extract financial metrics from PDF content
+async function extractFinancialsWithLLM(
+  pdfText: string,
+  pdfBuffer: ArrayBuffer,
+  fileName: string
+): Promise<Record<string, any>> {
+  const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
+  if (!OPENROUTER_API_KEY) {
+    console.log('[LLM Extract] No API key - falling back to regex');
+    return parseFinancialMetrics(pdfText);
+  }
+
+  // Also try to find raw numbers in the PDF buffer for context
+  const uint8Array = new Uint8Array(pdfBuffer);
+  const rawText = new TextDecoder('utf-8', { fatal: false }).decode(uint8Array);
+  
+  // Extract any numbers that look like financial figures
+  const financialNumbers = rawText.match(/\b\d{1,3}(?:,\d{3})*(?:\.\d{2})?\b/g) || [];
+  const significantNumbers = [...new Set(financialNumbers)]
+    .map(n => parseFloat(n.replace(/,/g, '')))
+    .filter(n => n > 10000 && n < 100000000)
+    .sort((a, b) => b - a)
+    .slice(0, 20);
+
+  console.log(`[LLM Extract] Found ${significantNumbers.length} significant numbers in PDF`);
+  console.log(`[LLM Extract] Top numbers: ${significantNumbers.slice(0, 10).map(n => n.toLocaleString()).join(', ')}`);
+
+  const prompt = `You are a financial analyst extracting data from UK company accounts.
+
+FILE: ${fileName}
+
+RAW TEXT EXTRACTED FROM PDF:
+${pdfText.substring(0, 3000)}
+
+SIGNIFICANT NUMBERS FOUND IN PDF (descending order):
+${significantNumbers.map(n => `£${n.toLocaleString()}`).join(', ')}
+
+Extract the following financial metrics from this UK company accounts document. Look for:
+- TURNOVER/SALES (current year and prior year if available)
+- GROSS PROFIT (current year and prior year)
+- COST OF SALES
+- NET PROFIT / PROFIT FOR THE YEAR
+- The financial year end date
+
+Return ONLY valid JSON in this exact format (no markdown, no explanation):
+{
+  "turnover": <number or null>,
+  "prior_year_turnover": <number or null>,
+  "gross_profit": <number or null>,
+  "prior_year_gross_profit": <number or null>,
+  "cost_of_sales": <number or null>,
+  "net_profit": <number or null>,
+  "year": <YYYY number or null>,
+  "notes": "<brief note on what document this is>"
+}`;
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://torsor.co',
+        'X-Title': 'Torsor Financial Extraction'
+      },
+      body: JSON.stringify({
+        model: 'anthropic/claude-3.5-sonnet',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 500,
+        temperature: 0.1,
+        response_format: { type: 'json_object' }
+      })
+    });
+
+    if (!response.ok) {
+      console.error('[LLM Extract] API error:', response.status);
+      return parseFinancialMetrics(pdfText);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    
+    // Parse the JSON response
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const extracted = JSON.parse(jsonMatch[0]);
+      
+      // Calculate margins if we have the data
+      if (extracted.turnover && extracted.gross_profit) {
+        extracted.gross_margin_pct = Math.round((extracted.gross_profit / extracted.turnover) * 10000) / 100;
+      }
+      if (extracted.prior_year_turnover && extracted.prior_year_gross_profit) {
+        extracted.prior_year_gross_margin_pct = Math.round((extracted.prior_year_gross_profit / extracted.prior_year_turnover) * 10000) / 100;
+      }
+      if (extracted.turnover && extracted.prior_year_turnover) {
+        extracted.revenue_growth_pct = Math.round(((extracted.turnover - extracted.prior_year_turnover) / extracted.prior_year_turnover) * 10000) / 100;
+      }
+      
+      extracted.extraction_method = 'llm';
+      extracted.extraction_confidence = 'high';
+      
+      console.log('[LLM Extract] Successfully extracted:', extracted);
+      return extracted;
+    }
+  } catch (error) {
+    console.error('[LLM Extract] Error:', error);
+  }
+
+  // Fallback to regex
+  return parseFinancialMetrics(pdfText);
+}
+
 // Parse financial metrics from extracted text
 function parseFinancialMetrics(text: string): Record<string, any> {
   const metrics: Record<string, any> = {};
@@ -4047,19 +4159,23 @@ serve(async (req) => {
                     continue;
                   }
 
-                  // Get PDF as text using simple extraction
-                  // For PDFs, we'll try to extract basic text patterns
                   const pdfBuffer = await pdfResponse.arrayBuffer();
                   const pdfText = extractTextFromPdfBuffer(pdfBuffer);
                   
-                  if (pdfText) {
-                    extractedText += `\n\n=== Extracted from: ${file.fileName} ===\n${pdfText}`;
-                    
-                    // Extract financial metrics from text
-                    const metrics = parseFinancialMetrics(pdfText);
+                  extractedText += `\n\n=== Extracted from: ${file.fileName} ===\n${pdfText}`;
+                  
+                  // Use LLM-based extraction for accurate financial data
+                  // This handles complex table layouts in accounting documents
+                  console.log(`[ValueAnalysis] Using LLM extraction for ${file.fileName}`);
+                  const metrics = await extractFinancialsWithLLM(pdfText, pdfBuffer, file.fileName);
+                  
+                  if (metrics && Object.keys(metrics).length > 0) {
                     Object.assign(extractedMetrics, metrics);
-                    
-                    console.log(`[ValueAnalysis] Extracted ${pdfText.length} chars, metrics:`, metrics);
+                    console.log(`[ValueAnalysis] LLM extracted:`, {
+                      turnover: metrics.turnover,
+                      gross_profit: metrics.gross_profit,
+                      method: metrics.extraction_method
+                    });
                   }
                 } catch (pdfError) {
                   console.error(`Error parsing PDF ${file.fileName}:`, pdfError);
