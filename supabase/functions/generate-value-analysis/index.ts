@@ -1040,7 +1040,7 @@ function extractFinancialsFromContext(
     liabilities,
     yearOnYearGrowth,
     recurringRevenuePercentage,
-    grossMargin,
+    grossMargin: grossMarginPct,
     netMargin: revenue > 0 ? netProfit / revenue : 0
   };
 }
