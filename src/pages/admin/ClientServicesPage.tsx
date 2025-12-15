@@ -4250,13 +4250,14 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
       }
       
       console.log('Pipeline status:', response.data);
+
+      // Show cleaner status
+      const data = response.data;
+      const completedCount = data.completed?.length || 0;
+      const inProgress = data.inProgress?.length > 0 ? `\n🔄 In Progress: ${data.inProgress.join(', ')}` : '';
+      const missing = data.missing?.length > 0 ? `\n⏳ Remaining: ${data.missing.join(', ')}` : '';
       
-      // Show status in alert for now
-      const completed = response.data.completedStages?.map((s: any) => s.stage).join(', ') || 'None';
-      const pending = response.data.pendingStages?.map((s: any) => s.stage_type).join(', ') || 'None';
-      const next = response.data.nextStage || 'Complete!';
-      
-      alert(`Pipeline Status:\n\n✅ Completed: ${completed}\n⏳ Pending: ${pending}\n➡️ Next: ${next}`);
+      alert(`Pipeline Status: ${completedCount}/6 stages\n\n${data.summary}${inProgress}${missing}`);
     } catch (error) {
       console.error('Status check error:', error);
     }

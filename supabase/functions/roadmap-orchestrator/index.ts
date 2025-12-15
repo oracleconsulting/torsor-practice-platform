@@ -329,11 +329,11 @@ async function handleStatus(supabase: any, clientId: string) {
   }
 
   // Determine pipeline status
-  const completedStages = Object.keys(latestStages);
-  const nextStage = STAGE_ORDER.find(s => !completedStages.includes(s)) || null;
-  const isComplete = completedStages.length === STAGE_ORDER.length;
+  const completedStageNames = Object.keys(latestStages);
+  const nextStage = STAGE_ORDER.find(s => !completedStageNames.includes(s)) || null;
+  const isComplete = completedStageNames.length === STAGE_ORDER.length;
 
-  // Get pending/processing queue items
+  // Get pending/processing queue items (only for stages NOT already complete)
   const { data: queueItems } = await supabase
     .from('generation_queue')
     .select('stage_type, status, queued_at')
@@ -341,19 +341,26 @@ async function handleStatus(supabase: any, clientId: string) {
     .in('status', ['pending', 'processing'])
     .order('queued_at', { ascending: false });
 
+  // Filter out queue items for already-completed stages
+  const actuallyPending = (queueItems || []).filter(
+    (q: any) => !completedStageNames.includes(q.stage_type)
+  );
+
+  // Build clear status message
+  const completedList = STAGE_ORDER.filter(s => completedStageNames.includes(s));
+  const missingList = STAGE_ORDER.filter(s => !completedStageNames.includes(s));
+
   return new Response(JSON.stringify({
     success: true,
     clientId,
-    completedStages: Object.entries(latestStages).map(([type, data]: [string, any]) => ({
-      stage: type,
-      version: data.version,
-      status: data.status,
-      updatedAt: data.updated_at
-    })),
-    pendingStages: queueItems || [],
-    nextStage,
     isComplete,
-    stageOrder: STAGE_ORDER
+    completed: completedList,
+    missing: missingList,
+    inProgress: actuallyPending.map((q: any) => q.stage_type),
+    nextStage: isComplete ? null : nextStage,
+    summary: isComplete 
+      ? '✅ All 6 stages complete!' 
+      : `${completedList.length}/6 stages complete. Next: ${nextStage}`
   }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   });
