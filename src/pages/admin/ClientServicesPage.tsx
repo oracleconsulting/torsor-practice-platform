@@ -4228,8 +4228,114 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
   };
 
   // ================================================================
-  // REGENERATE ROADMAP FUNCTIONALITY (staged architecture)
+  // ROADMAP PIPELINE CONTROLS (staged architecture)
   // ================================================================
+  
+  // State for pipeline status
+  const [pipelineStatus, setPipelineStatus] = useState<any>(null);
+  const [resuming, setResuming] = useState(false);
+
+  // Check pipeline status
+  const handleCheckPipelineStatus = async () => {
+    if (!clientId) return;
+    
+    try {
+      const response = await supabase.functions.invoke('roadmap-orchestrator', {
+        body: { action: 'status', clientId }
+      });
+      
+      if (response.error) {
+        console.error('Status check error:', response.error);
+        alert('Failed to check status: ' + response.error.message);
+        return;
+      }
+      
+      setPipelineStatus(response.data);
+      console.log('Pipeline status:', response.data);
+      
+      // Show status in alert for now
+      const completed = response.data.completedStages?.map((s: any) => s.stage).join(', ') || 'None';
+      const pending = response.data.pendingStages?.map((s: any) => s.stage_type).join(', ') || 'None';
+      const next = response.data.nextStage || 'Complete!';
+      
+      alert(`Pipeline Status:\n\n✅ Completed: ${completed}\n⏳ Pending: ${pending}\n➡️ Next: ${next}`);
+    } catch (error) {
+      console.error('Status check error:', error);
+    }
+  };
+
+  // Resume from last successful stage
+  const handleResumePipeline = async () => {
+    if (!clientId || !client?.practice_id) return;
+    
+    if (!confirm('This will resume the roadmap generation from the last successful stage. Continue?')) return;
+    
+    setResuming(true);
+    
+    try {
+      const response = await supabase.functions.invoke('roadmap-orchestrator', {
+        body: { action: 'resume', clientId, practiceId: client.practice_id }
+      });
+      
+      if (response.error) {
+        console.error('Resume error:', response.error);
+        alert('Failed to resume: ' + response.error.message);
+        return;
+      }
+      
+      console.log('Resume response:', response.data);
+      
+      if (response.data.message === 'Pipeline already complete') {
+        alert('Pipeline is already complete! All stages have been generated.');
+        return;
+      }
+      
+      // Now call orchestrator to process
+      await supabase.functions.invoke('roadmap-orchestrator', {
+        body: { action: 'process' }
+      });
+      
+      alert(`Resumed! ${response.data.message}\n\nThe pipeline is now processing. Refresh in a moment to see progress.`);
+      
+      // Refresh client data
+      await fetchClientDetail();
+    } catch (error) {
+      console.error('Resume error:', error);
+      alert('Failed to resume: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setResuming(false);
+    }
+  };
+
+  // Retry a specific stage
+  const handleRetryStage = async (stageType: string) => {
+    if (!clientId || !client?.practice_id) return;
+    
+    if (!confirm(`Retry generating ${stageType.replace(/_/g, ' ')}?`)) return;
+    
+    try {
+      const response = await supabase.functions.invoke('roadmap-orchestrator', {
+        body: { action: 'retry', clientId, practiceId: client.practice_id, stageType }
+      });
+      
+      if (response.error) {
+        alert('Failed to retry: ' + response.error.message);
+        return;
+      }
+      
+      // Process the queue
+      await supabase.functions.invoke('roadmap-orchestrator', {
+        body: { action: 'process' }
+      });
+      
+      alert(`Queued retry for ${stageType}. Processing now...`);
+      await fetchClientDetail();
+    } catch (error) {
+      console.error('Retry error:', error);
+    }
+  };
+
+  // Full regenerate from scratch
   const handleRegenerate = async () => {
     if (!client?.practice_id || !clientId) return;
     
@@ -4358,25 +4464,59 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
               )}
             </button>
 
-            {/* Regenerate Button */}
+            {/* Pipeline Control Buttons */}
             {client?.roadmap && (
-              <button
-                onClick={handleRegenerate}
-                disabled={regenerating}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400 text-sm font-medium"
-              >
-                {regenerating ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Regenerating...
-                  </>
-                ) : (
-                  <>
-                    <TrendingUp className="w-4 h-4" />
-                    Regenerate Roadmap
-                  </>
-                )}
-              </button>
+              <>
+                {/* Check Status Button */}
+                <button
+                  onClick={handleCheckPipelineStatus}
+                  className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 bg-white rounded-lg hover:bg-gray-50 text-sm font-medium"
+                  title="Check pipeline status"
+                >
+                  <Clock className="w-4 h-4" />
+                  Status
+                </button>
+
+                {/* Resume Button */}
+                <button
+                  onClick={handleResumePipeline}
+                  disabled={resuming || regenerating}
+                  className="inline-flex items-center gap-2 px-3 py-2 border border-emerald-300 text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 disabled:bg-emerald-50 disabled:opacity-50 text-sm font-medium"
+                  title="Resume from last successful stage"
+                >
+                  {resuming ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                      Resuming...
+                    </>
+                  ) : (
+                    <>
+                      <ChevronRight className="w-4 h-4" />
+                      Resume
+                    </>
+                  )}
+                </button>
+
+                {/* Full Regenerate Button */}
+                <button
+                  onClick={handleRegenerate}
+                  disabled={regenerating || resuming}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400 text-sm font-medium"
+                  title="Regenerate entire roadmap from scratch"
+                >
+                  {regenerating ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Regenerating...
+                    </>
+                  ) : (
+                    <>
+                      <TrendingUp className="w-4 h-4" />
+                      Regenerate All
+                    </>
+                  )}
+                </button>
+              </>
             )}
             
             <button
