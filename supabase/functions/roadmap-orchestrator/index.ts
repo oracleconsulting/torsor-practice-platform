@@ -207,29 +207,79 @@ serve(async (req) => {
         requestBody.part3Responses = {}; // Empty object - will use defaults from assessment data
       }
       
-      const response = await fetch(functionUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
+      // Use AbortController for timeout - fire with 30s timeout
+      // If function takes longer, we'll check if stage was saved
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Function ${functionName} failed (status ${response.status}):`, errorText);
+      let functionCompleted = false;
+      let functionFailed = false;
+      let errorMessage = '';
+
+      try {
+        const response = await fetch(functionUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+        });
         
-        // Try to parse error for better logging
-        let errorMessage = errorText;
-        try {
-          const errorJson = JSON.parse(errorText);
-          errorMessage = errorJson.error || errorJson.message || errorText;
-        } catch {
-          // Not JSON, use as-is
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Function ${functionName} failed (status ${response.status}):`, errorText);
+          
+          try {
+            const errorJson = JSON.parse(errorText);
+            errorMessage = errorJson.error || errorJson.message || errorText;
+          } catch {
+            errorMessage = errorText;
+          }
+          functionFailed = true;
+        } else {
+          functionCompleted = true;
         }
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
         
-        // Mark as failed
+        if (fetchError.name === 'AbortError') {
+          // Timeout - function is still running
+          console.log(`⏳ ${functionName} timed out (still running in background)`);
+          
+          // Wait a bit then check if stage was saved
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          
+          const { data: savedStage } = await supabase
+            .from('roadmap_stages')
+            .select('id, status')
+            .eq('client_id', queueItem.client_id)
+            .eq('stage_type', queueItem.stage_type)
+            .in('status', ['generated', 'approved', 'published'])
+            .order('version', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (savedStage) {
+            console.log(`✓ ${queueItem.stage_type} was saved despite timeout`);
+            functionCompleted = true;
+          } else {
+            // Still running - leave as processing, user can resume later
+            console.log(`⏳ ${queueItem.stage_type} still processing - will be picked up on resume`);
+            processedStages.push(`${queueItem.stage_type} (started)`);
+            continue; // Move to next without marking complete
+          }
+        } else {
+          console.error(`Function ${functionName} fetch error:`, fetchError);
+          errorMessage = fetchError.message || 'Unknown error';
+          functionFailed = true;
+        }
+      }
+
+      if (functionFailed) {
         await supabase
           .from('generation_queue')
           .update({ 
@@ -238,19 +288,18 @@ serve(async (req) => {
             completed_at: new Date().toISOString()
           })
           .eq('id', queueItem.id);
-        
-        // Continue to next item instead of throwing
         continue;
       }
 
-      // Mark as completed
-      await supabase
-        .from('generation_queue')
-        .update({ 
-          status: 'completed', 
-          completed_at: new Date().toISOString() 
-        })
-        .eq('id', queueItem.id);
+      if (functionCompleted) {
+        await supabase
+          .from('generation_queue')
+          .update({ 
+            status: 'completed', 
+            completed_at: new Date().toISOString() 
+          })
+          .eq('id', queueItem.id);
+      }
 
       processedStages.push(queueItem.stage_type);
       console.log(`✓ Completed ${queueItem.stage_type}`);
