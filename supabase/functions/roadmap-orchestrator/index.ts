@@ -207,10 +207,10 @@ serve(async (req) => {
         requestBody.part3Responses = {}; // Empty object - will use defaults from assessment data
       }
       
-      // Use AbortController for timeout - wait up to 180s (3 minutes)
-      // Sprint plans can take 165s, so 180s gives buffer
+      // Use AbortController for timeout - wait up to 300s (5 minutes)
+      // Sprint plans can take 180s+, so 300s gives plenty of buffer
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 180000);
+      const timeoutId = setTimeout(() => controller.abort(), 300000);
 
       let functionCompleted = false;
       let functionFailed = false;
