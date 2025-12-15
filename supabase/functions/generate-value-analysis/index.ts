@@ -252,6 +252,7 @@ interface StageContext {
   stage: BusinessStage;
   revenue: number;
   revenueBand: string;
+  revenueSource: 'actual' | 'band';
   teamSize: string;
   yearsTrading: number;
   companyName: string;
@@ -262,22 +263,70 @@ interface StageContext {
 // BUSINESS STAGE DETERMINATION (Comprehensive)
 // ============================================================================
 
-function determineBusinessStage(part1: Record<string, any>, part2: Record<string, any>): StageContext {
-  const revenueBand = part2.annual_turnover || '£0';
-  let revenue = 0;
+// Helper to parse actual currency values (handles £217,351 or 217351 etc)
+function parseActualCurrency(value: string | number | undefined): number | null {
+  if (value === undefined || value === null || value === '') return null;
   
-  // Parse revenue from band
-  if (revenueBand.includes('Under £100k') || revenueBand === '£0' || revenueBand === '') revenue = 0;
-  else if (revenueBand.includes('£100k-£250k')) revenue = 175000;
-  else if (revenueBand.includes('£250k-£500k')) revenue = 375000;
-  else if (revenueBand.includes('£500k-£1m')) revenue = 750000;
-  else if (revenueBand.includes('£1m-£2.5m')) revenue = 1750000;
-  else if (revenueBand.includes('£2.5m')) revenue = 3500000;
+  if (typeof value === 'number') return value;
+  
+  // Remove currency symbols, commas, spaces
+  const cleaned = String(value).replace(/[£$€,\s]/g, '');
+  const parsed = parseFloat(cleaned);
+  
+  return isNaN(parsed) ? null : parsed;
+}
 
-  // Parse years trading
+// Helper to parse revenue from band (fallback only)
+function parseRevenueBand(band: string): number {
+  if (!band || band === '£0' || band === '') return 0;
+  if (band.includes('Under £100k')) return 50000;
+  if (band.includes('£100k-£250k')) return 175000;
+  if (band.includes('£250k-£500k')) return 375000;
+  if (band.includes('£500k-£1m')) return 750000;
+  if (band.includes('£1m-£2.5m')) return 1750000;
+  if (band.includes('£2.5m')) return 3500000;
+  return 0;
+}
+
+function determineBusinessStage(part1: Record<string, any>, part2: Record<string, any>, part3?: Record<string, any>): StageContext {
+  // PRIORITY: Use actual financial figures if provided, bands are FALLBACK only
+  // Check multiple possible field names for actual turnover
+  const actualTurnover = parseActualCurrency(
+    part2.actual_turnover || 
+    part2.actual_revenue ||
+    part2.turnover ||
+    part2.revenue ||
+    part3?.actual_turnover ||
+    part3?.turnover ||
+    part3?.annual_turnover_actual ||
+    part3?.revenue
+  );
+  
+  const revenueBand = part2.annual_turnover || '£0';
+  
+  // Use actual if available, otherwise fall back to band midpoint
+  let revenue: number;
+  let revenueSource: 'actual' | 'band';
+  
+  if (actualTurnover !== null && actualTurnover > 0) {
+    revenue = actualTurnover;
+    revenueSource = 'actual';
+    console.log(`Using ACTUAL turnover: £${revenue.toLocaleString()} (ignoring band: ${revenueBand})`);
+  } else {
+    revenue = parseRevenueBand(revenueBand);
+    revenueSource = 'band';
+    console.log(`Using BAND estimate: £${revenue.toLocaleString()} (from: ${revenueBand})`);
+  }
+
+  // Parse years trading - check for actual years first
+  const actualYears = parseFloat(part2.actual_years_trading) || parseFloat(part3?.years_in_business);
   const yearsStr = part2.years_trading || '0';
   let yearsTrading = 0;
-  if (yearsStr.includes('Less than 1')) yearsTrading = 0.5;
+  
+  if (actualYears && actualYears > 0) {
+    yearsTrading = actualYears;
+    console.log(`Using ACTUAL years trading: ${yearsTrading}`);
+  } else if (yearsStr.includes('Less than 1')) yearsTrading = 0.5;
   else if (yearsStr.includes('1-2')) yearsTrading = 1.5;
   else if (yearsStr.includes('3-5')) yearsTrading = 4;
   else if (yearsStr.includes('5-10')) yearsTrading = 7;
@@ -309,6 +358,7 @@ function determineBusinessStage(part1: Record<string, any>, part2: Record<string
     stage,
     revenue,
     revenueBand,
+    revenueSource,
     teamSize: part2.team_size || 'Just me',
     yearsTrading,
     companyName: companyName || 'Your Business',
@@ -831,9 +881,10 @@ function detectIndustryFromContext(allText: string, companyName: string): string
 function extractFinancialsFromContext(
   contextDocuments: any[],
   stageContext: StageContext,
-  part2Responses: Record<string, any>
+  part2Responses: Record<string, any>,
+  part3Responses?: Record<string, any>
 ): FinancialData {
-  // Start with what we know from assessments
+  // Start with what we know from assessments (may already have actual figures from determineBusinessStage)
   let revenue = stageContext.revenue;
   let grossProfit = 0;
   let operatingProfit = 0;
@@ -845,26 +896,63 @@ function extractFinancialsFromContext(
   let yearOnYearGrowth = 0;
   let recurringRevenuePercentage = 0;
 
-  // Parse revenue from part2 if more specific
-  if (part2Responses.exact_annual_revenue) {
-    revenue = parseFloat(part2Responses.exact_annual_revenue.replace(/[£,]/g, '')) || revenue;
+  // Check for actual figures in part2 or part3 (highest priority)
+  const actualRevenue = parseActualCurrency(
+    part3Responses?.actual_turnover ||
+    part3Responses?.actual_revenue ||
+    part2Responses.exact_annual_revenue ||
+    part2Responses.actual_turnover
+  );
+  
+  if (actualRevenue && actualRevenue > 0) {
+    revenue = actualRevenue;
+    console.log(`Using actual revenue from responses: £${revenue.toLocaleString()}`);
   }
 
-  // Parse gross margin
-  const grossMarginStr = part2Responses.gross_margin || part2Responses.profit_margin || '30%';
-  const grossMargin = parseFloat(grossMarginStr.replace('%', '')) / 100 || 0.3;
-  grossProfit = revenue * grossMargin;
+  // Check for actual gross profit
+  const actualGrossProfit = parseActualCurrency(part3Responses?.actual_gross_profit);
+  if (actualGrossProfit && actualGrossProfit > 0) {
+    grossProfit = actualGrossProfit;
+    console.log(`Using actual gross profit: £${grossProfit.toLocaleString()}`);
+  } else {
+    // Parse gross margin
+    const actualGrossMargin = part3Responses?.actual_gross_margin;
+    const grossMarginStr = actualGrossMargin || part2Responses.gross_margin || part2Responses.profit_margin || '30%';
+    const grossMargin = parseFloat(String(grossMarginStr).replace('%', '')) / 100 || 0.3;
+    grossProfit = revenue * grossMargin;
+  }
 
-  // Estimate operating profit (typically 60-80% of gross for SMEs)
-  operatingProfit = grossProfit * 0.7;
+  // Check for actual net profit
+  const actualNetProfit = parseActualCurrency(part3Responses?.actual_net_profit);
+  if (actualNetProfit !== null) {
+    netProfit = actualNetProfit;
+    operatingProfit = netProfit * 1.2; // Estimate operating from net
+    console.log(`Using actual net profit: £${netProfit.toLocaleString()}`);
+  } else {
+    // Estimate operating profit (typically 60-80% of gross for SMEs)
+    operatingProfit = grossProfit * 0.7;
+  }
 
-  // Parse owner salary from context or estimate
-  ownerSalary = parseFloat(part2Responses.owner_salary?.replace(/[£,]/g, '') || '0') || revenue * 0.15;
+  // Check for actual owner salary
+  const actualOwnerSalary = parseActualCurrency(part3Responses?.actual_owner_salary);
+  if (actualOwnerSalary && actualOwnerSalary > 0) {
+    ownerSalary = actualOwnerSalary;
+    console.log(`Using actual owner salary: £${ownerSalary.toLocaleString()}`);
+  } else {
+    ownerSalary = parseFloat(part2Responses.owner_salary?.replace(/[£,]/g, '') || '0') || revenue * 0.15;
+  }
   ownerPerks = ownerSalary * 0.1; // Estimate perks at 10% of salary
 
-  // Parse growth rate
-  const growthStr = part2Responses.growth_rate || part2Responses.revenue_growth || '0%';
-  yearOnYearGrowth = parseFloat(growthStr.replace('%', '')) / 100 || 0;
+  // Calculate growth rate from actual figures if available
+  const previousYearTurnover = parseActualCurrency(part3Responses?.previous_year_turnover);
+  if (previousYearTurnover && previousYearTurnover > 0 && revenue > 0) {
+    yearOnYearGrowth = (revenue - previousYearTurnover) / previousYearTurnover;
+    console.log(`Calculated YoY growth from actuals: ${(yearOnYearGrowth * 100).toFixed(1)}%`);
+  } else {
+    // Parse growth rate from selections
+    const growthStr = part2Responses.growth_rate || part2Responses.revenue_growth || '0%';
+    yearOnYearGrowth = parseFloat(growthStr.replace('%', '')) / 100 || 0;
+  }
 
   // Parse recurring revenue
   recurringRevenuePercentage = parseFloat(part2Responses.recurring_revenue_percentage || '0') / 100 || 0;
@@ -2251,15 +2339,88 @@ function getMatureQuestions(): any[] {
   ];
 }
 
+// Actual financials section - prepended to all question sets
+// These override any band selections from Part 2
+function getActualFinancialsSection(): any {
+  return {
+    section: "Actual Financial Data (Optional)",
+    description: "If you have actual figures from your accounts, enter them here. These will override any estimates and give you more accurate analysis. Leave blank to use estimates.",
+    questions: [
+      {
+        id: "actual_turnover",
+        fieldName: "actual_turnover",
+        question: "What was your annual turnover/revenue for the last financial year?",
+        type: "currency",
+        placeholder: "e.g. 217351",
+        hint: "Enter the exact figure from your accounts (e.g., £217,351)",
+        optional: true
+      },
+      {
+        id: "actual_gross_profit",
+        fieldName: "actual_gross_profit",
+        question: "What was your gross profit?",
+        type: "currency",
+        placeholder: "e.g. 79673",
+        hint: "Revenue minus cost of sales",
+        optional: true
+      },
+      {
+        id: "actual_gross_margin",
+        fieldName: "actual_gross_margin",
+        question: "What was your gross profit margin percentage?",
+        type: "text",
+        placeholder: "e.g. 36.66%",
+        hint: "Gross profit ÷ Revenue × 100",
+        optional: true
+      },
+      {
+        id: "actual_net_profit",
+        fieldName: "actual_net_profit",
+        question: "What was your net profit (after all costs)?",
+        type: "currency",
+        placeholder: "e.g. 25000",
+        optional: true
+      },
+      {
+        id: "actual_owner_salary",
+        fieldName: "actual_owner_salary",
+        question: "What was your total annual salary/drawings?",
+        type: "currency",
+        placeholder: "e.g. 45000",
+        hint: "Include all personal income from the business",
+        optional: true
+      },
+      {
+        id: "previous_year_turnover",
+        fieldName: "previous_year_turnover",
+        question: "What was turnover in the year before that?",
+        type: "currency",
+        placeholder: "e.g. 147458",
+        hint: "Helps calculate growth rate",
+        optional: true
+      }
+    ]
+  };
+}
+
 function getStageSpecificQuestions(stage: BusinessStage, teamSize: string): any[] {
+  // Get stage-specific questions
+  let questions: any[];
   switch (stage) {
-    case 'pre_revenue': return getPreRevenueQuestions();
-    case 'early_revenue': return getEarlyRevenueQuestions(teamSize);
-    case 'growth': return getGrowthQuestions();
-    case 'scale': return getScaleQuestions();
-    case 'mature': return getMatureQuestions();
-    default: return getMatureQuestions();
+    case 'pre_revenue': questions = getPreRevenueQuestions(); break;
+    case 'early_revenue': questions = getEarlyRevenueQuestions(teamSize); break;
+    case 'growth': questions = getGrowthQuestions(); break;
+    case 'scale': questions = getScaleQuestions(); break;
+    case 'mature': questions = getMatureQuestions(); break;
+    default: questions = getMatureQuestions();
   }
+  
+  // Prepend actual financials section (except for pre-revenue)
+  if (stage !== 'pre_revenue') {
+    return [getActualFinancialsSection(), ...questions];
+  }
+  
+  return questions;
 }
 
 // ============================================================================
@@ -3116,7 +3277,9 @@ serve(async (req) => {
 
       const part1 = assessments?.find(a => a.assessment_type === 'part1')?.responses || {};
       const part2 = assessments?.find(a => a.assessment_type === 'part2')?.responses || {};
-      const stageContext = determineBusinessStage(part1, part2);
+      
+      // Pass part3Responses to allow actual financial figures to override bands
+      const stageContext = determineBusinessStage(part1, part2, part3Responses);
 
       // Fetch any uploaded context documents (like accounts)
       const { data: contextDocs } = await supabase
@@ -3155,10 +3318,12 @@ serve(async (req) => {
 
       // ============ NEW: BUSINESS VALUATION ============
       // Extract financial data from assessments and uploaded documents
+      // Pass part3Responses for actual financial figures
       const financialData = extractFinancialsFromContext(
         contextDocs || [],
         stageContext,
-        part2
+        part2,
+        part3Responses
       );
 
       // Analyze value drivers
