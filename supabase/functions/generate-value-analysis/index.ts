@@ -960,60 +960,102 @@ function extractFinancialsFromContext(
   recurringRevenuePercentage = parseFloat(part2Responses.recurring_revenue_percentage || '0') / 100 || 0;
 
   // Try to extract from uploaded context documents
+  console.log(`[extractFinancials] Processing ${contextDocuments?.length || 0} context documents`);
+  
   for (const doc of contextDocuments || []) {
-    const content = (doc.content || '').toLowerCase();
+    const content = (doc.content || '');
+    const contentLower = content.toLowerCase();
     
-    // Look for key financial terms
-    if (content.includes('turnover') || content.includes('revenue')) {
-      const revenueMatch = content.match(/(?:turnover|revenue)[:\s]*£?([\d,]+)/);
-      if (revenueMatch) {
-        const extractedRevenue = parseFloat(revenueMatch[1].replace(/,/g, ''));
-        if (extractedRevenue > 0) revenue = extractedRevenue;
+    console.log(`[extractFinancials] Document type: ${doc.type}, content length: ${content.length}`);
+    
+    // Helper to extract monetary values - handles multiple formats
+    const extractMoney = (text: string, ...patterns: RegExp[]): number | null => {
+      for (const pattern of patterns) {
+        const match = text.match(pattern);
+        if (match) {
+          const value = parseFloat(match[1].replace(/[,\s]/g, ''));
+          if (value > 0) return value;
+        }
+      }
+      return null;
+    };
+    
+    // TURNOVER/SALES - handles various P&L formats:
+    // Format 1: "Sales    217,351"
+    // Format 2: "Turnover: £217,351"  
+    // Format 3: "TURNOVER\nSales   217,351"
+    // Format 4: "Revenue  £217,351"
+    if (contentLower.includes('turnover') || contentLower.includes('sales') || contentLower.includes('revenue')) {
+      const extractedRevenue = extractMoney(content,
+        /sales\s+£?([\d,]+)/i,
+        /turnover[:\s]+£?([\d,]+)/i,
+        /revenue[:\s]+£?([\d,]+)/i,
+        /total\s+(?:sales|revenue|turnover)[:\s]+£?([\d,]+)/i,
+        /(?:annual|yearly)\s+(?:sales|revenue|turnover)[:\s]+£?([\d,]+)/i
+      );
+      if (extractedRevenue && extractedRevenue > 10000) {
+        console.log(`[extractFinancials] Extracted revenue from document: £${extractedRevenue.toLocaleString()}`);
+        revenue = extractedRevenue;
       }
     }
     
-    if (content.includes('gross profit')) {
-      const gpMatch = content.match(/gross profit[:\s]*£?([\d,]+)/);
-      if (gpMatch) {
-        grossProfit = parseFloat(gpMatch[1].replace(/,/g, '')) || grossProfit;
+    // GROSS PROFIT - handles: "Gross Profit  79,673" or "GROSS PROFIT: £79,673"
+    if (contentLower.includes('gross profit')) {
+      const extractedGP = extractMoney(content,
+        /gross\s+profit\s+£?([\d,]+)/i,
+        /gross\s+profit[:\s]+£?([\d,]+)/i
+      );
+      if (extractedGP && extractedGP > 0) {
+        console.log(`[extractFinancials] Extracted gross profit from document: £${extractedGP.toLocaleString()}`);
+        grossProfit = extractedGP;
       }
     }
 
-    if (content.includes('operating profit') || content.includes('ebit')) {
-      const opMatch = content.match(/(?:operating profit|ebit)[:\s]*£?([\d,]+)/);
-      if (opMatch) {
-        operatingProfit = parseFloat(opMatch[1].replace(/,/g, '')) || operatingProfit;
-      }
+    // OPERATING PROFIT / EBIT
+    if (contentLower.includes('operating profit') || contentLower.includes('ebit')) {
+      const extractedOP = extractMoney(content,
+        /operating\s+profit\s+£?([\d,]+)/i,
+        /ebit[:\s]+£?([\d,]+)/i
+      );
+      if (extractedOP) operatingProfit = extractedOP;
     }
 
-    if (content.includes('net profit') || content.includes('profit after tax')) {
-      const npMatch = content.match(/(?:net profit|profit after tax)[:\s]*£?([\d,]+)/);
-      if (npMatch) {
-        netProfit = parseFloat(npMatch[1].replace(/,/g, '')) || netProfit;
-      }
+    // NET PROFIT
+    if (contentLower.includes('net profit') || contentLower.includes('profit after tax') || contentLower.includes('profit for the year')) {
+      const extractedNP = extractMoney(content,
+        /net\s+profit\s+£?([\d,]+)/i,
+        /profit\s+after\s+tax\s+£?([\d,]+)/i,
+        /profit\s+for\s+(?:the\s+)?year\s+£?([\d,]+)/i
+      );
+      if (extractedNP) netProfit = extractedNP;
     }
 
-    if (content.includes('director') && (content.includes('salary') || content.includes('remuneration'))) {
-      const salMatch = content.match(/(?:director|owner)(?:'s)?\s*(?:salary|remuneration)[:\s]*£?([\d,]+)/);
-      if (salMatch) {
-        ownerSalary = parseFloat(salMatch[1].replace(/,/g, '')) || ownerSalary;
-      }
+    // DIRECTOR SALARY/REMUNERATION
+    if (contentLower.includes('director') && (contentLower.includes('salary') || contentLower.includes('remuneration'))) {
+      const extractedSalary = extractMoney(content,
+        /director(?:'?s?)?\s+(?:salary|remuneration)\s+£?([\d,]+)/i,
+        /(?:salary|remuneration)\s+£?([\d,]+)/i
+      );
+      if (extractedSalary) ownerSalary = extractedSalary;
     }
 
-    if (content.includes('total assets')) {
-      const assetMatch = content.match(/total assets[:\s]*£?([\d,]+)/);
-      if (assetMatch) {
-        assets = parseFloat(assetMatch[1].replace(/,/g, '')) || 0;
-      }
+    // TOTAL ASSETS
+    if (contentLower.includes('total assets')) {
+      const extractedAssets = extractMoney(content, /total\s+assets\s+£?([\d,]+)/i);
+      if (extractedAssets) assets = extractedAssets;
     }
 
-    if (content.includes('total liabilities')) {
-      const liabMatch = content.match(/total liabilities[:\s]*£?([\d,]+)/);
-      if (liabMatch) {
-        liabilities = parseFloat(liabMatch[1].replace(/,/g, '')) || 0;
-      }
+    // TOTAL LIABILITIES
+    if (contentLower.includes('total liabilities') || contentLower.includes('creditors')) {
+      const extractedLiab = extractMoney(content,
+        /total\s+liabilities\s+£?([\d,]+)/i,
+        /creditors[:\s]+£?([\d,]+)/i
+      );
+      if (extractedLiab) liabilities = extractedLiab;
     }
   }
+  
+  console.log(`[extractFinancials] Final values - Revenue: £${revenue.toLocaleString()}, Gross Profit: £${grossProfit.toLocaleString()}`);
 
   // Estimate net profit if not found
   if (netProfit === 0) {
