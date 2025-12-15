@@ -1221,7 +1221,7 @@ function WeekCard({
               </span>
             )}
           </div>
-          <p className="text-sm text-slate-500 truncate">{week.focus}</p>
+          <p className="text-sm text-slate-500">{week.focus}</p>
         </div>
 
         <div className="flex items-center gap-3 flex-shrink-0">

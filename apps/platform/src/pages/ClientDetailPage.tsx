@@ -277,7 +277,7 @@ export default function ClientDetailPage() {
                             {new Date(ctx.createdAt).toLocaleDateString()}
                           </span>
                         </div>
-                        <p className="text-sm text-slate-600 line-clamp-2">{ctx.content}</p>
+                        <p className="text-sm text-slate-600">{ctx.content}</p>
                       </div>
                     ))}
                   </div>
