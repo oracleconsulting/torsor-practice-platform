@@ -174,6 +174,409 @@ function parseFinancialMetrics(text: string): Record<string, any> {
 }
 
 // ============================================================================
+// FINANCIAL DATA INTEGRATION - Comprehensive YoY Analysis
+// ============================================================================
+
+interface FinancialYearData {
+  periodEnd: string;
+  revenue: number;
+  costOfSales: number;
+  grossProfit: number;
+  grossMargin: number;
+  operatingProfit: number;
+  operatingMargin: number;
+  netProfit: number;
+  netMargin: number;
+}
+
+interface YoYChanges {
+  revenueGrowth: number;
+  grossMarginChange: number; // in percentage points
+  operatingProfitChange: number;
+  profitGrowthLagsRevenue: boolean;
+}
+
+interface FinancialFlags {
+  hasProfitCrisis: boolean;
+  hasMarginCompression: boolean;
+  hasRevenueDecline: boolean;
+  hasExpenseExplosion: boolean;
+  hasLowMargins: boolean;
+}
+
+interface IntegratedFinancialData {
+  currentYear: FinancialYearData;
+  priorYear: FinancialYearData | null;
+  yoyChanges: YoYChanges | null;
+  flags: FinancialFlags;
+  dataSource: 'extracted_metrics' | 'parsed_content' | 'assessment_only' | 'none';
+  confidence: 'high' | 'medium' | 'low';
+}
+
+function buildIntegratedFinancialData(
+  contextDocs: any[],
+  stageContext: any,
+  part2Responses: Record<string, any>,
+  part3Responses: Record<string, any>
+): IntegratedFinancialData {
+  
+  console.log('[FinancialIntegration] Building integrated financial data...');
+  
+  // Try to get data from extracted_metrics first (highest confidence)
+  let currentYear: FinancialYearData | null = null;
+  let priorYear: FinancialYearData | null = null;
+  let dataSource: IntegratedFinancialData['dataSource'] = 'none';
+  let confidence: IntegratedFinancialData['confidence'] = 'low';
+  
+  for (const doc of contextDocs || []) {
+    const metrics = doc.extracted_metrics || {};
+    
+    // Check for current year data
+    if (metrics.turnover && metrics.turnover > 0) {
+      const revenue = metrics.turnover;
+      const grossProfit = metrics.gross_profit || 0;
+      const grossMargin = grossProfit > 0 && revenue > 0 ? grossProfit / revenue : (metrics.gross_margin_pct || 0) / 100;
+      
+      currentYear = {
+        periodEnd: metrics.year ? `${metrics.year}-01-31` : 'Current Year',
+        revenue,
+        costOfSales: metrics.cost_of_sales || (revenue - grossProfit),
+        grossProfit,
+        grossMargin,
+        operatingProfit: metrics.operating_profit || grossProfit * 0.5, // Estimate if not available
+        operatingMargin: 0,
+        netProfit: metrics.net_profit || grossProfit * 0.4,
+        netMargin: 0
+      };
+      
+      // Calculate margins
+      if (currentYear.revenue > 0) {
+        currentYear.operatingMargin = currentYear.operatingProfit / currentYear.revenue;
+        currentYear.netMargin = currentYear.netProfit / currentYear.revenue;
+      }
+      
+      dataSource = 'extracted_metrics';
+      confidence = 'high';
+      
+      console.log(`[FinancialIntegration] Found current year: Revenue £${revenue.toLocaleString()}, Gross Profit £${grossProfit.toLocaleString()}, Margin ${(grossMargin * 100).toFixed(1)}%`);
+    }
+    
+    // Check for prior year data
+    if (metrics.turnover_2024 || metrics.previous_year_turnover) {
+      const priorRevenue = metrics.turnover_2024 || metrics.previous_year_turnover;
+      const priorGrossProfit = metrics.gross_profit_2024 || 0;
+      const priorGrossMargin = metrics.gross_margin_2024 
+        ? metrics.gross_margin_2024 / 100 
+        : (priorGrossProfit > 0 && priorRevenue > 0 ? priorGrossProfit / priorRevenue : 0);
+      
+      if (priorRevenue > 0) {
+        priorYear = {
+          periodEnd: '2024-01-31',
+          revenue: priorRevenue,
+          costOfSales: metrics.cost_of_sales_2024 || (priorRevenue - priorGrossProfit),
+          grossProfit: priorGrossProfit,
+          grossMargin: priorGrossMargin,
+          operatingProfit: metrics.operating_profit_2024 || priorGrossProfit * 0.5,
+          operatingMargin: 0,
+          netProfit: metrics.net_profit_2024 || priorGrossProfit * 0.4,
+          netMargin: 0
+        };
+        
+        if (priorYear.revenue > 0) {
+          priorYear.operatingMargin = priorYear.operatingProfit / priorYear.revenue;
+          priorYear.netMargin = priorYear.netProfit / priorYear.revenue;
+        }
+        
+        console.log(`[FinancialIntegration] Found prior year: Revenue £${priorRevenue.toLocaleString()}, Margin ${(priorGrossMargin * 100).toFixed(1)}%`);
+      }
+    }
+  }
+  
+  // Also check part3 responses for actual figures
+  if (!currentYear && part3Responses?.actual_turnover) {
+    const revenue = parseFloat(String(part3Responses.actual_turnover).replace(/[£,]/g, '')) || 0;
+    const grossProfit = parseFloat(String(part3Responses.actual_gross_profit || '0').replace(/[£,]/g, '')) || 0;
+    
+    if (revenue > 0) {
+      currentYear = {
+        periodEnd: 'Current Year',
+        revenue,
+        costOfSales: revenue - grossProfit,
+        grossProfit,
+        grossMargin: grossProfit > 0 ? grossProfit / revenue : 0.3,
+        operatingProfit: grossProfit * 0.5,
+        operatingMargin: 0,
+        netProfit: grossProfit * 0.4,
+        netMargin: 0
+      };
+      
+      dataSource = 'extracted_metrics';
+      confidence = 'medium';
+    }
+    
+    // Check for prior year in part3
+    if (part3Responses.previous_year_turnover) {
+      const priorRevenue = parseFloat(String(part3Responses.previous_year_turnover).replace(/[£,]/g, '')) || 0;
+      if (priorRevenue > 0) {
+        priorYear = {
+          periodEnd: 'Prior Year',
+          revenue: priorRevenue,
+          costOfSales: 0,
+          grossProfit: 0,
+          grossMargin: 0,
+          operatingProfit: 0,
+          operatingMargin: 0,
+          netProfit: 0,
+          netMargin: 0
+        };
+      }
+    }
+  }
+  
+  // Fall back to stageContext if no better data
+  if (!currentYear) {
+    currentYear = {
+      periodEnd: 'Estimated',
+      revenue: stageContext.revenue || 0,
+      costOfSales: 0,
+      grossProfit: (stageContext.revenue || 0) * 0.35,
+      grossMargin: 0.35,
+      operatingProfit: (stageContext.revenue || 0) * 0.15,
+      operatingMargin: 0.15,
+      netProfit: (stageContext.revenue || 0) * 0.1,
+      netMargin: 0.1
+    };
+    dataSource = 'assessment_only';
+    confidence = 'low';
+  }
+  
+  // Calculate YoY changes if we have both years
+  let yoyChanges: YoYChanges | null = null;
+  if (currentYear && priorYear && priorYear.revenue > 0) {
+    const revenueGrowth = (currentYear.revenue - priorYear.revenue) / priorYear.revenue;
+    const grossMarginChange = (currentYear.grossMargin - priorYear.grossMargin) * 100; // pp
+    const operatingProfitChange = priorYear.operatingProfit > 0 
+      ? (currentYear.operatingProfit - priorYear.operatingProfit) / priorYear.operatingProfit 
+      : 0;
+    
+    // KEY FLAG: Revenue up but profit down = scaling a problem
+    const profitGrowthLagsRevenue = 
+      (revenueGrowth > 0.1 && operatingProfitChange < 0) || // Revenue up 10%+, profit down
+      (revenueGrowth > 0.2 && operatingProfitChange < revenueGrowth * 0.3); // Revenue up but profit severely lagging
+    
+    yoyChanges = {
+      revenueGrowth,
+      grossMarginChange,
+      operatingProfitChange,
+      profitGrowthLagsRevenue
+    };
+    
+    console.log(`[FinancialIntegration] YoY: Revenue ${(revenueGrowth * 100).toFixed(1)}%, Margin ${grossMarginChange.toFixed(1)}pp, Profit ${(operatingProfitChange * 100).toFixed(1)}%`);
+  }
+  
+  // Set flags
+  const flags: FinancialFlags = {
+    hasProfitCrisis: yoyChanges 
+      ? (yoyChanges.revenueGrowth > 0.1 && yoyChanges.operatingProfitChange < -0.2) // Revenue up 10%+, profit down 20%+
+      : false,
+    hasMarginCompression: yoyChanges 
+      ? yoyChanges.grossMarginChange < -5 // More than 5pp drop
+      : false,
+    hasRevenueDecline: yoyChanges 
+      ? yoyChanges.revenueGrowth < -0.1 
+      : false,
+    hasExpenseExplosion: false, // Would need expense breakdown
+    hasLowMargins: currentYear.grossMargin < 0.30
+  };
+  
+  if (flags.hasProfitCrisis) {
+    console.log('[FinancialIntegration] ⚠️ PROFIT CRISIS DETECTED - Revenue growing but profit collapsing');
+  }
+  if (flags.hasMarginCompression) {
+    console.log('[FinancialIntegration] ⚠️ MARGIN COMPRESSION DETECTED');
+  }
+  
+  return {
+    currentYear,
+    priorYear,
+    yoyChanges,
+    flags,
+    dataSource,
+    confidence
+  };
+}
+
+// Generate honest headline based on financial reality
+function generateFinancialHeadlineTruth(
+  financialData: IntegratedFinancialData,
+  overallScore: number,
+  totalOpportunity: number,
+  criticalRisks: any[]
+): { uncomfortableTruth: string; whatThisReallyMeans: string; beforeYouDoAnythingElse: string; theGoodNews: string } {
+  
+  const { flags, yoyChanges, currentYear } = financialData;
+  
+  // PROFIT CRISIS - highest priority
+  if (flags.hasProfitCrisis && yoyChanges) {
+    const revenueGrowth = Math.round(yoyChanges.revenueGrowth * 100);
+    const profitDrop = Math.abs(Math.round(yoyChanges.operatingProfitChange * 100));
+    
+    return {
+      uncomfortableTruth: `You've built a business that grew revenue ${revenueGrowth}% but saw profit drop ${profitDrop}%—you're scaling a problem, not scaling success.`,
+      whatThisReallyMeans: `Every new pound of revenue is costing you more than the last. Your business model is breaking under growth. That morning coffee with family you want? It's getting further away, not closer, because growth is making things worse, not better.`,
+      beforeYouDoAnythingElse: `Stop chasing revenue. Find out WHERE your margin is leaking—is it subcontractor costs rising faster than you're charging? Underpricing jobs? Overhead creeping up? Until you know, every growth initiative is throwing money into a hole.`,
+      theGoodNews: `You have customers. You have revenue. The business works—the pricing or cost structure doesn't. This is fixable, but only if you prioritise it over growth.`
+    };
+  }
+  
+  // MARGIN COMPRESSION - serious but not crisis
+  if (flags.hasMarginCompression && yoyChanges) {
+    const marginDrop = Math.abs(yoyChanges.grossMarginChange).toFixed(1);
+    
+    return {
+      uncomfortableTruth: `Your margins dropped ${marginDrop} percentage points year-on-year. You're working harder for less.`,
+      whatThisReallyMeans: `If this trend continues, you'll need to grow revenue just to stand still on profit. That's a treadmill, not a business.`,
+      beforeYouDoAnythingElse: `Analyse margin by job type or customer. Find out which work is dragging you down and either reprice it or drop it.`,
+      theGoodNews: `Margin compression is common in growth phases. Catching it now means you can fix it before it becomes a crisis.`
+    };
+  }
+  
+  // REVENUE DECLINE
+  if (flags.hasRevenueDecline && yoyChanges) {
+    const decline = Math.abs(Math.round(yoyChanges.revenueGrowth * 100));
+    
+    return {
+      uncomfortableTruth: `Revenue is down ${decline}% year-on-year. Before optimising anything else, understand why customers are leaving.`,
+      whatThisReallyMeans: `Declining revenue with fixed costs means margin pressure is coming. You need to stabilise before you can grow.`,
+      beforeYouDoAnythingElse: `Talk to 5 customers from 2 years ago who no longer buy. Find out why. The answer is there.`,
+      theGoodNews: `Most business declines are fixable once you understand the cause. Former customers are often the easiest to win back.`
+    };
+  }
+  
+  // LOW MARGINS (even if stable)
+  if (flags.hasLowMargins) {
+    return {
+      uncomfortableTruth: `Your gross margin is ${(currentYear.grossMargin * 100).toFixed(1)}%—that's thin. Small cost increases or pricing mistakes hit you hard.`,
+      whatThisReallyMeans: `Low margins mean you need near-perfect execution. There's no buffer for mistakes or market changes.`,
+      beforeYouDoAnythingElse: `Identify your highest-margin offerings and focus growth there. Consider whether low-margin work is worth keeping.`,
+      theGoodNews: `You've proven the business works at low margins—improving them even slightly will dramatically increase profit.`
+    };
+  }
+  
+  // CRITICAL RISKS FROM ASSESSMENT
+  if (criticalRisks.length > 0) {
+    const topRisk = criticalRisks[0];
+    return {
+      uncomfortableTruth: `Your overall score is ${overallScore}/100 with £${totalOpportunity.toLocaleString()} in identified opportunities, but ${topRisk.risk || topRisk.title} needs addressing first.`,
+      whatThisReallyMeans: topRisk.impact || 'This risk could significantly impact business value and operations.',
+      beforeYouDoAnythingElse: topRisk.mitigation || 'Address this critical risk before pursuing growth opportunities.',
+      theGoodNews: overallScore >= 60 ? 'You have a solid foundation to build on once risks are managed.' : 'Every business starts somewhere—the key is knowing where to focus.'
+    };
+  }
+  
+  // DEFAULT - HEALTHY BUSINESS
+  return {
+    uncomfortableTruth: `Your overall score is ${overallScore}/100 with £${totalOpportunity.toLocaleString()} in identified opportunities.`,
+    whatThisReallyMeans: 'This represents the gap between where you are and where you could be.',
+    beforeYouDoAnythingElse: 'Focus on the highest-impact, lowest-effort opportunities first.',
+    theGoodNews: overallScore >= 60 ? 'You have a solid foundation to build on.' : 'Every business starts somewhere—the key is knowing where to focus.'
+  };
+}
+
+// Build action hierarchy prioritizing financial issues
+function buildFinancialActionHierarchy(
+  financialData: IntegratedFinancialData,
+  risks: any[],
+  opportunities: any[]
+): { week1: any; weeks2to4: any; month2Plus: any } {
+  
+  const { flags, yoyChanges } = financialData;
+  
+  // PROFIT CRISIS - everything else waits
+  if (flags.hasProfitCrisis && yoyChanges) {
+    return {
+      week1: {
+        action: 'Financial Review: Find the Margin Leak',
+        why: `Your profit dropped ${Math.abs(Math.round(yoyChanges.operatingProfitChange * 100))}% while revenue grew ${Math.round(yoyChanges.revenueGrowth * 100)}%. Until you know WHY, any growth investment is throwing money away.`,
+        deliverable: 'Root cause identified: subcontractor costs, pricing, overhead, or job mix?',
+        priority: 'CRITICAL'
+      },
+      weeks2to4: {
+        action: 'Fix the Leak Before Growing',
+        why: 'Once you know the cause, address it immediately. Raise prices, renegotiate subcontractor rates, or drop unprofitable work.',
+        deliverable: 'Action plan with projected margin recovery implemented',
+        priority: 'CRITICAL'
+      },
+      month2Plus: {
+        action: risks.find(r => r.category !== 'Financial Health')?.title || 'Resume roadmap with fixed unit economics',
+        why: 'With financial foundation stable, address remaining risks and capture opportunities.',
+        deliverable: 'Profitable growth trajectory established',
+        priority: 'HIGH'
+      }
+    };
+  }
+  
+  // MARGIN COMPRESSION
+  if (flags.hasMarginCompression && yoyChanges) {
+    return {
+      week1: {
+        action: 'Margin Analysis by Service/Customer',
+        why: `Your margins dropped ${Math.abs(yoyChanges.grossMarginChange).toFixed(1)}pp. Find out where the leak is.`,
+        deliverable: 'Margin breakdown by job type or customer segment completed',
+        priority: 'HIGH'
+      },
+      weeks2to4: {
+        action: 'Pricing/Cost Intervention',
+        why: 'Either raise prices on low-margin work or reduce costs. Maybe both.',
+        deliverable: 'Revised pricing or renegotiated costs in place',
+        priority: 'HIGH'
+      },
+      month2Plus: {
+        action: risks[0]?.title || opportunities[0]?.opportunity || 'Continue roadmap execution',
+        why: 'Build on financial stability with growth initiatives.',
+        deliverable: 'Next milestone achieved',
+        priority: 'MEDIUM'
+      }
+    };
+  }
+  
+  // DEFAULT - risk-based hierarchy
+  const criticalRisks = risks.filter(r => r.severity === 'Critical');
+  const highRisks = risks.filter(r => r.severity === 'High');
+  
+  return {
+    week1: criticalRisks[0] ? {
+      action: criticalRisks[0].title || criticalRisks[0].risk,
+      why: criticalRisks[0].impact,
+      deliverable: criticalRisks[0].mitigation,
+      priority: 'CRITICAL'
+    } : highRisks[0] ? {
+      action: highRisks[0].title || highRisks[0].risk,
+      why: highRisks[0].impact,
+      deliverable: highRisks[0].mitigation,
+      priority: 'HIGH'
+    } : {
+      action: opportunities[0]?.opportunity || 'Quick wins identification',
+      why: 'Capture low-effort, high-impact opportunities first.',
+      deliverable: 'First opportunity captured',
+      priority: 'MEDIUM'
+    },
+    weeks2to4: {
+      action: criticalRisks[1]?.title || highRisks[0]?.title || opportunities[0]?.opportunity || 'Process documentation',
+      why: 'Build momentum with second priority item.',
+      deliverable: 'Next priority addressed',
+      priority: 'MEDIUM'
+    },
+    month2Plus: {
+      action: opportunities[1]?.opportunity || 'Scale what\'s working',
+      why: 'With risks managed, capture remaining value.',
+      deliverable: 'Measurable progress toward potential valuation',
+      priority: 'MEDIUM'
+    }
+  };
+}
+
+// ============================================================================
 // CLEANUP UTILITIES (inlined to avoid _shared import issues)
 // ============================================================================
 
@@ -3155,9 +3558,113 @@ function identifyValueGaps(responses: Record<string, any>, assetScores: any[], s
   return gaps.sort((a, b) => a.priority - b.priority || b.gap - a.gap);
 }
 
-function assessRisks(responses: Record<string, any>, assetScores: any[], stageContext: StageContext): any[] {
+function assessRisks(
+  responses: Record<string, any>, 
+  assetScores: any[], 
+  stageContext: StageContext,
+  financialData?: IntegratedFinancialData
+): any[] {
   const risks: any[] = [];
   const { revenue, industry } = stageContext;
+
+  // =========================================================================
+  // FINANCIAL RISKS (HIGHEST PRIORITY - CHECK FIRST)
+  // =========================================================================
+  
+  if (financialData && financialData.dataSource !== 'none') {
+    const { flags, yoyChanges, currentYear } = financialData;
+    
+    // CRITICAL: Profit Crisis (revenue up, profit down)
+    if (flags.hasProfitCrisis && yoyChanges) {
+      const revenueGrowth = Math.round(yoyChanges.revenueGrowth * 100);
+      const profitChange = Math.round(yoyChanges.operatingProfitChange * 100);
+      
+      risks.push({
+        title: 'Profit Crisis: Revenue Growing, Profit Collapsing',
+        risk: 'Profit Crisis: Revenue Growing, Profit Collapsing',
+        severity: 'Critical',
+        category: 'Financial Health',
+        impact: `Revenue grew ${revenueGrowth}% but operating profit dropped ${Math.abs(profitChange)}%. You're scaling a problem—every new customer may be costing you money.`,
+        evidence: `Revenue: +${revenueGrowth}%, Profit: ${profitChange}%`,
+        rootCause: 'Likely causes: Subcontractor costs rising faster than revenue, underpricing jobs, overhead explosion, or job mix shifting to lower-margin work.',
+        likelihood: 'Certain',
+        financialExposure: Math.abs(currentYear.operatingProfit - (financialData.priorYear?.operatingProfit || 0)),
+        mitigation: 'BEFORE any growth initiatives: Review pricing, audit subcontractor costs, analyse job profitability by customer.',
+        mitigationCost: 5000,
+        mitigationTimeframe: '2 weeks',
+        immediateAction: 'Book a 2-hour financial review session to identify the margin leak source.',
+        monitoringMetric: 'Gross margin % and operating profit £ - monthly tracking'
+      });
+    }
+    
+    // HIGH: Margin Compression (even if profit not yet critical)
+    if (flags.hasMarginCompression && !flags.hasProfitCrisis && yoyChanges) {
+      const marginDrop = Math.abs(yoyChanges.grossMarginChange);
+      
+      risks.push({
+        title: 'Margin Compression',
+        risk: 'Margin Compression',
+        severity: 'High',
+        category: 'Financial Health',
+        impact: `Gross margin dropped ${marginDrop.toFixed(1)} percentage points year-on-year. Profitability is eroding—if trend continues, revenue growth won't translate to cash.`,
+        evidence: `Margin: ${(financialData.priorYear?.grossMargin || 0) * 100}% → ${currentYear.grossMargin * 100}% (${yoyChanges.grossMarginChange.toFixed(1)}pp)`,
+        rootCause: 'Common causes: Input costs rising (materials, subcontractors), pricing not keeping pace, job mix shifting to lower-margin work.',
+        likelihood: 'High',
+        financialExposure: revenue * marginDrop / 100,
+        mitigation: 'Review pricing strategy. Audit cost of goods/services. Consider which jobs to prioritise.',
+        mitigationCost: 3000,
+        mitigationTimeframe: '4 weeks',
+        immediateAction: 'Calculate gross margin by job type or customer to identify where margin is leaking.',
+        monitoringMetric: 'Gross margin % by job type - weekly review'
+      });
+    }
+    
+    // HIGH: Revenue Decline
+    if (flags.hasRevenueDecline && yoyChanges) {
+      const declinePercent = Math.abs(Math.round(yoyChanges.revenueGrowth * 100));
+      
+      risks.push({
+        title: 'Revenue Decline',
+        risk: 'Revenue Decline',
+        severity: 'High',
+        category: 'Market Position',
+        impact: `Revenue dropped ${declinePercent}% year-on-year. Business is contracting—fixed costs don't shrink proportionally, margin pressure follows.`,
+        evidence: `Revenue: -${declinePercent}%`,
+        rootCause: 'Investigate: Lost customers? Reduced repeat business? Market contraction? Competition?',
+        likelihood: 'Certain',
+        financialExposure: Math.abs(currentYear.revenue - (financialData.priorYear?.revenue || 0)),
+        mitigation: 'Customer retention audit. Win-back campaign for lost customers. Review competitive positioning.',
+        mitigationCost: 5000,
+        mitigationTimeframe: '6 weeks',
+        immediateAction: 'List customers from 2 years ago who no longer buy. Call 5 of them to understand why.',
+        monitoringMetric: 'Monthly revenue vs same month last year'
+      });
+    }
+    
+    // MEDIUM: Structurally Low Margins
+    if (flags.hasLowMargins && !flags.hasProfitCrisis && !flags.hasMarginCompression) {
+      risks.push({
+        title: 'Structurally Low Margins',
+        risk: 'Structurally Low Margins',
+        severity: 'Medium',
+        category: 'Financial Health',
+        impact: `Gross margin is ${(currentYear.grossMargin * 100).toFixed(1)}%, leaving little room for error. Small cost increases or pricing mistakes have outsized impact.`,
+        evidence: `Gross margin: ${(currentYear.grossMargin * 100).toFixed(1)}%`,
+        rootCause: 'May be industry-normal, but worth reviewing pricing and cost structure.',
+        likelihood: 'Medium',
+        financialExposure: revenue * 0.05,
+        mitigation: 'Identify highest-margin products/services and focus growth there. Review pricing.',
+        mitigationCost: 2000,
+        mitigationTimeframe: '8 weeks',
+        immediateAction: 'Calculate margin by service line. Double down on highest-margin offerings.',
+        monitoringMetric: 'Gross margin by service line'
+      });
+    }
+  }
+
+  // =========================================================================
+  // ASSESSMENT-BASED RISKS (from Part 3 responses)
+  // =========================================================================
 
   // Knowledge concentration risk
   const dependency = parseInt(responses.knowledge_dependency_percentage) || 0;
@@ -3608,16 +4115,29 @@ serve(async (req) => {
       const fitProfile = fitStage?.approved_content || fitStage?.generated_content || {};
       const vision = visionStage?.approved_content || visionStage?.generated_content || {};
 
-      // Calculate all analysis components
+      // ============ INTEGRATED FINANCIAL DATA ============
+      // Build comprehensive financial picture BEFORE risk assessment
+      const integratedFinancials = buildIntegratedFinancialData(
+        contextDocs || [],
+        stageContext,
+        part2,
+        part3Responses
+      );
+      
+      console.log(`[ValueAnalysis] Financial data source: ${integratedFinancials.dataSource}, confidence: ${integratedFinancials.confidence}`);
+      if (integratedFinancials.flags.hasProfitCrisis) {
+        console.log(`[ValueAnalysis] ⚠️ PROFIT CRISIS DETECTED - will flag as Critical risk`);
+      }
+
+      // Calculate all analysis components - NOW with financial data
       const assetScores = calculateAssetScores(part3Responses, stageContext);
       const valueGaps = identifyValueGaps(part3Responses, assetScores, stageContext);
-      const riskRegister = assessRisks(part3Responses, assetScores, stageContext);
+      const riskRegister = assessRisks(part3Responses, assetScores, stageContext, integratedFinancials);
       const valuationImpact = calculateValuationImpact(assetScores, riskRegister, stageContext);
       const thirtyDayPlan = generate30DayPlan(assetScores, valueGaps, riskRegister, stageContext);
 
-      // ============ NEW: BUSINESS VALUATION ============
-      // Extract financial data from assessments and uploaded documents
-      // Pass part3Responses for actual financial figures
+      // ============ BUSINESS VALUATION ============
+      // Extract financial data for legacy valuation calculations
       const financialData = extractFinancialsFromContext(
         contextDocs || [],
         stageContext,
@@ -3646,8 +4166,28 @@ serve(async (req) => {
       const overallScore = valuationImpact.valueDrivers.overallScore;
       const totalOpportunity = valuationImpact.totalOpportunity;
 
-      // Generate narrative summary (The Uncomfortable Truth)
+      // Generate narrative summary - FINANCIAL AWARE
       console.log('Generating narrative summary...');
+      
+      // Get critical risks for narrative
+      const criticalRisks = riskRegister.filter(r => r.severity === 'Critical');
+      
+      // Generate financial-aware headline (prioritises financial issues)
+      const financialHeadline = generateFinancialHeadlineTruth(
+        integratedFinancials,
+        overallScore,
+        totalOpportunity,
+        criticalRisks
+      );
+      
+      // Build financial-aware action hierarchy
+      const actionHierarchy = buildFinancialActionHierarchy(
+        integratedFinancials,
+        riskRegister,
+        valueGaps
+      );
+      
+      // Try LLM-generated narrative, fall back to financial-aware version
       const narrativeSummary = await generateNarrativeSummary(
         stageContext,
         financialData,
@@ -3660,12 +4200,39 @@ serve(async (req) => {
       );
 
       const valueAnalysis = {
-        // NEW: Narrative Summary (The Uncomfortable Truth)
-        narrativeSummary: narrativeSummary || {
-          uncomfortableTruth: `Your overall score is ${overallScore}/100 with £${totalOpportunity.toLocaleString()} in identified opportunities.`,
-          whatThisReallyMeans: 'This represents the gap between where you are and where you could be.',
-          beforeYouDoAnythingElse: riskRegister.find(r => r.severity === 'Critical')?.risk || 'Address your highest-impact opportunity first.',
-          theGoodNews: overallScore >= 60 ? 'You have a solid foundation to build on.' : 'Every business starts somewhere—the key is knowing where to focus.'
+        // Narrative Summary - FINANCIAL AWARE
+        narrativeSummary: integratedFinancials.flags.hasProfitCrisis || 
+                          integratedFinancials.flags.hasMarginCompression || 
+                          integratedFinancials.flags.hasRevenueDecline
+          ? financialHeadline // Use financial-aware headline if issues detected
+          : narrativeSummary || financialHeadline, // Otherwise try LLM, fallback to calculated
+          
+        // NEW: Action Hierarchy - what to do FIRST
+        actionHierarchy,
+        
+        // NEW: Financial Health Section
+        financialHealth: {
+          dataSource: integratedFinancials.dataSource,
+          confidence: integratedFinancials.confidence,
+          currentYear: {
+            revenue: integratedFinancials.currentYear.revenue,
+            grossMargin: `${(integratedFinancials.currentYear.grossMargin * 100).toFixed(1)}%`,
+            grossProfit: integratedFinancials.currentYear.grossProfit,
+            operatingProfit: integratedFinancials.currentYear.operatingProfit
+          },
+          priorYear: integratedFinancials.priorYear ? {
+            revenue: integratedFinancials.priorYear.revenue,
+            grossMargin: `${(integratedFinancials.priorYear.grossMargin * 100).toFixed(1)}%`,
+            grossProfit: integratedFinancials.priorYear.grossProfit,
+            operatingProfit: integratedFinancials.priorYear.operatingProfit
+          } : null,
+          yearOnYear: integratedFinancials.yoyChanges ? {
+            revenueGrowth: `${(integratedFinancials.yoyChanges.revenueGrowth * 100).toFixed(1)}%`,
+            marginChange: `${integratedFinancials.yoyChanges.grossMarginChange.toFixed(1)}pp`,
+            profitChange: `${(integratedFinancials.yoyChanges.operatingProfitChange * 100).toFixed(1)}%`,
+            profitLagsRevenue: integratedFinancials.yoyChanges.profitGrowthLagsRevenue
+          } : null,
+          flags: integratedFinancials.flags
         },
         businessStage: stageContext.stage,
         stageContext,
