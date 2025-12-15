@@ -766,8 +766,20 @@ export function useRoadmap() {
         // Build roadmap data structure from stages
         const roadmapData: any = {};
         
+        // Get fit_assessment which contains North Star, tagline, etc.
+        if (stagesMap['fit_assessment']) {
+          roadmapData.fitProfile = stagesMap['fit_assessment'];
+        }
+        
         if (stagesMap['five_year_vision']) {
           roadmapData.fiveYearVision = stagesMap['five_year_vision'];
+          // Also ensure north star is accessible at top level for client portal
+          if (!roadmapData.fitProfile && stagesMap['five_year_vision'].northStar) {
+            roadmapData.summary = {
+              northStar: stagesMap['five_year_vision'].northStar,
+              tagline: stagesMap['five_year_vision'].tagline
+            };
+          }
         }
         
         if (stagesMap['six_month_shift']) {

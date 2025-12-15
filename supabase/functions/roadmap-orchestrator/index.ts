@@ -207,10 +207,10 @@ serve(async (req) => {
         requestBody.part3Responses = {}; // Empty object - will use defaults from assessment data
       }
       
-      // Use AbortController for timeout - fire with 30s timeout
-      // If function takes longer, we'll check if stage was saved
+      // Use AbortController for timeout - wait up to 180s (3 minutes)
+      // Sprint plans can take 165s, so 180s gives buffer
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => controller.abort(), 180000);
 
       let functionCompleted = false;
       let functionFailed = false;

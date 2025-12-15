@@ -218,10 +218,15 @@ export default function RoadmapPage() {
   const vision = roadmapData?.fiveYearVision;
   const shift = roadmapData?.sixMonthShift;
   const sprint = roadmapData?.sprint;
+  const fitProfile = roadmapData?.fitProfile;
+  
+  // Get North Star from fitProfile (new) or vision (legacy)
+  const northStar = fitProfile?.northStar || vision?.northStar || roadmapData?.summary?.northStar;
+  const tagline = fitProfile?.tagline || vision?.tagline || roadmapData?.summary?.tagline;
 
   return (
     <Layout
-      title={vision?.tagline || roadmapData?.summary?.headline || 'Your Transformation'}
+      title={tagline || vision?.tagline || roadmapData?.summary?.headline || 'Your Transformation'}
       subtitle="Your comprehensive 365 transformation plan"
     >
       <div className="space-y-6">
@@ -258,7 +263,7 @@ export default function RoadmapPage() {
         {activeTab === 'vision' && (
           <div className="space-y-8">
             {/* North Star */}
-            {vision?.northStar && (
+            {northStar && (
               <div className="bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 rounded-2xl p-8 text-white relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl" />
                 <div className="relative">
@@ -267,16 +272,36 @@ export default function RoadmapPage() {
                     Your North Star
                   </div>
                   <blockquote className="text-2xl md:text-3xl font-light leading-relaxed">
-                    "{vision.northStar}"
+                    "{northStar}"
                   </blockquote>
-                  {vision.emotionalCore && (
+                  {(fitProfile?.openingReflection || vision?.emotionalCore) && (
                     <p className="mt-6 text-indigo-200 text-sm max-w-2xl">
-                      {vision.emotionalCore}
+                      {fitProfile?.openingReflection || vision?.emotionalCore}
+                    </p>
+                  )}
+                  {tagline && (
+                    <p className="mt-4 text-indigo-300 italic">
+                      "{tagline}"
                     </p>
                   )}
                 </div>
               </div>
             )}
+
+            {/* Fit Profile Summary - if available */}
+            {fitProfile?.archetype && (
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-6">
+                <div className="flex items-center gap-2 text-amber-700 text-sm font-semibold uppercase tracking-wide mb-3">
+                  <Sparkles className="w-4 h-4" />
+                  Your Profile
+                </div>
+                <p className="text-lg font-medium text-amber-900">{fitProfile.archetype}</p>
+                {fitProfile.archetypeDescription && (
+                  <p className="text-sm text-amber-700 mt-2">{fitProfile.archetypeDescription}</p>
+                )}
+              </div>
+            )}
+
 
             {/* Transformation Narrative (NEW format) */}
             {vision?.transformationNarrative && (
