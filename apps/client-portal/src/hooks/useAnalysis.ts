@@ -147,12 +147,14 @@ export interface ValueGap {
 export interface RoadmapData {
   id: string;
   roadmapData: {
+    fitProfile?: any;
     fiveYearVision?: any;
     sixMonthShift?: any;
     sprint?: any;
     summary?: {
       headline: string;
       northStar?: string;
+      tagline?: string;
       keyInsight: string;
       expectedOutcome: string;
     };
