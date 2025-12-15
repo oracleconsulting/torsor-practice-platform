@@ -191,7 +191,7 @@ CREATE OR REPLACE VIEW v_document_parsing_status AS
 SELECT 
   cc.id,
   cc.client_id,
-  pm.full_name as client_name,
+  COALESCE(pm.name, pm.email) as client_name,
   cc.context_type,
   cc.parsing_status,
   cc.financial_data_quality,
