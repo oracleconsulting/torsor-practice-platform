@@ -965,8 +965,31 @@ function extractFinancialsFromContext(
   for (const doc of contextDocuments || []) {
     const content = (doc.content || '');
     const contentLower = content.toLowerCase();
+    const docType = doc.context_type || doc.type || 'unknown';
+    const metrics = doc.extracted_metrics || {};
     
-    console.log(`[extractFinancials] Document type: ${doc.type}, content length: ${content.length}`);
+    console.log(`[extractFinancials] Document type: ${docType}, content length: ${content.length}, has extracted_metrics: ${Object.keys(metrics).length > 0}`);
+    
+    // PRIORITY: Check extracted_metrics first (from parsed PDFs)
+    if (metrics.turnover && metrics.turnover > 0) {
+      revenue = metrics.turnover;
+      console.log(`[extractFinancials] Using extracted_metrics turnover: £${revenue.toLocaleString()}`);
+    }
+    if (metrics.gross_profit && metrics.gross_profit > 0) {
+      grossProfit = metrics.gross_profit;
+      console.log(`[extractFinancials] Using extracted_metrics gross_profit: £${grossProfit.toLocaleString()}`);
+    }
+    if (metrics.net_profit !== undefined) {
+      netProfit = metrics.net_profit;
+    }
+    if (metrics.cost_of_sales && metrics.cost_of_sales > 0) {
+      // Can use this to calculate margins if needed
+    }
+    
+    // If we got data from extracted_metrics, skip content parsing for this doc
+    if (metrics.turnover && metrics.turnover > 0) {
+      continue;
+    }
     
     // Helper to extract monetary values - handles multiple formats
     const extractMoney = (text: string, ...patterns: RegExp[]): number | null => {
@@ -3328,7 +3351,7 @@ serve(async (req) => {
       // Fetch any uploaded context documents (like accounts)
       const { data: contextDocs } = await supabase
         .from('client_context')
-        .select('content, type, priority')
+        .select('content, context_type, priority_level, extracted_metrics, applies_to')
         .eq('client_id', clientId);
 
       // Fetch previous stages for narrative context
