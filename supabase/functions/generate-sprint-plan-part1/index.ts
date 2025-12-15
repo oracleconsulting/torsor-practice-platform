@@ -505,7 +505,7 @@ function extractTasksForWeek(input: string, weekNum: number): any[] {
     tasks.push({
       id: `w${weekNum}_t${count + 1}`,
       title: match[1],
-      description: match[2].replace(/\\"/g, '"').substring(0, 300),
+      description: match[2].replace(/\\"/g, '"'),
       whyThisMatters: 'Connects to your North Star vision',
       timeEstimate: '2-3 hours'
     });
