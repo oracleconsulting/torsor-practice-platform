@@ -373,34 +373,34 @@ function buildIntegratedFinancialData(
       console.log(`[FinancialIntegration] Found current year: Revenue £${revenue.toLocaleString()}, Gross Profit £${grossProfit.toLocaleString()}, Margin ${(grossMargin * 100).toFixed(1)}%`);
     }
     
-    // Check for prior year data
-    if (metrics.turnover_2024 || metrics.previous_year_turnover) {
-      const priorRevenue = metrics.turnover_2024 || metrics.previous_year_turnover;
-      const priorGrossProfit = metrics.gross_profit_2024 || 0;
-      const priorGrossMargin = metrics.gross_margin_2024 
-        ? metrics.gross_margin_2024 / 100 
+    // Check for prior year data - support multiple field naming conventions
+    const priorRevenue = metrics.prior_year_turnover || metrics.previous_year_turnover || metrics.turnover_2024 || 0;
+    const priorGrossProfit = metrics.prior_year_gross_profit || metrics.gross_profit_2024 || 0;
+    const priorGrossMarginPct = metrics.prior_year_gross_margin_pct || metrics.gross_margin_2024 || 0;
+    
+    if (priorRevenue > 0) {
+      const priorGrossMargin = priorGrossMarginPct > 0 
+        ? priorGrossMarginPct / 100 
         : (priorGrossProfit > 0 && priorRevenue > 0 ? priorGrossProfit / priorRevenue : 0);
       
-      if (priorRevenue > 0) {
-        priorYear = {
-          periodEnd: '2024-01-31',
-          revenue: priorRevenue,
-          costOfSales: metrics.cost_of_sales_2024 || (priorRevenue - priorGrossProfit),
-          grossProfit: priorGrossProfit,
-          grossMargin: priorGrossMargin,
-          operatingProfit: metrics.operating_profit_2024 || priorGrossProfit * 0.5,
-          operatingMargin: 0,
-          netProfit: metrics.net_profit_2024 || priorGrossProfit * 0.4,
-          netMargin: 0
-        };
-        
-        if (priorYear.revenue > 0) {
-          priorYear.operatingMargin = priorYear.operatingProfit / priorYear.revenue;
-          priorYear.netMargin = priorYear.netProfit / priorYear.revenue;
-        }
-        
-        console.log(`[FinancialIntegration] Found prior year: Revenue £${priorRevenue.toLocaleString()}, Margin ${(priorGrossMargin * 100).toFixed(1)}%`);
+      priorYear = {
+        periodEnd: metrics.year ? `${metrics.year - 1}-01-31` : 'Prior Year',
+        revenue: priorRevenue,
+        costOfSales: metrics.prior_year_cost_of_sales || metrics.cost_of_sales_2024 || (priorRevenue - priorGrossProfit),
+        grossProfit: priorGrossProfit,
+        grossMargin: priorGrossMargin,
+        operatingProfit: metrics.prior_year_operating_profit || priorGrossProfit * 0.5,
+        operatingMargin: 0,
+        netProfit: metrics.prior_year_net_profit || priorGrossProfit * 0.4,
+        netMargin: 0
+      };
+      
+      if (priorYear.revenue > 0) {
+        priorYear.operatingMargin = priorYear.operatingProfit / priorYear.revenue;
+        priorYear.netMargin = priorYear.netProfit / priorYear.revenue;
       }
+      
+      console.log(`[FinancialIntegration] Found prior year: Revenue £${priorRevenue.toLocaleString()}, Gross Profit £${priorGrossProfit.toLocaleString()}, Margin ${(priorGrossMargin * 100).toFixed(1)}%`);
     }
   }
   
