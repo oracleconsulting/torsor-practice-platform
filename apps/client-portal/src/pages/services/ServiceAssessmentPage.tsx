@@ -43,52 +43,56 @@ export default function ServiceAssessmentPage() {
       if (config) {
         setAssessment(config);
         loadExistingResponses(serviceCode);
-        
-        // For MA, check if there's a shared insight and redirect immediately
-        if (serviceCode === 'management_accounts' && clientSession?.clientId) {
-          checkForSharedInsightAndRedirect();
-        }
       } else {
         navigate('/dashboard');
       }
     }
-  }, [serviceCode, clientSession?.clientId]);
+  }, [serviceCode]);
   
-  const checkForSharedInsightAndRedirect = async () => {
-    if (!clientSession?.clientId) return;
-    try {
-      const { data: maInsight } = await supabase
-        .from('client_context')
-        .select('id, is_shared, content, data_source_type')
-        .eq('client_id', clientSession.clientId)
-        .eq('context_type', 'note')
-        .eq('is_shared', true)
-        .eq('processed', true)
-        .in('data_source_type', ['management_accounts_analysis', 'general'])
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      if (maInsight && maInsight.content) {
+  // Check for shared insights on mount and when client session is available
+  useEffect(() => {
+    if (serviceCode === 'management_accounts' && clientSession?.clientId && !loading) {
+      const checkForSharedInsightAndRedirect = async () => {
         try {
-          const content = typeof maInsight.content === 'string' 
-            ? JSON.parse(maInsight.content) 
-            : maInsight.content;
-          const insightData = content?.insight || content;
-          if (insightData && (insightData.headline || insightData.keyInsights)) {
-            // Redirect to report page if insight is available
-            console.log('✅ MA insight found, redirecting to report page');
-            navigate('/service/management_accounts/report', { replace: true });
-            return;
+          console.log('🔍 Checking for shared MA insight...');
+          const { data: maInsight, error: maError } = await supabase
+            .from('client_context')
+            .select('id, is_shared, content, data_source_type')
+            .eq('client_id', clientSession.clientId)
+            .eq('context_type', 'note')
+            .eq('is_shared', true)
+            .eq('processed', true)
+            .in('data_source_type', ['management_accounts_analysis', 'general'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          console.log('🔍 MA insight check result:', { maInsight, maError });
+          
+          if (maInsight && maInsight.content) {
+            try {
+              const content = typeof maInsight.content === 'string' 
+                ? JSON.parse(maInsight.content) 
+                : maInsight.content;
+              const insightData = content?.insight || content;
+              if (insightData && (insightData.headline || insightData.keyInsights)) {
+                // Redirect to report page if insight is available
+                console.log('✅ MA insight found, redirecting to report page');
+                navigate('/service/management_accounts/report', { replace: true });
+                return;
+              }
+            } catch (e) {
+              console.log('⚠️ Could not parse insight content:', e);
+            }
           }
-        } catch (e) {
-          console.log('⚠️ Could not parse insight content:', e);
+        } catch (error) {
+          console.error('Error checking for shared insight:', error);
         }
-      }
-    } catch (error) {
-      console.error('Error checking for shared insight:', error);
+      };
+      
+      checkForSharedInsightAndRedirect();
     }
-  };
+  }, [serviceCode, clientSession?.clientId, loading, navigate]);
 
   const loadExistingResponses = async (code: string) => {
     if (!clientSession?.clientId) { setLoading(false); return; }
