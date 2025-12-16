@@ -138,18 +138,35 @@ export default function UnifiedDashboardPage() {
             const content = typeof maInsight.content === 'string' 
               ? JSON.parse(maInsight.content) 
               : maInsight.content;
+            
+            // Log the raw content structure for debugging
+            console.log('📊 Raw insight content structure:', {
+              hasContent: !!content,
+              isObject: typeof content === 'object',
+              keys: content ? Object.keys(content) : [],
+              hasInsight: !!(content?.insight),
+              hasHeadline: !!(content?.headline || content?.insight?.headline),
+              hasKeyInsights: !!(content?.keyInsights || content?.insight?.keyInsights)
+            });
+            
             const insightData = content?.insight || content;
             if (insightData && (insightData.headline || insightData.keyInsights)) {
               hasSharedMAInsight = true;
-              console.log('✅ Valid MA insight found:', { hasHeadline: !!insightData.headline, hasKeyInsights: !!insightData.keyInsights });
+              console.log('✅ Valid MA insight found:', { 
+                hasHeadline: !!insightData.headline, 
+                hasKeyInsights: !!insightData.keyInsights,
+                headlineText: insightData.headline?.text?.substring(0, 50) || 'N/A'
+              });
             } else {
-              console.log('⚠️ Content found but not a valid MA insight:', Object.keys(insightData || {}));
+              console.log('⚠️ Content found but not a valid MA insight. Content keys:', Object.keys(insightData || {}));
+              console.log('⚠️ Full content preview:', JSON.stringify(insightData || content).substring(0, 200));
             }
           } catch (e) {
             console.error('❌ Error parsing MA insight content:', e);
+            console.error('❌ Content that failed to parse:', maInsight.content?.substring(0, 200));
           }
         } else {
-          console.log('📊 No shared MA insight found');
+          console.log('📊 No shared MA insight found - maInsight:', !!maInsight, 'hasContent:', !!(maInsight?.content));
         }
       }
       maInsightSharedRef.current = hasSharedMAInsight;
