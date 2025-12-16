@@ -437,7 +437,7 @@ async function callLLM(prompt: string): Promise<{ response: LLMResponse; usage: 
     },
     body: JSON.stringify({
       model: 'anthropic/claude-sonnet-4.5',
-      max_tokens: 2000,
+      max_tokens: 4000,
       temperature: 0.3,
       messages: [
         {
@@ -469,15 +469,18 @@ async function callLLM(prompt: string): Promise<{ response: LLMResponse; usage: 
   try {
     // Clean up response - remove markdown code blocks if present
     let jsonString = content.trim();
-    if (jsonString.startsWith('```')) {
-      jsonString = jsonString.replace(/```json?\s*/gi, '').replace(/```\s*$/g, '');
-    }
     
-    // Find JSON object boundaries
+    // Remove markdown code block markers (handle various formats)
+    jsonString = jsonString.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/g, '');
+    jsonString = jsonString.trim();
+    
+    // Find JSON object boundaries (handle cases where there's text before/after)
     const start = jsonString.indexOf('{');
     const end = jsonString.lastIndexOf('}');
-    if (start !== -1 && end !== -1) {
+    if (start !== -1 && end !== -1 && end > start) {
       jsonString = jsonString.substring(start, end + 1);
+    } else {
+      throw new Error('No valid JSON object found in response');
     }
     
     parsed = JSON.parse(jsonString);
@@ -599,6 +602,8 @@ Based on the client's assessment responses, generate:
 5. **Connection to Goals**: How better financial visibility connects to what they said they want
 
 Use their exact words and phrases where possible. Be specific, not generic.
+
+IMPORTANT: Respond with ONLY valid JSON. Do not wrap in markdown code blocks. Do not include any text before or after the JSON. Start with { and end with }.
 
 Respond in JSON format:
 {
