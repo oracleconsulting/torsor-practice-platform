@@ -436,7 +436,7 @@ async function callLLM(prompt: string): Promise<{ response: LLMResponse; usage: 
       'X-Title': 'Torsor MA Insights'
     },
     body: JSON.stringify({
-      model: 'anthropic/claude-sonnet-4-20250514',
+      model: 'anthropic/claude-sonnet-4.5',
       max_tokens: 2000,
       temperature: 0.3,
       messages: [
@@ -742,7 +742,7 @@ Respond in JSON format:
         revenueBand: benchmark.revenue_band,
         highlights: llmResponse.benchmarkHighlights || null
       } : null,
-      llm_model: 'claude-sonnet-4-5-20250929',
+      llm_model: 'anthropic/claude-sonnet-4.5',
       llm_tokens_used: usage.totalTokens,
       llm_cost: usage.cost,
       generation_time_ms: usage.timeMs,
