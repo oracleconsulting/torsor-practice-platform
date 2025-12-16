@@ -871,7 +871,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         )}
         
         {/* Regular Client Detail Modal for other service lines */}
-        {selectedClient && selectedServiceLine !== 'discovery' && (
+        {selectedClient && selectedServiceLine && selectedServiceLine !== 'discovery' && (
           <ClientDetailModal 
             clientId={selectedClient} 
             serviceLineCode={selectedServiceLine}
