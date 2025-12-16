@@ -675,10 +675,10 @@ Respond in JSON format:
       throw new Error(`Snapshot not found: ${snapshotError?.message || 'No data'}`);
     }
     
-    const clientId = snapshot.ma_engagements.client_id;
+    const snapshotClientId = snapshot.ma_engagements.client_id;
     const engagementId = snapshot.engagement_id;
     
-    console.log(`[MA Insights] Client ID: ${clientId}, Engagement ID: ${engagementId}`);
+    console.log(`[MA Insights] Client ID: ${snapshotClientId}, Engagement ID: ${engagementId}`);
     
     // Check for existing insight (unless regenerating)
     if (!regenerate) {
@@ -707,7 +707,7 @@ Respond in JSON format:
       .limit(12);
     
     // Fetch client context
-    const clientContext = await fetchClientContext(supabase, clientId);
+    const clientContext = await fetchClientContext(supabase, snapshotClientId);
     console.log(`[MA Insights] Client context loaded: ${clientContext.companyName}`);
     console.log(`[MA Insights] North Star: ${clientContext.northStar || 'Not set'}`);
     
