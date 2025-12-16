@@ -127,7 +127,7 @@ export default function UnifiedDashboardPage() {
           .eq('context_type', 'note')
           .eq('is_shared', true)
           .eq('processed', true)
-          .eq('data_source_type', 'management_accounts_analysis')
+          .in('data_source_type', ['management_accounts_analysis', 'general'])
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();

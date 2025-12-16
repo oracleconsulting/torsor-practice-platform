@@ -628,7 +628,7 @@ Respond in JSON format:
           practice_id: practiceId,
           context_type: 'note',
           content: JSON.stringify(llmResponse),
-          data_source_type: 'general',
+          data_source_type: 'management_accounts_analysis',
           processed: true,
           is_shared: false // Admin must explicitly mark as available to client
         })
