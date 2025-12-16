@@ -73,6 +73,7 @@ export default function UnifiedDashboardPage() {
   
   const [services, setServices] = useState<ServiceEnrollment[]>([]);
   const [discoveryStatus, setDiscoveryStatus] = useState<DiscoveryStatus | null>(null);
+  const [maInsightShared, setMAInsightShared] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -255,6 +256,36 @@ export default function UnifiedDashboardPage() {
       console.log('✅ Discovery record:', discovery);
       setDiscoveryStatus(discoveryStatusData);
 
+      // Check for shared MA insights
+      const { data: maInsight } = await supabase
+        .from('client_context')
+        .select('id, is_shared, created_at, content')
+        .eq('client_id', clientSession?.clientId)
+        .eq('context_type', 'note')
+        .eq('is_shared', true)
+        .eq('processed', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      // Check if it's actually an MA insight (contains headline or keyInsights)
+      let hasSharedMAInsight = false;
+      if (maInsight) {
+        try {
+          const content = typeof maInsight.content === 'string' 
+            ? JSON.parse(maInsight.content) 
+            : maInsight.content;
+          if (content && (content.headline || content.keyInsights || (content.insight && (content.insight.headline || content.insight.keyInsights)))) {
+            hasSharedMAInsight = true;
+          }
+        } catch (e) {
+          // Not valid JSON or not an insight
+        }
+      }
+      
+      setMAInsightShared(hasSharedMAInsight);
+      console.log('📊 MA Insight shared status:', hasSharedMAInsight);
+
       // If client has discovery data but no discovery service in list, add it
       const hasDiscoveryService = serviceList.some(s => s.serviceCode === 'discovery');
       console.log('📝 Has discovery service in list:', hasDiscoveryService);
@@ -300,6 +331,13 @@ export default function UnifiedDashboardPage() {
       }
       return '/discovery';
     }
+    if (code === 'management_accounts') {
+      // Check if there's a shared insight - route to report page
+      if (maInsightShared) {
+        return '/service/management_accounts/report';
+      }
+      return '/service/management_accounts/assessment';
+    }
     if (code === '365_method' || code === '365_alignment') {
       return '/assessments';
     }
@@ -319,6 +357,29 @@ export default function UnifiedDashboardPage() {
             icon: CheckCircle,
           };
         }
+      }
+    }
+    
+    // Special handling for management accounts
+    if (code === 'management_accounts') {
+      if (maInsightShared) {
+        return {
+          label: 'Analysis Ready',
+          color: 'emerald',
+          icon: CheckCircle,
+        };
+      }
+      // Default for MA - show assessment status
+      return {
+        label: 'Start Assessment',
+        color: 'cyan',
+        icon: Play,
+      };
+    }
+    
+    // Default status handling for discovery
+    if (code === 'discovery') {
+      if (discoveryStatus?.completed) {
         return {
           label: 'Complete',
           color: 'emerald',
