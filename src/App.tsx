@@ -14,6 +14,7 @@ import { CPDTrackerPage } from './pages/admin/CPDTrackerPage';
 import { TrainingPlansPage } from './pages/admin/TrainingPlansPage';
 import { KnowledgeBasePage } from './pages/admin/KnowledgeBasePage';
 import { AssessmentReviewPage } from './pages/public/AssessmentReviewPage';
+import MAInsightsPage from './pages/management-accounts/MAInsightsPage';
 import type { Page } from './types/navigation';
 import './index.css';
 
@@ -86,6 +87,10 @@ function AppContent() {
 
   if (currentPage === 'knowledge') {
     return <KnowledgeBasePage {...navProps} />;
+  }
+
+  if (currentPage === 'ma-insights') {
+    return <MAInsightsPage {...navProps} />;
   }
 
   if (currentPage === 'management') {

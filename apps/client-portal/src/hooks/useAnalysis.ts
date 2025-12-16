@@ -904,14 +904,34 @@ export function useTasks() {
     }
   }, [clientSession]);
 
-  const updateTaskStatus = useCallback(async (taskId: string, status: 'pending' | 'in_progress' | 'completed') => {
+  const updateTaskStatus = useCallback(async (
+    taskId: string, 
+    status: 'pending' | 'in_progress' | 'completed',
+    feedback?: {
+      whatWentWell?: string;
+      whatDidntWork?: string;
+      additionalNotes?: string;
+    }
+  ) => {
     try {
+      const updateData: Record<string, any> = { 
+        status,
+        completed_at: status === 'completed' ? new Date().toISOString() : null
+      };
+
+      // Add feedback if completing with feedback
+      if (status === 'completed' && feedback) {
+        updateData.completion_feedback = {
+          whatWentWell: feedback.whatWentWell || '',
+          whatDidntWork: feedback.whatDidntWork || '',
+          additionalNotes: feedback.additionalNotes || '',
+          submittedAt: new Date().toISOString()
+        };
+      }
+
       const { error: updateError } = await supabase
         .from('client_tasks')
-        .update({ 
-          status,
-          completed_at: status === 'completed' ? new Date().toISOString() : null
-        })
+        .update(updateData)
         .eq('id', taskId);
 
       if (updateError) throw new Error(updateError.message);

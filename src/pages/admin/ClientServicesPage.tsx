@@ -8,7 +8,8 @@ import { RPGCC_LOGO_LIGHT, RPGCC_LOGO_DARK, RPGCC_COLORS } from '../../constants
 import { TransformationJourney } from '../../components/discovery';
 import { 
   Users, 
-  CheckCircle, 
+  CheckCircle,
+  Check,
   Clock, 
   AlertCircle,
   ChevronRight,
@@ -3916,6 +3917,14 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
         .eq('client_id', clientId)
         .order('created_at', { ascending: false });
 
+      // Fetch client tasks with completion feedback
+      const { data: clientTasks } = await supabase
+        .from('client_tasks')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('week_number', { ascending: true })
+        .order('sort_order', { ascending: true });
+
       // Filter context for documents
       const documents = (context || []).filter((c: any) => c.context_type === 'document');
       
@@ -3931,7 +3940,8 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
         } : null,
         assessments: assessments || [],
         context: context || [],
-        documents: documents
+        documents: documents,
+        tasks: clientTasks || []
       });
     } catch (error) {
       console.error('Error fetching client:', error);
@@ -4224,6 +4234,57 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
       alert('Failed to save task. Please try again.');
     } finally {
       setSavingTask(false);
+    }
+  };
+
+  // Handle adding task feedback to context
+  const handleAddFeedbackToContext = async (task: any, feedback: any, weekNumber: number) => {
+    try {
+      const contextContent = `TASK COMPLETION FEEDBACK - Week ${weekNumber}
+Task: ${task.title}
+
+✅ What went well:
+${feedback.whatWentWell || 'No comment'}
+
+⚠️ What didn't work:
+${feedback.whatDidntWork || 'No comment'}
+
+📝 Additional notes:
+${feedback.additionalNotes || 'No additional notes'}
+
+Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateString() : 'Unknown date'}`;
+
+      const { error } = await supabase
+        .from('client_context')
+        .insert({
+          client_id: clientId,
+          practice_id: currentMember?.practice_id,
+          context_type: 'task_feedback',
+          content: contextContent,
+          source_type: 'client_feedback',
+          priority: feedback.whatDidntWork ? 'high' : 'normal',
+          created_by: user?.id
+        });
+
+      if (error) throw error;
+
+      // Mark feedback as reviewed
+      const dbTask = client?.tasks?.find((t: any) => t.title === task.title && t.week_number === weekNumber);
+      if (dbTask) {
+        await supabase
+          .from('client_tasks')
+          .update({ 
+            feedback_reviewed: true,
+            feedback_reviewed_by: user?.id
+          })
+          .eq('id', dbTask.id);
+      }
+
+      await fetchClientDetail();
+      alert('Feedback added to context for future generations');
+    } catch (error) {
+      console.error('Error adding feedback to context:', error);
+      alert('Failed to add feedback to context');
     }
   };
 
@@ -5410,32 +5471,90 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
                                     </div>
                                   </div>
                                 ) : (
-                                  // View Mode
-                                  <div 
-                                    onClick={() => handleEditTask(week.weekNumber, task)}
-                                    className="flex items-start gap-3 p-3 bg-white border border-gray-100 rounded-lg hover:border-indigo-300 hover:bg-indigo-50/30 cursor-pointer transition-colors group"
-                                  >
-                                    <div className="w-5 h-5 rounded border-2 border-gray-300 flex-shrink-0 mt-0.5" />
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-start justify-between gap-2">
-                                        <p className="text-gray-900 font-medium">{task.title}</p>
-                                        <span className="text-xs text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          Click to edit
-                                        </span>
-                                      </div>
-                                      <p className="text-sm text-gray-500 mt-1">{task.description}</p>
-                                      {(task.boardOwner || task.tool) && (
-                                        <div className="flex items-center gap-2 mt-2 text-xs">
-                                          {task.boardOwner && (
-                                            <span className="px-2 py-0.5 bg-gray-100 rounded text-gray-600">{task.boardOwner}</span>
-                                          )}
-                                          {task.tool && (
-                                            <span className="px-2 py-0.5 bg-blue-50 rounded text-blue-600">{task.tool}</span>
-                                          )}
+                                  // View Mode - with task status from database
+                                  (() => {
+                                    const dbTask = client?.tasks?.find((t: any) => t.title === task.title && t.week_number === week.weekNumber);
+                                    const status = dbTask?.status || 'pending';
+                                    const feedback = dbTask?.completion_feedback;
+                                    
+                                    return (
+                                      <div className={`p-3 rounded-lg border transition-colors ${
+                                        status === 'completed' ? 'bg-emerald-50 border-emerald-200' :
+                                        status === 'in_progress' ? 'bg-blue-50 border-blue-200' :
+                                        'bg-white border-gray-100'
+                                      }`}>
+                                        <div 
+                                          onClick={() => handleEditTask(week.weekNumber, task)}
+                                          className="flex items-start gap-3 cursor-pointer hover:opacity-80 group"
+                                        >
+                                          <div className={`w-5 h-5 rounded flex-shrink-0 mt-0.5 flex items-center justify-center ${
+                                            status === 'completed' ? 'bg-emerald-500 text-white' :
+                                            status === 'in_progress' ? 'bg-blue-500 text-white' :
+                                            'border-2 border-gray-300'
+                                          }`}>
+                                            {status === 'completed' && <Check className="w-3 h-3" />}
+                                            {status === 'in_progress' && <Clock className="w-3 h-3" />}
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-start justify-between gap-2">
+                                              <p className={`font-medium ${status === 'completed' ? 'text-emerald-700 line-through' : 'text-gray-900'}`}>
+                                                {task.title}
+                                              </p>
+                                              <span className="text-xs text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                Click to edit
+                                              </span>
+                                            </div>
+                                            <p className="text-sm text-gray-500 mt-1">{task.description}</p>
+                                            {(task.boardOwner || task.tool) && (
+                                              <div className="flex items-center gap-2 mt-2 text-xs">
+                                                {task.boardOwner && (
+                                                  <span className="px-2 py-0.5 bg-gray-100 rounded text-gray-600">{task.boardOwner}</span>
+                                                )}
+                                                {task.tool && (
+                                                  <span className="px-2 py-0.5 bg-blue-50 rounded text-blue-600">{task.tool}</span>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
                                         </div>
-                                      )}
-                                    </div>
-                                  </div>
+                                        
+                                        {/* Client Feedback Section */}
+                                        {feedback && (feedback.whatWentWell || feedback.whatDidntWork) && (
+                                          <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                                            <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Client Feedback</p>
+                                            {feedback.whatWentWell && (
+                                              <div className="bg-emerald-100 rounded p-2">
+                                                <p className="text-xs font-medium text-emerald-700">✅ What went well:</p>
+                                                <p className="text-sm text-emerald-800 mt-0.5">{feedback.whatWentWell}</p>
+                                              </div>
+                                            )}
+                                            {feedback.whatDidntWork && (
+                                              <div className="bg-amber-100 rounded p-2">
+                                                <p className="text-xs font-medium text-amber-700">⚠️ What didn't work:</p>
+                                                <p className="text-sm text-amber-800 mt-0.5">{feedback.whatDidntWork}</p>
+                                              </div>
+                                            )}
+                                            {feedback.additionalNotes && (
+                                              <div className="bg-gray-100 rounded p-2">
+                                                <p className="text-xs font-medium text-gray-600">📝 Additional notes:</p>
+                                                <p className="text-sm text-gray-700 mt-0.5">{feedback.additionalNotes}</p>
+                                              </div>
+                                            )}
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleAddFeedbackToContext(task, feedback, week.weekNumber);
+                                              }}
+                                              className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 font-medium"
+                                            >
+                                              <Plus className="w-3 h-3" />
+                                              Add to Context
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()
                                 )}
                               </div>
                             ))}

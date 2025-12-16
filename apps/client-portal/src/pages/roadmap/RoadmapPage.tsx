@@ -9,10 +9,11 @@
 // 5. 12-Week Sprint with Weekly Tasks
 // 6. Value Analysis
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
 import { useRoadmap, useGenerateAnalysis, useTasks, useGenerateValueAnalysis } from '@/hooks/useAnalysis';
 import { useAssessmentProgress } from '@/hooks/useAssessmentProgress';
+import { TaskCompletionModal } from '@/components/tasks/TaskCompletionModal';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -52,8 +53,30 @@ export default function RoadmapPage() {
   const [activeWeek, setActiveWeek] = useState<number | null>(1);
   const [isInitialized, setIsInitialized] = useState(false);
   const [part3Responses, setPart3Responses] = useState<Record<string, any> | null>(null);
+  const [completingTask, setCompletingTask] = useState<{ id: string; title: string; week_number: number } | null>(null);
 
   const [roadmapStatus, setRoadmapStatus] = useState<string | null>(null);
+
+  // Handle task completion with feedback
+  const handleTaskComplete = useCallback(async (taskId: string, feedback: { whatWentWell: string; whatDidntWork: string; additionalNotes: string }) => {
+    await updateTaskStatus(taskId, 'completed', feedback);
+    setCompletingTask(null);
+  }, [updateTaskStatus]);
+
+  // Handle task status change (for non-completion states or quick toggle)
+  const handleTaskStatusChange = useCallback(async (taskId: string, newStatus: 'pending' | 'in_progress' | 'completed', task?: any) => {
+    if (newStatus === 'completed' && task) {
+      // Show feedback modal instead of completing immediately
+      setCompletingTask({
+        id: taskId,
+        title: task.title,
+        week_number: task.week_number || 1
+      });
+    } else {
+      // For pending/in_progress, update immediately
+      await updateTaskStatus(taskId, newStatus);
+    }
+  }, [updateTaskStatus]);
 
   useEffect(() => {
     const init = async () => {
@@ -781,7 +804,7 @@ export default function RoadmapPage() {
                     tasks={tasks.filter(t => t.week_number === (week.weekNumber || week.week))}
                     isActive={activeWeek === (week.weekNumber || week.week)}
                     onToggle={() => setActiveWeek(activeWeek === (week.weekNumber || week.week) ? null : (week.weekNumber || week.week))}
-                    onTaskStatusChange={updateTaskStatus}
+                    onTaskStatusChange={handleTaskStatusChange}
                   />
                 ))}
               </div>
@@ -1168,6 +1191,16 @@ export default function RoadmapPage() {
           </button>
         </div>
       </div>
+
+      {/* Task Completion Modal */}
+      {completingTask && (
+        <TaskCompletionModal
+          task={completingTask}
+          isOpen={true}
+          onClose={() => setCompletingTask(null)}
+          onComplete={handleTaskComplete}
+        />
+      )}
     </Layout>
   );
 }
@@ -1187,7 +1220,7 @@ function WeekCard({
   tasks: any[];
   isActive: boolean;
   onToggle: () => void;
-  onTaskStatusChange: (taskId: string, status: 'pending' | 'in_progress' | 'completed') => void;
+  onTaskStatusChange: (taskId: string, status: 'pending' | 'in_progress' | 'completed', task?: any) => void;
 }) {
   const weekNumber = week.weekNumber || week.week;
   const completedTasks = tasks.filter(t => t.status === 'completed').length;
@@ -1255,7 +1288,12 @@ function WeekCard({
                         if (dbTask) {
                           const nextStatus = status === 'pending' ? 'in_progress' :
                                            status === 'in_progress' ? 'completed' : 'pending';
-                          onTaskStatusChange(dbTask.id, nextStatus);
+                          // Pass task data when completing (for feedback modal)
+                          onTaskStatusChange(dbTask.id, nextStatus, nextStatus === 'completed' ? {
+                            ...dbTask,
+                            title: task.title,
+                            week_number: week.weekNumber || week.week
+                          } : undefined);
                         }
                       }}
                       className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${
