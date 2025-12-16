@@ -874,6 +874,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         {selectedClient && selectedServiceLine !== 'discovery' && (
           <ClientDetailModal 
             clientId={selectedClient} 
+            serviceLineCode={selectedServiceLine}
             onClose={() => setSelectedClient(null)} 
           />
         )}
@@ -3757,12 +3758,21 @@ function DiscoveryClientModal({
 }
 
 // Enhanced Client Detail Modal with full functionality
-function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: () => void }) {
+function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: string; serviceLineCode: string; onClose: () => void }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const [client, setClient] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'sprint' | 'assessments'>('overview');
+  
+  // Service-line specific tabs
+  const isManagementAccounts = serviceLineCode === 'management_accounts';
+  const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'sprint' | 'assessments' | 'documents' | 'analysis'>(
+    isManagementAccounts ? 'assessments' : 'overview'
+  );
+  
+  // MA-specific state
+  const [generatingMAInsights, setGeneratingMAInsights] = useState(false);
+  const [maInsights, setMAInsights] = useState<any>(null);
   
   // Context form state
   const [showAddContext, setShowAddContext] = useState(false);
@@ -4580,9 +4590,12 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs - different for Management Accounts vs other service lines */}
         <div className="flex border-b border-gray-200 overflow-x-auto">
-          {['overview', 'roadmap', 'assessments', 'context', 'sprint'].map((tab) => (
+          {(isManagementAccounts 
+            ? ['assessments', 'documents', 'analysis'] 
+            : ['overview', 'roadmap', 'assessments', 'context', 'sprint']
+          ).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as typeof activeTab)}
@@ -4596,6 +4609,11 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
               {tab === 'context' && client?.context?.filter((c: any) => !c.processed).length > 0 && (
                 <span className="ml-2 px-1.5 py-0.5 bg-purple-500 text-white text-xs rounded-full">
                   {client.context.filter((c: any) => !c.processed).length}
+                </span>
+              )}
+              {tab === 'documents' && client?.documents?.length > 0 && (
+                <span className="ml-2 px-1.5 py-0.5 bg-blue-500 text-white text-xs rounded-full">
+                  {client.documents.length}
                 </span>
               )}
             </button>
@@ -4737,6 +4755,169 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                       <p className="text-sm text-gray-400 mt-2">
                         Assessment responses will appear here once the client completes their assessments.
                       </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* DOCUMENTS TAB (Management Accounts) */}
+              {activeTab === 'documents' && isManagementAccounts && (
+                <div className="space-y-6">
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                    <p className="text-sm text-blue-800">
+                      <strong>Document Upload:</strong> Upload management accounts, financial statements, or other documents. 
+                      The system will extract key metrics to inform the AI analysis.
+                    </p>
+                  </div>
+
+                  {/* Upload Section */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Upload Documents</h3>
+                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-indigo-400 transition-colors">
+                      <input
+                        type="file"
+                        id="ma-document-upload"
+                        multiple
+                        accept=".pdf,.xlsx,.xls,.csv"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length === 0) return;
+                          await handleMultiFileUpload(files);
+                        }}
+                      />
+                      <label htmlFor="ma-document-upload" className="cursor-pointer">
+                        <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-600 mb-2">Drop files here or click to upload</p>
+                        <p className="text-sm text-gray-400">PDF, Excel, or CSV files</p>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Uploaded Documents List */}
+                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900">Uploaded Documents</h3>
+                    </div>
+                    <div className="p-6">
+                      {client?.documents && client.documents.length > 0 ? (
+                        <div className="space-y-3">
+                          {client.documents.map((doc: any) => (
+                            <div key={doc.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <FileText className="w-5 h-5 text-blue-600" />
+                                <div>
+                                  <p className="font-medium text-gray-900">{doc.content?.split('/').pop() || 'Document'}</p>
+                                  <p className="text-sm text-gray-500">
+                                    Uploaded {new Date(doc.created_at).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              </div>
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                doc.processed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                              }`}>
+                                {doc.processed ? 'Processed' : 'Pending'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                          <p className="text-gray-500">No documents uploaded yet</p>
+                          <p className="text-sm text-gray-400 mt-2">Upload management accounts to enable AI analysis</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ANALYSIS TAB (Management Accounts) */}
+              {activeTab === 'analysis' && isManagementAccounts && (
+                <div className="space-y-6">
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+                    <p className="text-sm text-indigo-800">
+                      <strong>AI Analysis:</strong> Generate narrative insights from the client's assessment and uploaded documents.
+                      The analysis connects financial data to the client's goals and concerns.
+                    </p>
+                  </div>
+
+                  {/* Generate Analysis Button */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">Generate Insights</h3>
+                        <p className="text-sm text-gray-500">
+                          Create AI-powered narrative analysis based on assessment and documents
+                        </p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          setGeneratingMAInsights(true);
+                          try {
+                            const { data, error } = await supabase.functions.invoke('generate-ma-insights', {
+                              body: {
+                                clientId: clientId,
+                                practiceId: client?.practice_id
+                              }
+                            });
+                            if (error) throw error;
+                            setMAInsights(data);
+                            alert('MA insights generated successfully!');
+                            await fetchClientDetail();
+                          } catch (error: any) {
+                            console.error('Error generating MA insights:', error);
+                            alert('Failed to generate insights: ' + error.message);
+                          } finally {
+                            setGeneratingMAInsights(false);
+                          }
+                        }}
+                        disabled={generatingMAInsights}
+                        className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 flex items-center gap-2"
+                      >
+                        {generatingMAInsights ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <TrendingUp className="w-4 h-4" />
+                            Generate Analysis
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Prerequisites Check */}
+                    <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-200">
+                      <div className={`p-3 rounded-lg ${client?.assessments?.some((a: any) => a.assessment_type === 'management_accounts' && a.status === 'completed') ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-200'}`}>
+                        <p className="text-sm font-medium">Assessment</p>
+                        <p className={`text-xs ${client?.assessments?.some((a: any) => a.assessment_type === 'management_accounts' && a.status === 'completed') ? 'text-emerald-600' : 'text-gray-500'}`}>
+                          {client?.assessments?.some((a: any) => a.assessment_type === 'management_accounts' && a.status === 'completed') ? '✓ Completed' : '○ Pending'}
+                        </p>
+                      </div>
+                      <div className={`p-3 rounded-lg ${client?.documents?.length > 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-200'}`}>
+                        <p className="text-sm font-medium">Documents</p>
+                        <p className={`text-xs ${client?.documents?.length > 0 ? 'text-emerald-600' : 'text-gray-500'}`}>
+                          {client?.documents?.length > 0 ? `✓ ${client.documents.length} uploaded` : '○ None uploaded'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Existing Insights */}
+                  {maInsights && (
+                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
+                        <h3 className="text-lg font-semibold text-white">Latest Insights</h3>
+                      </div>
+                      <div className="p-6">
+                        <pre className="bg-gray-50 rounded-lg p-4 overflow-x-auto text-sm text-gray-700 max-h-96 overflow-y-auto whitespace-pre-wrap">
+                          {JSON.stringify(maInsights, null, 2)}
+                        </pre>
+                      </div>
                     </div>
                   )}
                 </div>
