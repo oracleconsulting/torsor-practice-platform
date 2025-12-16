@@ -43,11 +43,52 @@ export default function ServiceAssessmentPage() {
       if (config) {
         setAssessment(config);
         loadExistingResponses(serviceCode);
+        
+        // For MA, check if there's a shared insight and redirect immediately
+        if (serviceCode === 'management_accounts' && clientSession?.clientId) {
+          checkForSharedInsightAndRedirect();
+        }
       } else {
         navigate('/dashboard');
       }
     }
-  }, [serviceCode]);
+  }, [serviceCode, clientSession?.clientId]);
+  
+  const checkForSharedInsightAndRedirect = async () => {
+    if (!clientSession?.clientId) return;
+    try {
+      const { data: maInsight } = await supabase
+        .from('client_context')
+        .select('id, is_shared, content, data_source_type')
+        .eq('client_id', clientSession.clientId)
+        .eq('context_type', 'note')
+        .eq('is_shared', true)
+        .eq('processed', true)
+        .eq('data_source_type', 'management_accounts_analysis')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (maInsight && maInsight.content) {
+        try {
+          const content = typeof maInsight.content === 'string' 
+            ? JSON.parse(maInsight.content) 
+            : maInsight.content;
+          const insightData = content?.insight || content;
+          if (insightData && (insightData.headline || insightData.keyInsights)) {
+            // Redirect to report page if insight is available
+            console.log('✅ MA insight found, redirecting to report page');
+            navigate('/service/management_accounts/report', { replace: true });
+            return;
+          }
+        } catch (e) {
+          console.log('⚠️ Could not parse insight content:', e);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking for shared insight:', error);
+    }
+  };
 
   const loadExistingResponses = async (code: string) => {
     if (!clientSession?.clientId) { setLoading(false); return; }
@@ -164,11 +205,12 @@ export default function ServiceAssessmentPage() {
         try {
           const { data: maInsight } = await supabase
             .from('client_context')
-            .select('id, is_shared, content')
+            .select('id, is_shared, content, data_source_type')
             .eq('client_id', clientSession.clientId)
             .eq('context_type', 'note')
             .eq('is_shared', true)
             .eq('processed', true)
+            .eq('data_source_type', 'management_accounts_analysis')
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();

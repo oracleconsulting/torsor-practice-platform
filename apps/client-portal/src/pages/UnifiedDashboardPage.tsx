@@ -122,11 +122,12 @@ export default function UnifiedDashboardPage() {
       if (clientSession?.clientId) {
         const { data: maInsight, error: maError } = await supabase
           .from('client_context')
-          .select('id, is_shared, created_at, content')
+          .select('id, is_shared, created_at, content, data_source_type')
           .eq('client_id', clientSession.clientId)
           .eq('context_type', 'note')
           .eq('is_shared', true)
           .eq('processed', true)
+          .eq('data_source_type', 'management_accounts_analysis')
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
