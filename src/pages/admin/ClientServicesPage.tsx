@@ -3773,6 +3773,8 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
   // MA-specific state
   const [generatingMAInsights, setGeneratingMAInsights] = useState(false);
   const [maInsights, setMAInsights] = useState<any>(null);
+  const [maInsightContextId, setMAInsightContextId] = useState<string | null>(null);
+  const [isMAInsightShared, setIsMAInsightShared] = useState(false);
   
   // Context form state
   const [showAddContext, setShowAddContext] = useState(false);
@@ -3973,9 +3975,14 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
             ? JSON.parse(maInsightContext.content) 
             : maInsightContext.content;
           setMAInsights({ insight: parsed, success: true });
+          setMAInsightContextId(maInsightContext.id);
+          setIsMAInsightShared(maInsightContext.is_shared || false);
         } catch (e) {
           console.error('Error parsing MA insight:', e);
         }
+      } else {
+        setMAInsightContextId(null);
+        setIsMAInsightShared(false);
       }
       
       setClient({
@@ -4983,6 +4990,70 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                     
                     return (
                       <div className="space-y-6">
+                        {/* Analysis Header with Share Status */}
+                        <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between">
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900">Analysis Report</h3>
+                            <p className="text-sm text-gray-500 mt-1">
+                              {isMAInsightShared ? (
+                                <span className="flex items-center gap-2">
+                                  <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                                  Available to client
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-2">
+                                  <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                                  Not shared with client
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              if (!maInsightContextId) return;
+                              
+                              const newSharedStatus = !isMAInsightShared;
+                              try {
+                                const { error } = await supabase
+                                  .from('client_context')
+                                  .update({ is_shared: newSharedStatus })
+                                  .eq('id', maInsightContextId);
+                                
+                                if (error) throw error;
+                                
+                                setIsMAInsightShared(newSharedStatus);
+                                await fetchClientDetail();
+                                
+                                if (newSharedStatus) {
+                                  alert('Analysis marked as available to client');
+                                } else {
+                                  alert('Analysis removed from client view');
+                                }
+                              } catch (error: any) {
+                                console.error('Error updating share status:', error);
+                                alert('Failed to update share status: ' + error.message);
+                              }
+                            }}
+                            className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                              isMAInsightShared
+                                ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            }`}
+                          >
+                            {isMAInsightShared ? (
+                              <>
+                                <X className="w-4 h-4" />
+                                Remove from Client View
+                              </>
+                            ) : (
+                              <>
+                                <Share2 className="w-4 h-4" />
+                                Make Available to Client
+                              </>
+                            )}
+                          </button>
+                        </div>
+
                         {/* Headline */}
                         {insight.headline && (
                           <div className={`border-2 rounded-xl p-6 ${sentimentColors[insight.headline.sentiment] || sentimentColors.neutral}`}>

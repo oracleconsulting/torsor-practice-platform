@@ -620,7 +620,7 @@ Respond in JSON format:
       const { response: llmResponse, usage } = await callLLM(assessmentPrompt);
       console.log(`[MA Insights] LLM response received in ${usage.timeMs}ms`);
       
-      // Store the insight
+      // Store the insight (not shared by default - admin must approve)
       const { data: storedInsight, error: insertError } = await supabase
         .from('client_context')
         .insert({
@@ -629,7 +629,8 @@ Respond in JSON format:
           context_type: 'note',
           content: JSON.stringify(llmResponse),
           data_source_type: 'general',
-          processed: true
+          processed: true,
+          is_shared: false // Admin must explicitly mark as available to client
         })
         .select()
         .single();
