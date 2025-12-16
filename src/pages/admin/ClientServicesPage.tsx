@@ -3904,12 +3904,32 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
         }
       }
 
-      // Fetch assessment responses
+      // Fetch assessment responses (discovery assessments)
       const { data: assessments } = await supabase
         .from('client_assessments')
         .select('assessment_type, responses, status, completed_at')
         .eq('client_id', clientId)
         .in('assessment_type', ['part1', 'part2', 'part3']);
+
+      // Fetch service line assessments (management_accounts, 365_method, etc.)
+      const { data: serviceAssessments } = await supabase
+        .from('service_line_assessments')
+        .select('id, service_line_code, responses, completion_percentage, completed_at, extracted_insights, started_at, updated_at')
+        .eq('client_id', clientId);
+
+      // Convert service line assessments to same format as discovery assessments
+      const formattedServiceAssessments = (serviceAssessments || []).map((sa: any) => ({
+        assessment_type: sa.service_line_code,
+        responses: sa.responses,
+        status: sa.completed_at ? 'completed' : (sa.completion_percentage > 0 ? 'in_progress' : 'not_started'),
+        completed_at: sa.completed_at,
+        extracted_insights: sa.extracted_insights,
+        completion_percentage: sa.completion_percentage,
+        is_service_line: true // Flag to distinguish in UI
+      }));
+
+      // Combine all assessments
+      const allAssessments = [...(assessments || []), ...formattedServiceAssessments];
 
       const { data: context } = await supabase
         .from('client_context')
@@ -3938,7 +3958,7 @@ function ClientDetailModal({ clientId, onClose }: { clientId: string; onClose: (
           status: roadmap.status || 'pending_review',
           needsRegeneration: roadmapNeedsRegeneration
         } : null,
-        assessments: assessments || [],
+        assessments: allAssessments,
         context: context || [],
         documents: documents,
         tasks: clientTasks || []
@@ -4652,34 +4672,64 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                   </div>
                   
                   {client?.assessments && client.assessments.length > 0 ? (
-                    client.assessments.map((assessment: any) => (
-                      <div key={assessment.assessment_type} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                        <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                          <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold text-gray-900 capitalize">
-                              Part {assessment.assessment_type.replace('part', '')} Assessment
-                            </h3>
-                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                              assessment.status === 'completed' 
-                                ? 'bg-emerald-100 text-emerald-700' 
-                                : 'bg-amber-100 text-amber-700'
-                            }`}>
-                              {assessment.status || 'in_progress'}
-                            </span>
+                    client.assessments.map((assessment: any) => {
+                      // Format title based on assessment type
+                      const isServiceLine = assessment.is_service_line;
+                      const title = isServiceLine 
+                        ? assessment.assessment_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) + ' Assessment'
+                        : `Part ${assessment.assessment_type.replace('part', '')} Assessment`;
+                      
+                      return (
+                        <div key={assessment.assessment_type} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                          <div className={`px-6 py-4 border-b border-gray-200 ${isServiceLine ? 'bg-indigo-50' : 'bg-gray-50'}`}>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="text-lg font-semibold text-gray-900">
+                                  {title}
+                                </h3>
+                                {isServiceLine && (
+                                  <span className="text-xs text-indigo-600 font-medium">Service Line Assessment</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {assessment.completion_percentage !== undefined && assessment.status !== 'completed' && (
+                                  <span className="text-sm text-gray-500">
+                                    {assessment.completion_percentage}% complete
+                                  </span>
+                                )}
+                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                  assessment.status === 'completed' 
+                                    ? 'bg-emerald-100 text-emerald-700' 
+                                    : assessment.status === 'in_progress'
+                                    ? 'bg-amber-100 text-amber-700'
+                                    : 'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {assessment.status || 'in_progress'}
+                                </span>
+                              </div>
+                            </div>
+                            {assessment.completed_at && (
+                              <p className="text-sm text-gray-500 mt-1">
+                                Completed: {new Date(assessment.completed_at).toLocaleString()}
+                              </p>
+                            )}
                           </div>
-                          {assessment.completed_at && (
-                            <p className="text-sm text-gray-500 mt-1">
-                              Completed: {new Date(assessment.completed_at).toLocaleString()}
-                            </p>
-                          )}
+                          <div className="p-6">
+                            {assessment.extracted_insights && Object.keys(assessment.extracted_insights).length > 0 && (
+                              <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                                <h4 className="text-sm font-semibold text-emerald-800 mb-2">Extracted Insights</h4>
+                                <pre className="text-sm text-emerald-700 whitespace-pre-wrap">
+                                  {JSON.stringify(assessment.extracted_insights, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                            <pre className="bg-gray-50 rounded-lg p-4 overflow-x-auto text-sm text-gray-700 max-h-96 overflow-y-auto">
+                              {JSON.stringify(assessment.responses, null, 2)}
+                            </pre>
+                          </div>
                         </div>
-                        <div className="p-6">
-                          <pre className="bg-gray-50 rounded-lg p-4 overflow-x-auto text-sm text-gray-700 max-h-96 overflow-y-auto">
-                            {JSON.stringify(assessment.responses, null, 2)}
-                          </pre>
-                        </div>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
                       <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
