@@ -35,6 +35,7 @@ export default function ServiceAssessmentPage() {
   const [loading, setLoading] = useState(true);
   const [completed, setCompleted] = useState(false);
   const [generatingProposal, setGeneratingProposal] = useState(false);
+  const [checkingSharedInsight, setCheckingSharedInsight] = useState(false);
 
   useEffect(() => {
     if (serviceCode) {
@@ -155,6 +156,45 @@ export default function ServiceAssessmentPage() {
   if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><Loader2 className="w-8 h-8 text-indigo-600 animate-spin" /></div>;
   if (!assessment) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><p>Assessment not found</p></div>;
 
+  // Check for shared insights when assessment is complete (for MA)
+  useEffect(() => {
+    if (completed && serviceCode === 'management_accounts' && clientSession?.clientId && !checkingSharedInsight) {
+      setCheckingSharedInsight(true);
+      const checkForSharedInsight = async () => {
+        try {
+          const { data: maInsight } = await supabase
+            .from('client_context')
+            .select('id, is_shared, content')
+            .eq('client_id', clientSession.clientId)
+            .eq('context_type', 'note')
+            .eq('is_shared', true)
+            .eq('processed', true)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (maInsight && maInsight.content) {
+            try {
+              const content = typeof maInsight.content === 'string' 
+                ? JSON.parse(maInsight.content) 
+                : maInsight.content;
+              if (content && (content.headline || content.keyInsights || (content.insight && (content.insight.headline || content.insight.keyInsights)))) {
+                // Redirect to report page if insight is available
+                navigate('/service/management_accounts/report', { replace: true });
+                return;
+              }
+            } catch (e) {
+              // Not valid insight, continue to completion page
+            }
+          }
+        } catch (error) {
+          console.error('Error checking for shared insight:', error);
+        }
+      };
+      checkForSharedInsight();
+    }
+  }, [completed, serviceCode, clientSession?.clientId, navigate, checkingSharedInsight]);
+
   if (completed) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 flex items-center justify-center p-4">
@@ -167,6 +207,12 @@ export default function ServiceAssessmentPage() {
             {generatingProposal ? "We're preparing your personalized proposal..." : "Your advisor will review your responses shortly."}
           </p>
           {generatingProposal && <Loader2 className="w-5 h-5 animate-spin mx-auto text-indigo-600 mb-6" />}
+          {checkingSharedInsight && serviceCode === 'management_accounts' && (
+            <div className="mb-6">
+              <Loader2 className="w-5 h-5 animate-spin mx-auto text-indigo-600" />
+              <p className="text-sm text-gray-500 mt-2">Checking for available insights...</p>
+            </div>
+          )}
           <button onClick={() => navigate('/dashboard')} className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
             Return to Dashboard
           </button>
