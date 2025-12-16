@@ -5,7 +5,7 @@
 // Works for clients with multiple services (Discovery, 365, etc.)
 // ============================================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -74,6 +74,7 @@ export default function UnifiedDashboardPage() {
   const [services, setServices] = useState<ServiceEnrollment[]>([]);
   const [discoveryStatus, setDiscoveryStatus] = useState<DiscoveryStatus | null>(null);
   const [maInsightShared, setMAInsightShared] = useState(false);
+  const maInsightSharedRef = useRef(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -115,6 +116,45 @@ export default function UnifiedDashboardPage() {
       }
       
       console.log('📋 Service enrollments:', enrollments);
+
+      // Check for shared MA insights EARLY (before building service list)
+      let hasSharedMAInsight = false;
+      if (clientSession?.clientId) {
+        const { data: maInsight, error: maError } = await supabase
+          .from('client_context')
+          .select('id, is_shared, created_at, content')
+          .eq('client_id', clientSession.clientId)
+          .eq('context_type', 'note')
+          .eq('is_shared', true)
+          .eq('processed', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        console.log('📊 MA Insight query result:', { maInsight, maError, clientId: clientSession.clientId });
+        
+        if (maInsight && maInsight.content) {
+          try {
+            const content = typeof maInsight.content === 'string' 
+              ? JSON.parse(maInsight.content) 
+              : maInsight.content;
+            const insightData = content?.insight || content;
+            if (insightData && (insightData.headline || insightData.keyInsights)) {
+              hasSharedMAInsight = true;
+              console.log('✅ Valid MA insight found:', { hasHeadline: !!insightData.headline, hasKeyInsights: !!insightData.keyInsights });
+            } else {
+              console.log('⚠️ Content found but not a valid MA insight:', Object.keys(insightData || {}));
+            }
+          } catch (e) {
+            console.error('❌ Error parsing MA insight content:', e);
+          }
+        } else {
+          console.log('📊 No shared MA insight found');
+        }
+      }
+      maInsightSharedRef.current = hasSharedMAInsight;
+      setMAInsightShared(hasSharedMAInsight);
+      console.log('📊 MA Insight shared status set to:', hasSharedMAInsight);
 
       let serviceList: ServiceEnrollment[] = (enrollments || [])
         .filter((e: any) => e.service_line)
@@ -256,46 +296,6 @@ export default function UnifiedDashboardPage() {
       console.log('✅ Discovery record:', discovery);
       setDiscoveryStatus(discoveryStatusData);
 
-      // Check for shared MA insights
-      if (clientSession?.clientId) {
-        const { data: maInsight, error: maError } = await supabase
-          .from('client_context')
-          .select('id, is_shared, created_at, content')
-          .eq('client_id', clientSession.clientId)
-          .eq('context_type', 'note')
-          .eq('is_shared', true)
-          .eq('processed', true)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        console.log('📊 MA Insight query result:', { maInsight, maError, clientId: clientSession.clientId });
-        
-        // Check if it's actually an MA insight (contains headline or keyInsights)
-        let hasSharedMAInsight = false;
-        if (maInsight && maInsight.content) {
-          try {
-            const content = typeof maInsight.content === 'string' 
-              ? JSON.parse(maInsight.content) 
-              : maInsight.content;
-            const insightData = content?.insight || content;
-            if (insightData && (insightData.headline || insightData.keyInsights)) {
-              hasSharedMAInsight = true;
-              console.log('✅ Valid MA insight found:', { hasHeadline: !!insightData.headline, hasKeyInsights: !!insightData.keyInsights });
-            } else {
-              console.log('⚠️ Content found but not a valid MA insight:', Object.keys(insightData || {}));
-            }
-          } catch (e) {
-            console.error('❌ Error parsing MA insight content:', e);
-          }
-        } else {
-          console.log('📊 No shared MA insight found');
-        }
-        
-        setMAInsightShared(hasSharedMAInsight);
-        console.log('📊 MA Insight shared status set to:', hasSharedMAInsight);
-      }
-
       // If client has discovery data but no discovery service in list, add it
       const hasDiscoveryService = serviceList.some(s => s.serviceCode === 'discovery');
       console.log('📝 Has discovery service in list:', hasDiscoveryService);
@@ -343,7 +343,8 @@ export default function UnifiedDashboardPage() {
     }
     if (code === 'management_accounts') {
       // Check if there's a shared insight - route to report page
-      if (maInsightShared) {
+      // Use ref for immediate access, fallback to state
+      if (maInsightSharedRef.current || maInsightShared) {
         return '/service/management_accounts/report';
       }
       return '/service/management_accounts/assessment';
@@ -372,7 +373,8 @@ export default function UnifiedDashboardPage() {
     
     // Special handling for management accounts
     if (code === 'management_accounts') {
-      if (maInsightShared) {
+      // Use ref for immediate access, fallback to state
+      if (maInsightSharedRef.current || maInsightShared) {
         return {
           label: 'Analysis Ready',
           color: 'emerald',
