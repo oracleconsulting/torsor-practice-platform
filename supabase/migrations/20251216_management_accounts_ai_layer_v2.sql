@@ -356,6 +356,15 @@ CREATE POLICY "ma_truecash_policy" ON ma_true_cash_calculations
 -- TRIGGERS
 -- ============================================================================
 
+-- Create update timestamp function if it doesn't exist
+CREATE OR REPLACE FUNCTION update_ma_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Update timestamp triggers
 CREATE TRIGGER trg_ma_assessment_updated
     BEFORE UPDATE ON ma_assessment_responses 
