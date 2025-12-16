@@ -81,6 +81,8 @@ export default function RoadmapPage() {
   useEffect(() => {
     const init = async () => {
       await fetchRoadmap();
+      await fetchTasks(); // Load tasks for completion tracking
+      
       // Also fetch Part 3 responses if they exist
       if (clientSession?.clientId) {
         const { data } = await supabase

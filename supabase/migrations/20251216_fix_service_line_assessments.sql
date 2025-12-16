@@ -119,5 +119,5 @@ END $$;
 GRANT SELECT, INSERT, UPDATE ON service_line_assessments TO authenticated;
 GRANT SELECT ON client_roadmaps TO authenticated;
 
-RAISE NOTICE 'Migration complete: service_line_assessments and client_roadmaps fixed';
+-- Migration complete: service_line_assessments and client_roadmaps fixed
 

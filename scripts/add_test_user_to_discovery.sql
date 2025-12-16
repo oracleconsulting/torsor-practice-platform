@@ -46,16 +46,19 @@ BEGIN
         RAISE NOTICE 'User is already enrolled in discovery assessment';
     ELSE
         -- Create destination_discovery record
+        -- Note: Table has: id, client_id, practice_id, responses, extracted_anchors,
+        -- destination_clarity_score, gap_score, recommended_services, value_propositions,
+        -- completed_at, created_at, updated_at
         INSERT INTO destination_discovery (
             client_id,
             practice_id,
-            status,
+            responses,
             created_at,
             updated_at
         ) VALUES (
             v_practice_member_id,
             v_practice_id,
-            'pending', -- or 'in_progress' if they've started
+            '{}', -- Empty responses, user will fill in
             NOW(),
             NOW()
         )
