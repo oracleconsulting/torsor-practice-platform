@@ -4783,13 +4783,57 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         onChange={async (e) => {
                           const files = Array.from(e.target.files || []);
                           if (files.length === 0) return;
-                          await handleMultiFileUpload(files);
+                          
+                          // Upload files to storage
+                          const uploadedDocs = await handleMultiFileUpload(files);
+                          
+                          if (uploadedDocs.length === 0) {
+                            alert('Failed to upload files');
+                            return;
+                          }
+                          
+                          // Create client_context records for each document
+                          for (const doc of uploadedDocs) {
+                            const { error } = await supabase
+                              .from('client_context')
+                              .insert({
+                                practice_id: client?.practice_id,
+                                client_id: clientId,
+                                context_type: 'document',
+                                content: doc.fileUrl,
+                                source_file_url: doc.fileUrl,
+                                data_source_type: 'accounts',
+                                added_by: currentMember?.id,
+                                processed: false
+                              });
+                            
+                            if (error) {
+                              console.error('Error creating context record:', error);
+                            }
+                          }
+                          
+                          // Refresh client data
+                          await fetchClientDetail();
+                          alert(`Successfully uploaded ${uploadedDocs.length} document(s)`);
+                          
+                          // Clear the input
+                          e.target.value = '';
                         }}
                       />
                       <label htmlFor="ma-document-upload" className="cursor-pointer">
-                        <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-600 mb-2">Drop files here or click to upload</p>
-                        <p className="text-sm text-gray-400">PDF, Excel, or CSV files</p>
+                        {uploadingFiles ? (
+                          <>
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4" />
+                            <p className="text-indigo-600 mb-2">Uploading {uploadProgress.fileName}...</p>
+                            <p className="text-sm text-gray-400">{uploadProgress.current} of {uploadProgress.total}</p>
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                            <p className="text-gray-600 mb-2">Drop files here or click to upload</p>
+                            <p className="text-sm text-gray-400">PDF, Excel, or CSV files</p>
+                          </>
+                        )}
                       </label>
                     </div>
                   </div>
