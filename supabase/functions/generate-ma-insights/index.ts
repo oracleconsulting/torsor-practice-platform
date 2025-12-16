@@ -523,14 +523,8 @@ serve(async (req) => {
   }
   
   try {
-    const { snapshotId, regenerate } = await req.json();
-    
-    if (!snapshotId) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'snapshotId is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const body = await req.json();
+    const { snapshotId, clientId, practiceId, regenerate } = body;
     
     // Create Supabase client with service role for full access
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -541,6 +535,124 @@ serve(async (req) => {
     }
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // =========================================================================
+    // MODE 1: Generate from clientId (assessment-based - no financial snapshot)
+    // =========================================================================
+    if (clientId && !snapshotId) {
+      console.log(`[MA Insights] Generating insights from assessment for client ${clientId}`);
+      
+      // Fetch the service line assessment
+      const { data: assessment, error: assessmentError } = await supabase
+        .from('service_line_assessments')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('service_line_code', 'management_accounts')
+        .single();
+      
+      if (assessmentError || !assessment) {
+        throw new Error(`Assessment not found for client: ${assessmentError?.message || 'No data'}`);
+      }
+      
+      // Fetch client info
+      const { data: clientData } = await supabase
+        .from('practice_members')
+        .select('id, name, email, company, industry')
+        .eq('id', clientId)
+        .single();
+      
+      // Fetch any uploaded documents
+      const { data: documents } = await supabase
+        .from('client_context')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('data_source_type', 'accounts');
+      
+      // Build assessment-based prompt
+      const responses = assessment.responses || {};
+      const insights = assessment.extracted_insights || {};
+      
+      const assessmentPrompt = `
+You are a management accounts advisor generating personalized insights for a client.
+
+## CLIENT INFORMATION
+Name: ${clientData?.name || 'Unknown'}
+Company: ${clientData?.company || 'Unknown'}
+Industry: ${clientData?.industry || 'Unknown'}
+
+## ASSESSMENT RESPONSES
+${JSON.stringify(responses, null, 2)}
+
+## EXTRACTED INSIGHTS
+${JSON.stringify(insights, null, 2)}
+
+## DOCUMENTS UPLOADED
+${documents?.length || 0} documents uploaded
+
+## YOUR TASK
+Based on the client's assessment responses, generate:
+
+1. **Headline** (1 sentence): A personalized summary of their financial visibility situation
+2. **Key Insights** (3-5): Observations about their relationship with numbers and what they need
+3. **Quick Wins** (2-3): Immediate actions that would help them
+4. **Recommended Approach**: How we should approach their management accounts engagement
+5. **Connection to Goals**: How better financial visibility connects to what they said they want
+
+Use their exact words and phrases where possible. Be specific, not generic.
+
+Respond in JSON format:
+{
+  "headline": { "text": "...", "sentiment": "positive|neutral|warning" },
+  "keyInsights": [{ "finding": "...", "implication": "...", "action": "..." }],
+  "quickWins": [{ "action": "...", "impact": "...", "timeframe": "..." }],
+  "recommendedApproach": { "summary": "...", "frequency": "...", "focusAreas": ["..."] },
+  "goalsConnection": { "narrative": "...", "theirWords": ["..."] }
+}
+`;
+
+      // Call LLM
+      console.log(`[MA Insights] Calling LLM with assessment-based prompt...`);
+      const { response: llmResponse, usage } = await callLLM(assessmentPrompt);
+      console.log(`[MA Insights] LLM response received in ${usage.timeMs}ms`);
+      
+      // Store the insight
+      const { data: storedInsight, error: insertError } = await supabase
+        .from('client_context')
+        .insert({
+          client_id: clientId,
+          practice_id: practiceId,
+          context_type: 'note',
+          content: JSON.stringify(llmResponse),
+          data_source_type: 'general',
+          processed: true
+        })
+        .select()
+        .single();
+      
+      if (insertError) {
+        console.error('[MA Insights] Error storing insight:', insertError);
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          insight: llmResponse,
+          mode: 'assessment-based',
+          usage
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // =========================================================================
+    // MODE 2: Generate from snapshotId (financial snapshot-based)
+    // =========================================================================
+    if (!snapshotId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Either snapshotId or clientId is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     console.log(`[MA Insights] Generating insights for snapshot ${snapshotId}`);
     
