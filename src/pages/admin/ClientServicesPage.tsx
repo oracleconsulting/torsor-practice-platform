@@ -4927,19 +4927,42 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         onClick={async () => {
                           setGeneratingMAInsights(true);
                           try {
+                            // Try to find an engagement for v2 mode, otherwise use v1 mode
+                            let requestBody: any = {
+                              clientId: clientId,
+                              practiceId: client?.practice_id
+                            };
+                            
+                            // Check if there's an engagement (v2 mode)
+                            const { data: engagement } = await supabase
+                              .from('ma_engagements')
+                              .select('id')
+                              .eq('client_id', clientId)
+                              .eq('status', 'active')
+                              .maybeSingle();
+                            
+                            if (engagement) {
+                              // Use v2 mode with engagementId
+                              requestBody = {
+                                engagementId: engagement.id,
+                                regenerate: false
+                              };
+                              console.log('[MA Insights] Using v2 mode with engagementId:', engagement.id);
+                            } else {
+                              console.log('[MA Insights] Using v1 mode with clientId:', clientId);
+                            }
+                            
                             const { data, error } = await supabase.functions.invoke('generate-ma-insights', {
-                              body: {
-                                clientId: clientId,
-                                practiceId: client?.practice_id
-                              }
+                              body: requestBody
                             });
+                            
                             if (error) throw error;
                             setMAInsights(data);
                             // Refresh to load the stored insight
                             await fetchClientDetail();
                           } catch (error: any) {
                             console.error('Error generating MA insights:', error);
-                            alert('Failed to generate insights: ' + error.message);
+                            alert('Failed to generate insights: ' + (error.message || 'Unknown error. Check console for details.'));
                           } finally {
                             setGeneratingMAInsights(false);
                           }
