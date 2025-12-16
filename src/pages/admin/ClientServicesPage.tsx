@@ -3958,6 +3958,26 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
       // Filter context for documents
       const documents = (context || []).filter((c: any) => c.context_type === 'document');
       
+      // Load most recent MA insight if available
+      const maInsightContext = (context || []).find((c: any) => 
+        c.context_type === 'note' && 
+        c.processed === true && 
+        c.content && 
+        typeof c.content === 'string' &&
+        (c.content.includes('"headline"') || c.content.includes('"keyInsights"'))
+      );
+      
+      if (maInsightContext) {
+        try {
+          const parsed = typeof maInsightContext.content === 'string' 
+            ? JSON.parse(maInsightContext.content) 
+            : maInsightContext.content;
+          setMAInsights({ insight: parsed, success: true });
+        } catch (e) {
+          console.error('Error parsing MA insight:', e);
+        }
+      }
+      
       setClient({
         ...clientData,
         roadmap: roadmap ? {
@@ -4908,7 +4928,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             });
                             if (error) throw error;
                             setMAInsights(data);
-                            alert('MA insights generated successfully!');
+                            // Refresh to load the stored insight
                             await fetchClientDetail();
                           } catch (error: any) {
                             console.error('Error generating MA insights:', error);
@@ -4952,18 +4972,145 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                   </div>
 
                   {/* Existing Insights */}
-                  {maInsights && (
-                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
-                        <h3 className="text-lg font-semibold text-white">Latest Insights</h3>
+                  {maInsights && (() => {
+                    const insight = maInsights.insight || maInsights;
+                    const sentimentColors: Record<string, string> = {
+                      positive: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+                      neutral: 'bg-blue-100 text-blue-700 border-blue-200',
+                      warning: 'bg-amber-100 text-amber-700 border-amber-200',
+                      critical: 'bg-red-100 text-red-700 border-red-200'
+                    };
+                    
+                    return (
+                      <div className="space-y-6">
+                        {/* Headline */}
+                        {insight.headline && (
+                          <div className={`border-2 rounded-xl p-6 ${sentimentColors[insight.headline.sentiment] || sentimentColors.neutral}`}>
+                            <div className="flex items-start justify-between mb-2">
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${sentimentColors[insight.headline.sentiment] || sentimentColors.neutral}`}>
+                                {insight.headline.sentiment}
+                              </span>
+                            </div>
+                            <p className="text-lg font-semibold leading-relaxed">{insight.headline.text}</p>
+                          </div>
+                        )}
+
+                        {/* Key Insights */}
+                        {insight.keyInsights && insight.keyInsights.length > 0 && (
+                          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                            <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                              <h3 className="text-lg font-semibold text-gray-900">Key Insights</h3>
+                            </div>
+                            <div className="p-6 space-y-6">
+                              {insight.keyInsights.map((ki: any, idx: number) => (
+                                <div key={idx} className="border-l-4 border-indigo-500 pl-4 space-y-3">
+                                  <div>
+                                    <p className="font-semibold text-gray-900 mb-2">Finding</p>
+                                    <p className="text-gray-700">{ki.finding}</p>
+                                  </div>
+                                  <div>
+                                    <p className="font-semibold text-gray-900 mb-2">Implication</p>
+                                    <p className="text-gray-700">{ki.implication}</p>
+                                  </div>
+                                  {ki.action && (
+                                    <div className="bg-indigo-50 rounded-lg p-3">
+                                      <p className="font-semibold text-indigo-900 mb-1 text-sm">Recommended Action</p>
+                                      <p className="text-indigo-800 text-sm">{ki.action}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Quick Wins */}
+                        {insight.quickWins && insight.quickWins.length > 0 && (
+                          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                            <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4">
+                              <h3 className="text-lg font-semibold text-white">Quick Wins</h3>
+                            </div>
+                            <div className="p-6 space-y-4">
+                              {insight.quickWins.map((qw: any, idx: number) => (
+                                <div key={idx} className="border border-emerald-200 rounded-lg p-4 bg-emerald-50">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <p className="font-semibold text-emerald-900">{qw.action}</p>
+                                    {qw.timeframe && (
+                                      <span className="px-2 py-1 bg-emerald-200 text-emerald-800 text-xs font-medium rounded whitespace-nowrap ml-3">
+                                        {qw.timeframe}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {qw.impact && (
+                                    <p className="text-emerald-800 text-sm mt-2">{qw.impact}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Recommended Approach */}
+                        {insight.recommendedApproach && (
+                          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                            <div className="bg-indigo-50 px-6 py-4 border-b border-gray-200">
+                              <h3 className="text-lg font-semibold text-gray-900">Recommended Approach</h3>
+                            </div>
+                            <div className="p-6 space-y-4">
+                              {insight.recommendedApproach.summary && (
+                                <p className="text-gray-700 leading-relaxed">{insight.recommendedApproach.summary}</p>
+                              )}
+                              {insight.recommendedApproach.frequency && (
+                                <div className="bg-blue-50 rounded-lg p-3">
+                                  <p className="text-sm font-semibold text-blue-900 mb-1">Frequency</p>
+                                  <p className="text-blue-800 text-sm">{insight.recommendedApproach.frequency}</p>
+                                </div>
+                              )}
+                              {insight.recommendedApproach.focusAreas && insight.recommendedApproach.focusAreas.length > 0 && (
+                                <div>
+                                  <p className="text-sm font-semibold text-gray-900 mb-2">Focus Areas</p>
+                                  <ul className="space-y-2">
+                                    {insight.recommendedApproach.focusAreas.map((area: string, idx: number) => (
+                                      <li key={idx} className="flex items-start gap-2 text-gray-700">
+                                        <span className="text-indigo-600 mt-1">•</span>
+                                        <span>{area}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Goals Connection */}
+                        {insight.goalsConnection && (
+                          <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-xl overflow-hidden">
+                            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
+                              <h3 className="text-lg font-semibold text-white">Connection to Client Goals</h3>
+                            </div>
+                            <div className="p-6 space-y-4">
+                              {insight.goalsConnection.narrative && (
+                                <p className="text-gray-800 leading-relaxed">{insight.goalsConnection.narrative}</p>
+                              )}
+                              {insight.goalsConnection.theirWords && insight.goalsConnection.theirWords.length > 0 && (
+                                <div className="mt-4 pt-4 border-t border-purple-200">
+                                  <p className="text-sm font-semibold text-purple-900 mb-3">Client's Own Words</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {insight.goalsConnection.theirWords.map((word: string, idx: number) => (
+                                      <span key={idx} className="px-3 py-1 bg-white border border-purple-200 text-purple-800 text-sm rounded-full">
+                                        "{word}"
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="p-6">
-                        <pre className="bg-gray-50 rounded-lg p-4 overflow-x-auto text-sm text-gray-700 max-h-96 overflow-y-auto whitespace-pre-wrap">
-                          {JSON.stringify(maInsights, null, 2)}
-                        </pre>
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
               )}
 
