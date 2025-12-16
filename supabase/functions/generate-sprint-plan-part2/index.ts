@@ -148,6 +148,57 @@ serve(async (req) => {
       })
       .eq('id', stage.id);
 
+    // Sync tasks to client_tasks table for tracking
+    console.log('Syncing sprint tasks to client_tasks table...');
+    try {
+      // Delete existing tasks for this client (fresh sync)
+      await supabase
+        .from('client_tasks')
+        .delete()
+        .eq('client_id', clientId);
+
+      // Insert all tasks from the complete sprint
+      const tasksToInsert: any[] = [];
+      for (const week of completeSprint.weeks || []) {
+        const weekNumber = week.weekNumber || week.week;
+        for (let i = 0; i < (week.tasks || []).length; i++) {
+          const task = week.tasks[i];
+          tasksToInsert.push({
+            client_id: clientId,
+            practice_id: practiceId,
+            week_number: weekNumber,
+            title: task.title,
+            description: task.description,
+            category: task.category || week.phase || 'general',
+            priority: task.priority || 'medium',
+            status: 'pending',
+            sort_order: i,
+            estimated_hours: task.timeEstimate ? parseFloat(task.timeEstimate) || null : null,
+            metadata: {
+              whyThisMatters: task.whyThisMatters,
+              milestone: task.milestone,
+              tools: task.tools,
+              deliverable: task.deliverable
+            }
+          });
+        }
+      }
+
+      if (tasksToInsert.length > 0) {
+        const { error: taskError } = await supabase
+          .from('client_tasks')
+          .insert(tasksToInsert);
+
+        if (taskError) {
+          console.error('Error syncing tasks:', taskError);
+        } else {
+          console.log(`Synced ${tasksToInsert.length} tasks to client_tasks`);
+        }
+      }
+    } catch (syncError) {
+      console.error('Task sync error (non-fatal):', syncError);
+    }
+
     console.log(`Sprint plan part 2 (weeks 7-12) generated for client ${clientId} in ${duration}ms`);
 
     return new Response(JSON.stringify({ success: true, stageId: stage.id, duration }), {

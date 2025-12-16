@@ -16,7 +16,8 @@ export type Page =
   | 'cpd' 
   | 'training' 
   | 'knowledge'
-  | 'ma-insights';
+  | 'ma-insights'
+  | 'ma-management';
 
 export interface NavigationProps {
   currentPage: Page;
