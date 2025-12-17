@@ -53,6 +53,15 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'client_tasks') THEN
     ALTER TABLE client_tasks ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';
+    
+    -- Ensure unique constraint exists for ON CONFLICT to work
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint 
+      WHERE conname = 'client_tasks_client_id_week_number_title_key'
+    ) THEN
+      ALTER TABLE client_tasks ADD CONSTRAINT client_tasks_client_id_week_number_title_key 
+      UNIQUE (client_id, week_number, title);
+    END IF;
   END IF;
 END $$;
 
