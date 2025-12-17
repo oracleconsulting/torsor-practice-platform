@@ -1083,7 +1083,7 @@ Respond in JSON format:
     const snapshotClientId = snapshot.ma_engagements.client_id;
     const snapshotEngagementId = snapshot.engagement_id;
     
-    console.log(`[MA Insights] Client ID: ${snapshotClientId}, Engagement ID: ${engagementId}`);
+    console.log(`[MA Insights] Client ID: ${snapshotClientId}, Engagement ID: ${snapshotEngagementId}`);
     
     // Check for existing insight (unless regenerating)
     if (!regenerate) {
