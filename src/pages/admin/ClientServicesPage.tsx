@@ -4811,40 +4811,117 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           const files = Array.from(e.target.files || []);
                           if (files.length === 0) return;
                           
-                          // Upload files to storage
-                          const uploadedDocs = await handleMultiFileUpload(files);
-                          
-                          if (uploadedDocs.length === 0) {
-                            alert('Failed to upload files');
-                            return;
-                          }
-                          
-                          // Create client_context records for each document
-                          for (const doc of uploadedDocs) {
-                            const { error } = await supabase
-                              .from('client_context')
-                              .insert({
-                                practice_id: client?.practice_id,
-                                client_id: clientId,
-                                context_type: 'document',
-                                content: doc.fileUrl,
-                                source_file_url: doc.fileUrl,
-                                data_source_type: 'accounts',
-                                added_by: currentMember?.id,
-                                processed: false
-                              });
+                          try {
+                            // Find or create engagement for this client
+                            let { data: engagement, error: engError } = await supabase
+                              .from('ma_engagements')
+                              .select('id')
+                              .eq('client_id', clientId)
+                              .eq('status', 'active')
+                              .maybeSingle();
                             
-                            if (error) {
-                              console.error('Error creating context record:', error);
+                            if (engError || !engagement) {
+                              // Create engagement if it doesn't exist
+                              const { data: newEngagement, error: createError } = await supabase
+                                .from('ma_engagements')
+                                .insert({
+                                  client_id: clientId,
+                                  practice_id: client?.practice_id,
+                                  tier: 'silver',
+                                  frequency: 'monthly',
+                                  status: 'active'
+                                })
+                                .select('id')
+                                .single();
+                              
+                              if (createError) {
+                                throw new Error(`Failed to create engagement: ${createError.message}`);
+                              }
+                              engagement = newEngagement;
                             }
+                            
+                            // Upload files to storage
+                            const uploadedDocs = await handleMultiFileUpload(files);
+                            
+                            if (uploadedDocs.length === 0) {
+                              alert('Failed to upload files');
+                              return;
+                            }
+                            
+                            // Create ma_uploaded_documents records and trigger extraction
+                            for (const doc of uploadedDocs) {
+                              // Extract file path from URL (remove bucket prefix if present)
+                              const filePath = doc.fileUrl.includes('/storage/v1/object/public/') 
+                                ? doc.fileUrl.split('/storage/v1/object/public/')[1]
+                                : doc.fileUrl.replace(/^.*\/(ma-documents\/.*)$/, '$1');
+                              
+                              // Create ma_uploaded_documents record
+                              const { data: maDocument, error: docError } = await supabase
+                                .from('ma_uploaded_documents')
+                                .insert({
+                                  engagement_id: engagement.id,
+                                  filename: doc.fileName,
+                                  file_path: filePath,
+                                  file_type: doc.fileType || 'application/pdf',
+                                  file_size_bytes: doc.fileSize,
+                                  extraction_status: 'pending'
+                                })
+                                .select('id')
+                                .single();
+                              
+                              if (docError) {
+                                console.error('Error creating MA document record:', docError);
+                                continue;
+                              }
+                              
+                              // Also create client_context record for backward compatibility
+                              await supabase
+                                .from('client_context')
+                                .insert({
+                                  practice_id: client?.practice_id,
+                                  client_id: clientId,
+                                  context_type: 'document',
+                                  content: doc.fileUrl,
+                                  source_file_url: doc.fileUrl,
+                                  data_source_type: 'accounts',
+                                  added_by: currentMember?.id,
+                                  processed: false
+                                });
+                              
+                              // Call extract-ma-financials edge function
+                              console.log(`[MA Upload] Calling extract-ma-financials for document ${maDocument.id}`);
+                              const { data: extractResult, error: extractError } = await supabase.functions.invoke('extract-ma-financials', {
+                                body: {
+                                  documentId: maDocument.id,
+                                  engagementId: engagement.id
+                                }
+                              });
+                              
+                              if (extractError) {
+                                console.error('Error extracting financials:', extractError);
+                                // Update document status to failed
+                                await supabase
+                                  .from('ma_uploaded_documents')
+                                  .update({
+                                    extraction_status: 'failed',
+                                    extraction_error: extractError.message
+                                  })
+                                  .eq('id', maDocument.id);
+                              } else {
+                                console.log('[MA Upload] Extraction started:', extractResult);
+                              }
+                            }
+                            
+                            // Refresh client data
+                            await fetchClientDetail();
+                            alert(`Successfully uploaded ${uploadedDocs.length} document(s). Extraction started.`);
+                            
+                            // Clear the input
+                            e.target.value = '';
+                          } catch (error: any) {
+                            console.error('Error uploading MA documents:', error);
+                            alert('Failed to upload documents: ' + (error.message || 'Unknown error'));
                           }
-                          
-                          // Refresh client data
-                          await fetchClientDetail();
-                          alert(`Successfully uploaded ${uploadedDocs.length} document(s)`);
-                          
-                          // Clear the input
-                          e.target.value = '';
                         }}
                       />
                       <label htmlFor="ma-document-upload" className="cursor-pointer">
