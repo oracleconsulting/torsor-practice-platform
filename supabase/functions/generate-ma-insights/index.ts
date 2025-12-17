@@ -1106,7 +1106,7 @@ Respond in JSON format:
     const { data: priorSnapshots } = await supabase
       .from('ma_financial_snapshots')
       .select('*')
-      .eq('engagement_id', engagementId)
+      .eq('engagement_id', snapshotEngagementId)
       .lt('period_end_date', snapshot.period_end_date)
       .order('period_end_date', { ascending: false })
       .limit(12);
