@@ -4840,8 +4840,37 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                               engagement = newEngagement;
                             }
                             
-                            // Upload files to storage
-                            const uploadedDocs = await handleMultiFileUpload(files);
+                            // Upload files to ma-documents bucket specifically
+                            const uploadedDocs: UploadedDocument[] = [];
+                            setUploadingFiles(true);
+                            
+                            for (let i = 0; i < files.length; i++) {
+                              const file = files[i];
+                              setUploadProgress({ current: i + 1, total: files.length, fileName: file.name });
+                              
+                              const timestamp = Date.now();
+                              const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+                              const storagePath = `${engagement.id}/${timestamp}_${safeFileName}`;
+                              
+                              // Upload to ma-documents bucket
+                              const { error: uploadError } = await supabase.storage
+                                .from('ma-documents')
+                                .upload(storagePath, file);
+                              
+                              if (uploadError) {
+                                console.error(`Error uploading ${file.name}:`, uploadError);
+                                continue;
+                              }
+                              
+                              uploadedDocs.push({
+                                fileName: file.name,
+                                fileUrl: storagePath, // Store path, not full URL
+                                fileSize: file.size,
+                                fileType: file.type || file.name.split('.').pop() || 'application/pdf'
+                              });
+                            }
+                            
+                            setUploadingFiles(false);
                             
                             if (uploadedDocs.length === 0) {
                               alert('Failed to upload files');
@@ -4850,10 +4879,8 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             
                             // Create ma_uploaded_documents records and trigger extraction
                             for (const doc of uploadedDocs) {
-                              // Extract file path from URL (remove bucket prefix if present)
-                              const filePath = doc.fileUrl.includes('/storage/v1/object/public/') 
-                                ? doc.fileUrl.split('/storage/v1/object/public/')[1]
-                                : doc.fileUrl.replace(/^.*\/(ma-documents\/.*)$/, '$1');
+                              // Use the storage path directly
+                              const filePath = doc.fileUrl;
                               
                               // Create ma_uploaded_documents record
                               const { data: maDocument, error: docError } = await supabase
