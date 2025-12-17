@@ -894,7 +894,7 @@ Respond in JSON format:
       const client = engagement.practice_members;
       
       // Get assessment responses from new table
-      const { data: assessment } = await supabase
+      let { data: assessment } = await supabase
         .from('ma_assessment_responses')
         .select('*')
         .eq('engagement_id', engagementId)
@@ -902,8 +902,73 @@ Respond in JSON format:
         .limit(1)
         .maybeSingle();
       
+      // If not found in v2 table, try to sync from service_line_assessments
       if (!assessment) {
-        throw new Error('No assessment found for this engagement. Please complete the assessment first.');
+        console.log(`[MA Insights] No assessment in ma_assessment_responses, checking service_line_assessments...`);
+        
+        // Get client_id from engagement
+        const clientId = engagement.practice_members?.id || engagement.client_id;
+        
+        // Check if assessment exists in old table
+        const { data: oldAssessment } = await supabase
+          .from('service_line_assessments')
+          .select('*')
+          .eq('client_id', clientId)
+          .eq('service_line_code', 'management_accounts')
+          .maybeSingle();
+        
+        if (oldAssessment && oldAssessment.completed_at) {
+          console.log(`[MA Insights] Found assessment in service_line_assessments, syncing...`);
+          
+          // Try to sync using the function
+          const { data: syncResult, error: syncError } = await supabase.rpc('sync_ma_assessment_for_engagement', {
+            p_engagement_id: engagementId
+          });
+          
+          if (syncError) {
+            console.error('[MA Insights] Sync error:', syncError);
+            // Fall back to manual sync
+            const responses = oldAssessment.responses || {};
+            const { data: newAssessment, error: insertError } = await supabase
+              .from('ma_assessment_responses')
+              .insert({
+                engagement_id: engagementId,
+                client_id: clientId,
+                tuesday_financial_question: responses.ma_tuesday_financial_question,
+                magic_away_financial: responses.ma_magic_away_financial,
+                decision_making_story: responses.ma_decision_making_story,
+                kpi_priorities: responses.ma_pain_points ? Array.isArray(responses.ma_pain_points) ? responses.ma_pain_points : [] : null,
+                current_reporting_lag: responses.ma_reporting_lag,
+                accounting_platform: responses.ma_accounting_platform,
+                bookkeeping_currency: responses.ma_bookkeeping_currency,
+                bookkeeping_owner: responses.ma_bookkeeping_owner,
+                ma_transformation_desires: responses.ma_transformation_desires ? Array.isArray(responses.ma_transformation_desires) ? responses.ma_transformation_desires : [] : null,
+                financial_visibility_vision: responses.ma_visibility_vision,
+                reporting_frequency_preference: responses.ma_reporting_frequency,
+                additional_reporting_needs: responses.ma_additional_reporting ? Array.isArray(responses.ma_additional_reporting) ? responses.ma_additional_reporting : [] : null,
+                raw_responses: responses,
+                completed_at: oldAssessment.completed_at
+              })
+              .select('*')
+              .single();
+            
+            if (insertError) {
+              throw new Error(`Failed to sync assessment: ${insertError.message}`);
+            }
+            assessment = newAssessment;
+            console.log(`[MA Insights] Assessment synced successfully`);
+          } else {
+            // Re-fetch the synced assessment
+            const { data: syncedAssessment } = await supabase
+              .from('ma_assessment_responses')
+              .select('*')
+              .eq('engagement_id', engagementId)
+              .single();
+            assessment = syncedAssessment;
+          }
+        } else {
+          throw new Error('No assessment found for this engagement. Please complete the assessment first.');
+        }
       }
       
       // Get the most recent extracted financials
