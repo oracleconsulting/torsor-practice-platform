@@ -185,21 +185,31 @@ serve(async (req) => {
   }
   
   try {
-    const { documentId, engagementId } = await req.json();
+    console.log('[Extract] Function invoked');
+    const body = await req.json();
+    console.log('[Extract] Request body:', body);
+    
+    const { documentId, engagementId } = body;
     
     if (!documentId || !engagementId) {
+      console.error('[Extract] Missing required parameters:', { documentId, engagementId });
       return new Response(
         JSON.stringify({ error: 'documentId and engagementId are required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
-    console.log(`[Extract] Starting extraction for document ${documentId}`);
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('[Extract] Missing Supabase configuration');
+      throw new Error('Missing Supabase configuration');
+    }
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    console.log(`[Extract] Starting extraction for document ${documentId}, engagement ${engagementId}`);
     
     // Update status to processing
     await supabase

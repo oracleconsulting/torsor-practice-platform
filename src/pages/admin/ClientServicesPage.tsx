@@ -4916,26 +4916,44 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                 });
                               
                               // Call extract-ma-financials edge function
-                              console.log(`[MA Upload] Calling extract-ma-financials for document ${maDocument.id}`);
-                              const { data: extractResult, error: extractError } = await supabase.functions.invoke('extract-ma-financials', {
-                                body: {
-                                  documentId: maDocument.id,
-                                  engagementId: engagement.id
-                                }
+                              console.log(`[MA Upload] Calling extract-ma-financials for document ${maDocument.id}`, {
+                                documentId: maDocument.id,
+                                engagementId: engagement.id,
+                                filePath: filePath
                               });
                               
-                              if (extractError) {
-                                console.error('Error extracting financials:', extractError);
-                                // Update document status to failed
+                              try {
+                                const { data: extractResult, error: extractError } = await supabase.functions.invoke('extract-ma-financials', {
+                                  body: {
+                                    documentId: maDocument.id,
+                                    engagementId: engagement.id
+                                  }
+                                });
+                                
+                                if (extractError) {
+                                  console.error('[MA Upload] Extract function error:', extractError);
+                                  // Update document status to failed
+                                  await supabase
+                                    .from('ma_uploaded_documents')
+                                    .update({
+                                      extraction_status: 'failed',
+                                      extraction_error: extractError.message || JSON.stringify(extractError)
+                                    })
+                                    .eq('id', maDocument.id);
+                                  alert(`Document uploaded but extraction failed: ${extractError.message || 'Unknown error'}`);
+                                } else {
+                                  console.log('[MA Upload] Extraction started successfully:', extractResult);
+                                }
+                              } catch (invokeError: any) {
+                                console.error('[MA Upload] Failed to invoke extract-ma-financials:', invokeError);
                                 await supabase
                                   .from('ma_uploaded_documents')
                                   .update({
                                     extraction_status: 'failed',
-                                    extraction_error: extractError.message
+                                    extraction_error: invokeError.message || 'Failed to invoke extraction function'
                                   })
                                   .eq('id', maDocument.id);
-                              } else {
-                                console.log('[MA Upload] Extraction started:', extractResult);
+                                alert(`Document uploaded but failed to start extraction: ${invokeError.message || 'Check console for details'}`);
                               }
                             }
                             
