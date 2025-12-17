@@ -1600,8 +1600,8 @@ function extractFinancialsFromContext(
     operatingProfit = netProfit * 1.2; // Estimate operating from net
     console.log(`Using actual net profit: £${netProfit.toLocaleString()}`);
   } else {
-    // Estimate operating profit (typically 60-80% of gross for SMEs)
-    operatingProfit = grossProfit * 0.7;
+  // Estimate operating profit (typically 60-80% of gross for SMEs)
+  operatingProfit = grossProfit * 0.7;
   }
 
   // Check for actual owner salary
@@ -1610,7 +1610,7 @@ function extractFinancialsFromContext(
     ownerSalary = actualOwnerSalary;
     console.log(`Using actual owner salary: £${ownerSalary.toLocaleString()}`);
   } else {
-    ownerSalary = parseFloat(part2Responses.owner_salary?.replace(/[£,]/g, '') || '0') || revenue * 0.15;
+  ownerSalary = parseFloat(part2Responses.owner_salary?.replace(/[£,]/g, '') || '0') || revenue * 0.15;
   }
   ownerPerks = ownerSalary * 0.1; // Estimate perks at 10% of salary
 
@@ -1621,8 +1621,8 @@ function extractFinancialsFromContext(
     console.log(`Calculated YoY growth from actuals: ${(yearOnYearGrowth * 100).toFixed(1)}%`);
   } else {
     // Parse growth rate from selections
-    const growthStr = part2Responses.growth_rate || part2Responses.revenue_growth || '0%';
-    yearOnYearGrowth = parseFloat(growthStr.replace('%', '')) / 100 || 0;
+  const growthStr = part2Responses.growth_rate || part2Responses.revenue_growth || '0%';
+  yearOnYearGrowth = parseFloat(growthStr.replace('%', '')) / 100 || 0;
   }
 
   // Parse recurring revenue
@@ -1710,7 +1710,7 @@ function extractFinancialsFromContext(
         /ebit[:\s]+£?([\d,]+)/i
       );
       if (extractedOP) operatingProfit = extractedOP;
-    }
+      }
 
     // NET PROFIT
     if (contentLower.includes('net profit') || contentLower.includes('profit after tax') || contentLower.includes('profit for the year')) {
@@ -1720,7 +1720,7 @@ function extractFinancialsFromContext(
         /profit\s+for\s+(?:the\s+)?year\s+£?([\d,]+)/i
       );
       if (extractedNP) netProfit = extractedNP;
-    }
+      }
 
     // DIRECTOR SALARY/REMUNERATION
     if (contentLower.includes('director') && (contentLower.includes('salary') || contentLower.includes('remuneration'))) {
@@ -1729,13 +1729,13 @@ function extractFinancialsFromContext(
         /(?:salary|remuneration)\s+£?([\d,]+)/i
       );
       if (extractedSalary) ownerSalary = extractedSalary;
-    }
+      }
 
     // TOTAL ASSETS
     if (contentLower.includes('total assets')) {
       const extractedAssets = extractMoney(content, /total\s+assets\s+£?([\d,]+)/i);
       if (extractedAssets) assets = extractedAssets;
-    }
+      }
 
     // TOTAL LIABILITIES
     if (contentLower.includes('total liabilities') || contentLower.includes('creditors')) {

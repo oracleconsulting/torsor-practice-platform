@@ -869,7 +869,10 @@ export function useTasks() {
   const [tasks, setTasks] = useState<any[]>([]);
 
   const fetchTasks = useCallback(async (weekNumber?: number) => {
+    console.log('[useTasks] fetchTasks called, clientId:', clientSession?.clientId);
+    
     if (!clientSession?.clientId) {
+      console.log('[useTasks] No client session, returning empty');
       return [];
     }
 
@@ -889,6 +892,8 @@ export function useTasks() {
       }
 
       const { data, error: fetchError } = await query;
+
+      console.log('[useTasks] Fetched tasks:', { count: data?.length || 0, error: fetchError, clientId: clientSession.clientId });
 
       if (fetchError) throw new Error(fetchError.message);
 

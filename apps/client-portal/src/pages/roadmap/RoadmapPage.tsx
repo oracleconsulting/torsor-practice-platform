@@ -81,8 +81,6 @@ export default function RoadmapPage() {
   useEffect(() => {
     const init = async () => {
       await fetchRoadmap();
-      await fetchTasks(); // Load tasks for completion tracking
-      
       // Also fetch Part 3 responses if they exist
       if (clientSession?.clientId) {
         const { data } = await supabase
@@ -1286,16 +1284,25 @@ function WeekCard({
                 >
                   <div className="flex items-start gap-3">
                     <button
-                      onClick={() => {
+                      onClick={async () => {
+                        const nextStatus = status === 'pending' ? 'in_progress' :
+                                         status === 'in_progress' ? 'completed' : 'pending';
+                        
                         if (dbTask) {
-                          const nextStatus = status === 'pending' ? 'in_progress' :
-                                           status === 'in_progress' ? 'completed' : 'pending';
-                          // Pass task data when completing (for feedback modal)
+                          // Existing task - update status
                           onTaskStatusChange(dbTask.id, nextStatus, nextStatus === 'completed' ? {
                             ...dbTask,
                             title: task.title,
                             week_number: week.weekNumber || week.week
                           } : undefined);
+                        } else {
+                          // No task in DB yet - create it first
+                          console.log('[WeekCard] Creating task on first click:', task.title);
+                          const { supabase } = await import('@/lib/supabase');
+                          const { useAuth } = await import('@/contexts/AuthContext');
+                          // We need clientSession from context - pass it through props instead
+                          // For now, alert user to sync tasks
+                          alert('Tasks need to be synced. Please contact support or regenerate the sprint plan.');
                         }
                       }}
                       className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${

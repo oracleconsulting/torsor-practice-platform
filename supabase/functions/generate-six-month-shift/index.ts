@@ -226,7 +226,7 @@ async function generateShift(ctx: any): Promise<any> {
   const prompt = buildShiftPrompt(ctx);
 
   console.log('Calling LLM for 6-month shift...');
-  
+
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -275,7 +275,7 @@ Return ONLY valid JSON.`
   }
   
   try {
-    return JSON.parse(cleaned.substring(start, end + 1));
+  return JSON.parse(cleaned.substring(start, end + 1));
   } catch (parseError) {
     console.error('JSON parse error, attempting repair...');
     let fixedJson = cleaned.substring(start, end + 1);

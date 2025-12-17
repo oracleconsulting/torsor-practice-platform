@@ -76,3 +76,4 @@ DO $$
 BEGIN
   RAISE NOTICE 'trigger_next_stage function updated with correct 6-stage chain';
 END $$;
+
