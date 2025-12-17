@@ -1081,7 +1081,7 @@ Respond in JSON format:
     }
     
     const snapshotClientId = snapshot.ma_engagements.client_id;
-    const engagementId = snapshot.engagement_id;
+    const snapshotEngagementId = snapshot.engagement_id;
     
     console.log(`[MA Insights] Client ID: ${snapshotClientId}, Engagement ID: ${engagementId}`);
     
@@ -1133,7 +1133,7 @@ Respond in JSON format:
     // Prepare insight data for upsert
     const insightData = {
       snapshot_id: snapshotId,
-      engagement_id: engagementId,
+      engagement_id: snapshotEngagementId,
       period_end_date: snapshot.period_end_date,
       headline_text: llmResponse.headline.text,
       headline_sentiment: llmResponse.headline.sentiment,
