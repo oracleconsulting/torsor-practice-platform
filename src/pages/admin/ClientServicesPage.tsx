@@ -1372,7 +1372,7 @@ function DiscoveryClientModal({
         }
       }
 
-      // Fetch uploaded documents
+      // Fetch uploaded documents (both old and new format)
       // Note: Using simple query to avoid PostgREST relationship ambiguity
       // We'll validate client_id separately
       const { data: docsData, error: docsError } = await supabase
@@ -1384,6 +1384,29 @@ function DiscoveryClientModal({
       
       if (docsError) {
         console.error('Error fetching documents:', docsError);
+      }
+      
+      // Fetch MA uploaded documents (v2 format)
+      const { data: maEngagement } = await supabase
+        .from('ma_engagements')
+        .select('id')
+        .eq('client_id', clientId)
+        .maybeSingle();
+      
+      let maDocuments: any[] = [];
+      if (maEngagement) {
+        const { data: maDocsData, error: maDocsError } = await supabase
+          .from('ma_uploaded_documents')
+          .select('*')
+          .eq('engagement_id', maEngagement.id)
+          .order('created_at', { ascending: false });
+        
+        if (maDocsError) {
+          console.error('Error fetching MA documents:', maDocsError);
+        } else {
+          maDocuments = maDocsData || [];
+          console.log(`[MA] Found ${maDocuments.length} MA documents for engagement ${maEngagement.id}`);
+        }
       }
       
       const validDocs = (docsData || []).filter((doc: any) => {
@@ -1424,7 +1447,14 @@ function DiscoveryClientModal({
         .limit(1)
         .maybeSingle();
 
-      setClient(clientData);
+      // Add maDocuments to client data for display
+      const clientWithMADocs = {
+        ...clientData,
+        maDocuments: maDocuments,
+        documents: validDocs || []
+      };
+      
+      setClient(clientWithMADocs);
       setDiscovery(discoveryData);
       // Use validated documents (filtered by email match)
       setDocuments(validDocs || []);
@@ -4993,34 +5023,125 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                       <h3 className="text-lg font-semibold text-gray-900">Uploaded Documents</h3>
                     </div>
                     <div className="p-6">
-                      {client?.documents && client.documents.length > 0 ? (
-                        <div className="space-y-3">
-                          {client.documents.map((doc: any) => (
-                            <div key={doc.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                              <div className="flex items-center gap-3">
-                                <FileText className="w-5 h-5 text-blue-600" />
-                                <div>
-                                  <p className="font-medium text-gray-900">{doc.content?.split('/').pop() || 'Document'}</p>
-                                  <p className="text-sm text-gray-500">
-                                    Uploaded {new Date(doc.created_at).toLocaleDateString()}
-                                  </p>
+                      {/* Show MA documents (v2) if available, otherwise fallback to old format */}
+                      {(() => {
+                        const maDocs = client?.maDocuments || [];
+                        const oldDocs = client?.documents || [];
+                        
+                        if (maDocs.length > 0) {
+                          return (
+                            <div className="space-y-3">
+                              {maDocs.map((doc: any) => (
+                                <div key={doc.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                  <div className="flex items-center gap-3">
+                                    <FileText className="w-5 h-5 text-blue-600" />
+                                    <div>
+                                      <p className="font-medium text-gray-900">{doc.filename}</p>
+                                      <p className="text-sm text-gray-500">
+                                        Uploaded {new Date(doc.created_at).toLocaleDateString()}
+                                        {doc.extraction_status === 'completed' && doc.extracted_at && (
+                                          <> • Extracted {new Date(doc.extracted_at).toLocaleDateString()}</>
+                                        )}
+                                      </p>
+                                      {doc.extraction_error && (
+                                        <p className="text-sm text-red-600 mt-1">Error: {doc.extraction_error}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                      doc.extraction_status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                                      doc.extraction_status === 'processing' ? 'bg-blue-100 text-blue-700' :
+                                      doc.extraction_status === 'failed' ? 'bg-red-100 text-red-700' :
+                                      'bg-amber-100 text-amber-700'
+                                    }`}>
+                                      {doc.extraction_status === 'completed' ? 'Extracted' :
+                                       doc.extraction_status === 'processing' ? 'Processing...' :
+                                       doc.extraction_status === 'failed' ? 'Failed' :
+                                       'Pending'}
+                                    </span>
+                                    {doc.extraction_status === 'pending' && (
+                                      <button
+                                        onClick={async () => {
+                                          try {
+                                            const { data: engagement } = await supabase
+                                              .from('ma_engagements')
+                                              .select('id')
+                                              .eq('client_id', clientId)
+                                              .maybeSingle();
+                                            
+                                            if (!engagement) {
+                                              alert('No engagement found. Please upload a document first.');
+                                              return;
+                                            }
+                                            
+                                            console.log('[MA] Manually triggering extraction for document:', doc.id);
+                                            const { data, error } = await supabase.functions.invoke('extract-ma-financials', {
+                                              body: {
+                                                documentId: doc.id,
+                                                engagementId: engagement.id
+                                              }
+                                            });
+                                            
+                                            if (error) {
+                                              console.error('[MA] Extraction error:', error);
+                                              alert('Failed to extract: ' + error.message);
+                                            } else {
+                                              console.log('[MA] Extraction started:', data);
+                                              alert('Extraction started. Check logs for progress.');
+                                              await fetchClientDetail();
+                                            }
+                                          } catch (err: any) {
+                                            console.error('[MA] Error:', err);
+                                            alert('Error: ' + err.message);
+                                          }
+                                        }}
+                                        className="px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                                      >
+                                        Extract
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                              <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                doc.processed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                              }`}>
-                                {doc.processed ? 'Processed' : 'Pending'}
-                              </span>
+                              ))}
                             </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8">
-                          <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                          <p className="text-gray-500">No documents uploaded yet</p>
-                          <p className="text-sm text-gray-400 mt-2">Upload management accounts to enable AI analysis</p>
-                        </div>
-                      )}
+                          );
+                        }
+                        
+                        // Fallback to old format
+                        if (oldDocs.length > 0) {
+                          return (
+                            <div className="space-y-3">
+                              {oldDocs.map((doc: any) => (
+                                <div key={doc.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                  <div className="flex items-center gap-3">
+                                    <FileText className="w-5 h-5 text-blue-600" />
+                                    <div>
+                                      <p className="font-medium text-gray-900">{doc.content?.split('/').pop() || 'Document'}</p>
+                                      <p className="text-sm text-gray-500">
+                                        Uploaded {new Date(doc.created_at).toLocaleDateString()}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    doc.processed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                                  }`}>
+                                    {doc.processed ? 'Processed' : 'Pending'}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        
+                        return (
+                          <div className="text-center py-8">
+                            <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                            <p className="text-gray-500">No documents uploaded yet</p>
+                            <p className="text-sm text-gray-400 mt-2">Upload management accounts to enable AI analysis</p>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
