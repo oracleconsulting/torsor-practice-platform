@@ -4883,14 +4883,32 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                               const storagePath = `${engagement.id}/${timestamp}_${safeFileName}`;
                               
                               // Upload to ma-documents bucket
-                              const { error: uploadError } = await supabase.storage
+                              console.log(`[MA Upload] Uploading to ma-documents/${storagePath}`);
+                              const { data: uploadData, error: uploadError } = await supabase.storage
                                 .from('ma-documents')
-                                .upload(storagePath, file);
+                                .upload(storagePath, file, {
+                                  cacheControl: '3600',
+                                  upsert: false
+                                });
                               
                               if (uploadError) {
-                                console.error(`Error uploading ${file.name}:`, uploadError);
+                                console.error(`[MA Upload] Storage upload error for ${file.name}:`, uploadError);
+                                console.error(`[MA Upload] Error details:`, {
+                                  message: uploadError.message,
+                                  statusCode: uploadError.statusCode,
+                                  error: uploadError.error
+                                });
+                                
+                                // If RLS error, provide helpful message
+                                if (uploadError.message?.includes('row-level security') || uploadError.message?.includes('RLS')) {
+                                  alert(`Upload failed: Storage bucket RLS policy error. Please check Supabase storage policies for 'ma-documents' bucket. Error: ${uploadError.message}`);
+                                } else {
+                                  alert(`Failed to upload ${file.name}: ${uploadError.message}`);
+                                }
                                 continue;
                               }
+                              
+                              console.log(`[MA Upload] File uploaded successfully:`, uploadData);
                               
                               uploadedDocs.push({
                                 fileName: file.name,
@@ -5019,8 +5037,89 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
 
                   {/* Uploaded Documents List */}
                   <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
                       <h3 className="text-lg font-semibold text-gray-900">Uploaded Documents</h3>
+                      {client?.maDocuments && client.maDocuments.length > 0 && (
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`Are you sure you want to delete ALL ${client.maDocuments.length} documents? This cannot be undone.`)) {
+                              return;
+                            }
+                            
+                            try {
+                              console.log('[MA] Deleting all documents');
+                              const docs = client.maDocuments as any[];
+                              
+                              for (const doc of docs) {
+                                // Delete extracted financials first
+                                const { data: extractedFinancials } = await supabase
+                                  .from('ma_extracted_financials')
+                                  .select('id')
+                                  .eq('document_id', doc.id);
+                                
+                                if (extractedFinancials && extractedFinancials.length > 0) {
+                                  const extractedIds = extractedFinancials.map((f: any) => f.id);
+                                  
+                                  // Delete true cash calculations
+                                  await supabase
+                                    .from('ma_true_cash_calculations')
+                                    .delete()
+                                    .in('extracted_financials_id', extractedIds);
+                                  
+                                  // Delete period comparisons
+                                  await supabase
+                                    .from('ma_period_comparisons')
+                                    .delete()
+                                    .in('current_period_id', extractedIds);
+                                  
+                                  await supabase
+                                    .from('ma_period_comparisons')
+                                    .delete()
+                                    .in('prior_period_id', extractedIds);
+                                  
+                                  // Delete extracted financials
+                                  await supabase
+                                    .from('ma_extracted_financials')
+                                    .delete()
+                                    .eq('document_id', doc.id);
+                                }
+                                
+                                // Delete file from storage
+                                if (doc.file_path) {
+                                  await supabase.storage
+                                    .from('ma-documents')
+                                    .remove([doc.file_path]);
+                                }
+                                
+                                // Delete document record
+                                await supabase
+                                  .from('ma_uploaded_documents')
+                                  .delete()
+                                  .eq('id', doc.id);
+                                
+                                // Delete from client_context
+                                await supabase
+                                  .from('client_context')
+                                  .delete()
+                                  .eq('source_file_url', doc.file_path)
+                                  .eq('client_id', clientId)
+                                  .eq('context_type', 'document');
+                              }
+                              
+                              console.log('[MA] All documents deleted successfully');
+                              alert(`Successfully deleted ${docs.length} documents`);
+                              await fetchClientDetail();
+                            } catch (err: any) {
+                              console.error('[MA] Delete all error:', err);
+                              alert('Failed to delete all documents: ' + err.message);
+                            }
+                          }}
+                          className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete All
+                        </button>
+                      )}
                     </div>
                     <div className="p-6">
                       {/* Show MA documents (v2) if available, otherwise fallback to old format */}
@@ -5060,47 +5159,132 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                        doc.extraction_status === 'failed' ? 'Failed' :
                                        'Pending'}
                                     </span>
-                                    {doc.extraction_status === 'pending' && (
+                                    <div className="flex items-center gap-2">
+                                      {doc.extraction_status === 'pending' && (
+                                        <button
+                                          onClick={async () => {
+                                            try {
+                                              const { data: engagement } = await supabase
+                                                .from('ma_engagements')
+                                                .select('id')
+                                                .eq('client_id', clientId)
+                                                .maybeSingle();
+                                              
+                                              if (!engagement) {
+                                                alert('No engagement found. Please upload a document first.');
+                                                return;
+                                              }
+                                              
+                                              console.log('[MA] Manually triggering extraction for document:', doc.id);
+                                              const { data, error } = await supabase.functions.invoke('extract-ma-financials', {
+                                                body: {
+                                                  documentId: doc.id,
+                                                  engagementId: engagement.id
+                                                }
+                                              });
+                                              
+                                              if (error) {
+                                                console.error('[MA] Extraction error:', error);
+                                                alert('Failed to extract: ' + error.message);
+                                              } else {
+                                                console.log('[MA] Extraction started:', data);
+                                                alert('Extraction started. Check logs for progress.');
+                                                await fetchClientDetail();
+                                              }
+                                            } catch (err: any) {
+                                              console.error('[MA] Error:', err);
+                                              alert('Error: ' + err.message);
+                                            }
+                                          }}
+                                          className="px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                                        >
+                                          Extract
+                                        </button>
+                                      )}
                                       <button
-                                        onClick={async () => {
-                                          try {
-                                            const { data: engagement } = await supabase
-                                              .from('ma_engagements')
-                                              .select('id')
-                                              .eq('client_id', clientId)
-                                              .maybeSingle();
-                                            
-                                            if (!engagement) {
-                                              alert('No engagement found. Please upload a document first.');
+                                          onClick={async () => {
+                                            if (!confirm(`Are you sure you want to delete "${doc.filename}"? This will also remove any extracted financial data.`)) {
                                               return;
                                             }
                                             
-                                            console.log('[MA] Manually triggering extraction for document:', doc.id);
-                                            const { data, error } = await supabase.functions.invoke('extract-ma-financials', {
-                                              body: {
-                                                documentId: doc.id,
-                                                engagementId: engagement.id
+                                            try {
+                                              console.log('[MA] Deleting document:', doc.id);
+                                              
+                                              // Delete extracted financials first (cascade should handle this, but being explicit)
+                                              const { data: extractedFinancials } = await supabase
+                                                .from('ma_extracted_financials')
+                                                .select('id')
+                                                .eq('document_id', doc.id);
+                                              
+                                              if (extractedFinancials && extractedFinancials.length > 0) {
+                                                const extractedIds = extractedFinancials.map((f: any) => f.id);
+                                                
+                                                // Delete true cash calculations
+                                                await supabase
+                                                  .from('ma_true_cash_calculations')
+                                                  .delete()
+                                                  .in('extracted_financials_id', extractedIds);
+                                                
+                                                // Delete period comparisons
+                                                await supabase
+                                                  .from('ma_period_comparisons')
+                                                  .delete()
+                                                  .in('current_period_id', extractedIds);
+                                                
+                                                await supabase
+                                                  .from('ma_period_comparisons')
+                                                  .delete()
+                                                  .in('prior_period_id', extractedIds);
+                                                
+                                                // Delete extracted financials
+                                                await supabase
+                                                  .from('ma_extracted_financials')
+                                                  .delete()
+                                                  .eq('document_id', doc.id);
                                               }
-                                            });
-                                            
-                                            if (error) {
-                                              console.error('[MA] Extraction error:', error);
-                                              alert('Failed to extract: ' + error.message);
-                                            } else {
-                                              console.log('[MA] Extraction started:', data);
-                                              alert('Extraction started. Check logs for progress.');
+                                              
+                                              // Delete file from storage
+                                              const { error: storageError } = await supabase.storage
+                                                .from('ma-documents')
+                                                .remove([doc.file_path]);
+                                              
+                                              if (storageError) {
+                                                console.error('[MA] Storage delete error:', storageError);
+                                                // Continue with DB deletion even if storage fails
+                                              }
+                                              
+                                              // Delete document record
+                                              const { error: deleteError } = await supabase
+                                                .from('ma_uploaded_documents')
+                                                .delete()
+                                                .eq('id', doc.id);
+                                              
+                                              if (deleteError) {
+                                                throw new Error(`Failed to delete document record: ${deleteError.message}`);
+                                              }
+                                              
+                                              // Also delete from client_context if it exists
+                                              await supabase
+                                                .from('client_context')
+                                                .delete()
+                                                .eq('source_file_url', doc.file_path)
+                                                .eq('client_id', clientId)
+                                                .eq('context_type', 'document');
+                                              
+                                              console.log('[MA] Document deleted successfully');
+                                              alert('Document deleted successfully');
                                               await fetchClientDetail();
+                                            } catch (err: any) {
+                                              console.error('[MA] Delete error:', err);
+                                              alert('Failed to delete document: ' + err.message);
                                             }
-                                          } catch (err: any) {
-                                            console.error('[MA] Error:', err);
-                                            alert('Error: ' + err.message);
-                                          }
-                                        }}
-                                        className="px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
-                                      >
-                                        Extract
-                                      </button>
-                                    )}
+                                          }}
+                                          className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                          Delete
+                                        </button>
+                                      </div>
                                   </div>
                                 </div>
                               ))}
@@ -5123,11 +5307,78 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                       </p>
                                     </div>
                                   </div>
-                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                    doc.processed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                                  }`}>
-                                    {doc.processed ? 'Processed' : 'Pending'}
-                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                      doc.processed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                                    }`}>
+                                      {doc.processed ? 'Processed' : 'Pending'}
+                                    </span>
+                                    <button
+                                      onClick={async () => {
+                                        if (!confirm(`Are you sure you want to delete this document?`)) {
+                                          return;
+                                        }
+                                        
+                                        try {
+                                          // Extract file path from source_file_url or content
+                                          const filePath = doc.source_file_url || doc.content;
+                                          
+                                          // Try to determine bucket from path
+                                          let bucket = 'client-documents';
+                                          let storagePath = filePath;
+                                          
+                                          if (filePath.includes('/storage/v1/object/public/')) {
+                                            // Extract bucket and path from public URL
+                                            const parts = filePath.split('/storage/v1/object/public/');
+                                            if (parts[1]) {
+                                              const pathParts = parts[1].split('/');
+                                              bucket = pathParts[0];
+                                              storagePath = pathParts.slice(1).join('/');
+                                            }
+                                          } else if (filePath.includes('ma-documents/')) {
+                                            bucket = 'ma-documents';
+                                            storagePath = filePath.replace(/^.*ma-documents\//, '');
+                                          } else if (filePath.includes('client-documents/')) {
+                                            bucket = 'client-documents';
+                                            storagePath = filePath.replace(/^.*client-documents\//, '');
+                                          }
+                                          
+                                          // Delete from storage
+                                          if (storagePath) {
+                                            const { error: storageError } = await supabase.storage
+                                              .from(bucket)
+                                              .remove([storagePath]);
+                                            
+                                            if (storageError) {
+                                              console.error('[MA] Storage delete error:', storageError);
+                                              // Continue with DB deletion even if storage fails
+                                            }
+                                          }
+                                          
+                                          // Delete from client_context
+                                          const { error: deleteError } = await supabase
+                                            .from('client_context')
+                                            .delete()
+                                            .eq('id', doc.id);
+                                          
+                                          if (deleteError) {
+                                            throw new Error(`Failed to delete document: ${deleteError.message}`);
+                                          }
+                                          
+                                          console.log('[MA] Document deleted successfully');
+                                          alert('Document deleted successfully');
+                                          await fetchClientDetail();
+                                        } catch (err: any) {
+                                          console.error('[MA] Delete error:', err);
+                                          alert('Failed to delete document: ' + err.message);
+                                        }
+                                      }}
+                                      className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                      Delete
+                                    </button>
+                                  </div>
                                 </div>
                               ))}
                             </div>
