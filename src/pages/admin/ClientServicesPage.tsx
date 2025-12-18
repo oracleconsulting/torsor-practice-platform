@@ -3991,15 +3991,65 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
       const documents = (context || []).filter((c: any) => c.context_type === 'document');
       
       // Load most recent MA insight if available
-      const maInsightContext = (context || []).find((c: any) => 
+      // First check ma_monthly_insights (v2) for this client's engagement
+      let maInsightV2 = null;
+      const { data: engagement } = await supabase
+        .from('ma_engagements')
+        .select('id')
+        .eq('client_id', clientId)
+        .maybeSingle();
+      
+      if (engagement) {
+        const { data: monthlyInsights } = await supabase
+          .from('ma_monthly_insights')
+          .select('*')
+          .eq('engagement_id', engagement.id)
+          .is('snapshot_id', null) // v2 insights only
+          .order('period_end_date', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (monthlyInsights) {
+          // Convert v2 format to expected format
+          maInsightV2 = {
+            headline: {
+              text: monthlyInsights.headline_text,
+              sentiment: monthlyInsights.headline_sentiment
+            },
+            keyInsights: monthlyInsights.insights || [],
+            decisionsEnabled: monthlyInsights.decisions_enabled || [],
+            watchList: monthlyInsights.watch_list || [],
+            trueCashSection: monthlyInsights.true_cash_narrative ? {
+              narrative: monthlyInsights.true_cash_narrative
+            } : null,
+            tuesdayQuestionAnswer: monthlyInsights.tuesday_question_original ? {
+              originalQuestion: monthlyInsights.tuesday_question_original,
+              answer: monthlyInsights.tuesday_question_answer,
+              supportingData: monthlyInsights.tuesday_question_supporting_data?.supportingData || [],
+              verdict: monthlyInsights.tuesday_question_supporting_data?.verdict
+            } : null,
+            clientQuotesUsed: monthlyInsights.client_quotes_used || []
+          };
+        }
+      }
+      
+      // Fallback to old client_context format if v2 not found
+      const maInsightContext = !maInsightV2 ? (context || []).find((c: any) => 
         c.context_type === 'note' && 
         c.processed === true && 
         c.content && 
         typeof c.content === 'string' &&
         (c.content.includes('"headline"') || c.content.includes('"keyInsights"'))
-      );
+      ) : null;
       
-      if (maInsightContext) {
+      if (maInsightV2) {
+        // Use v2 insight from ma_monthly_insights
+        setMAInsights({ insight: maInsightV2, success: true });
+        setMAInsightContextId(null); // v2 insights don't use client_context
+        setIsMAInsightShared(false); // TODO: Add sharing status to ma_monthly_insights
+      } else if (maInsightContext) {
+        // Use old format from client_context
         try {
           const parsed = typeof maInsightContext.content === 'string' 
             ? JSON.parse(maInsightContext.content) 
@@ -4011,6 +4061,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
           console.error('Error parsing MA insight:', e);
         }
       } else {
+        setMAInsights(null);
         setMAInsightContextId(null);
         setIsMAInsightShared(false);
       }
@@ -5438,16 +5489,30 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                               // Use v2 mode with engagementId
                               requestBody = {
                                 engagementId: engagement.id,
-                                regenerate: false
+                                regenerate: true // Always regenerate when button is clicked
                               };
                               console.log('[MA Insights] Using v2 mode with engagementId:', engagement.id);
+                              console.log('[MA Insights] Request body (v2):', requestBody);
+                              console.log('[MA Insights] Regenerate flag in requestBody:', requestBody.regenerate);
                             } else {
+                              // Use v1 mode with clientId
+                              requestBody = {
+                                ...requestBody,
+                                regenerate: true // Always regenerate when button is clicked
+                              };
                               console.log('[MA Insights] Using v1 mode with clientId:', clientId);
+                              console.log('[MA Insights] Request body (v1):', requestBody);
+                              console.log('[MA Insights] Regenerate flag in requestBody:', requestBody.regenerate);
                             }
+                            
+                            console.log('[MA Insights] Final request body being sent:', JSON.stringify(requestBody, null, 2));
+                            console.log('[MA Insights] Regenerate value:', requestBody.regenerate, typeof requestBody.regenerate);
                             
                             const { data, error } = await supabase.functions.invoke('generate-ma-insights', {
                               body: requestBody
                             });
+                            
+                            console.log('[MA Insights] Response received:', { data, error });
                             
                             if (error) throw error;
                             setMAInsights(data);

@@ -643,12 +643,17 @@ Other Overheads: ${formatCurrency(priorPeriod.other_overheads || priorPeriod.oth
 TRUE CASH CALCULATION (this is critical - they asked about this)
 ═══════════════════════════════════════════════════════════════════════════════
 
+${trueCash ? `
 Bank Balance:           ${formatCurrency(trueCash.bank_balance || trueCash.bankBalance)}
 Less: VAT Payable:     (${formatCurrency(trueCash.less_vat_payable || trueCash.lessVatPayable)})
 Less: PAYE/NIC:        (${formatCurrency(trueCash.less_paye_nic || trueCash.lessPayeNic)})
 Less: Director Loan:   (${formatCurrency(trueCash.less_director_loan || trueCash.lessDirectorLoan)})
 ───────────────────────────────────────
 TRUE CASH AVAILABLE:   ${formatCurrency(trueCash.true_cash_available || trueCash.trueCashAvailable)} ${(trueCash.true_cash_available || trueCash.trueCashAvailable || 0) < 0 ? '⚠️ NEGATIVE' : ''}
+` : `
+TRUE CASH CALCULATION: Not yet calculated. Using bank balance from balance sheet.
+BANK BALANCE: ${formatCurrency(currentPeriod.bank_balance || currentPeriod.bankBalance)}
+`}
 
 ═══════════════════════════════════════════════════════════════════════════════
 YOUR TASK
@@ -745,6 +750,8 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const { snapshotId, clientId, practiceId, regenerate, engagementId, periodEndDate } = body;
+    
+    console.log(`[MA Insights] Request received - regenerate: ${regenerate}, engagementId: ${engagementId}, clientId: ${clientId}, snapshotId: ${snapshotId}`);
     
     // Create Supabase client with service role for full access
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -996,10 +1003,38 @@ Respond in JSON format:
         .from('ma_true_cash_calculations')
         .select('*')
         .eq('extracted_financials_id', currentPeriod.id)
-        .single();
+        .maybeSingle();
       
-      if (trueCashError || !trueCash) {
-        throw new Error('True cash calculation not found. Please ensure financials have been extracted.');
+      if (trueCashError) {
+        console.error('[MA Insights] Error fetching true cash:', trueCashError);
+        // Continue without true cash - it will be calculated if missing
+      }
+      
+      if (!trueCash) {
+        console.warn('[MA Insights] True cash calculation not found, attempting to calculate...');
+        // Try to trigger calculation by updating the extracted financials
+        // The trigger should automatically calculate true cash
+        const { error: updateError } = await supabase
+          .from('ma_extracted_financials')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', currentPeriod.id);
+        
+        if (updateError) {
+          console.error('[MA Insights] Error triggering true cash calculation:', updateError);
+        }
+        
+        // Wait a moment and try again
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const { data: retryTrueCash } = await supabase
+          .from('ma_true_cash_calculations')
+          .select('*')
+          .eq('extracted_financials_id', currentPeriod.id)
+          .maybeSingle();
+        
+        if (!retryTrueCash) {
+          console.warn('[MA Insights] True cash still not found, continuing without it');
+          // Continue without true cash - buildV2Prompt will handle null
+        }
       }
       
       // Get comparison if available
@@ -1015,6 +1050,7 @@ Respond in JSON format:
       }
       
       // Check for existing insight (unless regenerating)
+      console.log(`[MA Insights] Regenerate flag: ${regenerate}`);
       if (!regenerate) {
         const { data: existing } = await supabase
           .from('ma_monthly_insights')
@@ -1024,12 +1060,14 @@ Respond in JSON format:
           .maybeSingle();
         
         if (existing && existing.status !== 'generating') {
-          console.log(`[MA Insights] Existing insight found: ${existing.id}`);
+          console.log(`[MA Insights] Existing insight found: ${existing.id}, returning cached (regenerate=false)`);
           return new Response(
             JSON.stringify({ success: true, insightId: existing.id, cached: true }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
+      } else {
+        console.log(`[MA Insights] Regenerate=true, skipping existing insight check`);
       }
       
       // Build context and prompt
@@ -1051,6 +1089,7 @@ Respond in JSON format:
       
       // Prepare insight data
       const insightData = {
+        snapshot_id: null, // v2 mode doesn't use snapshots
         engagement_id: engagementId,
         extracted_financials_id: currentPeriod.id,
         assessment_id: assessment.id,
@@ -1060,7 +1099,7 @@ Respond in JSON format:
         headline_sentiment: llmResponse.headline.sentiment,
         
         true_cash_narrative: llmResponse.trueCashSection?.narrative,
-        true_cash_calculation_id: trueCash.id,
+        true_cash_calculation_id: trueCash?.id || null,
         
         tuesday_question_original: llmResponse.tuesdayQuestionAnswer?.originalQuestion,
         tuesday_question_answer: llmResponse.tuesdayQuestionAnswer?.answer,
@@ -1085,17 +1124,42 @@ Respond in JSON format:
       };
       
       // Upsert the insight
-      const { data: insight, error: insertError } = await supabase
+      // For v2 mode, we use engagement_id + period_end_date as the unique key
+      // First check if it exists
+      const { data: existing } = await supabase
         .from('ma_monthly_insights')
-        .upsert(insightData, { 
-          onConflict: 'engagement_id,period_end_date',
-          ignoreDuplicates: false 
-        })
         .select('id')
-        .single();
+        .eq('engagement_id', engagementId)
+        .eq('period_end_date', currentPeriod.period_end_date)
+        .is('snapshot_id', null) // Only v2 insights
+        .maybeSingle();
       
-      if (insertError) {
-        throw new Error(`Failed to save insight: ${insertError.message}`);
+      let insight;
+      if (existing) {
+        // Update existing
+        const { data: updated, error: updateError } = await supabase
+          .from('ma_monthly_insights')
+          .update(insightData)
+          .eq('id', existing.id)
+          .select('id')
+          .single();
+        
+        if (updateError) {
+          throw new Error(`Failed to update insight: ${updateError.message}`);
+        }
+        insight = updated;
+      } else {
+        // Insert new
+        const { data: inserted, error: insertError } = await supabase
+          .from('ma_monthly_insights')
+          .insert(insightData)
+          .select('id')
+          .single();
+        
+        if (insertError) {
+          throw new Error(`Failed to save insight: ${insertError.message}`);
+        }
+        insight = inserted;
       }
       
       console.log(`[MA Insights] Saved v2 insight: ${insight.id}`);
