@@ -169,7 +169,7 @@ serve(async (req) => {
             week_number: weekNumber,
             title: task.title,
             description: task.description,
-            category: task.category || week.phase || 'general',
+            category: task.category || 'general', // Don't use week.phase - may violate CHECK constraint
             priority: task.priority || 'medium',
             status: 'pending',
             sort_order: i,
@@ -178,7 +178,8 @@ serve(async (req) => {
               whyThisMatters: task.whyThisMatters,
               milestone: task.milestone,
               tools: task.tools,
-              deliverable: task.deliverable
+              deliverable: task.deliverable,
+              phase: week.phase // Store phase in metadata instead
             }
           });
         }
