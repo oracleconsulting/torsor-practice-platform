@@ -805,6 +805,8 @@ export default function RoadmapPage() {
                     isActive={activeWeek === (week.weekNumber || week.week)}
                     onToggle={() => setActiveWeek(activeWeek === (week.weekNumber || week.week) ? null : (week.weekNumber || week.week))}
                     onTaskStatusChange={handleTaskStatusChange}
+                    clientId={clientSession?.clientId}
+                    practiceId={clientSession?.practiceId}
                   />
                 ))}
               </div>
@@ -1214,13 +1216,17 @@ function WeekCard({
   tasks,
   isActive,
   onToggle,
-  onTaskStatusChange
+  onTaskStatusChange,
+  clientId,
+  practiceId
 }: {
   week: any;
   tasks: any[];
   isActive: boolean;
   onToggle: () => void;
   onTaskStatusChange: (taskId: string, status: 'pending' | 'in_progress' | 'completed', task?: any) => void;
+  clientId?: string;
+  practiceId?: string;
 }) {
   const weekNumber = week.weekNumber || week.week;
   const completedTasks = tasks.filter(t => t.status === 'completed').length;
@@ -1270,7 +1276,11 @@ function WeekCard({
         <div className="px-4 pb-4">
           <div className="ml-16 space-y-2">
             {(week.tasks || []).map((task: any, index: number) => {
-              const dbTask = tasks.find(t => t.title === task.title);
+              // Try to match by title first, then by week + sort_order
+              const dbTask = tasks.find(t => 
+                t.title === task.title || 
+                (t.week_number === weekNumber && t.sort_order === index)
+              );
               const status = dbTask?.status || 'pending';
               
               return (
@@ -1296,13 +1306,52 @@ function WeekCard({
                             week_number: week.weekNumber || week.week
                           } : undefined);
                         } else {
-                          // No task in DB yet - create it first
+                          // No task in DB yet - create it on the fly
+                          if (!clientId || !practiceId) {
+                            console.error('[WeekCard] Cannot create task - missing clientId or practiceId');
+                            return;
+                          }
+                          
                           console.log('[WeekCard] Creating task on first click:', task.title);
                           const { supabase } = await import('@/lib/supabase');
-                          const { useAuth } = await import('@/contexts/AuthContext');
-                          // We need clientSession from context - pass it through props instead
-                          // For now, alert user to sync tasks
-                          alert('Tasks need to be synced. Please contact support or regenerate the sprint plan.');
+                          
+                          try {
+                            const { data: newTask, error: createError } = await supabase
+                              .from('client_tasks')
+                              .insert({
+                                client_id: clientId,
+                                practice_id: practiceId,
+                                week_number: week.weekNumber || week.week,
+                                title: task.title,
+                                description: task.description,
+                                category: task.category || week.phase || 'general',
+                                priority: task.priority || 'medium',
+                                status: nextStatus,
+                                sort_order: index,
+                                metadata: {
+                                  whyThisMatters: task.whyThisMatters,
+                                  milestone: task.milestone,
+                                  tools: task.tools,
+                                  deliverable: task.deliverable
+                                }
+                              })
+                              .select()
+                              .single();
+                            
+                            if (createError) throw createError;
+                            
+                            // Now update the status (which will trigger the completion modal if needed)
+                            if (newTask) {
+                              onTaskStatusChange(newTask.id, nextStatus, nextStatus === 'completed' ? {
+                                ...newTask,
+                                title: task.title,
+                                week_number: week.weekNumber || week.week
+                              } : undefined);
+                            }
+                          } catch (err) {
+                            console.error('[WeekCard] Error creating task:', err);
+                            alert('Failed to create task. Please refresh the page.');
+                          }
                         }
                       }}
                       className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${

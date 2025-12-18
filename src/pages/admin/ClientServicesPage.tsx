@@ -4895,8 +4895,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                 console.error(`[MA Upload] Storage upload error for ${file.name}:`, uploadError);
                                 console.error(`[MA Upload] Error details:`, {
                                   message: uploadError.message,
-                                  statusCode: uploadError.statusCode,
-                                  error: uploadError.error
+                                  name: uploadError.name
                                 });
                                 
                                 // If RLS error, provide helpful message
