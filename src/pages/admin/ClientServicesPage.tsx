@@ -4011,6 +4011,27 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
           .maybeSingle();
         
         if (monthlyInsights) {
+          // Fetch true cash calculation if available
+          let trueCashData = null;
+          if (monthlyInsights.true_cash_calculation_id) {
+            const { data: trueCash } = await supabase
+              .from('ma_true_cash_calculations')
+              .select('*')
+              .eq('id', monthlyInsights.true_cash_calculation_id)
+              .maybeSingle();
+            
+            if (trueCash) {
+              trueCashData = {
+                isHealthy: trueCash.is_positive || (trueCash.true_cash_available >= 0),
+                implication: trueCash.true_cash_available < 0 
+                  ? 'Your true cash position is negative. Immediate action may be needed.'
+                  : trueCash.days_runway && trueCash.days_runway < 30
+                  ? `You have ${trueCash.days_runway} days of runway remaining.`
+                  : 'Your true cash position is healthy.'
+              };
+            }
+          }
+          
           // Convert v2 format to expected format
           maInsightV2 = {
             headline: {
@@ -4021,7 +4042,8 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
             decisionsEnabled: monthlyInsights.decisions_enabled || [],
             watchList: monthlyInsights.watch_list || [],
             trueCashSection: monthlyInsights.true_cash_narrative ? {
-              narrative: monthlyInsights.true_cash_narrative
+              narrative: monthlyInsights.true_cash_narrative,
+              ...(trueCashData || {})
             } : null,
             tuesdayQuestionAnswer: monthlyInsights.tuesday_question_original ? {
               originalQuestion: monthlyInsights.tuesday_question_original,
@@ -5731,6 +5753,172 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                   </ul>
                                 </div>
                               )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* True Cash Section (v2) */}
+                        {insight.trueCashSection?.narrative && (
+                          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                            <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4">
+                              <h3 className="text-lg font-semibold text-white">True Cash Position</h3>
+                            </div>
+                            <div className="p-6">
+                              <p className="text-gray-700 leading-relaxed">{insight.trueCashSection.narrative}</p>
+                              {insight.trueCashSection.isHealthy !== undefined && (
+                                <div className={`mt-4 p-3 rounded-lg ${insight.trueCashSection.isHealthy ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
+                                  <p className={`text-sm font-semibold ${insight.trueCashSection.isHealthy ? 'text-emerald-900' : 'text-amber-900'}`}>
+                                    {insight.trueCashSection.isHealthy ? '✓ Healthy Cash Position' : '⚠️ Cash Position Needs Attention'}
+                                  </p>
+                                  {insight.trueCashSection.implication && (
+                                    <p className={`text-sm mt-1 ${insight.trueCashSection.isHealthy ? 'text-emerald-800' : 'text-amber-800'}`}>
+                                      {insight.trueCashSection.implication}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Tuesday Question Answer (v2) */}
+                        {insight.tuesdayQuestionAnswer?.answer && (
+                          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                            <div className="bg-indigo-50 px-6 py-4 border-b border-gray-200">
+                              <h3 className="text-lg font-semibold text-gray-900">Answering Your Tuesday Question</h3>
+                            </div>
+                            <div className="p-6 space-y-4">
+                              {insight.tuesdayQuestionAnswer.originalQuestion && (
+                                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                                  <p className="text-sm font-semibold text-blue-900 mb-2">Your Question:</p>
+                                  <p className="text-blue-800 italic">"{insight.tuesdayQuestionAnswer.originalQuestion}"</p>
+                                </div>
+                              )}
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900 mb-2">Answer:</p>
+                                <p className="text-gray-700 leading-relaxed">{insight.tuesdayQuestionAnswer.answer}</p>
+                              </div>
+                              {insight.tuesdayQuestionAnswer.supportingData && insight.tuesdayQuestionAnswer.supportingData.length > 0 && (
+                                <div className="bg-gray-50 rounded-lg p-4">
+                                  <p className="text-sm font-semibold text-gray-900 mb-2">Supporting Data:</p>
+                                  <ul className="space-y-2">
+                                    {insight.tuesdayQuestionAnswer.supportingData.map((data: string, idx: number) => (
+                                      <li key={idx} className="flex items-start gap-2 text-gray-700 text-sm">
+                                        <span className="text-indigo-600 mt-1">•</span>
+                                        <span>{data}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {insight.tuesdayQuestionAnswer.verdict && (
+                                <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
+                                  <p className="text-sm font-semibold text-indigo-900 mb-1">Summary</p>
+                                  <p className="text-indigo-800 text-sm">{insight.tuesdayQuestionAnswer.verdict}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Decisions Enabled (v2) */}
+                        {insight.decisionsEnabled && insight.decisionsEnabled.length > 0 && (
+                          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
+                              <h3 className="text-lg font-semibold text-white">Decisions Enabled</h3>
+                            </div>
+                            <div className="p-6 space-y-4">
+                              {insight.decisionsEnabled.map((decision: any, idx: number) => (
+                                <div key={idx} className="border border-purple-200 rounded-lg p-4 bg-purple-50">
+                                  <div className="flex items-start justify-between mb-3">
+                                    <h4 className="font-semibold text-purple-900">{decision.decisionName || decision.decision}</h4>
+                                    {decision.recommendation && (
+                                      <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ml-3 ${
+                                        decision.recommendation.toLowerCase().includes('do it') || decision.recommendation.toLowerCase().includes('yes')
+                                          ? 'bg-emerald-100 text-emerald-700'
+                                          : decision.recommendation.toLowerCase().includes('don\'t') || decision.recommendation.toLowerCase().includes('no')
+                                          ? 'bg-red-100 text-red-700'
+                                          : 'bg-amber-100 text-amber-700'
+                                      }`}>
+                                        {decision.recommendation}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {decision.supportingData && decision.supportingData.length > 0 && (
+                                    <div className="mb-3">
+                                      <p className="text-sm font-semibold text-gray-900 mb-2">Supporting Data:</p>
+                                      <ul className="space-y-1">
+                                        {decision.supportingData.map((data: string, dataIdx: number) => (
+                                          <li key={dataIdx} className="flex items-start gap-2 text-gray-700 text-sm">
+                                            <span className="text-purple-600 mt-1">•</span>
+                                            <span>{data}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                  {decision.consideration && (
+                                    <div className="bg-white rounded-lg p-3 border border-purple-200">
+                                      <p className="text-sm font-semibold text-purple-900 mb-1">Consideration</p>
+                                      <p className="text-purple-800 text-sm">{decision.consideration}</p>
+                                    </div>
+                                  )}
+                                  {decision.clientQuoteReferenced && (
+                                    <div className="mt-3 bg-blue-50 rounded-lg p-3 border border-blue-200">
+                                      <p className="text-xs font-semibold text-blue-900 mb-1">Your Words:</p>
+                                      <p className="text-blue-800 text-sm italic">"{decision.clientQuoteReferenced}"</p>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Watch List (v2) */}
+                        {insight.watchList && insight.watchList.length > 0 && (
+                          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                            <div className="bg-amber-50 px-6 py-4 border-b border-gray-200">
+                              <h3 className="text-lg font-semibold text-gray-900">Watch List</h3>
+                              <p className="text-sm text-gray-600 mt-1">Metrics to monitor closely</p>
+                            </div>
+                            <div className="p-6">
+                              <div className="grid gap-4">
+                                {insight.watchList.map((item: any, idx: number) => (
+                                  <div key={idx} className="border border-amber-200 rounded-lg p-4 bg-amber-50">
+                                    <div className="flex items-start justify-between mb-2">
+                                      <h4 className="font-semibold text-gray-900">{item.metric}</h4>
+                                      {item.priority && (
+                                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                          item.priority === 'high' ? 'bg-red-100 text-red-700' :
+                                          item.priority === 'medium' ? 'bg-amber-100 text-amber-700' :
+                                          'bg-gray-100 text-gray-700'
+                                        }`}>
+                                          {item.priority.toUpperCase()}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3 text-sm">
+                                      <div>
+                                        <p className="text-gray-600 mb-1">Current Value</p>
+                                        <p className="font-semibold text-gray-900">{item.currentValue}</p>
+                                      </div>
+                                      {item.alertThreshold && (
+                                        <div>
+                                          <p className="text-gray-600 mb-1">Alert Threshold</p>
+                                          <p className="font-semibold text-gray-900">{item.alertThreshold}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {item.direction && item.checkFrequency && (
+                                      <div className="mt-3 flex items-center gap-4 text-xs text-gray-600">
+                                        <span>Direction: <strong>{item.direction}</strong></span>
+                                        <span>Check: <strong>{item.checkFrequency}</strong></span>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           </div>
                         )}
