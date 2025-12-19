@@ -37,12 +37,14 @@ export default function ServiceAssessmentPage() {
   const [generatingProposal, setGeneratingProposal] = useState(false);
   const checkingSharedInsightRef = useRef(false);
   const hasCheckedSharedInsightRef = useRef(false);
+  const prevCompletedRef = useRef(false);
 
   useEffect(() => {
     if (serviceCode) {
       // Reset refs when service code changes
       hasCheckedSharedInsightRef.current = false;
       checkingSharedInsightRef.current = false;
+      prevCompletedRef.current = false;
       
       const config = getAssessmentByCode(serviceCode);
       if (config) {
@@ -235,11 +237,24 @@ export default function ServiceAssessmentPage() {
   if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><Loader2 className="w-8 h-8 text-indigo-600 animate-spin" /></div>;
   if (!assessment) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><p>Assessment not found</p></div>;
 
-  // Check for shared insights when assessment is complete (for MA)
-  // Note: This effect only runs for management_accounts, so it won't affect other services
+  // Check for shared insights when assessment is complete (for MA only)
+  // Use a separate effect that only runs when completed state changes from false to true
+  const prevCompletedRef = useRef(false);
   useEffect(() => {
-    if (completed && serviceCode === 'management_accounts' && clientSession?.clientId && !checkingSharedInsightRef.current) {
+    // Only check for MA insights when:
+    // 1. Service is management_accounts
+    // 2. Assessment just became completed (transition from false to true)
+    // 3. We haven't checked yet
+    if (
+      serviceCode === 'management_accounts' &&
+      completed &&
+      !prevCompletedRef.current &&
+      clientSession?.clientId &&
+      !checkingSharedInsightRef.current
+    ) {
       checkingSharedInsightRef.current = true;
+      prevCompletedRef.current = true;
+      
       const checkForSharedInsight = async () => {
         try {
           const { data: maInsight } = await supabase
@@ -270,14 +285,15 @@ export default function ServiceAssessmentPage() {
           }
         } catch (error) {
           console.error('Error checking for shared insight:', error);
-        } finally {
-          // Reset checking flag after a delay to allow navigation
-          setTimeout(() => {
-            checkingSharedInsightRef.current = false;
-          }, 100);
         }
       };
+      
       checkForSharedInsight();
+    }
+    
+    // Update prevCompletedRef when completed changes
+    if (completed !== prevCompletedRef.current) {
+      prevCompletedRef.current = completed;
     }
   }, [completed, serviceCode, clientSession?.clientId, navigate]);
 
