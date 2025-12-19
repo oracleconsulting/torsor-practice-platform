@@ -204,6 +204,7 @@ export default function ServiceAssessmentPage() {
       
       if (assessment.code === 'systems_audit') {
         console.log('✅ Systems Audit detected! Starting Stage 1 completion process...');
+        alert('SYSTEMS AUDIT DETECTED - This should route to Stage 2!');
         
         // Find or create engagement
         console.log('📋 Looking for existing engagement for client:', clientSession.clientId);
@@ -358,21 +359,21 @@ export default function ServiceAssessmentPage() {
         // IMPORTANT: Set saving to false and DON'T set completed=true for Systems Audit
         setSaving(false);
         
-        // Route to Stage 2 (System Inventory) - use replace to prevent back navigation
-        // Use window.location as fallback if navigate doesn't work
-        try {
-          navigate('/service/systems_audit/inventory', { replace: true });
-          // Fallback: if navigation doesn't work after 100ms, use window.location
-          setTimeout(() => {
-            if (window.location.pathname !== '/service/systems_audit/inventory') {
-              console.warn('⚠️ React Router navigation failed, using window.location');
-              window.location.href = '/service/systems_audit/inventory';
-            }
-          }, 100);
-        } catch (navError) {
-          console.error('❌ Navigation error:', navError);
-          window.location.href = '/service/systems_audit/inventory';
-        }
+        // Also save to service_line_assessments for backward compatibility
+        await supabase.from('service_line_assessments').upsert({
+          client_id: clientSession.clientId,
+          practice_id: clientSession.practiceId,
+          service_line_code: 'systems_audit',
+          responses,
+          extracted_insights: extractedInsights,
+          completion_percentage: 100,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'client_id,service_line_code' });
+        
+        // Route to Stage 2 (System Inventory) - use window.location directly for reliability
+        console.log('🚀 Using window.location for navigation');
+        window.location.href = '/service/systems_audit/inventory';
         return;
       }
 
