@@ -229,6 +229,7 @@ export default function ServiceAssessmentPage() {
   if (!assessment) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><p>Assessment not found</p></div>;
 
   // Check for shared insights when assessment is complete (for MA)
+  // Note: This effect only runs for management_accounts, so it won't affect other services
   useEffect(() => {
     if (completed && serviceCode === 'management_accounts' && clientSession?.clientId && !checkingSharedInsight) {
       setCheckingSharedInsight(true);
@@ -262,11 +263,14 @@ export default function ServiceAssessmentPage() {
           }
         } catch (error) {
           console.error('Error checking for shared insight:', error);
+        } finally {
+          // Reset checking flag after a delay to allow navigation
+          setTimeout(() => setCheckingSharedInsight(false), 100);
         }
       };
       checkForSharedInsight();
     }
-  }, [completed, serviceCode, clientSession?.clientId, navigate, checkingSharedInsight]);
+  }, [completed, serviceCode, clientSession?.clientId, navigate]);
 
   if (completed) {
     return (
