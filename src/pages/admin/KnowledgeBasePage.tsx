@@ -68,8 +68,8 @@ export function KnowledgeBasePage({ currentPage, onNavigate }: KnowledgeBasePage
       {
         id: '1',
         category: 'methodology',
-        title: '365 Alignment Programme - Core Framework',
-        content: `The 365 Alignment Programme is a comprehensive client transformation methodology:
+        title: 'Goal Alignment Programme - Core Framework',
+        content: `The Goal Alignment Programme is a comprehensive client transformation methodology:
 
 **Phase 1: Discovery (Part 1 Assessment)**
 - Tuesday Test: Understanding daily pain points

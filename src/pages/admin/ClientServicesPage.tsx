@@ -60,7 +60,7 @@ const SERVICE_LINES = [
   { 
     id: '365_method', 
     code: '365_method',
-    name: '365 Alignment Programme',
+    name: 'Goal Alignment Programme',
     description: 'Life-first business transformation with 5-year vision, 6-month shift, and 12-week sprints',
     icon: Target,
     color: 'indigo',

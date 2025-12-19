@@ -55,6 +55,33 @@ export default function ServiceAssessmentPage() {
       const checkForSharedInsightAndRedirect = async () => {
         try {
           console.log('🔍 Checking for shared MA insight...');
+          
+          // First check v2 insights from ma_monthly_insights
+          const { data: engagement } = await supabase
+            .from('ma_engagements')
+            .select('id')
+            .eq('client_id', clientSession.clientId)
+            .maybeSingle();
+          
+          if (engagement) {
+            const { data: monthlyInsight } = await supabase
+              .from('ma_monthly_insights')
+              .select('*')
+              .eq('engagement_id', engagement.id)
+              .eq('shared_with_client', true)
+              .is('snapshot_id', null) // v2 insights only
+              .order('period_end_date', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            
+            if (monthlyInsight && (monthlyInsight.headline_text || monthlyInsight.insights)) {
+              console.log('✅ v2 MA insight found, redirecting to report page');
+              navigate('/service/management_accounts/report', { replace: true });
+              return;
+            }
+          }
+          
+          // Fallback to old client_context format
           const { data: maInsight, error: maError } = await supabase
             .from('client_context')
             .select('id, is_shared, content, data_source_type')
@@ -67,7 +94,7 @@ export default function ServiceAssessmentPage() {
             .limit(1)
             .maybeSingle();
           
-          console.log('🔍 MA insight check result:', { maInsight, maError });
+          console.log('🔍 MA insight check result (old format):', { maInsight, maError });
           
           if (maInsight && maInsight.content) {
             try {
@@ -77,7 +104,7 @@ export default function ServiceAssessmentPage() {
               const insightData = content?.insight || content;
               if (insightData && (insightData.headline || insightData.keyInsights)) {
                 // Redirect to report page if insight is available
-                console.log('✅ MA insight found, redirecting to report page');
+                console.log('✅ MA insight found (old format), redirecting to report page');
                 navigate('/service/management_accounts/report', { replace: true });
                 return;
               }

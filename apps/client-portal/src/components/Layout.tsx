@@ -1,6 +1,7 @@
 import { ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { Logo } from '@/components/Logo';
 import {
   Home,
   ClipboardList,
@@ -47,12 +48,7 @@ export function Layout({ children, title, subtitle }: LayoutProps) {
         <div className="flex flex-col flex-grow bg-white border-r border-slate-200">
           {/* Logo */}
           <div className="flex items-center h-16 px-6 border-b border-slate-200">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">365</span>
-              </div>
-              <span className="font-semibold text-slate-900">Alignment</span>
-            </div>
+            <Logo className="h-8" />
           </div>
 
           {/* Client Info */}

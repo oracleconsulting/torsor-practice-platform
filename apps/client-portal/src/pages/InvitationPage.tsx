@@ -22,7 +22,7 @@ interface InvitationDetails {
 }
 
 const serviceIcons: Record<string, React.ComponentType<any>> = {
-  '365 Alignment Program': Target,
+  'Goal Alignment Program': Target,
   'Management Accounts': LineChart,
   'Systems Audit': Settings,
   'Fractional CFO/COO': Users,

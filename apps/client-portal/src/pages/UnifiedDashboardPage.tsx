@@ -118,56 +118,74 @@ export default function UnifiedDashboardPage() {
       console.log('📋 Service enrollments:', enrollments);
 
       // Check for shared MA insights EARLY (before building service list)
+      // First check v2 insights from ma_monthly_insights
       let hasSharedMAInsight = false;
       if (clientSession?.clientId) {
-        const { data: maInsight, error: maError } = await supabase
-          .from('client_context')
-          .select('id, is_shared, created_at, content, data_source_type')
+        // Check for engagement and v2 insight
+        const { data: engagement } = await supabase
+          .from('ma_engagements')
+          .select('id')
           .eq('client_id', clientSession.clientId)
-          .eq('context_type', 'note')
-          .eq('is_shared', true)
-          .eq('processed', true)
-          .in('data_source_type', ['management_accounts_analysis', 'general'])
-          .order('created_at', { ascending: false })
-          .limit(1)
           .maybeSingle();
         
-        console.log('📊 MA Insight query result:', { maInsight, maError, clientId: clientSession.clientId });
-        
-        if (maInsight && maInsight.content) {
-          try {
-            const content = typeof maInsight.content === 'string' 
-              ? JSON.parse(maInsight.content) 
-              : maInsight.content;
-            
-            // Log the raw content structure for debugging
-            console.log('📊 Raw insight content structure:', {
-              hasContent: !!content,
-              isObject: typeof content === 'object',
-              keys: content ? Object.keys(content) : [],
-              hasInsight: !!(content?.insight),
-              hasHeadline: !!(content?.headline || content?.insight?.headline),
-              hasKeyInsights: !!(content?.keyInsights || content?.insight?.keyInsights)
+        if (engagement) {
+          const { data: monthlyInsight } = await supabase
+            .from('ma_monthly_insights')
+            .select('*')
+            .eq('engagement_id', engagement.id)
+            .eq('shared_with_client', true)
+            .is('snapshot_id', null) // v2 insights only
+            .order('period_end_date', { ascending: false })
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (monthlyInsight && (monthlyInsight.headline_text || monthlyInsight.insights)) {
+            hasSharedMAInsight = true;
+            console.log('✅ Valid v2 MA insight found:', { 
+              id: monthlyInsight.id,
+              hasHeadline: !!monthlyInsight.headline_text,
+              hasKeyInsights: !!(monthlyInsight.insights && monthlyInsight.insights.length > 0),
+              headlineText: monthlyInsight.headline_text?.substring(0, 50) || 'N/A'
             });
-            
-            const insightData = content?.insight || content;
-            if (insightData && (insightData.headline || insightData.keyInsights)) {
-              hasSharedMAInsight = true;
-              console.log('✅ Valid MA insight found:', { 
-                hasHeadline: !!insightData.headline, 
-                hasKeyInsights: !!insightData.keyInsights,
-                headlineText: insightData.headline?.text?.substring(0, 50) || 'N/A'
-              });
-            } else {
-              console.log('⚠️ Content found but not a valid MA insight. Content keys:', Object.keys(insightData || {}));
-              console.log('⚠️ Full content preview:', JSON.stringify(insightData || content).substring(0, 200));
-            }
-          } catch (e) {
-            console.error('❌ Error parsing MA insight content:', e);
-            console.error('❌ Content that failed to parse:', maInsight.content?.substring(0, 200));
           }
-        } else {
-          console.log('📊 No shared MA insight found - maInsight:', !!maInsight, 'hasContent:', !!(maInsight?.content));
+        }
+        
+        // Fallback to old client_context format if v2 not found
+        if (!hasSharedMAInsight) {
+          const { data: maInsight, error: maError } = await supabase
+            .from('client_context')
+            .select('id, is_shared, created_at, content, data_source_type')
+            .eq('client_id', clientSession.clientId)
+            .eq('context_type', 'note')
+            .eq('is_shared', true)
+            .eq('processed', true)
+            .in('data_source_type', ['management_accounts_analysis', 'general'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          console.log('📊 MA Insight query result (old format):', { maInsight, maError, clientId: clientSession.clientId });
+          
+          if (maInsight && maInsight.content) {
+            try {
+              const content = typeof maInsight.content === 'string' 
+                ? JSON.parse(maInsight.content) 
+                : maInsight.content;
+              
+              const insightData = content?.insight || content;
+              if (insightData && (insightData.headline || insightData.keyInsights)) {
+                hasSharedMAInsight = true;
+                console.log('✅ Valid MA insight found (old format):', { 
+                  hasHeadline: !!insightData.headline, 
+                  hasKeyInsights: !!insightData.keyInsights,
+                  headlineText: insightData.headline?.text?.substring(0, 50) || 'N/A'
+                });
+              }
+            } catch (e) {
+              console.error('❌ Error parsing MA insight content:', e);
+            }
+          }
         }
       }
       maInsightSharedRef.current = hasSharedMAInsight;
@@ -423,7 +441,7 @@ export default function UnifiedDashboardPage() {
       };
     }
     
-    // Special handling for 365 alignment
+    // Special handling for goal alignment
     if (code === '365_method' || code === '365_alignment') {
       if (assessmentProgress?.overall === 100) {
         return {

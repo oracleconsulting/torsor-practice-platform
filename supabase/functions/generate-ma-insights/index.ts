@@ -664,7 +664,11 @@ Generate a JSON response with this exact structure:
 {
   "headline": {
     "text": "One quotable sentence capturing the key insight. Use specific numbers. Under 30 words. This should be something they'd text to their partner.",
-    "sentiment": "positive|neutral|warning|critical"
+    "sentiment": "positive|neutral|warning|critical - USE THESE CRITERIA:
+      - positive: margins improving OR cash healthy OR growth profitable
+      - neutral: stable performance, no major changes
+      - warning: one concerning trend (margin erosion OR cash tight OR costs rising)
+      - critical: multiple concerning trends OR cash negative OR immediate action needed"
   },
   
   "trueCashSection": {
@@ -698,9 +702,12 @@ Generate a JSON response with this exact structure:
   "decisionsEnabled": [
     {
       "decisionName": "Name of the decision (e.g., 'The delivery consultant hire')",
-      "recommendation": "Clear recommendation: Do it / Don't do it / Wait",
-      "supportingData": ["Data point 1", "Data point 2", "Data point 3"],
-      "consideration": "One thing to keep in mind (optional)",
+      "verdict": "YES|NO|WAIT|YES_IF|NO_UNLESS",
+      "verdictSummary": "Lead with the answer: 'Yes, hire now' or 'No, not yet' or 'Wait until [specific trigger]'. Maximum 8 words.",
+      "conditions": "The specific condition or caveat (e.g., 'if they can bill £8,000+/month within 90 days'). Leave empty if verdict is unconditional.",
+      "fallback": "What to do if conditions aren't met (e.g., 'Collect the £52k in debtors first, then revisit'). Leave empty if not applicable.",
+      "supportingData": ["Specific number 1", "Specific number 2", "Specific number 3"],
+      "riskIfIgnored": "What happens if they make the wrong choice (e.g., 'Cash runway drops to 2 months')",
       "clientQuoteReferenced": "Their exact words about this decision if they mentioned it"
     }
   ],
@@ -732,6 +739,10 @@ QUALITY RULES:
 - True cash section must acknowledge their specific concern if they mentioned cash/VAT/PAYE
 - If their decision_making_story mentions a specific decision, address it directly in decisionsEnabled
 - Use at least 3 of their exact quotes throughout the response
+- Every decision MUST lead with a clear verdict (Yes/No/Wait) before any conditions
+- Verdict summary must be 8 words or fewer
+- If verdict is conditional (YES_IF, NO_UNLESS), the condition must include a specific number
+- Fallback must be actionable, not vague (e.g., "wait until X" not "consider waiting")
 
 Return ONLY valid JSON. No markdown, no explanation, just the JSON object.
 `;

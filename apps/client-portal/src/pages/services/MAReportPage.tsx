@@ -54,7 +54,76 @@ export default function MAReportPage() {
     }
 
     try {
-      // Load the shared MA insight
+      // First check v2 insights from ma_monthly_insights
+      const { data: engagement } = await supabase
+        .from('ma_engagements')
+        .select('id')
+        .eq('client_id', clientSession.clientId)
+        .maybeSingle();
+      
+      if (engagement) {
+        const { data: monthlyInsight } = await supabase
+          .from('ma_monthly_insights')
+          .select('*')
+          .eq('engagement_id', engagement.id)
+          .eq('shared_with_client', true)
+          .is('snapshot_id', null) // v2 insights only
+          .order('period_end_date', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (monthlyInsight) {
+          // Fetch true cash calculation if available
+          let trueCashData = null;
+          if (monthlyInsight.true_cash_calculation_id) {
+            const { data: trueCash } = await supabase
+              .from('ma_true_cash_calculations')
+              .select('*')
+              .eq('id', monthlyInsight.true_cash_calculation_id)
+              .maybeSingle();
+            
+            if (trueCash) {
+              trueCashData = {
+                isHealthy: trueCash.is_positive || (trueCash.true_cash_available >= 0),
+                implication: trueCash.true_cash_available < 0 
+                  ? 'Your true cash position is negative. Immediate action may be needed.'
+                  : trueCash.days_runway && trueCash.days_runway < 30
+                  ? `You have ${trueCash.days_runway} days of runway remaining.`
+                  : 'Your true cash position is healthy.'
+              };
+            }
+          }
+          
+          // Convert v2 format to expected format
+          const insightData = {
+            headline: {
+              text: monthlyInsight.headline_text,
+              sentiment: monthlyInsight.headline_sentiment
+            },
+            keyInsights: monthlyInsight.insights || [],
+            decisionsEnabled: monthlyInsight.decisions_enabled || [],
+            watchList: monthlyInsight.watch_list || [],
+            trueCashSection: monthlyInsight.true_cash_narrative ? {
+              narrative: monthlyInsight.true_cash_narrative,
+              ...(trueCashData || {})
+            } : null,
+            tuesdayQuestionAnswer: monthlyInsight.tuesday_question_original ? {
+              originalQuestion: monthlyInsight.tuesday_question_original,
+              answer: monthlyInsight.tuesday_question_answer,
+              supportingData: monthlyInsight.tuesday_question_supporting_data?.supportingData || [],
+              verdict: monthlyInsight.tuesday_question_supporting_data?.verdict
+            } : null,
+            clientQuotesUsed: monthlyInsight.client_quotes_used || []
+          };
+          
+          setInsight(insightData);
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Fallback to old client_context format
       const { data, error } = await supabase
         .from('client_context')
         .select('*')
