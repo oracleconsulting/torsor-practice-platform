@@ -547,10 +547,22 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
           </div>
         ) : questions.length === 0 ? (
           <div className="text-center py-20">
-            <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Questions Found</h3>
-            <p className="text-gray-600 mb-4">Run the database migration to seed the questions.</p>
-            <code className="text-sm bg-gray-100 px-3 py-1 rounded">scripts/add-assessment-questions-table.sql</code>
+            {error ? (
+              <div className="max-w-2xl mx-auto">
+                <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Systems Audit Multi-Stage Structure</h3>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-left mt-4">
+                  <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">{error}</pre>
+                </div>
+              </div>
+            ) : (
+              <>
+                <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Questions Found</h3>
+                <p className="text-gray-600 mb-4">Run the database migration to seed the questions.</p>
+                <code className="text-sm bg-gray-100 px-3 py-1 rounded">scripts/add-assessment-questions-table.sql</code>
+              </>
+            )}
           </div>
         ) : previewMode === 'edit' ? (
           // Edit Mode
