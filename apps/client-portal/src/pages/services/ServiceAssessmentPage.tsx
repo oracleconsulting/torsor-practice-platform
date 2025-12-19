@@ -179,6 +179,156 @@ export default function ServiceAssessmentPage() {
         if (q.technicalField && responses[q.id]) extractedInsights[q.technicalField] = responses[q.id];
       });
 
+      // Special handling for Systems Audit - multi-stage process
+      if (assessment.code === 'systems_audit') {
+        console.log('🔍 Systems Audit Stage 1 completion - saving to sa_engagements and sa_discovery_responses');
+        
+        // Find or create engagement
+        let { data: engagement, error: engagementError } = await supabase
+          .from('sa_engagements')
+          .select('id')
+          .eq('client_id', clientSession.clientId)
+          .maybeSingle();
+        
+        if (engagementError && engagementError.code !== 'PGRST116') {
+          console.error('Error fetching engagement:', engagementError);
+          throw engagementError;
+        }
+        
+        if (!engagement) {
+          // Create new engagement
+          const { data: newEngagement, error: createError } = await supabase
+            .from('sa_engagements')
+            .insert({
+              client_id: clientSession.clientId,
+              practice_id: clientSession.practiceId,
+              status: 'stage_1_complete',
+              stage_1_completed_at: new Date().toISOString()
+            })
+            .select('id')
+            .single();
+          
+          if (createError) {
+            console.error('Error creating engagement:', createError);
+            throw createError;
+          }
+          engagement = newEngagement;
+        } else {
+          // Update existing engagement
+          await supabase
+            .from('sa_engagements')
+            .update({
+              status: 'stage_1_complete',
+              stage_1_completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', engagement.id);
+        }
+        
+        // Map responses to sa_discovery_responses format
+        // Note: Client portal uses different question IDs (sa_*) than admin (q*_*)
+        const discoveryData: any = {
+          engagement_id: engagement.id,
+          client_id: clientSession.clientId,
+          raw_responses: responses,
+          completed_at: new Date().toISOString()
+        };
+        
+        // Helper function to normalize select options to database enum values
+        const normalizeSelect = (value: string): string => {
+          if (!value) return '';
+          return value.toLowerCase()
+            .replace(/\s+/g, '_')
+            .replace(/[^a-z0-9_]/g, '')
+            .replace(/[£k]/g, '');
+        };
+        
+        // Map client portal question IDs to database fields
+        if (responses['sa_breaking_point']) discoveryData.systems_breaking_point = responses['sa_breaking_point'];
+        if (responses['sa_operations_diagnosis']) {
+          const val = responses['sa_operations_diagnosis'];
+          // Map to enum values
+          if (val.includes('Controlled chaos')) discoveryData.operations_self_diagnosis = 'controlled_chaos';
+          else if (val.includes('Manual heroics')) discoveryData.operations_self_diagnosis = 'manual_heroics';
+          else if (val.includes('Death by spreadsheet')) discoveryData.operations_self_diagnosis = 'death_by_spreadsheet';
+          else if (val.includes('Tech Frankenstein')) discoveryData.operations_self_diagnosis = 'tech_frankenstein';
+          else if (val.includes('Actually pretty good')) discoveryData.operations_self_diagnosis = 'actually_good';
+        }
+        if (responses['sa_month_end_shame']) discoveryData.month_end_shame = responses['sa_month_end_shame'];
+        if (responses['sa_manual_hours']) {
+          const val = responses['sa_manual_hours'];
+          if (val.includes('Under 10')) discoveryData.manual_hours_monthly = 'under_10';
+          else if (val.includes('10-20')) discoveryData.manual_hours_monthly = '10_20';
+          else if (val.includes('20-40')) discoveryData.manual_hours_monthly = '20_40';
+          else if (val.includes('40-80')) discoveryData.manual_hours_monthly = '40_80';
+          else if (val.includes('More than 80')) discoveryData.manual_hours_monthly = 'over_80';
+        }
+        if (responses['sa_month_end_duration']) {
+          const val = responses['sa_month_end_duration'];
+          if (val.includes('1-2 days')) discoveryData.month_end_close_duration = '1_2_days';
+          else if (val.includes('3-5 days')) discoveryData.month_end_close_duration = '3_5_days';
+          else if (val.includes('1-2 weeks')) discoveryData.month_end_close_duration = '1_2_weeks';
+          else if (val.includes('2-4 weeks')) discoveryData.month_end_close_duration = '2_4_weeks';
+          else if (val.includes('ongoing')) discoveryData.month_end_close_duration = 'ongoing';
+        }
+        if (responses['sa_data_error_frequency']) {
+          const val = responses['sa_data_error_frequency'];
+          if (val.includes('Never')) discoveryData.data_error_frequency = 'never';
+          else if (val.includes('Once or twice')) discoveryData.data_error_frequency = 'once_twice';
+          else if (val.includes('Several times')) discoveryData.data_error_frequency = 'several';
+          else if (val.includes('Regularly')) discoveryData.data_error_frequency = 'regularly';
+          else if (val.includes('don\'t know')) discoveryData.data_error_frequency = 'dont_know';
+        }
+        if (responses['sa_expensive_mistake']) discoveryData.expensive_systems_mistake = responses['sa_expensive_mistake'];
+        if (responses['sa_tech_stack']) discoveryData.software_tools_used = Array.isArray(responses['sa_tech_stack']) ? responses['sa_tech_stack'] : [responses['sa_tech_stack']];
+        if (responses['sa_integration_health']) {
+          const val = responses['sa_integration_health'];
+          if (val.includes('Seamless')) discoveryData.integration_rating = 'seamless';
+          else if (val.includes('Partial')) discoveryData.integration_rating = 'partial';
+          else if (val.includes('Minimal')) discoveryData.integration_rating = 'minimal';
+          else if (val.includes('Non-existent')) discoveryData.integration_rating = 'none';
+        }
+        if (responses['sa_spreadsheet_count']) {
+          const val = responses['sa_spreadsheet_count'];
+          if (val.includes('None')) discoveryData.critical_spreadsheets = 'none';
+          else if (val.includes('1-3')) discoveryData.critical_spreadsheets = '1_3';
+          else if (val.includes('4-10')) discoveryData.critical_spreadsheets = '4_10';
+          else if (val.includes('10-20')) discoveryData.critical_spreadsheets = '10_20';
+          else if (val.includes('lost count')) discoveryData.critical_spreadsheets = 'lost_count';
+        }
+        if (responses['sa_priority_areas']) discoveryData.broken_areas = Array.isArray(responses['sa_priority_areas']) ? responses['sa_priority_areas'] : [responses['sa_priority_areas']];
+        if (responses['sa_magic_fix']) discoveryData.magic_process_fix = responses['sa_magic_fix'];
+        if (responses['sa_change_appetite']) {
+          const val = responses['sa_change_appetite'];
+          if (val.includes('Urgent')) discoveryData.change_appetite = 'urgent';
+          else if (val.includes('Ready')) discoveryData.change_appetite = 'ready';
+          else if (val.includes('Cautious')) discoveryData.change_appetite = 'cautious';
+          else if (val.includes('Exploring')) discoveryData.change_appetite = 'exploring';
+        }
+        if (responses['sa_fears']) discoveryData.systems_fears = Array.isArray(responses['sa_fears']) ? responses['sa_fears'] : [responses['sa_fears']];
+        if (responses['sa_champion']) {
+          const val = responses['sa_champion'];
+          if (val.includes('founder') || val.includes('Me')) discoveryData.internal_champion = 'founder';
+          else if (val.includes('Finance')) discoveryData.internal_champion = 'finance_manager';
+          else if (val.includes('Operations')) discoveryData.internal_champion = 'operations_manager';
+          else if (val.includes('Office')) discoveryData.internal_champion = 'office_manager';
+          else if (val.includes('IT')) discoveryData.internal_champion = 'it_lead';
+          else discoveryData.internal_champion = 'other';
+        }
+        
+        // Upsert discovery responses
+        await supabase
+          .from('sa_discovery_responses')
+          .upsert(discoveryData, { onConflict: 'engagement_id' });
+        
+        console.log('✅ Systems Audit Stage 1 saved, routing to Stage 2');
+        
+        // Route to Stage 2 (System Inventory)
+        navigate('/service/systems_audit/inventory', { replace: true });
+        return;
+      }
+
+      // Standard handling for other service lines
       await supabase.from('service_line_assessments').upsert({
         client_id: clientSession.clientId,
         practice_id: clientSession.practiceId,
