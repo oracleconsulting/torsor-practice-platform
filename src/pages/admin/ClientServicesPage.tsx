@@ -2805,9 +2805,6 @@ function DiscoveryClientModal({
       }
 
       // Report results
-      const totalProcessed = servicesToAdd.length + servicesToRemove.length;
-      const totalSuccessful = successfulInserts.length + (servicesToRemove.length > 0 ? servicesToRemove.length : 0);
-
       if (failedInserts.length > 0) {
         console.error('❌ Failed to assign some services:', failedInserts);
         alert(`Warning: Failed to assign some services: ${failedInserts.map(f => f.code).join(', ')}. Check console for details.`);
