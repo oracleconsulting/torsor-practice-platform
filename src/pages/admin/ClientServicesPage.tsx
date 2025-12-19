@@ -33,7 +33,8 @@ import {
   Sparkles,
   Share2,
   Trash2,
-  Printer
+  Printer,
+  AlertTriangle
 } from 'lucide-react';
 
 
@@ -5822,58 +5823,120 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         )}
 
                         {/* Decisions Enabled (v2) */}
-                        {insight.decisionsEnabled && insight.decisionsEnabled.length > 0 && (
-                          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
-                              <h3 className="text-lg font-semibold text-white">Decisions Enabled</h3>
-                            </div>
-                            <div className="p-6 space-y-4">
-                              {insight.decisionsEnabled.map((decision: any, idx: number) => (
-                                <div key={idx} className="border border-purple-200 rounded-lg p-4 bg-purple-50">
-                                  <div className="flex items-start justify-between mb-3">
-                                    <h4 className="font-semibold text-purple-900">{decision.decisionName || decision.decision}</h4>
-                                    {decision.recommendation && (
-                                      <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ml-3 ${
-                                        decision.recommendation.toLowerCase().includes('do it') || decision.recommendation.toLowerCase().includes('yes')
-                                          ? 'bg-emerald-100 text-emerald-700'
-                                          : decision.recommendation.toLowerCase().includes('don\'t') || decision.recommendation.toLowerCase().includes('no')
-                                          ? 'bg-red-100 text-red-700'
-                                          : 'bg-amber-100 text-amber-700'
+                        {insight.decisionsEnabled && insight.decisionsEnabled.length > 0 && (() => {
+                          // Verdict configuration
+                          const VERDICT_CONFIG: Record<string, { icon: any, color: string, label: string }> = {
+                            YES: { icon: Check, color: 'bg-green-100 text-green-800 border-green-300', label: 'Yes' },
+                            NO: { icon: X, color: 'bg-red-100 text-red-800 border-red-300', label: 'No' },
+                            WAIT: { icon: Clock, color: 'bg-yellow-100 text-yellow-800 border-yellow-300', label: 'Wait' },
+                            YES_IF: { icon: Check, color: 'bg-green-50 text-green-700 border-green-200', label: 'Yes, if...' },
+                            NO_UNLESS: { icon: X, color: 'bg-red-50 text-red-700 border-red-200', label: 'No, unless...' },
+                          };
+                          
+                          // Helper to get verdict display (handles both old and new format)
+                          const getVerdictDisplay = (decision: any) => {
+                            if (decision.verdict && decision.verdictSummary) {
+                              // New format
+                              return { 
+                                verdict: decision.verdict, 
+                                summary: decision.verdictSummary,
+                                config: VERDICT_CONFIG[decision.verdict] || VERDICT_CONFIG.WAIT
+                              };
+                            }
+                            // Old format - parse recommendation
+                            const rec = decision.recommendation?.toLowerCase() || '';
+                            if (rec.includes("don't") || rec.includes('no')) {
+                              return { verdict: 'NO', summary: decision.recommendation, config: VERDICT_CONFIG.NO };
+                            }
+                            if (rec.includes('wait')) {
+                              return { verdict: 'WAIT', summary: decision.recommendation, config: VERDICT_CONFIG.WAIT };
+                            }
+                            if (rec.includes('yes') || rec.includes('do it')) {
+                              return { verdict: 'YES', summary: decision.recommendation, config: VERDICT_CONFIG.YES };
+                            }
+                            return { verdict: 'WAIT', summary: decision.recommendation || 'Review needed', config: VERDICT_CONFIG.WAIT };
+                          };
+                          
+                          return (
+                            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                              <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
+                                <h3 className="text-lg font-semibold text-white">Decisions Enabled</h3>
+                              </div>
+                              <div className="p-6 space-y-4">
+                                {insight.decisionsEnabled.map((decision: any, idx: number) => {
+                                  const verdictDisplay = getVerdictDisplay(decision);
+                                  const VerdictIcon = verdictDisplay.config.icon;
+                                  
+                                  return (
+                                    <div key={idx} className="border border-purple-200 rounded-lg p-4 bg-purple-50">
+                                      {/* Decision Name and Verdict Badge */}
+                                      <div className="flex items-start justify-between mb-3">
+                                        <h4 className="font-semibold text-lg text-purple-900">{decision.decisionName || decision.decision}</h4>
+                                        <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ml-3 border flex items-center gap-1 ${verdictDisplay.config.color}`}>
+                                          <VerdictIcon className="h-3 w-3" />
+                                          {verdictDisplay.config.label}
+                                        </span>
+                                      </div>
+                                      
+                                      {/* Verdict Summary - THE MAIN ANSWER */}
+                                      <div className={`p-4 rounded-lg mb-3 border ${
+                                        verdictDisplay.verdict?.startsWith('YES') ? 'bg-green-50 border-green-200' :
+                                        verdictDisplay.verdict?.startsWith('NO') ? 'bg-red-50 border-red-200' : 
+                                        'bg-yellow-50 border-yellow-200'
                                       }`}>
-                                        {decision.recommendation}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {decision.supportingData && decision.supportingData.length > 0 && (
-                                    <div className="mb-3">
-                                      <p className="text-sm font-semibold text-gray-900 mb-2">Supporting Data:</p>
-                                      <ul className="space-y-1">
-                                        {decision.supportingData.map((data: string, dataIdx: number) => (
-                                          <li key={dataIdx} className="flex items-start gap-2 text-gray-700 text-sm">
-                                            <span className="text-purple-600 mt-1">•</span>
-                                            <span>{data}</span>
-                                          </li>
-                                        ))}
-                                      </ul>
+                                        <p className="font-semibold text-lg text-gray-900">{verdictDisplay.summary}</p>
+                                        {decision.conditions && (
+                                          <p className="text-sm mt-2 text-gray-700">
+                                            <span className="font-medium">Condition:</span> {decision.conditions}
+                                          </p>
+                                        )}
+                                      </div>
+                                      
+                                      {/* Fallback */}
+                                      {decision.fallback && (
+                                        <div className="flex items-start gap-2 bg-gray-50 p-3 rounded-lg mb-3 border border-gray-200">
+                                          <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                                          <span className="text-sm text-gray-700"><strong>Otherwise:</strong> {decision.fallback}</span>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Supporting Data */}
+                                      {decision.supportingData && decision.supportingData.length > 0 && (
+                                        <div className="mb-3">
+                                          <p className="text-sm font-semibold text-gray-900 mb-2">Supporting Data:</p>
+                                          <div className="flex flex-wrap gap-2">
+                                            {decision.supportingData.map((data: string, dataIdx: number) => (
+                                              <span key={dataIdx} className="px-2 py-1 bg-white border border-purple-200 text-purple-800 text-xs rounded">
+                                                {data}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Risk if Ignored */}
+                                      {decision.riskIfIgnored && (
+                                        <div className="mb-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                                          <p className="text-sm text-red-800">
+                                            <strong>Risk if wrong:</strong> {decision.riskIfIgnored}
+                                          </p>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Client Quote */}
+                                      {decision.clientQuoteReferenced && (
+                                        <div className="flex items-start gap-2 text-sm text-gray-600 mt-3 pt-3 border-t border-purple-200">
+                                          <MessageSquare className="h-4 w-4 mt-0.5 flex-shrink-0 text-blue-600" />
+                                          <span className="italic">"{decision.clientQuoteReferenced}"</span>
+                                        </div>
+                                      )}
                                     </div>
-                                  )}
-                                  {decision.consideration && (
-                                    <div className="bg-white rounded-lg p-3 border border-purple-200">
-                                      <p className="text-sm font-semibold text-purple-900 mb-1">Consideration</p>
-                                      <p className="text-purple-800 text-sm">{decision.consideration}</p>
-                                    </div>
-                                  )}
-                                  {decision.clientQuoteReferenced && (
-                                    <div className="mt-3 bg-blue-50 rounded-lg p-3 border border-blue-200">
-                                      <p className="text-xs font-semibold text-blue-900 mb-1">Your Words:</p>
-                                      <p className="text-blue-800 text-sm italic">"{decision.clientQuoteReferenced}"</p>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
 
                         {/* Watch List (v2) */}
                         {insight.watchList && insight.watchList.length > 0 && (
