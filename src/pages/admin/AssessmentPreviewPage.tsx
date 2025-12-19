@@ -18,9 +18,35 @@ import {
 } from 'lucide-react';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 
-// Import Systems Audit Stage 1 config
-// Note: Using relative path to access platform app config
-import { systemsAuditDiscoveryConfig } from '../../../apps/platform/src/config/assessments/systems-audit-discovery';
+// Systems Audit Stage 1 Discovery questions (inline to avoid cross-app import issues)
+const SYSTEMS_AUDIT_STAGE1_QUESTIONS = [
+  // Section 1: Current Pain
+  { id: 'q1_1', section: 'Current Pain', question_text: 'What broke – or is about to break – that made you think about systems?', question_type: 'text' as const, placeholder: 'Be specific – the incident, the near-miss, the frustration that tipped you over...', char_limit: 400, emotional_anchor: 'systems_breaking_point', is_required: true },
+  { id: 'q1_2', section: 'Current Pain', question_text: 'How would you describe your current operations?', question_type: 'single' as const, options: ['Controlled chaos – it works but I can\'t explain how', 'Manual heroics – we survive on people\'s goodwill', 'Death by spreadsheet – everything\'s tracked but nothing connects', 'Tech Frankenstein – we\'ve bolted tools together over years', 'Actually pretty good – we just need optimisation'], is_required: true },
+  { id: 'q1_3', section: 'Current Pain', question_text: 'If I followed you through a typical month-end, what would embarrass you most?', question_type: 'text' as const, placeholder: 'The workaround you\'re ashamed of, the process you\'d never show an investor...', char_limit: 300, emotional_anchor: 'month_end_shame', is_required: true },
+  // Section 2: Impact Quantification
+  { id: 'q2_1', section: 'Impact Quantification', question_text: 'How many hours per month do you estimate your team spends on manual data entry, reconciliation, or "making things match"?', question_type: 'single' as const, options: ['Under 10 hours', '10-20 hours', '20-40 hours', '40-80 hours', 'More than 80 hours'], is_required: true },
+  { id: 'q2_2', section: 'Impact Quantification', question_text: 'How long does your month-end close currently take?', question_type: 'single' as const, options: ['1-2 days', '3-5 days', '1-2 weeks', '2-4 weeks', 'We don\'t really "close" – it\'s ongoing'], is_required: true },
+  { id: 'q2_3', section: 'Impact Quantification', question_text: 'In the last year, how many times have you discovered data errors that affected a business decision?', question_type: 'single' as const, options: ['Never – our data is solid', 'Once or twice – minor issues', 'Several times – some costly', 'Regularly – I don\'t fully trust our numbers', 'I don\'t know – which is the scary part'], is_required: true },
+  { id: 'q2_4', section: 'Impact Quantification', question_text: 'What\'s the most expensive mistake caused by a systems/process gap in the last 2 years?', question_type: 'text' as const, placeholder: 'Lost client, tax penalty, missed opportunity, overpayment...', char_limit: 300, emotional_anchor: 'expensive_systems_mistake', is_required: true },
+  { id: 'q2_5', section: 'Impact Quantification', question_text: 'How many times last month did someone ask for information and you couldn\'t get it within 5 minutes?', question_type: 'single' as const, options: ['Never', '1-2 times', 'Weekly', 'Daily', 'Constantly'], is_required: true },
+  // Section 3: Tech Stack
+  { id: 'q3_1', section: 'Tech Stack', question_text: 'Which software tools does your business use? (Select all that apply)', question_type: 'multi' as const, options: ['Xero / QuickBooks / Sage (Accounting)', 'HubSpot / Salesforce / Pipedrive (CRM)', 'Asana / Trello / Monday (Projects)', 'Slack / Teams (Communication)', 'Stripe / GoCardless (Payments)', 'Google Workspace (Email, Docs)', 'Microsoft 365', 'BreatheHR / CharlieHR (HR)', 'Dext / Receipt Bank (Expenses)', 'Other (we\'ll capture in Stage 2)'], is_required: true },
+  { id: 'q3_2', section: 'Tech Stack', question_text: 'How would you rate the integration between these systems?', question_type: 'single' as const, options: ['Seamless – data flows automatically', 'Partial – some connected, some manual', 'Minimal – mostly manual transfers', 'Non-existent – each system is an island'], is_required: true },
+  { id: 'q3_3', section: 'Tech Stack', question_text: 'How many spreadsheets are "critical" to running your business? (Be honest)', question_type: 'single' as const, options: ['None – everything\'s in proper systems', '1-3 key spreadsheets', '4-10 spreadsheets', '10-20 spreadsheets', 'I\'ve lost count'], is_required: true },
+  // Section 4: Focus Areas
+  { id: 'q4_1', section: 'Focus Areas', question_text: 'Which areas feel most broken right now? (Select top 3)', question_type: 'multi' as const, max_selections: 3, options: ['Financial reporting / management accounts', 'Accounts payable (paying suppliers)', 'Accounts receivable (getting paid)', 'Inventory / stock management', 'Payroll and HR processes', 'Sales / CRM / pipeline tracking', 'Project management and delivery', 'Client onboarding', 'Compliance and documentation', 'IT infrastructure / security'], is_required: true },
+  { id: 'q4_2', section: 'Focus Areas', question_text: 'If you could fix ONE process by magic, which would have the biggest impact?', question_type: 'text' as const, placeholder: 'Describe the process and why fixing it would matter...', char_limit: 300, emotional_anchor: 'magic_process_fix', is_required: true },
+  // Section 5: Readiness
+  { id: 'q5_1', section: 'Readiness', question_text: 'What\'s your appetite for change right now?', question_type: 'single' as const, options: ['Urgent – we need to fix this yesterday', 'Ready – we\'ve budgeted time and money for this', 'Cautious – we want to improve but can\'t afford disruption', 'Exploring – just want to understand options'], is_required: true },
+  { id: 'q5_2', section: 'Readiness', question_text: 'What\'s your biggest fear about tackling systems?', question_type: 'multi' as const, options: ['Cost will spiral out of control', 'Implementation will disrupt operations', 'We\'ll invest and it won\'t work', 'Team won\'t adopt new processes', 'We\'ll become dependent on consultants', 'It\'s too complex to know where to start', 'No major fears – just want to get on with it'], emotional_anchor: 'systems_fears', is_required: true },
+  { id: 'q5_3', section: 'Readiness', question_text: 'Who internally would champion this project?', question_type: 'single' as const, options: ['Me – the founder/owner', 'Finance manager/FD', 'Operations manager', 'Office manager', 'IT lead', 'Other'], is_required: true },
+  // Section 6: Context
+  { id: 'q6_1', section: 'Context', question_text: 'How many people work in your business currently?', question_type: 'text' as const, placeholder: 'Enter number', is_required: true },
+  { id: 'q6_2', section: 'Context', question_text: 'How many people do you expect in 12 months?', question_type: 'text' as const, placeholder: 'Enter number', is_required: true },
+  { id: 'q6_3', section: 'Context', question_text: 'What\'s your annual revenue band?', question_type: 'single' as const, options: ['Under £250k', '£250k - £500k', '£500k - £1m', '£1m - £2m', '£2m - £5m', '£5m - £10m', '£10m+'], is_required: true },
+  { id: 'q6_4', section: 'Context', question_text: 'What industry are you in?', question_type: 'text' as const, placeholder: 'e.g., Professional services, Manufacturing, Retail, Tech...', char_limit: 100, is_required: true },
+];
 
 
 interface AssessmentPreviewPageProps {
@@ -126,57 +152,37 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
     setError(null);
     try {
       // Systems Audit uses a different structure (Stage 1/2/3)
-      // Stage 1 questions are in systemsAuditDiscoveryConfig, not assessment_questions
+      // Stage 1 questions are inline here to avoid cross-app import issues
       if (serviceCode === 'systems_audit') {
-        // Convert systemsAuditDiscoveryConfig to DbQuestion format
-        const convertedQuestions: DbQuestion[] = [];
-        let displayOrder = 1;
+        console.log('🔍 Loading Systems Audit questions from inline config...');
+        console.log('📋 Total questions in config:', SYSTEMS_AUDIT_STAGE1_QUESTIONS.length);
         
-        systemsAuditDiscoveryConfig.sections.forEach((section) => {
-          section.questions.forEach((question) => {
-            // Determine question type
-            let questionType: 'single' | 'multi' | 'text' | 'rank' = 'text';
-            if (question.type === 'free_text') {
-              questionType = 'text';
-            } else if (question.type === 'single_choice') {
-              questionType = 'single';
-            } else if (question.type === 'multiple_choice' || question.type === 'multi_choice') {
-              questionType = 'multi';
-            }
-            
-            // Convert options
-            let options: string[] | null = null;
-            if (question.options) {
-              options = question.options.map(opt => 
-                typeof opt === 'string' ? opt : opt.label
-              );
-            }
-            
-            convertedQuestions.push({
-              id: `sa_${question.id}`,
-              service_line_code: 'systems_audit',
-              question_id: question.id,
-              section: section.title,
-              question_text: question.label,
-              question_type: questionType,
-              options: options,
-              placeholder: question.placeholder || null,
-              char_limit: question.maxLength || null,
-              max_selections: (question.type === 'multiple_choice' || question.type === 'multi_choice') 
-                ? (question as any).maxSelections || null 
-                : null,
-              emotional_anchor: question.aiAnchor ? question.field : null,
-              technical_field: question.field || null,
-              is_required: question.required || false,
-              display_order: displayOrder++,
-              is_active: true,
-              updated_at: new Date().toISOString()
-            });
-          });
-        });
+        // Convert inline questions to DbQuestion format
+        const convertedQuestions: DbQuestion[] = SYSTEMS_AUDIT_STAGE1_QUESTIONS.map((q, idx) => ({
+          id: `sa_${q.id}`,
+          service_line_code: 'systems_audit',
+          question_id: q.id,
+          section: q.section,
+          question_text: q.question_text,
+          question_type: q.question_type,
+          options: q.options || null,
+          placeholder: q.placeholder || null,
+          char_limit: q.char_limit || null,
+          max_selections: q.max_selections || null,
+          emotional_anchor: q.emotional_anchor || null,
+          technical_field: null,
+          is_required: q.is_required,
+          display_order: idx + 1,
+          is_active: true,
+          updated_at: new Date().toISOString()
+        }));
+        
+        console.log('✅ Converted questions:', convertedQuestions.length);
+        console.log('📝 First question:', convertedQuestions[0]);
         
         setQuestions(convertedQuestions);
         setError(null); // Clear any previous error
+        setLoading(false);
         return;
       }
       
