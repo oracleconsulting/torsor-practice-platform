@@ -34,7 +34,8 @@ import {
   Share2,
   Trash2,
   Printer,
-  AlertTriangle
+  AlertTriangle,
+  Award
 } from 'lucide-react';
 
 
@@ -95,6 +96,16 @@ const SERVICE_LINES = [
     icon: LineChart,
     color: 'emerald',
     monthlyRevenue: 650,
+    status: 'ready'
+  },
+  { 
+    id: 'hidden_value_audit', 
+    code: 'hidden_value_audit',
+    name: 'Hidden Value Audit',
+    description: 'Identify hidden assets, risks, and opportunities to maximize business value',
+    icon: Award,
+    color: 'amber',
+    monthlyRevenue: 0,
     status: 'ready'
   },
   // Week 2-3 Ready

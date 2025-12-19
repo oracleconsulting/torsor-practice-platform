@@ -388,6 +388,9 @@ export default function UnifiedDashboardPage() {
     if (code === '365_method' || code === '365_alignment') {
       return '/assessments';
     }
+    if (code === 'hidden_value_audit') {
+      return '/assessment/part3';
+    }
     return `/service/${code}/assessment`;
   };
 
