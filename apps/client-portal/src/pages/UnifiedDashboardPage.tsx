@@ -75,6 +75,11 @@ export default function UnifiedDashboardPage() {
   const [discoveryStatus, setDiscoveryStatus] = useState<DiscoveryStatus | null>(null);
   const [maInsightShared, setMAInsightShared] = useState(false);
   const maInsightSharedRef = useRef(false);
+  const [systemsAuditStage, setSystemsAuditStage] = useState<{
+    stage1Complete: boolean;
+    stage2Complete: boolean;
+    engagementId: string | null;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -198,6 +203,33 @@ export default function UnifiedDashboardPage() {
       maInsightSharedRef.current = hasSharedMAInsight;
       setMAInsightShared(hasSharedMAInsight);
       console.log('📊 MA Insight shared status set to:', hasSharedMAInsight);
+
+      // Check Systems Audit engagement status
+      if (clientSession?.clientId) {
+        const { data: saEngagement } = await supabase
+          .from('sa_engagements')
+          .select('id, stage_1_completed_at, stage_2_completed_at')
+          .eq('client_id', clientSession.clientId)
+          .maybeSingle();
+        
+        if (saEngagement) {
+          setSystemsAuditStage({
+            stage1Complete: !!saEngagement.stage_1_completed_at,
+            stage2Complete: !!saEngagement.stage_2_completed_at,
+            engagementId: saEngagement.id
+          });
+          console.log('📊 Systems Audit stage status:', {
+            stage1Complete: !!saEngagement.stage_1_completed_at,
+            stage2Complete: !!saEngagement.stage_2_completed_at
+          });
+        } else {
+          setSystemsAuditStage({
+            stage1Complete: false,
+            stage2Complete: false,
+            engagementId: null
+          });
+        }
+      }
 
       let serviceList: ServiceEnrollment[] = (enrollments || [])
         .filter((e: any) => {
@@ -411,6 +443,15 @@ export default function UnifiedDashboardPage() {
       return '/assessment/part3';
     }
     if (code === 'systems_audit') {
+      // Check stage completion status
+      if (systemsAuditStage?.stage1Complete && !systemsAuditStage.stage2Complete) {
+        // Stage 1 complete, route to Stage 2
+        return '/service/systems_audit/inventory';
+      } else if (systemsAuditStage?.stage2Complete) {
+        // Stage 2 complete, route to Stage 3 (or show completion)
+        return '/service/systems_audit/assessment'; // TODO: Add Stage 3 route
+      }
+      // Stage 1 not complete, route to Stage 1
       return '/service/systems_audit/assessment';
     }
     return `/service/${code}/assessment`;
@@ -487,6 +528,17 @@ export default function UnifiedDashboardPage() {
         color: 'indigo',
         icon: Play,
       };
+    }
+    
+    // Special handling for Systems Audit
+    if (code === 'systems_audit') {
+      if (systemsAuditStage?.stage2Complete) {
+        return { label: 'Stage 2 Complete', color: 'emerald', icon: CheckCircle };
+      } else if (systemsAuditStage?.stage1Complete) {
+        return { label: 'Continue to Stage 2', color: 'cyan', icon: ArrowRight };
+      } else {
+        return { label: 'Start Stage 1', color: 'indigo', icon: Play };
+      }
     }
     
     // Generic status handling
