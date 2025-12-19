@@ -3995,6 +3995,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
       // Load most recent MA insight if available
       // First check ma_monthly_insights (v2) for this client's engagement
       let maInsightV2 = null;
+      let monthlyInsightsData: any = null; // Store monthlyInsights for later use
       const { data: engagement } = await supabase
         .from('ma_engagements')
         .select('id')
@@ -4013,6 +4014,8 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
           .maybeSingle();
         
         if (monthlyInsights) {
+          monthlyInsightsData = monthlyInsights; // Store for later use
+          
           // Fetch true cash calculation if available
           let trueCashData = null;
           if (monthlyInsights.true_cash_calculation_id) {
@@ -4067,12 +4070,12 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
         (c.content.includes('"headline"') || c.content.includes('"keyInsights"'))
       ) : null;
       
-      if (maInsightV2) {
+      if (maInsightV2 && monthlyInsightsData) {
         // Use v2 insight from ma_monthly_insights
         setMAInsights({ insight: maInsightV2, success: true });
         setMAInsightContextId(null); // v2 insights don't use client_context
-        setMAInsightV2Id(monthlyInsights.id); // Store v2 insight ID
-        setIsMAInsightShared(monthlyInsights.shared_with_client || false);
+        setMAInsightV2Id(monthlyInsightsData.id); // Store v2 insight ID
+        setIsMAInsightShared(monthlyInsightsData.shared_with_client || false);
       } else if (maInsightContext) {
         // Use old format from client_context
         try {
