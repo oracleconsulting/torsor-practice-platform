@@ -115,6 +115,13 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
   const [previewMode, setPreviewMode] = useState<'edit' | 'preview'>('edit');
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [editingQuestion, setEditingQuestion] = useState<string | null>(null);
+  const [systemsAuditStage, setSystemsAuditStage] = useState<'stage1' | 'stage2' | 'stage3'>('stage1');
+  
+  // Stage 2 & 3 data
+  const [systemCategories, setSystemCategories] = useState<any[]>([]);
+  const [processChains, setProcessChains] = useState<any[]>([]);
+  const [loadingStage2, setLoadingStage2] = useState(false);
+  const [loadingStage3, setLoadingStage3] = useState(false);
   
   // Database state
   const [questions, setQuestions] = useState<DbQuestion[]>([]);
@@ -143,9 +150,51 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
   // Load questions when service is selected
   useEffect(() => {
     if (selectedService) {
-      loadQuestions(selectedService);
+      if (selectedService === 'systems_audit') {
+        loadQuestions(selectedService);
+        loadStage2Data();
+        loadStage3Data();
+      } else {
+        loadQuestions(selectedService);
+      }
     }
   }, [selectedService]);
+  
+  // Load Stage 2 data (System Categories)
+  const loadStage2Data = async () => {
+    setLoadingStage2(true);
+    try {
+      const { data, error } = await supabase
+        .from('sa_system_categories')
+        .select('*')
+        .order('display_order');
+      
+      if (error) throw error;
+      setSystemCategories(data || []);
+    } catch (err) {
+      console.error('Error loading system categories:', err);
+    } finally {
+      setLoadingStage2(false);
+    }
+  };
+  
+  // Load Stage 3 data (Process Chains)
+  const loadStage3Data = async () => {
+    setLoadingStage3(true);
+    try {
+      const { data, error } = await supabase
+        .from('sa_process_chains')
+        .select('*')
+        .order('display_order');
+      
+      if (error) throw error;
+      setProcessChains(data || []);
+    } catch (err) {
+      console.error('Error loading process chains:', err);
+    } finally {
+      setLoadingStage3(false);
+    }
+  };
 
   const loadQuestions = async (serviceCode: string) => {
     setLoading(true);
@@ -574,6 +623,44 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
           </div>
         </div>
 
+        {/* Systems Audit Stage Tabs */}
+        {selectedService === 'systems_audit' && (
+          <div className="mb-6 border-b border-gray-200">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSystemsAuditStage('stage1')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  systemsAuditStage === 'stage1'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Stage 1: Discovery (19 questions)
+              </button>
+              <button
+                onClick={() => setSystemsAuditStage('stage2')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  systemsAuditStage === 'stage2'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Stage 2: System Inventory
+              </button>
+              <button
+                onClick={() => setSystemsAuditStage('stage3')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  systemsAuditStage === 'stage3'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Stage 3: Process Deep Dives (6 chains)
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Messages */}
         {error && (
           <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3 mb-4">
@@ -594,6 +681,149 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
 
         {/* Content */}
         <div>
+        {/* Stage 2: System Inventory */}
+        {selectedService === 'systems_audit' && systemsAuditStage === 'stage2' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-4">System Categories</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Clients will fill out system cards for each tool they use. Categories are pre-defined in the database.
+              </p>
+              {loadingStage2 ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
+                </div>
+              ) : systemCategories.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {systemCategories.map((cat) => (
+                    <div key={cat.id} className="p-4 border border-gray-200 rounded-lg">
+                      <h3 className="font-medium text-gray-900 mb-1">{cat.category_name}</h3>
+                      <p className="text-xs text-gray-500 mb-2">Code: {cat.category_code}</p>
+                      {cat.common_systems && cat.common_systems.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs text-gray-600 font-medium mb-1">Common systems:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {cat.common_systems.slice(0, 3).map((sys: string, idx: number) => (
+                              <span key={idx} className="text-xs bg-gray-100 px-2 py-0.5 rounded">
+                                {sys}
+                              </span>
+                            ))}
+                            {cat.common_systems.length > 3 && (
+                              <span className="text-xs text-gray-500">+{cat.common_systems.length - 3} more</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">No system categories found. Run the Systems Audit migration.</p>
+              )}
+            </div>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="font-medium text-blue-900 mb-2">System Inventory Fields</h3>
+              <p className="text-sm text-blue-700 mb-2">
+                When clients fill out system cards, they provide:
+              </p>
+              <ul className="text-sm text-blue-700 list-disc list-inside space-y-1">
+                <li>Basic info (name, category, vendor, website)</li>
+                <li>Usage (users, frequency, criticality)</li>
+                <li>Cost (pricing model, monthly/annual cost, cost trend)</li>
+                <li>Integration (what it connects to, integration method, manual hours)</li>
+                <li>Data quality (score, entry method)</li>
+                <li>Satisfaction (user satisfaction, fit for purpose, would recommend)</li>
+                <li>Pain points (known issues, workarounds, change one thing)</li>
+                <li>Future plans (keep/replace/upgrade, replacement candidate, contract end)</li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {/* Stage 3: Process Deep Dives */}
+        {selectedService === 'systems_audit' && systemsAuditStage === 'stage3' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-4">Process Chains</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Consultant-led deep dives into 6 key process chains. Each chain has detailed questions organized by sections.
+              </p>
+              {loadingStage3 ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
+                </div>
+              ) : processChains.length > 0 ? (
+                <div className="space-y-4">
+                  {processChains.map((chain) => (
+                    <div key={chain.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <h3 className="font-medium text-gray-900">{chain.chain_name}</h3>
+                          <p className="text-sm text-gray-600 mt-1">{chain.description}</p>
+                        </div>
+                        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded">
+                          ~{chain.estimated_duration_mins} mins
+                        </span>
+                      </div>
+                      {chain.process_steps && chain.process_steps.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-xs text-gray-600 font-medium mb-2">Process Steps:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {chain.process_steps.map((step: string, idx: number) => (
+                              <span key={idx} className="text-xs bg-gray-100 px-2 py-0.5 rounded">
+                                {step}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {chain.trigger_areas && chain.trigger_areas.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-xs text-gray-600 font-medium mb-1">Triggered by:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {chain.trigger_areas.map((area: string, idx: number) => (
+                              <span key={idx} className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">
+                                {area.replace(/_/g, ' ')}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">No process chains found. Run the Systems Audit migration.</p>
+              )}
+            </div>
+            
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <h3 className="font-medium text-purple-900 mb-2">Process Deep Dive Structure</h3>
+              <p className="text-sm text-purple-700 mb-2">
+                Each process chain has detailed questions organized into sections. Questions are configured in:
+              </p>
+              <code className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded block mt-2">
+                apps/platform/src/config/assessments/process-deep-dives.ts
+              </code>
+              <p className="text-sm text-purple-700 mt-3">
+                The 6 process chains are:
+              </p>
+              <ul className="text-sm text-purple-700 list-disc list-inside mt-2 space-y-1">
+                <li><strong>Quote-to-Cash:</strong> From lead to cash collected</li>
+                <li><strong>Procure-to-Pay:</strong> From need to payment</li>
+                <li><strong>Hire-to-Retire:</strong> Full employee lifecycle</li>
+                <li><strong>Record-to-Report:</strong> From transaction to insight</li>
+                <li><strong>Lead-to-Client:</strong> From stranger to customer</li>
+                <li><strong>Comply-to-Confirm:</strong> From requirement to filed</li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {/* Stage 1: Discovery Questions (existing logic) */}
+        {(selectedService !== 'systems_audit' || systemsAuditStage === 'stage1') && (
+        <>
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
@@ -843,8 +1073,8 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
           </div>
         )}
 
-        {/* Stats */}
-        {questions.length > 0 && (
+        {/* Stats - Only show for Stage 1 */}
+        {questions.length > 0 && (selectedService !== 'systems_audit' || systemsAuditStage === 'stage1') && (
           <div className="mt-8 p-4 bg-white rounded-lg border border-gray-200">
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-6">
@@ -855,6 +1085,8 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
               <span className="text-gray-500">Last updated: {questions[0]?.updated_at ? new Date(questions[0].updated_at).toLocaleString() : 'N/A'}</span>
             </div>
           </div>
+        )}
+        </>
         )}
         </div>
       </main>
