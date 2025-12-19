@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, TrendingUp, CheckCircle, AlertCircle, Target, Lightbulb, Calendar } from 'lucide-react';
+import { ArrowLeft, TrendingUp, CheckCircle, AlertCircle, Target, Lightbulb, Calendar, Clock, X, AlertTriangle, MessageSquare } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
 // ============================================================================
@@ -35,6 +35,39 @@ interface MAInsight {
     narrative: string;
     theirWords?: string[];
   };
+  // v2 fields
+  trueCashSection?: {
+    narrative: string;
+    isHealthy?: boolean;
+    implication?: string;
+  } | null;
+  tuesdayQuestionAnswer?: {
+    originalQuestion: string;
+    answer: string;
+    supportingData?: string[];
+    verdict?: string;
+  } | null;
+  decisionsEnabled?: Array<{
+    decisionName?: string;
+    decision?: string;
+    verdict?: string;
+    verdictSummary?: string;
+    conditions?: string;
+    fallback?: string;
+    supportingData?: string[];
+    riskIfIgnored?: string;
+    clientQuoteReferenced?: string;
+    recommendation?: string;
+  }>;
+  watchList?: Array<{
+    metric: string;
+    priority?: 'high' | 'medium' | 'low';
+    currentValue: string;
+    alertThreshold?: string;
+    direction?: string;
+    checkFrequency?: string;
+  }>;
+  clientQuotesUsed?: string[];
 }
 
 export default function MAReportPage() {
@@ -330,6 +363,240 @@ export default function MAReportPage() {
                   </ul>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* True Cash Position (v2) */}
+        {insight.trueCashSection?.narrative && (
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <TrendingUp className="w-5 h-5" />
+                True Cash Position
+              </h2>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-700 leading-relaxed mb-4">{insight.trueCashSection.narrative}</p>
+              {insight.trueCashSection.isHealthy !== undefined && (
+                <div className={`p-4 rounded-lg border ${
+                  insight.trueCashSection.isHealthy 
+                    ? 'bg-emerald-50 border-emerald-200' 
+                    : 'bg-amber-50 border-amber-200'
+                }`}>
+                  <p className={`text-sm font-semibold ${
+                    insight.trueCashSection.isHealthy ? 'text-emerald-900' : 'text-amber-900'
+                  }`}>
+                    {insight.trueCashSection.isHealthy ? '✓ Healthy Cash Position' : '⚠️ Cash Position Needs Attention'}
+                  </p>
+                  {insight.trueCashSection.implication && (
+                    <p className={`text-sm mt-2 ${
+                      insight.trueCashSection.isHealthy ? 'text-emerald-800' : 'text-amber-800'
+                    }`}>
+                      {insight.trueCashSection.implication}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Tuesday Question Answer (v2) */}
+        {insight.tuesdayQuestionAnswer?.answer && (
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-indigo-50 px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Answering Your Tuesday Question</h2>
+            </div>
+            <div className="p-6 space-y-4">
+              {insight.tuesdayQuestionAnswer.originalQuestion && (
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                  <p className="text-sm font-semibold text-blue-900 mb-2">Your Question:</p>
+                  <p className="text-blue-800 italic">"{insight.tuesdayQuestionAnswer.originalQuestion}"</p>
+                </div>
+              )}
+              <div>
+                <p className="text-sm font-semibold text-gray-900 mb-2">Answer:</p>
+                <p className="text-gray-700 leading-relaxed">{insight.tuesdayQuestionAnswer.answer}</p>
+              </div>
+              {insight.tuesdayQuestionAnswer.supportingData && insight.tuesdayQuestionAnswer.supportingData.length > 0 && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-gray-900 mb-2">Supporting Data:</p>
+                  <ul className="space-y-2">
+                    {insight.tuesdayQuestionAnswer.supportingData.map((data: string, idx: number) => (
+                      <li key={idx} className="flex items-start gap-2 text-gray-700 text-sm">
+                        <span className="text-indigo-600 mt-1">•</span>
+                        <span>{data}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {insight.tuesdayQuestionAnswer.verdict && (
+                <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
+                  <p className="text-sm font-semibold text-indigo-900 mb-1">Summary</p>
+                  <p className="text-indigo-800 text-sm">{insight.tuesdayQuestionAnswer.verdict}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Decisions Enabled (v2) */}
+        {insight.decisionsEnabled && insight.decisionsEnabled.length > 0 && (() => {
+          const VERDICT_CONFIG: Record<string, { icon: any, color: string, label: string }> = {
+            YES: { icon: CheckCircle, color: 'bg-green-100 text-green-800 border-green-300', label: 'Yes' },
+            NO: { icon: X, color: 'bg-red-100 text-red-800 border-red-300', label: 'No' },
+            WAIT: { icon: Clock, color: 'bg-yellow-100 text-yellow-800 border-yellow-300', label: 'Wait' },
+            YES_IF: { icon: CheckCircle, color: 'bg-green-50 text-green-700 border-green-200', label: 'Yes, if...' },
+            NO_UNLESS: { icon: X, color: 'bg-red-50 text-red-700 border-red-200', label: 'No, unless...' },
+          };
+          
+          const getVerdictDisplay = (decision: any) => {
+            if (decision.verdict && decision.verdictSummary) {
+              return { 
+                verdict: decision.verdict, 
+                summary: decision.verdictSummary,
+                config: VERDICT_CONFIG[decision.verdict] || VERDICT_CONFIG.WAIT
+              };
+            }
+            const rec = decision.recommendation?.toLowerCase() || '';
+            if (rec.includes("don't") || rec.includes('no')) {
+              return { verdict: 'NO', summary: decision.recommendation, config: VERDICT_CONFIG.NO };
+            }
+            if (rec.includes('wait')) {
+              return { verdict: 'WAIT', summary: decision.recommendation, config: VERDICT_CONFIG.WAIT };
+            }
+            if (rec.includes('yes') || rec.includes('do it')) {
+              return { verdict: 'YES', summary: decision.recommendation, config: VERDICT_CONFIG.YES };
+            }
+            return { verdict: 'WAIT', summary: decision.recommendation || 'Review needed', config: VERDICT_CONFIG.WAIT };
+          };
+          
+          return (
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+              <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <Target className="w-5 h-5" />
+                  Decisions Enabled
+                </h2>
+              </div>
+              <div className="p-6 space-y-4">
+                {insight.decisionsEnabled.map((decision: any, idx: number) => {
+                  const verdictDisplay = getVerdictDisplay(decision);
+                  const VerdictIcon = verdictDisplay.config.icon;
+                  
+                  return (
+                    <div key={idx} className="border border-purple-200 rounded-lg p-4 bg-purple-50">
+                      <div className="flex items-start justify-between mb-3">
+                        <h4 className="font-semibold text-lg text-purple-900">
+                          {decision.decisionName || decision.decision}
+                        </h4>
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ml-3 border flex items-center gap-1 ${verdictDisplay.config.color}`}>
+                          <VerdictIcon className="h-3 w-3" />
+                          {verdictDisplay.config.label}
+                        </span>
+                      </div>
+                      
+                      <div className={`p-4 rounded-lg mb-3 border ${
+                        verdictDisplay.verdict?.startsWith('YES') ? 'bg-green-50 border-green-200' :
+                        verdictDisplay.verdict?.startsWith('NO') ? 'bg-red-50 border-red-200' : 
+                        'bg-yellow-50 border-yellow-200'
+                      }`}>
+                        <p className="font-semibold text-lg text-gray-900">{verdictDisplay.summary}</p>
+                        {decision.conditions && (
+                          <p className="text-sm mt-2 text-gray-700">
+                            <span className="font-medium">Condition:</span> {decision.conditions}
+                          </p>
+                        )}
+                      </div>
+                      
+                      {decision.fallback && (
+                        <div className="flex items-start gap-2 bg-gray-50 p-3 rounded-lg mb-3 border border-gray-200">
+                          <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                          <span className="text-sm text-gray-700"><strong>Otherwise:</strong> {decision.fallback}</span>
+                        </div>
+                      )}
+                      
+                      {decision.supportingData && decision.supportingData.length > 0 && (
+                        <div className="mb-3">
+                          <p className="text-sm font-semibold text-gray-900 mb-2">Supporting Data:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {decision.supportingData.map((data: string, dataIdx: number) => (
+                              <span key={dataIdx} className="px-2 py-1 bg-white border border-purple-200 text-purple-800 text-xs rounded">
+                                {data}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {decision.riskIfIgnored && (
+                        <div className="mb-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                          <p className="text-sm text-red-800">
+                            <strong>Risk if wrong:</strong> {decision.riskIfIgnored}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {decision.clientQuoteReferenced && (
+                        <div className="flex items-start gap-2 text-sm text-gray-600 mt-3 pt-3 border-t border-purple-200">
+                          <MessageSquare className="h-4 w-4 mt-0.5 flex-shrink-0 text-blue-600" />
+                          <span className="italic">"{decision.clientQuoteReferenced}"</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Watch List (v2) */}
+        {insight.watchList && insight.watchList.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-amber-50 px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Watch List</h2>
+              <p className="text-sm text-gray-600 mt-1">Metrics to monitor closely</p>
+            </div>
+            <div className="p-6">
+              <div className="grid gap-4">
+                {insight.watchList.map((item: any, idx: number) => (
+                  <div key={idx} className="border border-amber-200 rounded-lg p-4 bg-amber-50">
+                    <div className="flex items-start justify-between mb-2">
+                      <h4 className="font-semibold text-gray-900">{item.metric}</h4>
+                      {item.priority && (
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          item.priority === 'high' ? 'bg-red-100 text-red-700' :
+                          item.priority === 'medium' ? 'bg-amber-100 text-amber-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {item.priority.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-gray-600 mb-1">Current Value</p>
+                        <p className="font-semibold text-gray-900">{item.currentValue}</p>
+                      </div>
+                      {item.alertThreshold && (
+                        <div>
+                          <p className="text-gray-600 mb-1">Alert Threshold</p>
+                          <p className="font-semibold text-gray-900">{item.alertThreshold}</p>
+                        </div>
+                      )}
+                    </div>
+                    {item.direction && item.checkFrequency && (
+                      <div className="mt-3 flex items-center gap-4 text-xs text-gray-600">
+                        <span>Direction: <strong>{item.direction}</strong></span>
+                        <span>Check: <strong>{item.checkFrequency}</strong></span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
