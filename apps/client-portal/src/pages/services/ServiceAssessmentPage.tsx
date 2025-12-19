@@ -199,6 +199,13 @@ export default function ServiceAssessmentPage() {
       }
 
       setCompleted(true);
+      
+      // Check for shared MA insights before showing completion page
+      const hasInsight = await checkForSharedMAInsight();
+      if (hasInsight) {
+        return; // Redirected to report page
+      }
+      
       setGeneratingProposal(true);
       try {
         await supabase.functions.invoke('generate-value-proposition', {
@@ -235,69 +242,71 @@ export default function ServiceAssessmentPage() {
   if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><Loader2 className="w-8 h-8 text-indigo-600 animate-spin" /></div>;
   if (!assessment) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><p>Assessment not found</p></div>;
 
-  // Check for shared insights when assessment is complete (for MA only)
-  // CRITICAL: This effect MUST NOT run for Systems Audit or any other service
-  // Only runs when Management Accounts assessment is completed
-  useEffect(() => {
-    // Early return for non-MA services - prevents any execution
-    if (serviceCode !== 'management_accounts') {
-      return;
-    }
-    
-    // Early return if not completed or no client session
-    if (!completed || !clientSession?.clientId) {
-      return;
-    }
-    
-    // Guard against multiple runs
-    if (checkingSharedInsightRef.current) {
-      return;
+  // Check for shared MA insights - moved to completion handler to avoid useEffect infinite loops
+  const checkForSharedMAInsight = async () => {
+    if (serviceCode !== 'management_accounts' || !clientSession?.clientId || checkingSharedInsightRef.current) {
+      return false;
     }
     
     checkingSharedInsightRef.current = true;
     
-    // Use setTimeout to defer execution and prevent render loop
-    const timeoutId = setTimeout(() => {
-      const checkForSharedInsight = async () => {
-        try {
-          const { data: maInsight } = await supabase
-            .from('client_context')
-            .select('id, is_shared, content, data_source_type')
-            .eq('client_id', clientSession.clientId)
-            .eq('context_type', 'note')
-            .eq('is_shared', true)
-            .eq('processed', true)
-            .in('data_source_type', ['management_accounts_analysis', 'general'])
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          
-          if (maInsight && maInsight.content) {
-            try {
-              const content = typeof maInsight.content === 'string' 
-                ? JSON.parse(maInsight.content) 
-                : maInsight.content;
-              if (content && (content.headline || content.keyInsights || (content.insight && (content.insight.headline || content.insight.keyInsights)))) {
-                // Redirect to report page if insight is available
-                navigate('/service/management_accounts/report', { replace: true });
-                return;
-              }
-            } catch (e) {
-              // Not valid insight, continue to completion page
-            }
-          }
-        } catch (error) {
-          console.error('Error checking for shared insight:', error);
-        }
-      };
+    try {
+      // First check v2 insights from ma_monthly_insights
+      const { data: engagement } = await supabase
+        .from('ma_engagements')
+        .select('id')
+        .eq('client_id', clientSession.clientId)
+        .maybeSingle();
       
-      checkForSharedInsight();
-    }, 0);
+      if (engagement) {
+        const { data: monthlyInsight } = await supabase
+          .from('ma_monthly_insights')
+          .select('*')
+          .eq('engagement_id', engagement.id)
+          .eq('shared_with_client', true)
+          .is('snapshot_id', null)
+          .order('period_end_date', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (monthlyInsight && (monthlyInsight.headline_text || monthlyInsight.insights)) {
+          navigate('/service/management_accounts/report', { replace: true });
+          return true;
+        }
+      }
+      
+      // Fallback to old client_context format
+      const { data: maInsight } = await supabase
+        .from('client_context')
+        .select('id, is_shared, content, data_source_type')
+        .eq('client_id', clientSession.clientId)
+        .eq('context_type', 'note')
+        .eq('is_shared', true)
+        .eq('processed', true)
+        .in('data_source_type', ['management_accounts_analysis', 'general'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (maInsight && maInsight.content) {
+        try {
+          const content = typeof maInsight.content === 'string' 
+            ? JSON.parse(maInsight.content) 
+            : maInsight.content;
+          if (content && (content.headline || content.keyInsights || (content.insight && (content.insight.headline || content.insight.keyInsights)))) {
+            navigate('/service/management_accounts/report', { replace: true });
+            return true;
+          }
+        } catch (e) {
+          // Not valid insight
+        }
+      }
+    } catch (error) {
+      console.error('Error checking for shared insight:', error);
+    }
     
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [completed, serviceCode, clientSession?.clientId]);
+    return false;
+  };
 
   if (completed) {
     return (
