@@ -110,6 +110,13 @@ export default function UnifiedDashboardPage() {
       }
       
       console.log('📋 Raw enrollments from DB:', enrollments);
+      console.log('📋 Service enrollments (detailed):', enrollments?.map((e: any) => ({
+        id: e.id,
+        status: e.status,
+        serviceLineCode: e.service_line?.code,
+        serviceLineName: e.service_line?.name,
+        hasServiceLine: !!e.service_line
+      })));
 
       if (enrollError) {
         console.error('Error loading services:', enrollError);
@@ -193,15 +200,27 @@ export default function UnifiedDashboardPage() {
       console.log('📊 MA Insight shared status set to:', hasSharedMAInsight);
 
       let serviceList: ServiceEnrollment[] = (enrollments || [])
-        .filter((e: any) => e.service_line)
-        .map((e: any) => ({
-          id: e.id,
-          status: e.status,
-          serviceCode: e.service_line.code,
-          serviceName: e.service_line.name,
-          serviceDescription: e.service_line.short_description || '',
-          createdAt: e.created_at,
-        }));
+        .filter((e: any) => {
+          const hasServiceLine = !!e.service_line;
+          if (!hasServiceLine) {
+            console.warn('⚠️ Enrollment missing service_line:', e.id, e);
+          }
+          return hasServiceLine;
+        })
+        .map((e: any) => {
+          const service = {
+            id: e.id,
+            status: e.status,
+            serviceCode: e.service_line.code,
+            serviceName: e.service_line.name,
+            serviceDescription: e.service_line.short_description || '',
+            createdAt: e.created_at,
+          };
+          console.log('✅ Mapped service:', service.serviceCode, service.serviceName);
+          return service;
+        });
+      
+      console.log('📋 Final mapped serviceList:', serviceList.map(s => ({ code: s.serviceCode, name: s.serviceName })));
 
       // Check discovery status - try by client_id first
       // Use maybeSingle() instead of single() to avoid errors when no row exists
@@ -390,6 +409,9 @@ export default function UnifiedDashboardPage() {
     }
     if (code === 'hidden_value_audit') {
       return '/assessment/part3';
+    }
+    if (code === 'systems_audit') {
+      return '/service/systems_audit/assessment';
     }
     return `/service/${code}/assessment`;
   };
