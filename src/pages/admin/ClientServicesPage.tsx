@@ -3805,6 +3805,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
   const [generatingMAInsights, setGeneratingMAInsights] = useState(false);
   const [maInsights, setMAInsights] = useState<any>(null);
   const [maInsightContextId, setMAInsightContextId] = useState<string | null>(null);
+  const [maInsightV2Id, setMAInsightV2Id] = useState<string | null>(null); // For v2 insights from ma_monthly_insights
   const [isMAInsightShared, setIsMAInsightShared] = useState(false);
   
   // Context form state
@@ -4070,7 +4071,8 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
         // Use v2 insight from ma_monthly_insights
         setMAInsights({ insight: maInsightV2, success: true });
         setMAInsightContextId(null); // v2 insights don't use client_context
-        setIsMAInsightShared(false); // TODO: Add sharing status to ma_monthly_insights
+        setMAInsightV2Id(monthlyInsights.id); // Store v2 insight ID
+        setIsMAInsightShared(monthlyInsights.shared_with_client || false);
       } else if (maInsightContext) {
         // Use old format from client_context
         try {
@@ -4086,6 +4088,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
       } else {
         setMAInsights(null);
         setMAInsightContextId(null);
+        setMAInsightV2Id(null);
         setIsMAInsightShared(false);
       }
       
@@ -5614,25 +5617,54 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           </div>
                           <button
                             onClick={async () => {
-                              if (!maInsightContextId) return;
-                              
                               const newSharedStatus = !isMAInsightShared;
+                              
                               try {
-                                const { error } = await supabase
-                                  .from('client_context')
-                                  .update({ is_shared: newSharedStatus })
-                                  .eq('id', maInsightContextId);
-                                
-                                if (error) throw error;
-                                
-                                setIsMAInsightShared(newSharedStatus);
-                                await fetchClientDetail();
-                                
-                                if (newSharedStatus) {
-                                  alert('Analysis marked as available to client');
-                                } else {
-                                  alert('Analysis removed from client view');
+                                // Handle v2 insights (ma_monthly_insights)
+                                if (maInsightV2Id) {
+                                  const { error } = await supabase
+                                    .from('ma_monthly_insights')
+                                    .update({ 
+                                      shared_with_client: newSharedStatus,
+                                      shared_at: newSharedStatus ? new Date().toISOString() : null,
+                                      shared_by: newSharedStatus ? currentMember?.id : null
+                                    })
+                                    .eq('id', maInsightV2Id);
+                                  
+                                  if (error) throw error;
+                                  
+                                  setIsMAInsightShared(newSharedStatus);
+                                  await fetchClientDetail();
+                                  
+                                  if (newSharedStatus) {
+                                    alert('Analysis marked as available to client');
+                                  } else {
+                                    alert('Analysis removed from client view');
+                                  }
+                                  return;
                                 }
+                                
+                                // Handle old format (client_context)
+                                if (maInsightContextId) {
+                                  const { error } = await supabase
+                                    .from('client_context')
+                                    .update({ is_shared: newSharedStatus })
+                                    .eq('id', maInsightContextId);
+                                  
+                                  if (error) throw error;
+                                  
+                                  setIsMAInsightShared(newSharedStatus);
+                                  await fetchClientDetail();
+                                  
+                                  if (newSharedStatus) {
+                                    alert('Analysis marked as available to client');
+                                  } else {
+                                    alert('Analysis removed from client view');
+                                  }
+                                  return;
+                                }
+                                
+                                alert('No insight found to share');
                               } catch (error: any) {
                                 console.error('Error updating share status:', error);
                                 alert('Failed to update share status: ' + error.message);
