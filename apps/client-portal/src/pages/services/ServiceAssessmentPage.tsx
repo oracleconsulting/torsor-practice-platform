@@ -516,15 +516,24 @@ export default function ServiceAssessmentPage() {
   };
 
   if (completed) {
+    // Check if this is Systems Audit and Stage 1 is complete
+    const isSystemsAudit = serviceCode === 'systems_audit';
+    
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-lg w-full text-center">
           <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-emerald-600" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Assessment Complete!</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            {isSystemsAudit ? 'Stage 1 Complete!' : 'Assessment Complete!'}
+          </h1>
           <p className="text-gray-600 mb-6">
-            {generatingProposal ? "We're preparing your personalized proposal..." : "Your advisor will review your responses shortly."}
+            {isSystemsAudit 
+              ? "Great work! You've completed the Discovery Assessment. Ready to move on to Stage 2: System Inventory?"
+              : generatingProposal 
+                ? "We're preparing your personalized proposal..." 
+                : "Your advisor will review your responses shortly."}
           </p>
           {generatingProposal && <Loader2 className="w-5 h-5 animate-spin mx-auto text-indigo-600 mb-6" />}
           {checkingSharedInsightRef.current && serviceCode === 'management_accounts' && (
@@ -533,9 +542,22 @@ export default function ServiceAssessmentPage() {
               <p className="text-sm text-gray-500 mt-2">Checking for available insights...</p>
             </div>
           )}
-          <button onClick={() => navigate('/dashboard')} className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-            Return to Dashboard
-          </button>
+          <div className="flex flex-col gap-3">
+            {isSystemsAudit && (
+              <button 
+                onClick={() => window.location.href = '/service/systems_audit/inventory'} 
+                className="px-6 py-3 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 font-medium"
+              >
+                Continue to Stage 2: System Inventory
+              </button>
+            )}
+            <button 
+              onClick={() => navigate('/dashboard')} 
+              className={`px-6 py-3 ${isSystemsAudit ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-indigo-600 text-white hover:bg-indigo-700'} rounded-lg`}
+            >
+              Return to Dashboard
+            </button>
+          </div>
         </div>
       </div>
     );
