@@ -2,7 +2,7 @@
 // SERVICE LINE ASSESSMENT PAGE
 // ============================================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -35,10 +35,15 @@ export default function ServiceAssessmentPage() {
   const [loading, setLoading] = useState(true);
   const [completed, setCompleted] = useState(false);
   const [generatingProposal, setGeneratingProposal] = useState(false);
-  const [checkingSharedInsight, setCheckingSharedInsight] = useState(false);
+  const checkingSharedInsightRef = useRef(false);
+  const hasCheckedSharedInsightRef = useRef(false);
 
   useEffect(() => {
     if (serviceCode) {
+      // Reset refs when service code changes
+      hasCheckedSharedInsightRef.current = false;
+      checkingSharedInsightRef.current = false;
+      
       const config = getAssessmentByCode(serviceCode);
       if (config) {
         setAssessment(config);
@@ -47,11 +52,13 @@ export default function ServiceAssessmentPage() {
         navigate('/dashboard');
       }
     }
-  }, [serviceCode]);
+  }, [serviceCode, navigate]);
   
   // Check for shared insights on mount and when client session is available
+  // Only for management_accounts, and only once per mount
   useEffect(() => {
-    if (serviceCode === 'management_accounts' && clientSession?.clientId && !loading) {
+    if (serviceCode === 'management_accounts' && clientSession?.clientId && !loading && !hasCheckedSharedInsightRef.current) {
+      hasCheckedSharedInsightRef.current = true;
       const checkForSharedInsightAndRedirect = async () => {
         try {
           console.log('🔍 Checking for shared MA insight...');
@@ -231,8 +238,8 @@ export default function ServiceAssessmentPage() {
   // Check for shared insights when assessment is complete (for MA)
   // Note: This effect only runs for management_accounts, so it won't affect other services
   useEffect(() => {
-    if (completed && serviceCode === 'management_accounts' && clientSession?.clientId && !checkingSharedInsight) {
-      setCheckingSharedInsight(true);
+    if (completed && serviceCode === 'management_accounts' && clientSession?.clientId && !checkingSharedInsightRef.current) {
+      checkingSharedInsightRef.current = true;
       const checkForSharedInsight = async () => {
         try {
           const { data: maInsight } = await supabase
@@ -265,7 +272,9 @@ export default function ServiceAssessmentPage() {
           console.error('Error checking for shared insight:', error);
         } finally {
           // Reset checking flag after a delay to allow navigation
-          setTimeout(() => setCheckingSharedInsight(false), 100);
+          setTimeout(() => {
+            checkingSharedInsightRef.current = false;
+          }, 100);
         }
       };
       checkForSharedInsight();
