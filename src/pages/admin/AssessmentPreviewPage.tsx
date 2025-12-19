@@ -18,6 +18,10 @@ import {
 } from 'lucide-react';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 
+// Import Systems Audit Stage 1 config
+// Note: Using relative path to access platform app config
+import { systemsAuditDiscoveryConfig } from '../../../apps/platform/src/config/assessments/systems-audit-discovery';
+
 
 interface AssessmentPreviewPageProps {
   currentPage: Page;
@@ -124,12 +128,55 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
       // Systems Audit uses a different structure (Stage 1/2/3)
       // Stage 1 questions are in systemsAuditDiscoveryConfig, not assessment_questions
       if (serviceCode === 'systems_audit') {
-        setError('Systems Audit uses a multi-stage structure:\n\n' +
-          '• Stage 1: Discovery Assessment (19 questions) - Configured in systemsAuditDiscoveryConfig\n' +
-          '• Stage 2: System Inventory - Client fills system cards\n' +
-          '• Stage 3: Process Deep Dives - Consultant-led process analysis\n\n' +
-          'Stage 1 questions are managed in the codebase, not in the assessment_questions table.');
-        setQuestions([]);
+        // Convert systemsAuditDiscoveryConfig to DbQuestion format
+        const convertedQuestions: DbQuestion[] = [];
+        let displayOrder = 1;
+        
+        systemsAuditDiscoveryConfig.sections.forEach((section) => {
+          section.questions.forEach((question) => {
+            // Determine question type
+            let questionType: 'single' | 'multi' | 'text' | 'rank' = 'text';
+            if (question.type === 'free_text') {
+              questionType = 'text';
+            } else if (question.type === 'single_choice') {
+              questionType = 'single';
+            } else if (question.type === 'multiple_choice' || question.type === 'multi_choice') {
+              questionType = 'multi';
+            }
+            
+            // Convert options
+            let options: string[] | null = null;
+            if (question.options) {
+              options = question.options.map(opt => 
+                typeof opt === 'string' ? opt : opt.label
+              );
+            }
+            
+            convertedQuestions.push({
+              id: `sa_${question.id}`,
+              service_line_code: 'systems_audit',
+              question_id: question.id,
+              section: section.title,
+              question_text: question.label,
+              question_type: questionType,
+              options: options,
+              placeholder: question.placeholder || null,
+              char_limit: question.maxLength || null,
+              max_selections: (question.type === 'multiple_choice' || question.type === 'multi_choice') 
+                ? (question as any).maxSelections || null 
+                : null,
+              emotional_anchor: question.aiAnchor ? question.field : null,
+              technical_field: question.field || null,
+              is_required: question.required || false,
+              display_order: displayOrder++,
+              is_active: true,
+              updated_at: new Date().toISOString()
+            });
+          });
+        });
+        
+        setQuestions(convertedQuestions);
+        setError(null); // Clear any previous error
         return;
       }
       
