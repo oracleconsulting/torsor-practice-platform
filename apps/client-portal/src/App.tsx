@@ -21,6 +21,7 @@ import ChatPage from './pages/chat/ChatPage';
 import AppointmentsPage from './pages/appointments/AppointmentsPage';
 import ServiceAssessmentPage from './pages/services/ServiceAssessmentPage';
 import MAReportPage from './pages/services/MAReportPage';
+import SystemInventoryPage from './pages/services/SystemInventoryPage';
 import DestinationDiscoveryPage from './pages/discovery/DestinationDiscoveryPage';
 import DiscoveryReportPage from './pages/discovery/DiscoveryReportPage';
 
@@ -67,6 +68,7 @@ function App() {
             {/* Service Line Assessments */}
             <Route path="/service/:serviceCode/assessment" element={<ServiceAssessmentPage />} />
             <Route path="/service/management_accounts/report" element={<MAReportPage />} />
+            <Route path="/service/systems_audit/inventory" element={<SystemInventoryPage />} />
             
             {/* Destination Discovery Assessment */}
             <Route path="/discovery" element={<DestinationDiscoveryPage />} />
