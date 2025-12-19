@@ -2810,7 +2810,8 @@ function DiscoveryClientModal({
         alert(`Warning: Failed to assign some services: ${failedInserts.map(f => f.code).join(', ')}. Check console for details.`);
       }
 
-      if (totalProcessed === 0) {
+      // Check if any changes were made
+      if (servicesToAdd.length === 0 && servicesToRemove.length === 0) {
         alert('No changes needed - all selected services are already assigned.');
         onRefresh();
         return;
