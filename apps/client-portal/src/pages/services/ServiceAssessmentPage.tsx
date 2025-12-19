@@ -37,14 +37,12 @@ export default function ServiceAssessmentPage() {
   const [generatingProposal, setGeneratingProposal] = useState(false);
   const checkingSharedInsightRef = useRef(false);
   const hasCheckedSharedInsightRef = useRef(false);
-  const prevCompletedRef = useRef(false);
 
   useEffect(() => {
     if (serviceCode) {
       // Reset refs when service code changes
       hasCheckedSharedInsightRef.current = false;
       checkingSharedInsightRef.current = false;
-      prevCompletedRef.current = false;
       
       const config = getAssessmentByCode(serviceCode);
       if (config) {
@@ -238,23 +236,28 @@ export default function ServiceAssessmentPage() {
   if (!assessment) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><p>Assessment not found</p></div>;
 
   // Check for shared insights when assessment is complete (for MA only)
-  // Use a separate effect that only runs when completed state changes from false to true
-  const prevCompletedRef = useRef(false);
+  // CRITICAL: This effect MUST NOT run for Systems Audit or any other service
+  // Only runs when Management Accounts assessment is completed
   useEffect(() => {
-    // Only check for MA insights when:
-    // 1. Service is management_accounts
-    // 2. Assessment just became completed (transition from false to true)
-    // 3. We haven't checked yet
-    if (
-      serviceCode === 'management_accounts' &&
-      completed &&
-      !prevCompletedRef.current &&
-      clientSession?.clientId &&
-      !checkingSharedInsightRef.current
-    ) {
-      checkingSharedInsightRef.current = true;
-      prevCompletedRef.current = true;
-      
+    // Early return for non-MA services - prevents any execution
+    if (serviceCode !== 'management_accounts') {
+      return;
+    }
+    
+    // Early return if not completed or no client session
+    if (!completed || !clientSession?.clientId) {
+      return;
+    }
+    
+    // Guard against multiple runs
+    if (checkingSharedInsightRef.current) {
+      return;
+    }
+    
+    checkingSharedInsightRef.current = true;
+    
+    // Use setTimeout to defer execution and prevent render loop
+    const timeoutId = setTimeout(() => {
       const checkForSharedInsight = async () => {
         try {
           const { data: maInsight } = await supabase
@@ -289,13 +292,12 @@ export default function ServiceAssessmentPage() {
       };
       
       checkForSharedInsight();
-    }
+    }, 0);
     
-    // Update prevCompletedRef when completed changes
-    if (completed !== prevCompletedRef.current) {
-      prevCompletedRef.current = completed;
-    }
-  }, [completed, serviceCode, clientSession?.clientId, navigate]);
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [completed, serviceCode, clientSession?.clientId]);
 
   if (completed) {
     return (
