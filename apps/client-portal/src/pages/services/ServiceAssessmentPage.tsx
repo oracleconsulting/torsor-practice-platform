@@ -170,13 +170,24 @@ export default function ServiceAssessmentPage() {
   };
 
   const handleComplete = async () => {
+    console.log('🎯 handleComplete CALLED!');
+    console.log('📊 Current state:', { 
+      clientSession: !!clientSession, 
+      clientId: clientSession?.clientId,
+      assessment: !!assessment,
+      assessmentCode: assessment?.code,
+      assessmentName: assessment?.name,
+      serviceCode 
+    });
+    
     if (!clientSession?.clientId || !assessment) {
       console.error('❌ Missing clientSession or assessment:', { clientSession, assessment });
       return;
     }
     
     console.log('🚀 Starting assessment completion for:', assessment.code);
-    console.log('📋 Assessment object:', { code: assessment.code, name: assessment.name });
+    console.log('📋 Assessment object:', { code: assessment.code, name: assessment.name, type: typeof assessment.code });
+    console.log('🔍 Service code from URL:', serviceCode);
     
     setSaving(true);
     try {
@@ -188,6 +199,9 @@ export default function ServiceAssessmentPage() {
 
       // Special handling for Systems Audit - multi-stage process
       console.log('🔍 Assessment code check:', assessment.code, '===', 'systems_audit', '?', assessment.code === 'systems_audit');
+      console.log('🔍 Type check:', typeof assessment.code, typeof 'systems_audit');
+      console.log('🔍 Exact match:', JSON.stringify(assessment.code), '===', JSON.stringify('systems_audit'));
+      
       if (assessment.code === 'systems_audit') {
         console.log('✅ Systems Audit detected! Starting Stage 1 completion process...');
         
@@ -568,7 +582,15 @@ export default function ServiceAssessmentPage() {
             <ArrowLeft className="w-4 h-4" />Previous
           </button>
           {currentSection === assessment.sections.length - 1 ? (
-            <button onClick={handleComplete} disabled={!isAllComplete || saving} className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg disabled:bg-gray-300">
+            <button 
+              onClick={() => {
+                console.log('🖱️ Complete button clicked!');
+                console.log('📋 Button state:', { isAllComplete, saving, assessmentCode: assessment.code });
+                handleComplete();
+              }} 
+              disabled={!isAllComplete || saving} 
+              className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg disabled:bg-gray-300"
+            >
               {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Submitting...</> : <><Check className="w-4 h-4" />Complete</>}
             </button>
           ) : (
