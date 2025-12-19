@@ -204,7 +204,6 @@ export default function ServiceAssessmentPage() {
       
       if (assessment.code === 'systems_audit') {
         console.log('✅ Systems Audit detected! Starting Stage 1 completion process...');
-        alert('SYSTEMS AUDIT DETECTED - This should route to Stage 2!');
         
         // Find or create engagement
         console.log('📋 Looking for existing engagement for client:', clientSession.clientId);
