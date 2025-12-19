@@ -293,7 +293,7 @@ export default function ServiceAssessmentPage() {
             {generatingProposal ? "We're preparing your personalized proposal..." : "Your advisor will review your responses shortly."}
           </p>
           {generatingProposal && <Loader2 className="w-5 h-5 animate-spin mx-auto text-indigo-600 mb-6" />}
-          {checkingSharedInsight && serviceCode === 'management_accounts' && (
+          {checkingSharedInsightRef.current && serviceCode === 'management_accounts' && (
             <div className="mb-6">
               <Loader2 className="w-5 h-5 animate-spin mx-auto text-indigo-600" />
               <p className="text-sm text-gray-500 mt-2">Checking for available insights...</p>
