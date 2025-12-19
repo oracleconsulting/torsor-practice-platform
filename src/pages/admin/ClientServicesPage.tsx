@@ -2732,10 +2732,40 @@ function DiscoveryClientModal({
         alert(`Warning: Some services not found in database: ${missingCodes.join(', ')}. Only found services will be assigned.`);
       }
 
-      // CRITICAL: Use a transaction-like approach - insert new ones first, then delete old ones
-      // This prevents data loss if inserts fail
+      // CRITICAL: Fetch existing assignments first to avoid duplicates and preserve existing services
+      const { data: existingAssignments, error: fetchError } = await supabase
+        .from('client_service_lines')
+        .select('service_line_id')
+        .eq('client_id', clientId);
+
+      if (fetchError) {
+        console.error('❌ Error fetching existing assignments:', fetchError);
+        throw fetchError;
+      }
+
+      const existingServiceLineIds = new Set(
+        (existingAssignments || []).map(a => a.service_line_id)
+      );
+      const selectedServiceLineIds = new Set(serviceLines.map(sl => sl.id));
+
+      // Determine which services need to be added (in selected but not existing)
+      const servicesToAdd = serviceLines.filter(sl => !existingServiceLineIds.has(sl.id));
+      
+      // Determine which services need to be removed (in existing but not selected)
+      const servicesToRemove = Array.from(existingServiceLineIds).filter(
+        id => !selectedServiceLineIds.has(id)
+      );
+
+      console.log('📊 Service assignment plan:', {
+        existing: existingServiceLineIds.size,
+        selected: selectedServiceLineIds.size,
+        toAdd: servicesToAdd.length,
+        toRemove: servicesToRemove.length
+      });
+
+      // Insert only new services
       const insertResults = [];
-      for (const sl of serviceLines) {
+      for (const sl of servicesToAdd) {
         const { data, error: insertError } = await supabase
           .from('client_service_lines')
           .insert({
@@ -2743,7 +2773,6 @@ function DiscoveryClientModal({
             client_id: clientId,
             service_line_id: sl.id,
             status: 'pending_onboarding'
-            // Note: created_by column doesn't exist in client_service_lines table
           })
           .select();
 
@@ -2759,33 +2788,35 @@ function DiscoveryClientModal({
       const failedInserts = insertResults.filter(r => !r.success);
       const successfulInserts = insertResults.filter(r => r.success);
 
-      // Only delete old assignments if we successfully inserted at least one
-      if (successfulInserts.length > 0) {
-        // Get IDs of services we just inserted
-        const newServiceLineIds = successfulInserts.map(r => r.data?.[0]?.service_line_id).filter(Boolean);
-        
-        // Delete old assignments that aren't in our new list
+      // Delete services that are no longer selected (only if we have services to remove)
+      if (servicesToRemove.length > 0) {
         const { error: deleteError } = await supabase
           .from('client_service_lines')
           .delete()
           .eq('client_id', clientId)
-          .not('service_line_id', 'in', `(${newServiceLineIds.join(',')})`);
+          .in('service_line_id', servicesToRemove);
 
         if (deleteError) {
-          console.error('❌ Error cleaning up old assignments:', deleteError);
+          console.error('❌ Error removing unselected services:', deleteError);
           // Don't throw - new assignments are already in place
         } else {
-          console.log('✅ Cleaned up old assignments');
+          console.log(`✅ Removed ${servicesToRemove.length} unselected service(s)`);
         }
-      } else {
-        console.error('❌ No services were successfully inserted. Not deleting old assignments to prevent data loss.');
-        alert(`Error: Failed to assign any services. Old assignments preserved. Check console for details.`);
-        return;
       }
+
+      // Report results
+      const totalProcessed = servicesToAdd.length + servicesToRemove.length;
+      const totalSuccessful = successfulInserts.length + (servicesToRemove.length > 0 ? servicesToRemove.length : 0);
 
       if (failedInserts.length > 0) {
         console.error('❌ Failed to assign some services:', failedInserts);
         alert(`Warning: Failed to assign some services: ${failedInserts.map(f => f.code).join(', ')}. Check console for details.`);
+      }
+
+      if (totalProcessed === 0) {
+        alert('No changes needed - all selected services are already assigned.');
+        onRefresh();
+        return;
       }
 
       // Update client status (only if we have successful assignments)
@@ -2804,11 +2835,23 @@ function DiscoveryClientModal({
       console.log('✅ Service assignment complete:', {
         totalSelected: selectedServices.length,
         foundInDB: serviceLines.length,
-        successfullyAssigned: successfulInserts.length,
+        added: successfulInserts.length,
+        removed: servicesToRemove.length,
         failed: failedInserts.length
       });
 
-      alert(`Services assigned successfully! ${successfulInserts.length} of ${serviceLines.length} services assigned.`);
+      const actionSummary = [];
+      if (successfulInserts.length > 0) {
+        actionSummary.push(`Added ${successfulInserts.length} service(s)`);
+      }
+      if (servicesToRemove.length > 0) {
+        actionSummary.push(`Removed ${servicesToRemove.length} service(s)`);
+      }
+      if (actionSummary.length === 0) {
+        actionSummary.push('No changes needed');
+      }
+
+      alert(`Services updated successfully! ${actionSummary.join(', ')}.`);
       onRefresh();
     } catch (error) {
       console.error('❌ Error assigning services:', error);
