@@ -341,9 +341,24 @@ export default function ServiceAssessmentPage() {
         console.log('✅ Systems Audit Stage 1 saved successfully!');
         console.log('🚀 Navigating to Stage 2: /service/systems_audit/inventory');
         
+        // IMPORTANT: Set saving to false and DON'T set completed=true for Systems Audit
+        setSaving(false);
+        
         // Route to Stage 2 (System Inventory) - use replace to prevent back navigation
-        navigate('/service/systems_audit/inventory', { replace: true });
-        setSaving(false); // Important: set saving to false before navigation
+        // Use window.location as fallback if navigate doesn't work
+        try {
+          navigate('/service/systems_audit/inventory', { replace: true });
+          // Fallback: if navigation doesn't work after 100ms, use window.location
+          setTimeout(() => {
+            if (window.location.pathname !== '/service/systems_audit/inventory') {
+              console.warn('⚠️ React Router navigation failed, using window.location');
+              window.location.href = '/service/systems_audit/inventory';
+            }
+          }, 100);
+        } catch (navError) {
+          console.error('❌ Navigation error:', navError);
+          window.location.href = '/service/systems_audit/inventory';
+        }
         return;
       }
 
@@ -367,7 +382,13 @@ export default function ServiceAssessmentPage() {
         }).eq('client_id', clientSession.clientId).eq('service_line_id', sl.id);
       }
 
-      setCompleted(true);
+      // Only set completed for non-Systems Audit assessments
+      if (assessment.code !== 'systems_audit') {
+        console.log('✅ Setting completed=true for service:', assessment.code);
+        setCompleted(true);
+      } else {
+        console.warn('⚠️ Systems Audit should have been handled above - this shouldn\'t be reached!');
+      }
       
       // Check for shared MA insights before showing completion page
       const hasInsight = await checkForSharedMAInsight();
