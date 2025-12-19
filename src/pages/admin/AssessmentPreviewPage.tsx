@@ -58,7 +58,7 @@ const ASSESSMENT_GROUPS = [
     subtitle: 'Detailed assessments for each service',
     assessments: [
       { code: 'management_accounts', name: 'Management Accounts', title: 'Financial Visibility Diagnostic', icon: LineChart, color: 'emerald' },
-      { code: 'systems_audit', name: 'Systems Audit', title: 'Operations Health Check', icon: Settings, color: 'cyan' },
+      { code: 'systems_audit', name: 'Systems Audit', title: 'Operations Health Check - Stage 1: Discovery (19 questions)', icon: Settings, color: 'cyan', questionCount: 19 },
       { code: 'fractional_cfo', name: 'Fractional CFO', title: 'Financial Leadership Diagnostic', icon: TrendingUp, color: 'blue' },
       { code: 'fractional_coo', name: 'Fractional COO', title: 'Operational Leadership Diagnostic', icon: Briefcase, color: 'violet' },
       { code: 'combined_advisory', name: 'Combined CFO/COO', title: 'Executive Capacity Diagnostic', icon: Users, color: 'purple' },
@@ -121,6 +121,18 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
     setLoading(true);
     setError(null);
     try {
+      // Systems Audit uses a different structure (Stage 1/2/3)
+      // Stage 1 questions are in systemsAuditDiscoveryConfig, not assessment_questions
+      if (serviceCode === 'systems_audit') {
+        setError('Systems Audit uses a multi-stage structure:\n\n' +
+          '• Stage 1: Discovery Assessment (19 questions) - Configured in systemsAuditDiscoveryConfig\n' +
+          '• Stage 2: System Inventory - Client fills system cards\n' +
+          '• Stage 3: Process Deep Dives - Consultant-led process analysis\n\n' +
+          'Stage 1 questions are managed in the codebase, not in the assessment_questions table.');
+        setQuestions([]);
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('assessment_questions')
         .select('*')
