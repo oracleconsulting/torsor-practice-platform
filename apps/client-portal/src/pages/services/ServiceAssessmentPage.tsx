@@ -170,7 +170,14 @@ export default function ServiceAssessmentPage() {
   };
 
   const handleComplete = async () => {
-    if (!clientSession?.clientId || !assessment) return;
+    if (!clientSession?.clientId || !assessment) {
+      console.error('❌ Missing clientSession or assessment:', { clientSession, assessment });
+      return;
+    }
+    
+    console.log('🚀 Starting assessment completion for:', assessment.code);
+    console.log('📋 Assessment object:', { code: assessment.code, name: assessment.name });
+    
     setSaving(true);
     try {
       const extractedInsights: Record<string, any> = {};
@@ -180,18 +187,22 @@ export default function ServiceAssessmentPage() {
       });
 
       // Special handling for Systems Audit - multi-stage process
+      console.log('🔍 Assessment code check:', assessment.code, '===', 'systems_audit', '?', assessment.code === 'systems_audit');
       if (assessment.code === 'systems_audit') {
-        console.log('🔍 Systems Audit Stage 1 completion - saving to sa_engagements and sa_discovery_responses');
+        console.log('✅ Systems Audit detected! Starting Stage 1 completion process...');
         
         // Find or create engagement
+        console.log('📋 Looking for existing engagement for client:', clientSession.clientId);
         let { data: engagement, error: engagementError } = await supabase
           .from('sa_engagements')
           .select('id')
           .eq('client_id', clientSession.clientId)
           .maybeSingle();
         
+        console.log('📋 Engagement query result:', { engagement, error: engagementError });
+        
         if (engagementError && engagementError.code !== 'PGRST116') {
-          console.error('Error fetching engagement:', engagementError);
+          console.error('❌ Error fetching engagement:', engagementError);
           throw engagementError;
         }
         
@@ -317,14 +328,22 @@ export default function ServiceAssessmentPage() {
         }
         
         // Upsert discovery responses
-        await supabase
+        console.log('💾 Saving discovery responses...');
+        const { error: discoveryError } = await supabase
           .from('sa_discovery_responses')
           .upsert(discoveryData, { onConflict: 'engagement_id' });
         
-        console.log('✅ Systems Audit Stage 1 saved, routing to Stage 2');
+        if (discoveryError) {
+          console.error('❌ Error saving discovery responses:', discoveryError);
+          throw discoveryError;
+        }
         
-        // Route to Stage 2 (System Inventory)
+        console.log('✅ Systems Audit Stage 1 saved successfully!');
+        console.log('🚀 Navigating to Stage 2: /service/systems_audit/inventory');
+        
+        // Route to Stage 2 (System Inventory) - use replace to prevent back navigation
         navigate('/service/systems_audit/inventory', { replace: true });
+        setSaving(false); // Important: set saving to false before navigation
         return;
       }
 
@@ -364,7 +383,10 @@ export default function ServiceAssessmentPage() {
       } catch (vpErr) { console.error('VP error:', vpErr); }
       finally { setGeneratingProposal(false); }
     } catch (err) {
-      console.error('Complete error:', err);
+      console.error('❌ Complete error:', err);
+      // Don't set completed=true if there was an error
+      // Show error to user
+      alert('There was an error saving your assessment. Please try again or contact support.');
     } finally {
       setSaving(false);
     }
