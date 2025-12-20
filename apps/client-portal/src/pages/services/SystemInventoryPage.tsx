@@ -75,26 +75,61 @@ export default function SystemInventoryPage() {
     }
 
     try {
-      // Fetch engagement
-      const { data: engagement, error: engError } = await supabase
+      console.log('🔍 Loading Systems Audit engagement for client:', clientSession.clientId);
+      
+      // Fetch engagement - try to find existing one
+      let { data: engagement, error: engError } = await supabase
         .from('sa_engagements')
-        .select('id')
+        .select('id, status, stage_1_completed_at')
         .eq('client_id', clientSession.clientId)
         .maybeSingle();
 
+      console.log('📊 Engagement query result:', { engagement, engError });
+
+      // If error, log it but try to create engagement
       if (engError) {
-        console.error('Error fetching engagement:', engError);
-        setLoading(false);
-        return;
+        console.error('⚠️ Error fetching engagement:', engError);
+        // Continue to try creating one
       }
 
+      // If no engagement found, create one (shouldn't happen if Stage 1 was completed, but handle it)
       if (!engagement) {
-        console.error('No engagement found for client');
+        console.log('📝 No engagement found, attempting to create new one...');
+        console.log('📝 Client ID:', clientSession.clientId);
+        console.log('📝 Practice ID:', clientSession.practiceId);
+        
+        const { data: newEngagement, error: createError } = await supabase
+          .from('sa_engagements')
+          .insert({
+            client_id: clientSession.clientId,
+            practice_id: clientSession.practiceId,
+            status: 'stage_1_complete',
+            stage_1_completed_at: new Date().toISOString()
+          })
+          .select('id, status, stage_1_completed_at')
+          .single();
+
+        console.log('📊 Create engagement result:', { newEngagement, createError });
+
+        if (createError) {
+          console.error('❌ Error creating engagement:', createError);
+          console.error('❌ Error details:', JSON.stringify(createError, null, 2));
+          setLoading(false);
+          return;
+        }
+
+        engagement = newEngagement;
+        console.log('✅ Created new engagement:', engagement);
+      }
+
+      if (!engagement?.id) {
+        console.error('❌ No engagement ID available');
         setLoading(false);
         return;
       }
 
       setEngagementId(engagement.id);
+      console.log('✅ Engagement ID set:', engagement.id);
 
       // Fetch existing systems
       const { data: systemsData, error: systemsError } = await supabase

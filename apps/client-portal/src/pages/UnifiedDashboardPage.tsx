@@ -206,23 +206,35 @@ export default function UnifiedDashboardPage() {
 
       // Check Systems Audit engagement status
       if (clientSession?.clientId) {
-        const { data: saEngagement } = await supabase
+        console.log('🔍 Checking Systems Audit engagement for client:', clientSession.clientId);
+        const { data: saEngagement, error: saError } = await supabase
           .from('sa_engagements')
           .select('id, stage_1_completed_at, stage_2_completed_at')
           .eq('client_id', clientSession.clientId)
           .maybeSingle();
         
-        if (saEngagement) {
+        console.log('📊 Systems Audit engagement query result:', { saEngagement, saError });
+        
+        if (saError) {
+          console.error('❌ Error fetching Systems Audit engagement:', saError);
+          setSystemsAuditStage({
+            stage1Complete: false,
+            stage2Complete: false,
+            engagementId: null
+          });
+        } else if (saEngagement) {
           setSystemsAuditStage({
             stage1Complete: !!saEngagement.stage_1_completed_at,
             stage2Complete: !!saEngagement.stage_2_completed_at,
             engagementId: saEngagement.id
           });
-          console.log('📊 Systems Audit stage status:', {
+          console.log('✅ Systems Audit stage status:', {
             stage1Complete: !!saEngagement.stage_1_completed_at,
-            stage2Complete: !!saEngagement.stage_2_completed_at
+            stage2Complete: !!saEngagement.stage_2_completed_at,
+            engagementId: saEngagement.id
           });
         } else {
+          console.log('⚠️ No Systems Audit engagement found');
           setSystemsAuditStage({
             stage1Complete: false,
             stage2Complete: false,
