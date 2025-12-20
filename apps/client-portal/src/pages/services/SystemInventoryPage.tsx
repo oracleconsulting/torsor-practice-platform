@@ -33,10 +33,23 @@ interface SystemInventory {
   monthly_cost?: number;
   annual_cost?: number;
   cost_trend: 'increasing' | 'stable' | 'decreasing' | 'dont_know';
+  integrates_with?: string[];
+  integrates_with_names?: string[];
   integration_method: 'native' | 'zapier_make' | 'custom_api' | 'manual' | 'none';
   manual_transfer_required: boolean;
   manual_hours_monthly?: number;
+  manual_process_description?: string;
+  data_quality_score?: number;
+  data_entry_method?: 'single_point' | 'duplicated' | 'dont_know';
+  user_satisfaction?: number;
+  fit_for_purpose?: number;
+  would_recommend?: 'yes' | 'maybe' | 'no';
+  known_issues?: string;
+  workarounds_in_use?: string;
+  change_one_thing?: string;
   future_plan: 'keep' | 'replace' | 'upgrade' | 'unsure';
+  replacement_candidate?: string;
+  contract_end_date?: string;
   created_at: string;
 }
 
@@ -61,7 +74,9 @@ export default function SystemInventoryPage() {
     integration_method: 'none',
     manual_transfer_required: false,
     future_plan: 'keep',
-    primary_users: []
+    primary_users: [],
+    data_entry_method: 'single_point',
+    would_recommend: 'yes'
   });
 
   useEffect(() => {
@@ -174,7 +189,9 @@ export default function SystemInventoryPage() {
       integration_method: 'none',
       manual_transfer_required: false,
       future_plan: 'keep',
-      primary_users: []
+      primary_users: [],
+      data_entry_method: 'single_point',
+      would_recommend: 'yes'
     });
     setEditingId(null);
     setShowAddForm(true);
@@ -195,10 +212,23 @@ export default function SystemInventoryPage() {
       monthly_cost: system.monthly_cost,
       annual_cost: system.annual_cost,
       cost_trend: system.cost_trend,
+      integrates_with: system.integrates_with || [],
+      integrates_with_names: system.integrates_with_names || [],
       integration_method: system.integration_method,
       manual_transfer_required: system.manual_transfer_required,
       manual_hours_monthly: system.manual_hours_monthly,
-      future_plan: system.future_plan
+      manual_process_description: system.manual_process_description,
+      data_quality_score: system.data_quality_score,
+      data_entry_method: system.data_entry_method || 'single_point',
+      user_satisfaction: system.user_satisfaction,
+      fit_for_purpose: system.fit_for_purpose,
+      would_recommend: system.would_recommend || 'yes',
+      known_issues: system.known_issues,
+      workarounds_in_use: system.workarounds_in_use,
+      change_one_thing: system.change_one_thing,
+      future_plan: system.future_plan,
+      replacement_candidate: system.replacement_candidate,
+      contract_end_date: system.contract_end_date
     });
     setEditingId(system.id);
     setShowAddForm(true);
@@ -227,10 +257,23 @@ export default function SystemInventoryPage() {
         monthly_cost: formData.monthly_cost || null,
         annual_cost: formData.annual_cost || null,
         cost_trend: formData.cost_trend || 'stable',
+        integrates_with: formData.integrates_with || null,
+        integrates_with_names: formData.integrates_with_names || null,
         integration_method: formData.integration_method || 'none',
         manual_transfer_required: formData.manual_transfer_required || false,
         manual_hours_monthly: formData.manual_hours_monthly || null,
-        future_plan: formData.future_plan || 'keep'
+        manual_process_description: formData.manual_process_description || null,
+        data_quality_score: formData.data_quality_score || null,
+        data_entry_method: formData.data_entry_method || 'single_point',
+        user_satisfaction: formData.user_satisfaction || null,
+        fit_for_purpose: formData.fit_for_purpose || null,
+        would_recommend: formData.would_recommend || 'yes',
+        known_issues: formData.known_issues || null,
+        workarounds_in_use: formData.workarounds_in_use || null,
+        change_one_thing: formData.change_one_thing || null,
+        future_plan: formData.future_plan || 'keep',
+        replacement_candidate: formData.replacement_candidate || null,
+        contract_end_date: formData.contract_end_date || null
       };
 
       if (editingId) {
@@ -299,8 +342,8 @@ export default function SystemInventoryPage() {
 
       if (error) throw error;
 
-      alert('Stage 2 completed! You can now proceed to Stage 3.');
-      navigate('/dashboard');
+      // Navigate to Stage 3 (Process Deep Dives)
+      navigate('/service/systems_audit/process-deep-dives');
     } catch (err: any) {
       console.error('Error completing stage 2:', err);
       alert(`Error completing stage: ${err.message || 'Unknown error'}`);
@@ -564,39 +607,284 @@ export default function SystemInventoryPage() {
                 />
               </div>
 
-              {/* Integration Method */}
+              {/* Cost Trend */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Integration Method <span className="text-red-500">*</span>
+                  Cost Trend <span className="text-red-500">*</span>
                 </label>
                 <select
-                  value={formData.integration_method || 'none'}
-                  onChange={(e) => setFormData({ ...formData, integration_method: e.target.value as any })}
+                  value={formData.cost_trend || 'stable'}
+                  onChange={(e) => setFormData({ ...formData, cost_trend: e.target.value as any })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 >
-                  <option value="native">Native Integration</option>
-                  <option value="zapier_make">Zapier/Make</option>
-                  <option value="custom_api">Custom API</option>
-                  <option value="manual">Manual</option>
-                  <option value="none">None</option>
+                  <option value="increasing">Increasing</option>
+                  <option value="stable">Stable</option>
+                  <option value="decreasing">Decreasing</option>
+                  <option value="dont_know">Don't Know</option>
                 </select>
               </div>
 
-              {/* Future Plan */}
+              {/* Website URL */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Future Plan <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.future_plan || 'keep'}
-                  onChange={(e) => setFormData({ ...formData, future_plan: e.target.value as any })}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Website URL</label>
+                <input
+                  type="url"
+                  value={formData.website_url || ''}
+                  onChange={(e) => setFormData({ ...formData, website_url: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                >
-                  <option value="keep">Keep</option>
-                  <option value="replace">Replace</option>
-                  <option value="upgrade">Upgrade</option>
-                  <option value="unsure">Unsure</option>
-                </select>
+                  placeholder="e.g., https://xero.com"
+                />
+              </div>
+            </div>
+
+            {/* Integration Section */}
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Integration & Manual Processes</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Integration Method */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Integration Method <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.integration_method || 'none'}
+                    onChange={(e) => setFormData({ ...formData, integration_method: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    <option value="native">Native Integration</option>
+                    <option value="zapier_make">Zapier/Make</option>
+                    <option value="custom_api">Custom API</option>
+                    <option value="manual">Manual</option>
+                    <option value="none">None</option>
+                  </select>
+                </div>
+
+                {/* Integrates With (text input for now - can be enhanced later) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Integrates With</label>
+                  <input
+                    type="text"
+                    value={formData.integrates_with_names?.join(', ') || ''}
+                    onChange={(e) => setFormData({ 
+                      ...formData, 
+                      integrates_with_names: e.target.value ? e.target.value.split(',').map(s => s.trim()) : []
+                    })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="e.g., Dext, Stripe, GoCardless (comma separated)"
+                  />
+                </div>
+
+                {/* Manual Transfer Required */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.manual_transfer_required || false}
+                    onChange={(e) => setFormData({ ...formData, manual_transfer_required: e.target.checked })}
+                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <label className="text-sm font-medium text-gray-700">Manual Transfer Required</label>
+                </div>
+
+                {/* Manual Hours Monthly */}
+                {formData.manual_transfer_required && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Manual Hours/Month</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={formData.manual_hours_monthly || ''}
+                      onChange={(e) => setFormData({ ...formData, manual_hours_monthly: e.target.value ? parseFloat(e.target.value) : undefined })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="e.g., 6"
+                    />
+                  </div>
+                )}
+
+                {/* Manual Process Description */}
+                {formData.manual_transfer_required && (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Manual Process Description</label>
+                    <textarea
+                      value={formData.manual_process_description || ''}
+                      onChange={(e) => setFormData({ ...formData, manual_process_description: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      rows={3}
+                      placeholder="e.g., Tagging revenue/costs to service lines + exporting to spreadsheets for reporting"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Data Quality Section */}
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Data Quality & Entry</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Data Quality Score */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Data Quality Score (1-5)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="5"
+                    value={formData.data_quality_score || ''}
+                    onChange={(e) => setFormData({ ...formData, data_quality_score: e.target.value ? parseInt(e.target.value) : undefined })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="1-5"
+                  />
+                </div>
+
+                {/* Data Entry Method */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Data Entry Method</label>
+                  <select
+                    value={formData.data_entry_method || 'single_point'}
+                    onChange={(e) => setFormData({ ...formData, data_entry_method: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    <option value="single_point">Single Point</option>
+                    <option value="duplicated">Duplicated</option>
+                    <option value="dont_know">Don't Know</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Satisfaction Section */}
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">User Satisfaction</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* User Satisfaction */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">User Satisfaction (1-5)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="5"
+                    value={formData.user_satisfaction || ''}
+                    onChange={(e) => setFormData({ ...formData, user_satisfaction: e.target.value ? parseInt(e.target.value) : undefined })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="1-5"
+                  />
+                </div>
+
+                {/* Fit for Purpose */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fit for Purpose (1-5)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="5"
+                    value={formData.fit_for_purpose || ''}
+                    onChange={(e) => setFormData({ ...formData, fit_for_purpose: e.target.value ? parseInt(e.target.value) : undefined })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="1-5"
+                  />
+                </div>
+
+                {/* Would Recommend */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Would Recommend</label>
+                  <select
+                    value={formData.would_recommend || 'yes'}
+                    onChange={(e) => setFormData({ ...formData, would_recommend: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    <option value="yes">Yes</option>
+                    <option value="maybe">Maybe</option>
+                    <option value="no">No</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Pain Points Section */}
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Pain Points & Improvements</h3>
+              <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                {/* Known Issues */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Known Issues</label>
+                  <textarea
+                    value={formData.known_issues || ''}
+                    onChange={(e) => setFormData({ ...formData, known_issues: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    rows={2}
+                    placeholder="e.g., Tracking categories not set up cleanly; month-end journals inconsistent"
+                  />
+                </div>
+
+                {/* Workarounds in Use */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Workarounds in Use</label>
+                  <textarea
+                    value={formData.workarounds_in_use || ''}
+                    onChange={(e) => setFormData({ ...formData, workarounds_in_use: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    rows={2}
+                    placeholder="e.g., Spreadsheet packs, manual accruals notes"
+                  />
+                </div>
+
+                {/* Change One Thing */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">If You Could Change One Thing</label>
+                  <textarea
+                    value={formData.change_one_thing || ''}
+                    onChange={(e) => setFormData({ ...formData, change_one_thing: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    rows={2}
+                    placeholder="e.g., Service-line margin visibility via tracking categories + rules"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Future Planning Section */}
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Future Planning</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Future Plan */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Future Plan <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.future_plan || 'keep'}
+                    onChange={(e) => setFormData({ ...formData, future_plan: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    <option value="keep">Keep</option>
+                    <option value="replace">Replace</option>
+                    <option value="upgrade">Upgrade</option>
+                    <option value="unsure">Unsure</option>
+                  </select>
+                </div>
+
+                {/* Replacement Candidate */}
+                {formData.future_plan === 'replace' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Replacement Candidate</label>
+                    <input
+                      type="text"
+                      value={formData.replacement_candidate || ''}
+                      onChange={(e) => setFormData({ ...formData, replacement_candidate: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="e.g., QuickBooks, Sage"
+                    />
+                  </div>
+                )}
+
+                {/* Contract End Date */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contract End Date</label>
+                  <input
+                    type="date"
+                    value={formData.contract_end_date || ''}
+                    onChange={(e) => setFormData({ ...formData, contract_end_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
               </div>
             </div>
 

@@ -456,12 +456,12 @@ export default function UnifiedDashboardPage() {
     }
     if (code === 'systems_audit') {
       // Check stage completion status
-      if (systemsAuditStage?.stage1Complete && !systemsAuditStage.stage2Complete) {
+      if (systemsAuditStage?.stage2Complete) {
+        // Stage 2 complete, route to Stage 3
+        return '/service/systems_audit/process-deep-dives';
+      } else if (systemsAuditStage?.stage1Complete && !systemsAuditStage.stage2Complete) {
         // Stage 1 complete, route to Stage 2
         return '/service/systems_audit/inventory';
-      } else if (systemsAuditStage?.stage2Complete) {
-        // Stage 2 complete, route to Stage 3 (or show completion)
-        return '/service/systems_audit/assessment'; // TODO: Add Stage 3 route
       }
       // Stage 1 not complete, route to Stage 1
       return '/service/systems_audit/assessment';
@@ -545,7 +545,7 @@ export default function UnifiedDashboardPage() {
     // Special handling for Systems Audit
     if (code === 'systems_audit') {
       if (systemsAuditStage?.stage2Complete) {
-        return { label: 'Stage 2 Complete', color: 'emerald', icon: CheckCircle };
+        return { label: 'Continue to Stage 3', color: 'cyan', icon: ArrowRight };
       } else if (systemsAuditStage?.stage1Complete) {
         return { label: 'Continue to Stage 2', color: 'cyan', icon: ArrowRight };
       } else {
