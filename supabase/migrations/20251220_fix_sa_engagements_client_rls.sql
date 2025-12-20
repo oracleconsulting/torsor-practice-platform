@@ -15,8 +15,10 @@ CREATE POLICY "Users can view own practice engagements" ON sa_engagements
         -- Practice members: check practice_id from session
         practice_id = current_setting('app.practice_id', true)::UUID
         OR
-        -- Clients: check client_id matches auth.uid()
-        client_id = auth.uid()
+        -- Clients: check client_id matches practice_members.id where user_id = auth.uid()
+        client_id IN (
+            SELECT id FROM practice_members WHERE user_id = auth.uid()
+        )
     );
 
 -- Drop existing INSERT policy and recreate with OR condition for clients
@@ -27,8 +29,10 @@ CREATE POLICY "Users can insert own practice engagements" ON sa_engagements
         -- Practice members: check practice_id from session
         practice_id = current_setting('app.practice_id', true)::UUID
         OR
-        -- Clients: check client_id matches auth.uid()
-        client_id = auth.uid()
+        -- Clients: check client_id matches practice_members.id where user_id = auth.uid()
+        client_id IN (
+            SELECT id FROM practice_members WHERE user_id = auth.uid()
+        )
     );
 
 -- Drop existing UPDATE policy and recreate with OR condition for clients
@@ -39,8 +43,10 @@ CREATE POLICY "Users can update own practice engagements" ON sa_engagements
         -- Practice members: check practice_id from session
         practice_id = current_setting('app.practice_id', true)::UUID
         OR
-        -- Clients: check client_id matches auth.uid()
-        client_id = auth.uid()
+        -- Clients: check client_id matches practice_members.id where user_id = auth.uid()
+        client_id IN (
+            SELECT id FROM practice_members WHERE user_id = auth.uid()
+        )
     );
 
 -- Also update discovery responses policies to allow clients to view their own
@@ -53,7 +59,9 @@ CREATE POLICY "Users can view own practice discovery" ON sa_discovery_responses
             WHERE (
                 practice_id = current_setting('app.practice_id', true)::UUID
                 OR
-                client_id = auth.uid()
+                client_id IN (
+                    SELECT id FROM practice_members WHERE user_id = auth.uid()
+                )
             )
         )
     );
@@ -68,7 +76,9 @@ CREATE POLICY "Users can insert own practice discovery" ON sa_discovery_response
             WHERE (
                 practice_id = current_setting('app.practice_id', true)::UUID
                 OR
-                client_id = auth.uid()
+                client_id IN (
+                    SELECT id FROM practice_members WHERE user_id = auth.uid()
+                )
             )
         )
     );
@@ -82,7 +92,9 @@ CREATE POLICY "Users can update own practice discovery" ON sa_discovery_response
             WHERE (
                 practice_id = current_setting('app.practice_id', true)::UUID
                 OR
-                client_id = auth.uid()
+                client_id IN (
+                    SELECT id FROM practice_members WHERE user_id = auth.uid()
+                )
             )
         )
     );
@@ -97,7 +109,9 @@ CREATE POLICY "Users can view own practice inventory" ON sa_system_inventory
             WHERE (
                 practice_id = current_setting('app.practice_id', true)::UUID
                 OR
-                client_id = auth.uid()
+                client_id IN (
+                    SELECT id FROM practice_members WHERE user_id = auth.uid()
+                )
             )
         )
     );
@@ -111,7 +125,9 @@ CREATE POLICY "Users can insert own practice inventory" ON sa_system_inventory
             WHERE (
                 practice_id = current_setting('app.practice_id', true)::UUID
                 OR
-                client_id = auth.uid()
+                client_id IN (
+                    SELECT id FROM practice_members WHERE user_id = auth.uid()
+                )
             )
         )
     );
@@ -125,7 +141,9 @@ CREATE POLICY "Users can update own practice inventory" ON sa_system_inventory
             WHERE (
                 practice_id = current_setting('app.practice_id', true)::UUID
                 OR
-                client_id = auth.uid()
+                client_id IN (
+                    SELECT id FROM practice_members WHERE user_id = auth.uid()
+                )
             )
         )
     );
@@ -139,7 +157,9 @@ CREATE POLICY "Users can delete own practice inventory" ON sa_system_inventory
             WHERE (
                 practice_id = current_setting('app.practice_id', true)::UUID
                 OR
-                client_id = auth.uid()
+                client_id IN (
+                    SELECT id FROM practice_members WHERE user_id = auth.uid()
+                )
             )
         )
     );
