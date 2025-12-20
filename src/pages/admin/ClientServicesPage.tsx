@@ -7096,12 +7096,31 @@ function SystemsAuditClientModal({
           .eq('engagement_id', engagementData.id)
           .maybeSingle();
 
-        console.log('[Systems Audit Modal] Stage 1 responses:', { data: stage1Data, error: stage1Error });
+        console.log('[Systems Audit Modal] Stage 1 responses:', { 
+          data: stage1Data, 
+          error: stage1Error,
+          hasData: !!stage1Data,
+          dataKeys: stage1Data ? Object.keys(stage1Data) : [],
+          rawResponses: stage1Data?.raw_responses ? 'present' : 'missing'
+        });
         if (stage1Error) {
           console.error('[Systems Audit Modal] Error fetching Stage 1:', stage1Error);
+        } else if (stage1Data) {
+          // Check if data is actually meaningful (not just empty object with id/timestamps)
+          const hasContent = stage1Data.raw_responses || 
+            Object.keys(stage1Data).some(key => 
+              !['id', 'engagement_id', 'client_id', 'created_at', 'updated_at', 'completed_at'].includes(key) &&
+              stage1Data[key] !== null && stage1Data[key] !== undefined && stage1Data[key] !== ''
+            );
+          
+          if (hasContent) {
+            setStage1Responses([stage1Data]);
+          } else {
+            console.warn('[Systems Audit Modal] Stage 1 data exists but appears empty');
+            setStage1Responses([]);
+          }
         } else {
-          // Convert single row to array for consistent rendering
-          setStage1Responses(stage1Data ? [stage1Data] : []);
+          setStage1Responses([]);
         }
 
         // Fetch Stage 2 inventory
