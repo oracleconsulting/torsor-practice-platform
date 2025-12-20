@@ -7680,9 +7680,122 @@ function SystemsAuditClientModal({
                       </div>
                       
                       {/* Report Content */}
-                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">{report.headline}</h3>
-                        <p className="text-gray-700">{report.executive_summary}</p>
+                      <div className="space-y-6">
+                        {/* Headline & Executive Summary */}
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-4">{report.headline}</h3>
+                          <div className="prose prose-sm max-w-none">
+                            <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                              {report.executive_summary}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Cost of Chaos Narrative */}
+                        {report.cost_of_chaos_narrative && (
+                          <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+                            <h4 className="text-md font-semibold text-gray-900 mb-3">The Cost of Chaos</h4>
+                            <div className="prose prose-sm max-w-none">
+                              <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                                {report.cost_of_chaos_narrative}
+                              </p>
+                            </div>
+                            {/* Cost Metrics */}
+                            <div className="mt-4 grid grid-cols-3 gap-4 pt-4 border-t border-red-200">
+                              <div>
+                                <p className="text-xs text-gray-500 uppercase mb-1">Hours Wasted Weekly</p>
+                                <p className="text-2xl font-bold text-red-600">{report.total_hours_wasted_weekly || 0}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500 uppercase mb-1">Annual Cost</p>
+                                <p className="text-2xl font-bold text-red-600">£{(report.total_annual_cost_of_chaos || 0).toLocaleString()}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500 uppercase mb-1">At {report.growth_multiplier}x Growth</p>
+                                <p className="text-2xl font-bold text-red-600">£{(report.projected_cost_at_scale || 0).toLocaleString()}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Time Freedom Narrative */}
+                        {report.time_freedom_narrative && (
+                          <div className="bg-green-50 border border-green-200 rounded-xl p-6">
+                            <h4 className="text-md font-semibold text-gray-900 mb-3">What This Enables</h4>
+                            <div className="prose prose-sm max-w-none">
+                              <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                                {report.time_freedom_narrative}
+                              </p>
+                            </div>
+                            {/* Time Reclaimed */}
+                            {report.hours_reclaimable_weekly && (
+                              <div className="mt-4 pt-4 border-t border-green-200">
+                                <p className="text-xs text-gray-500 uppercase mb-1">Hours Reclaimable Weekly</p>
+                                <p className="text-2xl font-bold text-green-600">{report.hours_reclaimable_weekly}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* System Health Scores */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+                          <h4 className="text-md font-semibold text-gray-900 mb-4">System Health Scores</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                              <p className="text-xs text-gray-500 uppercase mb-1">Integration</p>
+                              <p className="text-3xl font-bold text-blue-600">{report.integration_score || 0}</p>
+                              <p className="text-xs text-gray-400">/ 100</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 uppercase mb-1">Automation</p>
+                              <p className="text-3xl font-bold text-blue-600">{report.automation_score || 0}</p>
+                              <p className="text-xs text-gray-400">/ 100</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 uppercase mb-1">Data Access</p>
+                              <p className="text-3xl font-bold text-blue-600">{report.data_accessibility_score || 0}</p>
+                              <p className="text-xs text-gray-400">/ 100</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 uppercase mb-1">Scalability</p>
+                              <p className="text-3xl font-bold text-blue-600">{report.scalability_score || 0}</p>
+                              <p className="text-xs text-gray-400">/ 100</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Findings Summary */}
+                        {(report.critical_findings_count || report.high_findings_count || report.medium_findings_count || report.low_findings_count) && (
+                          <div className="bg-orange-50 border border-orange-200 rounded-xl p-6">
+                            <h4 className="text-md font-semibold text-gray-900 mb-4">Findings Summary</h4>
+                            <div className="grid grid-cols-4 gap-4">
+                              {report.critical_findings_count > 0 && (
+                                <div>
+                                  <p className="text-xs text-gray-500 uppercase mb-1">Critical</p>
+                                  <p className="text-2xl font-bold text-red-600">{report.critical_findings_count}</p>
+                                </div>
+                              )}
+                              {report.high_findings_count > 0 && (
+                                <div>
+                                  <p className="text-xs text-gray-500 uppercase mb-1">High</p>
+                                  <p className="text-2xl font-bold text-orange-600">{report.high_findings_count}</p>
+                                </div>
+                              )}
+                              {report.medium_findings_count > 0 && (
+                                <div>
+                                  <p className="text-xs text-gray-500 uppercase mb-1">Medium</p>
+                                  <p className="text-2xl font-bold text-yellow-600">{report.medium_findings_count}</p>
+                                </div>
+                              )}
+                              {report.low_findings_count > 0 && (
+                                <div>
+                                  <p className="text-xs text-gray-500 uppercase mb-1">Low</p>
+                                  <p className="text-2xl font-bold text-green-600">{report.low_findings_count}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
