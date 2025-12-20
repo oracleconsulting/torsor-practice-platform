@@ -36,7 +36,8 @@ import {
   Printer,
   AlertTriangle,
   Award,
-  Loader2
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 
 
@@ -7646,6 +7647,34 @@ function SystemsAuditClientModal({
                     </div>
                   ) : (
                     <div className="space-y-6">
+                      {/* Regenerate Button */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900">Generated Analysis</h3>
+                          <p className="text-sm text-gray-500">
+                            {report.generated_at && new Date(report.generated_at).toLocaleString()}
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleGenerateReport}
+                          disabled={generating || !allStagesComplete}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
+                        >
+                          {generating ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span>Regenerating...</span>
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="w-4 h-4" />
+                              <span>Regenerate Analysis</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      
+                      {/* Report Content */}
                       <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
                         <h3 className="text-lg font-semibold text-gray-900 mb-2">{report.headline}</h3>
                         <p className="text-gray-700">{report.executive_summary}</p>
