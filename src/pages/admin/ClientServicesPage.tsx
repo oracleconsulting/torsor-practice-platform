@@ -7285,16 +7285,16 @@ function SystemsAuditClientModal({
                               sections[field.section].push(field);
                             });
                             
-                            return Object.entries(sections).map(([sectionName, sectionFields]) => {
+                            return Object.entries(sections).map(([sectionName, sectionFields]: [string, typeof fields]) => {
                               const sectionData = sectionFields
-                                .filter(field => response[field.key] !== null && response[field.key] !== undefined && response[field.key] !== '')
+                                .filter((field) => response[field.key] !== null && response[field.key] !== undefined && response[field.key] !== '')
                                 .map((field) => {
                                   let value = response[field.key];
                                   if (Array.isArray(value)) {
                                     value = value.join(', ');
                                   } else if (typeof value === 'string' && value.includes('_') && !value.includes(' ')) {
                                     // Format enum values: 'controlled_chaos' -> 'Controlled Chaos'
-                                    value = value.split('_').map(word => 
+                                    value = value.split('_').map((word: string) => 
                                       word.charAt(0).toUpperCase() + word.slice(1)
                                     ).join(' ');
                                   }
@@ -7490,7 +7490,7 @@ function SystemsAuditClientModal({
                           {stage3DeepDives.map((dive) => {
                             const responses = dive.responses || {};
                             const chainName = dive.chain_code 
-                              ? dive.chain_code.split('_').map(word => 
+                              ? dive.chain_code.split('_').map((word: string) => 
                                   word.charAt(0).toUpperCase() + word.slice(1)
                                 ).join('-')
                               : 'Unknown Chain';
@@ -7533,9 +7533,9 @@ function SystemsAuditClientModal({
                                   <div className="mt-4 pt-4 border-t border-gray-200">
                                     <p className="text-xs font-medium text-gray-500 uppercase mb-3">Full Responses</p>
                                     <div className="space-y-3">
-                                      {Object.entries(responses).map(([key, value]) => {
+                                      {Object.entries(responses).map(([key, value]: [string, any]) => {
                                         // Format the key for display
-                                        const displayKey = key.split('_').map(word => 
+                                        const displayKey = key.split('_').map((word: string) => 
                                           word.charAt(0).toUpperCase() + word.slice(1)
                                         ).join(' ');
                                         
