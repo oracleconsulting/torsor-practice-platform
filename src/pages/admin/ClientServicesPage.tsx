@@ -7243,53 +7243,71 @@ function SystemsAuditClientModal({
                         <div className="space-y-4">
                           {(() => {
                             const response = stage1Responses[0];
+                            const rawResponses = response.raw_responses || {};
+                            
+                            // Helper to get value from either individual column or raw_responses
+                            const getValue = (dbKey: string, rawKey?: string): any => {
+                              // First try individual column
+                              if (response[dbKey] !== null && response[dbKey] !== undefined && response[dbKey] !== '') {
+                                return response[dbKey];
+                              }
+                              // Fallback to raw_responses if provided
+                              if (rawKey && rawResponses[rawKey] !== null && rawResponses[rawKey] !== undefined && rawResponses[rawKey] !== '') {
+                                return rawResponses[rawKey];
+                              }
+                              return null;
+                            };
+                            
                             // All possible fields from sa_discovery_responses table
+                            // Format: { key: 'db_column_name', rawKey: 'raw_responses_key', label: '...', section: '...' }
                             const fields = [
                               // Section 1: Current Pain
-                              { key: 'systems_breaking_point', label: 'What broke – or is about to break – that made you think about systems?', section: 'Current Pain' },
-                              { key: 'operations_self_diagnosis', label: 'How would you describe your current operations?', section: 'Current Pain' },
-                              { key: 'month_end_shame', label: 'What would embarrass you if a potential investor saw it?', section: 'Current Pain' },
+                              { key: 'systems_breaking_point', rawKey: 'sa_breaking_point', label: 'What broke – or is about to break – that made you think about systems?', section: 'Current Pain' },
+                              { key: 'operations_self_diagnosis', rawKey: 'sa_operations_diagnosis', label: 'How would you describe your current operations?', section: 'Current Pain' },
+                              { key: 'month_end_shame', rawKey: 'sa_month_end_shame', label: 'What would embarrass you if a potential investor saw it?', section: 'Current Pain' },
                               
                               // Section 2: Impact Quantification
-                              { key: 'manual_hours_monthly', label: 'How many hours per month are spent on manual data entry or transfer?', section: 'Impact Quantification' },
-                              { key: 'month_end_close_duration', label: 'How long does your month-end close take?', section: 'Impact Quantification' },
-                              { key: 'data_error_frequency', label: 'How often do you discover data errors or inconsistencies?', section: 'Impact Quantification' },
-                              { key: 'expensive_systems_mistake', label: 'What\'s the most expensive mistake your systems have caused?', section: 'Impact Quantification' },
-                              { key: 'information_access_frequency', label: 'How often can\'t you get the information you need within 5 minutes?', section: 'Impact Quantification' },
+                              { key: 'manual_hours_monthly', rawKey: 'sa_manual_hours', label: 'How many hours per month are spent on manual data entry or transfer?', section: 'Impact Quantification' },
+                              { key: 'month_end_close_duration', rawKey: 'sa_month_end_duration', label: 'How long does your month-end close take?', section: 'Impact Quantification' },
+                              { key: 'data_error_frequency', rawKey: 'sa_data_error_frequency', label: 'How often do you discover data errors or inconsistencies?', section: 'Impact Quantification' },
+                              { key: 'expensive_systems_mistake', rawKey: 'sa_expensive_mistake', label: 'What\'s the most expensive mistake your systems have caused?', section: 'Impact Quantification' },
+                              { key: 'information_access_frequency', rawKey: 'sa_information_access', label: 'How often can\'t you get the information you need within 5 minutes?', section: 'Impact Quantification' },
                               
                               // Section 3: Tech Stack
-                              { key: 'software_tools_used', label: 'What software tools do you currently use?', section: 'Tech Stack' },
-                              { key: 'integration_rating', label: 'How well do your systems integrate with each other?', section: 'Tech Stack' },
-                              { key: 'critical_spreadsheets', label: 'How many critical spreadsheets do you rely on?', section: 'Tech Stack' },
+                              { key: 'software_tools_used', rawKey: 'sa_tech_stack', label: 'What software tools do you currently use?', section: 'Tech Stack' },
+                              { key: 'integration_rating', rawKey: 'sa_integration_health', label: 'How well do your systems integrate with each other?', section: 'Tech Stack' },
+                              { key: 'critical_spreadsheets', rawKey: 'sa_spreadsheet_count', label: 'How many critical spreadsheets do you rely on?', section: 'Tech Stack' },
                               
                               // Section 4: Focus Areas
-                              { key: 'broken_areas', label: 'Which areas of your business feel most broken?', section: 'Focus Areas' },
-                              { key: 'magic_process_fix', label: 'If you could fix one process by magic, what would it be?', section: 'Focus Areas' },
+                              { key: 'broken_areas', rawKey: 'sa_priority_areas', label: 'Which areas of your business feel most broken?', section: 'Focus Areas' },
+                              { key: 'magic_process_fix', rawKey: 'sa_magic_fix', label: 'If you could fix one process by magic, what would it be?', section: 'Focus Areas' },
                               
                               // Section 5: Readiness
-                              { key: 'change_appetite', label: 'What\'s your appetite for change right now?', section: 'Readiness' },
-                              { key: 'systems_fears', label: 'What are your biggest fears about changing systems?', section: 'Readiness' },
-                              { key: 'internal_champion', label: 'Who would champion systems improvements internally?', section: 'Readiness' },
+                              { key: 'change_appetite', rawKey: 'sa_change_appetite', label: 'What\'s your appetite for change right now?', section: 'Readiness' },
+                              { key: 'systems_fears', rawKey: 'sa_fears', label: 'What are your biggest fears about changing systems?', section: 'Readiness' },
+                              { key: 'internal_champion', rawKey: 'sa_champion', label: 'Who would champion systems improvements internally?', section: 'Readiness' },
                               
                               // Section 6: Context
-                              { key: 'team_size', label: 'Current team size', section: 'Context' },
-                              { key: 'expected_team_size_12mo', label: 'Expected team size in 12 months', section: 'Context' },
-                              { key: 'revenue_band', label: 'Annual revenue band', section: 'Context' },
-                              { key: 'industry_sector', label: 'Industry sector', section: 'Context' },
+                              { key: 'team_size', rawKey: 'sa_team_size', label: 'Current team size', section: 'Context' },
+                              { key: 'expected_team_size_12mo', rawKey: 'sa_expected_team_size', label: 'Expected team size in 12 months', section: 'Context' },
+                              { key: 'revenue_band', rawKey: 'sa_revenue_band', label: 'Annual revenue band', section: 'Context' },
+                              { key: 'industry_sector', rawKey: 'sa_industry_sector', label: 'Industry sector', section: 'Context' },
                             ];
                             
                             // Group by section
                             const sections: Record<string, typeof fields> = {};
-                            fields.forEach(field => {
+                            fields.forEach((field) => {
                               if (!sections[field.section]) sections[field.section] = [];
                               sections[field.section].push(field);
                             });
                             
                             return Object.entries(sections).map(([sectionName, sectionFields]: [string, typeof fields]) => {
                               const sectionData = sectionFields
-                                .filter((field) => response[field.key] !== null && response[field.key] !== undefined && response[field.key] !== '')
                                 .map((field) => {
-                                  let value = response[field.key];
+                                  let value = getValue(field.key, field.rawKey);
+                                  if (value === null || value === undefined || value === '') {
+                                    return null;
+                                  }
                                   if (Array.isArray(value)) {
                                     value = value.join(', ');
                                   } else if (typeof value === 'string' && value.includes('_') && !value.includes(' ')) {
@@ -7299,7 +7317,8 @@ function SystemsAuditClientModal({
                                     ).join(' ');
                                   }
                                   return { field, value };
-                                });
+                                })
+                                .filter((item): item is { field: typeof fields[0], value: any } => item !== null);
                               
                               if (sectionData.length === 0) return null;
                               
