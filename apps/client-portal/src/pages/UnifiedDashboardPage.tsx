@@ -78,6 +78,7 @@ export default function UnifiedDashboardPage() {
   const [systemsAuditStage, setSystemsAuditStage] = useState<{
     stage1Complete: boolean;
     stage2Complete: boolean;
+    stage3Complete: boolean;
     engagementId: string | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -209,7 +210,7 @@ export default function UnifiedDashboardPage() {
         console.log('🔍 Checking Systems Audit engagement for client:', clientSession.clientId);
         const { data: saEngagement, error: saError } = await supabase
           .from('sa_engagements')
-          .select('id, stage_1_completed_at, stage_2_completed_at')
+          .select('id, stage_1_completed_at, stage_2_completed_at, stage_3_completed_at')
           .eq('client_id', clientSession.clientId)
           .maybeSingle();
         
@@ -220,17 +221,20 @@ export default function UnifiedDashboardPage() {
           setSystemsAuditStage({
             stage1Complete: false,
             stage2Complete: false,
+            stage3Complete: false,
             engagementId: null
           });
         } else if (saEngagement) {
           setSystemsAuditStage({
             stage1Complete: !!saEngagement.stage_1_completed_at,
             stage2Complete: !!saEngagement.stage_2_completed_at,
+            stage3Complete: !!saEngagement.stage_3_completed_at,
             engagementId: saEngagement.id
           });
           console.log('✅ Systems Audit stage status:', {
             stage1Complete: !!saEngagement.stage_1_completed_at,
             stage2Complete: !!saEngagement.stage_2_completed_at,
+            stage3Complete: !!saEngagement.stage_3_completed_at,
             engagementId: saEngagement.id
           });
         } else {
@@ -238,6 +242,7 @@ export default function UnifiedDashboardPage() {
           setSystemsAuditStage({
             stage1Complete: false,
             stage2Complete: false,
+            stage3Complete: false,
             engagementId: null
           });
         }
@@ -456,7 +461,10 @@ export default function UnifiedDashboardPage() {
     }
     if (code === 'systems_audit') {
       // Check stage completion status
-      if (systemsAuditStage?.stage2Complete) {
+      if (systemsAuditStage?.stage3Complete) {
+        // Stage 3 complete - audit is complete, show completion or report
+        return '/service/systems_audit/process-deep-dives';
+      } else if (systemsAuditStage?.stage2Complete) {
         // Stage 2 complete, route to Stage 3
         return '/service/systems_audit/process-deep-dives';
       } else if (systemsAuditStage?.stage1Complete && !systemsAuditStage.stage2Complete) {
@@ -544,7 +552,9 @@ export default function UnifiedDashboardPage() {
     
     // Special handling for Systems Audit
     if (code === 'systems_audit') {
-      if (systemsAuditStage?.stage2Complete) {
+      if (systemsAuditStage?.stage3Complete) {
+        return { label: 'Audit Complete', color: 'emerald', icon: CheckCircle };
+      } else if (systemsAuditStage?.stage2Complete) {
         return { label: 'Continue to Stage 3', color: 'cyan', icon: ArrowRight };
       } else if (systemsAuditStage?.stage1Complete) {
         return { label: 'Continue to Stage 2', color: 'cyan', icon: ArrowRight };
