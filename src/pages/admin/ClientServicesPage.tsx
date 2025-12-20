@@ -7051,16 +7051,30 @@ function SystemsAuditClientModal({
     try {
       console.log('[Systems Audit Modal] Fetching data for clientId:', clientId, 'practiceId:', currentMember.practice_id);
       
-      // Note: RLS policies should work with practice_id filter in query
-      // The policy checks: practice_id = current_setting('app.practice_id') OR client_id matches
-      // Since we're filtering by practice_id, the query should work
+      // First, verify the client belongs to this practice
+      const { data: clientData, error: clientError } = await supabase
+        .from('practice_members')
+        .select('id, practice_id')
+        .eq('id', clientId)
+        .eq('practice_id', currentMember.practice_id)
+        .maybeSingle();
       
-      // Fetch engagement - include practice_id filter to satisfy RLS
+      console.log('[Systems Audit Modal] Client verification:', { clientData, clientError });
+      
+      if (!clientData) {
+        console.error('[Systems Audit Modal] Client not found or doesn\'t belong to practice');
+        alert('Client not found or access denied');
+        return;
+      }
+      
+      // Fetch engagement - RLS should allow if client belongs to practice
+      // The RLS policy checks: practice_id = current_setting('app.practice_id') OR client_id matches
+      // Since we verified the client belongs to the practice, we can query without practice_id filter
+      // and let RLS handle it, OR we can try with practice_id filter
       const { data: engagementData, error: engagementError } = await supabase
         .from('sa_engagements')
         .select('*')
         .eq('client_id', clientId)
-        .eq('practice_id', currentMember.practice_id)
         .maybeSingle();
 
       console.log('[Systems Audit Modal] Engagement query result:', { engagementData, engagementError });
@@ -7075,18 +7089,19 @@ function SystemsAuditClientModal({
         console.log('[Systems Audit Modal] Found engagement:', engagementData.id, 'Status:', engagementData.status);
         setEngagement(engagementData);
 
-        // Fetch Stage 1 responses
+        // Fetch Stage 1 responses - single row per engagement (UNIQUE constraint)
         const { data: stage1Data, error: stage1Error } = await supabase
           .from('sa_discovery_responses')
           .select('*')
           .eq('engagement_id', engagementData.id)
-          .order('question_id');
+          .maybeSingle();
 
-        console.log('[Systems Audit Modal] Stage 1 responses:', { count: stage1Data?.length || 0, error: stage1Error });
+        console.log('[Systems Audit Modal] Stage 1 responses:', { data: stage1Data, error: stage1Error });
         if (stage1Error) {
           console.error('[Systems Audit Modal] Error fetching Stage 1:', stage1Error);
         } else {
-          setStage1Responses(stage1Data || []);
+          // Convert single row to array for consistent rendering
+          setStage1Responses(stage1Data ? [stage1Data] : []);
         }
 
         // Fetch Stage 2 inventory
@@ -7224,14 +7239,53 @@ function SystemsAuditClientModal({
                       </p>
                     </div>
                     <div className="p-6">
-                      {stage1Responses.length > 0 ? (
+                      {stage1Responses.length > 0 && stage1Responses[0] ? (
                         <div className="space-y-4">
-                          {stage1Responses.map((response) => (
-                            <div key={response.id} className="border-l-4 border-amber-500 pl-4">
-                              <p className="font-medium text-gray-900">{response.question_text}</p>
-                              <p className="text-sm text-gray-600 mt-1">{response.response_text}</p>
-                            </div>
-                          ))}
+                          {(() => {
+                            const response = stage1Responses[0];
+                            const fields = [
+                              { key: 'systems_breaking_point', label: 'What broke – or is about to break – that made you think about systems?' },
+                              { key: 'operations_self_diagnosis', label: 'How would you describe your current operations?' },
+                              { key: 'month_end_shame', label: 'What would embarrass you if a potential investor saw it?' },
+                              { key: 'manual_hours_monthly', label: 'How many hours per month are spent on manual data entry or transfer?' },
+                              { key: 'month_end_close_duration', label: 'How long does your month-end close take?' },
+                              { key: 'data_error_frequency', label: 'How often do you discover data errors or inconsistencies?' },
+                              { key: 'expensive_systems_mistake', label: 'What\'s the most expensive mistake your systems have caused?' },
+                              { key: 'information_access_frequency', label: 'How often can\'t you get the information you need within 5 minutes?' },
+                              { key: 'software_tools_used', label: 'What software tools do you currently use?' },
+                              { key: 'integration_rating', label: 'How well do your systems integrate with each other?' },
+                              { key: 'critical_spreadsheets', label: 'How many critical spreadsheets do you rely on?' },
+                              { key: 'broken_areas', label: 'Which areas of your business feel most broken?' },
+                              { key: 'magic_process_fix', label: 'If you could fix one process by magic, what would it be?' },
+                              { key: 'change_appetite', label: 'What\'s your appetite for change right now?' },
+                              { key: 'systems_fears', label: 'What are your biggest fears about changing systems?' },
+                              { key: 'internal_champion', label: 'Who would champion systems improvements internally?' },
+                              { key: 'team_size', label: 'Current team size' },
+                              { key: 'expected_team_size_12mo', label: 'Expected team size in 12 months' },
+                              { key: 'revenue_band', label: 'Annual revenue band' },
+                              { key: 'industry_sector', label: 'Industry sector' },
+                            ];
+                            
+                            return fields
+                              .filter(field => response[field.key] !== null && response[field.key] !== undefined && response[field.key] !== '')
+                              .map((field) => {
+                                let value = response[field.key];
+                                if (Array.isArray(value)) {
+                                  value = value.join(', ');
+                                } else if (typeof value === 'string' && value.includes('_')) {
+                                  // Format enum values: 'controlled_chaos' -> 'Controlled Chaos'
+                                  value = value.split('_').map(word => 
+                                    word.charAt(0).toUpperCase() + word.slice(1)
+                                  ).join(' ');
+                                }
+                                return (
+                                  <div key={field.key} className="border-l-4 border-amber-500 pl-4">
+                                    <p className="font-medium text-gray-900">{field.label}</p>
+                                    <p className="text-sm text-gray-600 mt-1">{String(value)}</p>
+                                  </div>
+                                );
+                              });
+                          })()}
                         </div>
                       ) : (
                         <p className="text-gray-500">No responses yet</p>
