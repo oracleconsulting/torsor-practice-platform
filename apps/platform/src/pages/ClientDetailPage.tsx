@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Layout } from '@/components/Layout';
 import { useClientDetail } from '@/hooks/useClients';
+import SystemsAuditView from '@/components/systems-audit/SystemsAuditView';
+import { supabase } from '@/lib/supabase';
 import { 
   User,
   Mail,
@@ -33,12 +35,52 @@ export default function ClientDetailPage() {
   const [newContext, setNewContext] = useState({ type: 'note' as const, content: '', priority: 'normal' as const });
   const [addingContext, setAddingContext] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [hasSystemsAudit, setHasSystemsAudit] = useState(false);
 
   useEffect(() => {
     if (clientId) {
       fetchClient();
+      checkSystemsAuditEnrollment();
     }
   }, [clientId, fetchClient]);
+
+  const checkSystemsAuditEnrollment = async () => {
+    if (!clientId) return;
+    
+    try {
+      const { data } = await supabase
+        .from('client_service_lines')
+        .select(`
+          id,
+          service_line:service_lines!inner(code)
+        `)
+        .eq('client_id', clientId)
+        .eq('service_lines.code', 'systems_audit')
+        .maybeSingle();
+      
+      setHasSystemsAudit(!!data);
+    } catch (err) {
+      console.error('Error checking Systems Audit enrollment:', err);
+      // Try alternative query
+      try {
+        const { data: enrollments } = await supabase
+          .from('client_service_lines')
+          .select('id, service_line_id')
+          .eq('client_id', clientId);
+        
+        if (enrollments && enrollments.length > 0) {
+          const { data: serviceLines } = await supabase
+            .from('service_lines')
+            .select('code')
+            .in('id', enrollments.map(e => e.service_line_id));
+          
+          setHasSystemsAudit(serviceLines?.some(sl => sl.code === 'systems_audit') || false);
+        }
+      } catch (err2) {
+        console.error('Error with alternative query:', err2);
+      }
+    }
+  };
 
   const handleAddContext = async () => {
     if (!newContext.content.trim()) return;
@@ -204,25 +246,35 @@ export default function ClientDetailPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="flex border-b border-slate-200">
-          {['overview', 'roadmap', 'context', 'assessments'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab as typeof activeTab)}
-              className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                activeTab === tab 
-                  ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50' 
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
+      {/* Systems Audit View - if enrolled */}
+      {hasSystemsAudit && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <SystemsAuditView clientId={clientId!} />
         </div>
+      )}
 
-        <div className="p-6">
+      {/* Goal Alignment View - if not Systems Audit or show both */}
+      {(!hasSystemsAudit || activeTab !== 'assessments') && (
+        <>
+          {/* Tabs */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="flex border-b border-slate-200">
+              {['overview', 'roadmap', 'context', 'assessments'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab as typeof activeTab)}
+                  className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                    activeTab === tab 
+                      ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50' 
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            <div className="p-6">
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
@@ -495,6 +547,7 @@ export default function ClientDetailPage() {
           )}
         </div>
       </div>
+      )}
     </Layout>
   );
 }
