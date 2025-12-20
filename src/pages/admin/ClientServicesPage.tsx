@@ -7243,48 +7243,80 @@ function SystemsAuditClientModal({
                         <div className="space-y-4">
                           {(() => {
                             const response = stage1Responses[0];
+                            // All possible fields from sa_discovery_responses table
                             const fields = [
-                              { key: 'systems_breaking_point', label: 'What broke – or is about to break – that made you think about systems?' },
-                              { key: 'operations_self_diagnosis', label: 'How would you describe your current operations?' },
-                              { key: 'month_end_shame', label: 'What would embarrass you if a potential investor saw it?' },
-                              { key: 'manual_hours_monthly', label: 'How many hours per month are spent on manual data entry or transfer?' },
-                              { key: 'month_end_close_duration', label: 'How long does your month-end close take?' },
-                              { key: 'data_error_frequency', label: 'How often do you discover data errors or inconsistencies?' },
-                              { key: 'expensive_systems_mistake', label: 'What\'s the most expensive mistake your systems have caused?' },
-                              { key: 'information_access_frequency', label: 'How often can\'t you get the information you need within 5 minutes?' },
-                              { key: 'software_tools_used', label: 'What software tools do you currently use?' },
-                              { key: 'integration_rating', label: 'How well do your systems integrate with each other?' },
-                              { key: 'critical_spreadsheets', label: 'How many critical spreadsheets do you rely on?' },
-                              { key: 'broken_areas', label: 'Which areas of your business feel most broken?' },
-                              { key: 'magic_process_fix', label: 'If you could fix one process by magic, what would it be?' },
-                              { key: 'change_appetite', label: 'What\'s your appetite for change right now?' },
-                              { key: 'systems_fears', label: 'What are your biggest fears about changing systems?' },
-                              { key: 'internal_champion', label: 'Who would champion systems improvements internally?' },
-                              { key: 'team_size', label: 'Current team size' },
-                              { key: 'expected_team_size_12mo', label: 'Expected team size in 12 months' },
-                              { key: 'revenue_band', label: 'Annual revenue band' },
-                              { key: 'industry_sector', label: 'Industry sector' },
+                              // Section 1: Current Pain
+                              { key: 'systems_breaking_point', label: 'What broke – or is about to break – that made you think about systems?', section: 'Current Pain' },
+                              { key: 'operations_self_diagnosis', label: 'How would you describe your current operations?', section: 'Current Pain' },
+                              { key: 'month_end_shame', label: 'What would embarrass you if a potential investor saw it?', section: 'Current Pain' },
+                              
+                              // Section 2: Impact Quantification
+                              { key: 'manual_hours_monthly', label: 'How many hours per month are spent on manual data entry or transfer?', section: 'Impact Quantification' },
+                              { key: 'month_end_close_duration', label: 'How long does your month-end close take?', section: 'Impact Quantification' },
+                              { key: 'data_error_frequency', label: 'How often do you discover data errors or inconsistencies?', section: 'Impact Quantification' },
+                              { key: 'expensive_systems_mistake', label: 'What\'s the most expensive mistake your systems have caused?', section: 'Impact Quantification' },
+                              { key: 'information_access_frequency', label: 'How often can\'t you get the information you need within 5 minutes?', section: 'Impact Quantification' },
+                              
+                              // Section 3: Tech Stack
+                              { key: 'software_tools_used', label: 'What software tools do you currently use?', section: 'Tech Stack' },
+                              { key: 'integration_rating', label: 'How well do your systems integrate with each other?', section: 'Tech Stack' },
+                              { key: 'critical_spreadsheets', label: 'How many critical spreadsheets do you rely on?', section: 'Tech Stack' },
+                              
+                              // Section 4: Focus Areas
+                              { key: 'broken_areas', label: 'Which areas of your business feel most broken?', section: 'Focus Areas' },
+                              { key: 'magic_process_fix', label: 'If you could fix one process by magic, what would it be?', section: 'Focus Areas' },
+                              
+                              // Section 5: Readiness
+                              { key: 'change_appetite', label: 'What\'s your appetite for change right now?', section: 'Readiness' },
+                              { key: 'systems_fears', label: 'What are your biggest fears about changing systems?', section: 'Readiness' },
+                              { key: 'internal_champion', label: 'Who would champion systems improvements internally?', section: 'Readiness' },
+                              
+                              // Section 6: Context
+                              { key: 'team_size', label: 'Current team size', section: 'Context' },
+                              { key: 'expected_team_size_12mo', label: 'Expected team size in 12 months', section: 'Context' },
+                              { key: 'revenue_band', label: 'Annual revenue band', section: 'Context' },
+                              { key: 'industry_sector', label: 'Industry sector', section: 'Context' },
                             ];
                             
-                            return fields
-                              .filter(field => response[field.key] !== null && response[field.key] !== undefined && response[field.key] !== '')
-                              .map((field) => {
-                                let value = response[field.key];
-                                if (Array.isArray(value)) {
-                                  value = value.join(', ');
-                                } else if (typeof value === 'string' && value.includes('_')) {
-                                  // Format enum values: 'controlled_chaos' -> 'Controlled Chaos'
-                                  value = value.split('_').map(word => 
-                                    word.charAt(0).toUpperCase() + word.slice(1)
-                                  ).join(' ');
-                                }
-                                return (
-                                  <div key={field.key} className="border-l-4 border-amber-500 pl-4">
-                                    <p className="font-medium text-gray-900">{field.label}</p>
-                                    <p className="text-sm text-gray-600 mt-1">{String(value)}</p>
+                            // Group by section
+                            const sections: Record<string, typeof fields> = {};
+                            fields.forEach(field => {
+                              if (!sections[field.section]) sections[field.section] = [];
+                              sections[field.section].push(field);
+                            });
+                            
+                            return Object.entries(sections).map(([sectionName, sectionFields]) => {
+                              const sectionData = sectionFields
+                                .filter(field => response[field.key] !== null && response[field.key] !== undefined && response[field.key] !== '')
+                                .map((field) => {
+                                  let value = response[field.key];
+                                  if (Array.isArray(value)) {
+                                    value = value.join(', ');
+                                  } else if (typeof value === 'string' && value.includes('_') && !value.includes(' ')) {
+                                    // Format enum values: 'controlled_chaos' -> 'Controlled Chaos'
+                                    value = value.split('_').map(word => 
+                                      word.charAt(0).toUpperCase() + word.slice(1)
+                                    ).join(' ');
+                                  }
+                                  return { field, value };
+                                });
+                              
+                              if (sectionData.length === 0) return null;
+                              
+                              return (
+                                <div key={sectionName} className="mb-6">
+                                  <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">{sectionName}</h5>
+                                  <div className="space-y-3">
+                                    {sectionData.map(({ field, value }) => (
+                                      <div key={field.key} className="border-l-4 border-amber-500 pl-4">
+                                        <p className="font-medium text-gray-900">{field.label}</p>
+                                        <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{String(value)}</p>
+                                      </div>
+                                    ))}
                                   </div>
-                                );
-                              });
+                                </div>
+                              );
+                            }).filter(Boolean);
                           })()}
                         </div>
                       ) : (
@@ -7303,11 +7335,138 @@ function SystemsAuditClientModal({
                     </div>
                     <div className="p-6">
                       {stage2Inventory.length > 0 ? (
-                        <div className="grid gap-4">
+                        <div className="space-y-6">
                           {stage2Inventory.map((system) => (
-                            <div key={system.id} className="border border-gray-200 rounded-lg p-4">
-                              <p className="font-medium text-gray-900">{system.system_name}</p>
-                              <p className="text-sm text-gray-600">{system.category}</p>
+                            <div key={system.id} className="border border-gray-200 rounded-lg p-6 bg-white">
+                              <div className="flex items-start justify-between mb-4">
+                                <div>
+                                  <h4 className="text-lg font-semibold text-gray-900">{system.system_name}</h4>
+                                  <p className="text-sm text-gray-600">{system.category_code} {system.sub_category && `• ${system.sub_category}`}</p>
+                                  {system.vendor && <p className="text-xs text-gray-500 mt-1">Vendor: {system.vendor}</p>}
+                                </div>
+                                {system.criticality && (
+                                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                    system.criticality === 'critical' ? 'bg-red-100 text-red-700' :
+                                    system.criticality === 'important' ? 'bg-amber-100 text-amber-700' :
+                                    'bg-gray-100 text-gray-700'
+                                  }`}>
+                                    {system.criticality.charAt(0).toUpperCase() + system.criticality.slice(1)}
+                                  </span>
+                                )}
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-4 mt-4">
+                                {/* Usage */}
+                                {(system.primary_users?.length > 0 || system.number_of_users || system.usage_frequency) && (
+                                  <div className="border-l-2 border-blue-200 pl-3">
+                                    <p className="text-xs font-medium text-gray-500 uppercase mb-1">Usage</p>
+                                    {system.primary_users?.length > 0 && (
+                                      <p className="text-sm text-gray-700">Users: {system.primary_users.join(', ')}</p>
+                                    )}
+                                    {system.number_of_users && (
+                                      <p className="text-sm text-gray-700">Count: {system.number_of_users}</p>
+                                    )}
+                                    {system.usage_frequency && (
+                                      <p className="text-sm text-gray-700">Frequency: {system.usage_frequency.charAt(0).toUpperCase() + system.usage_frequency.slice(1)}</p>
+                                    )}
+                                  </div>
+                                )}
+                                
+                                {/* Cost */}
+                                {(system.pricing_model || system.monthly_cost || system.annual_cost) && (
+                                  <div className="border-l-2 border-green-200 pl-3">
+                                    <p className="text-xs font-medium text-gray-500 uppercase mb-1">Cost</p>
+                                    {system.pricing_model && (
+                                      <p className="text-sm text-gray-700">Model: {system.pricing_model.charAt(0).toUpperCase() + system.pricing_model.slice(1).replace('_', ' ')}</p>
+                                    )}
+                                    {system.monthly_cost && (
+                                      <p className="text-sm text-gray-700">Monthly: £{system.monthly_cost}</p>
+                                    )}
+                                    {system.annual_cost && (
+                                      <p className="text-sm text-gray-700">Annual: £{system.annual_cost}</p>
+                                    )}
+                                    {system.cost_trend && (
+                                      <p className="text-sm text-gray-700">Trend: {system.cost_trend.charAt(0).toUpperCase() + system.cost_trend.slice(1)}</p>
+                                    )}
+                                  </div>
+                                )}
+                                
+                                {/* Integration */}
+                                {(system.integration_method || system.integrates_with_names?.length > 0 || system.manual_transfer_required) && (
+                                  <div className="border-l-2 border-purple-200 pl-3">
+                                    <p className="text-xs font-medium text-gray-500 uppercase mb-1">Integration</p>
+                                    {system.integration_method && (
+                                      <p className="text-sm text-gray-700">Method: {system.integration_method.charAt(0).toUpperCase() + system.integration_method.slice(1).replace('_', ' ')}</p>
+                                    )}
+                                    {system.integrates_with_names?.length > 0 && (
+                                      <p className="text-sm text-gray-700">Integrates with: {system.integrates_with_names.join(', ')}</p>
+                                    )}
+                                    {system.manual_transfer_required && (
+                                      <p className="text-sm text-amber-600">⚠️ Manual transfer required</p>
+                                    )}
+                                    {system.manual_hours_monthly && (
+                                      <p className="text-sm text-gray-700">Manual hours/month: {system.manual_hours_monthly}</p>
+                                    )}
+                                    {system.manual_process_description && (
+                                      <p className="text-xs text-gray-600 mt-1 italic">{system.manual_process_description}</p>
+                                    )}
+                                  </div>
+                                )}
+                                
+                                {/* Data Quality & Satisfaction */}
+                                {(system.data_quality_score || system.data_entry_method || system.user_satisfaction || system.fit_for_purpose) && (
+                                  <div className="border-l-2 border-indigo-200 pl-3">
+                                    <p className="text-xs font-medium text-gray-500 uppercase mb-1">Quality & Satisfaction</p>
+                                    {system.data_quality_score && (
+                                      <p className="text-sm text-gray-700">Data Quality: {system.data_quality_score}/5</p>
+                                    )}
+                                    {system.data_entry_method && (
+                                      <p className="text-sm text-gray-700">Entry: {system.data_entry_method.charAt(0).toUpperCase() + system.data_entry_method.slice(1).replace('_', ' ')}</p>
+                                    )}
+                                    {system.user_satisfaction && (
+                                      <p className="text-sm text-gray-700">Satisfaction: {system.user_satisfaction}/5</p>
+                                    )}
+                                    {system.fit_for_purpose && (
+                                      <p className="text-sm text-gray-700">Fit: {system.fit_for_purpose}/5</p>
+                                    )}
+                                    {system.would_recommend && (
+                                      <p className="text-sm text-gray-700">Recommend: {system.would_recommend.charAt(0).toUpperCase() + system.would_recommend.slice(1)}</p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {/* Pain Points */}
+                              {(system.known_issues || system.workarounds_in_use || system.change_one_thing) && (
+                                <div className="mt-4 pt-4 border-t border-gray-200">
+                                  <p className="text-xs font-medium text-gray-500 uppercase mb-2">Pain Points</p>
+                                  {system.known_issues && (
+                                    <p className="text-sm text-gray-700 mb-2"><strong>Known Issues:</strong> {system.known_issues}</p>
+                                  )}
+                                  {system.workarounds_in_use && (
+                                    <p className="text-sm text-gray-700 mb-2"><strong>Workarounds:</strong> {system.workarounds_in_use}</p>
+                                  )}
+                                  {system.change_one_thing && (
+                                    <p className="text-sm text-gray-700"><strong>Change One Thing:</strong> {system.change_one_thing}</p>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {/* Future Plans */}
+                              {(system.future_plan || system.replacement_candidate || system.contract_end_date) && (
+                                <div className="mt-4 pt-4 border-t border-gray-200">
+                                  <p className="text-xs font-medium text-gray-500 uppercase mb-2">Future Plans</p>
+                                  {system.future_plan && (
+                                    <p className="text-sm text-gray-700">Plan: {system.future_plan.charAt(0).toUpperCase() + system.future_plan.slice(1)}</p>
+                                  )}
+                                  {system.replacement_candidate && (
+                                    <p className="text-sm text-gray-700">Replacement: {system.replacement_candidate}</p>
+                                  )}
+                                  {system.contract_end_date && (
+                                    <p className="text-sm text-gray-700">Contract ends: {new Date(system.contract_end_date).toLocaleDateString()}</p>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -7327,13 +7486,87 @@ function SystemsAuditClientModal({
                     </div>
                     <div className="p-6">
                       {stage3DeepDives.length > 0 ? (
-                        <div className="space-y-4">
-                          {stage3DeepDives.map((dive) => (
-                            <div key={dive.id} className="border-l-4 border-amber-500 pl-4">
-                              <p className="font-medium text-gray-900">{dive.process_chain}</p>
-                              <p className="text-sm text-gray-600 mt-1">{dive.key_pain_points}</p>
-                            </div>
-                          ))}
+                        <div className="space-y-6">
+                          {stage3DeepDives.map((dive) => {
+                            const responses = dive.responses || {};
+                            const chainName = dive.chain_code 
+                              ? dive.chain_code.split('_').map(word => 
+                                  word.charAt(0).toUpperCase() + word.slice(1)
+                                ).join('-')
+                              : 'Unknown Chain';
+                            
+                            return (
+                              <div key={dive.id} className="border border-gray-200 rounded-lg p-6 bg-white">
+                                <div className="flex items-start justify-between mb-4">
+                                  <h4 className="text-lg font-semibold text-gray-900">{chainName}</h4>
+                                  {dive.completed_at && (
+                                    <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
+                                      Completed {new Date(dive.completed_at).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                {/* Key Pain Points */}
+                                {dive.key_pain_points && dive.key_pain_points.length > 0 && (
+                                  <div className="mb-4">
+                                    <p className="text-xs font-medium text-gray-500 uppercase mb-2">Key Pain Points</p>
+                                    <div className="space-y-2">
+                                      {dive.key_pain_points.map((point: string, idx: number) => (
+                                        <div key={idx} className="border-l-4 border-amber-500 pl-4">
+                                          <p className="text-sm text-gray-700">{point}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* Hours Identified */}
+                                {dive.hours_identified && (
+                                  <div className="mb-4">
+                                    <p className="text-xs font-medium text-gray-500 uppercase mb-1">Hours Wasted Identified</p>
+                                    <p className="text-lg font-semibold text-red-600">{dive.hours_identified} hours/week</p>
+                                  </div>
+                                )}
+                                
+                                {/* All Responses (JSONB) */}
+                                {Object.keys(responses).length > 0 && (
+                                  <div className="mt-4 pt-4 border-t border-gray-200">
+                                    <p className="text-xs font-medium text-gray-500 uppercase mb-3">Full Responses</p>
+                                    <div className="space-y-3">
+                                      {Object.entries(responses).map(([key, value]) => {
+                                        // Format the key for display
+                                        const displayKey = key.split('_').map(word => 
+                                          word.charAt(0).toUpperCase() + word.slice(1)
+                                        ).join(' ');
+                                        
+                                        let displayValue = value;
+                                        if (Array.isArray(value)) {
+                                          displayValue = value.join(', ');
+                                        } else if (typeof value === 'object' && value !== null) {
+                                          displayValue = JSON.stringify(value, null, 2);
+                                        }
+                                        
+                                        return (
+                                          <div key={key} className="bg-gray-50 rounded p-3">
+                                            <p className="text-xs font-medium text-gray-600 mb-1">{displayKey}</p>
+                                            <p className="text-sm text-gray-800 whitespace-pre-wrap">{String(displayValue)}</p>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* Notes */}
+                                {dive.notes && (
+                                  <div className="mt-4 pt-4 border-t border-gray-200">
+                                    <p className="text-xs font-medium text-gray-500 uppercase mb-2">Notes</p>
+                                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{dive.notes}</p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       ) : (
                         <p className="text-gray-500">No deep dives completed yet</p>
