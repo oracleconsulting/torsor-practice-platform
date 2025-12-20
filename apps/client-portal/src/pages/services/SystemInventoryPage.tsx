@@ -2,49 +2,296 @@
 // SYSTEMS AUDIT - STAGE 2: SYSTEM INVENTORY
 // ============================================================================
 
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Settings } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+import { 
+  ArrowLeft, Settings, Plus, Edit2, Trash2, Save, X, CheckCircle,
+  Loader2, AlertCircle
+} from 'lucide-react';
+
+interface SystemCategory {
+  id: string;
+  category_code: string;
+  category_name: string;
+  common_systems: string[];
+}
+
+interface SystemInventory {
+  id: string;
+  system_name: string;
+  category_code: string;
+  sub_category?: string;
+  vendor?: string;
+  website_url?: string;
+  primary_users: string[];
+  number_of_users?: number;
+  usage_frequency: 'daily' | 'weekly' | 'monthly' | 'rarely';
+  criticality: 'critical' | 'important' | 'nice_to_have';
+  pricing_model: 'monthly' | 'annual' | 'per_user' | 'one_time' | 'free';
+  monthly_cost?: number;
+  annual_cost?: number;
+  cost_trend: 'increasing' | 'stable' | 'decreasing' | 'dont_know';
+  integration_method: 'native' | 'zapier_make' | 'custom_api' | 'manual' | 'none';
+  manual_transfer_required: boolean;
+  manual_hours_monthly?: number;
+  future_plan: 'keep' | 'replace' | 'upgrade' | 'unsure';
+  created_at: string;
+}
 
 export default function SystemInventoryPage() {
   const navigate = useNavigate();
+  const { clientSession } = useAuth();
+  
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [engagementId, setEngagementId] = useState<string | null>(null);
+  const [systems, setSystems] = useState<SystemInventory[]>([]);
+  const [categories, setCategories] = useState<SystemCategory[]>([]);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<Partial<SystemInventory>>({
+    system_name: '',
+    category_code: '',
+    usage_frequency: 'daily',
+    criticality: 'important',
+    pricing_model: 'monthly',
+    cost_trend: 'stable',
+    integration_method: 'none',
+    manual_transfer_required: false,
+    future_plan: 'keep',
+    primary_users: []
+  });
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="mb-6">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Dashboard
-          </button>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Settings className="w-6 h-6 text-purple-600" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Systems Audit - Stage 2</h1>
-              <p className="text-gray-600">System Inventory</p>
-            </div>
-          </div>
-        </div>
+  useEffect(() => {
+    loadData();
+  }, [clientSession?.clientId]);
 
-        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-          <div className="w-16 h-16 bg-cyan-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Settings className="w-8 h-8 text-cyan-600" />
-          </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">System Inventory</h2>
-          <p className="text-gray-600 mb-6">
-            This feature is coming soon. Your Stage 1 (Discovery Assessment) responses have been saved successfully.
-          </p>
-          <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4 mb-6 text-left">
-            <h3 className="font-medium text-cyan-900 mb-2">What's Next?</h3>
-            <p className="text-sm text-cyan-700">
-              In Stage 2, you'll be able to fill out detailed system cards for each software tool your business uses. 
-              This will help us understand your tech stack, integration points, and identify opportunities for improvement.
-            </p>
-          </div>
+  const loadData = async () => {
+    if (!clientSession?.clientId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Fetch engagement
+      const { data: engagement, error: engError } = await supabase
+        .from('sa_engagements')
+        .select('id')
+        .eq('client_id', clientSession.clientId)
+        .maybeSingle();
+
+      if (engError) {
+        console.error('Error fetching engagement:', engError);
+        setLoading(false);
+        return;
+      }
+
+      if (!engagement) {
+        console.error('No engagement found for client');
+        setLoading(false);
+        return;
+      }
+
+      setEngagementId(engagement.id);
+
+      // Fetch existing systems
+      const { data: systemsData, error: systemsError } = await supabase
+        .from('sa_system_inventory')
+        .select('*')
+        .eq('engagement_id', engagement.id)
+        .order('created_at', { ascending: false });
+
+      if (systemsError) {
+        console.error('Error fetching systems:', systemsError);
+      } else {
+        setSystems(systemsData || []);
+      }
+
+      // Fetch categories
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('sa_system_categories')
+        .select('*')
+        .order('display_order', { ascending: true });
+
+      if (categoriesError) {
+        console.error('Error fetching categories:', categoriesError);
+      } else {
+        setCategories(categoriesData || []);
+      }
+
+    } catch (err) {
+      console.error('Error loading data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddSystem = () => {
+    setFormData({
+      system_name: '',
+      category_code: '',
+      usage_frequency: 'daily',
+      criticality: 'important',
+      pricing_model: 'monthly',
+      cost_trend: 'stable',
+      integration_method: 'none',
+      manual_transfer_required: false,
+      future_plan: 'keep',
+      primary_users: []
+    });
+    setEditingId(null);
+    setShowAddForm(true);
+  };
+
+  const handleEditSystem = (system: SystemInventory) => {
+    setFormData({
+      system_name: system.system_name,
+      category_code: system.category_code,
+      sub_category: system.sub_category,
+      vendor: system.vendor,
+      website_url: system.website_url,
+      primary_users: system.primary_users || [],
+      number_of_users: system.number_of_users,
+      usage_frequency: system.usage_frequency,
+      criticality: system.criticality,
+      pricing_model: system.pricing_model,
+      monthly_cost: system.monthly_cost,
+      annual_cost: system.annual_cost,
+      cost_trend: system.cost_trend,
+      integration_method: system.integration_method,
+      manual_transfer_required: system.manual_transfer_required,
+      manual_hours_monthly: system.manual_hours_monthly,
+      future_plan: system.future_plan
+    });
+    setEditingId(system.id);
+    setShowAddForm(true);
+  };
+
+  const handleSaveSystem = async () => {
+    if (!engagementId || !formData.system_name || !formData.category_code) {
+      alert('Please fill in at least System Name and Category');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const systemData = {
+        engagement_id: engagementId,
+        system_name: formData.system_name,
+        category_code: formData.category_code,
+        sub_category: formData.sub_category || null,
+        vendor: formData.vendor || null,
+        website_url: formData.website_url || null,
+        primary_users: formData.primary_users || [],
+        number_of_users: formData.number_of_users || null,
+        usage_frequency: formData.usage_frequency || 'daily',
+        criticality: formData.criticality || 'important',
+        pricing_model: formData.pricing_model || 'monthly',
+        monthly_cost: formData.monthly_cost || null,
+        annual_cost: formData.annual_cost || null,
+        cost_trend: formData.cost_trend || 'stable',
+        integration_method: formData.integration_method || 'none',
+        manual_transfer_required: formData.manual_transfer_required || false,
+        manual_hours_monthly: formData.manual_hours_monthly || null,
+        future_plan: formData.future_plan || 'keep'
+      };
+
+      if (editingId) {
+        // Update existing
+        const { error } = await supabase
+          .from('sa_system_inventory')
+          .update(systemData)
+          .eq('id', editingId);
+
+        if (error) throw error;
+      } else {
+        // Insert new
+        const { error } = await supabase
+          .from('sa_system_inventory')
+          .insert(systemData);
+
+        if (error) throw error;
+      }
+
+      await loadData();
+      setShowAddForm(false);
+      setEditingId(null);
+    } catch (err: any) {
+      console.error('Error saving system:', err);
+      alert(`Error saving system: ${err.message || 'Unknown error'}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteSystem = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this system?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('sa_system_inventory')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      await loadData();
+    } catch (err: any) {
+      console.error('Error deleting system:', err);
+      alert(`Error deleting system: ${err.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleCompleteStage2 = async () => {
+    if (systems.length === 0) {
+      alert('Please add at least one system before completing Stage 2');
+      return;
+    }
+
+    if (!engagementId) return;
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('sa_engagements')
+        .update({
+          status: 'stage_2_complete',
+          stage_2_completed_at: new Date().toISOString()
+        })
+        .eq('id', engagementId);
+
+      if (error) throw error;
+
+      alert('Stage 2 completed! You can now proceed to Stage 3.');
+      navigate('/dashboard');
+    } catch (err: any) {
+      console.error('Error completing stage 2:', err);
+      alert(`Error completing stage: ${err.message || 'Unknown error'}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const selectedCategory = categories.find(c => c.category_code === formData.category_code);
+  const primaryUserOptions = ['Owner', 'Finance', 'Operations', 'Sales', 'HR', 'Admin', 'Everyone'];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!engagementId) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center max-w-md">
+          <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">No Engagement Found</h2>
+          <p className="text-gray-600 mb-6">Please complete Stage 1 first.</p>
           <button
             onClick={() => navigate('/dashboard')}
             className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
@@ -53,7 +300,384 @@ export default function SystemInventoryPage() {
           </button>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-6xl mx-auto p-6">
+        {/* Header */}
+        <div className="mb-6">
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
+          </button>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Settings className="w-6 h-6 text-purple-600" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Systems Audit - Stage 2</h1>
+                <p className="text-gray-600">System Inventory</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleAddSystem}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+              >
+                <Plus className="w-4 h-4" />
+                Add System
+              </button>
+              {systems.length > 0 && (
+                <button
+                  onClick={handleCompleteStage2}
+                  disabled={saving}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {saving ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-4 h-4" />
+                  )}
+                  Complete Stage 2
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Add/Edit Form */}
+        {showAddForm && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">
+                {editingId ? 'Edit System' : 'Add New System'}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowAddForm(false);
+                  setEditingId(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* System Name */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  System Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.system_name || ''}
+                  onChange={(e) => setFormData({ ...formData, system_name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="e.g., Xero, HubSpot, Slack"
+                />
+              </div>
+
+              {/* Category */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Category <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.category_code || ''}
+                  onChange={(e) => setFormData({ ...formData, category_code: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="">Select a category</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.category_code}>
+                      {cat.category_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Vendor */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Vendor</label>
+                <input
+                  type="text"
+                  value={formData.vendor || ''}
+                  onChange={(e) => setFormData({ ...formData, vendor: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="e.g., Xero Limited"
+                />
+              </div>
+
+              {/* Usage Frequency */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Usage Frequency <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.usage_frequency || 'daily'}
+                  onChange={(e) => setFormData({ ...formData, usage_frequency: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="rarely">Rarely</option>
+                </select>
+              </div>
+
+              {/* Criticality */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Criticality <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.criticality || 'important'}
+                  onChange={(e) => setFormData({ ...formData, criticality: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="critical">Critical</option>
+                  <option value="important">Important</option>
+                  <option value="nice_to_have">Nice to Have</option>
+                </select>
+              </div>
+
+              {/* Primary Users */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Primary Users</label>
+                <div className="flex flex-wrap gap-2">
+                  {primaryUserOptions.map(user => (
+                    <label key={user} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={(formData.primary_users || []).includes(user)}
+                        onChange={(e) => {
+                          const current = formData.primary_users || [];
+                          if (e.target.checked) {
+                            setFormData({ ...formData, primary_users: [...current, user] });
+                          } else {
+                            setFormData({ ...formData, primary_users: current.filter(u => u !== user) });
+                          }
+                        }}
+                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-sm text-gray-700">{user}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Number of Users */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Number of Users</label>
+                <input
+                  type="number"
+                  value={formData.number_of_users || ''}
+                  onChange={(e) => setFormData({ ...formData, number_of_users: e.target.value ? parseInt(e.target.value) : undefined })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="e.g., 5"
+                />
+              </div>
+
+              {/* Pricing Model */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Pricing Model <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.pricing_model || 'monthly'}
+                  onChange={(e) => setFormData({ ...formData, pricing_model: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="annual">Annual</option>
+                  <option value="per_user">Per User</option>
+                  <option value="one_time">One-time</option>
+                  <option value="free">Free</option>
+                </select>
+              </div>
+
+              {/* Monthly Cost */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Monthly Cost (£)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.monthly_cost || ''}
+                  onChange={(e) => setFormData({ ...formData, monthly_cost: e.target.value ? parseFloat(e.target.value) : undefined })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="e.g., 29.99"
+                />
+              </div>
+
+              {/* Annual Cost */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Annual Cost (£)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.annual_cost || ''}
+                  onChange={(e) => setFormData({ ...formData, annual_cost: e.target.value ? parseFloat(e.target.value) : undefined })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="e.g., 299.99"
+                />
+              </div>
+
+              {/* Integration Method */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Integration Method <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.integration_method || 'none'}
+                  onChange={(e) => setFormData({ ...formData, integration_method: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="native">Native Integration</option>
+                  <option value="zapier_make">Zapier/Make</option>
+                  <option value="custom_api">Custom API</option>
+                  <option value="manual">Manual</option>
+                  <option value="none">None</option>
+                </select>
+              </div>
+
+              {/* Future Plan */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Future Plan <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.future_plan || 'keep'}
+                  onChange={(e) => setFormData({ ...formData, future_plan: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="keep">Keep</option>
+                  <option value="replace">Replace</option>
+                  <option value="upgrade">Upgrade</option>
+                  <option value="unsure">Unsure</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowAddForm(false);
+                  setEditingId(null);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveSystem}
+                disabled={saving || !formData.system_name || !formData.category_code}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {saving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                {editingId ? 'Update' : 'Add'} System
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Systems List */}
+        {systems.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+            <Settings className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Systems Added Yet</h3>
+            <p className="text-gray-600 mb-6">
+              Start by adding the software tools and systems your business uses.
+            </p>
+            <button
+              onClick={handleAddSystem}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            >
+              <Plus className="w-5 h-5" />
+              Add Your First System
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {systems.map((system) => {
+              const category = categories.find(c => c.category_code === system.category_code);
+              return (
+                <div key={system.id} className="bg-white rounded-xl border border-gray-200 p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900">{system.system_name}</h3>
+                        {category && (
+                          <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded">
+                            {category.category_name}
+                          </span>
+                        )}
+                        <span className={`px-2 py-1 text-xs font-medium rounded ${
+                          system.criticality === 'critical' ? 'bg-red-100 text-red-700' :
+                          system.criticality === 'important' ? 'bg-amber-100 text-amber-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {system.criticality}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                        <div>
+                          <span className="font-medium">Usage:</span> {system.usage_frequency}
+                        </div>
+                        <div>
+                          <span className="font-medium">Users:</span> {system.number_of_users || 'N/A'}
+                        </div>
+                        <div>
+                          <span className="font-medium">Cost:</span> {
+                            system.monthly_cost ? `£${system.monthly_cost}/mo` :
+                            system.annual_cost ? `£${system.annual_cost}/yr` :
+                            'Free'
+                          }
+                        </div>
+                        <div>
+                          <span className="font-medium">Plan:</span> {system.future_plan}
+                        </div>
+                      </div>
+                      {system.primary_users && system.primary_users.length > 0 && (
+                        <div className="mt-2">
+                          <span className="text-sm text-gray-600">Users: </span>
+                          <span className="text-sm text-gray-900">{system.primary_users.join(', ')}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2 ml-4">
+                      <button
+                        onClick={() => handleEditSystem(system)}
+                        className="p-2 text-gray-400 hover:text-indigo-600"
+                        title="Edit"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSystem(system.id)}
+                        className="p-2 text-gray-400 hover:text-red-600"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
