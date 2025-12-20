@@ -882,8 +882,17 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           />
         )}
         
+        {/* Systems Audit Modal - show Systems Audit view for systems_audit service line */}
+        {selectedClient && selectedServiceLine === 'systems_audit' && (
+          <SystemsAuditClientModal 
+            clientId={selectedClient} 
+            onClose={() => setSelectedClient(null)}
+            onRefresh={fetchClients}
+          />
+        )}
+        
         {/* Regular Client Detail Modal for other service lines */}
-        {selectedClient && selectedServiceLine && selectedServiceLine !== 'discovery' && (
+        {selectedClient && selectedServiceLine && selectedServiceLine !== 'discovery' && selectedServiceLine !== 'systems_audit' && (
           <ClientDetailModal 
             clientId={selectedClient} 
             serviceLineCode={selectedServiceLine}
@@ -6999,6 +7008,283 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
           >
             Close
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// SYSTEMS AUDIT CLIENT MODAL - View assessments, documents, and analysis
+// ============================================================================
+function SystemsAuditClientModal({ 
+  clientId, 
+  onClose,
+  onRefresh
+}: { 
+  clientId: string; 
+  onClose: () => void;
+  onRefresh: () => void;
+}) {
+  const [activeTab, setActiveTab] = useState<'assessments' | 'documents' | 'analysis'>('assessments');
+  const [loading, setLoading] = useState(true);
+  const [engagement, setEngagement] = useState<any>(null);
+  const [stage1Responses, setStage1Responses] = useState<any[]>([]);
+  const [stage2Inventory, setStage2Inventory] = useState<any[]>([]);
+  const [stage3DeepDives, setStage3DeepDives] = useState<any[]>([]);
+  const [report, setReport] = useState<any>(null);
+  const [generating, setGenerating] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+  }, [clientId]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // Fetch engagement
+      const { data: engagementData } = await supabase
+        .from('sa_engagements')
+        .select('*')
+        .eq('client_id', clientId)
+        .maybeSingle();
+
+      if (engagementData) {
+        setEngagement(engagementData);
+
+        // Fetch Stage 1 responses
+        const { data: stage1Data } = await supabase
+          .from('sa_discovery_responses')
+          .select('*')
+          .eq('engagement_id', engagementData.id)
+          .order('question_id');
+
+        setStage1Responses(stage1Data || []);
+
+        // Fetch Stage 2 inventory
+        const { data: stage2Data } = await supabase
+          .from('sa_system_inventory')
+          .select('*')
+          .eq('engagement_id', engagementData.id)
+          .order('created_at');
+
+        setStage2Inventory(stage2Data || []);
+
+        // Fetch Stage 3 deep dives
+        const { data: stage3Data } = await supabase
+          .from('sa_process_deep_dives')
+          .select('*')
+          .eq('engagement_id', engagementData.id);
+
+        setStage3DeepDives(stage3Data || []);
+
+        // Fetch report
+        const { data: reportData } = await supabase
+          .from('sa_audit_reports')
+          .select('*')
+          .eq('engagement_id', engagementData.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        setReport(reportData);
+      }
+    } catch (error) {
+      console.error('Error fetching Systems Audit data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateReport = async () => {
+    if (!engagement) return;
+    
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-sa-report', {
+        body: { engagementId: engagement.id }
+      });
+
+      if (error) throw error;
+
+      // Refresh data
+      await fetchData();
+    } catch (error: any) {
+      console.error('Error generating report:', error);
+      alert(`Error generating report: ${error.message || 'Unknown error'}`);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const allStagesComplete = engagement?.status === 'stage_3_complete';
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Systems Audit</h2>
+            <p className="text-sm text-gray-500">Client ID: {clientId}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200">
+          {[
+            { id: 'assessments', label: 'Assessments', icon: FileText },
+            { id: 'documents', label: 'Documents / Context', icon: Upload },
+            { id: 'analysis', label: 'Analysis', icon: Sparkles }
+          ].map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                className={`flex-1 px-6 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? 'text-amber-600 border-b-2 border-amber-600 bg-amber-50/50'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
+            </div>
+          ) : (
+            <>
+              {/* ASSESSMENTS TAB */}
+              {activeTab === 'assessments' && (
+                <div className="space-y-6">
+                  {/* Stage 1 */}
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="bg-amber-50 px-6 py-4 border-b border-gray-200">
+                      <h3 className="font-semibold text-gray-900">Stage 1: Discovery Assessment</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {engagement?.stage_1_completed_at ? 'Completed' : 'Not started'}
+                      </p>
+                    </div>
+                    <div className="p-6">
+                      {stage1Responses.length > 0 ? (
+                        <div className="space-y-4">
+                          {stage1Responses.map((response) => (
+                            <div key={response.id} className="border-l-4 border-amber-500 pl-4">
+                              <p className="font-medium text-gray-900">{response.question_text}</p>
+                              <p className="text-sm text-gray-600 mt-1">{response.response_text}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500">No responses yet</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Stage 2 */}
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="bg-amber-50 px-6 py-4 border-b border-gray-200">
+                      <h3 className="font-semibold text-gray-900">Stage 2: System Inventory</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {engagement?.stage_2_completed_at ? 'Completed' : 'Not started'}
+                      </p>
+                    </div>
+                    <div className="p-6">
+                      {stage2Inventory.length > 0 ? (
+                        <div className="grid gap-4">
+                          {stage2Inventory.map((system) => (
+                            <div key={system.id} className="border border-gray-200 rounded-lg p-4">
+                              <p className="font-medium text-gray-900">{system.system_name}</p>
+                              <p className="text-sm text-gray-600">{system.category}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500">No systems added yet</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Stage 3 */}
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="bg-amber-50 px-6 py-4 border-b border-gray-200">
+                      <h3 className="font-semibold text-gray-900">Stage 3: Process Deep Dives</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {engagement?.stage_3_completed_at ? 'Completed' : 'Not started'}
+                      </p>
+                    </div>
+                    <div className="p-6">
+                      {stage3DeepDives.length > 0 ? (
+                        <div className="space-y-4">
+                          {stage3DeepDives.map((dive) => (
+                            <div key={dive.id} className="border-l-4 border-amber-500 pl-4">
+                              <p className="font-medium text-gray-900">{dive.process_chain}</p>
+                              <p className="text-sm text-gray-600 mt-1">{dive.key_pain_points}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500">No deep dives completed yet</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* DOCUMENTS TAB */}
+              {activeTab === 'documents' && (
+                <div className="space-y-6">
+                  <p className="text-gray-500">Document upload functionality coming soon</p>
+                </div>
+              )}
+
+              {/* ANALYSIS TAB */}
+              {activeTab === 'analysis' && (
+                <div className="space-y-6">
+                  {!report ? (
+                    <div className="text-center py-12">
+                      <Sparkles className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500 mb-4">No report generated yet</p>
+                      <button
+                        onClick={handleGenerateReport}
+                        disabled={generating || !allStagesComplete}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg transition-colors text-sm font-medium"
+                      >
+                        {generating ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4" />
+                        )}
+                        {generating ? 'Generating Analysis...' : 'Generate Analysis'}
+                      </button>
+                      {!allStagesComplete && (
+                        <p className="text-sm text-gray-500 mt-2">Complete all 3 stages first</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">{report.headline}</h3>
+                        <p className="text-gray-700">{report.executive_summary}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
