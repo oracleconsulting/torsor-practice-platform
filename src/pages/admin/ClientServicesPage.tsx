@@ -35,7 +35,8 @@ import {
   Trash2,
   Printer,
   AlertTriangle,
-  Award
+  Award,
+  Loader2
 } from 'lucide-react';
 
 
@@ -887,7 +888,6 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           <SystemsAuditClientModal 
             clientId={selectedClient} 
             onClose={() => setSelectedClient(null)}
-            onRefresh={fetchClients}
           />
         )}
         
@@ -7019,12 +7019,10 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
 // ============================================================================
 function SystemsAuditClientModal({ 
   clientId, 
-  onClose,
-  onRefresh
+  onClose
 }: { 
   clientId: string; 
   onClose: () => void;
-  onRefresh: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<'assessments' | 'documents' | 'analysis'>('assessments');
   const [loading, setLoading] = useState(true);
@@ -7101,7 +7099,7 @@ function SystemsAuditClientModal({
     
     setGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-sa-report', {
+      const { error } = await supabase.functions.invoke('generate-sa-report', {
         body: { engagementId: engagement.id }
       });
 
