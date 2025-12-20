@@ -29,6 +29,10 @@ import {
 export default function ClientDetailPage() {
   // Get client ID from URL
   const clientId = window.location.pathname.split('/').pop() || null;
+  // Check URL params for service context
+  const urlParams = new URLSearchParams(window.location.search);
+  const serviceFromUrl = urlParams.get('service') || window.location.pathname.includes('systems_audit') ? 'systems_audit' : null;
+  
   const { client, fetchClient, loading, addContext, regenerateRoadmap } = useClientDetail(clientId);
   const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'assessments'>('overview');
   const [showAddContext, setShowAddContext] = useState(false);
@@ -36,14 +40,37 @@ export default function ClientDetailPage() {
   const [addingContext, setAddingContext] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [hasSystemsAudit, setHasSystemsAudit] = useState(false);
+  const [checkingSA, setCheckingSA] = useState(true);
 
   useEffect(() => {
     if (clientId) {
       console.log('[ClientDetailPage] useEffect triggered, clientId:', clientId);
       fetchClient();
-      checkSystemsAuditEnrollment();
-    } else {
-      console.log('[ClientDetailPage] No clientId in useEffect');
+      
+      // Check for Systems Audit - multiple methods
+      const checkForSystemsAudit = async () => {
+        setCheckingSA(true);
+        
+        // Method 1: Check for engagement directly (most reliable)
+        const { data: engagement } = await supabase
+          .from('sa_engagements')
+          .select('id')
+          .eq('client_id', clientId)
+          .maybeSingle();
+        
+        if (engagement) {
+          console.log('[ClientDetailPage] ✅ Found SA engagement - showing Systems Audit view');
+          setHasSystemsAudit(true);
+          setCheckingSA(false);
+          return;
+        }
+        
+        // Method 2: Check enrollment
+        await checkSystemsAuditEnrollment();
+        setCheckingSA(false);
+      };
+      
+      checkForSystemsAudit();
     }
   }, [clientId]);
 
@@ -81,7 +108,9 @@ export default function ClientDetailPage() {
       
       console.log('[Systems Audit] Enrollment check result:', { enrollment, enrollError, hasSA: !!enrollment });
       
-      setHasSystemsAudit(!!enrollment);
+      const hasSA = !!enrollment;
+      setHasSystemsAudit(hasSA);
+      console.log('[Systems Audit] Enrollment check complete, hasSA:', hasSA);
     } catch (err) {
       console.error('[Systems Audit] Error checking enrollment:', err);
       setHasSystemsAudit(false);
@@ -252,23 +281,13 @@ export default function ClientDetailPage() {
         </div>
       </div>
 
-      {/* Debug indicator - always show */}
-      <div className="mb-4 p-4 bg-yellow-100 border-2 border-yellow-400 rounded-lg">
-        <p className="text-sm font-bold text-yellow-900 mb-2">🔍 Systems Audit Detection Debug</p>
-        <div className="space-y-1 text-xs text-yellow-800">
-          <p><strong>hasSystemsAudit:</strong> {String(hasSystemsAudit)}</p>
-          <p><strong>clientId:</strong> {clientId || 'null'}</p>
-          <p><strong>client.name:</strong> {client?.name || 'loading...'}</p>
+      {/* Systems Audit View - if engagement exists, replace entire view */}
+      {checkingSA ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+          <span className="ml-3 text-slate-600">Checking Systems Audit status...</span>
         </div>
-        {hasSystemsAudit && (
-          <div className="mt-2 p-2 bg-green-200 rounded">
-            <p className="text-xs font-bold text-green-900">✅ Systems Audit detected - should show SystemsAuditView</p>
-          </div>
-        )}
-      </div>
-
-      {/* Systems Audit View - if enrolled, replace entire view */}
-      {hasSystemsAudit ? (
+      ) : hasSystemsAudit ? (
         <SystemsAuditView clientId={clientId!} />
       ) : (
         <>
