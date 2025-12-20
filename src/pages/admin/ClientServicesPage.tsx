@@ -7198,7 +7198,12 @@ function SystemsAuditClientModal({
     }
   };
 
-  const allStagesComplete = engagement?.status === 'stage_3_complete';
+  // Allow regeneration if all stages are complete OR if a report already exists
+  const allStagesComplete = engagement?.status === 'stage_3_complete' || 
+                            engagement?.status === 'analysis_complete' || 
+                            engagement?.status === 'report_delivered' ||
+                            engagement?.status === 'completed';
+  const canGenerateOrRegenerate = allStagesComplete || !!report;
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -7631,7 +7636,7 @@ function SystemsAuditClientModal({
                       <p className="text-gray-500 mb-4">No report generated yet</p>
                       <button
                         onClick={handleGenerateReport}
-                        disabled={generating || !allStagesComplete}
+                        disabled={generating || !canGenerateOrRegenerate}
                         className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg transition-colors text-sm font-medium"
                       >
                         {generating ? (
@@ -7641,7 +7646,7 @@ function SystemsAuditClientModal({
                         )}
                         {generating ? 'Generating Analysis...' : 'Generate Analysis'}
                       </button>
-                      {!allStagesComplete && (
+                      {!canGenerateOrRegenerate && (
                         <p className="text-sm text-gray-500 mt-2">Complete all 3 stages first</p>
                       )}
                     </div>
@@ -7657,7 +7662,7 @@ function SystemsAuditClientModal({
                         </div>
                         <button
                           onClick={handleGenerateReport}
-                          disabled={generating || !allStagesComplete}
+                          disabled={generating || !canGenerateOrRegenerate}
                           className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
                         >
                           {generating ? (
