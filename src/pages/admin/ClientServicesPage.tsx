@@ -7024,6 +7024,8 @@ function SystemsAuditClientModal({
   clientId: string; 
   onClose: () => void;
 }) {
+  const { user } = useAuth();
+  const { data: currentMember } = useCurrentMember(user?.id);
   const [activeTab, setActiveTab] = useState<'assessments' | 'documents' | 'analysis'>('assessments');
   const [loading, setLoading] = useState(true);
   const [engagement, setEngagement] = useState<any>(null);
@@ -7034,50 +7036,88 @@ function SystemsAuditClientModal({
   const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
-    fetchData();
-  }, [clientId]);
+    if (currentMember?.practice_id) {
+      fetchData();
+    }
+  }, [clientId, currentMember?.practice_id]);
 
   const fetchData = async () => {
+    if (!currentMember?.practice_id) {
+      console.error('[Systems Audit Modal] No practice_id available');
+      return;
+    }
+
     setLoading(true);
     try {
-      // Fetch engagement
-      const { data: engagementData } = await supabase
+      console.log('[Systems Audit Modal] Fetching data for clientId:', clientId, 'practiceId:', currentMember.practice_id);
+      
+      // Note: RLS policies should work with practice_id filter in query
+      // The policy checks: practice_id = current_setting('app.practice_id') OR client_id matches
+      // Since we're filtering by practice_id, the query should work
+      
+      // Fetch engagement - include practice_id filter to satisfy RLS
+      const { data: engagementData, error: engagementError } = await supabase
         .from('sa_engagements')
         .select('*')
         .eq('client_id', clientId)
+        .eq('practice_id', currentMember.practice_id)
         .maybeSingle();
 
+      console.log('[Systems Audit Modal] Engagement query result:', { engagementData, engagementError });
+
+      if (engagementError) {
+        console.error('[Systems Audit Modal] Error fetching engagement:', engagementError);
+        alert(`Error loading engagement: ${engagementError.message}`);
+        return;
+      }
+
       if (engagementData) {
+        console.log('[Systems Audit Modal] Found engagement:', engagementData.id, 'Status:', engagementData.status);
         setEngagement(engagementData);
 
         // Fetch Stage 1 responses
-        const { data: stage1Data } = await supabase
+        const { data: stage1Data, error: stage1Error } = await supabase
           .from('sa_discovery_responses')
           .select('*')
           .eq('engagement_id', engagementData.id)
           .order('question_id');
 
-        setStage1Responses(stage1Data || []);
+        console.log('[Systems Audit Modal] Stage 1 responses:', { count: stage1Data?.length || 0, error: stage1Error });
+        if (stage1Error) {
+          console.error('[Systems Audit Modal] Error fetching Stage 1:', stage1Error);
+        } else {
+          setStage1Responses(stage1Data || []);
+        }
 
         // Fetch Stage 2 inventory
-        const { data: stage2Data } = await supabase
+        const { data: stage2Data, error: stage2Error } = await supabase
           .from('sa_system_inventory')
           .select('*')
           .eq('engagement_id', engagementData.id)
           .order('created_at');
 
-        setStage2Inventory(stage2Data || []);
+        console.log('[Systems Audit Modal] Stage 2 inventory:', { count: stage2Data?.length || 0, error: stage2Error });
+        if (stage2Error) {
+          console.error('[Systems Audit Modal] Error fetching Stage 2:', stage2Error);
+        } else {
+          setStage2Inventory(stage2Data || []);
+        }
 
         // Fetch Stage 3 deep dives
-        const { data: stage3Data } = await supabase
+        const { data: stage3Data, error: stage3Error } = await supabase
           .from('sa_process_deep_dives')
           .select('*')
           .eq('engagement_id', engagementData.id);
 
-        setStage3DeepDives(stage3Data || []);
+        console.log('[Systems Audit Modal] Stage 3 deep dives:', { count: stage3Data?.length || 0, error: stage3Error });
+        if (stage3Error) {
+          console.error('[Systems Audit Modal] Error fetching Stage 3:', stage3Error);
+        } else {
+          setStage3DeepDives(stage3Data || []);
+        }
 
         // Fetch report
-        const { data: reportData } = await supabase
+        const { data: reportData, error: reportError } = await supabase
           .from('sa_audit_reports')
           .select('*')
           .eq('engagement_id', engagementData.id)
@@ -7085,10 +7125,18 @@ function SystemsAuditClientModal({
           .limit(1)
           .maybeSingle();
 
-        setReport(reportData);
+        console.log('[Systems Audit Modal] Report:', { reportData, error: reportError });
+        if (reportError) {
+          console.error('[Systems Audit Modal] Error fetching report:', reportError);
+        } else {
+          setReport(reportData);
+        }
+      } else {
+        console.log('[Systems Audit Modal] No engagement found for clientId:', clientId);
       }
     } catch (error) {
-      console.error('Error fetching Systems Audit data:', error);
+      console.error('[Systems Audit Modal] Unexpected error:', error);
+      alert(`Error loading Systems Audit data: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
