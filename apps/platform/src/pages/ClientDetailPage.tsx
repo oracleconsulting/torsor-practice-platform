@@ -39,56 +39,52 @@ export default function ClientDetailPage() {
 
   useEffect(() => {
     if (clientId) {
+      console.log('[ClientDetailPage] useEffect triggered, clientId:', clientId);
       fetchClient();
       checkSystemsAuditEnrollment();
+    } else {
+      console.log('[ClientDetailPage] No clientId in useEffect');
     }
-  }, [clientId, fetchClient]);
+  }, [clientId]);
 
   const checkSystemsAuditEnrollment = async () => {
-    if (!clientId) return;
+    if (!clientId) {
+      console.log('[Systems Audit] No clientId provided');
+      return;
+    }
+    
+    console.log('[Systems Audit] Checking enrollment for clientId:', clientId);
     
     try {
-      // First try: get all enrollments and check service line codes
-      const { data: enrollments, error: enrollError } = await supabase
-        .from('client_service_lines')
-        .select('id, service_line_id, service_line:service_lines(code)')
-        .eq('client_id', clientId);
+      // Get service line ID for systems_audit
+      const { data: saServiceLine, error: slError } = await supabase
+        .from('service_lines')
+        .select('id, code')
+        .eq('code', 'systems_audit')
+        .maybeSingle();
       
-      if (enrollError) throw enrollError;
+      console.log('[Systems Audit] Service line lookup:', { saServiceLine, slError });
       
-      // Check if any enrollment has systems_audit service line
-      const hasSA = enrollments?.some((e: any) => {
-        const sl = e.service_line;
-        return sl && (sl.code === 'systems_audit' || (Array.isArray(sl) && sl.some((s: any) => s.code === 'systems_audit')));
-      }) || false;
-      
-      console.log('[Systems Audit] Enrollment check:', { enrollments, hasSA });
-      setHasSystemsAudit(hasSA);
-    } catch (err) {
-      console.error('Error checking Systems Audit enrollment:', err);
-      // Fallback: check by service_line_id directly
-      try {
-        const { data: serviceLines } = await supabase
-          .from('service_lines')
-          .select('id, code')
-          .eq('code', 'systems_audit')
-          .maybeSingle();
-        
-        if (serviceLines) {
-          const { data: enrollments } = await supabase
-            .from('client_service_lines')
-            .select('id')
-            .eq('client_id', clientId)
-            .eq('service_line_id', serviceLines.id)
-            .maybeSingle();
-          
-          console.log('[Systems Audit] Fallback check:', { enrollments, hasSA: !!enrollments });
-          setHasSystemsAudit(!!enrollments);
-        }
-      } catch (err2) {
-        console.error('Error with fallback query:', err2);
+      if (slError || !saServiceLine) {
+        console.warn('[Systems Audit] Could not find systems_audit service line');
         setHasSystemsAudit(false);
+        return;
       }
+      
+      // Check if client is enrolled
+      const { data: enrollment, error: enrollError } = await supabase
+        .from('client_service_lines')
+        .select('id, service_line_id, status')
+        .eq('client_id', clientId)
+        .eq('service_line_id', saServiceLine.id)
+        .maybeSingle();
+      
+      console.log('[Systems Audit] Enrollment check result:', { enrollment, enrollError, hasSA: !!enrollment });
+      
+      setHasSystemsAudit(!!enrollment);
+    } catch (err) {
+      console.error('[Systems Audit] Error checking enrollment:', err);
+      setHasSystemsAudit(false);
     }
   };
 
@@ -254,6 +250,21 @@ export default function ClientDetailPage() {
             <p className="text-xs text-slate-400">Value Audit</p>
           </div>
         </div>
+      </div>
+
+      {/* Debug indicator - always show */}
+      <div className="mb-4 p-4 bg-yellow-100 border-2 border-yellow-400 rounded-lg">
+        <p className="text-sm font-bold text-yellow-900 mb-2">🔍 Systems Audit Detection Debug</p>
+        <div className="space-y-1 text-xs text-yellow-800">
+          <p><strong>hasSystemsAudit:</strong> {String(hasSystemsAudit)}</p>
+          <p><strong>clientId:</strong> {clientId || 'null'}</p>
+          <p><strong>client.name:</strong> {client?.name || 'loading...'}</p>
+        </div>
+        {hasSystemsAudit && (
+          <div className="mt-2 p-2 bg-green-200 rounded">
+            <p className="text-xs font-bold text-green-900">✅ Systems Audit detected - should show SystemsAuditView</p>
+          </div>
+        )}
       </div>
 
       {/* Systems Audit View - if enrolled, replace entire view */}
@@ -552,7 +563,9 @@ export default function ClientDetailPage() {
           )}
         </div>
       </div>
-      )}
+          </>
+        );
+      })()}
     </Layout>
   );
 }
