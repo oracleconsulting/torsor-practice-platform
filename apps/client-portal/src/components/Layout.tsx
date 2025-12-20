@@ -101,12 +101,7 @@ export function Layout({ children, title, subtitle }: LayoutProps) {
       {/* Mobile Header */}
       <div className="lg:hidden sticky top-0 z-40 bg-white border-b border-slate-200">
         <div className="flex items-center justify-between h-16 px-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">365</span>
-            </div>
-            <span className="font-semibold text-slate-900">Alignment</span>
-          </div>
+          <Logo className="h-8" />
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
