@@ -19,6 +19,18 @@ CREATE POLICY "Users can view own practice engagements" ON sa_engagements
         client_id = auth.uid()
     );
 
+-- Drop existing INSERT policy and recreate with OR condition for clients
+DROP POLICY IF EXISTS "Users can insert own practice engagements" ON sa_engagements;
+
+CREATE POLICY "Users can insert own practice engagements" ON sa_engagements
+    FOR INSERT WITH CHECK (
+        -- Practice members: check practice_id from session
+        practice_id = current_setting('app.practice_id', true)::UUID
+        OR
+        -- Clients: check client_id matches auth.uid()
+        client_id = auth.uid()
+    );
+
 -- Drop existing UPDATE policy and recreate with OR condition for clients
 DROP POLICY IF EXISTS "Users can update own practice engagements" ON sa_engagements;
 
