@@ -48,36 +48,46 @@ export default function ClientDetailPage() {
     if (!clientId) return;
     
     try {
-      const { data } = await supabase
+      // First try: get all enrollments and check service line codes
+      const { data: enrollments, error: enrollError } = await supabase
         .from('client_service_lines')
-        .select(`
-          id,
-          service_line:service_lines!inner(code)
-        `)
-        .eq('client_id', clientId)
-        .eq('service_lines.code', 'systems_audit')
-        .maybeSingle();
+        .select('id, service_line_id, service_line:service_lines(code)')
+        .eq('client_id', clientId);
       
-      setHasSystemsAudit(!!data);
+      if (enrollError) throw enrollError;
+      
+      // Check if any enrollment has systems_audit service line
+      const hasSA = enrollments?.some((e: any) => {
+        const sl = e.service_line;
+        return sl && (sl.code === 'systems_audit' || (Array.isArray(sl) && sl.some((s: any) => s.code === 'systems_audit')));
+      }) || false;
+      
+      console.log('[Systems Audit] Enrollment check:', { enrollments, hasSA });
+      setHasSystemsAudit(hasSA);
     } catch (err) {
       console.error('Error checking Systems Audit enrollment:', err);
-      // Try alternative query
+      // Fallback: check by service_line_id directly
       try {
-        const { data: enrollments } = await supabase
-          .from('client_service_lines')
-          .select('id, service_line_id')
-          .eq('client_id', clientId);
+        const { data: serviceLines } = await supabase
+          .from('service_lines')
+          .select('id, code')
+          .eq('code', 'systems_audit')
+          .maybeSingle();
         
-        if (enrollments && enrollments.length > 0) {
-          const { data: serviceLines } = await supabase
-            .from('service_lines')
-            .select('code')
-            .in('id', enrollments.map(e => e.service_line_id));
+        if (serviceLines) {
+          const { data: enrollments } = await supabase
+            .from('client_service_lines')
+            .select('id')
+            .eq('client_id', clientId)
+            .eq('service_line_id', serviceLines.id)
+            .maybeSingle();
           
-          setHasSystemsAudit(serviceLines?.some(sl => sl.code === 'systems_audit') || false);
+          console.log('[Systems Audit] Fallback check:', { enrollments, hasSA: !!enrollments });
+          setHasSystemsAudit(!!enrollments);
         }
       } catch (err2) {
-        console.error('Error with alternative query:', err2);
+        console.error('Error with fallback query:', err2);
+        setHasSystemsAudit(false);
       }
     }
   };
@@ -246,17 +256,12 @@ export default function ClientDetailPage() {
         </div>
       </div>
 
-      {/* Systems Audit View - if enrolled */}
-      {hasSystemsAudit && (
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <SystemsAuditView clientId={clientId!} />
-        </div>
-      )}
-
-      {/* Goal Alignment View - if not Systems Audit or show both */}
-      {(!hasSystemsAudit || activeTab !== 'assessments') && (
+      {/* Systems Audit View - if enrolled, replace entire view */}
+      {hasSystemsAudit ? (
+        <SystemsAuditView clientId={clientId!} />
+      ) : (
         <>
-          {/* Tabs */}
+          {/* Goal Alignment View - default tabs */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             <div className="flex border-b border-slate-200">
               {['overview', 'roadmap', 'context', 'assessments'].map((tab) => (
