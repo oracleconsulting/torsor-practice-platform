@@ -642,7 +642,7 @@ export default function UnifiedDashboardPage() {
         };
       }
       // Check if it's in progress
-      if (assessmentProgress?.part3?.status === 'in_progress' || assessmentProgress?.part3?.percentage > 0) {
+      if (assessmentProgress?.part3?.status === 'in_progress' || (assessmentProgress?.part3?.percentage ?? 0) > 0) {
         return {
           label: 'In Progress',
           color: 'blue',
