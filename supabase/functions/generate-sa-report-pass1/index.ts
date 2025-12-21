@@ -487,17 +487,6 @@ serve(async (req) => {
       
       client_quotes_used: f.allClientQuotes?.slice(0, 10) || [],
       
-      // Admin guidance from Pass 1
-      admin_talking_points: pass1Data.adminGuidance?.talkingPoints || [],
-      admin_questions_to_ask: pass1Data.adminGuidance?.questionsToAsk || [],
-      admin_next_steps: pass1Data.adminGuidance?.nextSteps || [],
-      admin_tasks: pass1Data.adminGuidance?.tasks || [],
-      admin_risk_flags: pass1Data.adminGuidance?.riskFlags || [],
-      
-      // Client presentation from Pass 1
-      client_executive_brief: pass1Data.clientPresentation?.executiveBrief || null,
-      client_roi_summary: pass1Data.clientPresentation?.roiSummary || null,
-      
       llm_model: 'claude-sonnet-4',
       llm_tokens_used: tokensUsed,
       llm_cost: cost,
@@ -508,37 +497,100 @@ serve(async (req) => {
       generated_at: new Date().toISOString()
     };
     
-    // Try to save with pass1_data first
+    // Prepare admin guidance and client presentation data (may not exist in DB yet)
+    const adminGuidanceData = {
+      admin_talking_points: pass1Data.adminGuidance?.talkingPoints || [],
+      admin_questions_to_ask: pass1Data.adminGuidance?.questionsToAsk || [],
+      admin_next_steps: pass1Data.adminGuidance?.nextSteps || [],
+      admin_tasks: pass1Data.adminGuidance?.tasks || [],
+      admin_risk_flags: pass1Data.adminGuidance?.riskFlags || [],
+      client_executive_brief: pass1Data.clientPresentation?.executiveBrief || null,
+      client_roi_summary: pass1Data.clientPresentation?.roiSummary || null,
+    };
+    
+    // Try to save with all fields (pass1_data + admin guidance)
     let report;
     let saveError;
     
-    try {
-      const result = await supabaseClient
-        .from('sa_audit_reports')
-        .upsert({ ...baseReportData, pass1_data: pass1Data }, { onConflict: 'engagement_id' })
-        .select()
-        .single();
+    const result = await supabaseClient
+      .from('sa_audit_reports')
+      .upsert({ 
+        ...baseReportData, 
+        pass1_data: pass1Data,
+        ...adminGuidanceData
+      }, { onConflict: 'engagement_id' })
+      .select()
+      .single();
+    
+    report = result.data;
+    saveError = result.error;
+    
+    // If error is about missing columns, try saving without them
+    if (saveError) {
+      const errorMsg = saveError.message || '';
+      const hasAdminColumnError = errorMsg.includes('admin_talking_points') || 
+                                  errorMsg.includes('admin_next_steps') || 
+                                  errorMsg.includes('admin_questions_to_ask') || 
+                                  errorMsg.includes('admin_tasks') ||
+                                  errorMsg.includes('admin_risk_flags') || 
+                                  errorMsg.includes('client_executive_brief') ||
+                                  errorMsg.includes('client_roi_summary');
+      const hasPass1DataError = errorMsg.includes('pass1_data');
       
-      report = result.data;
-      saveError = result.error;
-    } catch (e: any) {
-      // If pass1_data column doesn't exist, save without it and store in review_notes temporarily
-      if (e.message?.includes('pass1_data') || saveError?.message?.includes('pass1_data')) {
-        console.warn('[SA Pass 1] pass1_data column not found, saving without it and storing in review_notes');
+      if (hasAdminColumnError || hasPass1DataError) {
+        console.warn(`[SA Pass 1] Columns not found. Saving without them. Error: ${errorMsg}`);
         
-        const result = await supabaseClient
+        // Build data without missing columns
+        const fallbackData: any = { ...baseReportData };
+        
+        // Only add pass1_data if column exists
+        if (!hasPass1DataError) {
+          fallbackData.pass1_data = pass1Data;
+        } else {
+          // Store in review_notes as fallback
+          try {
+            const existingNotes = fallbackData.review_notes ? JSON.parse(fallbackData.review_notes) : {};
+            fallbackData.review_notes = JSON.stringify({ 
+              ...existingNotes,
+              _pass1_data: pass1Data, 
+              _note: 'Temporary storage - migrate to pass1_data column' 
+            });
+          } catch {
+            fallbackData.review_notes = JSON.stringify({ 
+              _pass1_data: pass1Data, 
+              _note: 'Temporary storage - migrate to pass1_data column' 
+            });
+          }
+        }
+        
+        // Only add admin guidance if columns exist
+        if (!hasAdminColumnError) {
+          Object.assign(fallbackData, adminGuidanceData);
+        } else {
+          // Store admin guidance in review_notes as fallback
+          try {
+            const existingNotes = fallbackData.review_notes ? JSON.parse(fallbackData.review_notes) : {};
+            fallbackData.review_notes = JSON.stringify({ 
+              ...existingNotes,
+              _admin_guidance: adminGuidanceData,
+              _note: 'Temporary storage - migrate to admin guidance columns' 
+            });
+          } catch {
+            fallbackData.review_notes = JSON.stringify({ 
+              _admin_guidance: adminGuidanceData,
+              _note: 'Temporary storage - migrate to admin guidance columns' 
+            });
+          }
+        }
+        
+        const fallbackResult = await supabaseClient
           .from('sa_audit_reports')
-          .upsert({
-            ...baseReportData,
-            review_notes: JSON.stringify({ _pass1_data: pass1Data, _note: 'Temporary storage - migrate to pass1_data column' })
-          }, { onConflict: 'engagement_id' })
+          .upsert(fallbackData, { onConflict: 'engagement_id' })
           .select()
           .single();
         
-        report = result.data;
-        saveError = result.error;
-      } else {
-        throw e;
+        report = fallbackResult.data;
+        saveError = fallbackResult.error;
       }
     }
     
