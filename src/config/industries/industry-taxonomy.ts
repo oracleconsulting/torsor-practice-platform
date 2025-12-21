@@ -53,6 +53,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "ACCT",
+        category: "professional_services",
         name: "Accountancy & Tax Services",
         sicCodes: ["69201", "69202"],
         keywords: ["accountant", "tax", "audit", "bookkeeping", "payroll"],
@@ -60,14 +61,18 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           primaryMetrics: ["revenue_per_partner", "revenue_per_employee", "fee_per_client", "client_retention"],
           secondaryMetrics: ["utilisation_rate", "recovery_rate", "wip_days", "debtor_days"],
           industrySpecificMetrics: [
-            { code: "chargeable_hours_ratio", name: "Chargeable Hours Ratio", unit: "percent" },
-            { code: "recurring_revenue_percent", name: "Recurring Revenue %", unit: "percent" },
-            { code: "avg_fee_per_client", name: "Average Fee per Client", unit: "currency" }
+            { code: "chargeable_hours_ratio",
+        category: "professional_services", name: "Chargeable Hours Ratio", unit: "percent" },
+            { code: "recurring_revenue_percent",
+        category: "professional_services", name: "Recurring Revenue %", unit: "percent" },
+            { code: "avg_fee_per_client",
+        category: "professional_services", name: "Average Fee per Client", unit: "currency" }
           ]
-        }
+    }
       },
       {
         code: "LEGAL",
+        category: "professional_services",
         name: "Legal Services",
         sicCodes: ["69101", "69102", "69109"],
         keywords: ["solicitor", "lawyer", "law firm", "legal", "barrister", "conveyancing"],
@@ -82,6 +87,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "CONSULT",
+        category: "professional_services",
         name: "Management Consultancy",
         sicCodes: ["70229"],
         keywords: ["consultant", "consulting", "advisory", "strategy"],
@@ -166,6 +172,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "SAAS",
+        category: "technology",
         name: "SaaS / Software Products",
         sicCodes: ["62011", "62012"],
         keywords: ["SaaS", "software", "subscription", "platform", "app"],
@@ -173,11 +180,14 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           primaryMetrics: ["arr", "mrr", "net_revenue_retention", "cac_payback"],
           secondaryMetrics: ["ltv_cac_ratio", "gross_margin", "churn_rate"],
           industrySpecificMetrics: [
-            { code: "arr", name: "Annual Recurring Revenue", unit: "currency" },
-            { code: "nrr", name: "Net Revenue Retention", unit: "percent" },
-            { code: "magic_number", name: "Magic Number", unit: "ratio" }
+            { code: "arr",
+        category: "technology", name: "Annual Recurring Revenue", unit: "currency" },
+            { code: "nrr",
+        category: "technology", name: "Net Revenue Retention", unit: "percent" },
+            { code: "magic_number",
+        category: "technology", name: "Magic Number", unit: "ratio" }
           ]
-        }
+    }
       },
       {
         code: "AGENCY_DEV",
@@ -249,16 +259,18 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "DESIGN",
+        category: "creative",
         name: "Graphic & Brand Design",
         sicCodes: ["74100"],
         keywords: ["design", "graphic design", "branding", "logo", "creative"],
         benchmarkProfile: {
           primaryMetrics: ["revenue_per_designer", "project_margin", "client_retention"],
           secondaryMetrics: ["avg_project_value", "repeat_client_rate"]
-        }
+    }
       },
       {
         code: "PHOTO",
+        category: "creative",
         name: "Photography & Videography",
         sicCodes: ["74201", "59111"],
         keywords: ["photographer", "videographer", "film", "production", "content creation"],
@@ -269,6 +281,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "MEDIA",
+        category: "creative",
         name: "Media Production",
         sicCodes: ["59111", "59112", "59120"],
         keywords: ["production", "film", "TV", "broadcast", "media"],
@@ -279,6 +292,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "GAMES",
+        category: "creative",
         name: "Games Development",
         sicCodes: ["62011", "58210"],
         keywords: ["games", "gaming", "game development", "indie", "studio"],
@@ -289,6 +303,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "MUSIC",
+        category: "creative",
         name: "Music & Audio Production",
         sicCodes: ["59200", "90030"],
         keywords: ["music", "audio", "recording", "studio", "sound"],
@@ -299,6 +314,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "PUBLISH",
+        category: "creative",
         name: "Publishing & Content",
         sicCodes: ["58110", "58130", "58140"],
         keywords: ["publishing", "content", "editorial", "magazine", "books"],
@@ -319,6 +335,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "CONST_MAIN",
+        category: "construction_property",
         name: "Main Contractor / Builder",
         sicCodes: ["41201", "41202"],
         keywords: ["builder", "contractor", "construction", "building"],
@@ -326,10 +343,12 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           primaryMetrics: ["gross_margin", "revenue_per_employee", "order_book_months"],
           secondaryMetrics: ["project_overrun_rate", "retention_release_days", "subcontractor_ratio"],
           industrySpecificMetrics: [
-            { code: "retention_held", name: "Retention Held", unit: "currency" },
-            { code: "certified_vs_claimed", name: "Certified vs Claimed %", unit: "percent" }
+            { code: "retention_held",
+        category: "construction_property", name: "Retention Held", unit: "currency" },
+            { code: "certified_vs_claimed",
+        category: "construction_property", name: "Certified vs Claimed %", unit: "percent" }
           ]
-        }
+    }
       },
       {
         code: "CONST_SPEC",
@@ -397,6 +416,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "DENTAL",
+        category: "healthcare",
         name: "Dental Practice",
         sicCodes: ["86230"],
         keywords: ["dentist", "dental", "orthodontics", "oral health"],
@@ -404,10 +424,12 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           primaryMetrics: ["revenue_per_surgery", "revenue_per_dentist", "patient_retention"],
           secondaryMetrics: ["nhs_vs_private_ratio", "hygiene_revenue_percent", "fta_rate"],
           industrySpecificMetrics: [
-            { code: "uda_value", name: "UDA Value", unit: "currency" },
-            { code: "chair_utilisation", name: "Chair Utilisation", unit: "percent" }
+            { code: "uda_value",
+        category: "healthcare", name: "UDA Value", unit: "currency" },
+            { code: "chair_utilisation",
+        category: "healthcare", name: "Chair Utilisation", unit: "percent" }
           ]
-        }
+    }
       },
       {
         code: "VET",
@@ -491,6 +513,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "RESTAURANT",
+        category: "hospitality",
         name: "Restaurant / Café",
         sicCodes: ["56101", "56102", "56103"],
         keywords: ["restaurant", "cafe", "dining", "food service"],
@@ -498,10 +521,12 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           primaryMetrics: ["revenue_per_cover", "gp_percent", "labour_percent"],
           secondaryMetrics: ["covers_per_day", "avg_spend", "table_turn"],
           industrySpecificMetrics: [
-            { code: "food_cost_percent", name: "Food Cost %", unit: "percent" },
-            { code: "beverage_cost_percent", name: "Beverage Cost %", unit: "percent" }
+            { code: "food_cost_percent",
+        category: "hospitality", name: "Food Cost %", unit: "percent" },
+            { code: "beverage_cost_percent",
+        category: "hospitality", name: "Beverage Cost %", unit: "percent" }
           ]
-        }
+    }
       },
       {
         code: "PUB",
@@ -539,6 +564,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "LEISURE",
+        category: "hospitality",
         name: "Leisure & Entertainment",
         sicCodes: ["93110", "93210", "93290"],
         keywords: ["leisure", "entertainment", "bowling", "cinema", "attractions"],
@@ -559,6 +585,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "RETAIL_GEN",
+        category: "retail",
         name: "General Retail",
         sicCodes: ["47190"],
         keywords: ["shop", "retail", "store", "high street"],
@@ -566,13 +593,16 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           primaryMetrics: ["sales_per_sqft", "gross_margin", "stock_turn"],
           secondaryMetrics: ["conversion_rate", "avg_basket", "shrinkage"],
           industrySpecificMetrics: [
-            { code: "like_for_like_growth", name: "Like-for-Like Growth", unit: "percent" },
-            { code: "footfall", name: "Footfall", unit: "number" }
+            { code: "like_for_like_growth",
+        category: "retail", name: "Like-for-Like Growth", unit: "percent" },
+            { code: "footfall",
+        category: "retail", name: "Footfall", unit: "number" }
           ]
-        }
+    }
       },
       {
         code: "RETAIL_FOOD",
+        category: "retail",
         name: "Food Retail / Convenience",
         sicCodes: ["47110", "47210", "47220", "47230", "47240", "47250", "47290"],
         keywords: ["convenience store", "grocery", "newsagent", "off-licence"],
@@ -583,6 +613,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "RETAIL_SPEC",
+        category: "retail",
         name: "Specialist Retail",
         sicCodes: ["47410", "47510", "47530", "47540", "47590", "47710", "47720", "47750", "47770", "47780", "47790"],
         keywords: ["specialist", "boutique", "niche retail"],
@@ -593,6 +624,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "AUTO_RETAIL",
+        category: "retail",
         name: "Motor Trade / Dealership",
         sicCodes: ["45111", "45112", "45200", "45310", "45320", "45400"],
         keywords: ["car dealer", "motor trade", "garage", "dealership", "used cars"],
@@ -613,6 +645,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "MFG_GEN",
+        category: "manufacturing",
         name: "General Manufacturing",
         sicCodes: ["10000-33000"],
         keywords: ["manufacturing", "factory", "production", "maker"],
@@ -620,13 +653,16 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           primaryMetrics: ["revenue_per_employee", "gross_margin", "oee"],
           secondaryMetrics: ["inventory_turns", "on_time_delivery", "scrap_rate"],
           industrySpecificMetrics: [
-            { code: "oee", name: "Overall Equipment Effectiveness", unit: "percent" },
-            { code: "capacity_utilisation", name: "Capacity Utilisation", unit: "percent" }
+            { code: "oee",
+        category: "manufacturing", name: "Overall Equipment Effectiveness", unit: "percent" },
+            { code: "capacity_utilisation",
+        category: "manufacturing", name: "Capacity Utilisation", unit: "percent" }
           ]
-        }
+    }
       },
       {
         code: "MFG_FOOD",
+        category: "manufacturing",
         name: "Food & Beverage Manufacturing",
         sicCodes: ["10110-10890", "11010-11070"],
         keywords: ["food manufacturing", "beverage", "bakery", "food production"],
@@ -637,6 +673,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "MFG_PREC",
+        category: "manufacturing",
         name: "Precision Engineering",
         sicCodes: ["25620", "28410", "28990"],
         keywords: ["precision engineering", "CNC", "machining", "toolmaking"],
@@ -647,6 +684,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "PRINT",
+        category: "manufacturing",
         name: "Print & Packaging",
         sicCodes: ["17210", "17230", "17290", "18110", "18120", "18130", "18140"],
         keywords: ["print", "printing", "packaging", "labels"],
@@ -667,6 +705,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "WHOLESALE",
+        category: "wholesale",
         name: "Wholesale Distribution",
         sicCodes: ["46110-46900"],
         keywords: ["wholesale", "distributor", "trade supplier"],
@@ -674,12 +713,14 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           primaryMetrics: ["gross_margin", "inventory_turns", "revenue_per_employee"],
           secondaryMetrics: ["order_accuracy", "fill_rate", "delivery_cost_percent"],
           industrySpecificMetrics: [
-            { code: "gmroi", name: "Gross Margin Return on Inventory", unit: "ratio" }
+            { code: "gmroi",
+        category: "wholesale", name: "Gross Margin Return on Inventory", unit: "ratio" }
           ]
-        }
+    }
       },
       {
         code: "LOGISTICS",
+        category: "wholesale",
         name: "Logistics & Haulage",
         sicCodes: ["49410", "49420", "52100", "52210", "52290"],
         keywords: ["logistics", "haulage", "transport", "courier", "freight"],
@@ -690,6 +731,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "IMPORT_EXPORT",
+        category: "wholesale",
         name: "Import/Export Trading",
         sicCodes: ["46900"],
         keywords: ["import", "export", "trading", "international trade"],
@@ -710,16 +752,18 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "RENEW",
+        category: "energy",
         name: "Renewable Energy",
         sicCodes: ["35110", "35120", "35130"],
         keywords: ["solar", "wind", "renewable", "green energy", "EV charging"],
         benchmarkProfile: {
           primaryMetrics: ["capacity_factor", "revenue_per_mw", "ppa_coverage"],
           secondaryMetrics: ["maintenance_cost_per_mw", "availability"]
-        }
+    }
       },
       {
         code: "INSTALL_ENERGY",
+        category: "energy",
         name: "Energy Installation (Solar, HVAC, etc.)",
         sicCodes: ["43210", "43220"],
         keywords: ["solar installer", "heat pump", "HVAC", "boiler"],
@@ -730,6 +774,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "WASTE",
+        category: "energy",
         name: "Waste Management & Recycling",
         sicCodes: ["38110", "38120", "38210", "38220", "38310", "38320"],
         keywords: ["waste", "recycling", "skip hire", "refuse"],
@@ -740,6 +785,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "ENVIRON",
+        category: "energy",
         name: "Environmental Consultancy",
         sicCodes: ["71200"],
         keywords: ["environmental", "ecology", "sustainability", "ESG"],
@@ -760,6 +806,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "CHARITY",
+        category: "charity",
         name: "Charity / Non-Profit",
         sicCodes: ["88990", "94110", "94120", "94200", "94910", "94920", "94990"],
         keywords: ["charity", "non-profit", "NGO", "foundation", "trust"],
@@ -767,13 +814,16 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           primaryMetrics: ["fundraising_roi", "charitable_spending_ratio", "reserves_months"],
           secondaryMetrics: ["donor_retention", "volunteer_hours", "grant_success_rate"],
           industrySpecificMetrics: [
-            { code: "cost_to_raise_pound", name: "Cost to Raise £1", unit: "currency" },
-            { code: "charitable_ratio", name: "Charitable Spend Ratio", unit: "percent" }
+            { code: "cost_to_raise_pound",
+        category: "charity", name: "Cost to Raise £1", unit: "currency" },
+            { code: "charitable_ratio",
+        category: "charity", name: "Charitable Spend Ratio", unit: "percent" }
           ]
-        }
+    }
       },
       {
         code: "SOCIAL_ENT",
+        category: "charity",
         name: "Social Enterprise",
         sicCodes: ["88990"],
         keywords: ["social enterprise", "CIC", "community interest", "impact"],
@@ -784,6 +834,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "EDUCATION",
+        category: "charity",
         name: "Education & Training Provider",
         sicCodes: ["85310", "85320", "85410", "85420", "85590"],
         keywords: ["training", "education", "courses", "academy", "school"],
@@ -804,16 +855,18 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "TRAVEL_AGENT",
+        category: "travel",
         name: "Travel Agency / Tour Operator",
         sicCodes: ["79110", "79120"],
         keywords: ["travel agent", "tour operator", "holidays", "travel"],
         benchmarkProfile: {
           primaryMetrics: ["commission_margin", "revenue_per_consultant", "booking_value"],
           secondaryMetrics: ["ancillary_attach_rate", "repeat_booking_rate"]
-        }
+    }
       },
       {
         code: "TOUR",
+        category: "travel",
         name: "Tours & Experiences",
         sicCodes: ["79120", "79900"],
         keywords: ["tours", "experiences", "activities", "sightseeing"],
@@ -824,6 +877,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "TRANSPORT",
+        category: "travel",
         name: "Passenger Transport",
         sicCodes: ["49100", "49310", "49320", "49390"],
         keywords: ["coach", "taxi", "minibus", "private hire", "chauffeur"],
@@ -844,16 +898,18 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "FARM",
+        category: "agriculture",
         name: "Farming / Agriculture",
         sicCodes: ["01110-01640"],
         keywords: ["farm", "agriculture", "arable", "livestock", "dairy"],
         benchmarkProfile: {
           primaryMetrics: ["yield_per_hectare", "margin_per_hectare", "output_per_lu"],
           secondaryMetrics: ["bps_dependency", "diversification_income", "tenancy_percent"]
-        }
+    }
       },
       {
         code: "GARDEN",
+        category: "agriculture",
         name: "Landscaping & Garden Services",
         sicCodes: ["81300"],
         keywords: ["landscaping", "garden", "groundscare", "lawn"],
@@ -864,6 +920,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "EQUINE",
+        category: "agriculture",
         name: "Equine / Equestrian",
         sicCodes: ["01430", "93190"],
         keywords: ["equestrian", "livery", "horse", "riding school"],
@@ -884,16 +941,18 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "IFA",
+        category: "financial_services",
         name: "Financial Advice / IFA",
         sicCodes: ["66190"],
         keywords: ["IFA", "financial adviser", "wealth management", "financial planning"],
         benchmarkProfile: {
           primaryMetrics: ["aum_per_adviser", "recurring_revenue_percent", "client_retention"],
           secondaryMetrics: ["new_client_acquisition", "avg_case_size", "trail_income_percent"]
-        }
+    }
       },
       {
         code: "MORTGAGE",
+        category: "financial_services",
         name: "Mortgage Broker",
         sicCodes: ["66190"],
         keywords: ["mortgage broker", "mortgage adviser", "home loans"],
@@ -904,6 +963,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "INSURANCE",
+        category: "financial_services",
         name: "Insurance Broker",
         sicCodes: ["66220"],
         keywords: ["insurance broker", "commercial insurance", "insurance"],
@@ -914,6 +974,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "FINTECH",
+        category: "financial_services",
         name: "Fintech / Payments",
         sicCodes: ["64190", "66190"],
         keywords: ["fintech", "payments", "financial technology"],
@@ -934,16 +995,18 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "SECURITY",
+        category: "other_services",
         name: "Security Services",
         sicCodes: ["80100", "80200", "80300"],
         keywords: ["security", "guarding", "door supervision", "CCTV"],
         benchmarkProfile: {
           primaryMetrics: ["revenue_per_officer", "gross_margin", "contract_retention"],
           secondaryMetrics: ["absence_rate", "training_hours_per_officer"]
-        }
+    }
       },
       {
         code: "CLEANING",
+        category: "other_services",
         name: "Cleaning Services",
         sicCodes: ["81210", "81220", "81290"],
         keywords: ["cleaning", "janitorial", "commercial cleaning", "window cleaning"],
@@ -954,6 +1017,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "FUNERAL",
+        category: "other_services",
         name: "Funeral Services",
         sicCodes: ["96030"],
         keywords: ["funeral", "undertaker", "cremation"],
@@ -964,6 +1028,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "PERSONAL",
+        category: "other_services",
         name: "Personal Services (Hair, Beauty, etc.)",
         sicCodes: ["96020", "96040"],
         keywords: ["salon", "hairdresser", "beauty", "barber", "nails"],
@@ -974,6 +1039,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "PET",
+        category: "other_services",
         name: "Pet Services",
         sicCodes: ["96090"],
         keywords: ["dog grooming", "pet sitting", "kennels", "cattery", "dog walking"],
@@ -984,6 +1050,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "CHILDCARE",
+        category: "other_services",
         name: "Childcare / Nursery",
         sicCodes: ["88910"],
         keywords: ["nursery", "childcare", "preschool", "daycare"],

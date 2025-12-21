@@ -2,7 +2,7 @@
 // BENCHMARKING ASSESSMENT CONFIGURATION
 // ============================================================================
 
-import { AssessmentConfig, Question, Section } from '../../types/assessments';
+import type { AssessmentConfig } from '../../types/assessments';
 
 export const benchmarkingDiscoveryConfig: AssessmentConfig = {
   id: 'bm_discovery',
