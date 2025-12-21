@@ -287,7 +287,7 @@ VALUES (
   'research',
   ARRAY['PHARMA'],
   ARRAY['gross_margin', 'net_margin'],
-  'normal',
+  'medium',
   'pending',
   'Pharmacy sector facing significant margin compression (1.7-7% YoY declines reported). Monitor for further deterioration and update benchmarks accordingly. National Living Wage increases creating additional pressure.',
   '2025-06-01'
