@@ -295,7 +295,54 @@ serve(async (req) => {
       }
       if (lastBrace > 0) content = content.substring(0, lastBrace + 1);
       
-      narratives = JSON.parse(content);
+      // Fix control characters BEFORE attempting to parse
+      let inString = false;
+      let escaped = false;
+      let fixed = '';
+      
+      for (let i = 0; i < content.length; i++) {
+        const char = content[i];
+        const code = char.charCodeAt(0);
+        
+        if (escaped) {
+          fixed += char;
+          escaped = false;
+          continue;
+        }
+        
+        if (char === '\\') {
+          fixed += char;
+          escaped = true;
+          continue;
+        }
+        
+        if (char === '"') {
+          inString = !inString;
+          fixed += char;
+          continue;
+        }
+        
+        if (inString) {
+          // Escape control characters in strings
+          if (code === 0x09) {
+            fixed += '\\t';
+          } else if (code === 0x0A) {
+            fixed += '\\n';
+          } else if (code === 0x0D) {
+            fixed += '\\r';
+          } else if (code < 0x20) {
+            fixed += `\\u${code.toString(16).padStart(4, '0')}`;
+          } else if (code === 0x2028 || code === 0x2029) {
+            fixed += `\\u${code.toString(16).padStart(4, '0')}`;
+          } else {
+            fixed += char;
+          }
+        } else {
+          fixed += char;
+        }
+      }
+      
+      narratives = JSON.parse(fixed);
     } catch (e: any) {
       console.error('[SA Pass 2] Parse error:', e.message);
       console.error('[SA Pass 2] Content length:', result.choices[0].message.content.length);
@@ -329,50 +376,75 @@ serve(async (req) => {
         if (lastBrace > 0) content = content.substring(0, lastBrace + 1);
         
         // Fix control characters: escape them properly in string values
-        // This regex matches string values (handles escaped quotes)
+        // Use a more robust approach that handles all edge cases
         let inString = false;
         let escaped = false;
         let fixed = '';
+        let stringStart = -1;
         
         for (let i = 0; i < content.length; i++) {
           const char = content[i];
+          const code = char.charCodeAt(0);
           
+          // Handle escape sequences
           if (escaped) {
+            // If we're in a string and this is a control character after backslash, keep it as-is
+            // Otherwise, just add the character
             fixed += char;
             escaped = false;
             continue;
           }
           
+          // Check for backslash (escape character)
           if (char === '\\') {
             fixed += char;
             escaped = true;
             continue;
           }
           
+          // Check for string delimiter
           if (char === '"') {
+            // Check if this is an escaped quote (but we already handled backslash above)
             inString = !inString;
+            if (inString) {
+              stringStart = fixed.length;
+            }
             fixed += char;
             continue;
           }
           
+          // If we're inside a string, escape control characters
           if (inString) {
-            // Inside a string - escape control characters
-            const code = char.charCodeAt(0);
-            if (code < 0x20 && code !== 0x09 && code !== 0x0A && code !== 0x0D) {
-              // Control character that's not tab, newline, or carriage return
-              fixed += `\\u${code.toString(16).padStart(4, '0')}`;
-            } else if (code === 0x09) {
+            // Control characters that need escaping in JSON strings
+            if (code === 0x09) {  // Tab
               fixed += '\\t';
-            } else if (code === 0x0A) {
+            } else if (code === 0x0A) {  // Newline
               fixed += '\\n';
-            } else if (code === 0x0D) {
+            } else if (code === 0x0D) {  // Carriage return
               fixed += '\\r';
+            } else if (code < 0x20) {  // Other control characters
+              fixed += `\\u${code.toString(16).padStart(4, '0')}`;
+            } else if (code === 0x2028 || code === 0x2029) {  // Line/paragraph separators
+              fixed += `\\u${code.toString(16).padStart(4, '0')}`;
             } else {
               fixed += char;
             }
           } else {
+            // Outside string - just copy the character
             fixed += char;
           }
+        }
+        
+        // Verify the fix worked by checking if we have balanced braces and quotes
+        const openBraces = (fixed.match(/{/g) || []).length;
+        const closeBraces = (fixed.match(/}/g) || []).length;
+        const openQuotes = (fixed.match(/"/g) || []).length;
+        
+        if (openBraces !== closeBraces) {
+          console.warn(`[SA Pass 2] Unbalanced braces after fix: ${openBraces} open, ${closeBraces} close`);
+        }
+        if (openQuotes % 2 !== 0) {
+          console.warn(`[SA Pass 2] Unbalanced quotes after fix: ${openQuotes} quotes`);
         }
         
         narratives = JSON.parse(fixed);
