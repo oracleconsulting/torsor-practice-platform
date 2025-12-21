@@ -230,33 +230,52 @@ export default function UnifiedDashboardPage() {
           // Check if report is approved
           let reportApproved = false;
           if (saEngagement.stage_3_completed_at) {
+            console.log('🔍 Checking report status for engagement:', saEngagement.id);
+            
             const { data: report, error: reportError } = await supabase
               .from('sa_audit_reports')
-              .select('id, status, created_at')
+              .select('id, status, created_at, engagement_id')
               .eq('engagement_id', saEngagement.id)
               .order('created_at', { ascending: false })
               .limit(1)
               .maybeSingle();
             
-            console.log('🔍 Systems Audit report check:', { 
+            console.log('🔍 Systems Audit report check result:', { 
               report, 
               reportError, 
               engagementId: saEngagement.id,
               hasReport: !!report,
-              reportStatus: report?.status 
+              reportStatus: report?.status,
+              reportId: report?.id,
+              errorCode: reportError?.code,
+              errorMessage: reportError?.message,
+              errorDetails: reportError?.details
             });
             
             if (reportError) {
-              console.error('❌ Error fetching Systems Audit report:', reportError);
+              console.error('❌ Error fetching Systems Audit report:', {
+                code: reportError.code,
+                message: reportError.message,
+                details: reportError.details,
+                hint: reportError.hint
+              });
+              
+              // If it's an RLS error, log it specifically
+              if (reportError.code === '42501' || reportError.message?.includes('permission') || reportError.message?.includes('policy')) {
+                console.error('🚨 RLS POLICY ERROR: Client cannot access report. This may be because:');
+                console.error('   1. The RLS migration has not been applied');
+                console.error('   2. The report status is not "approved", "published", or "delivered"');
+                console.error('   3. The client_id does not match the engagement');
+              }
             }
             
             if (report && (report.status === 'approved' || report.status === 'published' || report.status === 'delivered')) {
               reportApproved = true;
-              console.log('✅ Report is approved:', report.status);
+              console.log('✅ Report is approved and accessible:', report.status);
             } else if (report) {
-              console.log('⚠️ Report exists but not approved. Status:', report.status);
-            } else {
-              console.log('⚠️ No report found for engagement');
+              console.log('⚠️ Report exists but not approved. Status:', report.status, '- Client cannot view yet');
+            } else if (!reportError) {
+              console.log('⚠️ No report found for engagement (no error, just no data)');
             }
           }
           
