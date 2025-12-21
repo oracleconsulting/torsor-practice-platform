@@ -158,6 +158,14 @@ export function SAClientReportView({ report }: SAClientReportViewProps) {
             ))}
           </div>
         )}
+        
+        {/* Hours Reclaimable - only show if value exists */}
+        {report.hours_reclaimable_weekly && report.hours_reclaimable_weekly > 0 && (
+          <div className="mt-4 pt-4 border-t border-green-200">
+            <p className="text-xs text-gray-500 uppercase mb-1">Hours Reclaimable Weekly</p>
+            <p className="text-2xl font-bold text-green-600">{report.hours_reclaimable_weekly}</p>
+          </div>
+        )}
       </div>
 
       {/* ROI Summary */}

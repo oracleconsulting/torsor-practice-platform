@@ -261,7 +261,7 @@ export function SAAdminReportView({ report, findings }: SAAdminReportViewProps) 
           Detailed Findings ({findings?.length || 0})
         </h3>
         <div className="space-y-4">
-          {findings?.map((finding: any, idx: number) => (
+          {findings && findings.length > 0 ? findings.map((finding: any, idx: number) => (
             <div key={finding.id || idx} className={`border-l-4 pl-4 py-3 ${
               finding.severity === 'critical' ? 'border-red-500' :
               finding.severity === 'high' ? 'border-orange-500' :
@@ -296,7 +296,12 @@ export function SAAdminReportView({ report, findings }: SAAdminReportViewProps) 
                 </p>
               )}
             </div>
-          ))}
+          )) : (
+            <div className="text-center py-8 text-gray-500">
+              <p className="text-sm">No findings available. Findings are generated during report creation.</p>
+              <p className="text-xs mt-2">If you just generated the report, findings should appear shortly.</p>
+            </div>
+          )}
         </div>
       </div>
 
