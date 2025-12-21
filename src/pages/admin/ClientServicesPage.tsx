@@ -7454,25 +7454,62 @@ function SystemsAuditClientModal({
         currentStatus: report.status
       });
       
+      // First, get the current user's practice_member ID for approved_by
+      let approvedByMemberId = null;
+      if (user?.id && currentMember?.id) {
+        approvedByMemberId = currentMember.id;
+      } else if (user?.id) {
+        // Fallback: try to get practice member ID
+        const { data: memberData } = await supabase
+          .from('practice_members')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        approvedByMemberId = memberData?.id || null;
+      }
+      
       const { data: updatedReport, error } = await supabase
         .from('sa_audit_reports')
         .update({
           status: 'approved', // Set status to 'approved' to make it visible to client
           approved_at: new Date().toISOString(),
-          approved_by: user?.id || null
+          approved_by: approvedByMemberId
         })
         .eq('id', report.id)
         .select()
         .single();
       
       if (error) {
-        console.error('[SA Report] Error updating status:', error);
-        throw error;
+        console.error('[SA Report] Error updating status:', {
+          error,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          reportId: report.id,
+          currentStatus: report.status
+        });
+        
+        // If it's an RLS error, provide more helpful message
+        if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
+          alert(`Permission denied: Unable to update report status. This may be an RLS policy issue. Error: ${error.message}`);
+        } else {
+          throw error;
+        }
+        return;
+      }
+      
+      if (!updatedReport) {
+        console.error('[SA Report] Update returned no data');
+        alert('Update completed but no data returned. Please refresh and check the report status.');
+        return;
       }
       
       console.log('[SA Report] Status updated successfully:', {
-        reportId: updatedReport?.id,
-        newStatus: updatedReport?.status
+        reportId: updatedReport.id,
+        newStatus: updatedReport.status,
+        approvedAt: updatedReport.approved_at,
+        approvedBy: updatedReport.approved_by
       });
       
       alert('Report is now available to the client!');
