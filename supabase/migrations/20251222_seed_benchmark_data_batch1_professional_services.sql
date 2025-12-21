@@ -29,6 +29,65 @@ ON CONFLICT (code) DO UPDATE SET
   updated_at = NOW();
 
 -- ═══════════════════════════════════════════════════════════════════════════════
+-- SECOND: INSERT METRIC DEFINITIONS
+-- Ensure all metric codes exist before inserting benchmark data
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+INSERT INTO benchmark_metrics (code, name, description, unit, higher_is_better, display_format)
+VALUES
+  ('revenue_per_employee', 'Revenue per Employee', 'Total revenue divided by headcount', 'currency', true, '£{value}'),
+  ('gross_margin', 'Gross Margin', 'Gross profit as percentage of revenue', 'percent', true, '{value}%'),
+  ('net_margin', 'Net Margin', 'Net profit as percentage of revenue', 'percent', true, '{value}%'),
+  ('debtor_days', 'Debtor Days', 'Average time to collect receivables', 'days', false, '{value} days'),
+  ('creditor_days', 'Creditor Days', 'Average time to pay suppliers', 'days', true, '{value} days'),
+  ('employee_turnover', 'Employee Turnover Rate', 'Annual staff attrition percentage', 'percent', false, '{value}%'),
+  ('client_retention', 'Client Retention Rate', 'Percentage of clients retained year-on-year', 'percent', true, '{value}%'),
+  
+  -- Accountancy specific
+  ('fee_income_per_partner', 'Fee Income per Partner', 'Total fees divided by equity partners', 'currency', true, '£{value}'),
+  ('charge_out_rate_qualified', 'Charge-out Rate (Qualified)', 'Hourly rate for qualified staff', 'currency', true, '£{value}/hr'),
+  ('audit_fee_percent', 'Audit Fee %', 'Audit fees as percentage of total', 'percent', false, '{value}%'),
+  ('advisory_service_percent', 'Advisory Service %', 'Advisory fees as percentage of total', 'percent', true, '{value}%'),
+  ('recurring_revenue_percent', 'Recurring Revenue %', 'Percentage of revenue that is recurring', 'percent', true, '{value}%'),
+  
+  -- Legal specific
+  ('fee_income_per_equity_partner', 'Fee Income per Equity Partner', 'Total fees divided by equity partners', 'currency', true, '£{value}'),
+  ('profit_per_equity_partner', 'Profit per Equity Partner', 'Net profit divided by equity partners', 'currency', true, '£{value}'),
+  ('cost_per_fee_earner', 'Cost per Fee Earner', 'Total costs per billing staff member', 'currency', false, '£{value}'),
+  ('billable_hours_target', 'Billable Hours Target', 'Annual chargeable hours target', 'number', true, '{value} hrs'),
+  ('lock_up_days', 'Lock-up Days', 'WIP plus debtor days', 'days', false, '{value} days'),
+  
+  -- Consultancy specific
+  ('billable_revenue_per_consultant', 'Billable Revenue per Consultant', 'Fee revenue per consulting staff', 'currency', true, '£{value}'),
+  ('utilisation_rate', 'Utilisation Rate', 'Percentage of time spent on billable work', 'percent', true, '{value}%'),
+  ('project_margin', 'Project Margin', 'Average margin on individual projects', 'percent', true, '{value}%'),
+  ('pipeline_coverage', 'Pipeline Coverage', 'Pipeline value as multiple of annual revenue', 'ratio', true, '{value}x'),
+  
+  -- Recruitment specific
+  ('perm_placement_fee_percent', 'Perm Placement Fee %', 'Fee as percentage of candidate salary', 'percent', true, '{value}%'),
+  ('temp_contract_margin', 'Temp/Contract Margin', 'Markup on contractor pay rates', 'percent', true, '{value}%'),
+  ('time_to_fill_days', 'Time to Fill', 'Average days to fill a role', 'days', false, '{value} days'),
+  ('fill_rate', 'Fill Rate', 'Percentage of roles successfully filled', 'percent', true, '{value}%'),
+  ('candidate_ghosting_rate', 'Candidate Ghosting Rate', 'Percentage of candidates who disappear', 'percent', false, '{value}%'),
+  
+  -- Marketing specific
+  ('client_concentration_top3', 'Client Concentration (Top 3)', 'Revenue from top 3 clients as %', 'percent', false, '{value}%'),
+  ('project_profitability', 'Project Profitability', 'Average margin on campaigns', 'percent', true, '{value}%'),
+  ('digital_revenue_percent', 'Digital Revenue %', 'Digital vs traditional revenue split', 'percent', true, '{value}%'),
+  ('new_business_win_rate', 'New Business Win Rate', 'Pitch success rate', 'percent', true, '{value}%'),
+  ('staff_utilisation', 'Staff Utilisation', 'Billable vs non-billable time', 'percent', true, '{value}%'),
+  
+  -- Architecture specific
+  ('fee_income_per_architect', 'Fee Income per Architect', 'Fees per qualified architect', 'currency', true, '£{value}'),
+  ('project_win_rate', 'Project Win Rate', 'Tender success rate', 'percent', true, '{value}%'),
+  ('overhead_rate', 'Overhead Rate', 'Overhead as % of direct salary costs', 'percent', false, '{value}%'),
+  ('wip_days', 'WIP Days', 'Work in progress days', 'days', false, '{value} days'),
+  
+  -- Engineering specific
+  ('revenue_per_fee_earner', 'Revenue per Fee Earner', 'Revenue per billing engineer', 'currency', true, '£{value}')
+ON CONFLICT (code) DO NOTHING;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
 -- 1. ACCOUNTANCY & TAX SERVICES (ACCT)
 -- Source: Law Society Financial Benchmarking Survey 2024 (Hazlewoods LLP)
 -- Reliability: Tier 2 | Sample: 147 firms, £1.5bn combined fee income
@@ -384,64 +443,4 @@ VALUES (
   'Primary ACE source is from 2016 - 8 years old. Need to contact ACE for updated benchmarks or find alternative source. Current data has low confidence.',
   '2025-01-31'
 );
-
-
--- ═══════════════════════════════════════════════════════════════════════════════
--- ENSURE METRIC DEFINITIONS EXIST
--- Run this to create any missing metric definitions
--- ═══════════════════════════════════════════════════════════════════════════════
-
-INSERT INTO benchmark_metrics (code, name, description, unit, higher_is_better, display_format)
-VALUES
-  ('revenue_per_employee', 'Revenue per Employee', 'Total revenue divided by headcount', 'currency', true, '£{value}'),
-  ('gross_margin', 'Gross Margin', 'Gross profit as percentage of revenue', 'percent', true, '{value}%'),
-  ('net_margin', 'Net Margin', 'Net profit as percentage of revenue', 'percent', true, '{value}%'),
-  ('debtor_days', 'Debtor Days', 'Average time to collect receivables', 'days', false, '{value} days'),
-  ('creditor_days', 'Creditor Days', 'Average time to pay suppliers', 'days', true, '{value} days'),
-  ('employee_turnover', 'Employee Turnover Rate', 'Annual staff attrition percentage', 'percent', false, '{value}%'),
-  ('client_retention', 'Client Retention Rate', 'Percentage of clients retained year-on-year', 'percent', true, '{value}%'),
-  
-  -- Accountancy specific
-  ('fee_income_per_partner', 'Fee Income per Partner', 'Total fees divided by equity partners', 'currency', true, '£{value}'),
-  ('charge_out_rate_qualified', 'Charge-out Rate (Qualified)', 'Hourly rate for qualified staff', 'currency', true, '£{value}/hr'),
-  ('audit_fee_percent', 'Audit Fee %', 'Audit fees as percentage of total', 'percent', false, '{value}%'),
-  ('advisory_service_percent', 'Advisory Service %', 'Advisory fees as percentage of total', 'percent', true, '{value}%'),
-  ('recurring_revenue_percent', 'Recurring Revenue %', 'Percentage of revenue that is recurring', 'percent', true, '{value}%'),
-  
-  -- Legal specific
-  ('fee_income_per_equity_partner', 'Fee Income per Equity Partner', 'Total fees divided by equity partners', 'currency', true, '£{value}'),
-  ('profit_per_equity_partner', 'Profit per Equity Partner', 'Net profit divided by equity partners', 'currency', true, '£{value}'),
-  ('cost_per_fee_earner', 'Cost per Fee Earner', 'Total costs per billing staff member', 'currency', false, '£{value}'),
-  ('billable_hours_target', 'Billable Hours Target', 'Annual chargeable hours target', 'number', true, '{value} hrs'),
-  ('lock_up_days', 'Lock-up Days', 'WIP plus debtor days', 'days', false, '{value} days'),
-  
-  -- Consultancy specific
-  ('billable_revenue_per_consultant', 'Billable Revenue per Consultant', 'Fee revenue per consulting staff', 'currency', true, '£{value}'),
-  ('utilisation_rate', 'Utilisation Rate', 'Percentage of time spent on billable work', 'percent', true, '{value}%'),
-  ('project_margin', 'Project Margin', 'Average margin on individual projects', 'percent', true, '{value}%'),
-  ('pipeline_coverage', 'Pipeline Coverage', 'Pipeline value as multiple of annual revenue', 'ratio', true, '{value}x'),
-  
-  -- Recruitment specific
-  ('perm_placement_fee_percent', 'Perm Placement Fee %', 'Fee as percentage of candidate salary', 'percent', true, '{value}%'),
-  ('temp_contract_margin', 'Temp/Contract Margin', 'Markup on contractor pay rates', 'percent', true, '{value}%'),
-  ('time_to_fill_days', 'Time to Fill', 'Average days to fill a role', 'days', false, '{value} days'),
-  ('fill_rate', 'Fill Rate', 'Percentage of roles successfully filled', 'percent', true, '{value}%'),
-  ('candidate_ghosting_rate', 'Candidate Ghosting Rate', 'Percentage of candidates who disappear', 'percent', false, '{value}%'),
-  
-  -- Marketing specific
-  ('client_concentration_top3', 'Client Concentration (Top 3)', 'Revenue from top 3 clients as %', 'percent', false, '{value}%'),
-  ('project_profitability', 'Project Profitability', 'Average margin on campaigns', 'percent', true, '{value}%'),
-  ('digital_revenue_percent', 'Digital Revenue %', 'Digital vs traditional revenue split', 'percent', true, '{value}%'),
-  ('new_business_win_rate', 'New Business Win Rate', 'Pitch success rate', 'percent', true, '{value}%'),
-  ('staff_utilisation', 'Staff Utilisation', 'Billable vs non-billable time', 'percent', true, '{value}%'),
-  
-  -- Architecture specific
-  ('fee_income_per_architect', 'Fee Income per Architect', 'Fees per qualified architect', 'currency', true, '£{value}'),
-  ('project_win_rate', 'Project Win Rate', 'Tender success rate', 'percent', true, '{value}%'),
-  ('overhead_rate', 'Overhead Rate', 'Overhead as % of direct salary costs', 'percent', false, '{value}%'),
-  ('wip_days', 'WIP Days', 'Work in progress days', 'days', false, '{value} days'),
-  
-  -- Engineering specific
-  ('revenue_per_fee_earner', 'Revenue per Fee Earner', 'Revenue per billing engineer', 'currency', true, '£{value}')
-ON CONFLICT (code) DO NOTHING;
 
