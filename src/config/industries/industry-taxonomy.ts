@@ -63,9 +63,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
             { code: "chargeable_hours_ratio", name: "Chargeable Hours Ratio", unit: "percent" },
             { code: "recurring_revenue_percent", name: "Recurring Revenue %", unit: "percent" },
             { code: "avg_fee_per_client", name: "Average Fee per Client", unit: "currency" },
-            category: "professional_services",
-          ]
-    }
+          ]}
       },
       {
         code: "LEGAL",
@@ -78,9 +76,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           industrySpecificMetrics: [
             { code: "pep", name: "Profit per Equity Partner", unit: "currency" },
             { code: "matters_per_fee_earner", name: "Matters per Fee Earner", unit: "number" },
-            category: "professional_services",
-          ]
-        }
+          ]}
       },
       {
         code: "CONSULT",
@@ -133,9 +129,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           industrySpecificMetrics: [
             { code: "perm_to_temp_ratio", name: "Perm to Temp Ratio", unit: "ratio" },
             { code: "nfr_rate", name: "Net Fee Revenue per Head", unit: "currency" },
-            category: "professional_services",
-          ]
-        }
+          ]}
       },
       {
         code: "MARKET",
@@ -179,9 +173,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
             { code: "arr", name: "Annual Recurring Revenue", unit: "currency" },
             { code: "nrr", name: "Net Revenue Retention", unit: "percent" },
             { code: "magic_number", name: "Magic Number", unit: "ratio" },
-            category: "technology",
-          ]
-    }
+          ]}
       },
       {
         code: "AGENCY_DEV",
@@ -204,9 +196,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           industrySpecificMetrics: [
             { code: "endpoints_per_tech", name: "Endpoints per Technician", unit: "number" },
             { code: "mrr_per_endpoint", name: "MRR per Endpoint", unit: "currency" },
-            category: "technology",
-          ]
-        }
+          ]}
       },
       {
         code: "ECOMM",
@@ -219,9 +209,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           industrySpecificMetrics: [
             { code: "aov", name: "Average Order Value", unit: "currency" },
             { code: "roas", name: "Return on Ad Spend", unit: "ratio" },
-            category: "technology",
-          ]
-        }
+          ]}
       },
       {
         code: "CYBER",
@@ -334,9 +322,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           industrySpecificMetrics: [
             { code: "retention_held", name: "Retention Held", unit: "currency" },
             { code: "certified_vs_claimed", name: "Certified vs Claimed %", unit: "percent" },
-            category: "construction_property",
-          ]
-    }
+          ]}
       },
       {
         code: "CONST_SPEC",
@@ -369,9 +355,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           industrySpecificMetrics: [
             { code: "avg_sale_price", name: "Average Sale Price", unit: "currency" },
             { code: "instructions_per_month", name: "Instructions per Month", unit: "number" },
-            category: "construction_property",
-          ]
-        }
+          ]}
       },
       {
         code: "PROP_MGMT",
@@ -414,9 +398,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           industrySpecificMetrics: [
             { code: "uda_value", name: "UDA Value", unit: "currency" },
             { code: "chair_utilisation", name: "Chair Utilisation", unit: "percent" },
-            category: "healthcare",
-          ]
-    }
+          ]}
       },
       {
         code: "VET",
@@ -512,9 +494,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           industrySpecificMetrics: [
             { code: "food_cost_percent", name: "Food Cost %", unit: "percent" },
             { code: "beverage_cost_percent", name: "Beverage Cost %", unit: "percent" },
-            category: "hospitality",
-          ]
-    }
+          ]}
       },
       {
         code: "PUB",
@@ -539,9 +519,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           industrySpecificMetrics: [
             { code: "adr", name: "Average Daily Rate", unit: "currency" },
             { code: "revpar", name: "Revenue per Available Room", unit: "currency" },
-            category: "hospitality",
-          ]
-        }
+          ]}
       },
       {
         code: "CATERING",
@@ -587,9 +565,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           industrySpecificMetrics: [
             { code: "like_for_like_growth", name: "Like-for-Like Growth", unit: "percent" },
             { code: "footfall", name: "Footfall", unit: "number" }
-            category: "retail",
-          ]
-    }
+          ]}
       },
       {
         code: "RETAIL_FOOD",
@@ -646,9 +622,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           industrySpecificMetrics: [
             { code: "oee", name: "Overall Equipment Effectiveness", unit: "percent" },
             { code: "capacity_utilisation", name: "Capacity Utilisation", unit: "percent" }
-            category: "manufacturing",
-          ]
-    }
+          ]}
       },
       {
         code: "MFG_FOOD",
@@ -704,9 +678,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           secondaryMetrics: ["order_accuracy", "fill_rate", "delivery_cost_percent"],
           industrySpecificMetrics: [
             { code: "gmroi", name: "Gross Margin Return on Inventory", unit: "ratio" }
-            category: "wholesale",
-          ]
-    }
+          ]}
       },
       {
         code: "LOGISTICS",
@@ -806,9 +778,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           industrySpecificMetrics: [
             { code: "cost_to_raise_pound", name: "Cost to Raise £1", unit: "currency" },
             { code: "charitable_ratio", name: "Charitable Spend Ratio", unit: "percent" }
-            category: "charity",
-          ]
-    }
+          ]}
       },
       {
         code: "SOCIAL_ENT",
