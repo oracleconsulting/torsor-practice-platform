@@ -7,87 +7,84 @@
 -- Drop existing INSERT policy for bm_engagements (only allows practice members)
 DROP POLICY IF EXISTS "Practice can create bm_engagements" ON bm_engagements;
 
--- Create new policies that allow clients to create their own engagements
-CREATE POLICY "Clients can create own bm_engagements" ON bm_engagements
+-- Create unified INSERT policy that allows both clients and practice members
+CREATE POLICY "Users can insert own practice engagements" ON bm_engagements
   FOR INSERT WITH CHECK (
-    -- Client must be creating an engagement for themselves
-    EXISTS (
-      SELECT 1 FROM practice_members pm
-      WHERE pm.id = bm_engagements.client_id
-      AND pm.user_id = auth.uid()
-      AND pm.member_type = 'client'
+    -- Practice members: check practice_id matches user's practice
+    practice_id IN (
+      SELECT practice_id 
+      FROM practice_members 
+      WHERE user_id = auth.uid()
+      AND role IN ('admin', 'consultant')
+    )
+    OR
+    -- Clients: check client_id matches practice_members.id where user_id = auth.uid()
+    client_id IN (
+      SELECT id FROM practice_members WHERE user_id = auth.uid()
     )
   );
 
-CREATE POLICY "Practice can create bm_engagements" ON bm_engagements
-  FOR INSERT WITH CHECK (
-    -- Practice members can create engagements for any client in their practice
-    EXISTS (
-      SELECT 1 FROM practice_members pm
-      WHERE pm.user_id = auth.uid()
-      AND pm.practice_id = bm_engagements.practice_id
-      AND pm.role IN ('admin', 'consultant')
-    )
-  );
+-- Drop existing INSERT policies if they exist
+DROP POLICY IF EXISTS "Clients can create own bm_assessment_responses" ON bm_assessment_responses;
+DROP POLICY IF EXISTS "Practice can create bm_assessment_responses" ON bm_assessment_responses;
 
--- Allow clients to INSERT their own assessment responses
-CREATE POLICY "Clients can create own bm_assessment_responses" ON bm_assessment_responses
+-- Unified INSERT policy for assessment responses
+CREATE POLICY "Users can insert own assessment responses" ON bm_assessment_responses
   FOR INSERT WITH CHECK (
-    -- Client must own the engagement
-    EXISTS (
-      SELECT 1 FROM bm_engagements bme
-      JOIN practice_members pm ON pm.id = bme.client_id
-      WHERE bme.id = bm_assessment_responses.engagement_id
-      AND pm.user_id = auth.uid()
-      AND pm.member_type = 'client'
-    )
-  );
-
--- Allow practice members to INSERT assessment responses
-CREATE POLICY "Practice can create bm_assessment_responses" ON bm_assessment_responses
-  FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM bm_engagements bme
-      JOIN practice_members pm ON pm.practice_id = bme.practice_id
-      WHERE bme.id = bm_assessment_responses.engagement_id
-      AND pm.user_id = auth.uid()
-      AND pm.role IN ('admin', 'consultant')
+    -- Check if the engagement belongs to the user (as client) or their practice (as practice member)
+    engagement_id IN (
+      SELECT id FROM bm_engagements 
+      WHERE 
+        -- Client owns the engagement
+        client_id IN (
+          SELECT id FROM practice_members WHERE user_id = auth.uid()
+        )
+        OR
+        -- Practice member's practice matches engagement's practice
+        practice_id IN (
+          SELECT practice_id 
+          FROM practice_members 
+          WHERE user_id = auth.uid()
+        )
     )
   );
 
 -- Fix client SELECT policy to use user_id instead of direct client_id match
 DROP POLICY IF EXISTS "Clients can view own bm_engagements" ON bm_engagements;
+DROP POLICY IF EXISTS "Practice can view bm_engagements" ON bm_engagements;
 
-CREATE POLICY "Clients can view own bm_engagements" ON bm_engagements
+-- Unified SELECT policy for both clients and practice members
+CREATE POLICY "Users can view own practice engagements" ON bm_engagements
   FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM practice_members pm
-      WHERE pm.id = bm_engagements.client_id
-      AND pm.user_id = auth.uid()
-      AND pm.member_type = 'client'
+    -- Practice members: check practice_id matches user's practice
+    practice_id IN (
+      SELECT practice_id 
+      FROM practice_members 
+      WHERE user_id = auth.uid()
+    )
+    OR
+    -- Clients: check client_id matches practice_members.id where user_id = auth.uid()
+    client_id IN (
+      SELECT id FROM practice_members WHERE user_id = auth.uid()
     )
   );
 
 -- Fix client UPDATE policy for engagements
 DROP POLICY IF EXISTS "Practice can update bm_engagements" ON bm_engagements;
 
-CREATE POLICY "Clients can update own bm_engagements" ON bm_engagements
+-- Unified UPDATE policy for both clients and practice members
+CREATE POLICY "Users can update own practice engagements" ON bm_engagements
   FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM practice_members pm
-      WHERE pm.id = bm_engagements.client_id
-      AND pm.user_id = auth.uid()
-      AND pm.member_type = 'client'
+    -- Practice members: check practice_id matches user's practice
+    practice_id IN (
+      SELECT practice_id 
+      FROM practice_members 
+      WHERE user_id = auth.uid()
     )
-  );
-
-CREATE POLICY "Practice can update bm_engagements" ON bm_engagements
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM practice_members pm
-      WHERE pm.user_id = auth.uid()
-      AND pm.practice_id = bm_engagements.practice_id
-      AND pm.role IN ('admin', 'consultant')
+    OR
+    -- Clients: check client_id matches practice_members.id where user_id = auth.uid()
+    client_id IN (
+      SELECT id FROM practice_members WHERE user_id = auth.uid()
     )
   );
 
