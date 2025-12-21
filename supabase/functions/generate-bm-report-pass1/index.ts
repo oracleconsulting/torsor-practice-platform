@@ -493,18 +493,15 @@ serve(async (req) => {
     // Calculate employee band
     const calculatedEmployeeBand = calculateEmployeeBand(assessmentData.employee_count || 0);
     
-    // Ensure industry_code is valid (fallback to assessment data if LLM didn't return it)
-    const finalIndustryCode = pass1Data.classification?.industryCode || assessmentData.industry_code || industryCode;
+    // Use the validated industry_code from assessment (we've already validated it exists above)
+    // The LLM shouldn't change the industry code - it's determined by the assessment
+    const finalIndustryCode = assessmentData.industry_code;
     
-    console.log('[BM Pass 1] Final industry_code determination:', {
-      fromLLM: pass1Data.classification?.industryCode,
-      fromAssessmentData: assessmentData.industry_code,
-      fromOriginal: industryCode,
-      final: finalIndustryCode
-    });
+    console.log('[BM Pass 1] Using industry_code for report:', finalIndustryCode);
     
-    if (!finalIndustryCode || finalIndustryCode === 'undefined' || finalIndustryCode === 'null') {
-      throw new Error(`Industry code is required but was not found. LLM returned: ${pass1Data.classification?.industryCode}, Assessment: ${assessmentData.industry_code}, Original: ${industryCode}`);
+    // Double-check it's valid (should never happen given validation above, but safety check)
+    if (!finalIndustryCode || typeof finalIndustryCode !== 'string' || finalIndustryCode.trim() === '') {
+      throw new Error(`Invalid industry_code: ${finalIndustryCode}. This should have been caught earlier.`);
     }
     
     // Save to database
