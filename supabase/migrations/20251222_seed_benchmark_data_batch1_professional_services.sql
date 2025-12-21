@@ -6,6 +6,29 @@
 -- Run this AFTER the main schema migration has been applied
 
 -- ═══════════════════════════════════════════════════════════════════════════════
+-- FIRST: INSERT INDUSTRIES
+-- Ensure all industry codes exist before inserting benchmark data
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+INSERT INTO industries (code, name, category, description, sic_codes, keywords, is_active)
+VALUES
+  ('ACCT', 'Accountancy & Tax Services', 'professional_services', 'Professional accountancy, tax advisory, audit and bookkeeping services', ARRAY['69201', '69202'], ARRAY['accountant', 'tax', 'audit', 'bookkeeping', 'payroll'], true),
+  ('LEGAL', 'Legal Services', 'professional_services', 'Solicitors, barristers, legal advisory and conveyancing services', ARRAY['69101', '69102', '69109'], ARRAY['solicitor', 'lawyer', 'law firm', 'legal', 'barrister', 'conveyancing'], true),
+  ('CONSULT', 'Management Consultancy', 'professional_services', 'Business strategy, operations and management consulting', ARRAY['70229'], ARRAY['consultant', 'consulting', 'advisory', 'strategy'], true),
+  ('RECRUIT', 'Recruitment & Staffing', 'professional_services', 'Recruitment agencies, executive search and temporary staffing', ARRAY['78109', '78200', '78300'], ARRAY['recruitment', 'staffing', 'headhunter', 'executive search', 'temp agency'], true),
+  ('MARKET', 'Marketing & PR Agencies', 'professional_services', 'Marketing, PR, advertising and branding agencies', ARRAY['73110', '73120', '70210'], ARRAY['marketing', 'PR', 'public relations', 'advertising', 'branding', 'digital marketing'], true),
+  ('ARCH', 'Architecture & Design', 'professional_services', 'Architectural design, planning and building design services', ARRAY['71111'], ARRAY['architect', 'architecture', 'building design', 'planning'], true),
+  ('ENG', 'Engineering Consultancy', 'professional_services', 'Engineering consulting, structural, civil and mechanical engineering', ARRAY['71121', '71122', '71129'], ARRAY['engineer', 'engineering', 'structural', 'civil', 'mechanical'], true)
+ON CONFLICT (code) DO UPDATE SET
+  name = EXCLUDED.name,
+  category = EXCLUDED.category,
+  description = EXCLUDED.description,
+  sic_codes = EXCLUDED.sic_codes,
+  keywords = EXCLUDED.keywords,
+  is_active = EXCLUDED.is_active,
+  updated_at = NOW();
+
+-- ═══════════════════════════════════════════════════════════════════════════════
 -- 1. ACCOUNTANCY & TAX SERVICES (ACCT)
 -- Source: Law Society Financial Benchmarking Survey 2024 (Hazlewoods LLP)
 -- Reliability: Tier 2 | Sample: 147 firms, £1.5bn combined fee income
