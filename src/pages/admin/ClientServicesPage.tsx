@@ -911,6 +911,14 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           />
         )}
         
+        {/* Benchmarking Modal - show Benchmarking view for benchmarking service line */}
+        {selectedClient && selectedServiceLine === 'benchmarking' && (
+          <BenchmarkingClientModal 
+            clientId={selectedClient} 
+            onClose={() => setSelectedClient(null)}
+          />
+        )}
+        
         {/* Regular Client Detail Modal for other service lines */}
         {selectedClient && selectedServiceLine && selectedServiceLine !== 'discovery' && selectedServiceLine !== 'systems_audit' && (
           <ClientDetailModal 
@@ -7037,6 +7045,471 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
 // ============================================================================
 // SYSTEMS AUDIT CLIENT MODAL - View assessments, documents, and analysis
 // ============================================================================
+// ============================================================================
+// BENCHMARKING CLIENT MODAL
+// ============================================================================
+function BenchmarkingClientModal({ 
+  clientId, 
+  onClose
+}: { 
+  clientId: string; 
+  onClose: () => void;
+}) {
+  const { user } = useAuth();
+  const { data: currentMember } = useCurrentMember(user?.id);
+  const [activeTab, setActiveTab] = useState<'assessment' | 'hva' | 'context' | 'analysis'>('assessment');
+  const [loading, setLoading] = useState(true);
+  const [engagement, setEngagement] = useState<any>(null);
+  const [assessmentResponses, setAssessmentResponses] = useState<any>(null);
+  const [hvaStatus, setHvaStatus] = useState<any>(null);
+  const [report, setReport] = useState<any>(null);
+  const [generating, setGenerating] = useState(false);
+  const [clientName, setClientName] = useState<string>('');
+
+  useEffect(() => {
+    if (currentMember?.practice_id) {
+      fetchData();
+    }
+  }, [clientId, currentMember?.practice_id]);
+
+  const fetchData = async () => {
+    if (!currentMember?.practice_id) {
+      console.error('[Benchmarking Modal] No practice_id available');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Verify client
+      const { data: clientData } = await supabase
+        .from('practice_members')
+        .select('id, practice_id, name, client_company, company')
+        .eq('id', clientId)
+        .eq('practice_id', currentMember.practice_id)
+        .maybeSingle();
+      
+      if (clientData) {
+        setClientName(clientData.client_company || clientData.company || clientData.name || '');
+      }
+
+      // Fetch engagement
+      const { data: engagementData } = await supabase
+        .from('bm_engagements')
+        .select('*')
+        .eq('client_id', clientId)
+        .maybeSingle();
+
+      if (engagementData) {
+        setEngagement(engagementData);
+
+        // Fetch assessment responses
+        const { data: responsesData } = await supabase
+          .from('bm_assessment_responses')
+          .select('*')
+          .eq('engagement_id', engagementData.id)
+          .maybeSingle();
+        
+        // Also check service_line_assessments as fallback (for responses JSONB)
+        if (!responsesData) {
+          const { data: slaData } = await supabase
+            .from('service_line_assessments')
+            .select('responses, completed_at')
+            .eq('client_id', clientId)
+            .eq('service_line_code', 'benchmarking')
+            .maybeSingle();
+          
+          if (slaData) {
+            setAssessmentResponses({ responses: slaData.responses, completed_at: slaData.completed_at });
+          }
+        } else {
+          setAssessmentResponses(responsesData);
+        }
+
+        // Fetch report
+        const { data: reportData } = await supabase
+          .from('bm_reports')
+          .select('*')
+          .eq('engagement_id', engagementData.id)
+          .maybeSingle();
+        
+        setReport(reportData);
+
+        // Fetch HVA status (Part 3 assessment)
+        const { data: hvaData } = await supabase
+          .from('client_assessments')
+          .select('status, completion_percentage, completed_at, value_analysis_data')
+          .eq('client_id', clientId)
+          .eq('assessment_type', 'part3')
+          .maybeSingle();
+        
+        setHvaStatus(hvaData);
+      }
+    } catch (error) {
+      console.error('[Benchmarking Modal] Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateReport = async () => {
+    if (!engagement) return;
+    
+    setGenerating(true);
+    try {
+      const { error } = await supabase.functions.invoke('generate-bm-report-pass1', {
+        body: { engagementId: engagement.id }
+      });
+
+      if (error) throw error;
+      
+      // Poll for report completion
+      setTimeout(() => {
+        fetchData();
+        setGenerating(false);
+      }, 3000);
+    } catch (error: any) {
+      console.error('[Benchmarking] Error generating report:', error);
+      alert(`Error: ${error.message || 'Unknown error'}`);
+      setGenerating(false);
+    }
+  };
+
+  const handleShareWithClient = async () => {
+    if (!engagement) return;
+    
+    if (!confirm('Make this report available to the client?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('bm_engagements')
+        .update({ 
+          status: 'approved',
+          approved_at: new Date().toISOString(),
+          approved_by: currentMember?.id || null
+        })
+        .eq('id', engagement.id);
+      
+      if (error) throw error;
+      
+      alert('Report is now available to the client!');
+      await fetchData();
+    } catch (error: any) {
+      console.error('[Benchmarking] Error sharing report:', error);
+      alert(`Error: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  const canGenerate = engagement?.status === 'assessment_complete' || engagement?.status === 'pass1_complete';
+  const hasReport = !!report;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-teal-50 to-cyan-50">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Benchmarking</h2>
+            <p className="text-sm text-gray-500">{clientName || `Client ID: ${clientId}`}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200">
+          {[
+            { id: 'assessment', label: 'Assessment', icon: FileText },
+            { id: 'hva', label: 'HVA Assessment', icon: Award },
+            { id: 'context', label: 'Context / Documents', icon: Upload },
+            { id: 'analysis', label: 'Analysis', icon: Sparkles }
+          ].map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                className={`flex-1 px-6 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? 'text-teal-600 border-b-2 border-teal-600 bg-teal-50/50'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-teal-600" />
+            </div>
+          ) : (
+            <>
+              {/* ASSESSMENT TAB */}
+              {activeTab === 'assessment' && (
+                <div className="space-y-6">
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="bg-teal-50 px-6 py-4 border-b border-gray-200">
+                      <h3 className="font-semibold text-gray-900">Benchmarking Assessment</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {engagement?.assessment_completed_at ? `Completed ${new Date(engagement.assessment_completed_at).toLocaleDateString()}` : 'Not started'}
+                      </p>
+                    </div>
+                    <div className="p-6">
+                      {assessmentResponses ? (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            {(() => {
+                              // Handle both JSONB responses field and individual columns
+                              const fields = assessmentResponses.responses 
+                                ? Object.entries(assessmentResponses.responses)
+                                : Object.entries(assessmentResponses).filter(([key]) => 
+                                    !['engagement_id', 'client_id', 'created_at', 'updated_at', 'completed_at'].includes(key)
+                                  );
+                              
+                              return fields.map(([key, value]: [string, any]) => (
+                                <div key={key} className="border border-gray-200 rounded-lg p-4">
+                                  <div className="text-sm font-medium text-gray-500 capitalize">{key.replace(/_/g, ' ')}</div>
+                                  <div className="mt-1 text-gray-900">
+                                    {Array.isArray(value) ? value.join(', ') : String(value || 'N/A')}
+                                  </div>
+                                </div>
+                              ));
+                            })()}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          Assessment not yet completed by client
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* HVA ASSESSMENT TAB */}
+              {activeTab === 'hva' && (
+                <div className="space-y-6">
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="bg-amber-50 px-6 py-4 border-b border-gray-200">
+                      <h3 className="font-semibold text-gray-900">Hidden Value Audit (Part 3)</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {hvaStatus?.status === 'completed' ? `Completed ${hvaStatus.completed_at ? new Date(hvaStatus.completed_at).toLocaleDateString() : ''}` : 'Not completed'}
+                      </p>
+                    </div>
+                    <div className="p-6">
+                      {hvaStatus?.status === 'completed' ? (
+                        <div className="space-y-4">
+                          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                            <div className="flex items-center gap-2 text-emerald-800">
+                              <CheckCircle className="w-5 h-5" />
+                              <span className="font-medium">HVA Completed</span>
+                            </div>
+                            <p className="text-sm text-emerald-700 mt-2">
+                              Value analysis data is available and will be included in the benchmarking report.
+                            </p>
+                            {hvaStatus.value_analysis_data && (
+                              <div className="mt-4 text-sm text-emerald-900">
+                                <div className="font-medium mb-2">Summary:</div>
+                                <div className="pl-4 space-y-1">
+                                  {hvaStatus.value_analysis_data.business_stage && (
+                                    <div>Business Stage: <strong>{hvaStatus.value_analysis_data.business_stage}</strong></div>
+                                  )}
+                                  {hvaStatus.value_analysis_data.total_value && (
+                                    <div>Total Value Opportunity: <strong>£{Number(hvaStatus.value_analysis_data.total_value).toLocaleString()}</strong></div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          Client has not completed the Hidden Value Audit yet. 
+                          <div className="mt-2 text-sm">HVA data will be included in the benchmarking analysis once completed.</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* CONTEXT / DOCUMENTS TAB */}
+              {activeTab === 'context' && (
+                <div className="space-y-6">
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                      <h3 className="font-semibold text-gray-900">Context Notes & Documents</h3>
+                      <p className="text-sm text-gray-600 mt-1">Additional context and documents for this engagement</p>
+                    </div>
+                    <div className="p-6">
+                      <div className="text-center py-8 text-gray-500">
+                        Context notes and document upload coming soon
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ANALYSIS TAB */}
+              {activeTab === 'analysis' && (
+                <div className="space-y-6">
+                  {!hasReport ? (
+                    <div className="border border-gray-200 rounded-xl p-8 text-center">
+                      <Sparkles className="w-12 h-12 text-teal-600 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No Report Generated</h3>
+                      <p className="text-gray-600 mb-6">
+                        {canGenerate 
+                          ? 'Generate the benchmarking report to view analysis and recommendations.'
+                          : 'Complete the assessment first before generating the report.'}
+                      </p>
+                      {canGenerate && (
+                        <button
+                          onClick={handleGenerateReport}
+                          disabled={generating}
+                          className="px-6 py-3 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white rounded-lg flex items-center gap-2 mx-auto"
+                        >
+                          {generating ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span>Generating...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-4 h-4" />
+                              <span>Generate Report</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {/* Report Actions */}
+                      <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900">Benchmarking Report</h3>
+                          <p className="text-sm text-gray-500">
+                            Generated {report.created_at ? new Date(report.created_at).toLocaleDateString() : 'Recently'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={handleGenerateReport}
+                            disabled={generating}
+                            className="px-4 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg flex items-center gap-2"
+                          >
+                            {generating ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Regenerating...</span>
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="w-4 h-4" />
+                                <span>Regenerate</span>
+                              </>
+                            )}
+                          </button>
+                          {engagement?.status !== 'approved' && (
+                            <button
+                              onClick={handleShareWithClient}
+                              className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg flex items-center gap-2"
+                            >
+                              <Share2 className="w-4 h-4" />
+                              <span>Share with Client</span>
+                            </button>
+                          )}
+                          {engagement?.status === 'approved' && (
+                            <div className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4" />
+                              <span>Shared with Client</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Report Content */}
+                      <div className="space-y-6">
+                        {report.headline && (
+                          <div className="border border-gray-200 rounded-xl p-6">
+                            <h4 className="text-xl font-bold text-gray-900 mb-2">{report.headline}</h4>
+                            {report.executive_summary && (
+                              <p className="text-gray-700">{report.executive_summary}</p>
+                            )}
+                          </div>
+                        )}
+
+                        {report.position_narrative && (
+                          <div className="border border-gray-200 rounded-xl p-6">
+                            <h4 className="font-semibold text-gray-900 mb-3">Your Position</h4>
+                            <p className="text-gray-700 whitespace-pre-wrap">{report.position_narrative}</p>
+                          </div>
+                        )}
+
+                        {report.top_strengths && Array.isArray(report.top_strengths) && report.top_strengths.length > 0 && (
+                          <div className="border border-emerald-200 rounded-xl p-6 bg-emerald-50">
+                            <h4 className="font-semibold text-emerald-900 mb-3">Top Strengths</h4>
+                            <ul className="space-y-2">
+                              {report.top_strengths.map((strength: any, idx: number) => (
+                                <li key={idx} className="text-emerald-800">• {strength.description || strength}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {report.top_gaps && Array.isArray(report.top_gaps) && report.top_gaps.length > 0 && (
+                          <div className="border border-amber-200 rounded-xl p-6 bg-amber-50">
+                            <h4 className="font-semibold text-amber-900 mb-3">Improvement Opportunities</h4>
+                            <ul className="space-y-2">
+                              {report.top_gaps.map((gap: any, idx: number) => (
+                                <li key={idx} className="text-amber-800">• {gap.description || gap}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {report.opportunity_narrative && (
+                          <div className="border border-gray-200 rounded-xl p-6">
+                            <h4 className="font-semibold text-gray-900 mb-3">Opportunity</h4>
+                            <p className="text-gray-700 whitespace-pre-wrap">{report.opportunity_narrative}</p>
+                            {report.total_annual_opportunity && (
+                              <div className="mt-4 text-lg font-bold text-teal-600">
+                                Total Annual Opportunity: £{Number(report.total_annual_opportunity).toLocaleString()}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {report.admin_talking_points && Array.isArray(report.admin_talking_points) && report.admin_talking_points.length > 0 && (
+                          <div className="border border-blue-200 rounded-xl p-6 bg-blue-50">
+                            <h4 className="font-semibold text-blue-900 mb-3">Talking Points</h4>
+                            <ul className="space-y-2">
+                              {report.admin_talking_points.map((point: any, idx: number) => (
+                                <li key={idx} className="text-blue-800">• {point}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SystemsAuditClientModal({ 
   clientId, 
   onClose
