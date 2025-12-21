@@ -7,10 +7,11 @@ import type { AssessmentConfig } from '../../types/assessments';
 export const benchmarkingDiscoveryConfig: AssessmentConfig = {
   id: 'bm_discovery',
   name: 'Benchmarking Assessment',
-  description: 'Help us understand your business so we can find the right comparisons',
-  estimatedMinutes: 20,
-  totalQuestions: 20,
-  aiAnchors: 8,
+  description: 'Industry Comparison Assessment - We use your Hidden Value Audit data to avoid asking duplicate questions',
+  estimatedMinutes: 15,
+  totalQuestions: 15,
+  aiAnchors: 5,
+  prerequisite: 'hidden_value_audit', // Must complete HVA first
   
   sections: [
     // ═══════════════════════════════════════════════════════════════
@@ -71,19 +72,12 @@ export const benchmarkingDiscoveryConfig: AssessmentConfig = {
       questions: [
         {
           id: 'q2_1',
-          field: 'revenue_band',
-          type: 'single_choice',
+          field: 'revenue_exact',
+          type: 'number',
           required: true,
-          label: 'What is your annual revenue/turnover?',
-          options: [
-            { value: 'under_250k', label: 'Under £250k' },
-            { value: '250k_500k', label: '£250k - £500k' },
-            { value: '500k_1m', label: '£500k - £1m' },
-            { value: '1m_2m', label: '£1m - £2m' },
-            { value: '2m_5m', label: '£2m - £5m' },
-            { value: '5m_10m', label: '£5m - £10m' },
-            { value: '10m_plus', label: '£10m+' },
-          ],
+          label: 'What was your revenue/turnover in the last 12 months? (£)',
+          placeholder: 'e.g., 1500000',
+          helpText: 'We need the actual number for accurate comparison',
         },
         {
           id: 'q2_2',
@@ -129,12 +123,12 @@ export const benchmarkingDiscoveryConfig: AssessmentConfig = {
     },
     
     // ═══════════════════════════════════════════════════════════════
-    // SECTION 3: CURRENT PERFORMANCE (Self-Assessment)
+    // SECTION 3: PERCEPTION & TRACKING
     // ═══════════════════════════════════════════════════════════════
     {
-      id: 'self_assessment',
-      title: 'Your Current Performance',
-      description: 'We\'ll compare these against industry benchmarks',
+      id: 'perception',
+      title: 'Your Current View',
+      description: 'How do you see your performance today?',
       questions: [
         {
           id: 'q3_1',
@@ -163,9 +157,9 @@ export const benchmarkingDiscoveryConfig: AssessmentConfig = {
             { value: 'net_profit', label: 'Net Profit %' },
             { value: 'cash_flow', label: 'Cash Flow' },
             { value: 'debtor_days', label: 'Debtor Days' },
-            { value: 'headcount_metrics', label: 'Revenue per Employee' },
+            { value: 'revenue_per_head', label: 'Revenue per Employee' },
             { value: 'customer_metrics', label: 'Customer Retention / LTV' },
-            { value: 'industry_specific', label: 'Industry-specific KPIs' },
+            { value: 'industry_kpis', label: 'Industry-specific KPIs' },
             { value: 'none', label: "We don't track many metrics" },
           ],
         },
@@ -182,12 +176,12 @@ export const benchmarkingDiscoveryConfig: AssessmentConfig = {
     },
     
     // ═══════════════════════════════════════════════════════════════
-    // SECTION 4: PAIN POINTS & PRIORITIES
+    // SECTION 4: PRIORITY AREAS
     // ═══════════════════════════════════════════════════════════════
     {
-      id: 'pain_priority',
-      title: 'What Matters Most',
-      description: 'Help us focus the analysis on what would be most valuable',
+      id: 'priorities',
+      title: 'Focus Areas',
+      description: 'Help us prioritise the analysis',
       questions: [
         {
           id: 'q4_1',
@@ -221,26 +215,16 @@ export const benchmarkingDiscoveryConfig: AssessmentConfig = {
             { value: 'growth', label: 'Revenue Growth' },
             { value: 'efficiency', label: 'Efficiency (revenue per head)' },
             { value: 'cash', label: 'Cash Management' },
-            { value: 'customer', label: 'Customer Retention' },
+            { value: 'customer', label: 'Customer Metrics' },
             { value: 'pricing', label: 'Pricing Power' },
             { value: 'scale', label: 'Scalability' },
           ],
-        },
-        {
-          id: 'q4_4',
-          field: 'competitor_envy',
-          type: 'free_text',
-          required: false,
-          aiAnchor: true,
-          label: 'What would your best competitor do differently to you?',
-          placeholder: "Think about someone in your industry you admire - what do they do that you don't?",
-          maxLength: 400,
         },
       ],
     },
     
     // ═══════════════════════════════════════════════════════════════
-    // SECTION 5: MAGIC FIX & ACTION INTENT
+    // SECTION 5: MAGIC FIX
     // ═══════════════════════════════════════════════════════════════
     {
       id: 'magic_action',

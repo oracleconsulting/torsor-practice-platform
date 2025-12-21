@@ -18,6 +18,7 @@ function buildPass1Prompt(
   assessment: any,
   benchmarks: any[],
   maData: any | null,
+  hvaData: any,
   clientName: string,
   industry: any
 ): string {
@@ -33,6 +34,21 @@ ${metric?.name || b.metric_code} (${b.metric_code}):
   - Source: ${b.data_source || 'Unknown'}
 `;
   }).join('\n');
+
+  // Extract HVA (Hidden Value Audit) metrics - ALL clients have this
+  const hvaMetricsText = hvaData ? `
+HIDDEN VALUE AUDIT DATA (All clients complete this):
+- Recurring Revenue %: ${hvaData.recurringRevenuePercent || 'N/A'}%
+- Top 3 Customer Concentration: ${hvaData.customerConcentration || 'N/A'}%
+- Knowledge Dependency: ${hvaData.knowledgeDependency || 'N/A'}%
+- Personal vs Business Brand: ${hvaData.personalBrandPercent || 'N/A'}%
+- Competitive Moat: ${hvaData.competitiveMoat || 'N/A'}
+- Vacation Test: ${hvaData.vacationTest || 'N/A'}
+- Succession Depth: ${hvaData.successionDepth || 'N/A'}
+- Financial Documentation Quality: ${hvaData.financialDocumentation || 'N/A'}
+- Exit Timeline: ${hvaData.exitTimeline || 'N/A'}
+- IP Assets: ${hvaData.ipAssets || 'N/A'}
+` : 'No HVA data available (unexpected - all clients should have this).';
 
   // Extract MA metrics if available
   const maMetricsText = maData ? `
@@ -77,6 +93,12 @@ COMPETITOR ENVY: "${assessment.competitor_envy || 'Not specified'}"
 MAGIC FIX: "${assessment.benchmark_magic_fix}"
 ACTION READINESS: ${assessment.action_readiness}
 BLIND SPOT FEAR: "${assessment.blind_spot_fear || 'Not specified'}"
+
+═══════════════════════════════════════════════════════════════════════════════
+HIDDEN VALUE AUDIT DATA (Standard metrics for all clients)
+═══════════════════════════════════════════════════════════════════════════════
+
+${hvaMetricsText}
 
 ═══════════════════════════════════════════════════════════════════════════════
 CLIENT'S ACTUAL METRICS (from MA data if available)
@@ -330,6 +352,29 @@ serve(async (req) => {
       .or(`employee_band.eq.${employeeBand},employee_band.eq.all`)
       .eq('is_current', true);
     
+    // Get HVA (Hidden Value Audit) data - ALL clients have this
+    const { data: hvaData } = await supabaseClient
+      .from('client_assessments')
+      .select('responses, value_analysis_data')
+      .eq('client_id', engagement.client_id)
+      .eq('assessment_type', 'part3')
+      .maybeSingle();
+    
+    // Extract HVA metrics from responses
+    const hvaMetrics = hvaData?.responses || {};
+    const hvaContext = {
+      recurringRevenuePercent: hvaMetrics.recurring_revenue_percentage,
+      customerConcentration: hvaMetrics.top3_customer_revenue_percentage,
+      knowledgeDependency: hvaMetrics.knowledge_dependency_percentage,
+      personalBrandPercent: hvaMetrics.personal_brand_percentage,
+      competitiveMoat: hvaMetrics.competitive_moat,
+      vacationTest: hvaMetrics.vacation_test,
+      successionDepth: hvaMetrics.succession_depth,
+      financialDocumentation: hvaMetrics.financial_documentation,
+      exitTimeline: hvaMetrics.exit_timeline,
+      ipAssets: hvaMetrics.ip_assets,
+    };
+    
     // Get MA data if available
     const { data: maData } = await supabaseClient
       .from('ma_reports')
@@ -352,6 +397,7 @@ serve(async (req) => {
       assessment,
       benchmarks || [],
       maData,
+      hvaContext,
       clientName,
       industry || {}
     );

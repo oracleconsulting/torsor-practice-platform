@@ -230,16 +230,33 @@ export default function UnifiedDashboardPage() {
           // Check if report is approved
           let reportApproved = false;
           if (saEngagement.stage_3_completed_at) {
-            const { data: report } = await supabase
+            const { data: report, error: reportError } = await supabase
               .from('sa_audit_reports')
-              .select('status')
+              .select('id, status, created_at')
               .eq('engagement_id', saEngagement.id)
               .order('created_at', { ascending: false })
               .limit(1)
               .maybeSingle();
             
+            console.log('🔍 Systems Audit report check:', { 
+              report, 
+              reportError, 
+              engagementId: saEngagement.id,
+              hasReport: !!report,
+              reportStatus: report?.status 
+            });
+            
+            if (reportError) {
+              console.error('❌ Error fetching Systems Audit report:', reportError);
+            }
+            
             if (report && (report.status === 'approved' || report.status === 'published' || report.status === 'delivered')) {
               reportApproved = true;
+              console.log('✅ Report is approved:', report.status);
+            } else if (report) {
+              console.log('⚠️ Report exists but not approved. Status:', report.status);
+            } else {
+              console.log('⚠️ No report found for engagement');
             }
           }
           

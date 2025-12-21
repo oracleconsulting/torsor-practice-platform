@@ -1234,7 +1234,7 @@ export default function ProcessDeepDivesPage() {
 
       // Check if Stage 3 is complete - if so, check report status
       if (engagement.status === 'stage_3_complete' || engagement.status === 'analysis_complete' || engagement.status === 'completed') {
-        const { data: reportData } = await supabase
+        const { data: reportData, error: reportError } = await supabase
           .from('sa_audit_reports')
           .select('*')
           .eq('engagement_id', engagement.id)
@@ -1242,9 +1242,26 @@ export default function ProcessDeepDivesPage() {
           .limit(1)
           .maybeSingle();
         
+        console.log('🔍 ProcessDeepDivesPage - Report check:', {
+          reportData,
+          reportError,
+          engagementId: engagement.id,
+          hasReport: !!reportData,
+          reportStatus: reportData?.status
+        });
+        
+        if (reportError) {
+          console.error('❌ Error fetching report in ProcessDeepDivesPage:', reportError);
+        }
+        
         if (reportData) {
           setReport(reportData);
           setReportStatus(reportData.status);
+          console.log('✅ Report loaded. Status:', reportData.status, 'Approved?', 
+            reportData.status === 'approved' || reportData.status === 'published' || reportData.status === 'delivered');
+        } else {
+          console.log('⚠️ No report found for engagement');
+          setReportStatus(null);
         }
       }
 
