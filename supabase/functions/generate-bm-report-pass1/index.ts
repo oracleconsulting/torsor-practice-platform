@@ -333,11 +333,13 @@ serve(async (req) => {
     console.log('[BM Pass 1] Assessment structure:', {
       has_industry_code: !!assessment.industry_code,
       has_responses: !!assessment.responses,
-      responses_industry_code: assessment.responses?.industry_code
+      responses_industry_code: assessment.responses?.industry_code,
+      responses_keys: assessment.responses ? Object.keys(assessment.responses) : []
     });
     
-    if (!industryCode) {
-      throw new Error('Industry code is required but not found in assessment. Check assessment responses.');
+    if (!industryCode || industryCode === 'undefined' || industryCode === 'null') {
+      console.error('[BM Pass 1] Missing industry_code. Full assessment:', JSON.stringify(assessment, null, 2));
+      throw new Error(`Industry code is required but not found in assessment. engagementId: ${engagementId}. Check that the assessment has been completed with an industry selected.`);
     }
     
     // Now fetch industry using the industry_code from assessment
@@ -367,8 +369,9 @@ serve(async (req) => {
     }
     
     // Extract assessment fields - they might be in responses JSONB or individual columns
+    // Use industryCode we already validated above
     const assessmentData = {
-      industry_code: assessment.industry_code || assessment.responses?.industry_code,
+      industry_code: industryCode,
       revenue_band: assessment.revenue_band || assessment.responses?.revenue_band,
       employee_count: assessment.employee_count || assessment.responses?.employee_count,
       location_type: assessment.location_type || assessment.responses?.location_type,
