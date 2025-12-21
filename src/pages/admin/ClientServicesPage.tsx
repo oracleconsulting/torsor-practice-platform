@@ -658,7 +658,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {SERVICE_LINES.map((service) => {
                 const Icon = service.icon;
-                const clientCount = service.id === '365-alignment' ? clients.length : 0;
+                // Client count will be calculated when service is selected
+                const clientCount = 0;
                 
                 return (
                   <button
@@ -674,11 +675,15 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                     </h3>
                     <p className="text-sm text-gray-500 mt-2">{service.description}</p>
                     <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-                      <span className="text-sm text-gray-500">
-                        {service.id === '365-alignment' ? 'Active clients' : 'Coming soon'}
+                      <span className={`text-sm font-medium ${
+                        service.status === 'ready' 
+                          ? 'text-green-600' 
+                          : 'text-gray-500'
+                      }`}>
+                        {service.status === 'ready' ? '✓ Live' : 'Coming soon'}
                       </span>
                       <span className="text-lg font-bold text-gray-900">
-                        {service.id === '365-alignment' ? clientCount : '–'}
+                        {service.status === 'ready' ? clientCount : '–'}
                       </span>
                     </div>
                   </button>
