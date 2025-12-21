@@ -453,7 +453,19 @@ serve(async (req) => {
     }
     
     const result = await response.json();
-    const pass1Data = JSON.parse(result.choices[0].message.content);
+    let content = result.choices[0].message.content;
+    
+    // Strip markdown code blocks if present (```json ... ```)
+    content = content.trim();
+    if (content.startsWith('```')) {
+      // Remove opening ```json or ```
+      content = content.replace(/^```(?:json)?\n?/i, '');
+      // Remove closing ```
+      content = content.replace(/\n?```$/i, '');
+      content = content.trim();
+    }
+    
+    const pass1Data = JSON.parse(content);
     const tokensUsed = result.usage?.total_tokens || 0;
     const cost = (tokensUsed / 1000) * 0.003; // Approximate cost for Sonnet 4
     const generationTime = Date.now() - startTime;
