@@ -7181,20 +7181,104 @@ function SystemsAuditClientModal({
     if (!engagement) return;
     
     setGenerating(true);
+    
+    // Show a message that generation may take a while
+    const timeoutMessage = setTimeout(() => {
+      console.log('[SA Report] Generation taking longer than expected, will auto-refresh...');
+    }, 30000); // Log after 30 seconds
+    
     try {
+      // Set a longer timeout for the fetch (4 minutes)
+      const controller = new AbortController();
+      const fetchTimeout = setTimeout(() => controller.abort(), 240000);
+      
       const { error } = await supabase.functions.invoke('generate-sa-report', {
-        body: { engagementId: engagement.id }
+        body: { engagementId: engagement.id },
+        signal: controller.signal
       });
 
-      if (error) throw error;
+      clearTimeout(fetchTimeout);
+      clearTimeout(timeoutMessage);
 
-      // Refresh data
+      if (error) {
+        // Check if it's a timeout/connection error
+        if (error.message?.includes('timeout') || 
+            error.message?.includes('connection closed') ||
+            error.message?.includes('aborted')) {
+          // Function might still be running - start polling for the report
+          console.log('[SA Report] Request timed out, but generation may still be in progress. Polling for completion...');
+          pollForReport(engagement.id, 0);
+          return;
+        }
+        throw error;
+      }
+
+      // Success - refresh data
       await fetchData();
+      setGenerating(false);
     } catch (error: any) {
+      clearTimeout(timeoutMessage);
+      
+      // Check if it's a timeout/abort error
+      if (error.name === 'AbortError' || 
+          error.message?.includes('timeout') || 
+          error.message?.includes('connection closed') ||
+          error.message?.includes('aborted')) {
+        // Function is likely still processing - poll for completion
+        console.log('[SA Report] Connection timed out, but generation may still be in progress. Polling for completion...');
+        pollForReport(engagement.id, 0);
+        return;
+      }
+      
       console.error('Error generating report:', error);
       alert(`Error generating report: ${error.message || 'Unknown error'}`);
-    } finally {
       setGenerating(false);
+    }
+  };
+
+  // Poll for report completion
+  const pollForReport = async (engagementId: string, attempts: number) => {
+    const maxAttempts = 20; // Poll for up to 5 minutes (15s * 20 = 5 min)
+    const pollInterval = 15000; // 15 seconds
+    
+    if (attempts >= maxAttempts) {
+      alert('Report generation is taking longer than expected. Please refresh the page in a few minutes to check if it completed.');
+      setGenerating(false);
+      return;
+    }
+    
+    try {
+      // Check if report exists
+      const { data: report, error } = await supabase
+        .from('sa_audit_reports')
+        .select('id, generated_at')
+        .eq('engagement_id', engagementId)
+        .order('generated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (report && report.generated_at) {
+        // Check if report was generated recently (within last 10 minutes)
+        const reportTime = new Date(report.generated_at).getTime();
+        const now = Date.now();
+        const tenMinutesAgo = now - (10 * 60 * 1000);
+        
+        if (reportTime > tenMinutesAgo) {
+          // Report was just generated - refresh data
+          console.log('[SA Report] Report completed! Refreshing data...');
+          await fetchData();
+          setGenerating(false);
+          return;
+        }
+      }
+      
+      // Report not ready yet - poll again
+      console.log(`[SA Report] Polling attempt ${attempts + 1}/${maxAttempts}...`);
+      setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
+    } catch (error: any) {
+      console.error('[SA Report] Error polling for report:', error);
+      // Continue polling despite errors
+      setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
     }
   };
 
