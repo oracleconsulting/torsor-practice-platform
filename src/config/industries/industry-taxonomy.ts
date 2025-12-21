@@ -53,6 +53,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "ACCT",
+        category: "professional_services",
         name: "Accountancy & Tax Services",
         sicCodes: ["69201", "69202"],
         keywords: ["accountant", "tax", "audit", "bookkeeping", "payroll"],
@@ -67,6 +68,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "LEGAL",
+        category: "professional_services",
         name: "Legal Services",
         sicCodes: ["69101", "69102", "69109"],
         keywords: ["solicitor", "lawyer", "law firm", "legal", "barrister", "conveyancing"],
