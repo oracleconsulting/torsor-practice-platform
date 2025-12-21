@@ -7135,12 +7135,18 @@ function BenchmarkingClientModal({
         setReport(reportData);
 
         // Fetch HVA status (Part 3 assessment)
-        const { data: hvaData } = await supabase
+        const { data: hvaData, error: hvaError } = await supabase
           .from('client_assessments')
-          .select('status, completion_percentage, completed_at, value_analysis_data, responses')
+          .select('*') // Select all fields to see what we're actually getting
           .eq('client_id', clientId)
           .eq('assessment_type', 'part3')
           .maybeSingle();
+        
+        if (hvaError) {
+          console.error('[Benchmarking Modal] Error fetching HVA:', hvaError);
+        } else {
+          console.log('[Benchmarking Modal] HVA data:', hvaData);
+        }
         
         setHvaStatus(hvaData);
       }
@@ -7306,8 +7312,8 @@ function BenchmarkingClientModal({
                       </p>
                     </div>
                     <div className="p-6">
-                      {/* Check if HVA is completed - check completed_at, completion_percentage, or responses */}
-                      {hvaStatus && (hvaStatus.completed_at || hvaStatus.completion_percentage === 100 || (hvaStatus.responses && Object.keys(hvaStatus.responses).length > 0)) ? (
+                      {/* Check if HVA is completed - check completed_at, completion_percentage, status, or responses */}
+                      {hvaStatus && (hvaStatus.completed_at || hvaStatus.completion_percentage === 100 || hvaStatus.status === 'completed' || (hvaStatus.responses && Object.keys(hvaStatus.responses).length > 0)) ? (
                         <div className="space-y-4">
                           <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
                             <div className="flex items-center gap-2 text-emerald-800">
