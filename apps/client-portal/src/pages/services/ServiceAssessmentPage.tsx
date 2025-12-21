@@ -211,8 +211,9 @@ export default function ServiceAssessmentPage() {
           
           if (responses) {
             setResponses(responses.responses || {});
-            // Check if assessment is complete based on engagement status
-            if (engagement.status === 'assessment_complete' || engagement.assessment_completed_at) {
+            // Only mark as complete if engagement status is explicitly 'assessment_complete' 
+            // AND we have a completed_at timestamp (to avoid false positives from auto-save)
+            if (engagement.status === 'assessment_complete' && engagement.assessment_completed_at) {
               setCompleted(true);
             }
             // Mark initial load as complete after responses are loaded
