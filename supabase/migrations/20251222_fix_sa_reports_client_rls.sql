@@ -11,33 +11,31 @@
 DROP POLICY IF EXISTS "Users can view own practice audit reports" ON sa_audit_reports;
 
 -- Create new policy that restricts client access to approved reports only
+-- Practice members can see all reports, clients can only see approved/published/delivered
 CREATE POLICY "Users can view own practice audit reports" ON sa_audit_reports
     FOR SELECT USING (
         engagement_id IN (
             SELECT id FROM sa_engagements
-            WHERE (
+            WHERE 
                 -- Practice members can see all reports for engagements in their practice
                 practice_id IN (
                     SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
                 )
                 OR practice_id = current_setting('app.practice_id', true)::UUID
-            )
-            OR (
-                -- Clients can only see their own engagements
-                client_id IN (
+                -- Clients can see their own engagements
+                OR client_id IN (
                     SELECT id FROM practice_members WHERE user_id = auth.uid()
                 )
-            )
         )
         AND (
-            -- If user is a client (not a practice member), only show approved reports
-            -- If user is a practice member, show all reports
+            -- If user is a practice member (not a client), show all reports
             EXISTS (
                 SELECT 1 FROM practice_members 
                 WHERE user_id = auth.uid() 
                 AND member_type != 'client'
             )
             OR 
+            -- If user is a client, only show approved/published/delivered reports
             status IN ('approved', 'published', 'delivered')
         )
     );
