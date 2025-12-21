@@ -124,6 +124,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "RECRUIT",
+        category: "professional_services",
         name: "Recruitment & Staffing",
         sicCodes: ["78109", "78200", "78300"],
         keywords: ["recruitment", "staffing", "headhunter", "executive search", "temp agency"],
@@ -137,6 +138,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "MARKET",
+        category: "professional_services",
         name: "Marketing & PR Agencies",
         sicCodes: ["73110", "73120", "70210"],
         keywords: ["marketing", "PR", "public relations", "advertising", "branding", "digital marketing"],
@@ -168,6 +170,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "SAAS",
+        category: "technology",
         name: "SaaS / Software Products",
         sicCodes: ["62011", "62012"],
         keywords: ["SaaS", "software", "subscription", "platform", "app"],
