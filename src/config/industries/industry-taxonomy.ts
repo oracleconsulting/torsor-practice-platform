@@ -508,6 +508,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "PUB",
+        category: "hospitality",
         name: "Pub / Bar",
         sicCodes: ["56301", "56302"],
         keywords: ["pub", "bar", "inn", "tavern"],
@@ -518,6 +519,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "HOTEL",
+        category: "hospitality",
         name: "Hotel / B&B",
         sicCodes: ["55100", "55201", "55202"],
         keywords: ["hotel", "B&B", "accommodation", "boutique hotel"],
@@ -576,6 +578,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "RETAIL_FOOD",
+        category: "retail",
         name: "Food Retail / Convenience",
         sicCodes: ["47110", "47210", "47220", "47230", "47240", "47250", "47290"],
         keywords: ["convenience store", "grocery", "newsagent", "off-licence"],
@@ -586,6 +589,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "RETAIL_SPEC",
+        category: "retail",
         name: "Specialist Retail",
         sicCodes: ["47410", "47510", "47530", "47540", "47590", "47710", "47720", "47750", "47770", "47780", "47790"],
         keywords: ["specialist", "boutique", "niche retail"],
@@ -596,6 +600,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "AUTO_RETAIL",
+        category: "retail",
         name: "Motor Trade / Dealership",
         sicCodes: ["45111", "45112", "45200", "45310", "45320", "45400"],
         keywords: ["car dealer", "motor trade", "garage", "dealership", "used cars"],
@@ -616,6 +621,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "MFG_GEN",
+        category: "manufacturing",
         name: "General Manufacturing",
         sicCodes: ["10000-33000"],
         keywords: ["manufacturing", "factory", "production", "maker"],
