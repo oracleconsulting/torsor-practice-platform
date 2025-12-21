@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   MessageSquare, HelpCircle, ArrowRight, CheckSquare, AlertTriangle,
-  ChevronDown, ChevronUp, User, Clock, Target, TrendingUp,
-  Sparkles, FileText, Users, DollarSign
+  ChevronDown, ChevronUp, User, Clock, Target,
+  Sparkles, FileText
 } from 'lucide-react';
 
 interface SAAdminReportViewProps {
@@ -12,7 +12,7 @@ interface SAAdminReportViewProps {
   recommendations: any[];
 }
 
-export function SAAdminReportView({ report, engagement, findings, recommendations }: SAAdminReportViewProps) {
+export function SAAdminReportView({ report, findings }: SAAdminReportViewProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     talkingPoints: true,
     questions: true,

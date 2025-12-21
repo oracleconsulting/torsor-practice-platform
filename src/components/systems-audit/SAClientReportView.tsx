@@ -1,7 +1,6 @@
-import React from 'react';
 import { 
-  TrendingUp, Clock, DollarSign, Target, CheckCircle2,
-  AlertCircle, ArrowRight, Zap
+  Target, CheckCircle2,
+  AlertCircle, Zap
 } from 'lucide-react';
 
 interface SAClientReportViewProps {
@@ -9,8 +8,7 @@ interface SAClientReportViewProps {
   companyName?: string;
 }
 
-export function SAClientReportView({ report, companyName = 'Your Business' }: SAClientReportViewProps) {
-  const roiSummary = report.client_roi_summary || {};
+export function SAClientReportView({ report }: SAClientReportViewProps) {
   
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
