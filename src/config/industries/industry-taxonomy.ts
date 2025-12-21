@@ -389,6 +389,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "DENTAL",
+        category: "healthcare",
         name: "Dental Practice",
         sicCodes: ["86230"],
         keywords: ["dentist", "dental", "orthodontics", "oral health"],
@@ -402,6 +403,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "VET",
+        category: "healthcare",
         name: "Veterinary Practice",
         sicCodes: ["75000"],
         keywords: ["vet", "veterinary", "animal", "pet"],
@@ -488,6 +490,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "RESTAURANT",
+        category: "hospitality",
         name: "Restaurant / Café",
         sicCodes: ["56101", "56102", "56103"],
         keywords: ["restaurant", "cafe", "dining", "food service"],
