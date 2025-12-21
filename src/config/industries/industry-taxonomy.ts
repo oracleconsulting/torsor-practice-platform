@@ -80,6 +80,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "CONSULT",
+        category: "professional_services",
         name: "Management Consultancy",
         sicCodes: ["70229"],
         keywords: ["consultant", "consulting", "advisory", "strategy"],
@@ -90,6 +91,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "ARCH",
+        category: "professional_services",
         name: "Architecture & Design",
         sicCodes: ["71111"],
         keywords: ["architect", "architecture", "building design", "planning"],
@@ -100,6 +102,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "ENG",
+        category: "professional_services",
         name: "Engineering Consultancy",
         sicCodes: ["71121", "71122", "71129"],
         keywords: ["engineer", "engineering", "structural", "civil", "mechanical"],
@@ -110,6 +113,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "SURVEY",
+        category: "professional_services",
         name: "Surveying & Valuation",
         sicCodes: ["71111"],
         keywords: ["surveyor", "valuation", "RICS", "property survey"],
@@ -143,6 +147,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "HR",
+        category: "professional_services",
         name: "HR Consultancy",
         sicCodes: ["70229", "78100"],
         keywords: ["HR", "human resources", "people", "talent", "L&D", "training"],
@@ -202,6 +207,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "ECOMM",
+        category: "technology",
         name: "E-commerce & Online Retail",
         sicCodes: ["47910"],
         keywords: ["ecommerce", "online shop", "dropshipping", "amazon seller", "shopify"],
