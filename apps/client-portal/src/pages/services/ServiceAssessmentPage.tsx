@@ -215,6 +215,8 @@ export default function ServiceAssessmentPage() {
             if (engagement.status === 'assessment_complete' || engagement.assessment_completed_at) {
               setCompleted(true);
             }
+            // Mark initial load as complete after responses are loaded
+            isInitialLoadRef.current = false;
           }
         }
       } else {
