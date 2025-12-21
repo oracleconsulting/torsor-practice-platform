@@ -412,6 +412,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "OPTOM",
+        category: "healthcare",
         name: "Optometry Practice",
         sicCodes: ["86900"],
         keywords: ["optician", "optometrist", "eye care", "glasses", "contact lenses"],
@@ -422,6 +423,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "PHARMA",
+        category: "healthcare",
         name: "Pharmacy",
         sicCodes: ["47730"],
         keywords: ["pharmacy", "chemist", "dispensing", "prescription"],
@@ -432,6 +434,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "CARE",
+        category: "healthcare",
         name: "Care Home / Domiciliary Care",
         sicCodes: ["87100", "87200", "87300", "88100"],
         keywords: ["care home", "nursing home", "domiciliary", "home care", "elderly care"],
