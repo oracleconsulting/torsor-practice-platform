@@ -317,54 +317,84 @@ export default function ServiceAssessmentPage() {
         console.log('✅ Benchmarking detected! Completing assessment...');
         
         // Find or create engagement
-        let { data: engagement } = await supabase
+        let { data: engagement, error: engagementError } = await supabase
           .from('bm_engagements')
           .select('id')
           .eq('client_id', clientSession.clientId)
           .maybeSingle();
         
+        if (engagementError && engagementError.code !== 'PGRST116') {
+          console.error('Error fetching engagement:', engagementError);
+          throw engagementError;
+        }
+        
         if (!engagement) {
+          console.log('📝 Creating new bm_engagement for client:', clientSession.clientId);
           const { data: newEngagement, error: createError } = await supabase
             .from('bm_engagements')
             .insert({
               client_id: clientSession.clientId,
               practice_id: clientSession.practiceId,
-              status: 'assessment_complete'
+              status: 'assessment_complete',
+              assessment_completed_at: new Date().toISOString()
             })
             .select('id')
             .single();
           
           if (createError) {
-            console.error('Error creating engagement:', createError);
+            console.error('❌ Error creating engagement:', createError);
+            console.error('Details:', {
+              clientId: clientSession.clientId,
+              practiceId: clientSession.practiceId,
+              error: createError
+            });
             throw createError;
           }
           engagement = newEngagement;
+          console.log('✅ Created engagement:', engagement.id);
         } else {
+          console.log('📝 Updating existing engagement:', engagement.id);
           // Update engagement status
-          await supabase
+          const { error: updateError } = await supabase
             .from('bm_engagements')
             .update({
               status: 'assessment_complete',
+              assessment_completed_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             })
             .eq('id', engagement.id);
+          
+          if (updateError) {
+            console.error('Error updating engagement:', updateError);
+            throw updateError;
+          }
         }
         
         // Save completed responses
         if (engagement) {
-          await supabase.from('bm_assessment_responses').upsert({
+          console.log('💾 Saving assessment responses...');
+          const { error: responsesError } = await supabase.from('bm_assessment_responses').upsert({
             engagement_id: engagement.id,
             client_id: clientSession.clientId,
             responses,
             completed_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           }, { onConflict: 'engagement_id' });
+          
+          if (responsesError) {
+            console.error('Error saving responses:', responsesError);
+            throw responsesError;
+          }
+          console.log('✅ Assessment responses saved');
         }
         
-        // Trigger report generation
+        // Trigger report generation (async, don't wait)
         try {
-          await supabase.functions.invoke('generate-bm-report-pass1', {
+          console.log('🚀 Triggering report generation...');
+          supabase.functions.invoke('generate-bm-report-pass1', {
             body: { engagementId: engagement?.id }
+          }).catch(err => {
+            console.error('Error triggering report generation (non-blocking):', err);
           });
         } catch (err) {
           console.error('Error triggering report generation:', err);
