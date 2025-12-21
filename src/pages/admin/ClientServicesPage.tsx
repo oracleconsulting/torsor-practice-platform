@@ -7437,19 +7437,37 @@ function SystemsAuditClientModal({
     
     setMakingAvailable(true);
     try {
-      const { error } = await supabase
+      console.log('[SA Report] Making available to client:', {
+        reportId: report.id,
+        engagementId: engagement.id,
+        currentStatus: report.status
+      });
+      
+      const { data: updatedReport, error } = await supabase
         .from('sa_audit_reports')
         .update({
-          status: 'approved' // Set status to 'approved' to make it visible to client
+          status: 'approved', // Set status to 'approved' to make it visible to client
+          approved_at: new Date().toISOString(),
+          approved_by: user?.id || null
         })
-        .eq('id', report.id);
+        .eq('id', report.id)
+        .select()
+        .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error('[SA Report] Error updating status:', error);
+        throw error;
+      }
+      
+      console.log('[SA Report] Status updated successfully:', {
+        reportId: updatedReport?.id,
+        newStatus: updatedReport?.status
+      });
       
       alert('Report is now available to the client!');
       await fetchData(); // Refresh to show updated status
     } catch (error: any) {
-      console.error('Error making report available:', error);
+      console.error('[SA Report] Error making report available:', error);
       alert(`Error: ${error.message || 'Unknown error'}`);
     } finally {
       setMakingAvailable(false);

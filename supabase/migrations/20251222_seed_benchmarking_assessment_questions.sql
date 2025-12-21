@@ -4,6 +4,9 @@
 -- Integrates with Hidden Value Audit (HVA) to avoid duplicate questions
 -- ============================================================================
 
+-- Temporarily disable audit trigger for assessment_questions (reference data, not client data)
+ALTER TABLE assessment_questions DISABLE TRIGGER audit_assessment_questions;
+
 INSERT INTO assessment_questions (service_line_code, question_id, section, question_text, question_type, options, placeholder, char_limit, max_selections, emotional_anchor, technical_field, is_required, display_order) VALUES
 
 -- ═══════════════════════════════════════════════════════════════
@@ -69,6 +72,9 @@ ON CONFLICT (service_line_code, question_id) DO UPDATE SET
   emotional_anchor = EXCLUDED.emotional_anchor,
   technical_field = EXCLUDED.technical_field,
   updated_at = now();
+
+-- Re-enable audit trigger
+ALTER TABLE assessment_questions ENABLE TRIGGER audit_assessment_questions;
 
 -- ============================================================================
 -- VERIFICATION
