@@ -38,7 +38,8 @@ import {
   Award,
   Loader2,
   RefreshCw,
-  Save
+  Save,
+  BarChart3
 } from 'lucide-react';
 import { SAAdminReportView } from '../../components/systems-audit/SAAdminReportView';
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
@@ -110,6 +111,16 @@ const SERVICE_LINES = [
     description: 'Identify hidden assets, risks, and opportunities to maximize business value',
     icon: Award,
     color: 'amber',
+    monthlyRevenue: 0,
+    status: 'ready'
+  },
+  { 
+    id: 'benchmarking', 
+    code: 'benchmarking',
+    name: 'Benchmarking',
+    description: 'Compare your business performance to industry leaders and identify improvement opportunities',
+    icon: BarChart3,
+    color: 'teal',
     monthlyRevenue: 0,
     status: 'ready'
   },

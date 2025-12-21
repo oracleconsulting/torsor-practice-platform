@@ -232,10 +232,25 @@ export default function UnifiedDashboardPage() {
           if (saEngagement.stage_3_completed_at) {
             console.log('🔍 Checking report status for engagement:', saEngagement.id);
             
+            // First, check if ANY report exists (even if not approved) - this helps diagnose RLS issues
+            const { data: allReports, error: allReportsError } = await supabase
+              .from('sa_audit_reports')
+              .select('id, status, created_at, engagement_id')
+              .eq('engagement_id', saEngagement.id)
+              .order('created_at', { ascending: false });
+            
+            console.log('🔍 All reports for engagement (diagnostic):', {
+              count: allReports?.length || 0,
+              reports: allReports,
+              error: allReportsError
+            });
+            
+            // Now check for approved reports only
             const { data: report, error: reportError } = await supabase
               .from('sa_audit_reports')
               .select('id, status, created_at, engagement_id')
               .eq('engagement_id', saEngagement.id)
+              .in('status', ['approved', 'published', 'delivered'])
               .order('created_at', { ascending: false })
               .limit(1)
               .maybeSingle();
@@ -249,7 +264,9 @@ export default function UnifiedDashboardPage() {
               reportId: report?.id,
               errorCode: reportError?.code,
               errorMessage: reportError?.message,
-              errorDetails: reportError?.details
+              errorDetails: reportError?.details,
+              allReportsCount: allReports?.length || 0,
+              allReportsStatuses: allReports?.map(r => r.status) || []
             });
             
             if (reportError) {
@@ -272,10 +289,15 @@ export default function UnifiedDashboardPage() {
             if (report && (report.status === 'approved' || report.status === 'published' || report.status === 'delivered')) {
               reportApproved = true;
               console.log('✅ Report is approved and accessible:', report.status);
-            } else if (report) {
-              console.log('⚠️ Report exists but not approved. Status:', report.status, '- Client cannot view yet');
-            } else if (!reportError) {
+            } else if (allReports && allReports.length > 0) {
+              const latestReport = allReports[0];
+              console.log('⚠️ Report exists but not approved. Latest report status:', latestReport.status, '- Client cannot view yet');
+              console.log('💡 To make it visible, update the report status to "approved" in the admin portal');
+            } else if (!reportError && !allReportsError) {
               console.log('⚠️ No report found for engagement (no error, just no data)');
+              console.log('💡 This means either:');
+              console.log('   1. The report has not been generated yet');
+              console.log('   2. The RLS policy is blocking access (but no error was returned)');
             }
           }
           

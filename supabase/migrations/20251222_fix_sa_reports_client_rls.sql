@@ -28,15 +28,22 @@ CREATE POLICY "Users can view own practice audit reports" ON sa_audit_reports
                 )
         )
         AND (
-            -- If user is a practice member (not a client), show all reports
+            -- If user is a practice member (admin/staff), show all reports regardless of status
             EXISTS (
                 SELECT 1 FROM practice_members 
                 WHERE user_id = auth.uid() 
-                AND member_type != 'client'
+                AND member_type IN ('admin', 'staff', 'consultant')
             )
             OR 
             -- If user is a client, only show approved/published/delivered reports
-            status IN ('approved', 'published', 'delivered')
+            (
+                NOT EXISTS (
+                    SELECT 1 FROM practice_members 
+                    WHERE user_id = auth.uid() 
+                    AND member_type IN ('admin', 'staff', 'consultant')
+                )
+                AND status IN ('approved', 'published', 'delivered')
+            )
         )
     );
 
