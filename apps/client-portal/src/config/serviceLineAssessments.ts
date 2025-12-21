@@ -759,10 +759,30 @@ export const FRACTIONAL_EXECUTIVE_ASSESSMENT: ServiceLineAssessment = {
 // EXPORT ALL ASSESSMENTS
 // ============================================================================
 
+// ============================================================================
+// BENCHMARKING - Loads questions from database
+// ============================================================================
+
+export const BENCHMARKING_ASSESSMENT: ServiceLineAssessment = {
+  code: 'benchmarking',
+  name: 'Benchmarking',
+  title: 'Industry Comparison Assessment',
+  subtitle: 'Help us understand your business so we can find the right comparisons',
+  sections: [
+    'classification',
+    'size_context',
+    'self_assessment',
+    'pain_priority',
+    'magic_action'
+  ],
+  questions: [] // Will be loaded from database in ServiceAssessmentPage
+};
+
 export const SERVICE_LINE_ASSESSMENTS: Record<string, ServiceLineAssessment> = {
   management_accounts: MANAGEMENT_ACCOUNTS_ASSESSMENT,
   systems_audit: SYSTEMS_AUDIT_ASSESSMENT,
-  fractional_executive: FRACTIONAL_EXECUTIVE_ASSESSMENT
+  fractional_executive: FRACTIONAL_EXECUTIVE_ASSESSMENT,
+  benchmarking: BENCHMARKING_ASSESSMENT
 };
 
 export function getAssessmentByCode(code: string): ServiceLineAssessment | undefined {

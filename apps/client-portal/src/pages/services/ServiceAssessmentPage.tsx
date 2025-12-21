@@ -13,7 +13,7 @@ import {
 } from '@/config/serviceLineAssessments';
 import { 
   ArrowLeft, ArrowRight, Check, Loader2, CheckCircle,
-  Target, LineChart, Settings, Users
+  Target, LineChart, Settings, Users, BarChart3
 } from 'lucide-react';
 
 const serviceIcons: Record<string, React.ComponentType<any>> = {
@@ -21,6 +21,7 @@ const serviceIcons: Record<string, React.ComponentType<any>> = {
   'management_accounts': LineChart,
   'systems_audit': Settings,
   'fractional_executive': Users,
+  'benchmarking': BarChart3,
 };
 
 export default function ServiceAssessmentPage() {
@@ -46,8 +47,13 @@ export default function ServiceAssessmentPage() {
       
       const config = getAssessmentByCode(serviceCode);
       if (config) {
-        setAssessment(config);
-        loadExistingResponses(serviceCode);
+        // For benchmarking, load questions from database
+        if (serviceCode === 'benchmarking') {
+          loadBenchmarkingQuestions(config);
+        } else {
+          setAssessment(config);
+          loadExistingResponses(serviceCode);
+        }
       } else {
         navigate('/dashboard');
       }
@@ -128,18 +134,95 @@ export default function ServiceAssessmentPage() {
     }
   }, [serviceCode, clientSession?.clientId, loading, navigate]);
 
+  const loadBenchmarkingQuestions = async (config: ServiceLineAssessment) => {
+    try {
+      // Load questions from assessment_questions table
+      const { data: questions, error } = await supabase
+        .from('assessment_questions')
+        .select('*')
+        .eq('service_line_code', 'benchmarking')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true });
+
+      if (error) {
+        console.error('Error loading benchmarking questions:', error);
+        navigate('/dashboard');
+        return;
+      }
+
+      if (!questions || questions.length === 0) {
+        console.error('No benchmarking questions found');
+        navigate('/dashboard');
+        return;
+      }
+
+      // Convert database questions to AssessmentQuestion format
+      const convertedQuestions: AssessmentQuestion[] = questions.map(q => ({
+        id: q.question_id,
+        section: q.section,
+        question: q.question_text,
+        type: q.question_type === 'single' ? 'single' : q.question_type === 'multi' ? 'multi' : q.question_type === 'text' ? 'text' : 'text',
+        options: q.options ? (Array.isArray(q.options) ? q.options : JSON.parse(q.options as string)) : undefined,
+        maxSelections: q.max_selections || undefined,
+        placeholder: q.placeholder || undefined,
+        charLimit: q.char_limit || undefined,
+        emotionalAnchor: q.emotional_anchor || undefined,
+        technicalField: q.technical_field || undefined,
+        required: q.is_required !== false
+      }));
+
+      // Get unique sections
+      const sections = Array.from(new Set(questions.map(q => q.section)));
+
+      // Update config with loaded questions
+      const updatedConfig: ServiceLineAssessment = {
+        ...config,
+        sections,
+        questions: convertedQuestions
+      };
+
+      setAssessment(updatedConfig);
+      loadExistingResponses('benchmarking');
+    } catch (err) {
+      console.error('Error loading benchmarking questions:', err);
+      navigate('/dashboard');
+    }
+  };
+
   const loadExistingResponses = async (code: string) => {
     if (!clientSession?.clientId) { setLoading(false); return; }
     try {
-      const { data } = await supabase
-        .from('service_line_assessments')
-        .select('responses, completed_at')
-        .eq('client_id', clientSession.clientId)
-        .eq('service_line_code', code)
-        .single();
-      if (data) {
-        setResponses(data.responses || {});
-        if (data.completed_at) setCompleted(true);
+      // For benchmarking, check bm_assessment_responses table instead
+      if (code === 'benchmarking') {
+        const { data: engagement } = await supabase
+          .from('bm_engagements')
+          .select('id')
+          .eq('client_id', clientSession.clientId)
+          .maybeSingle();
+        
+        if (engagement) {
+          const { data: responses } = await supabase
+            .from('bm_assessment_responses')
+            .select('responses, completed_at')
+            .eq('engagement_id', engagement.id)
+            .maybeSingle();
+          
+          if (responses) {
+            setResponses(responses.responses || {});
+            if (responses.completed_at) setCompleted(true);
+          }
+        }
+      } else {
+        const { data } = await supabase
+          .from('service_line_assessments')
+          .select('responses, completed_at')
+          .eq('client_id', clientSession.clientId)
+          .eq('service_line_code', code)
+          .single();
+        if (data) {
+          setResponses(data.responses || {});
+          if (data.completed_at) setCompleted(true);
+        }
       }
     } catch (err) {
       console.log('No existing assessment');
@@ -152,16 +235,48 @@ export default function ServiceAssessmentPage() {
     if (!clientSession?.clientId || !assessment) return;
     setSaving(true);
     try {
-      const completionPct = Math.round((Object.keys(responses).length / assessment.questions.length) * 100);
-      await supabase.from('service_line_assessments').upsert({
-        client_id: clientSession.clientId,
-        practice_id: clientSession.practiceId,
-        service_line_code: assessment.code,
-        responses,
-        completion_percentage: completionPct,
-        started_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'client_id,service_line_code' });
+      // For benchmarking, save to bm_assessment_responses
+      if (assessment.code === 'benchmarking') {
+        // Find or create engagement
+        let { data: engagement } = await supabase
+          .from('bm_engagements')
+          .select('id')
+          .eq('client_id', clientSession.clientId)
+          .maybeSingle();
+        
+        if (!engagement) {
+          const { data: newEngagement } = await supabase
+            .from('bm_engagements')
+            .insert({
+              client_id: clientSession.clientId,
+              practice_id: clientSession.practiceId,
+              status: 'assessment_in_progress'
+            })
+            .select('id')
+            .single();
+          engagement = newEngagement;
+        }
+        
+        if (engagement) {
+          await supabase.from('bm_assessment_responses').upsert({
+            engagement_id: engagement.id,
+            client_id: clientSession.clientId,
+            responses,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'engagement_id' });
+        }
+      } else {
+        const completionPct = Math.round((Object.keys(responses).length / assessment.questions.length) * 100);
+        await supabase.from('service_line_assessments').upsert({
+          client_id: clientSession.clientId,
+          practice_id: clientSession.practiceId,
+          service_line_code: assessment.code,
+          responses,
+          completion_percentage: completionPct,
+          started_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'client_id,service_line_code' });
+      }
     } catch (err) {
       console.error('Error saving:', err);
     } finally {
@@ -197,6 +312,68 @@ export default function ServiceAssessmentPage() {
         if (q.technicalField && responses[q.id]) extractedInsights[q.technicalField] = responses[q.id];
       });
 
+      // Special handling for Benchmarking
+      if (assessment.code === 'benchmarking') {
+        console.log('✅ Benchmarking detected! Completing assessment...');
+        
+        // Find or create engagement
+        let { data: engagement } = await supabase
+          .from('bm_engagements')
+          .select('id')
+          .eq('client_id', clientSession.clientId)
+          .maybeSingle();
+        
+        if (!engagement) {
+          const { data: newEngagement, error: createError } = await supabase
+            .from('bm_engagements')
+            .insert({
+              client_id: clientSession.clientId,
+              practice_id: clientSession.practiceId,
+              status: 'assessment_complete'
+            })
+            .select('id')
+            .single();
+          
+          if (createError) {
+            console.error('Error creating engagement:', createError);
+            throw createError;
+          }
+          engagement = newEngagement;
+        } else {
+          // Update engagement status
+          await supabase
+            .from('bm_engagements')
+            .update({
+              status: 'assessment_complete',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', engagement.id);
+        }
+        
+        // Save completed responses
+        if (engagement) {
+          await supabase.from('bm_assessment_responses').upsert({
+            engagement_id: engagement.id,
+            client_id: clientSession.clientId,
+            responses,
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'engagement_id' });
+        }
+        
+        // Trigger report generation
+        try {
+          await supabase.functions.invoke('generate-bm-report-pass1', {
+            body: { engagementId: engagement?.id }
+          });
+        } catch (err) {
+          console.error('Error triggering report generation:', err);
+        }
+        
+        setCompleted(true);
+        return;
+      }
+      
       // Special handling for Systems Audit - multi-stage process
       console.log('🔍 Assessment code check:', assessment.code, '===', 'systems_audit', '?', assessment.code === 'systems_audit');
       console.log('🔍 Type check:', typeof assessment.code, typeof 'systems_audit');
@@ -396,12 +573,12 @@ export default function ServiceAssessmentPage() {
         }).eq('client_id', clientSession.clientId).eq('service_line_id', sl.id);
       }
 
-      // Only set completed for non-Systems Audit assessments
-      if (assessment.code !== 'systems_audit') {
+      // Only set completed for non-Systems Audit and non-Benchmarking assessments
+      if (assessment.code !== 'systems_audit' && assessment.code !== 'benchmarking') {
         console.log('✅ Setting completed=true for service:', assessment.code);
         setCompleted(true);
       } else {
-        console.warn('⚠️ Systems Audit should have been handled above - this shouldn\'t be reached!');
+        console.warn(`⚠️ ${assessment.code} should have been handled above - this shouldn't be reached!`);
       }
       
       // Check for shared MA insights before showing completion page
