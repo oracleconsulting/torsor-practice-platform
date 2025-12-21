@@ -145,24 +145,24 @@ VALUES
   ('LEGAL', 'revenue_per_employee', 'all', 'all', 72000, 98500, 136000, 147, 2023, 'Law Society Financial Benchmarking Survey 2024', 'https://www.hazlewoods.co.uk', 'high', '2024-03-01', true),
   
   -- Gross Margin
-  ('LEGAL', 'gross_margin', 'all', 'all', 38, 45, 52, 147, 2023, 'Law Society Financial Benchmarking Survey 2024', 'high', '2024-03-01', true),
+  ('LEGAL', 'gross_margin', 'all', 'all', 38, 45, 52, 147, 2023, 'Law Society Financial Benchmarking Survey 2024', 'https://www.hazlewoods.co.uk', 'high', '2024-03-01', true),
   
   -- Net Margin (segmented)
-  ('LEGAL', 'net_margin', '2m_5m', 'all', 14, 19, 25, 147, 2023, 'Law Society Financial Benchmarking Survey 2024', 'high', '2024-03-01', true),
-  ('LEGAL', 'net_margin', '5m_10m', 'all', 18, 23, 29, 147, 2023, 'Law Society Financial Benchmarking Survey 2024', 'high', '2024-03-01', true),
-  ('LEGAL', 'net_margin', '10m_plus', 'all', 22, 27, 33, 147, 2023, 'Law Society Financial Benchmarking Survey 2024', 'high', '2024-03-01', true),
+  ('LEGAL', 'net_margin', '2m_5m', 'all', 14, 19, 25, 147, 2023, 'Law Society Financial Benchmarking Survey 2024', 'https://www.hazlewoods.co.uk', 'high', '2024-03-01', true),
+  ('LEGAL', 'net_margin', '5m_10m', 'all', 18, 23, 29, 147, 2023, 'Law Society Financial Benchmarking Survey 2024', 'https://www.hazlewoods.co.uk', 'high', '2024-03-01', true),
+  ('LEGAL', 'net_margin', '10m_plus', 'all', 22, 27, 33, 147, 2023, 'Law Society Financial Benchmarking Survey 2024', 'https://www.hazlewoods.co.uk', 'high', '2024-03-01', true),
   
   -- Debtor Days (Lock-up)
-  ('LEGAL', 'debtor_days', 'all', 'all', 125, 146, 168, 147, 2023, 'Law Society Financial Benchmarking Survey 2024', 'high', '2024-03-01', true),
+  ('LEGAL', 'debtor_days', 'all', 'all', 125, 146, 168, 147, 2023, 'Law Society Financial Benchmarking Survey 2024', 'https://www.hazlewoods.co.uk', 'high', '2024-03-01', true),
   
   -- Creditor Days
-  ('LEGAL', 'creditor_days', 'all', 'all', 38, 45, 53, 147, 2023, 'Law Society Financial Benchmarking Survey 2024', 'high', '2024-03-01', true),
+  ('LEGAL', 'creditor_days', 'all', 'all', 38, 45, 53, 147, 2023, 'Law Society Financial Benchmarking Survey 2024', 'https://www.hazlewoods.co.uk', 'high', '2024-03-01', true),
   
   -- Employee Turnover
   ('LEGAL', 'employee_turnover', 'all', 'all', 15, 22, 28, NULL, 2023, 'Law Society attrition data', 'https://www.lawsociety.org.uk', 'medium', '2024-03-01', true),
   
   -- Client Retention
-  ('LEGAL', 'client_retention', 'all', 'all', 78, 88, 95, NULL, 2023, 'Law Society Financial Benchmarking Survey 2024', 'medium', '2024-03-01', true);
+  ('LEGAL', 'client_retention', 'all', 'all', 78, 88, 95, NULL, 2023, 'Law Society Financial Benchmarking Survey 2024', 'https://www.hazlewoods.co.uk', 'medium', '2024-03-01', true);
 
 -- Legal Industry-Specific Metrics
 INSERT INTO benchmark_data (industry_code, metric_code, revenue_band, employee_band, p25, p50, p75, sample_size, data_year, data_source, confidence_level, valid_from, is_current)
