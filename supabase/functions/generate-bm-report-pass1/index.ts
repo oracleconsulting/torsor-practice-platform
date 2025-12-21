@@ -290,6 +290,130 @@ function calculateEmployeeBand(employeeCount: number): string {
   return '100_plus';
 }
 
+/**
+ * Dynamically determine industry code from SIC codes and business description
+ * Returns industry code if found, null otherwise
+ */
+async function detectIndustryFromContext(
+  supabaseClient: any,
+  sicCodes: string[] | null | undefined,
+  businessDescription: string | null | undefined
+): Promise<string | null> {
+  // First try: Match SIC codes to industries
+  if (sicCodes && sicCodes.length > 0) {
+    // Clean SIC codes (remove any formatting)
+    const cleanSicCodes = sicCodes.map(code => code.trim().replace(/[^0-9]/g, ''));
+    
+    // Query all active industries first (more efficient than multiple queries)
+    const { data: allIndustries, error: industriesError } = await supabaseClient
+      .from('industries')
+      .select('code, name, sic_codes')
+      .eq('is_active', true);
+    
+    if (industriesError || !allIndustries) {
+      console.warn('[BM Pass 1] Could not fetch industries for SIC code matching');
+      return null;
+    }
+    
+    // Match SIC codes to industries
+    for (const sicCode of cleanSicCodes) {
+      if (!sicCode || sicCode.length < 5) continue; // Skip invalid SIC codes
+      
+      // Find industry where sic_codes array contains this SIC code
+      const matchedIndustry = allIndustries.find((ind: any) => 
+        ind.sic_codes && Array.isArray(ind.sic_codes) && ind.sic_codes.includes(sicCode)
+      );
+      
+      if (matchedIndustry) {
+        console.log(`[BM Pass 1] Matched SIC code ${sicCode} to industry: ${matchedIndustry.code} (${matchedIndustry.name})`);
+        return matchedIndustry.code;
+      }
+    }
+  }
+  
+  // Second try: Use AI to classify business description
+  if (businessDescription && businessDescription.trim().length > 20) {
+    try {
+      console.log('[BM Pass 1] Attempting AI classification from business description...');
+      
+      // Get all active industries with their keywords for context
+      const { data: allIndustries, error: industriesError } = await supabaseClient
+        .from('industries')
+        .select('code, name, category, keywords')
+        .eq('is_active', true);
+      
+      if (industriesError || !allIndustries || allIndustries.length === 0) {
+        console.warn('[BM Pass 1] Could not fetch industries for AI classification');
+        return null;
+      }
+      
+      // Create a simple mapping of industries for the AI
+      const industryList = allIndustries.map((ind: any) => ({
+        code: ind.code,
+        name: ind.name,
+        category: ind.category,
+        keywords: ind.keywords || []
+      }));
+      
+      // Use OpenRouter to classify
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('OPENROUTER_API_KEY')}`,
+          'HTTP-Referer': Deno.env.get('OPENROUTER_REFERRER_URL') || '',
+        },
+        body: JSON.stringify({
+          model: 'anthropic/claude-sonnet-4-20250514',
+          messages: [{
+            role: 'user',
+            content: `Based on this business description, determine the most appropriate industry code from the list below.
+
+Business Description:
+"${businessDescription}"
+
+Available Industries:
+${industryList.map((ind: any) => `- ${ind.code}: ${ind.name} (Category: ${ind.category})${ind.keywords.length > 0 ? ` [Keywords: ${ind.keywords.join(', ')}]` : ''}`).join('\n')}
+
+Respond with ONLY the industry code (e.g., "AGENCY_DEV" or "CONSULT"). Do not include any explanation or formatting.`
+          }],
+          temperature: 0.3,
+          max_tokens: 20,
+        }),
+      });
+      
+      if (!response.ok) {
+        console.warn('[BM Pass 1] AI classification request failed:', response.status);
+        return null;
+      }
+      
+      const result = await response.json();
+      const classifiedCode = result.choices?.[0]?.message?.content?.trim().toUpperCase();
+      
+      if (classifiedCode) {
+        // Verify the code exists in our industries
+        const { data: verifiedIndustry } = await supabaseClient
+          .from('industries')
+          .select('code, name')
+          .eq('code', classifiedCode)
+          .eq('is_active', true)
+          .maybeSingle();
+        
+        if (verifiedIndustry) {
+          console.log(`[BM Pass 1] AI classified business description to industry: ${classifiedCode} (${verifiedIndustry.name})`);
+          return classifiedCode;
+        } else {
+          console.warn(`[BM Pass 1] AI returned invalid industry code: ${classifiedCode}`);
+        }
+      }
+    } catch (error) {
+      console.warn('[BM Pass 1] Error in AI classification:', error);
+    }
+  }
+  
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -327,7 +451,7 @@ serve(async (req) => {
     }
     
     // Extract industry_code from assessment responses (could be in responses JSONB or individual column)
-    const industryCode = assessment.industry_code || assessment.responses?.industry_code;
+    let industryCode = assessment.industry_code || assessment.responses?.industry_code;
     
     console.log('[BM Pass 1] Extracted industry_code from assessment:', industryCode);
     console.log('[BM Pass 1] Assessment structure:', {
@@ -337,9 +461,44 @@ serve(async (req) => {
       responses_keys: assessment.responses ? Object.keys(assessment.responses) : []
     });
     
+    // If industry_code is missing, try to detect it from SIC codes and business description
     if (!industryCode || industryCode === 'undefined' || industryCode === 'null') {
-      console.error('[BM Pass 1] Missing industry_code. Full assessment:', JSON.stringify(assessment, null, 2));
-      throw new Error(`Industry code is required but not found in assessment. engagementId: ${engagementId}. Check that the assessment has been completed with an industry selected.`);
+      console.log('[BM Pass 1] Industry code not found in assessment. Attempting dynamic detection from context...');
+      
+      // Get business description
+      const businessDescription = assessment.business_description || assessment.responses?.business_description;
+      
+      // Try to get SIC codes from client data
+      let sicCodes: string[] | null = null;
+      if (engagement.client_id) {
+        const { data: client } = await supabaseClient
+          .from('practice_members')
+          .select('sic_codes, metadata')
+          .eq('id', engagement.client_id)
+          .maybeSingle();
+        
+        // SIC codes might be in sic_codes column or metadata JSONB
+        sicCodes = client?.sic_codes || client?.metadata?.sic_codes || null;
+        
+        if (Array.isArray(sicCodes)) {
+          console.log('[BM Pass 1] Found SIC codes from client:', sicCodes);
+        }
+      }
+      
+      // Attempt dynamic detection
+      const detectedIndustryCode = await detectIndustryFromContext(
+        supabaseClient,
+        sicCodes,
+        businessDescription
+      );
+      
+      if (detectedIndustryCode) {
+        console.log(`[BM Pass 1] Successfully detected industry code: ${detectedIndustryCode}`);
+        industryCode = detectedIndustryCode;
+      } else {
+        console.error('[BM Pass 1] Could not detect industry code from context. Full assessment:', JSON.stringify(assessment, null, 2));
+        throw new Error(`Industry code is required but not found in assessment and could not be determined from SIC codes or business description. engagementId: ${engagementId}. Please ensure the assessment has an industry selected or the client has SIC codes/business description.`);
+      }
     }
     
     // Now fetch industry using the industry_code from assessment
