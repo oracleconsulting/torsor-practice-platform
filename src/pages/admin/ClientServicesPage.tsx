@@ -7352,20 +7352,23 @@ function BenchmarkingClientModal({
                             {/* Show response data if available */}
                             {hvaStatus.responses && (
                               <div className="mt-4 pt-4 border-t border-emerald-200">
-                                <div className="text-sm font-medium text-emerald-900 mb-2">Assessment Responses:</div>
-                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                  {Object.entries(hvaStatus.responses).slice(0, 6).map(([key, value]: [string, any]) => (
-                                    <div key={key}>
-                                      <div className="text-emerald-700 font-medium capitalize">{key.replace(/_/g, ' ')}:</div>
-                                      <div className="text-emerald-900">{Array.isArray(value) ? value.join(', ') : String(value || 'N/A')}</div>
+                                <div className="text-sm font-medium text-emerald-900 mb-3">
+                                  Assessment Responses ({Object.keys(hvaStatus.responses).length} fields):
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  {Object.entries(hvaStatus.responses).map(([key, value]: [string, any]) => (
+                                    <div key={key} className="border border-emerald-100 rounded-lg p-3 bg-white">
+                                      <div className="text-emerald-700 font-medium capitalize mb-1">{key.replace(/_/g, ' ')}:</div>
+                                      <div className="text-emerald-900 break-words">
+                                        {Array.isArray(value) 
+                                          ? value.join(', ') 
+                                          : typeof value === 'object' && value !== null
+                                            ? JSON.stringify(value, null, 2)
+                                            : String(value || 'N/A')}
+                                      </div>
                                     </div>
                                   ))}
                                 </div>
-                                {Object.keys(hvaStatus.responses).length > 6 && (
-                                  <div className="text-xs text-emerald-600 mt-2">
-                                    +{Object.keys(hvaStatus.responses).length - 6} more fields
-                                  </div>
-                                )}
                               </div>
                             )}
                           </div>
