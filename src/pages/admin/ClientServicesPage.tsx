@@ -7249,7 +7249,7 @@ function SystemsAuditClientModal({
     
     try {
       // Check if report exists
-      const { data: report, error } = await supabase
+      const { data: report } = await supabase
         .from('sa_audit_reports')
         .select('id, generated_at')
         .eq('engagement_id', engagementId)
