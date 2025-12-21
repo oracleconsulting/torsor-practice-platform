@@ -238,14 +238,20 @@ export default function ServiceAssessmentPage() {
       // For benchmarking, save to bm_assessment_responses
       if (assessment.code === 'benchmarking') {
         // Find or create engagement
-        let { data: engagement } = await supabase
+        let { data: engagement, error: fetchError } = await supabase
           .from('bm_engagements')
           .select('id')
           .eq('client_id', clientSession.clientId)
           .maybeSingle();
         
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          console.error('[saveProgress] Error fetching engagement:', fetchError);
+          // Don't throw - just log, continue to try insert if engagement is null
+        }
+        
         if (!engagement) {
-          const { data: newEngagement } = await supabase
+          console.log('[saveProgress] Creating engagement for progress save...');
+          const { data: newEngagement, error: createError } = await supabase
             .from('bm_engagements')
             .insert({
               client_id: clientSession.clientId,
@@ -254,16 +260,26 @@ export default function ServiceAssessmentPage() {
             })
             .select('id')
             .single();
-          engagement = newEngagement;
+          
+          if (createError) {
+            console.error('[saveProgress] Error creating engagement:', createError);
+            // Don't throw - allow progress to continue without engagement for now
+          } else {
+            engagement = newEngagement;
+          }
         }
         
         if (engagement) {
-          await supabase.from('bm_assessment_responses').upsert({
+          const { error: responsesError } = await supabase.from('bm_assessment_responses').upsert({
             engagement_id: engagement.id,
             client_id: clientSession.clientId,
             responses,
             updated_at: new Date().toISOString()
           }, { onConflict: 'engagement_id' });
+          
+          if (responsesError) {
+            console.error('[saveProgress] Error saving responses:', responsesError);
+          }
         }
       } else {
         const completionPct = Math.round((Object.keys(responses).length / assessment.questions.length) * 100);
