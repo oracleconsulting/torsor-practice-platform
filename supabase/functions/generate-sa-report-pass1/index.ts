@@ -236,6 +236,69 @@ Analyze the data and return a JSON object with this structure:
       "score": 0-100, 
       "evidence": "At 1.5x growth, X breaks because Y" 
     }
+  },
+  
+  "adminGuidance": {
+    "talkingPoints": [
+      {
+        "topic": "Short topic name",
+        "point": "What to say about this topic - be specific and actionable",
+        "clientQuote": "Exact quote from their responses to reference",
+        "importance": "critical|high|medium"
+      }
+    ],
+    "questionsToAsk": [
+      {
+        "question": "Specific probing question to ask in the meeting",
+        "purpose": "Why this question matters - what insight it unlocks",
+        "expectedInsight": "What you expect to learn from asking this",
+        "followUp": "Natural follow-up question based on likely answer"
+      }
+    ],
+    "nextSteps": [
+      {
+        "action": "Specific action to take",
+        "owner": "Practice team|Client|Joint",
+        "timing": "Within X days/weeks",
+        "outcome": "What this achieves",
+        "priority": 1
+      }
+    ],
+    "tasks": [
+      {
+        "task": "Specific task description",
+        "assignTo": "Role who should do this",
+        "dueDate": "Before next meeting|Within 1 week|etc",
+        "deliverable": "What output is expected"
+      }
+    ],
+    "riskFlags": [
+      {
+        "flag": "What to watch out for",
+        "mitigation": "How to address this concern",
+        "severity": "high|medium|low"
+      }
+    ]
+  },
+  
+  "clientPresentation": {
+    "executiveBrief": "One paragraph (under 100 words) summary for a busy MD - focus on the cost and the path forward, no jargon",
+    "roiSummary": {
+      "currentAnnualCost": number,
+      "projectedSavings": number,
+      "implementationCost": number,
+      "paybackPeriod": "X months",
+      "threeYearROI": "X:1 ratio",
+      "timeReclaimed": "X hours/week"
+    },
+    "topThreeIssues": [
+      {
+        "issue": "Clear issue title",
+        "impact": "£X annual impact or Y hours/week",
+        "solution": "Specific solution in plain language",
+        "timeToFix": "X days/weeks"
+      }
+    ]
   }
 }
 
@@ -246,6 +309,14 @@ RULES:
 4. Calculate hours realistically based on their actual volumes
 5. Integration gaps must name both systems involved
 6. Quick wins must be implementable in under 1 week
+
+ADMIN GUIDANCE RULES:
+7. Generate at least 5 talking points - prioritize their expensive mistake and magic fix
+8. Generate at least 4 probing questions that uncover hidden costs or expand scope
+9. Generate at least 3 next steps with clear owners and timing
+10. Generate at least 3 tasks for the practice team to prepare
+11. Flag any risks: change appetite concerns, budget constraints, key person dependencies
+12. Client presentation must be jargon-free and focus on outcomes, not process
 
 Return ONLY valid JSON.
 `;
@@ -415,6 +486,17 @@ serve(async (req) => {
       what_this_enables: [f.magicFix.substring(0, 200)],
       
       client_quotes_used: f.allClientQuotes?.slice(0, 10) || [],
+      
+      // Admin guidance from Pass 1
+      admin_talking_points: pass1Data.adminGuidance?.talkingPoints || [],
+      admin_questions_to_ask: pass1Data.adminGuidance?.questionsToAsk || [],
+      admin_next_steps: pass1Data.adminGuidance?.nextSteps || [],
+      admin_tasks: pass1Data.adminGuidance?.tasks || [],
+      admin_risk_flags: pass1Data.adminGuidance?.riskFlags || [],
+      
+      // Client presentation from Pass 1
+      client_executive_brief: pass1Data.clientPresentation?.executiveBrief || null,
+      client_roi_summary: pass1Data.clientPresentation?.roiSummary || null,
       
       llm_model: 'claude-sonnet-4',
       llm_tokens_used: tokensUsed,

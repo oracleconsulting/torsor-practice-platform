@@ -39,6 +39,8 @@ import {
   Loader2,
   RefreshCw
 } from 'lucide-react';
+import { SAAdminReportView } from '../../components/systems-audit/SAAdminReportView';
+import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
 
 
 interface ClientServicesPageProps {
@@ -7035,6 +7037,10 @@ function SystemsAuditClientModal({
   const [stage3DeepDives, setStage3DeepDives] = useState<any[]>([]);
   const [report, setReport] = useState<any>(null);
   const [generating, setGenerating] = useState(false);
+  const [viewMode, setViewMode] = useState<'admin' | 'client'>('admin');
+  const [findings, setFindings] = useState<any[]>([]);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [clientName, setClientName] = useState<string>('');
 
   useEffect(() => {
     if (currentMember?.practice_id) {
@@ -7165,6 +7171,45 @@ function SystemsAuditClientModal({
           console.error('[Systems Audit Modal] Error fetching report:', reportError);
         } else {
           setReport(reportData);
+        }
+
+        // Fetch findings
+        const { data: findingsData, error: findingsError } = await supabase
+          .from('sa_findings')
+          .select('*')
+          .eq('engagement_id', engagementData.id)
+          .order('severity', { ascending: true });
+
+        if (findingsError) {
+          console.error('[Systems Audit Modal] Error fetching findings:', findingsError);
+        } else {
+          setFindings(findingsData || []);
+        }
+
+        // Fetch recommendations
+        const { data: recsData, error: recsError } = await supabase
+          .from('sa_recommendations')
+          .select('*')
+          .eq('engagement_id', engagementData.id)
+          .order('priority_rank');
+
+        if (recsError) {
+          console.error('[Systems Audit Modal] Error fetching recommendations:', recsError);
+        } else {
+          setRecommendations(recsData || []);
+        }
+
+        // Fetch client name
+        if (engagementData.client_id) {
+          const { data: clientData } = await supabase
+            .from('practice_members')
+            .select('client_company, company, name')
+            .eq('id', engagementData.client_id)
+            .maybeSingle();
+          
+          if (clientData) {
+            setClientName(clientData.client_company || clientData.company || clientData.name || '');
+          }
         }
       } else {
         console.log('[Systems Audit Modal] No engagement found for clientId:', clientId);
@@ -7738,191 +7783,111 @@ function SystemsAuditClientModal({
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      {/* Regenerate Button */}
+                      {/* View Mode Toggle & Regenerate Button */}
                       <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">Generated Analysis</h3>
-                          <p className="text-sm text-gray-500">
-                            {report.generated_at && new Date(report.generated_at).toLocaleString()}
+                        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+                          <button
+                            onClick={() => setViewMode('admin')}
+                            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                              viewMode === 'admin' 
+                                ? 'bg-white shadow text-gray-900' 
+                                : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                          >
+                            <Users className="w-4 h-4 inline mr-2" />
+                            Team View
+                          </button>
+                          <button
+                            onClick={() => setViewMode('client')}
+                            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                              viewMode === 'client' 
+                                ? 'bg-white shadow text-gray-900' 
+                                : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                          >
+                            <FileText className="w-4 h-4 inline mr-2" />
+                            Client View
+                          </button>
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-sm font-medium text-gray-900">Generated Analysis</p>
+                            <p className="text-xs text-gray-500">
+                              {report.generated_at && new Date(report.generated_at).toLocaleString()}
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleGenerateReport}
+                            disabled={generating || !canGenerateOrRegenerate}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
+                          >
+                            {generating ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Regenerating...</span>
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="w-4 h-4" />
+                                <span>Regenerate</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Status Messages */}
+                      {report.status === 'pass1_complete' && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                          <p className="text-sm text-blue-800">
+                            <Loader2 className="w-4 h-4 inline animate-spin mr-2" />
+                            <strong>Pass 1 Complete:</strong> Data extraction finished. Narrative generation (Pass 2) is in progress...
                           </p>
                         </div>
-                        <button
-                          onClick={handleGenerateReport}
-                          disabled={generating || !canGenerateOrRegenerate}
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
-                        >
-                          {generating ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              <span>Regenerating...</span>
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCw className="w-4 h-4" />
-                              <span>Regenerate Analysis</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
+                      )}
                       
-                      {/* Report Content */}
-                      <div className="space-y-6">
-                        {/* Show status if not fully generated */}
-                        {report.status === 'pass1_complete' && (
-                          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                            <p className="text-sm text-blue-800">
-                              <strong>Pass 1 Complete:</strong> Data extraction finished. Narrative generation (Pass 2) is in progress...
-                            </p>
-                          </div>
-                        )}
-                        
-                        {report.status === 'pass2_failed' && (
-                          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                            <p className="text-sm text-red-800 mb-2">
-                              <strong>Pass 2 Failed:</strong> Narrative generation encountered an error. You can retry Pass 2 or view the extracted data below.
-                            </p>
-                            <button
-                              onClick={async () => {
-                                if (!engagement) return;
-                                setGenerating(true);
-                                try {
-                                  await supabase.functions.invoke('generate-sa-report-pass2', {
-                                    body: { engagementId: engagement.id }
-                                  });
-                                  pollForReport(engagement.id, 0);
-                                } catch (error: any) {
-                                  alert(`Error retrying Pass 2: ${error.message || 'Unknown error'}`);
-                                  setGenerating(false);
-                                }
-                              }}
-                              disabled={generating}
-                              className="text-sm px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded"
-                            >
-                              Retry Pass 2
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Headline & Executive Summary */}
-                        {report.headline && !report.headline.startsWith('[PENDING PASS 2]') && (
-                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">{report.headline}</h3>
-                            {report.executive_summary && !report.executive_summary.includes('[Pass 2 will generate]') && (
-                              <div className="prose prose-sm max-w-none">
-                                <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
-                                  {report.executive_summary}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Cost of Chaos Narrative */}
-                        {report.cost_of_chaos_narrative && !report.cost_of_chaos_narrative.includes('[Pass 2 will generate]') && (
-                          <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-                            <h4 className="text-md font-semibold text-gray-900 mb-3">The Cost of Chaos</h4>
-                            <div className="prose prose-sm max-w-none">
-                              <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
-                                {report.cost_of_chaos_narrative}
-                              </p>
-                            </div>
-                            {/* Cost Metrics */}
-                            <div className="mt-4 grid grid-cols-3 gap-4 pt-4 border-t border-red-200">
-                              <div>
-                                <p className="text-xs text-gray-500 uppercase mb-1">Hours Wasted Weekly</p>
-                                <p className="text-2xl font-bold text-red-600">{report.total_hours_wasted_weekly || 0}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-gray-500 uppercase mb-1">Annual Cost</p>
-                                <p className="text-2xl font-bold text-red-600">£{(report.total_annual_cost_of_chaos || 0).toLocaleString()}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-gray-500 uppercase mb-1">At {report.growth_multiplier}x Growth</p>
-                                <p className="text-2xl font-bold text-red-600">£{(report.projected_cost_at_scale || 0).toLocaleString()}</p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Time Freedom Narrative */}
-                        {report.time_freedom_narrative && !report.time_freedom_narrative.includes('[Pass 2 will generate]') && (
-                          <div className="bg-green-50 border border-green-200 rounded-xl p-6">
-                            <h4 className="text-md font-semibold text-gray-900 mb-3">What This Enables</h4>
-                            <div className="prose prose-sm max-w-none">
-                              <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
-                                {report.time_freedom_narrative}
-                              </p>
-                            </div>
-                            {/* Time Reclaimed */}
-                            {report.hours_reclaimable_weekly && (
-                              <div className="mt-4 pt-4 border-t border-green-200">
-                                <p className="text-xs text-gray-500 uppercase mb-1">Hours Reclaimable Weekly</p>
-                                <p className="text-2xl font-bold text-green-600">{report.hours_reclaimable_weekly}</p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* System Health Scores */}
-                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-                          <h4 className="text-md font-semibold text-gray-900 mb-4">System Health Scores</h4>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div>
-                              <p className="text-xs text-gray-500 uppercase mb-1">Integration</p>
-                              <p className="text-3xl font-bold text-blue-600">{report.integration_score || 0}</p>
-                              <p className="text-xs text-gray-400">/ 100</p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-500 uppercase mb-1">Automation</p>
-                              <p className="text-3xl font-bold text-blue-600">{report.automation_score || 0}</p>
-                              <p className="text-xs text-gray-400">/ 100</p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-500 uppercase mb-1">Data Access</p>
-                              <p className="text-3xl font-bold text-blue-600">{report.data_accessibility_score || 0}</p>
-                              <p className="text-xs text-gray-400">/ 100</p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-gray-500 uppercase mb-1">Scalability</p>
-                              <p className="text-3xl font-bold text-blue-600">{report.scalability_score || 0}</p>
-                              <p className="text-xs text-gray-400">/ 100</p>
-                            </div>
-                          </div>
+                      {report.status === 'pass2_failed' && (
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between">
+                          <p className="text-sm text-red-800">
+                            <strong>Pass 2 Failed:</strong> Narrative generation encountered an error.
+                          </p>
+                          <button
+                            onClick={async () => {
+                              if (!engagement) return;
+                              setGenerating(true);
+                              try {
+                                await supabase.functions.invoke('generate-sa-report-pass2', {
+                                  body: { engagementId: engagement.id }
+                                });
+                                pollForReport(engagement.id, 0);
+                              } catch (error: any) {
+                                alert(`Error retrying: ${error.message}`);
+                                setGenerating(false);
+                              }
+                            }}
+                            disabled={generating}
+                            className="text-sm px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded"
+                          >
+                            Retry
+                          </button>
                         </div>
+                      )}
 
-                        {/* Findings Summary */}
-                        {(report.critical_findings_count || report.high_findings_count || report.medium_findings_count || report.low_findings_count) && (
-                          <div className="bg-orange-50 border border-orange-200 rounded-xl p-6">
-                            <h4 className="text-md font-semibold text-gray-900 mb-4">Findings Summary</h4>
-                            <div className="grid grid-cols-4 gap-4">
-                              {report.critical_findings_count > 0 && (
-                                <div>
-                                  <p className="text-xs text-gray-500 uppercase mb-1">Critical</p>
-                                  <p className="text-2xl font-bold text-red-600">{report.critical_findings_count}</p>
-                                </div>
-                              )}
-                              {report.high_findings_count > 0 && (
-                                <div>
-                                  <p className="text-xs text-gray-500 uppercase mb-1">High</p>
-                                  <p className="text-2xl font-bold text-orange-600">{report.high_findings_count}</p>
-                                </div>
-                              )}
-                              {report.medium_findings_count > 0 && (
-                                <div>
-                                  <p className="text-xs text-gray-500 uppercase mb-1">Medium</p>
-                                  <p className="text-2xl font-bold text-yellow-600">{report.medium_findings_count}</p>
-                                </div>
-                              )}
-                              {report.low_findings_count > 0 && (
-                                <div>
-                                  <p className="text-xs text-gray-500 uppercase mb-1">Low</p>
-                                  <p className="text-2xl font-bold text-green-600">{report.low_findings_count}</p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                      {/* Conditional View */}
+                      {viewMode === 'admin' ? (
+                        <SAAdminReportView 
+                          report={report} 
+                          engagement={engagement}
+                          findings={findings}
+                          recommendations={recommendations}
+                        />
+                      ) : (
+                        <SAClientReportView 
+                          report={report}
+                          companyName={clientName}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
