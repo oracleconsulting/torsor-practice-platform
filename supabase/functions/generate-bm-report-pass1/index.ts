@@ -329,15 +329,30 @@ serve(async (req) => {
     // Extract industry_code from assessment responses (could be in responses JSONB or individual column)
     const industryCode = assessment.industry_code || assessment.responses?.industry_code;
     
+    console.log('[BM Pass 1] Extracted industry_code from assessment:', industryCode);
+    console.log('[BM Pass 1] Assessment structure:', {
+      has_industry_code: !!assessment.industry_code,
+      has_responses: !!assessment.responses,
+      responses_industry_code: assessment.responses?.industry_code
+    });
+    
+    if (!industryCode) {
+      throw new Error('Industry code is required but not found in assessment. Check assessment responses.');
+    }
+    
     // Now fetch industry using the industry_code from assessment
     const { data: industry, error: industryError } = await supabaseClient
       .from('industries')
       .select('*')
-      .eq('code', industryCode || '')
+      .eq('code', industryCode)
       .maybeSingle();
     
     if (industryError) {
       console.warn('[BM Pass 1] Warning: Failed to fetch industry:', industryError.message);
+    }
+    
+    if (!industry) {
+      console.warn('[BM Pass 1] Warning: Industry not found for code:', industryCode);
     }
     
     // Get client name
@@ -477,8 +492,16 @@ serve(async (req) => {
     
     // Ensure industry_code is valid (fallback to assessment data if LLM didn't return it)
     const finalIndustryCode = pass1Data.classification?.industryCode || assessmentData.industry_code || industryCode;
-    if (!finalIndustryCode) {
-      throw new Error('Industry code is required but was not found in assessment or LLM response');
+    
+    console.log('[BM Pass 1] Final industry_code determination:', {
+      fromLLM: pass1Data.classification?.industryCode,
+      fromAssessmentData: assessmentData.industry_code,
+      fromOriginal: industryCode,
+      final: finalIndustryCode
+    });
+    
+    if (!finalIndustryCode || finalIndustryCode === 'undefined' || finalIndustryCode === 'null') {
+      throw new Error(`Industry code is required but was not found. LLM returned: ${pass1Data.classification?.industryCode}, Assessment: ${assessmentData.industry_code}, Original: ${industryCode}`);
     }
     
     // Save to database
