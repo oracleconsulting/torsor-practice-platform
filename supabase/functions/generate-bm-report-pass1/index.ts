@@ -475,13 +475,19 @@ serve(async (req) => {
     // Calculate employee band
     const calculatedEmployeeBand = calculateEmployeeBand(assessmentData.employee_count || 0);
     
+    // Ensure industry_code is valid (fallback to assessment data if LLM didn't return it)
+    const finalIndustryCode = pass1Data.classification?.industryCode || assessmentData.industry_code || industryCode;
+    if (!finalIndustryCode) {
+      throw new Error('Industry code is required but was not found in assessment or LLM response');
+    }
+    
     // Save to database
     const { data: report, error: saveError } = await supabaseClient
       .from('bm_reports')
       .upsert({
         engagement_id: engagementId,
-        industry_code: pass1Data.classification.industryCode,
-        revenue_band: pass1Data.classification.revenueBand,
+        industry_code: finalIndustryCode,
+        revenue_band: pass1Data.classification?.revenueBand || assessmentData.revenue_band,
         employee_band: calculatedEmployeeBand,
         metrics_comparison: pass1Data.metricsComparison,
         overall_percentile: pass1Data.overallPosition.percentile,
