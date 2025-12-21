@@ -177,6 +177,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "AGENCY_DEV",
+        category: "technology",
         name: "Software Development Agency",
         sicCodes: ["62020"],
         keywords: ["software development", "web development", "app development", "coding", "programming"],
@@ -187,6 +188,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "ITSERV",
+        category: "technology",
         name: "IT Services & MSP",
         sicCodes: ["62020", "62030", "62090"],
         keywords: ["IT support", "managed services", "MSP", "helpdesk", "infrastructure"],
@@ -213,6 +215,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "CYBER",
+        category: "technology",
         name: "Cybersecurity",
         sicCodes: ["62090"],
         keywords: ["cybersecurity", "security", "penetration testing", "compliance", "GDPR"],
@@ -223,6 +226,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "DATA",
+        category: "technology",
         name: "Data & Analytics",
         sicCodes: ["63110"],
         keywords: ["data", "analytics", "BI", "business intelligence", "data science"],
@@ -243,6 +247,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "DESIGN",
+        category: "creative",
         name: "Graphic & Brand Design",
         sicCodes: ["74100"],
         keywords: ["design", "graphic design", "branding", "logo", "creative"],
@@ -253,6 +258,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "PHOTO",
+        category: "creative",
         name: "Photography & Videography",
         sicCodes: ["74201", "59111"],
         keywords: ["photographer", "videographer", "film", "production", "content creation"],
@@ -263,6 +269,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "MEDIA",
+        category: "creative",
         name: "Media Production",
         sicCodes: ["59111", "59112", "59120"],
         keywords: ["production", "film", "TV", "broadcast", "media"],
@@ -273,6 +280,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "GAMES",
+        category: "creative",
         name: "Games Development",
         sicCodes: ["62011", "58210"],
         keywords: ["games", "gaming", "game development", "indie", "studio"],
@@ -283,6 +291,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "MUSIC",
+        category: "creative",
         name: "Music & Audio Production",
         sicCodes: ["59200", "90030"],
         keywords: ["music", "audio", "recording", "studio", "sound"],
@@ -293,6 +302,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "PUBLISH",
+        category: "creative",
         name: "Publishing & Content",
         sicCodes: ["58110", "58130", "58140"],
         keywords: ["publishing", "content", "editorial", "magazine", "books"],
@@ -313,6 +323,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "CONST_MAIN",
+        category: "construction_property",
         name: "Main Contractor / Builder",
         sicCodes: ["41201", "41202"],
         keywords: ["builder", "contractor", "construction", "building"],
@@ -326,6 +337,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "CONST_SPEC",
+        category: "construction_property",
         name: "Specialist Contractor",
         sicCodes: ["43210", "43220", "43290", "43310", "43320", "43341", "43390"],
         keywords: ["electrical", "plumbing", "HVAC", "roofing", "flooring", "specialist"],
@@ -336,6 +348,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "PROP_DEV",
+        category: "construction_property",
         name: "Property Development",
         sicCodes: ["41100"],
         keywords: ["property developer", "development", "housing", "residential"],
@@ -346,6 +359,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "ESTATE",
+        category: "construction_property",
         name: "Estate Agency",
         sicCodes: ["68310"],
         keywords: ["estate agent", "property sales", "lettings", "real estate"],
@@ -359,6 +373,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "PROP_MGMT",
+        category: "construction_property",
         name: "Property Management",
         sicCodes: ["68320"],
         keywords: ["property management", "lettings", "block management", "landlord"],
@@ -369,6 +384,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "TRADES",
+        category: "construction_property",
         name: "Trade Services (Plumber, Electrician, etc.)",
         sicCodes: ["43210", "43220"],
         keywords: ["plumber", "electrician", "tradesman", "gas engineer", "heating"],
