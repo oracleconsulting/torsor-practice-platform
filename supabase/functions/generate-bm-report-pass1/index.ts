@@ -465,12 +465,26 @@ serve(async (req) => {
     if (!industryCode || industryCode === 'undefined' || industryCode === 'null') {
       console.log('[BM Pass 1] Industry code not found in assessment. Attempting dynamic detection from context...');
       
-      // Get business description
-      const businessDescription = assessment.business_description || assessment.responses?.business_description;
+      // Get business description - check both top level and responses with bm_ prefix
+      const businessDescription = 
+        assessment.business_description || 
+        assessment.responses?.business_description ||
+        assessment.responses?.bm_business_description;
       
-      // Try to get SIC codes from client data
+      console.log('[BM Pass 1] Business description found:', !!businessDescription);
+      
+      // Get SIC codes - check multiple locations
       let sicCodes: string[] | null = null;
-      if (engagement.client_id) {
+      
+      // First check assessment responses (with bm_ prefix)
+      const sicCodeFromAssessment = assessment.responses?.bm_sic_code || assessment.responses?.sic_code;
+      if (sicCodeFromAssessment) {
+        sicCodes = Array.isArray(sicCodeFromAssessment) ? sicCodeFromAssessment : [sicCodeFromAssessment];
+        console.log('[BM Pass 1] Found SIC code from assessment responses:', sicCodes);
+      }
+      
+      // If not in assessment, try client data
+      if (!sicCodes && engagement.client_id) {
         const { data: client } = await supabaseClient
           .from('practice_members')
           .select('sic_codes, metadata')
@@ -478,9 +492,9 @@ serve(async (req) => {
           .maybeSingle();
         
         // SIC codes might be in sic_codes column or metadata JSONB
-        sicCodes = client?.sic_codes || client?.metadata?.sic_codes || null;
-        
-        if (Array.isArray(sicCodes)) {
+        const clientSicCodes = client?.sic_codes || client?.metadata?.sic_codes;
+        if (clientSicCodes) {
+          sicCodes = Array.isArray(clientSicCodes) ? clientSicCodes : [clientSicCodes];
           console.log('[BM Pass 1] Found SIC codes from client:', sicCodes);
         }
       }
@@ -497,7 +511,7 @@ serve(async (req) => {
         industryCode = detectedIndustryCode;
       } else {
         console.error('[BM Pass 1] Could not detect industry code from context. Full assessment:', JSON.stringify(assessment, null, 2));
-        throw new Error(`Industry code is required but not found in assessment and could not be determined from SIC codes or business description. engagementId: ${engagementId}. Please ensure the assessment has an industry selected or the client has SIC codes/business description.`);
+        throw new Error(`Industry code is required but not found in assessment and could not be determined from SIC codes or business description. engagementId: ${engagementId}. SIC code: ${sicCodes?.join(', ') || 'none'}, Business description: ${businessDescription ? 'present' : 'missing'}. Please ensure the assessment has an industry selected or the client has SIC codes/business description.`);
       }
     }
     
@@ -528,13 +542,14 @@ serve(async (req) => {
     }
     
     // Extract assessment fields - they might be in responses JSONB or individual columns
+    // Note: responses use bm_ prefix (e.g., bm_revenue_band, bm_employee_count)
     // Use industryCode we already validated above
     const assessmentData = {
       industry_code: industryCode,
-      revenue_band: assessment.revenue_band || assessment.responses?.revenue_band,
-      employee_count: assessment.employee_count || assessment.responses?.employee_count,
-      location_type: assessment.location_type || assessment.responses?.location_type,
-      business_description: assessment.business_description || assessment.responses?.business_description,
+      revenue_band: assessment.revenue_band || assessment.responses?.revenue_band || assessment.responses?.bm_revenue_band,
+      employee_count: assessment.employee_count || assessment.responses?.employee_count || assessment.responses?.bm_employee_count,
+      location_type: assessment.location_type || assessment.responses?.location_type || assessment.responses?.bm_location_type,
+      business_description: assessment.business_description || assessment.responses?.business_description || assessment.responses?.bm_business_description,
       performance_perception: assessment.performance_perception || assessment.responses?.performance_perception,
       current_tracking: assessment.current_tracking || assessment.responses?.current_tracking,
       comparison_method: assessment.comparison_method || assessment.responses?.comparison_method,
