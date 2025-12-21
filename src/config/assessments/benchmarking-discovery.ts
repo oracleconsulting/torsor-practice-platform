@@ -11,7 +11,6 @@ export const benchmarkingDiscoveryConfig: AssessmentConfig = {
   estimatedMinutes: 15,
   totalQuestions: 15,
   aiAnchors: 5,
-  prerequisite: 'hidden_value_audit', // Must complete HVA first
   
   sections: [
     // ═══════════════════════════════════════════════════════════════
