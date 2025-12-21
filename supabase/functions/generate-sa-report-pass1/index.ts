@@ -512,7 +512,7 @@ serve(async (req) => {
     let report;
     let saveError;
     
-    const result = await supabaseClient
+    const saveResult = await supabaseClient
       .from('sa_audit_reports')
       .upsert({ 
         ...baseReportData, 
@@ -522,8 +522,8 @@ serve(async (req) => {
       .select()
       .single();
     
-    report = result.data;
-    saveError = result.error;
+    report = saveResult.data;
+    saveError = saveResult.error;
     
     // If error is about missing columns, try saving without them
     if (saveError) {
