@@ -272,14 +272,115 @@ serve(async (req) => {
     
     try {
       let content = result.choices[0].message.content.trim();
+      
+      // Remove markdown code fences
       content = content.replace(/^```[a-z]*\s*\n?/gi, '').replace(/\n?```\s*$/g, '').trim();
+      
+      // Find the first brace (start of JSON)
       const firstBrace = content.indexOf('{');
       if (firstBrace > 0) content = content.substring(firstBrace);
+      
+      // Find the last matching brace (end of JSON) - handle nested braces
+      let braceCount = 0;
+      let lastBrace = -1;
+      for (let i = 0; i < content.length; i++) {
+        if (content[i] === '{') braceCount++;
+        if (content[i] === '}') {
+          braceCount--;
+          if (braceCount === 0) {
+            lastBrace = i;
+            break;
+          }
+        }
+      }
+      if (lastBrace > 0) content = content.substring(0, lastBrace + 1);
+      
       narratives = JSON.parse(content);
     } catch (e: any) {
       console.error('[SA Pass 2] Parse error:', e.message);
-      console.error('[SA Pass 2] Content preview:', result.choices[0].message.content.substring(0, 500));
-      throw new Error(`Pass 2 parse failed: ${e.message}`);
+      console.error('[SA Pass 2] Content length:', result.choices[0].message.content.length);
+      const errorPos = e.message.match(/position (\d+)/)?.[1];
+      if (errorPos) {
+        const pos = parseInt(errorPos);
+        console.error('[SA Pass 2] Content around error position:', 
+          result.choices[0].message.content.substring(Math.max(0, pos - 100), pos + 100));
+      }
+      
+      // Try to fix control characters in string values
+      try {
+        let content = result.choices[0].message.content.trim();
+        content = content.replace(/^```[a-z]*\s*\n?/gi, '').replace(/\n?```\s*$/g, '').trim();
+        const firstBrace = content.indexOf('{');
+        if (firstBrace > 0) content = content.substring(firstBrace);
+        
+        // Find last complete JSON object
+        let braceCount = 0;
+        let lastBrace = -1;
+        for (let i = 0; i < content.length; i++) {
+          if (content[i] === '{') braceCount++;
+          if (content[i] === '}') {
+            braceCount--;
+            if (braceCount === 0) {
+              lastBrace = i;
+              break;
+            }
+          }
+        }
+        if (lastBrace > 0) content = content.substring(0, lastBrace + 1);
+        
+        // Fix control characters: escape them properly in string values
+        // This regex matches string values (handles escaped quotes)
+        let inString = false;
+        let escaped = false;
+        let fixed = '';
+        
+        for (let i = 0; i < content.length; i++) {
+          const char = content[i];
+          
+          if (escaped) {
+            fixed += char;
+            escaped = false;
+            continue;
+          }
+          
+          if (char === '\\') {
+            fixed += char;
+            escaped = true;
+            continue;
+          }
+          
+          if (char === '"') {
+            inString = !inString;
+            fixed += char;
+            continue;
+          }
+          
+          if (inString) {
+            // Inside a string - escape control characters
+            const code = char.charCodeAt(0);
+            if (code < 0x20 && code !== 0x09 && code !== 0x0A && code !== 0x0D) {
+              // Control character that's not tab, newline, or carriage return
+              fixed += `\\u${code.toString(16).padStart(4, '0')}`;
+            } else if (code === 0x09) {
+              fixed += '\\t';
+            } else if (code === 0x0A) {
+              fixed += '\\n';
+            } else if (code === 0x0D) {
+              fixed += '\\r';
+            } else {
+              fixed += char;
+            }
+          } else {
+            fixed += char;
+          }
+        }
+        
+        narratives = JSON.parse(fixed);
+        console.log('[SA Pass 2] Successfully parsed after fixing control characters');
+      } catch (e2: any) {
+        console.error('[SA Pass 2] Fallback parse also failed:', e2.message);
+        throw new Error(`Pass 2 parse failed: ${e.message}. Fallback also failed: ${e2.message}`);
+      }
     }
     
     console.log('[SA Pass 2] Narratives generated:', {
