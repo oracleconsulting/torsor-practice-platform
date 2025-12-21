@@ -207,11 +207,24 @@ serve(async (req) => {
       throw new Error(`Failed to fetch report: ${reportError?.message || 'Not found'}`);
     }
     
-    if (!report.pass1_data) {
-      throw new Error('Pass 1 data not found in report. Please run Pass 1 first.');
+    // Get pass1_data from either the column or review_notes (temporary storage)
+    let pass1Data = report.pass1_data;
+    
+    if (!pass1Data && report.review_notes) {
+      try {
+        const notes = JSON.parse(report.review_notes);
+        if (notes._pass1_data) {
+          pass1Data = notes._pass1_data;
+          console.log('[SA Pass 2] Found pass1_data in review_notes (temporary storage)');
+        }
+      } catch (e) {
+        // review_notes is not JSON or doesn't contain pass1_data
+      }
     }
     
-    const pass1Data = report.pass1_data;
+    if (!pass1Data) {
+      throw new Error('Pass 1 data not found in report. Please run Pass 1 first.');
+    }
     
     const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
     if (!openRouterKey) {

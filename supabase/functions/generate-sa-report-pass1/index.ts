@@ -372,67 +372,97 @@ serve(async (req) => {
     else sentiment = 'critical_attention';
     
     // Save Pass 1 results
-    const { data: report, error: saveError } = await supabaseClient
-      .from('sa_audit_reports')
-      .upsert({
-        engagement_id: engagementId,
-        
-        // Placeholder narratives - will be written by Pass 2
-        headline: `[PENDING PASS 2] ${f.hoursWastedWeekly} hours/week wasted`,
-        executive_summary: '[Pass 2 will generate narrative]',
-        executive_summary_sentiment: sentiment,
-        
-        // Metrics from Pass 1
-        total_hours_wasted_weekly: f.hoursWastedWeekly,
-        total_annual_cost_of_chaos: f.annualCostOfChaos,
-        growth_multiplier: f.growthMultiplier,
-        projected_cost_at_scale: f.projectedCostAtScale,
-        cost_of_chaos_narrative: '[Pass 2 will generate narrative]',
-        
-        systems_count: f.systems.length,
-        integration_score: scores.integration.score,
-        automation_score: scores.automation.score,
-        data_accessibility_score: scores.dataAccessibility.score,
-        scalability_score: scores.scalability.score,
-        
-        critical_findings_count: pass1Data.findings.filter((f: any) => f.severity === 'critical').length,
-        high_findings_count: pass1Data.findings.filter((f: any) => f.severity === 'high').length,
-        medium_findings_count: pass1Data.findings.filter((f: any) => f.severity === 'medium').length,
-        low_findings_count: pass1Data.findings.filter((f: any) => f.severity === 'low').length,
-        
-        quick_wins: pass1Data.quickWins,
-        
-        total_recommended_investment: pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0),
-        total_annual_benefit: pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0),
-        overall_payback_months: Math.round(
-          pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0) /
-          Math.max(1, pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0) / 12)
-        ),
-        roi_ratio: `${(pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0) / 
-          Math.max(1, pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0))).toFixed(1)}:1`,
-        
-        hours_reclaimable_weekly: pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.hoursSavedWeekly || 0), 0),
-        time_freedom_narrative: '[Pass 2 will generate narrative]',
-        what_this_enables: [f.magicFix.substring(0, 200)],
-        
-        client_quotes_used: f.allClientQuotes?.slice(0, 10) || [],
-        
-        // Store Pass 1 data for Pass 2
-        pass1_data: pass1Data,
-        
-        llm_model: 'claude-sonnet-4',
-        llm_tokens_used: tokensUsed,
-        llm_cost: cost,
-        generation_time_ms: generationTime,
-        prompt_version: 'v4-pass1',
-        
-        status: 'pass1_complete',
-        generated_at: new Date().toISOString()
-      }, { onConflict: 'engagement_id' })
-      .select()
-      .single();
+    // First, try without pass1_data (in case column doesn't exist yet)
+    const baseReportData = {
+      engagement_id: engagementId,
+      
+      // Placeholder narratives - will be written by Pass 2
+      headline: `[PENDING PASS 2] ${f.hoursWastedWeekly} hours/week wasted`,
+      executive_summary: '[Pass 2 will generate narrative]',
+      executive_summary_sentiment: sentiment,
+      
+      // Metrics from Pass 1
+      total_hours_wasted_weekly: f.hoursWastedWeekly,
+      total_annual_cost_of_chaos: f.annualCostOfChaos,
+      growth_multiplier: f.growthMultiplier,
+      projected_cost_at_scale: f.projectedCostAtScale,
+      cost_of_chaos_narrative: '[Pass 2 will generate narrative]',
+      
+      systems_count: f.systems.length,
+      integration_score: scores.integration.score,
+      automation_score: scores.automation.score,
+      data_accessibility_score: scores.dataAccessibility.score,
+      scalability_score: scores.scalability.score,
+      
+      critical_findings_count: pass1Data.findings.filter((f: any) => f.severity === 'critical').length,
+      high_findings_count: pass1Data.findings.filter((f: any) => f.severity === 'high').length,
+      medium_findings_count: pass1Data.findings.filter((f: any) => f.severity === 'medium').length,
+      low_findings_count: pass1Data.findings.filter((f: any) => f.severity === 'low').length,
+      
+      quick_wins: pass1Data.quickWins,
+      
+      total_recommended_investment: pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0),
+      total_annual_benefit: pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0),
+      overall_payback_months: Math.round(
+        pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0) /
+        Math.max(1, pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0) / 12)
+      ),
+      roi_ratio: `${(pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0) / 
+        Math.max(1, pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0))).toFixed(1)}:1`,
+      
+      hours_reclaimable_weekly: pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.hoursSavedWeekly || 0), 0),
+      time_freedom_narrative: '[Pass 2 will generate narrative]',
+      what_this_enables: [f.magicFix.substring(0, 200)],
+      
+      client_quotes_used: f.allClientQuotes?.slice(0, 10) || [],
+      
+      llm_model: 'claude-sonnet-4',
+      llm_tokens_used: tokensUsed,
+      llm_cost: cost,
+      generation_time_ms: generationTime,
+      prompt_version: 'v4-pass1',
+      
+      status: 'pass1_complete',
+      generated_at: new Date().toISOString()
+    };
     
-    if (saveError) throw saveError;
+    // Try to save with pass1_data first
+    let report;
+    let saveError;
+    
+    try {
+      const result = await supabaseClient
+        .from('sa_audit_reports')
+        .upsert({ ...baseReportData, pass1_data: pass1Data }, { onConflict: 'engagement_id' })
+        .select()
+        .single();
+      
+      report = result.data;
+      saveError = result.error;
+    } catch (e: any) {
+      // If pass1_data column doesn't exist, save without it and store in review_notes temporarily
+      if (e.message?.includes('pass1_data') || saveError?.message?.includes('pass1_data')) {
+        console.warn('[SA Pass 1] pass1_data column not found, saving without it and storing in review_notes');
+        
+        const result = await supabaseClient
+          .from('sa_audit_reports')
+          .upsert({
+            ...baseReportData,
+            review_notes: JSON.stringify({ _pass1_data: pass1Data, _note: 'Temporary storage - migrate to pass1_data column' })
+          }, { onConflict: 'engagement_id' })
+          .select()
+          .single();
+        
+        report = result.data;
+        saveError = result.error;
+      } else {
+        throw e;
+      }
+    }
+    
+    if (saveError || !report) {
+      throw saveError || new Error('Failed to save report');
+    }
     
     // Clear and save findings
     await supabaseClient.from('sa_findings').delete().eq('engagement_id', engagementId);
@@ -476,22 +506,37 @@ serve(async (req) => {
     
     console.log('[SA Pass 1] Saved. Triggering Pass 2...');
     
-    // Trigger Pass 2 asynchronously
+    // Trigger Pass 2 asynchronously (with a small delay to ensure DB write is complete)
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
     if (supabaseUrl && serviceRoleKey) {
-      fetch(`${supabaseUrl}/functions/v1/generate-sa-report-pass2`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${serviceRoleKey}`
-        },
-        body: JSON.stringify({ engagementId, reportId: report.id })
-      }).catch(err => {
-        console.error('[SA Pass 1] Failed to trigger Pass 2:', err);
-        // Don't fail Pass 1 if Pass 2 trigger fails - it can be called manually
-      });
+      // Small delay to ensure database write is committed
+      setTimeout(async () => {
+        try {
+          console.log('[SA Pass 1] Calling Pass 2 function...');
+          const pass2Response = await fetch(`${supabaseUrl}/functions/v1/generate-sa-report-pass2`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${serviceRoleKey}`
+            },
+            body: JSON.stringify({ engagementId, reportId: report.id })
+          });
+          
+          if (!pass2Response.ok) {
+            const errorText = await pass2Response.text();
+            console.error('[SA Pass 1] Pass 2 trigger failed:', pass2Response.status, errorText);
+          } else {
+            console.log('[SA Pass 1] Pass 2 triggered successfully');
+          }
+        } catch (err) {
+          console.error('[SA Pass 1] Failed to trigger Pass 2:', err);
+          // Don't fail Pass 1 if Pass 2 trigger fails - it can be called manually
+        }
+      }, 2000); // 2 second delay
+    } else {
+      console.warn('[SA Pass 1] Missing SUPABASE_URL or SERVICE_ROLE_KEY - cannot trigger Pass 2');
     }
     
     return new Response(
