@@ -61,9 +61,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           secondaryMetrics: ["utilisation_rate", "recovery_rate", "wip_days", "debtor_days"],
           industrySpecificMetrics: [
             { code: "chargeable_hours_ratio", name: "Chargeable Hours Ratio", unit: "percent" },
-            category: "professional_services",
             { code: "recurring_revenue_percent", name: "Recurring Revenue %", unit: "percent" },
-            category: "professional_services",
             { code: "avg_fee_per_client", name: "Average Fee per Client", unit: "currency" },
             category: "professional_services",
           ]
@@ -79,7 +77,6 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           secondaryMetrics: ["utilisation_rate", "realisation_rate", "leverage_ratio"],
           industrySpecificMetrics: [
             { code: "pep", name: "Profit per Equity Partner", unit: "currency" },
-            category: "professional_services",
             { code: "matters_per_fee_earner", name: "Matters per Fee Earner", unit: "number" },
             category: "professional_services",
           ]
@@ -135,7 +132,6 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           secondaryMetrics: ["fill_rate", "time_to_fill", "candidate_nps"],
           industrySpecificMetrics: [
             { code: "perm_to_temp_ratio", name: "Perm to Temp Ratio", unit: "ratio" },
-            category: "professional_services",
             { code: "nfr_rate", name: "Net Fee Revenue per Head", unit: "currency" },
             category: "professional_services",
           ]
@@ -181,9 +177,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           secondaryMetrics: ["ltv_cac_ratio", "gross_margin", "churn_rate"],
           industrySpecificMetrics: [
             { code: "arr", name: "Annual Recurring Revenue", unit: "currency" },
-            category: "technology",
             { code: "nrr", name: "Net Revenue Retention", unit: "percent" },
-            category: "technology",
             { code: "magic_number", name: "Magic Number", unit: "ratio" },
             category: "technology",
           ]
@@ -209,7 +203,6 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           secondaryMetrics: ["client_retention", "gross_margin", "nps"],
           industrySpecificMetrics: [
             { code: "endpoints_per_tech", name: "Endpoints per Technician", unit: "number" },
-            category: "technology",
             { code: "mrr_per_endpoint", name: "MRR per Endpoint", unit: "currency" },
             category: "technology",
           ]
@@ -225,7 +218,6 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           secondaryMetrics: ["return_rate", "repeat_purchase_rate", "gross_margin"],
           industrySpecificMetrics: [
             { code: "aov", name: "Average Order Value", unit: "currency" },
-            category: "technology",
             { code: "roas", name: "Return on Ad Spend", unit: "ratio" },
             category: "technology",
           ]
@@ -341,7 +333,6 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           secondaryMetrics: ["project_overrun_rate", "retention_release_days", "subcontractor_ratio"],
           industrySpecificMetrics: [
             { code: "retention_held", name: "Retention Held", unit: "currency" },
-            category: "construction_property",
             { code: "certified_vs_claimed", name: "Certified vs Claimed %", unit: "percent" },
             category: "construction_property",
           ]
@@ -377,7 +368,6 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           secondaryMetrics: ["listings_to_sales", "time_on_market", "fall_through_rate"],
           industrySpecificMetrics: [
             { code: "avg_sale_price", name: "Average Sale Price", unit: "currency" },
-            category: "construction_property",
             { code: "instructions_per_month", name: "Instructions per Month", unit: "number" },
             category: "construction_property",
           ]
@@ -423,7 +413,6 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           secondaryMetrics: ["nhs_vs_private_ratio", "hygiene_revenue_percent", "fta_rate"],
           industrySpecificMetrics: [
             { code: "uda_value", name: "UDA Value", unit: "currency" },
-            category: "healthcare",
             { code: "chair_utilisation", name: "Chair Utilisation", unit: "percent" },
             category: "healthcare",
           ]
@@ -522,7 +511,6 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           secondaryMetrics: ["covers_per_day", "avg_spend", "table_turn"],
           industrySpecificMetrics: [
             { code: "food_cost_percent", name: "Food Cost %", unit: "percent" },
-            category: "hospitality",
             { code: "beverage_cost_percent", name: "Beverage Cost %", unit: "percent" },
             category: "hospitality",
           ]
@@ -550,7 +538,6 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           secondaryMetrics: ["direct_booking_percent", "f_and_b_capture", "trevpar"],
           industrySpecificMetrics: [
             { code: "adr", name: "Average Daily Rate", unit: "currency" },
-            category: "hospitality",
             { code: "revpar", name: "Revenue per Available Room", unit: "currency" },
             category: "hospitality",
           ]
@@ -599,7 +586,6 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           secondaryMetrics: ["conversion_rate", "avg_basket", "shrinkage"],
           industrySpecificMetrics: [
             { code: "like_for_like_growth", name: "Like-for-Like Growth", unit: "percent" },
-            category: "retail",
             { code: "footfall", name: "Footfall", unit: "number" }
             category: "retail",
           ]
@@ -659,7 +645,6 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           secondaryMetrics: ["inventory_turns", "on_time_delivery", "scrap_rate"],
           industrySpecificMetrics: [
             { code: "oee", name: "Overall Equipment Effectiveness", unit: "percent" },
-            category: "manufacturing",
             { code: "capacity_utilisation", name: "Capacity Utilisation", unit: "percent" }
             category: "manufacturing",
           ]
@@ -820,7 +805,6 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
           secondaryMetrics: ["donor_retention", "volunteer_hours", "grant_success_rate"],
           industrySpecificMetrics: [
             { code: "cost_to_raise_pound", name: "Cost to Raise £1", unit: "currency" },
-            category: "charity",
             { code: "charitable_ratio", name: "Charitable Spend Ratio", unit: "percent" }
             category: "charity",
           ]
