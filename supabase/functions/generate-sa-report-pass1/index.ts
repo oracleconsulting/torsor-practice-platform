@@ -396,7 +396,7 @@ serve(async (req) => {
         model: 'anthropic/claude-sonnet-4',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
-        max_tokens: 8000
+        max_tokens: 32000  // Increased to handle large structured outputs
       })
     });
     
@@ -413,12 +413,93 @@ serve(async (req) => {
     let pass1Data;
     try {
       let content = result.choices[0].message.content.trim();
+      
+      // Check if response was truncated (finish_reason === 'length')
+      const finishReason = result.choices[0].finish_reason;
+      const wasTruncated = finishReason === 'length';
+      
+      if (wasTruncated) {
+        console.warn('[SA Pass 1] Response was truncated (hit max_tokens limit)');
+      }
+      
+      // Remove markdown code fences
       content = content.replace(/^```[a-z]*\s*\n?/gi, '').replace(/\n?```\s*$/g, '').trim();
+      
+      // Find the first brace (start of JSON)
       const firstBrace = content.indexOf('{');
       if (firstBrace > 0) content = content.substring(firstBrace);
+      
+      // If truncated, try to find the last complete top-level object
+      if (wasTruncated) {
+        // Find the last complete closing brace for the root object
+        let braceCount = 0;
+        let lastBrace = -1;
+        for (let i = 0; i < content.length; i++) {
+          if (content[i] === '{') braceCount++;
+          if (content[i] === '}') {
+            braceCount--;
+            if (braceCount === 0) {
+              lastBrace = i;
+            }
+          }
+        }
+        if (lastBrace > 0) {
+          content = content.substring(0, lastBrace + 1);
+          console.log('[SA Pass 1] Truncated response - extracted complete JSON object');
+        } else {
+          // Try to close incomplete JSON by finding last complete property
+          const lastComma = content.lastIndexOf(',');
+          if (lastComma > 0) {
+            // Find the start of the last property
+            const lastPropStart = content.lastIndexOf('"', lastComma);
+            if (lastPropStart > 0) {
+              // Remove the incomplete last property and close the JSON
+              content = content.substring(0, lastPropStart - 1).trim();
+              // Remove trailing comma if present
+              if (content.endsWith(',')) {
+                content = content.substring(0, content.length - 1).trim();
+              }
+              // Close all open braces
+              let openBraces = (content.match(/{/g) || []).length;
+              let closeBraces = (content.match(/}/g) || []).length;
+              for (let i = 0; i < openBraces - closeBraces; i++) {
+                content += '}';
+              }
+              console.log('[SA Pass 1] Attempted to fix truncated JSON by closing incomplete object');
+            }
+          }
+        }
+      } else {
+        // Not truncated - find the last matching brace
+        let braceCount = 0;
+        let lastBrace = -1;
+        for (let i = 0; i < content.length; i++) {
+          if (content[i] === '{') braceCount++;
+          if (content[i] === '}') {
+            braceCount--;
+            if (braceCount === 0) {
+              lastBrace = i;
+              break;
+            }
+          }
+        }
+        if (lastBrace > 0) content = content.substring(0, lastBrace + 1);
+      }
+      
       pass1Data = JSON.parse(content);
     } catch (e: any) {
       console.error('[SA Pass 1] Parse error:', e.message);
+      console.error('[SA Pass 1] Content length:', result.choices[0].message.content.length);
+      console.error('[SA Pass 1] Finish reason:', result.choices[0].finish_reason);
+      
+      // Try to extract what we can from the error position
+      const errorPos = e.message.match(/position (\d+)/)?.[1];
+      if (errorPos) {
+        const pos = parseInt(errorPos);
+        console.error('[SA Pass 1] Content around error:', 
+          result.choices[0].message.content.substring(Math.max(0, pos - 200), pos + 200));
+      }
+      
       throw new Error(`Pass 1 parse failed: ${e.message}`);
     }
     
