@@ -38,6 +38,8 @@ export default function ServiceAssessmentPage() {
   const [generatingProposal, setGeneratingProposal] = useState(false);
   const checkingSharedInsightRef = useRef(false);
   const hasCheckedSharedInsightRef = useRef(false);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoadRef = useRef(true);
 
   useEffect(() => {
     if (serviceCode) {
@@ -225,6 +227,8 @@ export default function ServiceAssessmentPage() {
         if (data) {
           setResponses(data.responses || {});
           if (data.completed_at) setCompleted(true);
+          // Mark initial load as complete after responses are loaded
+          isInitialLoadRef.current = false;
         }
       }
     } catch (err) {
@@ -234,9 +238,11 @@ export default function ServiceAssessmentPage() {
     }
   };
 
-  const saveProgress = async () => {
+  const saveProgress = async (showSavingIndicator = true) => {
     if (!clientSession?.clientId || !assessment) return;
-    setSaving(true);
+    if (showSavingIndicator) {
+      setSaving(true);
+    }
     try {
       // For benchmarking, save to bm_assessment_responses
       if (assessment.code === 'benchmarking') {
