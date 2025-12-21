@@ -7767,18 +7767,58 @@ function SystemsAuditClientModal({
                       
                       {/* Report Content */}
                       <div className="space-y-6">
-                        {/* Headline & Executive Summary */}
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-4">{report.headline}</h3>
-                          <div className="prose prose-sm max-w-none">
-                            <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
-                              {report.executive_summary}
+                        {/* Show status if not fully generated */}
+                        {report.status === 'pass1_complete' && (
+                          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                            <p className="text-sm text-blue-800">
+                              <strong>Pass 1 Complete:</strong> Data extraction finished. Narrative generation (Pass 2) is in progress...
                             </p>
                           </div>
-                        </div>
+                        )}
+                        
+                        {report.status === 'pass2_failed' && (
+                          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                            <p className="text-sm text-red-800 mb-2">
+                              <strong>Pass 2 Failed:</strong> Narrative generation encountered an error. You can retry Pass 2 or view the extracted data below.
+                            </p>
+                            <button
+                              onClick={async () => {
+                                if (!engagement) return;
+                                setGenerating(true);
+                                try {
+                                  await supabase.functions.invoke('generate-sa-report-pass2', {
+                                    body: { engagementId: engagement.id }
+                                  });
+                                  pollForReport(engagement.id, 0);
+                                } catch (error: any) {
+                                  alert(`Error retrying Pass 2: ${error.message || 'Unknown error'}`);
+                                  setGenerating(false);
+                                }
+                              }}
+                              disabled={generating}
+                              className="text-sm px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded"
+                            >
+                              Retry Pass 2
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Headline & Executive Summary */}
+                        {report.headline && !report.headline.startsWith('[PENDING PASS 2]') && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">{report.headline}</h3>
+                            {report.executive_summary && !report.executive_summary.includes('[Pass 2 will generate]') && (
+                              <div className="prose prose-sm max-w-none">
+                                <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                                  {report.executive_summary}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Cost of Chaos Narrative */}
-                        {report.cost_of_chaos_narrative && (
+                        {report.cost_of_chaos_narrative && !report.cost_of_chaos_narrative.includes('[Pass 2 will generate]') && (
                           <div className="bg-red-50 border border-red-200 rounded-xl p-6">
                             <h4 className="text-md font-semibold text-gray-900 mb-3">The Cost of Chaos</h4>
                             <div className="prose prose-sm max-w-none">
@@ -7805,7 +7845,7 @@ function SystemsAuditClientModal({
                         )}
 
                         {/* Time Freedom Narrative */}
-                        {report.time_freedom_narrative && (
+                        {report.time_freedom_narrative && !report.time_freedom_narrative.includes('[Pass 2 will generate]') && (
                           <div className="bg-green-50 border border-green-200 rounded-xl p-6">
                             <h4 className="text-md font-semibold text-gray-900 mb-3">What This Enables</h4>
                             <div className="prose prose-sm max-w-none">
