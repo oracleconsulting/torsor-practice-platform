@@ -451,6 +451,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "PRIVATE_HEALTH",
+        category: "healthcare",
         name: "Private Healthcare / Clinic",
         sicCodes: ["86210", "86220", "86900"],
         keywords: ["clinic", "private hospital", "cosmetic", "aesthetics", "specialist"],
@@ -461,6 +462,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "FITNESS",
+        category: "healthcare",
         name: "Gym / Fitness",
         sicCodes: ["93130"],
         keywords: ["gym", "fitness", "personal trainer", "health club", "studio"],
@@ -471,6 +473,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "WELLNESS",
+        category: "healthcare",
         name: "Wellness & Therapy",
         sicCodes: ["86900", "96040"],
         keywords: ["therapy", "counselling", "massage", "spa", "wellness"],
@@ -667,6 +670,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "WHOLESALE",
+        category: "wholesale",
         name: "Wholesale Distribution",
         sicCodes: ["46110-46900"],
         keywords: ["wholesale", "distributor", "trade supplier"],
@@ -680,6 +684,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "LOGISTICS",
+        category: "wholesale",
         name: "Logistics & Haulage",
         sicCodes: ["49410", "49420", "52100", "52210", "52290"],
         keywords: ["logistics", "haulage", "transport", "courier", "freight"],
@@ -690,6 +695,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "IMPORT_EXPORT",
+        category: "wholesale",
         name: "Import/Export Trading",
         sicCodes: ["46900"],
         keywords: ["import", "export", "trading", "international trade"],
@@ -710,6 +716,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "RENEW",
+        category: "energy",
         name: "Renewable Energy",
         sicCodes: ["35110", "35120", "35130"],
         keywords: ["solar", "wind", "renewable", "green energy", "EV charging"],
@@ -720,6 +727,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "INSTALL_ENERGY",
+        category: "energy",
         name: "Energy Installation (Solar, HVAC, etc.)",
         sicCodes: ["43210", "43220"],
         keywords: ["solar installer", "heat pump", "HVAC", "boiler"],
@@ -730,6 +738,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "WASTE",
+        category: "energy",
         name: "Waste Management & Recycling",
         sicCodes: ["38110", "38120", "38210", "38220", "38310", "38320"],
         keywords: ["waste", "recycling", "skip hire", "refuse"],
@@ -740,6 +749,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "ENVIRON",
+        category: "energy",
         name: "Environmental Consultancy",
         sicCodes: ["71200"],
         keywords: ["environmental", "ecology", "sustainability", "ESG"],
@@ -760,6 +770,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "CHARITY",
+        category: "charity",
         name: "Charity / Non-Profit",
         sicCodes: ["88990", "94110", "94120", "94200", "94910", "94920", "94990"],
         keywords: ["charity", "non-profit", "NGO", "foundation", "trust"],
@@ -774,6 +785,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "SOCIAL_ENT",
+        category: "charity",
         name: "Social Enterprise",
         sicCodes: ["88990"],
         keywords: ["social enterprise", "CIC", "community interest", "impact"],
@@ -784,6 +796,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "EDUCATION",
+        category: "charity",
         name: "Education & Training Provider",
         sicCodes: ["85310", "85320", "85410", "85420", "85590"],
         keywords: ["training", "education", "courses", "academy", "school"],
