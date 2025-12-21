@@ -920,7 +920,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         )}
         
         {/* Regular Client Detail Modal for other service lines */}
-        {selectedClient && selectedServiceLine && selectedServiceLine !== 'discovery' && selectedServiceLine !== 'systems_audit' && (
+        {selectedClient && selectedServiceLine && selectedServiceLine !== 'discovery' && selectedServiceLine !== 'systems_audit' && selectedServiceLine !== 'benchmarking' && (
           <ClientDetailModal 
             clientId={selectedClient} 
             serviceLineCode={selectedServiceLine}
