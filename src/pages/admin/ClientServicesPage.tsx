@@ -7137,7 +7137,7 @@ function BenchmarkingClientModal({
         // Fetch HVA status (Part 3 assessment)
         const { data: hvaData } = await supabase
           .from('client_assessments')
-          .select('status, completion_percentage, completed_at, value_analysis_data')
+          .select('status, completion_percentage, completed_at, value_analysis_data, responses')
           .eq('client_id', clientId)
           .eq('assessment_type', 'part3')
           .maybeSingle();
@@ -7300,17 +7300,25 @@ function BenchmarkingClientModal({
                     <div className="bg-amber-50 px-6 py-4 border-b border-gray-200">
                       <h3 className="font-semibold text-gray-900">Hidden Value Audit (Part 3)</h3>
                       <p className="text-sm text-gray-600 mt-1">
-                        {hvaStatus?.status === 'completed' ? `Completed ${hvaStatus.completed_at ? new Date(hvaStatus.completed_at).toLocaleDateString() : ''}` : 'Not completed'}
+                        {hvaStatus && (hvaStatus.completed_at || hvaStatus.completion_percentage === 100 || (hvaStatus.responses && Object.keys(hvaStatus.responses).length > 0))
+                          ? `Completed ${hvaStatus.completed_at ? new Date(hvaStatus.completed_at).toLocaleDateString() : ''}`
+                          : 'Not completed'}
                       </p>
                     </div>
                     <div className="p-6">
-                      {hvaStatus?.status === 'completed' ? (
+                      {/* Check if HVA is completed - check completed_at, completion_percentage, or responses */}
+                      {hvaStatus && (hvaStatus.completed_at || hvaStatus.completion_percentage === 100 || (hvaStatus.responses && Object.keys(hvaStatus.responses).length > 0)) ? (
                         <div className="space-y-4">
                           <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
                             <div className="flex items-center gap-2 text-emerald-800">
                               <CheckCircle className="w-5 h-5" />
                               <span className="font-medium">HVA Completed</span>
                             </div>
+                            <p className="text-sm text-emerald-700 mt-2">
+                              {hvaStatus.completed_at 
+                                ? `Completed on ${new Date(hvaStatus.completed_at).toLocaleDateString()}`
+                                : 'Assessment completed'}
+                            </p>
                             <p className="text-sm text-emerald-700 mt-2">
                               Value analysis data is available and will be included in the benchmarking report.
                             </p>
@@ -7325,6 +7333,25 @@ function BenchmarkingClientModal({
                                     <div>Total Value Opportunity: <strong>£{Number(hvaStatus.value_analysis_data.total_value).toLocaleString()}</strong></div>
                                   )}
                                 </div>
+                              </div>
+                            )}
+                            {/* Show response data if available */}
+                            {hvaStatus.responses && (
+                              <div className="mt-4 pt-4 border-t border-emerald-200">
+                                <div className="text-sm font-medium text-emerald-900 mb-2">Assessment Responses:</div>
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                  {Object.entries(hvaStatus.responses).slice(0, 6).map(([key, value]: [string, any]) => (
+                                    <div key={key}>
+                                      <div className="text-emerald-700 font-medium capitalize">{key.replace(/_/g, ' ')}:</div>
+                                      <div className="text-emerald-900">{Array.isArray(value) ? value.join(', ') : String(value || 'N/A')}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                                {Object.keys(hvaStatus.responses).length > 6 && (
+                                  <div className="text-xs text-emerald-600 mt-2">
+                                    +{Object.keys(hvaStatus.responses).length - 6} more fields
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
