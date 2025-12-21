@@ -10,7 +10,7 @@ VALUES (
   'benchmarking',
   'Benchmarking',
   'Compare your business performance to industry leaders and identify improvement opportunities',
-  7,  -- Display order after Hidden Value Audit (6) and before Combined Advisory (8)
+  9,  -- Display order (matches existing seed data position)
   true
 )
 ON CONFLICT (code) DO UPDATE SET
