@@ -310,13 +310,21 @@ RULES:
 5. Integration gaps must name both systems involved
 6. Quick wins must be implementable in under 1 week
 
+CRITICAL NUMBER CONSISTENCY:
+7. facts.hoursWastedWeekly must equal the sum of all process hoursWasted divided by 4 (monthly to weekly conversion)
+8. facts.annualCostOfChaos must equal facts.hoursWastedWeekly × 35 × 52 exactly (no rounding errors)
+9. facts.projectedCostAtScale must equal facts.annualCostOfChaos × facts.growthMultiplier exactly
+10. Sum of all recommendations.hoursSavedWeekly should not exceed facts.hoursWastedWeekly (you can't save more hours than are wasted)
+11. Round all monetary values to nearest £10
+12. Round all hours to nearest whole number
+
 ADMIN GUIDANCE RULES:
-7. Generate at least 5 talking points - prioritize their expensive mistake and magic fix
-8. Generate at least 4 probing questions that uncover hidden costs or expand scope
-9. Generate at least 3 next steps with clear owners and timing
-10. Generate at least 3 tasks for the practice team to prepare
-11. Flag any risks: change appetite concerns, budget constraints, key person dependencies
-12. Client presentation must be jargon-free and focus on outcomes, not process
+13. Generate at least 5 talking points - prioritize their expensive mistake and magic fix
+14. Generate at least 4 probing questions that uncover hidden costs or expand scope
+15. Generate at least 3 next steps with clear owners and timing
+16. Generate at least 3 tasks for the practice team to prepare
+17. Flag any risks: change appetite concerns, budget constraints, key person dependencies
+18. Client presentation must be jargon-free and focus on outcomes, not process
 
 Return ONLY valid JSON.
 `;
@@ -503,6 +511,48 @@ serve(async (req) => {
       throw new Error(`Pass 1 parse failed: ${e.message}`);
     }
     
+    // Validate number consistency
+    const validateNumbers = (data: any) => {
+      const f = data.facts;
+      const expectedAnnual = Math.round(f.hoursWastedWeekly * 35 * 52);
+      const expectedScale = Math.round(f.annualCostOfChaos * f.growthMultiplier);
+      
+      // Allow 5% tolerance
+      const tolerance = 0.05;
+      
+      if (Math.abs(f.annualCostOfChaos - expectedAnnual) / Math.max(expectedAnnual, 1) > tolerance) {
+        console.warn('[SA Pass 1] Annual cost mismatch:', {
+          reported: f.annualCostOfChaos,
+          expected: expectedAnnual
+        });
+        f.annualCostOfChaos = expectedAnnual;
+      }
+      
+      if (Math.abs(f.projectedCostAtScale - expectedScale) / Math.max(expectedScale, 1) > tolerance) {
+        console.warn('[SA Pass 1] Scale cost mismatch:', {
+          reported: f.projectedCostAtScale,
+          expected: expectedScale
+        });
+        f.projectedCostAtScale = expectedScale;
+      }
+      
+      // Validate process hours sum
+      const processHoursSum = (f.processes || []).reduce((sum: number, p: any) => sum + (p.hoursWasted || 0), 0);
+      const expectedWeekly = Math.round(processHoursSum / 4); // Monthly to weekly
+      if (Math.abs(f.hoursWastedWeekly - expectedWeekly) / Math.max(expectedWeekly, 1) > tolerance) {
+        console.warn('[SA Pass 1] Hours wasted mismatch:', {
+          reported: f.hoursWastedWeekly,
+          expected: expectedWeekly,
+          processSum: processHoursSum
+        });
+        // Don't auto-correct this one as it might be calculated differently
+      }
+      
+      return data;
+    };
+    
+    pass1Data = validateNumbers(pass1Data);
+    
     console.log('[SA Pass 1] Extraction complete:', {
       systems: pass1Data.facts.systems.length,
       processes: pass1Data.facts.processes.length,
@@ -533,11 +583,11 @@ serve(async (req) => {
       executive_summary: '[Pass 2 will generate narrative]',
       executive_summary_sentiment: sentiment,
       
-      // Metrics from Pass 1
-      total_hours_wasted_weekly: f.hoursWastedWeekly,
-      total_annual_cost_of_chaos: f.annualCostOfChaos,
+      // Metrics from Pass 1 (rounded for consistency)
+      total_hours_wasted_weekly: Math.round(f.hoursWastedWeekly),
+      total_annual_cost_of_chaos: Math.round(f.annualCostOfChaos / 10) * 10,
       growth_multiplier: f.growthMultiplier,
-      projected_cost_at_scale: f.projectedCostAtScale,
+      projected_cost_at_scale: Math.round(f.projectedCostAtScale / 10) * 10,
       cost_of_chaos_narrative: '[Pass 2 will generate narrative]',
       
       systems_count: f.systems.length,
@@ -553,8 +603,8 @@ serve(async (req) => {
       
       quick_wins: pass1Data.quickWins,
       
-      total_recommended_investment: pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0),
-      total_annual_benefit: pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0),
+      total_recommended_investment: Math.round(pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0) / 10) * 10,
+      total_annual_benefit: Math.round(pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0) / 10) * 10,
       overall_payback_months: Math.round(
         pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0) /
         Math.max(1, pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0) / 12)
@@ -562,7 +612,16 @@ serve(async (req) => {
       roi_ratio: `${(pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0) / 
         Math.max(1, pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0))).toFixed(1)}:1`,
       
-      hours_reclaimable_weekly: pass1Data.recommendations.reduce((sum: number, r: any) => sum + (r.hoursSavedWeekly || 0), 0),
+      hours_reclaimable_weekly: Math.round(
+        pass1Data.recommendations.reduce((sum: number, r: any) => {
+          const hours = parseFloat(r.hoursSavedWeekly) || parseFloat(r.hours_saved_weekly) || 0;
+          return sum + hours;
+        }, 0) ||
+        pass1Data.quickWins.reduce((sum: number, qw: any) => {
+          const hours = parseFloat(qw.hoursSavedWeekly) || parseFloat(qw.hours_saved_weekly) || 0;
+          return sum + hours;
+        }, 0)
+      ),
       time_freedom_narrative: '[Pass 2 will generate narrative]',
       what_this_enables: [f.magicFix.substring(0, 200)],
       

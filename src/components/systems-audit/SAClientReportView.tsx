@@ -23,21 +23,21 @@ export function SAClientReportView({ report }: SAClientReportViewProps) {
         <div className="grid grid-cols-3 gap-6 mt-8">
           <div className="text-center">
             <p className="text-4xl md:text-5xl font-bold text-red-400">
-              £{(report.total_annual_cost_of_chaos || 0).toLocaleString()}
+              £{Math.round((report.total_annual_cost_of_chaos || 0) / 10) * 10}
             </p>
-            <p className="text-slate-400 text-sm mt-1">Current Annual Cost</p>
-          </div>
-          <div className="text-center">
-            <p className="text-4xl md:text-5xl font-bold text-green-400">
-              £{(report.total_annual_benefit || 0).toLocaleString()}
-            </p>
-            <p className="text-slate-400 text-sm mt-1">Recoverable Value</p>
+            <p className="text-slate-400 text-sm mt-1">Annual Cost of Chaos</p>
           </div>
           <div className="text-center">
             <p className="text-4xl md:text-5xl font-bold text-amber-400">
-              {report.hours_reclaimable_weekly || 0}
+              {report.total_hours_wasted_weekly || 0}
             </p>
-            <p className="text-slate-400 text-sm mt-1">Hours Back Weekly</p>
+            <p className="text-slate-400 text-sm mt-1">Hours Lost Weekly</p>
+          </div>
+          <div className="text-center">
+            <p className="text-4xl md:text-5xl font-bold text-green-400">
+              {report.hours_reclaimable_weekly || Math.round((report.total_hours_wasted_weekly || 0) * 0.5) || 'TBC'}
+            </p>
+            <p className="text-slate-400 text-sm mt-1">Hours Recoverable</p>
           </div>
         </div>
       </div>
@@ -81,16 +81,16 @@ export function SAClientReportView({ report }: SAClientReportViewProps) {
         {/* Visual Cost Breakdown */}
         <div className="mt-6 pt-6 border-t border-red-200 grid grid-cols-3 gap-4 text-center">
           <div>
-            <p className="text-3xl font-bold text-red-600">{report.total_hours_wasted_weekly}</p>
+            <p className="text-3xl font-bold text-red-600">{report.total_hours_wasted_weekly || 0}</p>
             <p className="text-sm text-gray-600">Hours Lost Weekly</p>
           </div>
           <div>
-            <p className="text-3xl font-bold text-red-600">£{(report.total_annual_cost_of_chaos || 0).toLocaleString()}</p>
+            <p className="text-3xl font-bold text-red-600">£{Math.round((report.total_annual_cost_of_chaos || 0) / 10) * 10}</p>
             <p className="text-sm text-gray-600">Annual Impact</p>
           </div>
           <div>
-            <p className="text-3xl font-bold text-red-600">£{(report.projected_cost_at_scale || 0).toLocaleString()}</p>
-            <p className="text-sm text-gray-600">At {report.growth_multiplier}x Growth</p>
+            <p className="text-3xl font-bold text-red-600">£{Math.round((report.projected_cost_at_scale || 0) / 10) * 10}</p>
+            <p className="text-sm text-gray-600">At {report.growth_multiplier || 1.5}x Growth</p>
           </div>
         </div>
       </div>
@@ -219,7 +219,7 @@ export function SAClientReportView({ report }: SAClientReportViewProps) {
       <div className="bg-slate-900 text-white rounded-xl p-6 md:p-8 text-center">
         <h2 className="text-xl font-semibold mb-2">Ready to Reclaim Your Time?</h2>
         <p className="text-slate-400 mb-6">
-          Let's discuss how to implement these recommendations and start recovering those {report.hours_reclaimable_weekly} hours every week.
+          Let's discuss how to implement these recommendations and start recovering those {report.hours_reclaimable_weekly || Math.round((report.total_hours_wasted_weekly || 0) * 0.5) || 'valuable'} hours every week.
         </p>
         <button className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-lg transition-colors">
           Schedule a Call

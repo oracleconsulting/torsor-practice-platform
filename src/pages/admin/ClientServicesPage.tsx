@@ -7173,17 +7173,26 @@ function SystemsAuditClientModal({
           setReport(reportData);
         }
 
-        // Fetch findings
+        // Fetch findings - order by severity: critical, high, medium, low
         const { data: findingsData, error: findingsError } = await supabase
           .from('sa_findings')
           .select('*')
-          .eq('engagement_id', engagementData.id)
-          .order('severity', { ascending: true });
+          .eq('engagement_id', engagementData.id);
+        
+        // Sort findings by severity order (critical first)
+        const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+        const sortedFindings = (findingsData || []).sort((a, b) => {
+          const aOrder = severityOrder[a.severity as keyof typeof severityOrder] ?? 99;
+          const bOrder = severityOrder[b.severity as keyof typeof severityOrder] ?? 99;
+          return aOrder - bOrder;
+        });
 
         if (findingsError) {
           console.error('[Systems Audit Modal] Error fetching findings:', findingsError);
+          setFindings([]);
         } else {
-          setFindings(findingsData || []);
+          setFindings(sortedFindings);
+          console.log('[Systems Audit Modal] Findings loaded:', sortedFindings.length);
         }
 
         // Fetch recommendations
