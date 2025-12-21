@@ -259,8 +259,8 @@ export default function Part3Page() {
   async function handleNext() {
     await saveProgress(isLastSection);
     if (isLastSection) {
-      // All assessments complete, go to review
-      navigate('/assessments');
+      // Part 3 (HVA) is complete - navigate to dashboard (HVA is standalone, not part of Goal Alignment)
+      navigate('/dashboard');
     } else {
       setCurrentSectionIndex(prev => prev + 1);
     }

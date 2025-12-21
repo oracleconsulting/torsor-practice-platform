@@ -54,6 +54,7 @@ const SERVICE_ICONS: Record<string, any> = {
   'hidden_value_audit': Award,
   'team_training': Users,
   'business_advisory': Briefcase,
+  'benchmarking': BarChart3,
 };
 
 const SERVICE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -64,6 +65,7 @@ const SERVICE_COLORS: Record<string, { bg: string; text: string; border: string 
   'management_accounts': { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200' },
   'systems_audit': { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200' },
   'hidden_value_audit': { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200' },
+  'benchmarking': { bg: 'bg-teal-50', text: 'text-teal-600', border: 'border-teal-200' },
 };
 
 export default function UnifiedDashboardPage() {
@@ -625,6 +627,32 @@ export default function UnifiedDashboardPage() {
       return {
         label: 'Start Assessments',
         color: 'indigo',
+        icon: Play,
+      };
+    }
+    
+    // Special handling for Hidden Value Audit - standalone service
+    if (code === 'hidden_value_audit') {
+      // Check if Part 3 (HVA) is completed
+      if (assessmentProgress?.part3?.status === 'completed') {
+        return {
+          label: 'Value Analysis Underway',
+          color: 'amber',
+          icon: Clock,
+        };
+      }
+      // Check if it's in progress
+      if (assessmentProgress?.part3?.status === 'in_progress' || assessmentProgress?.part3?.percentage > 0) {
+        return {
+          label: 'In Progress',
+          color: 'blue',
+          icon: Clock,
+        };
+      }
+      // Not started
+      return {
+        label: 'Start Assessment',
+        color: 'amber',
         icon: Play,
       };
     }
