@@ -534,6 +534,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "CATERING",
+        category: "hospitality",
         name: "Catering / Events",
         sicCodes: ["56210"],
         keywords: ["catering", "events", "wedding", "corporate catering"],
@@ -544,6 +545,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
       },
       {
         code: "LEISURE",
+        category: "hospitality",
         name: "Leisure & Entertainment",
         sicCodes: ["93110", "93210", "93290"],
         keywords: ["leisure", "entertainment", "bowling", "cinema", "attractions"],
@@ -564,6 +566,7 @@ export const INDUSTRY_TAXONOMY: IndustryCategory[] = [
     industries: [
       {
         code: "RETAIL_GEN",
+        category: "retail",
         name: "General Retail",
         sicCodes: ["47190"],
         keywords: ["shop", "retail", "store", "high street"],
