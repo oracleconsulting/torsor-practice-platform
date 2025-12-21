@@ -7182,50 +7182,44 @@ function SystemsAuditClientModal({
     
     setGenerating(true);
     
-    // Show a message that generation may take a while
-    const timeoutMessage = setTimeout(() => {
-      console.log('[SA Report] Generation taking longer than expected, will auto-refresh...');
-    }, 30000); // Log after 30 seconds
-    
     try {
-      // Set a longer timeout for the fetch (4 minutes)
-      const controller = new AbortController();
-      const fetchTimeout = setTimeout(() => controller.abort(), 240000);
-      
-      const { error } = await supabase.functions.invoke('generate-sa-report', {
-        body: { engagementId: engagement.id },
-        signal: controller.signal
+      // Call Pass 1 (which triggers Pass 2 automatically)
+      console.log('[SA Report] Calling Pass 1...');
+      const { data, error } = await supabase.functions.invoke('generate-sa-report-pass1', {
+        body: { engagementId: engagement.id }
       });
-
-      clearTimeout(fetchTimeout);
-      clearTimeout(timeoutMessage);
 
       if (error) {
         // Check if it's a timeout/connection error
         if (error.message?.includes('timeout') || 
             error.message?.includes('connection closed') ||
             error.message?.includes('aborted')) {
-          // Function might still be running - start polling for the report
-          console.log('[SA Report] Request timed out, but generation may still be in progress. Polling for completion...');
+          // Pass 1 might still be running - start polling
+          console.log('[SA Report] Pass 1 request timed out, but may still be processing. Polling...');
           pollForReport(engagement.id, 0);
           return;
         }
         throw error;
       }
 
-      // Success - refresh data
-      await fetchData();
-      setGenerating(false);
+      // Pass 1 completed - check if Pass 2 was triggered
+      if (data?.pass2Triggered) {
+        console.log('[SA Report] Pass 1 complete, Pass 2 triggered. Polling for completion...');
+        // Start polling for Pass 2 completion
+        pollForReport(engagement.id, 0);
+      } else {
+        // Pass 1 completed but Pass 2 not triggered - refresh to show Pass 1 data
+        await fetchData();
+        setGenerating(false);
+      }
     } catch (error: any) {
-      clearTimeout(timeoutMessage);
-      
       // Check if it's a timeout/abort error
       if (error.name === 'AbortError' || 
           error.message?.includes('timeout') || 
           error.message?.includes('connection closed') ||
           error.message?.includes('aborted')) {
         // Function is likely still processing - poll for completion
-        console.log('[SA Report] Connection timed out, but generation may still be in progress. Polling for completion...');
+        console.log('[SA Report] Connection timed out, but generation may still be in progress. Polling...');
         pollForReport(engagement.id, 0);
         return;
       }
@@ -7236,9 +7230,9 @@ function SystemsAuditClientModal({
     }
   };
 
-  // Poll for report completion
+  // Poll for report completion (checks for 'generated' or 'pass2_failed' status)
   const pollForReport = async (engagementId: string, attempts: number) => {
-    const maxAttempts = 20; // Poll for up to 5 minutes (15s * 20 = 5 min)
+    const maxAttempts = 30; // Poll for up to 7.5 minutes (15s * 30 = 7.5 min) to allow for both passes
     const pollInterval = 15000; // 15 seconds
     
     if (attempts >= maxAttempts) {
@@ -7248,26 +7242,34 @@ function SystemsAuditClientModal({
     }
     
     try {
-      // Check if report exists
+      // Check report status
       const { data: report } = await supabase
         .from('sa_audit_reports')
-        .select('id, generated_at')
+        .select('id, status, generated_at, headline')
         .eq('engagement_id', engagementId)
         .order('generated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       
-      if (report && report.generated_at) {
-        // Check if report was generated recently (within last 10 minutes)
-        const reportTime = new Date(report.generated_at).getTime();
-        const now = Date.now();
-        const tenMinutesAgo = now - (10 * 60 * 1000);
-        
-        if (reportTime > tenMinutesAgo) {
-          // Report was just generated - refresh data
+      if (report) {
+        if (report.status === 'generated') {
+          // Report fully complete - refresh data
           console.log('[SA Report] Report completed! Refreshing data...');
           await fetchData();
           setGenerating(false);
+          return;
+        } else if (report.status === 'pass2_failed') {
+          // Pass 2 failed - show error but keep Pass 1 data visible
+          console.error('[SA Report] Pass 2 failed');
+          alert('Report extraction completed, but narrative generation failed. You can retry Pass 2 or view the extracted data.');
+          await fetchData();
+          setGenerating(false);
+          return;
+        } else if (report.status === 'pass1_complete') {
+          // Pass 1 complete, waiting for Pass 2
+          console.log(`[SA Report] Pass 1 complete, waiting for Pass 2... (attempt ${attempts + 1}/${maxAttempts})`);
+          // Continue polling
+          setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
           return;
         }
       }
