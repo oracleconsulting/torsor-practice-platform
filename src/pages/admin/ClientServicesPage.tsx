@@ -7306,9 +7306,17 @@ function BenchmarkingClientModal({
                     <div className="bg-amber-50 px-6 py-4 border-b border-gray-200">
                       <h3 className="font-semibold text-gray-900">Hidden Value Audit (Part 3)</h3>
                       <p className="text-sm text-gray-600 mt-1">
-                        {hvaStatus && (hvaStatus.completed_at || hvaStatus.completion_percentage === 100 || (hvaStatus.responses && Object.keys(hvaStatus.responses).length > 0))
-                          ? `Completed ${hvaStatus.completed_at ? new Date(hvaStatus.completed_at).toLocaleDateString() : ''}`
-                          : 'Not completed'}
+                        {(() => {
+                          const isCompleted = hvaStatus && (
+                            hvaStatus.completed_at || 
+                            hvaStatus.completion_percentage === 100 || 
+                            hvaStatus.status === 'completed' ||
+                            (hvaStatus.responses && Object.keys(hvaStatus.responses).length > 0)
+                          );
+                          return isCompleted
+                            ? `Completed ${hvaStatus.completed_at ? new Date(hvaStatus.completed_at).toLocaleDateString() : ''}`
+                            : 'Not completed';
+                        })()}
                       </p>
                     </div>
                     <div className="p-6">
