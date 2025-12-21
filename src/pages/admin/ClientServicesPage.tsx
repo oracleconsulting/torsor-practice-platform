@@ -37,7 +37,8 @@ import {
   AlertTriangle,
   Award,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Save
 } from 'lucide-react';
 import { SAAdminReportView } from '../../components/systems-audit/SAAdminReportView';
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
@@ -7046,12 +7047,35 @@ function SystemsAuditClientModal({
   const [findings, setFindings] = useState<any[]>([]);
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [clientName, setClientName] = useState<string>('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedNarratives, setEditedNarratives] = useState({
+    headline: '',
+    executive_summary: '',
+    cost_of_chaos_narrative: '',
+    time_freedom_narrative: '',
+    client_executive_brief: '',
+  });
+  const [savingEdits, setSavingEdits] = useState(false);
+  const [makingAvailable, setMakingAvailable] = useState(false);
 
   useEffect(() => {
     if (currentMember?.practice_id) {
       fetchData();
     }
   }, [clientId, currentMember?.practice_id]);
+
+  // Initialize edited narratives when report changes
+  useEffect(() => {
+    if (report && !isEditing) {
+      setEditedNarratives({
+        headline: report.headline || '',
+        executive_summary: report.executive_summary || '',
+        cost_of_chaos_narrative: report.cost_of_chaos_narrative || '',
+        time_freedom_narrative: report.time_freedom_narrative || '',
+        client_executive_brief: report.client_executive_brief || '',
+      });
+    }
+  }, [report, isEditing]);
 
   const fetchData = async () => {
     if (!currentMember?.practice_id) {
@@ -7370,6 +7394,65 @@ function SystemsAuditClientModal({
       console.error('[SA Report] Error polling for report:', error);
       // Continue polling despite errors
       setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
+    }
+  };
+
+  // Save edited narratives
+  const handleSaveEdits = async () => {
+    if (!report || !engagement) return;
+    
+    setSavingEdits(true);
+    try {
+      const { error } = await supabase
+        .from('sa_audit_reports')
+        .update({
+          headline: editedNarratives.headline,
+          executive_summary: editedNarratives.executive_summary,
+          cost_of_chaos_narrative: editedNarratives.cost_of_chaos_narrative,
+          time_freedom_narrative: editedNarratives.time_freedom_narrative,
+          client_executive_brief: editedNarratives.client_executive_brief,
+        })
+        .eq('id', report.id);
+      
+      if (error) throw error;
+      
+      alert('Changes saved successfully!');
+      setIsEditing(false);
+      await fetchData(); // Refresh to show updated data
+    } catch (error: any) {
+      console.error('Error saving edits:', error);
+      alert(`Error saving changes: ${error.message || 'Unknown error'}`);
+    } finally {
+      setSavingEdits(false);
+    }
+  };
+
+  // Make report available to client
+  const handleMakeAvailableToClient = async () => {
+    if (!report || !engagement) return;
+    
+    if (!confirm('Are you sure you want to make this report available to the client? They will be able to view it in their portal.')) {
+      return;
+    }
+    
+    setMakingAvailable(true);
+    try {
+      const { error } = await supabase
+        .from('sa_audit_reports')
+        .update({
+          status: 'approved' // Set status to 'approved' to make it visible to client
+        })
+        .eq('id', report.id);
+      
+      if (error) throw error;
+      
+      alert('Report is now available to the client!');
+      await fetchData(); // Refresh to show updated status
+    } catch (error: any) {
+      console.error('Error making report available:', error);
+      alert(`Error: ${error.message || 'Unknown error'}`);
+    } finally {
+      setMakingAvailable(false);
     }
   };
 
@@ -7918,6 +8001,52 @@ function SystemsAuditClientModal({
                         </div>
                       )}
 
+                      {/* Make Available to Client Button & Edit Toggle */}
+                      {viewMode === 'client' && report && (
+                        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl p-4">
+                          <div className="flex items-center gap-3">
+                            {report.status === 'approved' || report.status === 'published' || report.status === 'delivered' ? (
+                              <div className="flex items-center gap-2 text-emerald-700">
+                                <CheckCircle className="w-5 h-5" />
+                                <span className="font-medium">Report is available to client</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 text-amber-700">
+                                <AlertCircle className="w-5 h-5" />
+                                <span className="font-medium">Report not yet available to client</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setIsEditing(!isEditing)}
+                              className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
+                            >
+                              {isEditing ? 'Cancel Edit' : 'Edit Client View'}
+                            </button>
+                            {!isEditing && (report.status === 'generated' || report.status === 'approved') && (
+                              <button
+                                onClick={handleMakeAvailableToClient}
+                                disabled={makingAvailable}
+                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-lg text-sm font-medium flex items-center gap-2"
+                              >
+                                {makingAvailable ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Making Available...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle className="w-4 h-4" />
+                                    <span>Make Available to Client</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Conditional View */}
                       {viewMode === 'admin' ? (
                         <SAAdminReportView 
@@ -7926,6 +8055,105 @@ function SystemsAuditClientModal({
                           findings={findings}
                           recommendations={recommendations}
                         />
+                      ) : isEditing ? (
+                        <div className="space-y-6">
+                          <div className="bg-white border border-gray-200 rounded-xl p-6">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Edit Client-Facing Narratives</h3>
+                            
+                            <div className="space-y-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Headline
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editedNarratives.headline}
+                                  onChange={(e) => setEditedNarratives(prev => ({ ...prev, headline: e.target.value }))}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                  placeholder="Enter headline..."
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Executive Summary
+                                </label>
+                                <textarea
+                                  value={editedNarratives.executive_summary}
+                                  onChange={(e) => setEditedNarratives(prev => ({ ...prev, executive_summary: e.target.value }))}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                  rows={6}
+                                  placeholder="Enter executive summary..."
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Cost of Chaos Narrative
+                                </label>
+                                <textarea
+                                  value={editedNarratives.cost_of_chaos_narrative}
+                                  onChange={(e) => setEditedNarratives(prev => ({ ...prev, cost_of_chaos_narrative: e.target.value }))}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                  rows={4}
+                                  placeholder="Enter cost of chaos narrative..."
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Time Freedom Narrative
+                                </label>
+                                <textarea
+                                  value={editedNarratives.time_freedom_narrative}
+                                  onChange={(e) => setEditedNarratives(prev => ({ ...prev, time_freedom_narrative: e.target.value }))}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                  rows={4}
+                                  placeholder="Enter time freedom narrative..."
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Client Executive Brief
+                                </label>
+                                <textarea
+                                  value={editedNarratives.client_executive_brief}
+                                  onChange={(e) => setEditedNarratives(prev => ({ ...prev, client_executive_brief: e.target.value }))}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                  rows={4}
+                                  placeholder="Enter client executive brief..."
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end gap-2 mt-6">
+                              <button
+                                onClick={() => setIsEditing(false)}
+                                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={handleSaveEdits}
+                                disabled={savingEdits}
+                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg flex items-center gap-2"
+                              >
+                                {savingEdits ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Saving...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Save className="w-4 h-4" />
+                                    <span>Save Changes</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       ) : (
                         <SAClientReportView 
                           report={report}

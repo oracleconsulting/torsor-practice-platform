@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { 
   ArrowLeft, Workflow, CheckCircle, Clock, ChevronRight, Save,
-  Loader2, AlertCircle, ChevronLeft
+  Loader2, AlertCircle, ChevronLeft, Target, Zap
 } from 'lucide-react';
 
 // Inline process chain configurations to avoid cross-app import issues
@@ -1201,6 +1201,9 @@ export default function ProcessDeepDivesPage() {
   const [selectedChain, setSelectedChain] = useState<string | null>(null);
   const [currentSection, setCurrentSection] = useState(0);
   const [responses, setResponses] = useState<Record<string, any>>({});
+  const [engagementStatus, setEngagementStatus] = useState<string | null>(null);
+  const [reportStatus, setReportStatus] = useState<string | null>(null);
+  const [report, setReport] = useState<any>(null);
 
   useEffect(() => {
     loadData();
@@ -1216,7 +1219,7 @@ export default function ProcessDeepDivesPage() {
       // Fetch engagement
       const { data: engagement, error: engError } = await supabase
         .from('sa_engagements')
-        .select('id')
+        .select('id, status')
         .eq('client_id', clientSession.clientId)
         .maybeSingle();
 
@@ -1227,6 +1230,23 @@ export default function ProcessDeepDivesPage() {
       }
 
       setEngagementId(engagement.id);
+      setEngagementStatus(engagement.status);
+
+      // Check if Stage 3 is complete - if so, check report status
+      if (engagement.status === 'stage_3_complete' || engagement.status === 'analysis_complete' || engagement.status === 'completed') {
+        const { data: reportData } = await supabase
+          .from('sa_audit_reports')
+          .select('*')
+          .eq('engagement_id', engagement.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (reportData) {
+          setReport(reportData);
+          setReportStatus(reportData.status);
+        }
+      }
 
       // Fetch process chains from database
       const { data: chains, error: chainsError } = await supabase
@@ -1355,7 +1375,22 @@ export default function ProcessDeepDivesPage() {
 
       if (error) throw error;
 
-      alert('Stage 3 completed! Your Systems Audit is now complete.');
+      setEngagementStatus('stage_3_complete');
+      // After completing Stage 3, check report status
+      const { data: reportData } = await supabase
+        .from('sa_audit_reports')
+        .select('*')
+        .eq('engagement_id', engagementId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (reportData) {
+        setReport(reportData);
+        setReportStatus(reportData.status);
+      }
+
+      // Navigate to dashboard - they'll see "coming soon" if report not approved
       navigate('/dashboard');
     } catch (err: any) {
       console.error('Error completing stage 3:', err);
@@ -1386,6 +1421,243 @@ export default function ProcessDeepDivesPage() {
           >
             Return to Dashboard
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show "coming soon" if Stage 3 is complete but report is not approved
+  if ((engagementStatus === 'stage_3_complete' || engagementStatus === 'analysis_complete' || engagementStatus === 'completed') && 
+      reportStatus && 
+      reportStatus !== 'approved' && 
+      reportStatus !== 'published' && 
+      reportStatus !== 'delivered') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center max-w-2xl">
+          <div className="mb-6">
+            <Clock className="w-16 h-16 text-indigo-600 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Systems Audit Report is Coming Soon</h2>
+            <p className="text-gray-600 mb-4">
+              Thank you for completing all three stages of the Systems Audit assessment. 
+              Our team is currently reviewing your responses and generating your personalized report.
+            </p>
+            <p className="text-gray-500 text-sm">
+              You'll be notified as soon as your report is ready for review.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          >
+            Return to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show report if approved
+  if ((engagementStatus === 'stage_3_complete' || engagementStatus === 'analysis_complete' || engagementStatus === 'completed') && 
+      reportStatus && 
+      (reportStatus === 'approved' || reportStatus === 'published' || reportStatus === 'delivered') &&
+      report) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-6xl mx-auto p-6">
+          <div className="mb-6">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Dashboard
+            </button>
+            <h1 className="text-2xl font-bold text-gray-900">Systems Audit Report</h1>
+          </div>
+          
+          {/* Report View - matches SAClientReportView structure */}
+          <div className="max-w-4xl mx-auto space-y-8 pb-12">
+            {/* Hero Section */}
+            <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-8 md:p-12">
+              <p className="text-amber-400 font-medium mb-2">Systems Audit Report</p>
+              <h1 className="text-2xl md:text-3xl font-bold leading-tight mb-6">
+                {report.headline || 'Systems Audit Report'}
+              </h1>
+              
+              {/* Key Metrics */}
+              <div className="grid grid-cols-3 gap-6 mt-8">
+                <div className="text-center">
+                  <p className="text-4xl md:text-5xl font-bold text-red-400">
+                    £{Math.round((report.total_annual_cost_of_chaos || 0) / 10) * 10}
+                  </p>
+                  <p className="text-slate-400 text-sm mt-1">Annual Cost of Chaos</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-4xl md:text-5xl font-bold text-amber-400">
+                    {report.total_hours_wasted_weekly || 0}
+                  </p>
+                  <p className="text-slate-400 text-sm mt-1">Hours Lost Weekly</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-4xl md:text-5xl font-bold text-green-400">
+                    {report.hours_reclaimable_weekly || Math.round((report.total_hours_wasted_weekly || 0) * 0.5) || 'TBC'}
+                  </p>
+                  <p className="text-slate-400 text-sm mt-1">Hours Recoverable</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Executive Brief */}
+            {report.client_executive_brief && (
+              <div className="bg-white border border-gray-200 rounded-xl p-6 md:p-8">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">In Brief</h2>
+                <p className="text-gray-700 text-lg leading-relaxed">
+                  {report.client_executive_brief}
+                </p>
+              </div>
+            )}
+
+            {/* The Story */}
+            {report.executive_summary && (
+              <div className="bg-white border border-gray-200 rounded-xl p-6 md:p-8">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">What We Found</h2>
+                <div className="prose prose-slate max-w-none">
+                  {report.executive_summary.split('\n\n').map((paragraph: string, idx: number) => (
+                    <p key={idx} className="text-gray-700 leading-relaxed mb-4">
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* The Cost */}
+            {report.cost_of_chaos_narrative && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-6 md:p-8">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-red-100 rounded-lg">
+                    <AlertCircle className="w-6 h-6 text-red-600" />
+                  </div>
+                  <h2 className="text-lg font-semibold text-gray-900">The Cost of Staying Where You Are</h2>
+                </div>
+                <div className="prose prose-slate max-w-none">
+                  <p className="text-gray-700 leading-relaxed">
+                    {report.cost_of_chaos_narrative}
+                  </p>
+                </div>
+                
+                {/* Visual Cost Breakdown */}
+                <div className="mt-6 pt-6 border-t border-red-200 grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-3xl font-bold text-red-600">{report.total_hours_wasted_weekly || 0}</p>
+                    <p className="text-sm text-gray-600">Hours Lost Weekly</p>
+                  </div>
+                  <div>
+                    <p className="text-3xl font-bold text-red-600">£{Math.round((report.total_annual_cost_of_chaos || 0) / 10) * 10}</p>
+                    <p className="text-sm text-gray-600">Annual Impact</p>
+                  </div>
+                  <div>
+                    <p className="text-3xl font-bold text-red-600">£{Math.round((report.projected_cost_at_scale || 0) / 10) * 10}</p>
+                    <p className="text-sm text-gray-600">At {report.growth_multiplier || 1.5}x Growth</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* The Opportunity */}
+            {report.time_freedom_narrative && (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-6 md:p-8">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <Target className="w-6 h-6 text-green-600" />
+                  </div>
+                  <h2 className="text-lg font-semibold text-gray-900">What This Enables</h2>
+                </div>
+                <div className="prose prose-slate max-w-none">
+                  <p className="text-gray-700 leading-relaxed">
+                    {report.time_freedom_narrative}
+                  </p>
+                </div>
+                
+                {/* Hours Reclaimable - only show if value exists */}
+                {report.hours_reclaimable_weekly && report.hours_reclaimable_weekly > 0 && (
+                  <div className="mt-4 pt-4 border-t border-green-200">
+                    <p className="text-xs text-gray-500 uppercase mb-1">Hours Reclaimable Weekly</p>
+                    <p className="text-2xl font-bold text-green-600">{report.hours_reclaimable_weekly}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ROI Summary */}
+            {(report.total_recommended_investment || report.total_annual_benefit) && (
+              <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-xl p-6 md:p-8">
+                <h2 className="text-lg font-semibold mb-6">Return on Investment</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                  <div>
+                    <p className="text-emerald-200 text-sm">Investment</p>
+                    <p className="text-2xl font-bold">£{(report.total_recommended_investment || 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-emerald-200 text-sm">Annual Return</p>
+                    <p className="text-2xl font-bold">£{(report.total_annual_benefit || 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-emerald-200 text-sm">Payback Period</p>
+                    <p className="text-2xl font-bold">{report.overall_payback_months || '?'} months</p>
+                  </div>
+                  <div>
+                    <p className="text-emerald-200 text-sm">ROI</p>
+                    <p className="text-2xl font-bold">{report.roi_ratio || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Quick Wins */}
+            {report.quick_wins && report.quick_wins.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-xl p-6 md:p-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-amber-100 rounded-lg">
+                    <Zap className="w-6 h-6 text-amber-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Quick Wins</h2>
+                    <p className="text-sm text-gray-500">Implementable within one week</p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {report.quick_wins.slice(0, 4).map((qw: any, idx: number) => (
+                    <div key={idx} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                      <div className="flex-shrink-0 w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                        <span className="font-bold text-amber-700">{idx + 1}</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{qw.title}</p>
+                        <p className="text-sm text-gray-500">{qw.impact}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-green-600 font-semibold">+{qw.hoursSavedWeekly || qw.hours_saved_weekly || 0}hrs/wk</p>
+                        <p className="text-xs text-gray-500">{qw.timeToImplement || qw.time_to_implement || 'TBC'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Call to Action */}
+            <div className="bg-slate-900 text-white rounded-xl p-6 md:p-8 text-center">
+              <h2 className="text-xl font-semibold mb-2">Ready to Reclaim Your Time?</h2>
+              <p className="text-slate-400 mb-6">
+                Let's discuss how to implement these recommendations and start recovering those {report.hours_reclaimable_weekly || Math.round((report.total_hours_wasted_weekly || 0) * 0.5) || 'valuable'} hours every week.
+              </p>
+              <button className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-lg transition-colors">
+                Schedule a Call
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );

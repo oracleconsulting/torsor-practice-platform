@@ -80,6 +80,7 @@ export default function UnifiedDashboardPage() {
     stage2Complete: boolean;
     stage3Complete: boolean;
     engagementId: string | null;
+    reportApproved: boolean;
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -222,20 +223,39 @@ export default function UnifiedDashboardPage() {
             stage1Complete: false,
             stage2Complete: false,
             stage3Complete: false,
-            engagementId: null
+            engagementId: null,
+            reportApproved: false
           });
-        } else if (saEngagement) {
+        } else         if (saEngagement) {
+          // Check if report is approved
+          let reportApproved = false;
+          if (saEngagement.stage_3_completed_at) {
+            const { data: report } = await supabase
+              .from('sa_audit_reports')
+              .select('status')
+              .eq('engagement_id', saEngagement.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            
+            if (report && (report.status === 'approved' || report.status === 'published' || report.status === 'delivered')) {
+              reportApproved = true;
+            }
+          }
+          
           setSystemsAuditStage({
             stage1Complete: !!saEngagement.stage_1_completed_at,
             stage2Complete: !!saEngagement.stage_2_completed_at,
             stage3Complete: !!saEngagement.stage_3_completed_at,
-            engagementId: saEngagement.id
+            engagementId: saEngagement.id,
+            reportApproved
           });
           console.log('✅ Systems Audit stage status:', {
             stage1Complete: !!saEngagement.stage_1_completed_at,
             stage2Complete: !!saEngagement.stage_2_completed_at,
             stage3Complete: !!saEngagement.stage_3_completed_at,
-            engagementId: saEngagement.id
+            engagementId: saEngagement.id,
+            reportApproved
           });
         } else {
           console.log('⚠️ No Systems Audit engagement found');
@@ -243,7 +263,8 @@ export default function UnifiedDashboardPage() {
             stage1Complete: false,
             stage2Complete: false,
             stage3Complete: false,
-            engagementId: null
+            engagementId: null,
+            reportApproved: false
           });
         }
       }
@@ -552,8 +573,10 @@ export default function UnifiedDashboardPage() {
     
     // Special handling for Systems Audit
     if (code === 'systems_audit') {
-      if (systemsAuditStage?.stage3Complete) {
-        return { label: 'Audit Complete', color: 'emerald', icon: CheckCircle };
+      if (systemsAuditStage?.stage3Complete && systemsAuditStage?.reportApproved) {
+        return { label: 'View Report', color: 'emerald', icon: FileText };
+      } else if (systemsAuditStage?.stage3Complete) {
+        return { label: 'Report Coming Soon', color: 'amber', icon: Clock };
       } else if (systemsAuditStage?.stage2Complete) {
         return { label: 'Continue to Stage 3', color: 'cyan', icon: ArrowRight };
       } else if (systemsAuditStage?.stage1Complete) {
