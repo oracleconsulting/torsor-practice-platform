@@ -196,20 +196,23 @@ export default function ServiceAssessmentPage() {
       if (code === 'benchmarking') {
         const { data: engagement } = await supabase
           .from('bm_engagements')
-          .select('id')
+          .select('id, status, assessment_completed_at')
           .eq('client_id', clientSession.clientId)
           .maybeSingle();
         
         if (engagement) {
           const { data: responses } = await supabase
             .from('bm_assessment_responses')
-            .select('responses, completed_at')
+            .select('responses')
             .eq('engagement_id', engagement.id)
             .maybeSingle();
           
           if (responses) {
             setResponses(responses.responses || {});
-            if (responses.completed_at) setCompleted(true);
+            // Check if assessment is complete based on engagement status
+            if (engagement.status === 'assessment_complete' || engagement.assessment_completed_at) {
+              setCompleted(true);
+            }
           }
         }
       } else {
@@ -272,7 +275,6 @@ export default function ServiceAssessmentPage() {
         if (engagement) {
           const { error: responsesError } = await supabase.from('bm_assessment_responses').upsert({
             engagement_id: engagement.id,
-            client_id: clientSession.clientId,
             responses,
             updated_at: new Date().toISOString()
           }, { onConflict: 'engagement_id' });
@@ -391,9 +393,7 @@ export default function ServiceAssessmentPage() {
           console.log('💾 Saving assessment responses...');
           const { error: responsesError } = await supabase.from('bm_assessment_responses').upsert({
             engagement_id: engagement.id,
-            client_id: clientSession.clientId,
             responses,
-            completed_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           }, { onConflict: 'engagement_id' });
           
