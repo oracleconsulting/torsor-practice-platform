@@ -309,15 +309,13 @@ serve(async (req) => {
     
     console.log('[BM Pass 1] Starting extraction for:', engagementId);
     
-    // Fetch all data
+    // Fetch engagement and assessment first (they can be done in parallel)
     const [
       { data: engagement, error: engagementError },
-      { data: assessment, error: assessmentError },
-      { data: industry, error: industryError }
+      { data: assessment, error: assessmentError }
     ] = await Promise.all([
       supabaseClient.from('bm_engagements').select('*, clients:client_id(*)').eq('id', engagementId).single(),
-      supabaseClient.from('bm_assessment_responses').select('*').eq('engagement_id', engagementId).single(),
-      supabaseClient.from('industries').select('*').eq('code', assessment?.industry_code || '').maybeSingle()
+      supabaseClient.from('bm_assessment_responses').select('*').eq('engagement_id', engagementId).single()
     ]);
     
     if (engagementError || !engagement) {
@@ -326,6 +324,20 @@ serve(async (req) => {
     
     if (assessmentError || !assessment) {
       throw new Error(`Failed to fetch assessment: ${assessmentError?.message || 'Not found'}`);
+    }
+    
+    // Extract industry_code from assessment responses (could be in responses JSONB or individual column)
+    const industryCode = assessment.industry_code || assessment.responses?.industry_code;
+    
+    // Now fetch industry using the industry_code from assessment
+    const { data: industry, error: industryError } = await supabaseClient
+      .from('industries')
+      .select('*')
+      .eq('code', industryCode || '')
+      .maybeSingle();
+    
+    if (industryError) {
+      console.warn('[BM Pass 1] Warning: Failed to fetch industry:', industryError.message);
     }
     
     // Get client name
@@ -339,16 +351,35 @@ serve(async (req) => {
       clientName = client?.client_company || client?.company || client?.name || 'the business';
     }
     
+    // Extract assessment fields - they might be in responses JSONB or individual columns
+    const assessmentData = {
+      industry_code: assessment.industry_code || assessment.responses?.industry_code,
+      revenue_band: assessment.revenue_band || assessment.responses?.revenue_band,
+      employee_count: assessment.employee_count || assessment.responses?.employee_count,
+      location_type: assessment.location_type || assessment.responses?.location_type,
+      business_description: assessment.business_description || assessment.responses?.business_description,
+      performance_perception: assessment.performance_perception || assessment.responses?.performance_perception,
+      current_tracking: assessment.current_tracking || assessment.responses?.current_tracking,
+      comparison_method: assessment.comparison_method || assessment.responses?.comparison_method,
+      suspected_underperformance: assessment.suspected_underperformance || assessment.responses?.suspected_underperformance,
+      leaving_money: assessment.leaving_money || assessment.responses?.leaving_money,
+      top_quartile_ambition: assessment.top_quartile_ambition || assessment.responses?.top_quartile_ambition,
+      competitor_envy: assessment.competitor_envy || assessment.responses?.competitor_envy,
+      benchmark_magic_fix: assessment.benchmark_magic_fix || assessment.responses?.benchmark_magic_fix,
+      action_readiness: assessment.action_readiness || assessment.responses?.action_readiness,
+      blind_spot_fear: assessment.blind_spot_fear || assessment.responses?.blind_spot_fear,
+    };
+    
     // Get benchmarks for this industry/size
-    const employeeBand = calculateEmployeeBand(assessment.employee_count || 0);
+    const employeeBand = calculateEmployeeBand(assessmentData.employee_count || 0);
     const { data: benchmarks } = await supabaseClient
       .from('benchmark_data')
       .select(`
         *,
         benchmark_metrics (*)
       `)
-      .eq('industry_code', assessment.industry_code)
-      .or(`revenue_band.eq.${assessment.revenue_band},revenue_band.eq.all`)
+      .eq('industry_code', assessmentData.industry_code)
+      .or(`revenue_band.eq.${assessmentData.revenue_band},revenue_band.eq.all`)
       .or(`employee_band.eq.${employeeBand},employee_band.eq.all`)
       .eq('is_current', true);
     
@@ -394,7 +425,7 @@ serve(async (req) => {
     const startTime = Date.now();
     
     const prompt = buildPass1Prompt(
-      assessment,
+      assessmentData,
       benchmarks || [],
       maData,
       hvaContext,
@@ -430,7 +461,7 @@ serve(async (req) => {
     console.log('[BM Pass 1] Extraction complete. Tokens:', tokensUsed, 'Cost: £', cost.toFixed(4));
     
     // Calculate employee band
-    const calculatedEmployeeBand = calculateEmployeeBand(assessment.employee_count || 0);
+    const calculatedEmployeeBand = calculateEmployeeBand(assessmentData.employee_count || 0);
     
     // Save to database
     const { data: report, error: saveError } = await supabaseClient
