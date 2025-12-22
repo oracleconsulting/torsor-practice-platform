@@ -168,8 +168,8 @@ const SERVICE_LINES = [
   },
   // Month 2 Development
   { 
-    id: 'benchmarking', 
-    code: 'benchmarking',
+    id: 'benchmarking_services', 
+    code: 'benchmarking_services',
     name: 'Benchmarking Services',
     description: 'Know exactly how you compare to your industry peers',
     icon: LineChart,
@@ -7092,12 +7092,16 @@ function BenchmarkingClientModal({
         setClientName(clientData.client_company || clientData.company || clientData.name || '');
       }
 
-      // Fetch engagement
-      const { data: engagementData } = await supabase
+      // Fetch engagement - use maybeSingle() to avoid errors if none exists
+      const { data: engagementData, error: engagementError } = await supabase
         .from('bm_engagements')
         .select('*')
         .eq('client_id', clientId)
         .maybeSingle();
+
+      if (engagementError && engagementError.code !== 'PGRST116') {
+        console.error('[Benchmarking Modal] Error fetching engagement:', engagementError);
+      }
 
       if (engagementData) {
         setEngagement(engagementData);
@@ -7274,7 +7278,8 @@ function BenchmarkingClientModal({
   };
 
   const canGenerate = engagement?.status === 'assessment_complete' || engagement?.status === 'pass1_complete';
-  const hasReport = !!report;
+  // Report exists if we have report data OR if engagement status indicates a report was generated
+  const hasReport = !!report || engagement?.status === 'pass1_complete' || engagement?.status === 'generated' || engagement?.status === 'approved';
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -7501,7 +7506,7 @@ function BenchmarkingClientModal({
                         </button>
                       )}
                     </div>
-                  ) : report && (report.status === 'generated' || report.status === 'approved' || report.status === 'published') ? (
+                  ) : (report && (report.status === 'generated' || report.status === 'approved' || report.status === 'published')) || (engagement?.status === 'generated' || engagement?.status === 'approved') ? (
                     <div className="space-y-6">
                       {/* Report Content - Add your report display component here */}
                       <div className="bg-white border border-gray-200 rounded-xl p-6">
