@@ -463,6 +463,16 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         .in('client_id', clientIds)
         .eq('service_line_code', serviceLineCode);
 
+      // For benchmarking, also fetch engagement status
+      let benchmarkingEngagements: any[] = [];
+      if (serviceLineCode === 'benchmarking') {
+        const { data: engagements } = await supabase
+          .from('bm_engagements')
+          .select('client_id, status')
+          .in('client_id', clientIds);
+        benchmarkingEngagements = engagements || [];
+      }
+
       // Map to client objects
       const enrichedClients: Client[] = (enrollments || [])
         .filter(e => e.practice_members)
