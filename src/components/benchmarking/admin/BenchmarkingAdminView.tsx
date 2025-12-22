@@ -47,6 +47,17 @@ const safeJsonParse = <T,>(value: string | T | null | undefined, fallback: T): T
   return value as T;
 };
 
+interface Pass1Data {
+  founderRiskLevel?: string;
+  founderRiskScore?: number;
+  valuationImpact?: string;
+  dataGaps?: Array<{ metric: string }>;
+  classification?: {
+    industryName?: string;
+    industryConfidence?: number;
+  };
+}
+
 export function BenchmarkingAdminView({ data, clientData, onSwitchToClient }: BenchmarkingAdminViewProps) {
   const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'actions' | 'raw'>('script');
   
@@ -55,7 +66,7 @@ export function BenchmarkingAdminView({ data, clientData, onSwitchToClient }: Be
   const nextSteps = safeJsonParse(data.admin_next_steps, []);
   const tasks = safeJsonParse(data.admin_tasks, []);
   const riskFlags = safeJsonParse(data.admin_risk_flags, []);
-  const pass1Data = safeJsonParse(data.pass1_data, {});
+  const pass1Data = safeJsonParse<Pass1Data>(data.pass1_data, {});
   
   const openingStatement = `Based on our benchmarking analysis, we've identified a £${parseFloat(data.total_annual_opportunity || '0').toLocaleString()} annual opportunity. Your revenue per employee of £${clientData.revenuePerEmployee.toLocaleString()} places you at the ${data.overall_percentile || 0}th percentile - meaning ${100 - (data.overall_percentile || 0)}% of comparable firms are generating more revenue per head. Let me walk you through what we've found and what it means for your business.`;
 
@@ -90,7 +101,7 @@ export function BenchmarkingAdminView({ data, clientData, onSwitchToClient }: Be
               percentile={data.overall_percentile || 0}
               gapCount={data.gap_count || 0}
               strengthCount={data.strength_count || 0}
-              riskLevel={pass1Data.founderRiskLevel || 'medium'}
+              riskLevel={(pass1Data?.founderRiskLevel as 'low' | 'medium' | 'high' | 'critical') || 'medium'}
             />
           </div>
         </div>
@@ -183,12 +194,12 @@ export function BenchmarkingAdminView({ data, clientData, onSwitchToClient }: Be
               revenuePerEmployee={clientData.revenuePerEmployee}
               percentile={data.overall_percentile || 0}
               industryCode={data.industry_code || ''}
-              industryName={pass1Data.classification?.industryName || data.industry_code}
-              industryConfidence={pass1Data.classification?.industryConfidence || 95}
-              founderRiskScore={pass1Data.founderRiskScore}
-              founderRiskLevel={pass1Data.founderRiskLevel}
-              valuationImpact={pass1Data.valuationImpact}
-              dataGaps={pass1Data.dataGaps?.map((g: any) => g.metric) || []}
+              industryName={pass1Data?.classification?.industryName || data.industry_code}
+              industryConfidence={pass1Data?.classification?.industryConfidence || 95}
+              founderRiskScore={pass1Data?.founderRiskScore}
+              founderRiskLevel={pass1Data?.founderRiskLevel}
+              valuationImpact={pass1Data?.valuationImpact}
+              dataGaps={pass1Data?.dataGaps?.map((g) => g.metric) || []}
             />
             
             {/* Recommendations Summary */}
