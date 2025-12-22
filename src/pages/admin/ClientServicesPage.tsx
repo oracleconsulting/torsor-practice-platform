@@ -7309,15 +7309,35 @@ function BenchmarkingClientModal({
         // Set report if found (use finalReportData which may come from fallback)
         // Also check directReportData if engagement wasn't found
         const reportToUse = finalReportData || directReportData;
+        
+        console.log('[Benchmarking Modal] Final report decision:', {
+          finalReportData: !!finalReportData,
+          directReportData: !!directReportData,
+          reportToUse: !!reportToUse,
+          reportStatus: reportToUse?.status,
+          reportId: reportToUse?.id
+        });
+        
         if (reportToUse) {
+          console.log('[Benchmarking Modal] Setting report in state:', {
+            id: reportToUse.id,
+            status: reportToUse.status,
+            hasHeadline: !!reportToUse.headline,
+            hasExecutiveSummary: !!reportToUse.executive_summary
+          });
           setReport(reportToUse);
           
           // If report exists with status 'generated', switch to analysis tab
           if (reportToUse.status === 'generated' || reportToUse.status === 'approved' || reportToUse.status === 'published') {
+            console.log('[Benchmarking Modal] Switching to analysis tab (report is generated)');
             setActiveTab('analysis');
           }
         } else {
-          console.warn('[Benchmarking Modal] No report found after all queries. Engagement ID:', engagementData?.id, 'Client ID:', clientId);
+          console.warn('[Benchmarking Modal] No report found after all queries.', {
+            engagement_id: engagementData?.id,
+            client_id: clientId,
+            engagement_found: !!engagementData
+          });
         }
 
         // Fetch HVA status (Part 3 assessment)
