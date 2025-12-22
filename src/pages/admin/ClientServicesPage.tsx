@@ -668,7 +668,10 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           <div className="space-y-6">
             <h2 className="text-lg font-semibold text-gray-900">Select Service Line</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {SERVICE_LINES.map((service) => {
+              {SERVICE_LINES.filter((service, index, self) => 
+                // Remove duplicates by id
+                index === self.findIndex(s => s.id === service.id)
+              ).map((service) => {
                 const Icon = service.icon;
                 // Client count will be calculated when service is selected
                 const clientCount = 0;
@@ -1114,7 +1117,10 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                     }
                   </label>
                   <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-                    {SERVICE_LINES.filter(s => s.status === 'ready').map((service) => {
+                    {SERVICE_LINES.filter((service, index, self) => 
+                      // Remove duplicates by id and only show ready services
+                      service.status === 'ready' && index === self.findIndex(s => s.id === service.id)
+                    ).map((service) => {
                       const Icon = service.icon;
                       const isSelected = inviteForm.services.includes(service.code);
                       return (
@@ -7136,15 +7142,17 @@ function BenchmarkingClientModal({
           .eq('engagement_id', engagementData.id)
           .maybeSingle();
         
-        if (reportError) {
+        if (reportError && reportError.code !== 'PGRST116') {
           console.error('[Benchmarking Modal] Error fetching report:', reportError);
         } else {
-          console.log('[Benchmarking Modal] Report data:', reportData ? { 
-            status: reportData.status, 
-            hasHeadline: !!reportData.headline,
-            hasExecutiveSummary: !!reportData.executive_summary,
-            engagement_id: reportData.engagement_id
-          } : 'No report found');
+          console.log('[Benchmarking Modal] Report query result:', {
+            found: !!reportData,
+            status: reportData?.status,
+            hasHeadline: !!reportData?.headline,
+            hasExecutiveSummary: !!reportData?.executive_summary,
+            engagement_id: reportData?.engagement_id,
+            engagement_id_queried: engagementData.id
+          });
         }
         
         setReport(reportData);
