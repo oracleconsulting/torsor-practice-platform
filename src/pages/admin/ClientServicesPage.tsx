@@ -7154,38 +7154,36 @@ function BenchmarkingClientModal({
           setAssessmentResponses(responsesData);
         }
 
-        // Fetch report - try by engagement_id first, then fallback to client_id
-        let reportData = null;
-        let reportError = null;
-        
-        const { data: reportByEngagement, error: err1 } = await supabase
+        // Fetch report by engagement_id
+        console.log('[Benchmarking Modal] Fetching report for engagement_id:', engagementData.id);
+        const { data: reportData, error: reportError } = await supabase
           .from('bm_reports')
           .select('*')
           .eq('engagement_id', engagementData.id)
           .maybeSingle();
         
-        if (reportByEngagement) {
-          reportData = reportByEngagement;
-        } else if (err1 && err1.code !== 'PGRST116') {
-          reportError = err1;
-          // Fallback: try to find report by client_id (in case engagement_id doesn't match)
-          console.log('[Benchmarking Modal] Report not found by engagement_id, trying client_id fallback...');
-          const { data: reportByClient, error: err2 } = await supabase
+        // If not found, try a broader search (in case there's a mismatch)
+        if (!reportData && !reportError) {
+          console.log('[Benchmarking Modal] Report not found by engagement_id, trying direct query...');
+          // Try to find any report for this client
+          const { data: allReports } = await supabase
             .from('bm_reports')
-            .select('*, bm_engagements!inner(client_id)')
+            .select('*, bm_engagements!inner(client_id, id)')
             .eq('bm_engagements.client_id', clientId)
             .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+            .limit(5);
           
-          if (reportByClient) {
-            reportData = reportByClient;
-            console.log('[Benchmarking Modal] Found report via client_id fallback');
-          } else if (err2 && err2.code !== 'PGRST116') {
-            reportError = err2;
+          console.log('[Benchmarking Modal] Found reports for client:', allReports?.length || 0);
+          if (allReports && allReports.length > 0) {
+            // Find the one that matches this engagement or use the most recent
+            const matchingReport = allReports.find(r => r.engagement_id === engagementData.id) || allReports[0];
+            console.log('[Benchmarking Modal] Using report:', matchingReport.id, 'engagement_id:', matchingReport.engagement_id);
+            setReport(matchingReport);
+            if (matchingReport.status === 'generated') {
+              setActiveTab('analysis');
+            }
+            return; // Early return to avoid setting report twice
           }
-        } else {
-          reportData = reportByEngagement;
         }
         
         if (reportError && reportError.code !== 'PGRST116') {
