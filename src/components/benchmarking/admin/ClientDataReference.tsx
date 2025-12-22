@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 
 interface ClientDataReferenceProps {
-  companyName?: string;
   revenue: number;
   employees: number;
   revenuePerEmployee: number;
@@ -23,7 +22,6 @@ interface ClientDataReferenceProps {
 }
 
 export function ClientDataReference({
-  companyName,
   revenue,
   employees,
   revenuePerEmployee,

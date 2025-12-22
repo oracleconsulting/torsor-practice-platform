@@ -1,5 +1,3 @@
-import { TrendingUp, TrendingDown } from 'lucide-react';
-
 interface HeroSectionProps {
   totalOpportunity: number;
   percentile: number;
@@ -10,8 +8,7 @@ interface HeroSectionProps {
 export function HeroSection({ 
   totalOpportunity, 
   percentile, 
-  headline,
-  trend = 'up'
+  headline
 }: HeroSectionProps) {
   
   const getPercentileColor = (p: number) => {
