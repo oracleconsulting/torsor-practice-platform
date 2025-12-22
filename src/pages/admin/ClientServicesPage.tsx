@@ -43,6 +43,8 @@ import {
 } from 'lucide-react';
 import { SAAdminReportView } from '../../components/systems-audit/SAAdminReportView';
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
+import { BenchmarkingClientReport } from '../../components/benchmarking/client/BenchmarkingClientReport';
+import { BenchmarkingAdminView } from '../../components/benchmarking/admin/BenchmarkingAdminView';
 
 
 interface ClientServicesPageProps {
@@ -7090,6 +7092,7 @@ function BenchmarkingClientModal({
   const [report, setReport] = useState<any>(null);
   const [generating, setGenerating] = useState(false);
   const [clientName, setClientName] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'admin' | 'client'>('admin');
 
   useEffect(() => {
     if (currentMember?.practice_id) {
@@ -7739,14 +7742,32 @@ function BenchmarkingClientModal({
                       )}
                     </div>
                   ) : (report && (report.status === 'generated' || report.status === 'approved' || report.status === 'published')) || (engagement?.status === 'generated' || engagement?.status === 'approved') ? (
-                    <div className="space-y-6">
-                      {/* Report Header with Regenerate Button */}
+                    <div className="space-y-4">
+                      {/* View Toggle and Regenerate Button */}
                       <div className="flex items-center justify-between border-b border-gray-200 pb-4">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">Benchmarking Report</h3>
-                          <p className="text-sm text-gray-500">
-                            {report?.created_at ? `Generated ${new Date(report.created_at).toLocaleDateString()}` : 'Recently generated'}
-                          </p>
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+                            <button
+                              onClick={() => setViewMode('admin')}
+                              className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+                                viewMode === 'admin'
+                                  ? 'bg-white text-gray-900 shadow-sm'
+                                  : 'text-gray-600 hover:text-gray-900'
+                              }`}
+                            >
+                              Admin View
+                            </button>
+                            <button
+                              onClick={() => setViewMode('client')}
+                              className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${
+                                viewMode === 'client'
+                                  ? 'bg-white text-gray-900 shadow-sm'
+                                  : 'text-gray-600 hover:text-gray-900'
+                              }`}
+                            >
+                              Client View
+                            </button>
+                          </div>
                         </div>
                         <button
                           onClick={handleGenerateReport}
@@ -7767,40 +7788,26 @@ function BenchmarkingClientModal({
                         </button>
                       </div>
 
-                      {/* Report Content */}
-                      <div className="bg-white border border-gray-200 rounded-xl p-6">
-                        <h3 className="text-xl font-semibold text-gray-900 mb-4">{report?.headline || 'Benchmarking Report'}</h3>
-                        <div className="prose max-w-none">
-                          <div className="mb-6">
-                            <h4 className="text-lg font-semibold text-gray-900 mb-2">Executive Summary</h4>
-                            <p className="text-gray-700 whitespace-pre-wrap">{report?.executive_summary || 'Report is being generated...'}</p>
-                          </div>
-                          {report?.position_narrative && (
-                            <div className="mb-6">
-                              <h4 className="text-lg font-semibold text-gray-900 mb-2">Position</h4>
-                              <p className="text-gray-700 whitespace-pre-wrap">{report.position_narrative}</p>
-                            </div>
-                          )}
-                          {report?.strength_narrative && (
-                            <div className="mb-6">
-                              <h4 className="text-lg font-semibold text-gray-900 mb-2">Strengths</h4>
-                              <p className="text-gray-700 whitespace-pre-wrap">{report.strength_narrative}</p>
-                            </div>
-                          )}
-                          {report?.gap_narrative && (
-                            <div className="mb-6">
-                              <h4 className="text-lg font-semibold text-gray-900 mb-2">Gaps</h4>
-                              <p className="text-gray-700 whitespace-pre-wrap">{report.gap_narrative}</p>
-                            </div>
-                          )}
-                          {report?.opportunity_narrative && (
-                            <div className="mb-6">
-                              <h4 className="text-lg font-semibold text-gray-900 mb-2">Opportunity</h4>
-                              <p className="text-gray-700 whitespace-pre-wrap">{report.opportunity_narrative}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                      {/* Report Content - New Components */}
+                      {viewMode === 'client' ? (
+                        <BenchmarkingClientReport 
+                          data={{
+                            ...report,
+                            created_at: report?.created_at
+                          }}
+                        />
+                      ) : (
+                        <BenchmarkingAdminView
+                          data={report}
+                          clientData={{
+                            revenue: assessmentResponses?.responses?.bm_revenue || assessmentResponses?.bm_revenue || 0,
+                            employees: assessmentResponses?.responses?.bm_employee_count || assessmentResponses?.bm_employee_count || 0,
+                            revenuePerEmployee: (assessmentResponses?.responses?.bm_revenue || assessmentResponses?.bm_revenue || 0) / 
+                                              Math.max(1, assessmentResponses?.responses?.bm_employee_count || assessmentResponses?.bm_employee_count || 1)
+                          }}
+                          onSwitchToClient={() => setViewMode('client')}
+                        />
+                      )}
                     </div>
                   ) : report && report.status === 'pass1_complete' ? (
                     <div className="border border-blue-200 rounded-xl p-6 bg-blue-50">
