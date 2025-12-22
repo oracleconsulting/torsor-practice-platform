@@ -7126,11 +7126,21 @@ function BenchmarkingClientModal({
         }
 
         // Fetch report
-        const { data: reportData } = await supabase
+        const { data: reportData, error: reportError } = await supabase
           .from('bm_reports')
           .select('*')
           .eq('engagement_id', engagementData.id)
           .maybeSingle();
+        
+        if (reportError) {
+          console.error('[Benchmarking Modal] Error fetching report:', reportError);
+        } else {
+          console.log('[Benchmarking Modal] Report data:', reportData ? { 
+            status: reportData.status, 
+            hasHeadline: !!reportData.headline,
+            hasExecutiveSummary: !!reportData.executive_summary 
+          } : 'No report found');
+        }
         
         setReport(reportData);
 
