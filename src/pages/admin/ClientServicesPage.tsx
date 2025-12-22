@@ -7198,20 +7198,24 @@ function BenchmarkingClientModal({
           console.error('[Benchmarking Modal] Error fetching report:', reportError);
         } else {
           console.log('[Benchmarking Modal] Report query result:', {
-            found: !!reportData,
-            status: reportData?.status,
-            hasHeadline: !!reportData?.headline,
-            hasExecutiveSummary: !!reportData?.executive_summary,
-            engagement_id: reportData?.engagement_id,
-            engagement_id_queried: engagementData.id
+            found: !!finalReportData,
+            status: finalReportData?.status,
+            hasHeadline: !!finalReportData?.headline,
+            hasExecutiveSummary: !!finalReportData?.executive_summary,
+            engagement_id: finalReportData?.engagement_id,
+            engagement_id_queried: engagementData.id,
+            report_id: finalReportData?.id
           });
         }
         
-        setReport(reportData);
-        
-        // If report exists with status 'generated', switch to analysis tab
-        if (reportData && reportData.status === 'generated') {
-          setActiveTab('analysis');
+        // Set report if found (use finalReportData which may come from fallback)
+        if (finalReportData) {
+          setReport(finalReportData);
+          
+          // If report exists with status 'generated', switch to analysis tab
+          if (finalReportData.status === 'generated' || finalReportData.status === 'approved' || finalReportData.status === 'published') {
+            setActiveTab('analysis');
+          }
         }
 
         // Fetch HVA status (Part 3 assessment)
