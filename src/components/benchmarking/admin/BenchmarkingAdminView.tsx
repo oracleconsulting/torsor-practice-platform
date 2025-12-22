@@ -31,6 +31,18 @@ interface BenchmarkingAdminViewProps {
     employees: number;
     revenuePerEmployee: number;
   };
+  hvaData?: any;
+  founderRisk?: {
+    score: number;
+    level: 'low' | 'medium' | 'high' | 'critical';
+    factors: string[];
+    valuationImpact: string;
+  } | null;
+  industryMapping?: {
+    code: string;
+    name: string;
+    confidence: number;
+  };
   onSwitchToClient?: () => void;
 }
 
