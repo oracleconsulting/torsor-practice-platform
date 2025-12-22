@@ -353,15 +353,19 @@ export default function UnifiedDashboardPage() {
       console.log('📋 Final mapped serviceList:', serviceList.map(s => ({ code: s.serviceCode, name: s.serviceName })));
 
       // Check discovery status - try by client_id first
-      // Use maybeSingle() instead of single() to avoid errors when no row exists
-      let { data: discovery, error: discoveryError } = await supabase
+      // Handle multiple records by getting the most recent one
+      const { data: discoveryRecords, error: discoveryError } = await supabase
         .from('destination_discovery')
-        .select('id, client_id, completed_at, created_at')
+        .select('id, client_id, completed_at, created_at, practice_id')
         .eq('client_id', clientSession?.clientId)
-        .maybeSingle();
+        .order('created_at', { ascending: false });
+
+      // Get the most recent discovery record (or null if none)
+      let discovery = discoveryRecords && discoveryRecords.length > 0 ? discoveryRecords[0] : null;
 
       console.log('🔍 Discovery by client_id:', clientSession?.clientId);
       console.log('🔍 Discovery result:', discovery);
+      console.log('🔍 Discovery records count:', discoveryRecords?.length || 0);
       console.log('🔍 Discovery error:', discoveryError);
 
       // If no discovery found by client_id, try by practice_id (handles ID mismatch cases)
