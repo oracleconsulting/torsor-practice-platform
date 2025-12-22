@@ -7,6 +7,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { scoreServicesFromDiscovery } from '../_shared/service-scorer.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -106,7 +107,7 @@ function cleanAllStrings(obj: any): any {
 // ============================================================================
 
 function calculateFallbackClarity(responses: Record<string, any>): number {
-  const vision = responses.dd_five_year_picture || '';
+  const vision = responses.dd_five_year_vision || responses.dd_five_year_picture || '';
   
   if (!vision || vision.length < 20) return 1;
   
@@ -175,12 +176,14 @@ function assessAffordability(
   }
   
   // Cash constraint detection
+  const sleepThieves = responses.dd_sleep_thieves || responses.dd_sleep_thief || [];
+  const sleepArray = Array.isArray(sleepThieves) ? sleepThieves : [sleepThieves];
   const cashConstrained = 
     responses.sd_growth_blocker === "Don't have the capital" ||
-    (responses.dd_sleep_thief || []).includes('Cash flow and paying bills');
+    sleepArray.some((s: string) => s && s.includes('Cash flow and paying bills'));
   
   // Fundraising detection
-  const ifIKnew = (responses.dd_if_i_knew || '').toLowerCase();
+  const ifIKnew = (responses.dd_suspected_truth || responses.dd_if_i_knew || '').toLowerCase();
   const activelyRaising = 
     ifIKnew.includes('capital') ||
     ifIKnew.includes('raise') ||
@@ -221,7 +224,7 @@ interface TransformationSignals {
 }
 
 function detect365Triggers(responses: Record<string, any>): TransformationSignals {
-  const visionText = (responses.dd_five_year_picture || '').toLowerCase();
+  const visionText = ((responses.dd_five_year_vision || responses.dd_five_year_picture || '')).toLowerCase();
   const successDef = responses.dd_success_definition || '';
   const reasons: string[] = [];
   
@@ -250,8 +253,9 @@ function detect365Triggers(responses: Record<string, any>): TransformationSignal
   }
   
   // Burnout with high readiness
+  const weeklyHours = responses.dd_weekly_hours || responses.dd_owner_hours || '';
   const burnoutWithReadiness = 
-    ['60-70 hours', '70+ hours'].includes(responses.dd_owner_hours || '') &&
+    ['60-70 hours', '70+ hours'].includes(weeklyHours) &&
     responses.dd_change_readiness === "Completely ready - I'll do whatever it takes";
   
   if (burnoutWithReadiness) {
@@ -708,10 +712,10 @@ function buildClosingMessageGuidance(
   responses: Record<string, any>,
   affordability: AffordabilityProfile
 ): string {
-  const teamSecret = responses.dd_team_secret || '';
-  const externalView = responses.dd_external_view || '';
+  const teamSecret = responses.dd_hidden_from_team || responses.dd_team_secret || '';
+  const externalView = responses.dd_external_perspective || responses.dd_external_view || '';
   const hardTruth = responses.dd_hard_truth || '';
-  const vision = responses.dd_five_year_picture || '';
+  const vision = responses.dd_five_year_vision || responses.dd_five_year_picture || '';
   
   const hasVulnerability = teamSecret.toLowerCase().includes('imposter') ||
     teamSecret.toLowerCase().includes('syndrome') ||
@@ -899,14 +903,72 @@ ALLOWED:
 
 // Service line definitions
 const SERVICE_LINES = {
-  '365_method': { name: '365 Alignment Programme', tiers: [{ name: 'Lite', price: 1500 }, { name: 'Growth', price: 4500 }, { name: 'Partner', price: 9000 }] },
-  'fractional_cfo': { name: 'Fractional CFO Services', tiers: [{ name: '2 days/month', price: 4000, isMonthly: true }] },
-  'systems_audit': { name: 'Systems Audit', tiers: [{ name: 'Comprehensive', price: 4000 }] },
-  'management_accounts': { name: 'Management Accounts', tiers: [{ name: 'Monthly', price: 650, isMonthly: true }] },
-  'fractional_coo': { name: 'Fractional COO Services', tiers: [{ name: '2 days/month', price: 3750, isMonthly: true }] },
-  'automation': { name: 'Automation Services', tiers: [{ name: 'Per hour', price: 150 }] },
-  'business_advisory': { name: 'Business Advisory & Exit Planning', tiers: [{ name: 'Full Package', price: 4000 }] },
-  'benchmarking': { name: 'Benchmarking Services', tiers: [{ name: 'Full Package', price: 3500 }] }
+  '365_method': { 
+    name: '365 Alignment Programme', 
+    tiers: [
+      { name: 'Lite', price: 1500 }, 
+      { name: 'Growth', price: 4500 }, 
+      { name: 'Partner', price: 9000 }
+    ] 
+  },
+  'management_accounts': { 
+    name: 'Management Accounts', 
+    tiers: [
+      { name: 'Monthly', price: 650, isMonthly: true },
+      { name: 'Quarterly', price: 1750, isQuarterly: true }
+    ] 
+  },
+  'benchmarking': { 
+    name: 'Benchmarking Services', 
+    tiers: [
+      { name: 'Snapshot', price: 450 },
+      { name: 'Full Package', price: 3500 }
+    ] 
+  },
+  'systems_audit': { 
+    name: 'Systems Audit', 
+    tiers: [
+      { name: 'Diagnostic', price: 1500 },
+      { name: 'Comprehensive', price: 4000 }
+    ] 
+  },
+  'fractional_cfo': { 
+    name: 'Fractional CFO Services', 
+    tiers: [
+      { name: '1 day/month', price: 2000, isMonthly: true },
+      { name: '2 days/month', price: 4000, isMonthly: true },
+      { name: '4 days/month', price: 7500, isMonthly: true }
+    ] 
+  },
+  'fractional_coo': { 
+    name: 'Fractional COO Services', 
+    tiers: [
+      { name: '1 day/month', price: 1875, isMonthly: true },
+      { name: '2 days/month', price: 3750, isMonthly: true },
+      { name: '4 days/month', price: 7000, isMonthly: true }
+    ] 
+  },
+  'combined_advisory': { 
+    name: 'Combined CFO/COO Advisory', 
+    tiers: [
+      { name: '2 days each', price: 7500, isMonthly: true },
+      { name: '4 days each', price: 14000, isMonthly: true }
+    ] 
+  },
+  'business_advisory': { 
+    name: 'Business Advisory & Exit Planning', 
+    tiers: [
+      { name: 'Valuation', price: 1000 },
+      { name: 'Full Package', price: 4000 }
+    ] 
+  },
+  'automation': { 
+    name: 'Automation Services', 
+    tiers: [
+      { name: 'Per hour', price: 150 },
+      { name: 'Day rate', price: 1000 }
+    ] 
+  }
 };
 
 const SYSTEM_PROMPT = `You are a senior business advisor analysing a discovery assessment. Generate a comprehensive, personalised report.
@@ -1300,6 +1362,13 @@ serve(async (req) => {
     console.log('[Discovery] 365 Triggers:', transformationSignals);
 
     // ========================================================================
+    // PRE-COMPUTE SERVICE SCORES
+    // ========================================================================
+
+    const serviceScores = scoreServicesFromDiscovery(preparedData.discovery.responses);
+    console.log('[Discovery] Service scores:', serviceScores.filter(s => s.score > 0));
+
+    // ========================================================================
     // USE DOCUMENT INSIGHTS FROM STAGE 1 (or extract if not available)
     // ========================================================================
     
@@ -1425,8 +1494,9 @@ serve(async (req) => {
       
       // Check for established indicators
       const hasNearExitTimeline = ['1-2 years', 'Within 12 months'].includes(responses.sd_exit_timeline || '');
-      const mentionsSteppingBack = (responses.dd_five_year_picture || '').toLowerCase().includes('step back') ||
-                                    (responses.dd_five_year_picture || '').toLowerCase().includes('retirement');
+      const visionForSteppingBack = (responses.dd_five_year_vision || responses.dd_five_year_picture || '').toLowerCase();
+      const mentionsSteppingBack = visionForSteppingBack.includes('step back') ||
+                                    visionForSteppingBack.includes('retirement');
       
       // Determine stage
       if ((hasLongGrowthTrajectory || isPreRevenue || mentionsLaunching || mentionsRaising) && hasLongExitTimeline) {
@@ -1755,6 +1825,16 @@ Position 365 as: "You have a business plan. What you don't have is a structured 
 ` : 'No specific transformation triggers detected.'}
 
 ${documentInsightsContext}
+
+## PRE-COMPUTED SERVICE SCORES (use as guidance)
+These scores are computed from explicit question triggers. The AI should generally agree,
+but can adjust based on holistic assessment. If deviating significantly, explain why.
+
+${serviceScores
+  .filter(s => s.score >= 20)
+  .map(s => `- **${s.name}** (${s.code}): ${s.score}/100
+  Triggers: ${s.triggers.join('; ')}`)
+  .join('\n\n')}
 
 ${advisoryInsights ? `
 ## ADVISORY DEEP DIVE INSIGHTS (Stage 2 Analysis)
@@ -2265,7 +2345,8 @@ Return ONLY the JSON object with no additional text.`;
         affordability: affordability,
         transformationSignals: transformationSignals.reasons.length > 0 ? transformationSignals : null,
         financialProjections: financialProjections.hasProjections ? financialProjections : null,
-        documentInsights: documentInsights.businessContext.stage !== 'unknown' ? documentInsights : null
+        documentInsights: documentInsights.businessContext.stage !== 'unknown' ? documentInsights : null,
+        serviceScores: serviceScores
       },
       created_at: new Date().toISOString()
     };
