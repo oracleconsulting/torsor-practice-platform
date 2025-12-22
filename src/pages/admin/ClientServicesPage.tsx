@@ -45,6 +45,8 @@ import { SAAdminReportView } from '../../components/systems-audit/SAAdminReportV
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
 import { BenchmarkingClientReport } from '../../components/benchmarking/client/BenchmarkingClientReport';
 import { BenchmarkingAdminView } from '../../components/benchmarking/admin/BenchmarkingAdminView';
+import { calculateFounderRisk } from '../../lib/services/benchmarking/founder-risk-calculator';
+import { resolveIndustryCode } from '../../lib/services/benchmarking/industry-mapper';
 
 
 interface ClientServicesPageProps {
@@ -7797,16 +7799,57 @@ function BenchmarkingClientModal({
                           }}
                         />
                       ) : (
-                        <BenchmarkingAdminView
-                          data={report}
-                          clientData={{
-                            revenue: assessmentResponses?.responses?.bm_revenue || assessmentResponses?.bm_revenue || 0,
-                            employees: assessmentResponses?.responses?.bm_employee_count || assessmentResponses?.bm_employee_count || 0,
-                            revenuePerEmployee: (assessmentResponses?.responses?.bm_revenue || assessmentResponses?.bm_revenue || 0) / 
-                                              Math.max(1, assessmentResponses?.responses?.bm_employee_count || assessmentResponses?.bm_employee_count || 1)
-                          }}
-                          onSwitchToClient={() => setViewMode('client')}
-                        />
+                        (() => {
+                          // Helper to safely parse JSON
+                          const safeJsonParse = <T,>(value: string | T | null | undefined, fallback: T): T => {
+                            if (!value) return fallback;
+                            if (typeof value === 'string') {
+                              try {
+                                return JSON.parse(value) as T;
+                              } catch {
+                                return fallback;
+                              }
+                            }
+                            return value as T;
+                          };
+
+                          // Extract assessment data - try multiple field name variations
+                          const responses = assessmentResponses?.responses || assessmentResponses || {};
+                          const revenue = responses.bm_revenue_exact || responses.bm_revenue || 0;
+                          const employees = responses.bm_employee_count || responses.bm_employee_count_exact || 0;
+                          
+                          // Get revenue per employee from metrics_comparison (where it was calculated) or calculate it
+                          const metrics = safeJsonParse(report?.metrics_comparison, []);
+                          const revPerEmployeeMetric = metrics.find((m: any) => 
+                            m.metricCode === 'revenue_per_consultant' || 
+                            m.metricCode === 'revenue_per_employee'
+                          );
+                          const revenuePerEmployee = revPerEmployeeMetric?.clientValue || 
+                            (revenue && employees ? Math.round(revenue / employees) : 0);
+                          
+                          // Calculate founder risk from HVA data
+                          const founderRisk = hvaStatus ? calculateFounderRisk(hvaStatus) : null;
+                          
+                          // Resolve industry code from SIC code
+                          const sicCode = responses.bm_sic_code || responses.sic_code;
+                          const subSector = responses.bm_sub_sector || responses.sub_sector;
+                          const industryMapping = resolveIndustryCode(sicCode, subSector);
+                          
+                          return (
+                            <BenchmarkingAdminView
+                              data={report}
+                              clientData={{
+                                revenue: revenue,
+                                employees: employees,
+                                revenuePerEmployee: revenuePerEmployee
+                              }}
+                              hvaData={hvaStatus}
+                              founderRisk={founderRisk}
+                              industryMapping={industryMapping}
+                              onSwitchToClient={() => setViewMode('client')}
+                            />
+                          );
+                        })()
                       )}
                     </div>
                   ) : report && report.status === 'pass1_complete' ? (

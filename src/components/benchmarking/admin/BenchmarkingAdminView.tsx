@@ -58,7 +58,7 @@ interface Pass1Data {
   };
 }
 
-export function BenchmarkingAdminView({ data, clientData, onSwitchToClient }: BenchmarkingAdminViewProps) {
+export function BenchmarkingAdminView({ data, clientData, hvaData, founderRisk, industryMapping, onSwitchToClient }: BenchmarkingAdminViewProps) {
   const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'actions' | 'raw'>('script');
   
   const talkingPoints = safeJsonParse(data.admin_talking_points, []);
@@ -68,7 +68,12 @@ export function BenchmarkingAdminView({ data, clientData, onSwitchToClient }: Be
   const riskFlags = safeJsonParse(data.admin_risk_flags, []);
   const pass1Data = safeJsonParse<Pass1Data>(data.pass1_data, {});
   
-  const openingStatement = `Based on our benchmarking analysis, we've identified a £${parseFloat(data.total_annual_opportunity || '0').toLocaleString()} annual opportunity. Your revenue per employee of £${clientData.revenuePerEmployee.toLocaleString()} places you at the ${data.overall_percentile || 0}th percentile - meaning ${100 - (data.overall_percentile || 0)}% of comparable firms are generating more revenue per head. Let me walk you through what we've found and what it means for your business.`;
+  // Get revenue per employee from metrics comparison (where it was calculated) or fallback to clientData
+  const metrics = safeJsonParse(data.metrics_comparison, []);
+  const revPerEmployeeMetric = metrics.find((m: any) => m.metricCode === 'revenue_per_consultant' || m.metricCode === 'revenue_per_employee');
+  const revPerEmployee = revPerEmployeeMetric?.clientValue || clientData.revenuePerEmployee || 0;
+  
+  const openingStatement = `Based on our benchmarking analysis, we've identified a £${parseFloat(data.total_annual_opportunity || '0').toLocaleString()} annual opportunity. Your revenue per employee of £${revPerEmployee.toLocaleString()} places you at the ${data.overall_percentile || 0}th percentile - meaning ${100 - (data.overall_percentile || 0)}% of comparable firms are generating more revenue per head. Let me walk you through what we've found and what it means for your business.`;
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -101,7 +106,7 @@ export function BenchmarkingAdminView({ data, clientData, onSwitchToClient }: Be
               percentile={data.overall_percentile || 0}
               gapCount={data.gap_count || 0}
               strengthCount={data.strength_count || 0}
-              riskLevel={(pass1Data?.founderRiskLevel as 'low' | 'medium' | 'high' | 'critical') || 'medium'}
+              riskLevel={(founderRisk?.level as 'low' | 'medium' | 'high' | 'critical') || (pass1Data?.founderRiskLevel as 'low' | 'medium' | 'high' | 'critical') || 'medium'}
             />
           </div>
         </div>
@@ -193,12 +198,12 @@ export function BenchmarkingAdminView({ data, clientData, onSwitchToClient }: Be
               employees={clientData.employees}
               revenuePerEmployee={clientData.revenuePerEmployee}
               percentile={data.overall_percentile || 0}
-              industryCode={data.industry_code || ''}
-              industryName={pass1Data?.classification?.industryName || data.industry_code}
-              industryConfidence={pass1Data?.classification?.industryConfidence || 95}
-              founderRiskScore={pass1Data?.founderRiskScore}
-              founderRiskLevel={pass1Data?.founderRiskLevel}
-              valuationImpact={pass1Data?.valuationImpact}
+              industryCode={industryMapping?.code || data.industry_code || ''}
+              industryName={industryMapping?.name || pass1Data?.classification?.industryName || data.industry_code}
+              industryConfidence={industryMapping?.confidence || pass1Data?.classification?.industryConfidence || 95}
+              founderRiskScore={founderRisk?.score || pass1Data?.founderRiskScore}
+              founderRiskLevel={founderRisk?.level || pass1Data?.founderRiskLevel}
+              valuationImpact={founderRisk?.valuationImpact || pass1Data?.valuationImpact}
               dataGaps={pass1Data?.dataGaps?.map((g) => g.metric) || []}
             />
             

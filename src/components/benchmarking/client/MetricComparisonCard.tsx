@@ -40,9 +40,23 @@ export function MetricComparisonCard({
   const isGap = higherIsBetter ? clientValue < medianValue : clientValue > medianValue;
   const gapAmount = Math.abs(clientValue - medianValue);
   
-  // Calculate position on scale (0-100)
-  const scaleMin = Math.min(p25 * 0.8, clientValue * 0.9);
-  const scaleMax = Math.max(p75 * 1.2, clientValue * 1.1);
+  // Calculate position on scale with clean rounding
+  const calculateScale = (clientVal: number, p25Val: number, p75Val: number) => {
+    const minValue = Math.min(clientVal, p25Val);
+    const maxValue = Math.max(clientVal, p75Val);
+    const range = maxValue - minValue;
+    const padding = range * 0.15;
+    
+    // Round to nice numbers based on range
+    const roundTo = range > 100000 ? 10000 : range > 10000 ? 5000 : 1000;
+    
+    const scaleMin = Math.floor((minValue - padding) / roundTo) * roundTo;
+    const scaleMax = Math.ceil((maxValue + padding) / roundTo) * roundTo;
+    
+    return { scaleMin, scaleMax };
+  };
+  
+  const { scaleMin, scaleMax } = calculateScale(clientValue, p25, p75);
   const scaleRange = scaleMax - scaleMin;
   
   const clientPosition = ((clientValue - scaleMin) / scaleRange) * 100;
