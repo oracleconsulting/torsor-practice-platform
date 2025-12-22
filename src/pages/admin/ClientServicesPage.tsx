@@ -7208,10 +7208,25 @@ function BenchmarkingClientModal({
           found: !!reportData,
           error: reportError?.message,
           errorCode: reportError?.code,
+          errorDetails: reportError,
           engagement_id_queried: engagementData.id,
           report_id: reportData?.id,
-          report_status: reportData?.status
+          report_status: reportData?.status,
+          report_engagement_id: reportData?.engagement_id
         });
+        
+        // DEBUG: Also try querying without maybeSingle to see if there are multiple
+        if (!reportData && !reportError) {
+          const { data: allReportsForEngagement, count } = await supabase
+            .from('bm_reports')
+            .select('*', { count: 'exact' })
+            .eq('engagement_id', engagementData.id);
+          
+          console.log('[Benchmarking Modal] DEBUG - All reports for engagement (without maybeSingle):', {
+            count: count || allReportsForEngagement?.length || 0,
+            reports: allReportsForEngagement
+          });
+        }
         
         // If not found, try a broader search (in case there's a mismatch)
         let finalReportData = reportData;
