@@ -23,9 +23,22 @@ interface BenchmarkingClientReportProps {
   data: BenchmarkAnalysis;
 }
 
+// Helper to safely parse JSON (handles both string and already-parsed objects)
+const safeJsonParse = <T,>(value: string | T | null | undefined, fallback: T): T => {
+  if (!value) return fallback;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return value as T;
+};
+
 export function BenchmarkingClientReport({ data }: BenchmarkingClientReportProps) {
-  const metrics = data.metrics_comparison ? JSON.parse(data.metrics_comparison) : [];
-  const recommendations = data.recommendations ? JSON.parse(data.recommendations) : [];
+  const metrics = safeJsonParse(data.metrics_comparison, []);
+  const recommendations = safeJsonParse(data.recommendations, []);
   
   return (
     <div className="min-h-screen bg-slate-50">

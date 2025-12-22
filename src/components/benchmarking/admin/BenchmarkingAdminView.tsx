@@ -34,15 +34,28 @@ interface BenchmarkingAdminViewProps {
   onSwitchToClient?: () => void;
 }
 
+// Helper to safely parse JSON (handles both string and already-parsed objects)
+const safeJsonParse = <T,>(value: string | T | null | undefined, fallback: T): T => {
+  if (!value) return fallback;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return value as T;
+};
+
 export function BenchmarkingAdminView({ data, clientData, onSwitchToClient }: BenchmarkingAdminViewProps) {
   const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'actions' | 'raw'>('script');
   
-  const talkingPoints = data.admin_talking_points ? JSON.parse(data.admin_talking_points) : [];
-  const questionsToAsk = data.admin_questions_to_ask ? JSON.parse(data.admin_questions_to_ask) : [];
-  const nextSteps = data.admin_next_steps ? JSON.parse(data.admin_next_steps) : [];
-  const tasks = data.admin_tasks ? JSON.parse(data.admin_tasks) : [];
-  const riskFlags = data.admin_risk_flags ? JSON.parse(data.admin_risk_flags) : [];
-  const pass1Data = data.pass1_data ? JSON.parse(data.pass1_data) : {};
+  const talkingPoints = safeJsonParse(data.admin_talking_points, []);
+  const questionsToAsk = safeJsonParse(data.admin_questions_to_ask, []);
+  const nextSteps = safeJsonParse(data.admin_next_steps, []);
+  const tasks = safeJsonParse(data.admin_tasks, []);
+  const riskFlags = safeJsonParse(data.admin_risk_flags, []);
+  const pass1Data = safeJsonParse(data.pass1_data, {});
   
   const openingStatement = `Based on our benchmarking analysis, we've identified a £${parseFloat(data.total_annual_opportunity || '0').toLocaleString()} annual opportunity. Your revenue per employee of £${clientData.revenuePerEmployee.toLocaleString()} places you at the ${data.overall_percentile || 0}th percentile - meaning ${100 - (data.overall_percentile || 0)}% of comparable firms are generating more revenue per head. Let me walk you through what we've found and what it means for your business.`;
 
@@ -185,7 +198,7 @@ export function BenchmarkingAdminView({ data, clientData, onSwitchToClient }: Be
                   Recommended Services
                 </h3>
                 <div className="space-y-2">
-                  {JSON.parse(data.recommendations).slice(0, 3).map((rec: any, i: number) => (
+                  {safeJsonParse(data.recommendations, []).slice(0, 3).map((rec: any, i: number) => (
                     <div key={i} className="flex items-center justify-between text-sm">
                       <span className="text-slate-700">{rec.linkedService || rec.title}</span>
                       <span className="font-semibold text-emerald-600">
