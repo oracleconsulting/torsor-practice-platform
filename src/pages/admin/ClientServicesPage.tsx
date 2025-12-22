@@ -7740,7 +7740,34 @@ function BenchmarkingClientModal({
                     </div>
                   ) : (report && (report.status === 'generated' || report.status === 'approved' || report.status === 'published')) || (engagement?.status === 'generated' || engagement?.status === 'approved') ? (
                     <div className="space-y-6">
-                      {/* Report Content - Add your report display component here */}
+                      {/* Report Header with Regenerate Button */}
+                      <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900">Benchmarking Report</h3>
+                          <p className="text-sm text-gray-500">
+                            {report?.created_at ? `Generated ${new Date(report.created_at).toLocaleDateString()}` : 'Recently generated'}
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleGenerateReport}
+                          disabled={generating}
+                          className="px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white rounded-lg flex items-center gap-2"
+                        >
+                          {generating ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span>Regenerating...</span>
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="w-4 h-4" />
+                              <span>Regenerate Analysis</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Report Content */}
                       <div className="bg-white border border-gray-200 rounded-xl p-6">
                         <h3 className="text-xl font-semibold text-gray-900 mb-4">{report?.headline || 'Benchmarking Report'}</h3>
                         <div className="prose max-w-none">
