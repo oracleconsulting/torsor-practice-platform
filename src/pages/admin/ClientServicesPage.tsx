@@ -7135,6 +7135,39 @@ function BenchmarkingClientModal({
         client_id: engagementData?.client_id
       });
 
+      // Also try to find report directly by client_id (in case engagement doesn't exist or doesn't match)
+      // This is a fallback to ensure we find the report even if engagement lookup fails
+      let directReportData = null;
+      if (!engagementData) {
+        console.log('[Benchmarking Modal] No engagement found, trying to find report directly...');
+        const { data: reportsForClient } = await supabase
+          .from('bm_reports')
+          .select(`
+            *,
+            bm_engagements!inner (
+              id,
+              client_id,
+              status
+            )
+          `)
+          .eq('bm_engagements.client_id', clientId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (reportsForClient) {
+          directReportData = reportsForClient;
+          // Create a mock engagement from the report's engagement data
+          if (reportsForClient.bm_engagements) {
+            setEngagement(reportsForClient.bm_engagements);
+          }
+          console.log('[Benchmarking Modal] Found report directly (no engagement):', {
+            report_id: directReportData.id,
+            status: directReportData.status
+          });
+        }
+      }
+
       if (engagementData) {
         setEngagement(engagementData);
 
@@ -7249,13 +7282,17 @@ function BenchmarkingClientModal({
         }
         
         // Set report if found (use finalReportData which may come from fallback)
-        if (finalReportData) {
-          setReport(finalReportData);
+        // Also check directReportData if engagement wasn't found
+        const reportToUse = finalReportData || directReportData;
+        if (reportToUse) {
+          setReport(reportToUse);
           
           // If report exists with status 'generated', switch to analysis tab
-          if (finalReportData.status === 'generated' || finalReportData.status === 'approved' || finalReportData.status === 'published') {
+          if (reportToUse.status === 'generated' || reportToUse.status === 'approved' || reportToUse.status === 'published') {
             setActiveTab('analysis');
           }
+        } else {
+          console.warn('[Benchmarking Modal] No report found after all queries. Engagement ID:', engagementData?.id, 'Client ID:', clientId);
         }
 
         // Fetch HVA status (Part 3 assessment)
