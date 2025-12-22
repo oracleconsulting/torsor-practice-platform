@@ -109,7 +109,7 @@ BLIND SPOT FEAR: "${assessment.blind_spot_fear || 'Not specified'}"
 HIDDEN VALUE AUDIT DATA (Standard metrics for all clients)
 ═══════════════════════════════════════════════════════════════════════════════
 
-${hvaMetricsText}
+${hvaMetricsText || 'HVA data will be provided in context section below'}
 
 ═══════════════════════════════════════════════════════════════════════════════
 CLIENT'S ACTUAL METRICS (from MA data if available)
@@ -124,6 +124,8 @@ INDUSTRY BENCHMARKS
 ═══════════════════════════════════════════════════════════════════════════════
 
 ${benchmarkDetails}
+
+${hvaContextSection}
 
 ═══════════════════════════════════════════════════════════════════════════════
 YOUR TASK
@@ -359,6 +361,500 @@ function calculateEmployeeBand(employeeCount: number): string {
 }
 
 /**
+ * Extract benchmarkable metrics from HVA data
+ */
+function extractHVAMetrics(hvaData: any): Record<string, number> {
+  const metrics: Record<string, number> = {};
+  const hva = hvaData?.responses || {};
+  
+  // Client concentration (Top 3 customers as % of revenue)
+  if (hva.top3_customer_revenue_percentage != null) {
+    metrics.client_concentration_top3 = parseFloat(hva.top3_customer_revenue_percentage);
+  }
+  
+  // Knowledge dependency
+  if (hva.knowledge_dependency_percentage != null) {
+    metrics.knowledge_concentration = parseFloat(hva.knowledge_dependency_percentage);
+  }
+  
+  // Personal brand dependency
+  if (hva.personal_brand_percentage != null) {
+    metrics.founder_brand_dependency = parseFloat(hva.personal_brand_percentage);
+  }
+  
+  // Team advocacy
+  if (hva.team_advocacy_percentage != null) {
+    metrics.team_advocacy_score = parseFloat(hva.team_advocacy_percentage);
+  }
+  
+  // Tech stack health
+  if (hva.tech_stack_health_percentage != null) {
+    metrics.tech_health_score = parseFloat(hva.tech_stack_health_percentage);
+  }
+  
+  return metrics;
+}
+
+/**
+ * Calculate founder risk score from HVA data
+ */
+function calculateFounderRisk(hvaData: any): any {
+  const hva = hvaData?.responses || {};
+  const riskFactors: any[] = [];
+  let totalPoints = 0;
+  
+  // Succession signals (highest weight)
+  const successionWeights: Record<string, Record<string, { points: number; severity: string }>> = {
+    succession_your_role: {
+      'Nobody': { points: 25, severity: 'critical' },
+      'Need 6 months': { points: 15, severity: 'high' },
+      'Need 1 month': { points: 8, severity: 'medium' },
+      'Ready now': { points: 0, severity: 'low' }
+    },
+    succession_sales: {
+      'Nobody': { points: 10, severity: 'high' },
+      'Need 6 months': { points: 6, severity: 'medium' },
+      'Need 1 month': { points: 3, severity: 'low' },
+      'Ready now': { points: 0, severity: 'low' }
+    },
+    succession_technical: {
+      'Nobody': { points: 12, severity: 'critical' },
+      'Need 6 months': { points: 7, severity: 'high' },
+      'Need 1 month': { points: 4, severity: 'medium' },
+      'Ready now': { points: 0, severity: 'low' }
+    },
+    succession_operations: {
+      'Nobody': { points: 8, severity: 'high' },
+      'Need 6 months': { points: 5, severity: 'medium' },
+      'Need 1 month': { points: 2, severity: 'low' },
+      'Ready now': { points: 0, severity: 'low' }
+    },
+    succession_customer: {
+      'Nobody': { points: 8, severity: 'high' },
+      'Need 6 months': { points: 5, severity: 'medium' },
+      'Need 1 month': { points: 2, severity: 'low' },
+      'Ready now': { points: 0, severity: 'low' }
+    }
+  };
+  
+  // Autonomy signals
+  const autonomyWeights: Record<string, Record<string, { points: number; severity: string }>> = {
+    autonomy_finance: {
+      'Would fail': { points: 15, severity: 'critical' },
+      'Needs oversight': { points: 8, severity: 'medium' },
+      'Runs independently': { points: 0, severity: 'low' }
+    },
+    autonomy_strategy: {
+      'Would fail': { points: 12, severity: 'high' },
+      'Needs oversight': { points: 6, severity: 'medium' },
+      'Runs independently': { points: 0, severity: 'low' }
+    },
+    autonomy_sales: {
+      'Would fail': { points: 12, severity: 'high' },
+      'Needs oversight': { points: 6, severity: 'medium' },
+      'Runs independently': { points: 0, severity: 'low' }
+    },
+    autonomy_delivery: {
+      'Would fail': { points: 10, severity: 'high' },
+      'Needs oversight': { points: 5, severity: 'medium' },
+      'Runs independently': { points: 0, severity: 'low' }
+    }
+  };
+  
+  // Key person risk signals
+  const riskWeights: Record<string, Record<string, { points: number; severity: string }>> = {
+    risk_sales_lead: {
+      'Crisis situation': { points: 10, severity: 'high' },
+      'Disrupted for weeks': { points: 6, severity: 'medium' },
+      'Disrupted for days': { points: 3, severity: 'low' },
+      'Business fine': { points: 0, severity: 'low' }
+    },
+    risk_finance_lead: {
+      'Crisis situation': { points: 10, severity: 'high' },
+      'Disrupted for weeks': { points: 6, severity: 'medium' },
+      'Disrupted for days': { points: 3, severity: 'low' },
+      'Business fine': { points: 0, severity: 'low' }
+    },
+    risk_tech_lead: {
+      'Crisis situation': { points: 12, severity: 'critical' },
+      'Disrupted for weeks': { points: 7, severity: 'medium' },
+      'Disrupted for days': { points: 3, severity: 'low' },
+      'Business fine': { points: 0, severity: 'low' }
+    }
+  };
+  
+  // Check succession signals
+  for (const [field, weights] of Object.entries(successionWeights)) {
+    const value = hva[field];
+    if (value && weights[value]) {
+      const { points, severity } = weights[value];
+      if (points > 0) {
+        totalPoints += points;
+        riskFactors.push({
+          category: 'Succession Planning',
+          signal: `${field.replace('succession_', '').replace('_', ' ')}: ${value}`,
+          severity,
+          points,
+          hvaField: field,
+          hvaValue: value
+        });
+      }
+    }
+  }
+  
+  // Check autonomy signals
+  for (const [field, weights] of Object.entries(autonomyWeights)) {
+    const value = hva[field];
+    if (value && weights[value]) {
+      const { points, severity } = weights[value];
+      if (points > 0) {
+        totalPoints += points;
+        riskFactors.push({
+          category: 'Operational Autonomy',
+          signal: `${field.replace('autonomy_', '').replace('_', ' ')}: ${value}`,
+          severity,
+          points,
+          hvaField: field,
+          hvaValue: value
+        });
+      }
+    }
+  }
+  
+  // Check key person risk signals
+  for (const [field, weights] of Object.entries(riskWeights)) {
+    const value = hva[field];
+    if (value && weights[value]) {
+      const { points, severity } = weights[value];
+      if (points > 0) {
+        totalPoints += points;
+        riskFactors.push({
+          category: 'Key Person Risk',
+          signal: `${field.replace('risk_', '').replace('_', ' ')}: ${value}`,
+          severity,
+          points,
+          hvaField: field,
+          hvaValue: value
+        });
+      }
+    }
+  }
+  
+  // Percentage-based risk factors
+  const kd = hva.knowledge_dependency_percentage;
+  if (kd != null) {
+    if (kd >= 80) {
+      totalPoints += 15;
+      riskFactors.push({
+        category: 'Knowledge Concentration',
+        signal: `${kd}% of critical knowledge held by founder/key person`,
+        severity: 'critical',
+        points: 15,
+        hvaField: 'knowledge_dependency_percentage',
+        hvaValue: `${kd}%`
+      });
+    } else if (kd >= 60) {
+      totalPoints += 10;
+      riskFactors.push({
+        category: 'Knowledge Concentration',
+        signal: `${kd}% of critical knowledge concentrated`,
+        severity: 'high',
+        points: 10,
+        hvaField: 'knowledge_dependency_percentage',
+        hvaValue: `${kd}%`
+      });
+    } else if (kd >= 40) {
+      totalPoints += 5;
+      riskFactors.push({
+        category: 'Knowledge Concentration',
+        signal: `${kd}% knowledge dependency`,
+        severity: 'medium',
+        points: 5,
+        hvaField: 'knowledge_dependency_percentage',
+        hvaValue: `${kd}%`
+      });
+    }
+  }
+  
+  const pb = hva.personal_brand_percentage;
+  if (pb != null) {
+    if (pb >= 85) {
+      totalPoints += 12;
+      riskFactors.push({
+        category: 'Brand Dependency',
+        signal: `${pb}% of brand value tied to founder personally`,
+        severity: 'critical',
+        points: 12,
+        hvaField: 'personal_brand_percentage',
+        hvaValue: `${pb}%`
+      });
+    } else if (pb >= 70) {
+      totalPoints += 8;
+      riskFactors.push({
+        category: 'Brand Dependency',
+        signal: `${pb}% personal brand dependency`,
+        severity: 'high',
+        points: 8,
+        hvaField: 'personal_brand_percentage',
+        hvaValue: `${pb}%`
+      });
+    } else if (pb >= 50) {
+      totalPoints += 4;
+      riskFactors.push({
+        category: 'Brand Dependency',
+        signal: `${pb}% brand tied to individual`,
+        severity: 'medium',
+        points: 4,
+        hvaField: 'personal_brand_percentage',
+        hvaValue: `${pb}%`
+      });
+    }
+  }
+  
+  // Determine risk level
+  let riskLevel: string;
+  let valuationImpact: string;
+  
+  if (totalPoints >= 60) {
+    riskLevel = 'critical';
+    valuationImpact = '30-50% valuation discount';
+  } else if (totalPoints >= 40) {
+    riskLevel = 'high';
+    valuationImpact = '20-30% valuation discount';
+  } else if (totalPoints >= 20) {
+    riskLevel = 'medium';
+    valuationImpact = '10-20% valuation discount';
+  } else {
+    riskLevel = 'low';
+    valuationImpact = 'Minimal valuation impact';
+  }
+  
+  // Assess succession readiness
+  const successionFields = [
+    { field: 'succession_sales', role: 'Sales' },
+    { field: 'succession_technical', role: 'Technical' },
+    { field: 'succession_operations', role: 'Operations' },
+    { field: 'succession_customer', role: 'Customer' },
+    { field: 'succession_your_role', role: 'Founder/CEO' }
+  ];
+  
+  const roleGaps: string[] = [];
+  const readyRoles: string[] = [];
+  
+  for (const { field, role } of successionFields) {
+    const value = hva[field];
+    if (value === 'Ready now') {
+      readyRoles.push(role);
+    } else if (value === 'Nobody' || value === 'Need 6 months' || !value) {
+      roleGaps.push(`${role}: ${value || 'Not assessed'}`);
+    }
+  }
+  
+  let successionReadiness: string = 'partial';
+  let timeToReady = '3-6 months';
+  
+  if (roleGaps.length === 0 && readyRoles.length >= 4) {
+    successionReadiness = 'ready';
+    timeToReady = 'Ready now';
+  } else if (roleGaps.length >= 4 || hva.succession_your_role === 'Nobody') {
+    successionReadiness = 'none';
+    timeToReady = '12-24 months';
+  } else if (roleGaps.length >= 2) {
+    timeToReady = '6-12 months';
+  }
+  
+  // Sort risk factors by severity
+  riskFactors.sort((a, b) => {
+    const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+    return severityOrder[a.severity] - severityOrder[b.severity];
+  });
+  
+  return {
+    overallScore: Math.min(100, totalPoints),
+    riskLevel,
+    riskFactors: riskFactors.slice(0, 10), // Top 10 risk factors
+    successionReadiness: {
+      overallReadiness: successionReadiness,
+      roleGaps,
+      readyRoles,
+      timeToReady
+    },
+    valuationImpact
+  };
+}
+
+/**
+ * Extract narrative quotes from HVA data
+ */
+function extractNarrativeQuotes(hvaData: any): any[] {
+  const quotes: any[] = [];
+  const hva = hvaData?.responses || {};
+  
+  // Context quotes
+  if (hva.bm_business_description || hva.business_description) {
+    quotes.push({
+      category: 'context',
+      field: 'Business Description',
+      value: hva.bm_business_description || hva.business_description,
+      useCase: 'Opening paragraph - establish what the business does',
+      priority: 1
+    });
+  }
+  
+  // Strength quotes
+  if (hva.unique_methods) {
+    quotes.push({
+      category: 'strength',
+      field: 'Unique Methods',
+      value: hva.unique_methods,
+      useCase: 'Strength narrative - competitive differentiation',
+      priority: 2
+    });
+  }
+  
+  if (hva.competitive_moat) {
+    quotes.push({
+      category: 'strength',
+      field: 'Competitive Moat',
+      value: hva.competitive_moat,
+      useCase: 'Strength narrative - defensibility factors',
+      priority: 2
+    });
+  }
+  
+  // Gap quotes
+  if (hva.bm_leaving_money) {
+    quotes.push({
+      category: 'gap',
+      field: 'Leaving Money',
+      value: hva.bm_leaving_money,
+      useCase: 'Gap narrative - self-identified revenue leakage',
+      priority: 1
+    });
+  }
+  
+  if (hva.bm_suspected_underperformance) {
+    quotes.push({
+      category: 'gap',
+      field: 'Suspected Underperformance',
+      value: hva.bm_suspected_underperformance,
+      useCase: 'Gap narrative - performance concerns',
+      priority: 1
+    });
+  }
+  
+  if (hva.critical_processes_undocumented) {
+    quotes.push({
+      category: 'gap',
+      field: 'Undocumented Processes',
+      value: hva.critical_processes_undocumented,
+      useCase: 'Gap narrative - knowledge capture risk',
+      priority: 2
+    });
+  }
+  
+  // Fear quotes
+  if (hva.bm_blind_spot_fear) {
+    quotes.push({
+      category: 'fear',
+      field: 'Blind Spot Fear',
+      value: hva.bm_blind_spot_fear,
+      useCase: 'Executive summary - address core anxiety',
+      priority: 1
+    });
+  }
+  
+  // Aspiration quotes
+  if (hva.bm_top_quartile_ambition) {
+    quotes.push({
+      category: 'aspiration',
+      field: 'Top Quartile Ambition',
+      value: Array.isArray(hva.bm_top_quartile_ambition) 
+        ? hva.bm_top_quartile_ambition.join(', ')
+        : hva.bm_top_quartile_ambition,
+      useCase: 'Recommendation framing - align to stated goals',
+      priority: 2
+    });
+  }
+  
+  if (hva.bm_benchmark_magic_fix) {
+    quotes.push({
+      category: 'aspiration',
+      field: 'Magic Fix',
+      value: hva.bm_benchmark_magic_fix,
+      useCase: 'Recommendation prioritization - address stated priority',
+      priority: 1
+    });
+  }
+  
+  quotes.sort((a, b) => a.priority - b.priority);
+  return quotes;
+}
+
+/**
+ * Format quotes for AI prompt
+ */
+function formatQuotesForPrompt(quotes: any[]): string {
+  const sections: Record<string, any[]> = {
+    context: [],
+    strength: [],
+    gap: [],
+    fear: [],
+    aspiration: []
+  };
+  
+  for (const quote of quotes) {
+    if (sections[quote.category]) {
+      sections[quote.category].push(quote);
+    }
+  }
+  
+  let output = '## CLIENT QUOTES FOR NARRATIVE (use verbatim where appropriate)\n\n';
+  
+  if (sections.context.length > 0) {
+    output += '### Business Context\n';
+    for (const q of sections.context) {
+      output += `- **${q.field}**: "${q.value}"\n`;
+    }
+    output += '\n';
+  }
+  
+  if (sections.fear.length > 0) {
+    output += '### Client Fears/Concerns (address these directly)\n';
+    for (const q of sections.fear) {
+      output += `- **${q.field}**: "${q.value}"\n`;
+    }
+    output += '\n';
+  }
+  
+  if (sections.gap.length > 0) {
+    output += '### Self-Identified Gaps (validate with benchmarks)\n';
+    for (const q of sections.gap) {
+      output += `- **${q.field}**: "${q.value}"\n`;
+    }
+    output += '\n';
+  }
+  
+  if (sections.strength.length > 0) {
+    output += '### Strengths/Differentiation (acknowledge in narrative)\n';
+    for (const q of sections.strength) {
+      output += `- **${q.field}**: "${q.value}"\n`;
+    }
+    output += '\n';
+  }
+  
+  if (sections.aspiration.length > 0) {
+    output += '### Goals/Aspirations (frame recommendations against)\n';
+    for (const q of sections.aspiration) {
+      output += `- **${q.field}**: "${q.value}"\n`;
+    }
+    output += '\n';
+  }
+  
+  return output;
+}
+
+/**
  * Enrich benchmark data by calculating derived metrics from available raw data
  */
 function enrichBenchmarkData(assessmentData: any, hvaData: any): any {
@@ -410,7 +906,7 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any): any {
     console.log(`[BM Pass 1] Calculated net_margin: ${enriched.net_margin}%`);
   }
   
-  // Pull client concentration from HVA
+  // Pull client concentration from HVA (will be merged with other HVA metrics later)
   if (hvaData?.responses?.top3_customer_revenue_percentage != null) {
     enriched.client_concentration_top3 = parseFloat(hvaData.responses.top3_customer_revenue_percentage);
     derivedFields.push('client_concentration_top3 (from HVA)');
@@ -876,31 +1372,94 @@ serve(async (req) => {
       .or(`employee_band.eq.${employeeBand},employee_band.eq.all`)
       .eq('is_current', true);
     
-    // Extract HVA metrics from responses (already fetched above)
-    const hvaMetrics = hvaData?.responses || {};
-    const hvaContext = {
-      recurringRevenuePercent: hvaMetrics.recurring_revenue_percentage,
-      customerConcentration: hvaMetrics.top3_customer_revenue_percentage || assessmentData.client_concentration_top3,
-      knowledgeDependency: hvaMetrics.knowledge_dependency_percentage,
-      personalBrandPercent: hvaMetrics.personal_brand_percentage,
-      competitiveMoat: hvaMetrics.competitive_moat,
-      vacationTest: hvaMetrics.vacation_test,
-      successionDepth: hvaMetrics.succession_depth,
-      financialDocumentation: hvaMetrics.financial_documentation,
-      exitTimeline: hvaMetrics.exit_timeline,
-      ipAssets: hvaMetrics.ip_assets,
-      // Additional HVA fields for context
-      businessDescription: hvaMetrics.business_description,
-      uniqueMethods: hvaMetrics.unique_methods,
-      criticalProcessesUndocumented: hvaMetrics.critical_processes_undocumented,
-      successionSales: hvaMetrics.succession_sales,
-      successionTechnical: hvaMetrics.succession_technical,
-      successionOperations: hvaMetrics.succession_operations,
-      successionCustomer: hvaMetrics.succession_customer,
-      autonomyFinance: hvaMetrics.autonomy_finance,
-      autonomyStrategy: hvaMetrics.autonomy_strategy,
-      autonomySales: hvaMetrics.autonomy_sales,
-    };
+    // ═══════════════════════════════════════════════════════════════
+    // HVA INTEGRATION: Extract metrics, calculate risk, extract quotes
+    // ═══════════════════════════════════════════════════════════════
+    
+    let hvaMetricsForBenchmarking: Record<string, number> = {};
+    let founderRisk: any = null;
+    let hvaQuotes: any[] = [];
+    let hvaContextSection = '';
+    
+    if (hvaData) {
+      // Extract benchmarkable metrics from HVA
+      hvaMetricsForBenchmarking = extractHVAMetrics(hvaData);
+      console.log('[BM Pass 1] Extracted HVA metrics:', Object.keys(hvaMetricsForBenchmarking));
+      
+      // Calculate founder risk score
+      founderRisk = calculateFounderRisk(hvaData);
+      console.log('[BM Pass 1] Founder risk calculated:', {
+        score: founderRisk.overallScore,
+        level: founderRisk.riskLevel,
+        valuationImpact: founderRisk.valuationImpact
+      });
+      
+      // Extract narrative quotes
+      hvaQuotes = extractNarrativeQuotes(hvaData);
+      console.log('[BM Pass 1] Extracted narrative quotes:', hvaQuotes.length);
+      
+      // Build HVA context section for prompt
+      const founderRiskSection = `
+**Overall Risk Level**: ${founderRisk.riskLevel.toUpperCase()} (Score: ${founderRisk.overallScore}/100)
+**Valuation Impact**: ${founderRisk.valuationImpact}
+
+**Key Risk Factors**:
+${founderRisk.riskFactors.slice(0, 5).map((f: any) => 
+  `- [${f.severity.toUpperCase()}] ${f.signal}`
+).join('\n')}
+`;
+
+      const successionSection = `
+**Readiness**: ${founderRisk.successionReadiness.overallReadiness}
+**Time to Ready**: ${founderRisk.successionReadiness.timeToReady}
+**Role Gaps**: ${founderRisk.successionReadiness.roleGaps.join(', ') || 'None identified'}
+**Ready Roles**: ${founderRisk.successionReadiness.readyRoles.join(', ') || 'None ready'}
+`;
+
+      const quotesSection = formatQuotesForPrompt(hvaQuotes);
+      
+      const hvaMetricsText = Object.entries(hvaMetricsForBenchmarking)
+        .map(([code, value]) => `- ${code}: ${value}%`)
+        .join('\n');
+      
+      hvaContextSection = `
+## HVA CONTEXT DATA
+
+The client has completed a Hidden Value Audit which provides rich qualitative context. 
+Use this data to:
+1. Ground your narrative in their specific situation
+2. Validate/challenge their self-perceptions with benchmark data
+3. Quote their exact words when describing concerns or goals
+4. Address their stated fears directly in the executive summary
+
+### Founder Risk Assessment
+${founderRiskSection}
+
+### Succession Readiness
+${successionSection}
+
+### Client Quotes
+${quotesSection}
+
+### Additional HVA Metrics
+${hvaMetricsText || 'No additional metrics available'}
+
+## NARRATIVE REQUIREMENTS
+
+When writing narratives:
+1. If client stated a fear (e.g., "we're busy but not efficient"), ADDRESS IT DIRECTLY with benchmark evidence
+2. If client identified a gap (e.g., "we undercharge"), VALIDATE OR CHALLENGE with data
+3. Reference specific HVA percentages (e.g., "with ${founderRisk.riskFactors.find((f: any) => f.hvaField === 'knowledge_dependency_percentage')?.hvaValue || 'X'}% of knowledge concentrated in the founder...")
+4. Use verbatim quotes where they add authenticity (e.g., "As you noted, 'we still rely on founder-led sales'")
+5. Connect benchmark gaps to founder risk factors where relevant
+`;
+    }
+    
+    // Merge HVA metrics into enriched data
+    Object.assign(assessmentData, hvaMetricsForBenchmarking);
+    if (Object.keys(hvaMetricsForBenchmarking).length > 0) {
+      console.log('[BM Pass 1] Merged HVA metrics into assessment data');
+    }
     
     // Get MA data if available
     const { data: maData } = await supabaseClient
@@ -924,7 +1483,7 @@ serve(async (req) => {
       assessmentData,
       benchmarks || [],
       maData,
-      hvaContext,
+      hvaContextSection,
       clientName,
       industry || {}
     );
@@ -982,37 +1541,49 @@ serve(async (req) => {
       throw new Error(`Invalid industry_code: ${finalIndustryCode}. This should have been caught earlier.`);
     }
     
-    // Save to database
+    // Save to database (including founder risk data if available)
+    const reportData: any = {
+      engagement_id: engagementId,
+      industry_code: finalIndustryCode,
+      status: 'pass1_complete',
+      revenue_band: pass1Data.classification?.revenueBand || assessmentData.revenue_band,
+      employee_band: calculatedEmployeeBand,
+      metrics_comparison: pass1Data.metricsComparison,
+      overall_percentile: pass1Data.overallPosition.percentile,
+      strength_count: pass1Data.overallPosition.strengthCount,
+      gap_count: pass1Data.overallPosition.gapCount,
+      top_strengths: pass1Data.topStrengths,
+      top_gaps: pass1Data.topGaps,
+      total_annual_opportunity: pass1Data.opportunitySizing.totalAnnualOpportunity,
+      opportunity_breakdown: pass1Data.opportunitySizing.breakdown,
+      recommendations: pass1Data.recommendations,
+      admin_talking_points: pass1Data.adminGuidance.talkingPoints,
+      admin_questions_to_ask: pass1Data.adminGuidance.questionsToAsk,
+      admin_next_steps: pass1Data.adminGuidance.nextSteps,
+      admin_tasks: pass1Data.adminGuidance.tasks,
+      admin_risk_flags: pass1Data.adminGuidance.riskFlags,
+      pass1_data: pass1Data,
+      llm_model: 'claude-sonnet-4',
+      llm_tokens_used: tokensUsed,
+      llm_cost: cost,
+      generation_time_ms: generationTime,
+      benchmark_data_as_of: new Date().toISOString().split('T')[0],
+      data_sources: benchmarks?.map((b: any) => b.data_source).filter(Boolean) || []
+    };
+    
+    // Add founder risk data if available
+    if (founderRisk) {
+      reportData.founder_risk_level = founderRisk.riskLevel;
+      reportData.founder_risk_score = founderRisk.overallScore;
+      reportData.valuation_impact = founderRisk.valuationImpact;
+      reportData.founder_risk_factors = founderRisk.riskFactors;
+      reportData.succession_readiness = founderRisk.successionReadiness;
+      console.log('[BM Pass 1] Added founder risk data to report');
+    }
+    
     const { data: report, error: saveError } = await supabaseClient
       .from('bm_reports')
-      .upsert({
-        engagement_id: engagementId,
-        industry_code: finalIndustryCode,
-        status: 'pass1_complete',
-        revenue_band: pass1Data.classification?.revenueBand || assessmentData.revenue_band,
-        employee_band: calculatedEmployeeBand,
-        metrics_comparison: pass1Data.metricsComparison,
-        overall_percentile: pass1Data.overallPosition.percentile,
-        strength_count: pass1Data.overallPosition.strengthCount,
-        gap_count: pass1Data.overallPosition.gapCount,
-        top_strengths: pass1Data.topStrengths,
-        top_gaps: pass1Data.topGaps,
-        total_annual_opportunity: pass1Data.opportunitySizing.totalAnnualOpportunity,
-        opportunity_breakdown: pass1Data.opportunitySizing.breakdown,
-        recommendations: pass1Data.recommendations,
-        admin_talking_points: pass1Data.adminGuidance.talkingPoints,
-        admin_questions_to_ask: pass1Data.adminGuidance.questionsToAsk,
-        admin_next_steps: pass1Data.adminGuidance.nextSteps,
-        admin_tasks: pass1Data.adminGuidance.tasks,
-        admin_risk_flags: pass1Data.adminGuidance.riskFlags,
-        pass1_data: pass1Data,
-        llm_model: 'claude-sonnet-4',
-        llm_tokens_used: tokensUsed,
-        llm_cost: cost,
-        generation_time_ms: generationTime,
-        benchmark_data_as_of: new Date().toISOString().split('T')[0],
-        data_sources: benchmarks?.map((b: any) => b.data_source).filter(Boolean) || []
-      }, { onConflict: 'engagement_id' })
+      .upsert(reportData, { onConflict: 'engagement_id' })
       .select()
       .single();
     
