@@ -608,7 +608,16 @@ serve(async (req) => {
         
         console.log(`Saving discovery assessment for client_id: ${clientId}, email: ${clientCheck.email}`);
         
-        await supabase.from('destination_discovery').upsert({
+        // First, check if a record exists for this client
+        const { data: existingDiscovery } = await supabase
+          .from('destination_discovery')
+          .select('id')
+          .eq('client_id', clientId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const discoveryData = {
           client_id: clientId,
           practice_id: clientCheck.practice_id || null, // Ensure practice_id is set
           responses: { ...discoveryResponses, ...diagnosticResponses },
@@ -618,9 +627,20 @@ serve(async (req) => {
           recommended_services: recommendations,
           value_propositions: recommendations.map(r => r.valueProposition),
           completed_at: new Date().toISOString()
-        }, {
-          onConflict: 'client_id' // Update if exists, insert if not
-        });
+        };
+
+        if (existingDiscovery?.id) {
+          // Update existing record
+          await supabase
+            .from('destination_discovery')
+            .update(discoveryData)
+            .eq('id', existingDiscovery.id);
+        } else {
+          // Insert new record
+          await supabase
+            .from('destination_discovery')
+            .insert(discoveryData);
+        }
       }
 
       return new Response(JSON.stringify({
