@@ -7157,6 +7157,61 @@ function BenchmarkingClientModal({
     }
   };
 
+  const pollForReport = async (engagementId: string, attempts: number = 0, maxAttempts: number = 60) => {
+    const pollInterval = 2000; // 2 seconds
+    
+    try {
+      // Check report status
+      const { data: report } = await supabase
+        .from('bm_reports')
+        .select('status, headline, created_at')
+        .eq('engagement_id', engagementId)
+        .maybeSingle();
+      
+      if (report) {
+        if (report.status === 'generated') {
+          // Report fully complete - refresh data
+          console.log('[BM Report] Report completed! Refreshing data...');
+          await fetchData();
+          setGenerating(false);
+          return;
+        } else if (report.status === 'pass2_failed') {
+          // Pass 2 failed - show error but keep Pass 1 data visible
+          console.error('[BM Report] Pass 2 failed');
+          alert('Report extraction completed, but narrative generation failed. You can retry Pass 2 or view the extracted data.');
+          await fetchData();
+          setGenerating(false);
+          return;
+        } else if (report.status === 'pass1_complete') {
+          // Pass 1 complete, waiting for Pass 2
+          console.log(`[BM Report] Pass 1 complete, waiting for Pass 2... (attempt ${attempts + 1}/${maxAttempts})`);
+          // Continue polling
+          if (attempts < maxAttempts) {
+            setTimeout(() => pollForReport(engagementId, attempts + 1, maxAttempts), pollInterval);
+          } else {
+            console.error('[BM Report] Polling timeout - Pass 2 taking too long');
+            alert('Report generation is taking longer than expected. Please refresh the page to check status.');
+            await fetchData();
+            setGenerating(false);
+          }
+          return;
+        }
+      }
+      
+      // No report yet, continue polling if we haven't exceeded max attempts
+      if (attempts < maxAttempts) {
+        setTimeout(() => pollForReport(engagementId, attempts + 1, maxAttempts), pollInterval);
+      } else {
+        console.error('[BM Report] Polling timeout - no report found');
+        alert('Report generation is taking longer than expected. Please refresh the page to check status.');
+        setGenerating(false);
+      }
+    } catch (error) {
+      console.error('[BM Report] Error polling for report:', error);
+      setGenerating(false);
+    }
+  };
+
   const handleGenerateReport = async () => {
     if (!engagement) return;
     
@@ -7168,11 +7223,8 @@ function BenchmarkingClientModal({
 
       if (error) throw error;
       
-      // Poll for report completion
-      setTimeout(() => {
-        fetchData();
-        setGenerating(false);
-      }, 3000);
+      // Start polling for report completion
+      pollForReport(engagement.id, 0);
     } catch (error: any) {
       console.error('[Benchmarking] Error generating report:', error);
       alert(`Error: ${error.message || 'Unknown error'}`);
@@ -7432,6 +7484,43 @@ function BenchmarkingClientModal({
                           )}
                         </button>
                       )}
+                    </div>
+                  ) : report && report.status === 'generated' ? (
+                    <div className="space-y-6">
+                      {/* Report Content - Add your report display component here */}
+                      <div className="bg-white border border-gray-200 rounded-xl p-6">
+                        <h3 className="text-xl font-semibold text-gray-900 mb-4">{report.headline}</h3>
+                        <div className="prose max-w-none">
+                          <div className="mb-6">
+                            <h4 className="text-lg font-semibold text-gray-900 mb-2">Executive Summary</h4>
+                            <p className="text-gray-700 whitespace-pre-wrap">{report.executive_summary}</p>
+                          </div>
+                          {report.position_narrative && (
+                            <div className="mb-6">
+                              <h4 className="text-lg font-semibold text-gray-900 mb-2">Position</h4>
+                              <p className="text-gray-700 whitespace-pre-wrap">{report.position_narrative}</p>
+                            </div>
+                          )}
+                          {report.strength_narrative && (
+                            <div className="mb-6">
+                              <h4 className="text-lg font-semibold text-gray-900 mb-2">Strengths</h4>
+                              <p className="text-gray-700 whitespace-pre-wrap">{report.strength_narrative}</p>
+                            </div>
+                          )}
+                          {report.gap_narrative && (
+                            <div className="mb-6">
+                              <h4 className="text-lg font-semibold text-gray-900 mb-2">Gaps</h4>
+                              <p className="text-gray-700 whitespace-pre-wrap">{report.gap_narrative}</p>
+                            </div>
+                          )}
+                          {report.opportunity_narrative && (
+                            <div className="mb-6">
+                              <h4 className="text-lg font-semibold text-gray-900 mb-2">Opportunity</h4>
+                              <p className="text-gray-700 whitespace-pre-wrap">{report.opportunity_narrative}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-6">
