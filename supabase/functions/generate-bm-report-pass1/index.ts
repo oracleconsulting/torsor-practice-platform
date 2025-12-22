@@ -755,6 +755,8 @@ serve(async (req) => {
       
       // If SIC mapping didn't work, try full context detection
       if (!industryCode || industryCode === 'undefined' || industryCode === 'null') {
+        let sicCodes: string[] | null = null;
+        
         if (sicCodeFromAssessment) {
           sicCodes = Array.isArray(sicCodeFromAssessment) ? sicCodeFromAssessment : [sicCodeFromAssessment];
           console.log('[BM Pass 1] SIC mapping failed, trying full context detection with SIC:', sicCodes);
@@ -784,16 +786,12 @@ serve(async (req) => {
         );
         
         if (detectedIndustryCode) {
+          console.log(`[BM Pass 1] Successfully detected industry code: ${detectedIndustryCode}`);
           industryCode = detectedIndustryCode;
+        } else {
+          console.error('[BM Pass 1] Could not detect industry code from context. Full assessment:', JSON.stringify(assessment, null, 2));
+          throw new Error(`Industry code is required but not found in assessment and could not be determined from SIC codes or business description. engagementId: ${engagementId}. SIC code: ${sicCodes?.join(', ') || 'none'}, Business description: ${businessDescription ? 'present' : 'missing'}. Please ensure the assessment has an industry selected or the client has SIC codes/business description.`);
         }
-      }
-      
-      if (detectedIndustryCode) {
-        console.log(`[BM Pass 1] Successfully detected industry code: ${detectedIndustryCode}`);
-        industryCode = detectedIndustryCode;
-      } else {
-        console.error('[BM Pass 1] Could not detect industry code from context. Full assessment:', JSON.stringify(assessment, null, 2));
-        throw new Error(`Industry code is required but not found in assessment and could not be determined from SIC codes or business description. engagementId: ${engagementId}. SIC code: ${sicCodes?.join(', ') || 'none'}, Business description: ${businessDescription ? 'present' : 'missing'}. Please ensure the assessment has an industry selected or the client has SIC codes/business description.`);
       }
     }
     
