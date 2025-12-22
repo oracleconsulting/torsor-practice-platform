@@ -7208,7 +7208,9 @@ function BenchmarkingClientModal({
           found: !!reportData,
           error: reportError?.message,
           errorCode: reportError?.code,
-          engagement_id_queried: engagementData.id
+          engagement_id_queried: engagementData.id,
+          report_id: reportData?.id,
+          report_status: reportData?.status
         });
         
         // If not found, try a broader search (in case there's a mismatch)
@@ -7216,53 +7218,61 @@ function BenchmarkingClientModal({
         if (!reportData && !reportError) {
           console.log('[Benchmarking Modal] Report not found by engagement_id, trying broader search...');
           
-          // Try querying all reports and filtering manually
-          const { data: allReports, error: allReportsError } = await supabase
-            .from('bm_reports')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(20);
+          // Strategy 1: Get all engagements for this client, then find reports
+          const { data: allEngagements } = await supabase
+            .from('bm_engagements')
+            .select('id')
+            .eq('client_id', clientId);
           
-          console.log('[Benchmarking Modal] All reports query:', {
-            count: allReports?.length || 0,
-            error: allReportsError?.message
-          });
+          console.log('[Benchmarking Modal] Found engagements for client:', allEngagements?.length || 0);
           
-          if (allReports && allReports.length > 0) {
-            // Find reports for this engagement or client
-            const matchingReports = allReports.filter((r: any) => {
-              return r.engagement_id === engagementData.id;
-            });
+          if (allEngagements && allEngagements.length > 0) {
+            const engagementIds = allEngagements.map(e => e.id);
+            console.log('[Benchmarking Modal] Searching reports for engagement IDs:', engagementIds);
             
-            console.log('[Benchmarking Modal] Matching reports found:', matchingReports.length);
+            const { data: reportsByEngagements } = await supabase
+              .from('bm_reports')
+              .select('*')
+              .in('engagement_id', engagementIds)
+              .order('created_at', { ascending: false })
+              .limit(5);
             
-            if (matchingReports.length > 0) {
-              finalReportData = matchingReports[0];
-              console.log('[Benchmarking Modal] Using matching report:', {
+            console.log('[Benchmarking Modal] Found reports via engagement IDs:', reportsByEngagements?.length || 0);
+            
+            if (reportsByEngagements && reportsByEngagements.length > 0) {
+              // Prefer the one matching current engagement, otherwise use most recent
+              finalReportData = reportsByEngagements.find((r: any) => r.engagement_id === engagementData.id) || reportsByEngagements[0];
+              console.log('[Benchmarking Modal] Using report from engagement search:', {
                 report_id: finalReportData.id,
                 engagement_id: finalReportData.engagement_id,
                 status: finalReportData.status
               });
-            } else {
-              // Last resort: try to find any report for this client via engagement lookup
-              console.log('[Benchmarking Modal] No direct match, trying engagement lookup...');
-              const { data: allEngagements } = await supabase
-                .from('bm_engagements')
-                .select('id, client_id')
-                .eq('client_id', clientId);
-              
-              if (allEngagements && allEngagements.length > 0) {
-                const engagementIds = allEngagements.map(e => e.id);
-                const clientReports = allReports.filter((r: any) => engagementIds.includes(r.engagement_id));
-                
-                if (clientReports.length > 0) {
-                  finalReportData = clientReports[0];
-                  console.log('[Benchmarking Modal] Found report via client engagement lookup:', {
-                    report_id: finalReportData.id,
-                    engagement_id: finalReportData.engagement_id
-                  });
-                }
-              }
+            }
+          }
+          
+          // Strategy 2: If still not found, try the join query
+          if (!finalReportData) {
+            console.log('[Benchmarking Modal] Trying join query as last resort...');
+            const { data: reportsViaJoin } = await supabase
+              .from('bm_reports')
+              .select(`
+                *,
+                bm_engagements!inner (
+                  id,
+                  client_id
+                )
+              `)
+              .eq('bm_engagements.client_id', clientId)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            
+            if (reportsViaJoin) {
+              finalReportData = reportsViaJoin;
+              console.log('[Benchmarking Modal] Found report via join query:', {
+                report_id: finalReportData.id,
+                engagement_id: finalReportData.engagement_id
+              });
             }
           }
         }
