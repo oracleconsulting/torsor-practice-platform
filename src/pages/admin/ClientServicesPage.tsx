@@ -7138,11 +7138,17 @@ function BenchmarkingClientModal({
           console.log('[Benchmarking Modal] Report data:', reportData ? { 
             status: reportData.status, 
             hasHeadline: !!reportData.headline,
-            hasExecutiveSummary: !!reportData.executive_summary 
+            hasExecutiveSummary: !!reportData.executive_summary,
+            engagement_id: reportData.engagement_id
           } : 'No report found');
         }
         
         setReport(reportData);
+        
+        // If report exists with status 'generated', switch to analysis tab
+        if (reportData && reportData.status === 'generated') {
+          setActiveTab('analysis');
+        }
 
         // Fetch HVA status (Part 3 assessment)
         const { data: hvaData, error: hvaError } = await supabase
@@ -7495,7 +7501,7 @@ function BenchmarkingClientModal({
                         </button>
                       )}
                     </div>
-                  ) : report && report.status === 'generated' ? (
+                  ) : report && (report.status === 'generated' || report.status === 'approved' || report.status === 'published') ? (
                     <div className="space-y-6">
                       {/* Report Content - Add your report display component here */}
                       <div className="bg-white border border-gray-200 rounded-xl p-6">
@@ -7532,6 +7538,23 @@ function BenchmarkingClientModal({
                         </div>
                       </div>
                     </div>
+                  ) : report && report.status === 'pass1_complete' ? (
+                    <div className="border border-blue-200 rounded-xl p-6 bg-blue-50">
+                      <div className="flex items-center gap-3 mb-4">
+                        <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                        <h3 className="text-lg font-semibold text-blue-900">Report Generation in Progress</h3>
+                      </div>
+                      <p className="text-blue-800 mb-4">
+                        Pass 1 (data extraction) is complete. Narrative generation (Pass 2) is in progress...
+                      </p>
+                      <button
+                        onClick={fetchData}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        <span>Refresh Status</span>
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-6">
                       {/* Report Actions */}
@@ -7539,10 +7562,18 @@ function BenchmarkingClientModal({
                         <div>
                           <h3 className="text-lg font-semibold text-gray-900">Benchmarking Report</h3>
                           <p className="text-sm text-gray-500">
-                            Generated {report.created_at ? new Date(report.created_at).toLocaleDateString() : 'Recently'}
+                            {report.status === 'pass1_complete' ? 'Extraction complete, generating narrative...' : 
+                             report.created_at ? `Generated ${new Date(report.created_at).toLocaleDateString()}` : 'Recently'}
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
+                          <button
+                            onClick={fetchData}
+                            className="px-4 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg flex items-center gap-2"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                            <span>Refresh</span>
+                          </button>
                           <button
                             onClick={handleGenerateReport}
                             disabled={generating}
