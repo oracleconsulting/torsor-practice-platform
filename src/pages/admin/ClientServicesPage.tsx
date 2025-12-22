@@ -477,6 +477,26 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           let progress = 0;
           if (serviceLineCode === '365_method') {
             progress = completedCount * 33;
+          } else if (serviceLineCode === 'benchmarking') {
+            // For benchmarking, check engagement status
+            const engagement = benchmarkingEngagements.find(e => e.client_id === client.id);
+            if (engagement) {
+              // Calculate progress based on engagement status
+              if (engagement.status === 'generated' || engagement.status === 'approved' || engagement.status === 'published') {
+                progress = 100; // Report generated = 100%
+              } else if (engagement.status === 'pass1_complete') {
+                progress = 75; // Pass 1 complete = 75%
+              } else if (engagement.status === 'assessment_complete') {
+                progress = 50; // Assessment complete = 50%
+              } else {
+                progress = 25; // Engagement started = 25%
+              }
+            } else if (serviceAssessment?.completed_at) {
+              // Assessment complete but no engagement yet
+              progress = 50;
+            } else {
+              progress = serviceAssessment?.completion_percentage || 0;
+            }
           } else {
             progress = serviceAssessment?.completion_percentage || 0;
           }
@@ -7507,31 +7527,31 @@ function BenchmarkingClientModal({
                     <div className="space-y-6">
                       {/* Report Content - Add your report display component here */}
                       <div className="bg-white border border-gray-200 rounded-xl p-6">
-                        <h3 className="text-xl font-semibold text-gray-900 mb-4">{report.headline}</h3>
+                        <h3 className="text-xl font-semibold text-gray-900 mb-4">{report?.headline || 'Benchmarking Report'}</h3>
                         <div className="prose max-w-none">
                           <div className="mb-6">
                             <h4 className="text-lg font-semibold text-gray-900 mb-2">Executive Summary</h4>
-                            <p className="text-gray-700 whitespace-pre-wrap">{report.executive_summary}</p>
+                            <p className="text-gray-700 whitespace-pre-wrap">{report?.executive_summary || 'Report is being generated...'}</p>
                           </div>
-                          {report.position_narrative && (
+                          {report?.position_narrative && (
                             <div className="mb-6">
                               <h4 className="text-lg font-semibold text-gray-900 mb-2">Position</h4>
                               <p className="text-gray-700 whitespace-pre-wrap">{report.position_narrative}</p>
                             </div>
                           )}
-                          {report.strength_narrative && (
+                          {report?.strength_narrative && (
                             <div className="mb-6">
                               <h4 className="text-lg font-semibold text-gray-900 mb-2">Strengths</h4>
                               <p className="text-gray-700 whitespace-pre-wrap">{report.strength_narrative}</p>
                             </div>
                           )}
-                          {report.gap_narrative && (
+                          {report?.gap_narrative && (
                             <div className="mb-6">
                               <h4 className="text-lg font-semibold text-gray-900 mb-2">Gaps</h4>
                               <p className="text-gray-700 whitespace-pre-wrap">{report.gap_narrative}</p>
                             </div>
                           )}
-                          {report.opportunity_narrative && (
+                          {report?.opportunity_narrative && (
                             <div className="mb-6">
                               <h4 className="text-lg font-semibold text-gray-900 mb-2">Opportunity</h4>
                               <p className="text-gray-700 whitespace-pre-wrap">{report.opportunity_narrative}</p>
