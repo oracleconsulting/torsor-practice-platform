@@ -206,6 +206,7 @@ serve(async (req) => {
         strength_narrative: narratives.strengthNarrative,
         gap_narrative: narratives.gapNarrative,
         opportunity_narrative: narratives.opportunityNarrative,
+        status: 'generated',
         llm_model: report.llm_model + ' + claude-opus-4',
         llm_tokens_used: (report.llm_tokens_used || 0) + tokensUsed,
         llm_cost: (report.llm_cost || 0) + cost,

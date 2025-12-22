@@ -684,6 +684,7 @@ serve(async (req) => {
       .upsert({
         engagement_id: engagementId,
         industry_code: finalIndustryCode,
+        status: 'pass1_complete',
         revenue_band: pass1Data.classification?.revenueBand || assessmentData.revenue_band,
         employee_band: calculatedEmployeeBand,
         metrics_comparison: pass1Data.metricsComparison,
