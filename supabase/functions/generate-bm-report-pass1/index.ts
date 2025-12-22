@@ -18,7 +18,7 @@ function buildPass1Prompt(
   assessment: any,
   benchmarks: any[],
   maData: any | null,
-  hvaData: any,
+  hvaContextSection: string,
   clientName: string,
   industry: any
 ): string {
@@ -36,19 +36,8 @@ ${metric?.name || b.metric_code} (${b.metric_code}):
   }).join('\n');
 
   // Extract HVA (Hidden Value Audit) metrics - ALL clients have this
-  const hvaMetricsText = hvaData ? `
-HIDDEN VALUE AUDIT DATA (All clients complete this):
-- Recurring Revenue %: ${hvaData.recurringRevenuePercent || 'N/A'}%
-- Top 3 Customer Concentration: ${hvaData.customerConcentration || 'N/A'}%
-- Knowledge Dependency: ${hvaData.knowledgeDependency || 'N/A'}%
-- Personal vs Business Brand: ${hvaData.personalBrandPercent || 'N/A'}%
-- Competitive Moat: ${hvaData.competitiveMoat || 'N/A'}
-- Vacation Test: ${hvaData.vacationTest || 'N/A'}
-- Succession Depth: ${hvaData.successionDepth || 'N/A'}
-- Financial Documentation Quality: ${hvaData.financialDocumentation || 'N/A'}
-- Exit Timeline: ${hvaData.exitTimeline || 'N/A'}
-- IP Assets: ${hvaData.ipAssets || 'N/A'}
-` : 'No HVA data available (unexpected - all clients should have this).';
+  // Note: Rich HVA context is now provided in hvaContextSection parameter
+  const hvaMetricsText = hvaContextSection ? 'See HVA Context section below for detailed analysis.' : 'No HVA data available (unexpected - all clients should have this).';
 
   // Extract MA metrics if available
   const maMetricsText = maData ? `
