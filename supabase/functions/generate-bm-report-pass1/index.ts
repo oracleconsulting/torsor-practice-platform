@@ -59,7 +59,18 @@ FINANCIAL METRICS FROM MANAGEMENT ACCOUNTS:
 - Revenue per Employee: £${maData.revenue_per_employee?.toLocaleString() || 'N/A'}
 - Debtor Days: ${maData.debtor_days || 'N/A'}
 - Creditor Days: ${maData.creditor_days || 'N/A'}
-` : 'No Management Accounts data available - will need to estimate or flag for collection.';
+` : 'No Management Accounts data available.';
+
+  // Show enriched/derived metrics
+  const enrichedMetricsText = assessment.derived_fields && assessment.derived_fields.length > 0 ? `
+DERIVED METRICS (Calculated from available data):
+${assessment.revenue_per_employee ? `- Revenue per Employee: £${assessment.revenue_per_employee.toLocaleString()} (calculated from revenue ÷ employees)` : ''}
+${assessment.gross_margin ? `- Gross Margin: ${assessment.gross_margin}% (calculated from gross profit ÷ revenue)` : ''}
+${assessment.net_margin ? `- Net Margin: ${assessment.net_margin}% (calculated from net profit ÷ revenue)` : ''}
+${assessment.client_concentration_top3 ? `- Client Concentration (Top 3): ${assessment.client_concentration_top3}% (from HVA)` : ''}
+${assessment._enriched_revenue ? `- Revenue: £${assessment._enriched_revenue.toLocaleString()} (extracted from assessment)` : ''}
+${assessment._enriched_employee_count ? `- Employee Count: ${assessment._enriched_employee_count} (extracted from assessment)` : ''}
+` : '';
 
   return `
 You are a financial analyst preparing a benchmarking report for a UK business.
@@ -106,6 +117,8 @@ CLIENT'S ACTUAL METRICS (from MA data if available)
 
 ${maMetricsText}
 
+${enrichedMetricsText}
+
 ═══════════════════════════════════════════════════════════════════════════════
 INDUSTRY BENCHMARKS
 ═══════════════════════════════════════════════════════════════════════════════
@@ -119,12 +132,67 @@ YOUR TASK
 Analyze this client against the benchmarks and produce a structured JSON output.
 
 RULES:
-1. Compare EVERY available metric
+1. Compare EVERY available metric (including derived/calculated metrics shown above)
 2. Calculate percentile position for each (where client value falls between p25/p50/p75)
 3. Quantify the annual £ impact of gaps (difference vs median × revenue)
 4. Use their EXACT WORDS when referencing their concerns
 5. Generate actionable admin guidance
 6. Flag any data gaps that need collection
+
+═══════════════════════════════════════════════════════════════════════════════
+MINIMUM VIABLE ANALYSIS RULES - CRITICAL
+═══════════════════════════════════════════════════════════════════════════════
+
+You MUST produce quantified analysis if ANY of these conditions are met:
+
+### Condition 1: Revenue + Headcount Available
+If you have:
+- Revenue (from any source: assessment, MA data, or derived)
+- Employee count (from any source)
+
+Then you MUST calculate:
+- Revenue per employee = revenue ÷ employees (if not already provided)
+- Compare to benchmark median
+- Calculate gap: (benchmark_median - client_value) × employees = annual opportunity
+- NEVER return £0 opportunity when revenue and headcount are available
+
+### Condition 2: Revenue + Any Margin Available
+If you have:
+- Revenue
+- Gross margin OR net margin (as % or absolute)
+
+Then you MUST:
+- Calculate margin % if given absolutes
+- Compare to benchmark median
+- Calculate gap: revenue × (benchmark_margin - client_margin) = annual opportunity
+
+### Condition 3: Client Concentration Available
+If you have:
+- Top 3 customer % (from HVA: top3_customer_revenue_percentage or derived)
+
+Then you MUST:
+- Compare to benchmark median
+- Assess concentration risk
+- Note in narrative
+
+### NEVER RETURN £0 OPPORTUNITY WHEN:
+- Revenue data exists (derive what you can)
+- At least 2 data points are available
+- HVA provides supplementary metrics
+
+### ALWAYS ACKNOWLEDGE LIMITATIONS:
+If data is partial, clearly state:
+- Which metrics were calculated vs. provided
+- Which metrics could not be assessed
+- What additional data would enable fuller analysis
+
+Example partial analysis output:
+"Based on available data (revenue £750,000, 8 employees), your revenue per 
+head of £93,750 sits 35% below the industry median of £145,000. This 
+suggests a potential £410,000 annual opportunity if efficiency reaches 
+median levels. However, without utilisation rate and project margin data, 
+we cannot pinpoint whether the gap stems from pricing, capacity, or 
+project profitability issues."
 
 OUTPUT FORMAT (JSON):
 {
@@ -288,6 +356,187 @@ function calculateEmployeeBand(employeeCount: number): string {
   if (employeeCount <= 50) return '26_50';
   if (employeeCount <= 100) return '51_100';
   return '100_plus';
+}
+
+/**
+ * Enrich benchmark data by calculating derived metrics from available raw data
+ */
+function enrichBenchmarkData(assessmentData: any, hvaData: any): any {
+  const enriched = { ...assessmentData };
+  const derivedFields: string[] = [];
+  
+  // Extract revenue from multiple possible field names
+  const revenue = 
+    parseFloat(assessmentData.responses?.bm_revenue_exact) ||
+    parseFloat(assessmentData.responses?.revenue) ||
+    parseFloat(assessmentData.responses?.annual_revenue) ||
+    parseFloat(assessmentData.responses?.turnover) ||
+    assessmentData.revenue;
+  
+  // Extract employee count from multiple possible field names
+  const employeeCount = 
+    parseFloat(assessmentData.responses?.bm_employee_count) ||
+    parseFloat(assessmentData.responses?.employee_count) ||
+    parseFloat(assessmentData.responses?.headcount) ||
+    parseFloat(assessmentData.responses?.team_size) ||
+    assessmentData.employee_count;
+  
+  // Calculate Revenue per Employee
+  if (revenue && employeeCount && !enriched.revenue_per_employee) {
+    enriched.revenue_per_employee = Math.round(revenue / employeeCount);
+    derivedFields.push('revenue_per_employee');
+    console.log(`[BM Pass 1] Calculated revenue_per_employee: £${enriched.revenue_per_employee} (from £${revenue} ÷ ${employeeCount})`);
+  }
+  
+  // Extract gross profit and calculate gross margin
+  const grossProfit = 
+    parseFloat(assessmentData.responses?.gross_profit) ||
+    assessmentData.gross_profit;
+  
+  if (revenue && grossProfit && !enriched.gross_margin) {
+    enriched.gross_margin = Number(((grossProfit / revenue) * 100).toFixed(1));
+    derivedFields.push('gross_margin');
+    console.log(`[BM Pass 1] Calculated gross_margin: ${enriched.gross_margin}%`);
+  }
+  
+  // Extract net profit and calculate net margin
+  const netProfit = 
+    parseFloat(assessmentData.responses?.net_profit) ||
+    assessmentData.net_profit;
+  
+  if (revenue && netProfit && !enriched.net_margin) {
+    enriched.net_margin = Number(((netProfit / revenue) * 100).toFixed(1));
+    derivedFields.push('net_margin');
+    console.log(`[BM Pass 1] Calculated net_margin: ${enriched.net_margin}%`);
+  }
+  
+  // Pull client concentration from HVA
+  if (hvaData?.responses?.top3_customer_revenue_percentage != null) {
+    enriched.client_concentration_top3 = parseFloat(hvaData.responses.top3_customer_revenue_percentage);
+    derivedFields.push('client_concentration_top3 (from HVA)');
+    console.log(`[BM Pass 1] Extracted client_concentration_top3 from HVA: ${enriched.client_concentration_top3}%`);
+  }
+  
+  enriched.derived_fields = derivedFields;
+  enriched._enriched_revenue = revenue;
+  enriched._enriched_employee_count = employeeCount;
+  
+  return enriched;
+}
+
+/**
+ * Map SIC code to industry code with fallbacks
+ */
+function resolveIndustryFromSIC(sicCode: string, subSectorHint?: string, businessDescription?: string): string | null {
+  const sicMap: Record<string, string> = {
+    // Technology - CRITICAL FIX (SIC 62020 = IT consultancy = Software Development Agency)
+    '62020': 'AGENCY_DEV', // IT consultancy activities - maps to Software Development Agency (AGENCY_DEV in database)
+    '62012': 'AGENCY_DEV', // Business software development
+    '62011': 'SAAS', // Ready-made software (SaaS products)
+    '62090': 'AGENCY_DEV', // Other IT service activities
+    '62030': 'ITSERV', // Computer facilities management
+    
+    // Professional Services
+    '69201': 'ACCT',
+    '69202': 'ACCT',
+    '69101': 'LEGAL',
+    '69102': 'LEGAL',
+    '69109': 'LEGAL',
+    '70229': 'CONSULT',
+    '70210': 'CONSULT',
+    '78109': 'RECRUIT',
+    '78200': 'RECRUIT',
+    '78300': 'RECRUIT',
+    '73110': 'MARKET',
+    '73120': 'MARKET',
+    
+    // Healthcare
+    '86230': 'DENTAL',
+    '75000': 'VET',
+    '86210': 'PRIVATE_HEALTH',
+    '86220': 'PRIVATE_HEALTH',
+    '87100': 'CARE',
+    '87200': 'CARE',
+    '87300': 'CARE',
+    '47730': 'PHARMA',
+    '93130': 'FITNESS',
+    
+    // Hospitality
+    '56101': 'RESTAURANT',
+    '56102': 'RESTAURANT',
+    '56210': 'CATERING',
+    '56301': 'PUB',
+    '55100': 'HOTEL',
+    
+    // Construction
+    '41100': 'CONST_MAIN',
+    '41201': 'CONST_MAIN',
+    '41202': 'CONST_MAIN',
+    '43210': 'TRADES',
+    '43220': 'TRADES',
+    '43310': 'CONST_SPEC',
+    '68310': 'ESTATE',
+    '68320': 'PROP_MGMT',
+    
+    // Retail
+    '47110': 'RETAIL_FOOD',
+    '47190': 'RETAIL_GEN',
+    '45111': 'AUTO_RETAIL',
+    '45112': 'AUTO_RETAIL',
+    
+    // Manufacturing
+    '18110': 'PRINT',
+    '25620': 'MFG_PREC',
+    
+    // Wholesale
+    '49410': 'LOGISTICS',
+    '52290': 'LOGISTICS',
+    
+    // Financial
+    '66190': 'IFA',
+    '66220': 'INSURANCE',
+    
+    // Creative
+    '74100': 'DESIGN',
+    '74201': 'PHOTO',
+    
+    // Other
+    '79110': 'TRAVEL_AGENT',
+    '80100': 'SECURITY',
+    '81210': 'CLEANING',
+    '96020': 'PERSONAL',
+  };
+  
+  // Direct SIC lookup
+  if (sicCode && sicMap[sicCode]) {
+    console.log(`[BM Pass 1] Mapped SIC ${sicCode} to industry: ${sicMap[sicCode]}`);
+    return sicMap[sicCode];
+  }
+  
+  // Fallback: Check sub-sector hint
+  if (subSectorHint) {
+    const lowerHint = subSectorHint.toLowerCase();
+    if (lowerHint.includes('software') || lowerHint.includes('development') || lowerHint.includes('digital agency')) {
+      return 'AGENCY_DEV';
+    }
+    if (lowerHint.includes('marketing') || lowerHint.includes('pr ') || lowerHint.includes('advertising')) {
+      return 'MARKET';
+    }
+    if (lowerHint.includes('design') || lowerHint.includes('creative')) {
+      return 'DESIGN';
+    }
+  }
+  
+  // Fallback: Check business description
+  if (businessDescription) {
+    const lowerDesc = businessDescription.toLowerCase();
+    if ((lowerDesc.includes('web') || lowerDesc.includes('digital')) && 
+        (lowerDesc.includes('agency') || lowerDesc.includes('consultancy'))) {
+      return 'AGENCY_DEV';
+    }
+  }
+  
+  return null;
 }
 
 /**
@@ -478,33 +727,66 @@ serve(async (req) => {
       
       // First check assessment responses (with bm_ prefix)
       const sicCodeFromAssessment = assessment.responses?.bm_sic_code || assessment.responses?.sic_code;
-      if (sicCodeFromAssessment) {
-        sicCodes = Array.isArray(sicCodeFromAssessment) ? sicCodeFromAssessment : [sicCodeFromAssessment];
-        console.log('[BM Pass 1] Found SIC code from assessment responses:', sicCodes);
-      }
+      const subSectorHint = assessment.responses?.bm_sub_sector;
       
-      // If not in assessment, try client data
-      if (!sicCodes && engagement.client_id) {
-        const { data: client } = await supabaseClient
-          .from('practice_members')
-          .select('sic_codes, metadata')
-          .eq('id', engagement.client_id)
-          .maybeSingle();
+      // Try SIC code mapping first (faster and more accurate)
+      if (sicCodeFromAssessment) {
+        const mappedIndustry = resolveIndustryFromSIC(
+          sicCodeFromAssessment,
+          subSectorHint,
+          businessDescription
+        );
         
-        // SIC codes might be in sic_codes column or metadata JSONB
-        const clientSicCodes = client?.sic_codes || client?.metadata?.sic_codes;
-        if (clientSicCodes) {
-          sicCodes = Array.isArray(clientSicCodes) ? clientSicCodes : [clientSicCodes];
-          console.log('[BM Pass 1] Found SIC codes from client:', sicCodes);
+        if (mappedIndustry) {
+          // Verify the industry exists in database
+          const { data: verifiedIndustry } = await supabaseClient
+            .from('industries')
+            .select('code, name')
+            .eq('code', mappedIndustry)
+            .eq('is_active', true)
+            .maybeSingle();
+          
+          if (verifiedIndustry) {
+            console.log(`[BM Pass 1] Mapped SIC ${sicCodeFromAssessment} to industry: ${mappedIndustry} (${verifiedIndustry.name})`);
+            industryCode = mappedIndustry;
+          }
         }
       }
       
-      // Attempt dynamic detection
-      const detectedIndustryCode = await detectIndustryFromContext(
-        supabaseClient,
-        sicCodes,
-        businessDescription
-      );
+      // If SIC mapping didn't work, try full context detection
+      if (!industryCode || industryCode === 'undefined' || industryCode === 'null') {
+        if (sicCodeFromAssessment) {
+          sicCodes = Array.isArray(sicCodeFromAssessment) ? sicCodeFromAssessment : [sicCodeFromAssessment];
+          console.log('[BM Pass 1] SIC mapping failed, trying full context detection with SIC:', sicCodes);
+        }
+        
+        // If not in assessment, try client data
+        if (!sicCodes && engagement.client_id) {
+          const { data: client } = await supabaseClient
+            .from('practice_members')
+            .select('sic_codes, metadata')
+            .eq('id', engagement.client_id)
+            .maybeSingle();
+          
+          // SIC codes might be in sic_codes column or metadata JSONB
+          const clientSicCodes = client?.sic_codes || client?.metadata?.sic_codes;
+          if (clientSicCodes) {
+            sicCodes = Array.isArray(clientSicCodes) ? clientSicCodes : [clientSicCodes];
+            console.log('[BM Pass 1] Found SIC codes from client:', sicCodes);
+          }
+        }
+        
+        // Attempt dynamic detection
+        const detectedIndustryCode = await detectIndustryFromContext(
+          supabaseClient,
+          sicCodes,
+          businessDescription
+        );
+        
+        if (detectedIndustryCode) {
+          industryCode = detectedIndustryCode;
+        }
+      }
       
       if (detectedIndustryCode) {
         console.log(`[BM Pass 1] Successfully detected industry code: ${detectedIndustryCode}`);
@@ -544,7 +826,7 @@ serve(async (req) => {
     // Extract assessment fields - they might be in responses JSONB or individual columns
     // Note: responses use bm_ prefix (e.g., bm_revenue_band, bm_employee_count)
     // Use industryCode we already validated above
-    const assessmentData = {
+    const rawAssessmentData = {
       industry_code: industryCode,
       revenue_band: assessment.revenue_band || assessment.responses?.revenue_band || assessment.responses?.bm_revenue_band,
       employee_count: assessment.employee_count || assessment.responses?.employee_count || assessment.responses?.bm_employee_count,
@@ -560,10 +842,31 @@ serve(async (req) => {
       benchmark_magic_fix: assessment.benchmark_magic_fix || assessment.responses?.benchmark_magic_fix,
       action_readiness: assessment.action_readiness || assessment.responses?.action_readiness,
       blind_spot_fear: assessment.blind_spot_fear || assessment.responses?.blind_spot_fear,
+      responses: assessment.responses, // Keep full responses for enrichment
     };
     
+    // Get HVA data first (needed for enrichment)
+    const { data: hvaData } = await supabaseClient
+      .from('client_assessments')
+      .select('responses, value_analysis_data')
+      .eq('client_id', engagement.client_id)
+      .eq('assessment_type', 'part3')
+      .maybeSingle();
+    
+    // ENRICH DATA: Calculate derived metrics
+    const assessmentData = enrichBenchmarkData(rawAssessmentData, hvaData);
+    
+    console.log('[BM Pass 1] Data enrichment complete:', {
+      derived_fields: assessmentData.derived_fields,
+      revenue: assessmentData._enriched_revenue,
+      employee_count: assessmentData._enriched_employee_count,
+      revenue_per_employee: assessmentData.revenue_per_employee,
+      gross_margin: assessmentData.gross_margin,
+      client_concentration: assessmentData.client_concentration_top3
+    });
+    
     // Get benchmarks for this industry/size
-    const employeeBand = calculateEmployeeBand(assessmentData.employee_count || 0);
+    const employeeBand = calculateEmployeeBand(assessmentData._enriched_employee_count || assessmentData.employee_count || 0);
     const { data: benchmarks } = await supabaseClient
       .from('benchmark_data')
       .select(`
@@ -575,19 +878,11 @@ serve(async (req) => {
       .or(`employee_band.eq.${employeeBand},employee_band.eq.all`)
       .eq('is_current', true);
     
-    // Get HVA (Hidden Value Audit) data - ALL clients have this
-    const { data: hvaData } = await supabaseClient
-      .from('client_assessments')
-      .select('responses, value_analysis_data')
-      .eq('client_id', engagement.client_id)
-      .eq('assessment_type', 'part3')
-      .maybeSingle();
-    
-    // Extract HVA metrics from responses
+    // Extract HVA metrics from responses (already fetched above)
     const hvaMetrics = hvaData?.responses || {};
     const hvaContext = {
       recurringRevenuePercent: hvaMetrics.recurring_revenue_percentage,
-      customerConcentration: hvaMetrics.top3_customer_revenue_percentage,
+      customerConcentration: hvaMetrics.top3_customer_revenue_percentage || assessmentData.client_concentration_top3,
       knowledgeDependency: hvaMetrics.knowledge_dependency_percentage,
       personalBrandPercent: hvaMetrics.personal_brand_percentage,
       competitiveMoat: hvaMetrics.competitive_moat,
@@ -596,6 +891,17 @@ serve(async (req) => {
       financialDocumentation: hvaMetrics.financial_documentation,
       exitTimeline: hvaMetrics.exit_timeline,
       ipAssets: hvaMetrics.ip_assets,
+      // Additional HVA fields for context
+      businessDescription: hvaMetrics.business_description,
+      uniqueMethods: hvaMetrics.unique_methods,
+      criticalProcessesUndocumented: hvaMetrics.critical_processes_undocumented,
+      successionSales: hvaMetrics.succession_sales,
+      successionTechnical: hvaMetrics.succession_technical,
+      successionOperations: hvaMetrics.succession_operations,
+      successionCustomer: hvaMetrics.succession_customer,
+      autonomyFinance: hvaMetrics.autonomy_finance,
+      autonomyStrategy: hvaMetrics.autonomy_strategy,
+      autonomySales: hvaMetrics.autonomy_sales,
     };
     
     // Get MA data if available
