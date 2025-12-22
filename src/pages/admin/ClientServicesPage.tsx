@@ -7154,12 +7154,39 @@ function BenchmarkingClientModal({
           setAssessmentResponses(responsesData);
         }
 
-        // Fetch report
-        const { data: reportData, error: reportError } = await supabase
+        // Fetch report - try by engagement_id first, then fallback to client_id
+        let reportData = null;
+        let reportError = null;
+        
+        const { data: reportByEngagement, error: err1 } = await supabase
           .from('bm_reports')
           .select('*')
           .eq('engagement_id', engagementData.id)
           .maybeSingle();
+        
+        if (reportByEngagement) {
+          reportData = reportByEngagement;
+        } else if (err1 && err1.code !== 'PGRST116') {
+          reportError = err1;
+          // Fallback: try to find report by client_id (in case engagement_id doesn't match)
+          console.log('[Benchmarking Modal] Report not found by engagement_id, trying client_id fallback...');
+          const { data: reportByClient, error: err2 } = await supabase
+            .from('bm_reports')
+            .select('*, bm_engagements!inner(client_id)')
+            .eq('bm_engagements.client_id', clientId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (reportByClient) {
+            reportData = reportByClient;
+            console.log('[Benchmarking Modal] Found report via client_id fallback');
+          } else if (err2 && err2.code !== 'PGRST116') {
+            reportError = err2;
+          }
+        } else {
+          reportData = reportByEngagement;
+        }
         
         if (reportError && reportError.code !== 'PGRST116') {
           console.error('[Benchmarking Modal] Error fetching report:', reportError);
