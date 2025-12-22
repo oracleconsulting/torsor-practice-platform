@@ -82,8 +82,8 @@ export function BenchmarkingAdminView({ data, clientData, founderRisk, industryM
   const pass1Data = safeJsonParse<Pass1Data>(data.pass1_data, {});
   
   // Get revenue per employee from metrics comparison (where it was calculated) or fallback to clientData
-  const metrics = safeJsonParse(data.metrics_comparison, []);
-  const revPerEmployeeMetric = metrics.find((m: any) => m.metricCode === 'revenue_per_consultant' || m.metricCode === 'revenue_per_employee');
+  const metrics = safeJsonParse<Array<{ metricCode?: string; clientValue?: number }>>(data.metrics_comparison, []);
+  const revPerEmployeeMetric = metrics.find((m) => m.metricCode === 'revenue_per_consultant' || m.metricCode === 'revenue_per_employee');
   const revPerEmployee = revPerEmployeeMetric?.clientValue || clientData.revenuePerEmployee || 0;
   
   const openingStatement = `Based on our benchmarking analysis, we've identified a £${parseFloat(data.total_annual_opportunity || '0').toLocaleString()} annual opportunity. Your revenue per employee of £${revPerEmployee.toLocaleString()} places you at the ${data.overall_percentile || 0}th percentile - meaning ${100 - (data.overall_percentile || 0)}% of comparable firms are generating more revenue per head. Let me walk you through what we've found and what it means for your business.`;
