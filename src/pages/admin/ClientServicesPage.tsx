@@ -7155,7 +7155,7 @@ function BenchmarkingClientModal({
         }
 
         // Fetch report by engagement_id
-        console.log('[Benchmarking Modal] Fetching report for engagement_id:', engagementData.id);
+        console.log('[Benchmarking Modal] Fetching report for engagement_id:', engagementData.id, 'client_id:', clientId);
         const { data: reportData, error: reportError } = await supabase
           .from('bm_reports')
           .select('*')
@@ -7163,26 +7163,34 @@ function BenchmarkingClientModal({
           .maybeSingle();
         
         // If not found, try a broader search (in case there's a mismatch)
+        let finalReportData = reportData;
         if (!reportData && !reportError) {
-          console.log('[Benchmarking Modal] Report not found by engagement_id, trying direct query...');
-          // Try to find any report for this client
-          const { data: allReports } = await supabase
+          console.log('[Benchmarking Modal] Report not found by engagement_id, trying broader search...');
+          // Try to find any report for this client via engagement join
+          const { data: reportsViaEngagement } = await supabase
             .from('bm_reports')
-            .select('*, bm_engagements!inner(client_id, id)')
+            .select(`
+              *,
+              bm_engagements!inner (
+                id,
+                client_id
+              )
+            `)
             .eq('bm_engagements.client_id', clientId)
             .order('created_at', { ascending: false })
             .limit(5);
           
-          console.log('[Benchmarking Modal] Found reports for client:', allReports?.length || 0);
-          if (allReports && allReports.length > 0) {
+          console.log('[Benchmarking Modal] Found reports via engagement join:', reportsViaEngagement?.length || 0);
+          if (reportsViaEngagement && reportsViaEngagement.length > 0) {
             // Find the one that matches this engagement or use the most recent
-            const matchingReport = allReports.find(r => r.engagement_id === engagementData.id) || allReports[0];
-            console.log('[Benchmarking Modal] Using report:', matchingReport.id, 'engagement_id:', matchingReport.engagement_id);
-            setReport(matchingReport);
-            if (matchingReport.status === 'generated') {
-              setActiveTab('analysis');
-            }
-            return; // Early return to avoid setting report twice
+            const matchingReport = reportsViaEngagement.find((r: any) => r.engagement_id === engagementData.id) || reportsViaEngagement[0];
+            console.log('[Benchmarking Modal] Using report from fallback:', {
+              report_id: matchingReport.id,
+              engagement_id: matchingReport.engagement_id,
+              status: matchingReport.status,
+              expected_engagement: engagementData.id
+            });
+            finalReportData = matchingReport;
           }
         }
         
