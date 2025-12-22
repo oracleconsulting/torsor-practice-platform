@@ -7197,40 +7197,12 @@ function BenchmarkingClientModal({
         // Fetch report by engagement_id
         console.log('[Benchmarking Modal] Fetching report for engagement_id:', engagementData.id, 'client_id:', clientId);
         
-        // CRITICAL: Try querying the specific engagement_id from the report data first
-        // The report has engagement_id: "39375478-080f-4387-8d77-e9c0effbf1e2"
-        const knownEngagementId = '39375478-080f-4387-8d77-e9c0effbf1e2';
-        let reportData = null;
-        let reportError = null;
-        
-        // First try: Query by the known engagement_id from the report
-        if (engagementData.id === knownEngagementId || !engagementData.id) {
-          console.log('[Benchmarking Modal] Trying known engagement_id:', knownEngagementId);
-          const { data: reportByKnownId } = await supabase
-            .from('bm_reports')
-            .select('*')
-            .eq('engagement_id', knownEngagementId)
-            .maybeSingle();
-          
-          if (reportByKnownId) {
-            reportData = reportByKnownId;
-            console.log('[Benchmarking Modal] Found report by known engagement_id!');
-          }
-        }
-        
-        // Second try: Query by the engagement we fetched
-        if (!reportData) {
-          const { data: reportByEngagement } = await supabase
-            .from('bm_reports')
-            .select('*')
-            .eq('engagement_id', engagementData.id)
-            .maybeSingle();
-          
-          reportData = reportByEngagement;
-          if (reportByEngagement) {
-            console.log('[Benchmarking Modal] Found report by fetched engagement_id');
-          }
-        }
+        // Query report - engagement_id is the PRIMARY KEY so there should be exactly 0 or 1
+        const { data: reportData, error: reportError } = await supabase
+          .from('bm_reports')
+          .select('*')
+          .eq('engagement_id', engagementData.id)
+          .maybeSingle();
         
         console.log('[Benchmarking Modal] Direct report query result:', {
           found: !!reportData,
