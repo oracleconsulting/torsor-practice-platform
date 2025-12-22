@@ -166,17 +166,6 @@ const SERVICE_LINES = [
     monthlyRevenue: 1500,
     status: 'development'
   },
-  // Month 2 Development
-  { 
-    id: 'benchmarking_services', 
-    code: 'benchmarking_services',
-    name: 'Benchmarking Services',
-    description: 'Know exactly how you compare to your industry peers',
-    icon: LineChart,
-    color: 'teal',
-    monthlyRevenue: 2000,
-    status: 'development'
-  }
 ];
 
 interface Client {
