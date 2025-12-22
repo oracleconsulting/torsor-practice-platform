@@ -7198,11 +7198,57 @@ function BenchmarkingClientModal({
         console.log('[Benchmarking Modal] Fetching report for engagement_id:', engagementData.id, 'client_id:', clientId);
         
         // Query report - engagement_id is the PRIMARY KEY so there should be exactly 0 or 1
-        const { data: reportData, error: reportError } = await supabase
+        // Try multiple query strategies to work around potential RLS or query issues
+        console.log('[Benchmarking Modal] Attempting to query report with engagement_id:', engagementData.id);
+        
+        // Strategy 1: Direct query
+        let reportData = null;
+        let reportError = null;
+        
+        const { data: directReport, error: directError } = await supabase
           .from('bm_reports')
           .select('*')
           .eq('engagement_id', engagementData.id)
           .maybeSingle();
+        
+        reportData = directReport;
+        reportError = directError;
+        
+        // Strategy 2: If not found, try without maybeSingle to see if there's a data issue
+        if (!reportData && !reportError) {
+          console.log('[Benchmarking Modal] Direct query returned null, trying without maybeSingle...');
+          const { data: allReports, error: allError } = await supabase
+            .from('bm_reports')
+            .select('*')
+            .eq('engagement_id', engagementData.id);
+          
+          console.log('[Benchmarking Modal] Query without maybeSingle:', {
+            count: allReports?.length || 0,
+            error: allError?.message,
+            reports: allReports
+          });
+          
+          if (allReports && allReports.length > 0) {
+            reportData = allReports[0];
+            console.log('[Benchmarking Modal] Found report via non-maybeSingle query!');
+          }
+        }
+        
+        // Strategy 3: Try querying by the exact UUID string format
+        if (!reportData && !reportError) {
+          console.log('[Benchmarking Modal] Trying exact UUID string match...');
+          const engagementIdStr = String(engagementData.id);
+          const { data: strMatchReport } = await supabase
+            .from('bm_reports')
+            .select('*')
+            .eq('engagement_id', engagementIdStr)
+            .maybeSingle();
+          
+          if (strMatchReport) {
+            reportData = strMatchReport;
+            console.log('[Benchmarking Modal] Found report via string UUID match!');
+          }
+        }
         
         console.log('[Benchmarking Modal] Direct report query result:', {
           found: !!reportData,
