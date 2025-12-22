@@ -21,6 +21,7 @@ interface BenchmarkAnalysis {
   recommendations?: string;
   pass1_data?: string;
   industry_code?: string;
+  metrics_comparison?: string;
   created_at?: string;
 }
 
@@ -70,7 +71,7 @@ interface Pass1Data {
   };
 }
 
-export function BenchmarkingAdminView({ data, clientData, hvaData, founderRisk, industryMapping, onSwitchToClient }: BenchmarkingAdminViewProps) {
+export function BenchmarkingAdminView({ data, clientData, founderRisk, industryMapping, onSwitchToClient }: BenchmarkingAdminViewProps) {
   const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'actions' | 'raw'>('script');
   
   const talkingPoints = safeJsonParse(data.admin_talking_points, []);
