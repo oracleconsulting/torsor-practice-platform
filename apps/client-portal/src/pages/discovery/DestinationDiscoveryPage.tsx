@@ -89,7 +89,43 @@ export default function DestinationDiscoveryPage() {
   useEffect(() => {
     loadQuestions();
     loadSavedResponses();
+    ensureDiscoveryRecord();
   }, []);
+
+  // Ensure a discovery record exists (create if missing)
+  const ensureDiscoveryRecord = async () => {
+    if (!clientSession?.clientId) return;
+
+    try {
+      // Check if any discovery record exists (completed or not)
+      const { data: existingRecords } = await supabase
+        .from('destination_discovery')
+        .select('id')
+        .eq('client_id', clientSession.clientId)
+        .limit(1);
+
+      // If no record exists, create an empty one
+      if (!existingRecords || existingRecords.length === 0) {
+        console.log('📝 No discovery record found, creating new one for client:', clientSession.clientId);
+        const { error: createError } = await supabase
+          .from('destination_discovery')
+          .insert({
+            client_id: clientSession.clientId,
+            practice_id: clientSession.practiceId || null,
+            responses: {},
+            completed_at: null
+          });
+
+        if (createError) {
+          console.error('❌ Error creating discovery record:', createError);
+        } else {
+          console.log('✅ Created new discovery record');
+        }
+      }
+    } catch (err) {
+      console.error('Error ensuring discovery record:', err);
+    }
+  };
 
   const loadQuestions = async () => {
     try {
