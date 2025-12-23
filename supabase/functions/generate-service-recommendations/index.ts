@@ -608,11 +608,12 @@ serve(async (req) => {
         
         console.log(`Saving discovery assessment for client_id: ${clientId}, email: ${clientCheck.email}`);
         
-        // First, check if a record exists for this client
+        // Find existing incomplete record (should only be one due to unique constraint)
         const { data: existingDiscovery } = await supabase
           .from('destination_discovery')
           .select('id')
           .eq('client_id', clientId)
+          .is('completed_at', null)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -626,17 +627,18 @@ serve(async (req) => {
           gap_score: calculateGapScore(discoveryResponses),
           recommended_services: recommendations,
           value_propositions: recommendations.map(r => r.valueProposition),
-          completed_at: new Date().toISOString()
+          completed_at: new Date().toISOString() // Mark as completed
         };
 
         if (existingDiscovery?.id) {
-          // Update existing record
+          // Update existing incomplete record and mark as completed
           await supabase
             .from('destination_discovery')
             .update(discoveryData)
-            .eq('id', existingDiscovery.id);
+            .eq('id', existingDiscovery.id)
+            .eq('client_id', clientId);
         } else {
-          // Insert new record
+          // Insert new record (shouldn't happen if auto-save worked, but handle it)
           await supabase
             .from('destination_discovery')
             .insert(discoveryData);

@@ -185,27 +185,15 @@ export default function DestinationDiscoveryPage() {
       localStorage.setItem(savedResponsesKey, JSON.stringify(responsesToSave));
 
       // Save to database (don't set completed_at yet - that's only on final submit)
-      const { data: existingDiscoveryRecords, error: queryError } = await supabase
+      // Find existing incomplete record first (unique index ensures only one per client)
+      const { data: existingRecord } = await supabase
         .from('destination_discovery')
-        .select('id, client_id')
+        .select('id')
         .eq('client_id', clientSession.clientId)
-        .order('created_at', { ascending: false });
-
-      if (queryError) {
-        console.error('❌ Error querying existing discovery:', queryError);
-        return;
-      }
-
-      // Get the most recent record for this client
-      const existingDiscovery = existingDiscoveryRecords && existingDiscoveryRecords.length > 0 
-        ? existingDiscoveryRecords[0] 
-        : null;
-
-      // Safety check: verify client_id matches
-      if (existingDiscovery && existingDiscovery.client_id !== clientSession.clientId) {
-        console.error('❌ Client ID mismatch when saving! Expected:', clientSession.clientId, 'Got:', existingDiscovery.client_id);
-        return;
-      }
+        .is('completed_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       const saveData = {
         client_id: clientSession.clientId,
@@ -215,13 +203,13 @@ export default function DestinationDiscoveryPage() {
         completed_at: null
       };
 
-      if (existingDiscovery?.id) {
-        // Update existing record - verify client_id again in the update
+      if (existingRecord?.id) {
+        // Update existing incomplete record
         const { error: updateError } = await supabase
           .from('destination_discovery')
           .update(saveData)
-          .eq('id', existingDiscovery.id)
-          .eq('client_id', clientSession.clientId); // Extra safety check
+          .eq('id', existingRecord.id)
+          .eq('client_id', clientSession.clientId);
 
         if (updateError) {
           console.error('❌ Error updating discovery:', updateError);
@@ -229,13 +217,39 @@ export default function DestinationDiscoveryPage() {
           console.log('💾 Auto-saved responses (updated) for client:', clientSession.clientId, '-', Object.keys(responsesToSave).length, 'responses');
         }
       } else {
-        // Insert new record
+        // No existing incomplete record, insert new one
+        // The unique index will prevent duplicates if this races with another save
         const { error: insertError } = await supabase
           .from('destination_discovery')
           .insert(saveData);
 
         if (insertError) {
-          console.error('❌ Error inserting discovery:', insertError);
+          // If insert fails due to unique constraint violation, try update again
+          if (insertError.code === '23505') {
+            console.warn('⚠️ Insert failed due to unique constraint, retrying update');
+            const { data: retryRecord } = await supabase
+              .from('destination_discovery')
+              .select('id')
+              .eq('client_id', clientSession.clientId)
+              .is('completed_at', null)
+              .limit(1)
+              .maybeSingle();
+
+            if (retryRecord?.id) {
+              const { error: retryError } = await supabase
+                .from('destination_discovery')
+                .update(saveData)
+                .eq('id', retryRecord.id);
+
+              if (retryError) {
+                console.error('❌ Error on retry update:', retryError);
+              } else {
+                console.log('💾 Auto-saved responses (updated on retry) for client:', clientSession.clientId);
+              }
+            }
+          } else {
+            console.error('❌ Error inserting discovery:', insertError);
+          }
         } else {
           console.log('💾 Auto-saved responses (inserted) for client:', clientSession.clientId, '-', Object.keys(responsesToSave).length, 'responses');
         }
