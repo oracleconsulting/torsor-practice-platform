@@ -5,7 +5,7 @@
 // 35 questions: 20 destination discovery + 15 service diagnostics
 // ============================================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -85,9 +85,10 @@ export default function DestinationDiscoveryPage() {
   const [submitting, setSubmitting] = useState(false);
   const [recommendations, setRecommendations] = useState<ServiceRecommendation[]>([]);
 
-  // Load questions
+  // Load questions and saved responses
   useEffect(() => {
     loadQuestions();
+    loadSavedResponses();
   }, []);
 
   const loadQuestions = async () => {
@@ -112,6 +113,109 @@ export default function DestinationDiscoveryPage() {
       setLoading(false);
     }
   };
+
+  // Load saved responses from database and localStorage
+  const loadSavedResponses = async () => {
+    if (!clientSession?.clientId) return;
+
+    try {
+      // Try to load from database first
+      const { data: discoveryData } = await supabase
+        .from('destination_discovery')
+        .select('responses')
+        .eq('client_id', clientSession.clientId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (discoveryData?.responses && typeof discoveryData.responses === 'object') {
+        setResponses(discoveryData.responses);
+        console.log('✅ Loaded saved responses from database:', Object.keys(discoveryData.responses).length, 'responses');
+        return;
+      }
+
+      // Fallback to localStorage
+      const savedResponses = localStorage.getItem('discovery_responses');
+      if (savedResponses) {
+        try {
+          const parsed = JSON.parse(savedResponses);
+          setResponses(parsed);
+          console.log('✅ Loaded saved responses from localStorage:', Object.keys(parsed).length, 'responses');
+        } catch (e) {
+          console.error('Error parsing saved responses from localStorage:', e);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading saved responses:', err);
+    }
+  };
+
+  // Auto-save responses with debouncing
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const saveResponses = useCallback(async (responsesToSave: Record<string, any>) => {
+    if (!clientSession?.clientId || Object.keys(responsesToSave).length === 0) return;
+
+    try {
+      // Save to localStorage immediately as backup
+      localStorage.setItem('discovery_responses', JSON.stringify(responsesToSave));
+
+      // Save to database (don't set completed_at yet - that's only on final submit)
+      const { data: existingDiscovery } = await supabase
+        .from('destination_discovery')
+        .select('id')
+        .eq('client_id', clientSession.clientId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const saveData = {
+        client_id: clientSession.clientId,
+        practice_id: clientSession.practiceId || null,
+        responses: responsesToSave,
+        // Don't set completed_at - only set on final submission
+        completed_at: null
+      };
+
+      if (existingDiscovery?.id) {
+        // Update existing record
+        await supabase
+          .from('destination_discovery')
+          .update(saveData)
+          .eq('id', existingDiscovery.id);
+      } else {
+        // Insert new record
+        await supabase
+          .from('destination_discovery')
+          .insert(saveData);
+      }
+
+      console.log('💾 Auto-saved responses:', Object.keys(responsesToSave).length, 'responses');
+    } catch (err) {
+      console.error('Error auto-saving responses:', err);
+    }
+  }, [clientSession?.clientId, clientSession?.practiceId]);
+
+  // Debounced auto-save when responses change
+  useEffect(() => {
+    if (Object.keys(responses).length === 0) return;
+
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Set new timeout to save after 2 seconds of no changes
+    saveTimeoutRef.current = setTimeout(() => {
+      saveResponses(responses);
+    }, 2000);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [responses, saveResponses]);
 
   const currentSection = sectionOrder[currentSectionIndex];
   const currentQuestions = sections[currentSection] || [];
@@ -191,6 +295,9 @@ export default function DestinationDiscoveryPage() {
           .update({ program_status: 'discovery_complete' })
           .eq('id', clientSession.clientId);
       }
+
+      // Clear localStorage after successful submission
+      localStorage.removeItem('discovery_responses');
 
       // Redirect to thank you page (practice team sees recommendations)
       navigate('/discovery/complete');
