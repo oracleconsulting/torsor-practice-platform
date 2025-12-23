@@ -485,22 +485,33 @@ export default function UnifiedDashboardPage() {
       console.log('✅ Discovery record:', discovery);
       setDiscoveryStatus(discoveryStatusData);
 
-      // If client has discovery data but no discovery service in list, add it
+      // If client has discovery data OR a discovery report but no discovery service in list, add it
+      // Show discovery service if:
+      // 1. Discovery record exists, OR
+      // 2. Discovery report exists (even if discovery record was deleted)
       const hasDiscoveryService = serviceList.some(s => s.serviceCode === 'discovery');
+      const hasDiscoveryData = !!discovery;
+      const hasDiscoveryReport = !!report && report.report_type === 'discovery_analysis';
+      
       console.log('📝 Has discovery service in list:', hasDiscoveryService);
-      console.log('📝 Discovery data exists:', !!discovery);
+      console.log('📝 Discovery data exists:', hasDiscoveryData);
+      console.log('📝 Discovery report exists:', hasDiscoveryReport);
       console.log('📝 Current serviceList before discovery add:', serviceList);
       
-      if (discovery) {
+      // Show discovery service if we have discovery data OR a report
+      if (hasDiscoveryData || hasDiscoveryReport) {
         if (!hasDiscoveryService) {
           console.log('➕ Adding discovery card to service list');
+          // Use report creation date if discovery record doesn't exist
+          const createdAt = discovery?.created_at || report?.created_at || new Date().toISOString();
+          
           serviceList = [{
             id: 'discovery-virtual',
             status: discoveryStatusData.completed ? 'discovery_complete' : 'pending_discovery',
             serviceCode: 'discovery',
             serviceName: 'Destination Discovery',
             serviceDescription: 'A guided assessment to help us understand your business goals, challenges, and opportunities.',
-            createdAt: discovery.created_at || new Date().toISOString(),
+            createdAt: createdAt,
           }, ...serviceList];
         } else {
           // Update discovery status if it exists
