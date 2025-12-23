@@ -98,16 +98,61 @@ export default function DiscoveryReportPage() {
     try {
       console.log('[Report] Loading report for client:', clientSession.clientId);
       
-      // Load the client's shared discovery report
-      const { data, error } = await supabase
-        .from('client_reports')
-        .select('*')
+      // First, get the most recent completed discovery record for this client
+      const { data: latestDiscovery } = await supabase
+        .from('destination_discovery')
+        .select('id, completed_at, created_at')
         .eq('client_id', clientSession.clientId)
-        .eq('report_type', 'discovery_analysis')
-        .eq('is_shared_with_client', true)
-        .order('created_at', { ascending: false })
+        .not('completed_at', 'is', null)
+        .order('completed_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      console.log('[Report] Latest completed discovery:', latestDiscovery);
+
+      // Load the client's shared discovery report
+      // Prefer reports that match the most recent completed discovery
+      let report = null;
+      let error = null;
+
+      if (latestDiscovery?.id) {
+        // Try to find report linked to the latest discovery
+        const { data: linkedReport, error: linkedError } = await supabase
+          .from('client_reports')
+          .select('*')
+          .eq('client_id', clientSession.clientId)
+          .eq('report_type', 'discovery_analysis')
+          .eq('is_shared_with_client', true)
+          .eq('discovery_id', latestDiscovery.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (linkedReport) {
+          console.log('[Report] Found report linked to latest discovery:', latestDiscovery.id);
+          report = linkedReport;
+        } else {
+          console.log('[Report] No report found for discovery_id:', latestDiscovery.id);
+        }
+      }
+
+      // Fallback: get most recent shared report (if no linked report found)
+      if (!report) {
+        const { data: fallbackReport, error: fallbackError } = await supabase
+          .from('client_reports')
+          .select('*')
+          .eq('client_id', clientSession.clientId)
+          .eq('report_type', 'discovery_analysis')
+          .eq('is_shared_with_client', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        report = fallbackReport;
+        error = fallbackError;
+      }
+
+      const data = report;
 
       if (error) {
         console.error('[Report] Error loading report:', error);
