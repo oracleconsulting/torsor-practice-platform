@@ -136,7 +136,7 @@ export default function DestinationDiscoveryPage() {
       }
 
       // Get the most recent record for this specific client
-      const discoveryData = discoveryRecords && discoveryRecords.length > 0 ? discoveryRecords[0] : null;
+      let discoveryData = discoveryRecords && discoveryRecords.length > 0 ? discoveryRecords[0] : null;
 
       // Verify the client_id matches (safety check)
       if (discoveryData && discoveryData.client_id !== clientSession.clientId) {
