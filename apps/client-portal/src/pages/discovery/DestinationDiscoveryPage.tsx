@@ -116,34 +116,54 @@ export default function DestinationDiscoveryPage() {
 
   // Load saved responses from database and localStorage
   const loadSavedResponses = async () => {
-    if (!clientSession?.clientId) return;
+    if (!clientSession?.clientId) {
+      console.log('⚠️ No clientId available, skipping load saved responses');
+      return;
+    }
 
     try {
-      // Try to load from database first
-      const { data: discoveryData } = await supabase
+      console.log('🔍 Loading saved responses for client_id:', clientSession.clientId);
+      
+      // Try to load from database first - ensure we're getting the right client's data
+      const { data: discoveryRecords, error: discoveryError } = await supabase
         .from('destination_discovery')
-        .select('responses')
+        .select('id, client_id, responses, created_at')
         .eq('client_id', clientSession.clientId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order('created_at', { ascending: false });
+
+      if (discoveryError) {
+        console.error('❌ Error loading discovery records:', discoveryError);
+      }
+
+      // Get the most recent record for this specific client
+      const discoveryData = discoveryRecords && discoveryRecords.length > 0 ? discoveryRecords[0] : null;
+
+      // Verify the client_id matches (safety check)
+      if (discoveryData && discoveryData.client_id !== clientSession.clientId) {
+        console.error('❌ Client ID mismatch! Expected:', clientSession.clientId, 'Got:', discoveryData.client_id);
+        // Don't load if client_id doesn't match
+        discoveryData = null;
+      }
 
       if (discoveryData?.responses && typeof discoveryData.responses === 'object') {
+        console.log('✅ Loaded saved responses from database for client:', clientSession.clientId, '-', Object.keys(discoveryData.responses).length, 'responses');
         setResponses(discoveryData.responses);
-        console.log('✅ Loaded saved responses from database:', Object.keys(discoveryData.responses).length, 'responses');
         return;
       }
 
-      // Fallback to localStorage
-      const savedResponses = localStorage.getItem('discovery_responses');
+      // Fallback to localStorage (but only if it's for this client)
+      const savedResponsesKey = `discovery_responses_${clientSession.clientId}`;
+      const savedResponses = localStorage.getItem(savedResponsesKey);
       if (savedResponses) {
         try {
           const parsed = JSON.parse(savedResponses);
+          console.log('✅ Loaded saved responses from localStorage for client:', clientSession.clientId, '-', Object.keys(parsed).length, 'responses');
           setResponses(parsed);
-          console.log('✅ Loaded saved responses from localStorage:', Object.keys(parsed).length, 'responses');
         } catch (e) {
           console.error('Error parsing saved responses from localStorage:', e);
         }
+      } else {
+        console.log('ℹ️ No saved responses found for client:', clientSession.clientId);
       }
     } catch (err) {
       console.error('Error loading saved responses:', err);
@@ -154,20 +174,38 @@ export default function DestinationDiscoveryPage() {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const saveResponses = useCallback(async (responsesToSave: Record<string, any>) => {
-    if (!clientSession?.clientId || Object.keys(responsesToSave).length === 0) return;
+    if (!clientSession?.clientId || Object.keys(responsesToSave).length === 0) {
+      console.log('⚠️ Cannot save: no clientId or empty responses');
+      return;
+    }
 
     try {
-      // Save to localStorage immediately as backup
-      localStorage.setItem('discovery_responses', JSON.stringify(responsesToSave));
+      // Save to localStorage immediately as backup (client-specific key)
+      const savedResponsesKey = `discovery_responses_${clientSession.clientId}`;
+      localStorage.setItem(savedResponsesKey, JSON.stringify(responsesToSave));
 
       // Save to database (don't set completed_at yet - that's only on final submit)
-      const { data: existingDiscovery } = await supabase
+      const { data: existingDiscoveryRecords, error: queryError } = await supabase
         .from('destination_discovery')
-        .select('id')
+        .select('id, client_id')
         .eq('client_id', clientSession.clientId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order('created_at', { ascending: false });
+
+      if (queryError) {
+        console.error('❌ Error querying existing discovery:', queryError);
+        return;
+      }
+
+      // Get the most recent record for this client
+      const existingDiscovery = existingDiscoveryRecords && existingDiscoveryRecords.length > 0 
+        ? existingDiscoveryRecords[0] 
+        : null;
+
+      // Safety check: verify client_id matches
+      if (existingDiscovery && existingDiscovery.client_id !== clientSession.clientId) {
+        console.error('❌ Client ID mismatch when saving! Expected:', clientSession.clientId, 'Got:', existingDiscovery.client_id);
+        return;
+      }
 
       const saveData = {
         client_id: clientSession.clientId,
@@ -178,19 +216,30 @@ export default function DestinationDiscoveryPage() {
       };
 
       if (existingDiscovery?.id) {
-        // Update existing record
-        await supabase
+        // Update existing record - verify client_id again in the update
+        const { error: updateError } = await supabase
           .from('destination_discovery')
           .update(saveData)
-          .eq('id', existingDiscovery.id);
+          .eq('id', existingDiscovery.id)
+          .eq('client_id', clientSession.clientId); // Extra safety check
+
+        if (updateError) {
+          console.error('❌ Error updating discovery:', updateError);
+        } else {
+          console.log('💾 Auto-saved responses (updated) for client:', clientSession.clientId, '-', Object.keys(responsesToSave).length, 'responses');
+        }
       } else {
         // Insert new record
-        await supabase
+        const { error: insertError } = await supabase
           .from('destination_discovery')
           .insert(saveData);
-      }
 
-      console.log('💾 Auto-saved responses:', Object.keys(responsesToSave).length, 'responses');
+        if (insertError) {
+          console.error('❌ Error inserting discovery:', insertError);
+        } else {
+          console.log('💾 Auto-saved responses (inserted) for client:', clientSession.clientId, '-', Object.keys(responsesToSave).length, 'responses');
+        }
+      }
     } catch (err) {
       console.error('Error auto-saving responses:', err);
     }
@@ -296,8 +345,10 @@ export default function DestinationDiscoveryPage() {
           .eq('id', clientSession.clientId);
       }
 
-      // Clear localStorage after successful submission
-      localStorage.removeItem('discovery_responses');
+      // Clear localStorage after successful submission (client-specific key)
+      if (clientSession?.clientId) {
+        localStorage.removeItem(`discovery_responses_${clientSession.clientId}`);
+      }
 
       // Redirect to thank you page (practice team sees recommendations)
       navigate('/discovery/complete');
