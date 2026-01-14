@@ -204,6 +204,12 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
     inviteType: 'discovery' as 'discovery' | 'direct'  // Discovery First or Direct Service
   });
   const [sendingInvite, setSendingInvite] = useState(false);
+  
+  // Bulk import state
+  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
+  const [bulkImportData, setBulkImportData] = useState('');
+  const [bulkImporting, setBulkImporting] = useState(false);
+  const [bulkImportResults, setBulkImportResults] = useState<any>(null);
   const [deletingClient, setDeletingClient] = useState<string | null>(null);
   const [clientToDelete, setClientToDelete] = useState<{ id: string; name: string; email: string } | null>(null);
 
@@ -296,6 +302,99 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
       alert(`Error: ${errorMessage}\n\nPlease check:\n1. RESEND_API_KEY is configured in Supabase Edge Function secrets\n2. The email address is valid\n3. Check the browser console for more details`);
     } finally {
       setSendingInvite(false);
+    }
+  };
+
+  // Bulk import clients from CSV/pasted data
+  const handleBulkImport = async () => {
+    if (!bulkImportData.trim() || !currentMember?.practice_id) {
+      alert('Please paste client data');
+      return;
+    }
+
+    setBulkImporting(true);
+    setBulkImportResults(null);
+
+    try {
+      // Parse the pasted data - expecting: Name, Email, Company (optional), Password
+      const lines = bulkImportData.trim().split('\n').filter(line => line.trim());
+      const clients: Array<{ name: string; email: string; company?: string; password: string }> = [];
+      
+      for (const line of lines) {
+        // Skip header row if present
+        if (line.toLowerCase().includes('name') && line.toLowerCase().includes('email')) continue;
+        
+        // Split by tab or comma
+        const parts = line.includes('\t') 
+          ? line.split('\t').map(p => p.trim())
+          : line.split(',').map(p => p.trim());
+        
+        if (parts.length >= 2) {
+          // Try to detect column order - look for email pattern
+          let name = '', email = '', company = '', password = '';
+          
+          for (const part of parts) {
+            if (part.includes('@')) {
+              email = part.toLowerCase();
+            } else if (!name) {
+              name = part;
+            } else if (!company && part.length > 0 && !part.match(/^[A-Za-z0-9!@#$%]{8,}$/)) {
+              company = part;
+            } else if (part.match(/^[A-Za-z0-9!@#$%]{6,}$/)) {
+              password = part;
+            }
+          }
+          
+          // If no password provided, generate one
+          if (!password) {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+            for (let i = 0; i < 10; i++) {
+              password += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+          }
+          
+          if (name && email) {
+            clients.push({ name, email, company: company || undefined, password });
+          }
+        }
+      }
+
+      if (clients.length === 0) {
+        alert('Could not parse any valid clients from the data. Please ensure each line has at least Name and Email.');
+        setBulkImporting(false);
+        return;
+      }
+
+      console.log(`[Bulk Import] Parsed ${clients.length} clients:`, clients);
+
+      const response = await supabase.functions.invoke('bulk-import-clients', {
+        body: {
+          practiceId: currentMember.practice_id,
+          clients,
+          sendEmails: true,
+          portalUrl: 'https://torsor.co.uk/client',
+          invitedByName: currentMember.name || 'Your Advisor'
+        }
+      });
+
+      console.log('[Bulk Import] Response:', response);
+
+      if (response.error) {
+        throw response.error;
+      }
+
+      setBulkImportResults(response.data);
+      
+      // Refresh client list
+      if (selectedServiceLine) {
+        fetchClients();
+      }
+
+    } catch (error: any) {
+      console.error('[Bulk Import] Error:', error);
+      alert(`Import failed: ${error.message}`);
+    } finally {
+      setBulkImporting(false);
     }
   };
 
@@ -673,13 +772,22 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                 Manage clients across all service lines
               </p>
             </div>
-            <button 
-              onClick={() => setShowInviteModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              <Mail className="w-4 h-4" />
-              Invite Client
-            </button>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setShowBulkImportModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+              >
+                <Upload className="w-4 h-4" />
+                Bulk Import
+              </button>
+              <button 
+                onClick={() => setShowInviteModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                <Mail className="w-4 h-4" />
+                Invite Client
+              </button>
+            </div>
           </div>
         </div>
         <Navigation currentPage={currentPage} onNavigate={onNavigate} />
@@ -1270,6 +1378,208 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                     </>
                   )}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk Import Modal */}
+        {showBulkImportModal && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden max-h-[90vh] overflow-y-auto">
+              {/* Modal Header */}
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Bulk Import Clients</h2>
+                  <p className="text-sm text-gray-500">Import multiple clients at once for Destination Discovery</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowBulkImportModal(false);
+                    setBulkImportData('');
+                    setBulkImportResults(null);
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-6">
+                {!bulkImportResults ? (
+                  <>
+                    {/* Instructions */}
+                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                      <h3 className="font-medium text-blue-900 mb-2">How to format your data</h3>
+                      <p className="text-sm text-blue-700 mb-3">
+                        Paste data from Excel/Sheets with columns: <strong>Name</strong>, <strong>Email</strong>, and optionally <strong>Company</strong>
+                      </p>
+                      <div className="bg-white rounded-lg p-3 font-mono text-xs text-gray-600 border border-blue-200">
+                        <div>Yonas Ackholm	yackholm@hotmail.com	Ackholm Holdings</div>
+                        <div>Jeremy Baron	jeremy@baronsec.com	Baron Securities</div>
+                        <div>Claude Partridge	claudepartridge@me.com	CEP Developments</div>
+                      </div>
+                      <p className="text-xs text-blue-600 mt-2">
+                        ✓ Tab-separated (Excel copy) or comma-separated (CSV)<br />
+                        ✓ Passwords will be auto-generated if not provided<br />
+                        ✓ Each client will receive a welcome email with their credentials
+                      </p>
+                    </div>
+
+                    {/* Data Input */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Paste your client data here
+                      </label>
+                      <textarea
+                        value={bulkImportData}
+                        onChange={(e) => setBulkImportData(e.target.value)}
+                        placeholder="Name	Email	Company (optional)
+Yonas Ackholm	yackholm@hotmail.com	Ackholm Holdings
+Jeremy Baron	jeremy@baronsec.com	Baron Securities"
+                        rows={12}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-sm"
+                      />
+                    </div>
+
+                    {/* Preview */}
+                    {bulkImportData.trim() && (
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <p className="text-sm font-medium text-gray-700 mb-2">
+                          Preview: {bulkImportData.trim().split('\n').filter(l => l.trim() && !l.toLowerCase().includes('name')).length} clients detected
+                        </p>
+                      </div>
+                    )}
+
+                    {/* What happens */}
+                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+                      <h3 className="font-medium text-amber-900 mb-2">What happens when you import</h3>
+                      <div className="space-y-2 text-sm text-amber-800">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-amber-600" />
+                          <span>Portal accounts created with auto-generated passwords</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-amber-600" />
+                          <span>Each client receives a welcome email with login details</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-amber-600" />
+                          <span>Clients are enrolled in Destination Discovery</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-amber-600" />
+                          <span>Discovery results will guide service line allocation</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  /* Results View */
+                  <div className="space-y-4">
+                    {/* Summary */}
+                    <div className={`rounded-xl p-6 ${bulkImportResults.summary?.succeeded === bulkImportResults.summary?.total ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
+                      <h3 className="text-lg font-semibold mb-3">
+                        {bulkImportResults.summary?.succeeded === bulkImportResults.summary?.total 
+                          ? '✅ All clients imported successfully!'
+                          : `⚠️ ${bulkImportResults.summary?.succeeded} of ${bulkImportResults.summary?.total} clients imported`
+                        }
+                      </h3>
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div className="bg-white rounded-lg p-3">
+                          <div className="text-2xl font-bold text-emerald-600">{bulkImportResults.summary?.succeeded || 0}</div>
+                          <div className="text-xs text-gray-500">Succeeded</div>
+                        </div>
+                        <div className="bg-white rounded-lg p-3">
+                          <div className="text-2xl font-bold text-red-600">{bulkImportResults.summary?.failed || 0}</div>
+                          <div className="text-xs text-gray-500">Failed</div>
+                        </div>
+                        <div className="bg-white rounded-lg p-3">
+                          <div className="text-2xl font-bold text-blue-600">{bulkImportResults.summary?.emailsSent || 0}</div>
+                          <div className="text-xs text-gray-500">Emails Sent</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Results Details */}
+                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                        <h4 className="font-medium text-gray-900">Import Details</h4>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto">
+                        {bulkImportResults.results?.map((result: any, idx: number) => (
+                          <div key={idx} className={`px-4 py-3 border-b border-gray-100 flex items-center justify-between ${result.success ? '' : 'bg-red-50'}`}>
+                            <div className="flex items-center gap-3">
+                              {result.success ? (
+                                <CheckCircle className="w-5 h-5 text-emerald-500" />
+                              ) : (
+                                <AlertCircle className="w-5 h-5 text-red-500" />
+                              )}
+                              <span className="text-sm font-medium text-gray-900">{result.email}</span>
+                            </div>
+                            {result.success ? (
+                              <span className="text-xs text-emerald-600">
+                                {result.emailSent ? '✉️ Email sent' : 'Created (no email)'}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-red-600">{result.error}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-6 border-t border-gray-200 flex items-center justify-end gap-3 sticky bottom-0 bg-white">
+                {!bulkImportResults ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowBulkImportModal(false);
+                        setBulkImportData('');
+                      }}
+                      className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleBulkImport}
+                      disabled={bulkImporting || !bulkImportData.trim()}
+                      className={`inline-flex items-center gap-2 px-6 py-2 rounded-lg text-white font-medium transition-colors ${
+                        bulkImporting || !bulkImportData.trim()
+                          ? 'bg-gray-300 cursor-not-allowed'
+                          : 'bg-emerald-600 hover:bg-emerald-700'
+                      }`}
+                    >
+                      {bulkImporting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Importing...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />
+                          Import Clients
+                        </>
+                      )}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setShowBulkImportModal(false);
+                      setBulkImportData('');
+                      setBulkImportResults(null);
+                    }}
+                    className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
+                  >
+                    Done
+                  </button>
+                )}
               </div>
             </div>
           </div>
