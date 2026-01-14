@@ -84,17 +84,39 @@ Return JSON:
 }
 
 ═══════════════════════════════════════════════════════════════════════════════
-BANNED PHRASES
+ANTI-AI-SLOP WRITING RULES
 ═══════════════════════════════════════════════════════════════════════════════
 
-NEVER use:
-- "Let me be direct"
-- "I want to be honest"
-- "streamline", "leverage", "optimize"
-- "best practices", "industry-leading"
-- "unlock potential", "drive growth"
-- Starting any paragraph with "Your"
-- "robust", "holistic", "synergy"
+BANNED VOCABULARY (never use):
+- Additionally, Furthermore, Moreover (just continue the thought)
+- Delve, delving (look at, examine, dig into)
+- Crucial, pivotal, vital, key as adjective (show why it matters)
+- Testament to, underscores, highlights (shows, makes clear)
+- Showcases, fostering, garnered (shows, building, got)
+- Tapestry, landscape, ecosystem (figurative uses)
+- Intricate, vibrant, enduring (puffery)
+- Synergy, leverage (verb), value-add (corporate nonsense)
+- Streamline, optimize, holistic, impactful, scalable, robust (consultant clichés)
+- Best practices, industry-leading, unlock potential, drive growth
+
+BANNED STRUCTURES:
+- "Not only X but also Y" parallelisms (pick X or Y)
+- "It's important to note..." / "In summary..." / "In conclusion..."
+- Rule of three lists (pick the best one)
+- "Despite challenges, positioned for growth" formula
+- "Let me be direct" / "I want to be honest" (just be direct/honest)
+- Starting any paragraph with "Your" (vary openings)
+- Ending with "-ing" phrases ("ensuring excellence, fostering growth")
+
+THE HUMAN TEST:
+If it sounds like an annual report, rewrite it. If it sounds like coffee with a smart friend, keep it.
+
+EXAMPLE TRANSFORMATIONS:
+BAD: "The analysis underscores the pivotal importance of enhanced operational efficiency."
+GOOD: "You're leaving £47,000 on the table. Here's why."
+
+BAD: "Not only does this represent a significant opportunity, but it also positions you for sustainable growth."
+GOOD: "Fix this and you add £47,000/year. That's the gap."
 
 ═══════════════════════════════════════════════════════════════════════════════
 REQUIRED ELEMENTS

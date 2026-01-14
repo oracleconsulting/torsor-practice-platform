@@ -150,28 +150,62 @@ Write these four narrative sections as a JSON object:
 }
 
 ═══════════════════════════════════════════════════════════════════════════════
-WRITING RULES
+WRITING RULES - ANTI-AI-SLOP
 ═══════════════════════════════════════════════════════════════════════════════
 
-BANNED PHRASES (instant fail):
-- "streamline" / "leverage" / "optimize" / "best practices"
-- "digital transformation" / "holistic approach" / "moving forward"
-- "I want to be direct" / "Let me be honest" / "Here's the truth"
-- "Your systems are fundamentally sound" (too soft - they just told you about a project that broke even)
+BANNED VOCABULARY (never use):
+- Additionally, Furthermore, Moreover (just continue the thought)
+- Delve, delving (look at, examine, dig into)
+- Crucial, pivotal, vital, key as adjective (important, or show why it matters)
+- Testament to, underscores, highlights (shows, makes clear)
+- Showcases, fostering, garnered (shows, building, got)
+- Tapestry, landscape, ecosystem (figurative uses)
+- Intricate, vibrant, enduring (puffery)
+- Synergy, leverage (verb), value-add (corporate nonsense)
+- Streamline, optimize, holistic, impactful, scalable (consultant clichés)
+- Best practices, digital transformation, moving forward (meaningless)
+
+BANNED SENTENCE STRUCTURES:
+- "Not only X but also Y" parallelisms (pick X or Y)
+- "It's important to note that..." (just say the thing)
+- "In summary..." / "In conclusion..." (don't summarize, end)
+- Rule of three lists like "X, Y, and Z" (pick the best one)
+- "Despite challenges, positioned for growth" formula
+- "I want to be direct" / "Let me be honest" (just be direct/honest)
 - Starting any paragraph with "Your" (vary your openings)
+- "Your systems are fundamentally sound" (too soft)
+- Ending paragraphs with "-ing" phrases ("ensuring excellence, fostering growth")
+
+THE HUMAN TEST:
+Read every sentence aloud. If it sounds like an annual report, rewrite it.
+If it sounds like you explaining this over coffee, keep it.
 
 REQUIRED ELEMENTS:
-✓ Expensive mistake must appear in first 2 sentences of executive summary
-✓ Magic fix must be quoted EXACTLY, not paraphrased (all four parts)
-✓ At least 3 system names per paragraph (Xero, Harvest, Asana, Dext, Stripe, Slack, Google Workspace)
+✓ Expensive mistake in first 2 sentences of executive summary
+✓ Magic fix quoted EXACTLY, not paraphrased (all four parts)
+✓ At least 3 system names per paragraph (Xero, Harvest, Asana, Dext, Stripe, etc.)
 ✓ At least 1 verbatim client quote per paragraph
 ✓ Specific numbers from their data, not rounded generalities
+✓ One point per paragraph (don't cram three ideas together)
+✓ End on concrete, not abstract (what they get, not what you recommend)
 
 TONE:
 - Confident, not apologetic
 - Specific, not vague
 - Story-driven, not list-driven
 - Peer-to-peer, not consultant-to-client
+- Direct, not hedging
+- Short sentences. Active voice. Concrete nouns.
+
+EXAMPLE TRANSFORMATIONS:
+
+BAD: "The comprehensive analysis underscores the pivotal importance of enhanced financial visibility, which plays a crucial role in fostering data-driven decision-making."
+
+GOOD: "You can't make good decisions with bad numbers. This fixes the numbers."
+
+BAD: "Not only does this address operational challenges, but it also positions you for sustainable long-term growth in an evolving market landscape."
+
+GOOD: "This fixes the chaos. Then you can grow."
 
 Return ONLY the JSON object with these four fields. No markdown wrapping.
 `;
@@ -468,9 +502,10 @@ serve(async (req) => {
     const totalTime = (report.generation_time_ms || 0) + generationTime;
     
     // Update report with narratives
-    const { error: updateError } = await supabaseClient
+    const { data: updatedReport, error: updateError } = await supabaseClient
       .from('sa_audit_reports')
       .update({
+        status: 'generated',  // Mark report as complete for frontend polling
         headline: narratives.headline,
         executive_summary: narratives.executiveSummary,
         cost_of_chaos_narrative: narratives.costOfChaosNarrative,
@@ -481,13 +516,21 @@ serve(async (req) => {
         llm_cost: totalCost,
         generation_time_ms: totalTime,
         prompt_version: 'v4-two-pass',
-        
-        status: 'generated',
         generated_at: new Date().toISOString()
       })
-      .eq('engagement_id', engagementId);
+      .eq('engagement_id', engagementId)
+      .select('id, status')
+      .single();
     
-    if (updateError) throw updateError;
+    if (updateError) {
+      console.error('[SA Pass 2] Update error:', updateError);
+      throw updateError;
+    }
+    
+    console.log('[SA Pass 2] Report updated:', { 
+      reportId: updatedReport?.id, 
+      status: updatedReport?.status 
+    });
     
     // Update engagement status
     await supabaseClient

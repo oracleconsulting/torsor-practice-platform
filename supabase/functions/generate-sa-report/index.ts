@@ -526,25 +526,51 @@ Write these four narrative sections as a JSON object:
 WRITING RULES
 ═══════════════════════════════════════════════════════════════════════════════
 
-BANNED PHRASES (instant fail):
-- "streamline" / "leverage" / "optimize" / "best practices"
-- "digital transformation" / "holistic approach" / "moving forward"
-- "I want to be direct" / "Let me be honest" / "Here's the truth"
-- "Your systems are fundamentally sound" (too soft - they just told you about a project that broke even)
-- Starting any paragraph with "Your" (vary your openings)
+═══════════════════════════════════════════════════════════════════════════════
+ANTI-AI-SLOP WRITING RULES
+═══════════════════════════════════════════════════════════════════════════════
+
+BANNED VOCABULARY (never use):
+- Additionally, Furthermore, Moreover (just continue the thought)
+- Delve, delving (look at, examine, dig into)
+- Crucial, pivotal, vital, key as adjective (show why it matters)
+- Testament to, underscores, highlights (shows, makes clear)
+- Showcases, fostering, garnered (shows, building, got)
+- Tapestry, landscape, ecosystem (figurative uses)
+- Intricate, vibrant, enduring (puffery)
+- Synergy, leverage (verb), value-add (corporate nonsense)
+- Streamline, optimize, holistic, impactful, scalable (consultant clichés)
+- Best practices, digital transformation, moving forward (meaningless)
+
+BANNED STRUCTURES:
+- "Not only X but also Y" parallelisms (pick X or Y)
+- "It's important to note..." / "In summary..." / "In conclusion..."
+- Rule of three lists like "X, Y, and Z" (pick the best one)
+- "Despite challenges, positioned for growth" formula
+- "I want to be direct" / "Let me be honest" (just be direct/honest)
+- Starting any paragraph with "Your" (vary openings)
+- "Your systems are fundamentally sound" (too soft)
+- Ending with "-ing" phrases ("ensuring excellence, fostering growth")
+
+THE HUMAN TEST:
+Read every sentence aloud. If it sounds like an annual report, rewrite it.
+If it sounds like you explaining this over coffee, keep it.
 
 REQUIRED ELEMENTS:
-✓ Expensive mistake must appear in first 2 sentences of executive summary
-✓ Magic fix must be quoted EXACTLY, not paraphrased (all four parts)
-✓ At least 3 system names per paragraph (Xero, Harvest, Asana, Dext, Stripe, Slack, Google Workspace)
+✓ Expensive mistake in first 2 sentences of executive summary
+✓ Magic fix quoted EXACTLY, not paraphrased (all four parts)
+✓ At least 3 system names per paragraph (Xero, Harvest, Asana, Dext, Stripe, etc.)
 ✓ At least 1 verbatim client quote per paragraph
 ✓ Specific numbers from their data, not rounded generalities
+✓ One point per paragraph (don't cram three ideas together)
+✓ End on concrete, not abstract (what they get, not what you recommend)
 
 TONE:
 - Confident, not apologetic
 - Specific, not vague
 - Story-driven, not list-driven
 - Peer-to-peer, not consultant-to-client
+- Short sentences. Active voice. Concrete nouns.
 
 Return ONLY the JSON object with these four fields. No markdown wrapping.
 `;

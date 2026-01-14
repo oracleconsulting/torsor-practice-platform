@@ -1772,6 +1772,11 @@ CRITICAL RULES:
 4. Be specific to their situation - no generic advice
 5. Every task needs: what, how, time, deliverable, tool, milestone connection
 
+ANTI-AI-SLOP RULES:
+BANNED: Additionally, delve, crucial, pivotal, testament, underscores, highlights, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem
+BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
+THE TEST: If it sounds like an annual report, rewrite it. Sound like a smart advisor over coffee.
+
 Return ONLY valid JSON. No markdown, no explanation, just the JSON object.`
         },
         { role: 'user', content: prompt }

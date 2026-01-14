@@ -307,8 +307,13 @@ async function generateSprintPart2(ctx: any): Promise<any> {
 Weeks 7-12 build on weeks 1-6 progress. This is where the transformation becomes sustainable.
 Every week has a narrative—WHY it matters.
 Every task connects to their North Star.
-British English only (organise, colour, £).
-Return ONLY valid JSON. Ensure all strings are properly escaped.`
+
+ANTI-AI-SLOP RULES:
+BANNED: Additionally, delve, crucial, pivotal, testament, underscores, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem
+BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
+THE TEST: If it sounds corporate, rewrite it. Sound like a transformation story.
+
+British English only (organise, colour, £). Return ONLY valid JSON. Ensure all strings are properly escaped.`
           },
           { role: 'user', content: prompt }
         ]

@@ -411,6 +411,11 @@ QUALITY RULES:
 - North star connection must use at least one of their exact phrases
 - If data is missing, don't make up numbers - just note it's unavailable
 
+ANTI-AI-SLOP RULES:
+BANNED: Additionally, delve, crucial, pivotal, testament, underscores, highlights, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem
+BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
+THE TEST: If it sounds like an annual report, rewrite it. Sound like a smart advisor over coffee.
+
 Return ONLY valid JSON. No markdown, no explanation, just the JSON object.
 `;
 }
@@ -743,6 +748,11 @@ QUALITY RULES:
 - Verdict summary must be 8 words or fewer
 - If verdict is conditional (YES_IF, NO_UNLESS), the condition must include a specific number
 - Fallback must be actionable, not vague (e.g., "wait until X" not "consider waiting")
+
+ANTI-AI-SLOP RULES:
+BANNED: Additionally, delve, crucial, pivotal, testament, underscores, highlights, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem
+BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
+THE TEST: If it sounds like an annual report, rewrite it. Sound like a smart advisor over coffee.
 
 Return ONLY valid JSON. No markdown, no explanation, just the JSON object.
 `;

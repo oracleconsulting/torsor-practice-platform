@@ -282,9 +282,13 @@ async function generateTransformationNarrative(ctx: VisionContext): Promise<any>
 This is not a business plan—it's the future they can taste, told so vividly they can feel the coffee cup in their hands on that Tuesday morning five years from now.
 
 Use THEIR exact words. Be specific to THEIR situation. Make them feel SEEN.
-Return ONLY valid JSON - no markdown, no explanation.
 
-British English only (organise, colour, £).`
+ANTI-AI-SLOP RULES:
+BANNED: Additionally, delve, crucial, pivotal, testament, underscores, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem, vibrant, intricate
+BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
+THE TEST: If it sounds corporate, rewrite it. Sound like a story, not a strategy doc.
+
+Return ONLY valid JSON - no markdown, no explanation. British English only (organise, colour, £).`
         },
         { role: 'user', content: prompt }
       ]

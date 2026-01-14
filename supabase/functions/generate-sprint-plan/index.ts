@@ -48,6 +48,11 @@ Every task MUST have:
 
 ### 5. LINK TO MILESTONES
 Every task must show which 6-month milestone it enables.
+
+### 6. ANTI-AI-SLOP RULES
+BANNED VOCABULARY: Additionally, delve, crucial, pivotal, testament, underscores, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem
+BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
+THE TEST: If it sounds corporate, rewrite it. Sound like a human coach.
 `;
 
 // ============================================================================

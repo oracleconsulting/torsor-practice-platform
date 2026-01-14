@@ -416,7 +416,30 @@ Writing style:
 - Direct and confident, backed by specific evidence from their responses
 - Empathetic but pragmatic - acknowledge feelings, provide solutions
 - Create urgency by contrasting investment cost with inaction cost
-- Make the business case irresistible through specific £ calculations`;
+- Make the business case irresistible through specific £ calculations
+
+ANTI-AI-SLOP WRITING RULES:
+
+BANNED VOCABULARY (never use):
+- Additionally, Furthermore, Moreover (just continue the thought)
+- Delve, delving (look at, examine, dig into)
+- Crucial, pivotal, vital, key as adjective (show why it matters)
+- Testament to, underscores, highlights (shows, makes clear)
+- Showcases, fostering, garnered (shows, building, got)
+- Tapestry, landscape, ecosystem (figurative uses)
+- Intricate, vibrant, enduring (puffery)
+- Synergy, leverage (verb), value-add, streamline, optimize, holistic (corporate nonsense)
+- Scalable, impactful, best practices, digital transformation (consultant clichés)
+
+BANNED STRUCTURES:
+- "Not only X but also Y" (pick X or Y)
+- "It's important to note..." / "In summary..." / "In conclusion..."
+- Rule of three lists (pick the best one)
+- "Despite challenges, positioned for growth" formula
+- Ending sentences with "-ing" phrases ("ensuring excellence, fostering growth")
+
+THE HUMAN TEST:
+If it sounds like an annual report, rewrite it. If it sounds like a smart advisor over coffee, keep it.`;
 
 // ============================================================================
 // MAIN HANDLER

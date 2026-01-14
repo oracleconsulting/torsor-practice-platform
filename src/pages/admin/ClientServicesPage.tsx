@@ -8029,6 +8029,22 @@ function SystemsAuditClientModal({
   });
   const [savingEdits, setSavingEdits] = useState(false);
   const [makingAvailable, setMakingAvailable] = useState(false);
+  
+  // Document & Context state
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [contextNotes, setContextNotes] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [showAddContext, setShowAddContext] = useState(false);
+  const [newContext, setNewContext] = useState({
+    note_type: 'followup_answer' as 'followup_answer' | 'call_transcript' | 'meeting_notes' | 'observation' | 'general',
+    title: '',
+    content: '',
+    related_question: '',
+    source: '',
+    participants: [] as string[],
+    include_in_analysis: true
+  });
+  const [savingContext, setSavingContext] = useState(false);
 
   useEffect(() => {
     if (currentMember?.practice_id) {
@@ -8207,6 +8223,32 @@ function SystemsAuditClientModal({
           console.error('[Systems Audit Modal] Error fetching recommendations:', recsError);
         } else {
           setRecommendations(recsData || []);
+        }
+
+        // Fetch uploaded documents
+        const { data: docsData, error: docsError } = await supabase
+          .from('sa_uploaded_documents')
+          .select('*')
+          .eq('engagement_id', engagementData.id)
+          .order('created_at', { ascending: false });
+        
+        if (docsError) {
+          console.error('[Systems Audit Modal] Error fetching documents:', docsError);
+        } else {
+          setDocuments(docsData || []);
+        }
+
+        // Fetch context notes
+        const { data: contextData, error: contextError } = await supabase
+          .from('sa_context_notes')
+          .select('*')
+          .eq('engagement_id', engagementData.id)
+          .order('created_at', { ascending: false });
+        
+        if (contextError) {
+          console.error('[Systems Audit Modal] Error fetching context notes:', contextError);
+        } else {
+          setContextNotes(contextData || []);
         }
 
         // Fetch client name
@@ -8480,6 +8522,160 @@ function SystemsAuditClientModal({
       alert(`Error: ${error.message || 'Unknown error'}`);
     } finally {
       setMakingAvailable(false);
+    }
+  };
+
+  // Document upload handler
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0 || !engagement?.id || !currentMember?.practice_id) return;
+
+    setUploading(true);
+    try {
+      for (const file of files) {
+        // Upload to storage
+        const fileExt = file.name.split('.').pop();
+        const filePath = `${currentMember.practice_id}/${clientId}/${Date.now()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('client-documents')
+          .upload(filePath, file);
+        
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          throw uploadError;
+        }
+        
+        // Create document record
+        const { error: dbError } = await supabase
+          .from('sa_uploaded_documents')
+          .insert({
+            engagement_id: engagement.id,
+            filename: file.name,
+            file_path: filePath,
+            file_type: file.type || 'application/octet-stream',
+            file_size_bytes: file.size,
+            document_type: 'general',
+            created_by: user?.id
+          });
+        
+        if (dbError) {
+          console.error('DB error:', dbError);
+          throw dbError;
+        }
+      }
+      
+      // Refresh documents list
+      const { data: docsData } = await supabase
+        .from('sa_uploaded_documents')
+        .select('*')
+        .eq('engagement_id', engagement.id)
+        .order('created_at', { ascending: false });
+      
+      setDocuments(docsData || []);
+      alert(`${files.length} document(s) uploaded successfully!`);
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      alert(`Upload failed: ${error.message || 'Unknown error'}`);
+    } finally {
+      setUploading(false);
+      // Reset file input
+      e.target.value = '';
+    }
+  };
+
+  // Delete document handler
+  const handleDeleteDocument = async (doc: any) => {
+    if (!confirm('Delete this document?')) return;
+    
+    try {
+      // Delete from storage
+      await supabase.storage
+        .from('client-documents')
+        .remove([doc.file_path]);
+      
+      // Delete from database
+      await supabase
+        .from('sa_uploaded_documents')
+        .delete()
+        .eq('id', doc.id);
+      
+      // Refresh list
+      setDocuments(documents.filter(d => d.id !== doc.id));
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      alert(`Delete failed: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  // Add context note handler
+  const handleAddContextNote = async () => {
+    if (!engagement?.id || !newContext.content.trim()) {
+      alert('Please enter some content');
+      return;
+    }
+
+    setSavingContext(true);
+    try {
+      const { error } = await supabase
+        .from('sa_context_notes')
+        .insert({
+          engagement_id: engagement.id,
+          note_type: newContext.note_type,
+          title: newContext.title || null,
+          content: newContext.content,
+          related_question: newContext.related_question || null,
+          source: newContext.source || null,
+          participants: newContext.participants.length > 0 ? newContext.participants : null,
+          include_in_analysis: newContext.include_in_analysis,
+          created_by: user?.id
+        });
+      
+      if (error) throw error;
+      
+      // Refresh context notes
+      const { data: contextData } = await supabase
+        .from('sa_context_notes')
+        .select('*')
+        .eq('engagement_id', engagement.id)
+        .order('created_at', { ascending: false });
+      
+      setContextNotes(contextData || []);
+      
+      // Reset form
+      setNewContext({
+        note_type: 'followup_answer',
+        title: '',
+        content: '',
+        related_question: '',
+        source: '',
+        participants: [],
+        include_in_analysis: true
+      });
+      setShowAddContext(false);
+      alert('Context note added successfully!');
+    } catch (error: any) {
+      console.error('Error adding context:', error);
+      alert(`Error: ${error.message || 'Unknown error'}`);
+    } finally {
+      setSavingContext(false);
+    }
+  };
+
+  // Delete context note handler
+  const handleDeleteContextNote = async (noteId: string) => {
+    if (!confirm('Delete this note?')) return;
+    
+    try {
+      await supabase
+        .from('sa_context_notes')
+        .delete()
+        .eq('id', noteId);
+      
+      setContextNotes(contextNotes.filter(n => n.id !== noteId));
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      alert(`Delete failed: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -8908,7 +9104,230 @@ function SystemsAuditClientModal({
               {/* DOCUMENTS TAB */}
               {activeTab === 'documents' && (
                 <div className="space-y-6">
-                  <p className="text-gray-500">Document upload functionality coming soon</p>
+                  {/* Document Upload Section */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h4 className="font-semibold text-gray-900">Uploaded Documents</h4>
+                        <p className="text-sm text-gray-500">Process maps, system screenshots, contracts, etc.</p>
+                      </div>
+                      <label className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 cursor-pointer text-sm font-medium">
+                        <Upload className="w-4 h-4" />
+                        {uploading ? 'Uploading...' : 'Upload Files'}
+                        <input
+                          type="file"
+                          multiple
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg"
+                          onChange={handleDocumentUpload}
+                          className="hidden"
+                          disabled={uploading || !engagement}
+                        />
+                      </label>
+                    </div>
+
+                    {documents.length > 0 ? (
+                      <div className="space-y-2">
+                        {documents.map((doc) => (
+                          <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <FileText className="w-5 h-5 text-amber-600" />
+                              <div>
+                                <p className="font-medium text-gray-900 text-sm">{doc.filename}</p>
+                                <p className="text-xs text-gray-500">
+                                  {doc.document_type} • {new Date(doc.created_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleDeleteDocument(doc)}
+                              className="p-1 text-gray-400 hover:text-red-600"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
+                        <Upload className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                        <p>No documents uploaded yet</p>
+                        <p className="text-sm">Upload process maps, screenshots, or other supporting docs</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Context Notes Section */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h4 className="font-semibold text-gray-900">Follow-up Answers & Context</h4>
+                        <p className="text-sm text-gray-500">Call transcripts, meeting notes, additional insights</p>
+                      </div>
+                      <button
+                        onClick={() => setShowAddContext(true)}
+                        disabled={!engagement}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium disabled:bg-gray-300"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Context
+                      </button>
+                    </div>
+
+                    {contextNotes.length > 0 ? (
+                      <div className="space-y-3">
+                        {contextNotes.map((note) => (
+                          <div key={note.id} className="p-4 bg-gray-50 rounded-lg">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                    note.note_type === 'call_transcript' ? 'bg-purple-100 text-purple-700' :
+                                    note.note_type === 'followup_answer' ? 'bg-blue-100 text-blue-700' :
+                                    note.note_type === 'meeting_notes' ? 'bg-green-100 text-green-700' :
+                                    'bg-gray-100 text-gray-700'
+                                  }`}>
+                                    {note.note_type === 'call_transcript' ? 'Call Transcript' :
+                                     note.note_type === 'followup_answer' ? 'Follow-up Answer' :
+                                     note.note_type === 'meeting_notes' ? 'Meeting Notes' :
+                                     note.note_type === 'observation' ? 'Observation' : 'General'}
+                                  </span>
+                                  {note.title && <span className="font-medium text-gray-900">{note.title}</span>}
+                                </div>
+                                {note.related_question && (
+                                  <p className="text-sm text-gray-500 italic mb-1">Re: {note.related_question}</p>
+                                )}
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content.substring(0, 300)}{note.content.length > 300 ? '...' : ''}</p>
+                                <p className="text-xs text-gray-400 mt-2">
+                                  {note.source && `Source: ${note.source} • `}
+                                  {new Date(note.created_at).toLocaleDateString()}
+                                  {note.include_in_analysis && ' • Will be included in analysis'}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleDeleteContextNote(note.id)}
+                                className="p-1 text-gray-400 hover:text-red-600 ml-2"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
+                        <MessageSquare className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                        <p>No context notes yet</p>
+                        <p className="text-sm">Add follow-up answers, call transcripts, or meeting notes</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add Context Modal */}
+                  {showAddContext && (
+                    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+                      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+                        <div className="p-6 border-b border-gray-200">
+                          <h3 className="text-lg font-semibold text-gray-900">Add Context Note</h3>
+                        </div>
+                        <div className="p-6 space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                            <select
+                              value={newContext.note_type}
+                              onChange={(e) => setNewContext({ ...newContext, note_type: e.target.value as any })}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                            >
+                              <option value="followup_answer">Follow-up Answer</option>
+                              <option value="call_transcript">Call Transcript</option>
+                              <option value="meeting_notes">Meeting Notes</option>
+                              <option value="observation">Observation</option>
+                              <option value="general">General Note</option>
+                            </select>
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Title (optional)</label>
+                            <input
+                              type="text"
+                              value={newContext.title}
+                              onChange={(e) => setNewContext({ ...newContext, title: e.target.value })}
+                              placeholder="e.g., Discovery call with MD"
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                            />
+                          </div>
+
+                          {newContext.note_type === 'followup_answer' && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Related Question</label>
+                              <input
+                                type="text"
+                                value={newContext.related_question}
+                                onChange={(e) => setNewContext({ ...newContext, related_question: e.target.value })}
+                                placeholder="What question is this answering?"
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                              />
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Content *</label>
+                            <textarea
+                              value={newContext.content}
+                              onChange={(e) => setNewContext({ ...newContext, content: e.target.value })}
+                              placeholder={
+                                newContext.note_type === 'call_transcript' 
+                                  ? 'Paste the call transcript here...' 
+                                  : newContext.note_type === 'followup_answer'
+                                  ? 'Enter the client\'s answer or clarification...'
+                                  : 'Enter notes or observations...'
+                              }
+                              rows={8}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Source (optional)</label>
+                            <input
+                              type="text"
+                              value={newContext.source}
+                              onChange={(e) => setNewContext({ ...newContext, source: e.target.value })}
+                              placeholder="e.g., Call with John Smith 14/01/2026"
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="includeInAnalysis"
+                              checked={newContext.include_in_analysis}
+                              onChange={(e) => setNewContext({ ...newContext, include_in_analysis: e.target.checked })}
+                              className="rounded border-gray-300"
+                            />
+                            <label htmlFor="includeInAnalysis" className="text-sm text-gray-700">
+                              Include in AI analysis (this context will inform report generation)
+                            </label>
+                          </div>
+                        </div>
+                        <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+                          <button
+                            onClick={() => setShowAddContext(false)}
+                            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleAddContextNote}
+                            disabled={savingContext || !newContext.content.trim()}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-300"
+                          >
+                            {savingContext ? 'Saving...' : 'Add Note'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

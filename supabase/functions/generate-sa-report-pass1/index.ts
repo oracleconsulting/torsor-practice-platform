@@ -326,6 +326,30 @@ ADMIN GUIDANCE RULES:
 17. Flag any risks: change appetite concerns, budget constraints, key person dependencies
 18. Client presentation must be jargon-free and focus on outcomes, not process
 
+═══════════════════════════════════════════════════════════════════════════════
+ANTI-AI-SLOP WRITING RULES
+═══════════════════════════════════════════════════════════════════════════════
+
+BANNED VOCABULARY (never use):
+- Additionally, Furthermore, Moreover (just continue the thought)
+- Delve, delving (look at, examine, dig into)
+- Crucial, pivotal, vital, key as adjective (show why it matters)
+- Testament to, underscores, highlights (shows, makes clear)
+- Showcases, fostering, garnered (shows, building, got)
+- Tapestry, landscape, ecosystem (figurative uses)
+- Intricate, vibrant, enduring (puffery)
+- Synergy, leverage (verb), value-add, streamline, optimize, holistic (corporate nonsense)
+
+BANNED STRUCTURES:
+- "Not only X but also Y" (pick X or Y)
+- "It's important to note..." / "In summary..." / "In conclusion..."
+- Rule of three adjective lists (pick the best one)
+- "Despite challenges, positioned for growth" formula
+- Ending sentences with "-ing" phrases ("ensuring excellence, fostering growth")
+
+THE HUMAN TEST:
+If it sounds like an annual report, rewrite it. If it sounds like coffee with a smart friend, keep it.
+
 Return ONLY valid JSON.
 `;
 }

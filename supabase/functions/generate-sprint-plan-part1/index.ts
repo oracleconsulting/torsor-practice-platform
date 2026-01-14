@@ -226,8 +226,13 @@ async function generateSprintPart1(ctx: any): Promise<any> {
 Every week has a narrative—WHY it matters to their LIFE, not just business.
 Every task connects to their North Star.
 Use their exact words. Be specific to their situation.
-British English only (organise, colour, £).
-Return ONLY valid JSON. Ensure all strings are properly escaped.`
+
+ANTI-AI-SLOP RULES:
+BANNED: Additionally, delve, crucial, pivotal, testament, underscores, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem
+BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
+THE TEST: If it sounds corporate, rewrite it. Sound like a transformation story.
+
+British English only (organise, colour, £). Return ONLY valid JSON. Ensure all strings are properly escaped.`
           },
           { role: 'user', content: prompt }
         ]

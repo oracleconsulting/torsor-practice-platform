@@ -246,8 +246,13 @@ async function generateShift(ctx: any): Promise<any> {
 This is not a project plan—it's the first chapter of their transformation.
 Parse THEIR "six_month_shifts" answer into concrete milestones. Don't invent things they didn't ask for.
 Use their exact words. Be specific to their situation.
-British English only (organise, colour, £).
-Return ONLY valid JSON.`
+
+ANTI-AI-SLOP RULES:
+BANNED: Additionally, delve, crucial, pivotal, testament, underscores, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem
+BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
+THE TEST: If it sounds corporate, rewrite it. Sound like a human advisor.
+
+British English only (organise, colour, £). Return ONLY valid JSON.`
         },
         { role: 'user', content: prompt }
       ]

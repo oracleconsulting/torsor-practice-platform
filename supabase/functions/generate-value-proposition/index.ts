@@ -170,6 +170,11 @@ async function generateMAValueProposition(insights: Record<string, any>, financi
 
 Be warm but professional. Use their exact words where possible. Focus on emotional impact, not just features.
 
+ANTI-AI-SLOP RULES:
+BANNED: Additionally, delve, crucial, pivotal, testament, underscores, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem
+BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
+THE TEST: If it sounds corporate, rewrite it. Sound like a human advisor.
+
 QUESTIONS ASKED (from database - these may have been customized):
 ${questionsList}`;
 
@@ -246,6 +251,11 @@ async function generateSAValueProposition(insights: Record<string, any>, financi
   const systemPrompt = `You are a systems and operations consultant creating a personalized audit proposal. Show the client you understand their operational pain and can quantify the hidden costs they're experiencing.
 
 Be direct about the problems but optimistic about solutions. Use their own descriptions of chaos and frustration.
+
+ANTI-AI-SLOP RULES:
+BANNED: Additionally, delve, crucial, pivotal, testament, underscores, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem, streamline, optimize
+BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
+THE TEST: If it sounds like consultant-speak, rewrite it. Sound human.
 
 ASSESSMENT QUESTIONS (from database):
 ${questionsList}`;
@@ -350,6 +360,11 @@ async function generateFEValueProposition(insights: Record<string, any>, financi
   const systemPrompt = `You are a senior executive presenting a fractional CFO/COO engagement proposal. Show the client you understand their leadership gap and can fill it effectively.
 
 Be confident but not arrogant. Acknowledge the courage it takes to bring in external help.
+
+ANTI-AI-SLOP RULES:
+BANNED: Additionally, delve, crucial, pivotal, testament, underscores, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem
+BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
+THE TEST: If it sounds corporate, rewrite it. Sound human.
 
 ASSESSMENT QUESTIONS (from database):
 ${questionsList}`;
