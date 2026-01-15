@@ -223,11 +223,30 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
   const handlePublishReport = async () => {
     if (!engagement || !report) return;
     
+    // Check data completeness
+    const completenessScore = report.data_completeness_score || 0;
+    const missingCritical = report.missing_critical_data || [];
+    
+    if (missingCritical.length > 0) {
+      const proceed = window.confirm(
+        `⚠️ This report is missing critical data:\n\n${missingCritical.join('\n')}\n\n` +
+        `Data completeness: ${completenessScore}%\n\n` +
+        `Publishing with incomplete data may result in a less effective report for the client.\n\n` +
+        `Are you sure you want to publish anyway?`
+      );
+      if (!proceed) return;
+    }
+    
     setPublishing(true);
     try {
       await supabase
         .from('discovery_reports')
-        .update({ status: 'published' })
+        .update({ 
+          status: 'published',
+          ready_for_client: true,
+          published_to_client_at: new Date().toISOString(),
+          published_by: user?.id
+        })
         .eq('id', report.id);
       
       await supabase
@@ -1146,26 +1165,117 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                     </button>
                     
                     {/* Publish Button */}
-                    {report?.headline && engagement?.status !== 'published' && (
+                    {report?.destination_report && engagement?.status !== 'published' && (
                       <button
                         onClick={handlePublishReport}
                         disabled={publishing}
-                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2"
+                        className={`px-4 py-2 text-white rounded-lg disabled:opacity-50 flex items-center gap-2 ${
+                          report?.ready_for_client 
+                            ? 'bg-emerald-600 hover:bg-emerald-700' 
+                            : 'bg-amber-600 hover:bg-amber-700'
+                        }`}
                       >
                         {publishing ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <Send className="h-4 w-4" />
                         )}
-                        Publish to Client
+                        {report?.ready_for_client ? 'Publish to Client' : 'Publish Anyway'}
                       </button>
+                    )}
+                    
+                    {/* Published indicator */}
+                    {engagement?.status === 'published' && (
+                      <span className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg flex items-center gap-2">
+                        <Send className="h-4 w-4" />
+                        Published
+                      </span>
                     )}
                   </div>
                 </div>
 
                 {/* Report Content */}
                 {viewMode === 'admin' ? (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="space-y-6">
+                    {/* Data Completeness Panel */}
+                    {report && (
+                      <div className={`p-4 rounded-lg border ${
+                        report.data_completeness_status === 'complete' ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' :
+                        report.data_completeness_status === 'partial' ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20' :
+                        report.data_completeness_status === 'insufficient' ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20' :
+                        'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800'
+                      }`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="font-semibold flex items-center gap-2">
+                            {report.data_completeness_status === 'complete' && (
+                              <span className="text-emerald-600">✓ Data Complete</span>
+                            )}
+                            {report.data_completeness_status === 'partial' && (
+                              <span className="text-amber-600">⚠ Partial Data</span>
+                            )}
+                            {report.data_completeness_status === 'insufficient' && (
+                              <span className="text-red-600">⚠ Insufficient Data</span>
+                            )}
+                            {!report.data_completeness_status && (
+                              <span className="text-gray-600">Data Completeness Unknown</span>
+                            )}
+                          </h3>
+                          <div className="flex items-center gap-2">
+                            <div className="w-32 h-2 bg-gray-200 rounded-full">
+                              <div 
+                                className={`h-full rounded-full ${
+                                  (report.data_completeness_score || 0) >= 70 ? 'bg-emerald-500' :
+                                  (report.data_completeness_score || 0) >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                                }`}
+                                style={{ width: `${report.data_completeness_score || 0}%` }}
+                              />
+                            </div>
+                            <span className="font-bold">{report.data_completeness_score || 0}%</span>
+                          </div>
+                        </div>
+                        
+                        {/* Missing Data */}
+                        {(report.missing_critical_data?.length > 0 || report.missing_important_data?.length > 0) && (
+                          <div className="space-y-2 mb-3">
+                            {report.missing_critical_data?.length > 0 && (
+                              <div className="text-sm">
+                                <span className="font-medium text-red-700 dark:text-red-400">Missing Critical: </span>
+                                <span className="text-red-600 dark:text-red-400">{report.missing_critical_data.join(', ')}</span>
+                              </div>
+                            )}
+                            {report.missing_important_data?.length > 0 && (
+                              <div className="text-sm">
+                                <span className="font-medium text-amber-700 dark:text-amber-400">Missing Important: </span>
+                                <span className="text-amber-600 dark:text-amber-400">{report.missing_important_data.join(', ')}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {/* Admin Actions */}
+                        {report.admin_actions_needed?.length > 0 && (
+                          <div className="p-3 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                            <p className="text-xs font-medium uppercase text-gray-500 mb-2">Recommended Actions</p>
+                            <ul className="text-sm space-y-1">
+                              {report.admin_actions_needed.map((action: string, idx: number) => (
+                                <li key={idx} className="text-gray-700 dark:text-gray-300">• {action}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        
+                        {/* Ready Status */}
+                        <div className="mt-3 text-sm">
+                          {report.ready_for_client ? (
+                            <span className="text-emerald-600 font-medium">✓ Ready to publish to client</span>
+                          ) : (
+                            <span className="text-amber-600">Consider gathering more data before publishing</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Left: Scores & Patterns */}
                     <div className="space-y-6">
                       <div>
@@ -1199,6 +1309,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                           <p>Run analysis to extract emotional anchors</p>
                         </div>
                       )}
+                    </div>
                     </div>
                   </div>
                 ) : (

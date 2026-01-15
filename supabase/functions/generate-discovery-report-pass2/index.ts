@@ -39,15 +39,15 @@ const SERVICE_DETAILS: Record<string, {
   },
   '365_method': {
     name: '365 Alignment Programme',
-    price: '£2,000',
+    price: '£1,500',
     priceType: 'monthly',
-    outcome: "You'll Reclaim Your Purpose"
+    outcome: "You'll Have Someone In Your Corner"
   },
   'automation': {
     name: 'Automation Services',
     price: '£5,000',
     priceType: 'one-time',
-    outcome: "Your Systems Will Talk To Each Other"
+    outcome: "The Manual Work Disappears"
   },
   'fractional_cfo': {
     name: 'Fractional CFO',
@@ -59,7 +59,7 @@ const SERVICE_DETAILS: Record<string, {
     name: 'Fractional COO',
     price: '£4,000',
     priceType: 'monthly',
-    outcome: "You'll Become Optional"
+    outcome: "Someone Else Carries The Load"
   },
   'combined_advisory': {
     name: 'Combined CFO/COO Advisory',
@@ -71,69 +71,89 @@ const SERVICE_DETAILS: Record<string, {
     name: 'Business Advisory & Exit Planning',
     price: '£2,500',
     priceType: 'monthly',
-    outcome: "You'll Have A Clear Exit Path"
+    outcome: "You'll Know What It's Worth"
   },
   'benchmarking': {
     name: 'Benchmarking Services',
-    price: '£1,200',
+    price: '£450',
     priceType: 'one-time',
     outcome: "You'll Know Where You Stand"
   }
 };
 
 // ============================================================================
-// ANTI-AI-SLOP RULES (Critical for authentic output)
+// DATA COMPLETENESS CHECKER
 // ============================================================================
 
-const ANTI_SLOP_RULES = `
-WRITING RULES - CRITICAL:
+interface DataCompleteness {
+  score: number;            // 0-100
+  status: 'complete' | 'partial' | 'insufficient';
+  missingCritical: string[];
+  missingImportant: string[];
+  missingNiceToHave: string[];
+  canGenerateClientReport: boolean;
+  adminActionRequired: string[];
+}
 
-BANNED VOCABULARY (never use):
-- Additionally, Furthermore, Moreover (just continue)
-- Delve, delving (say: look at, dig into)
-- Crucial, pivotal, vital, key (show why it matters)
-- Leverage (say: use)
-- Streamline (say: simplify, speed up)
-- Optimize (say: improve)
-- Landscape (say: market, situation)
-- Ecosystem (say: system)
-- Synergy (describe the actual benefit)
-- Paradigm shift (describe the actual change)
-- Holistic (say: complete, whole)
-- Robust (say: strong, reliable)
-- Cutting-edge, state-of-the-art (describe what's new)
-- Innovative, innovation (show it, don't label it)
-- Best-in-class, world-class (be specific)
-- Journey (say: process, path)
-- Unlock potential (say: enable, allow)
-- Drive results (say: get results)
-- Empower (say: enable, help)
-- Transform (describe the actual change)
-- Navigate (say: work through, handle)
-- "We recommend..." (say the outcome instead)
-- "Our services include..." (never headline services)
-- "The solution is..." (describe what changes)
-
-BANNED SENTENCE STRUCTURES:
-- "Not only X but also Y" parallelisms
-- "It's important to note that..."
-- "In today's business environment..."
-- "At its core..."
-- "At the end of the day..."
-- Starting with "Importantly," or "Notably,"
-- "The reality is that..." (just state it)
-- "It goes without saying..." (don't say it)
-
-WRITING STYLE:
-1. Write like you're writing to a friend going through a hard time
-2. Use their EXACT words - quote them liberally (8+ times minimum)
-3. Short paragraphs (2-3 sentences max)
-4. Be specific - use their numbers, their examples, their situations
-5. Sound human - contractions, imperfect grammar, conversational
-6. Empathy before solutions - name their pain before offering hope
-7. Personal anchors - reference spouse names, kids' ages, specific details they shared
-8. Services as footnotes - always headline the OUTCOME, service is just how they get there
-`;
+function assessDataCompleteness(emotionalAnchors: Record<string, string>): DataCompleteness {
+  const critical = [
+    { key: 'tuesdayTest', label: 'Tuesday Vision (5-year picture)' },
+    { key: 'coreFrustration', label: 'Core Frustration' },
+  ];
+  
+  const important = [
+    { key: 'emergencyLog', label: 'Emergency Log (recent disruptions)' },
+    { key: 'relationshipMirror', label: 'Business Relationship Metaphor' },
+    { key: 'sacrificeList', label: 'Sacrifice List (what they\'ve given up)' },
+    { key: 'suspectedTruth', label: 'Suspected Truth (financial gut feeling)' },
+  ];
+  
+  const niceToHave = [
+    { key: 'magicFix', label: 'Magic Fix (first change)' },
+    { key: 'hardTruth', label: 'Hard Truth (avoided conversation)' },
+    { key: 'operationalFrustration', label: 'Operational Frustration' },
+    { key: 'finalInsight', label: 'Final Insight' },
+    { key: 'hiddenFromTeam', label: 'Hidden From Team' },
+    { key: 'avoidedConversation', label: 'Avoided Conversation' },
+    { key: 'unlimitedChange', label: 'If Unlimited Funds' },
+  ];
+  
+  const isProvided = (val: string | undefined) => 
+    val && val.trim() !== '' && val.toLowerCase() !== 'not provided' && val.length > 10;
+  
+  const missingCritical = critical.filter(f => !isProvided(emotionalAnchors[f.key])).map(f => f.label);
+  const missingImportant = important.filter(f => !isProvided(emotionalAnchors[f.key])).map(f => f.label);
+  const missingNiceToHave = niceToHave.filter(f => !isProvided(emotionalAnchors[f.key])).map(f => f.label);
+  
+  const criticalScore = ((critical.length - missingCritical.length) / critical.length) * 50;
+  const importantScore = ((important.length - missingImportant.length) / important.length) * 30;
+  const niceScore = ((niceToHave.length - missingNiceToHave.length) / niceToHave.length) * 20;
+  
+  const score = Math.round(criticalScore + importantScore + niceScore);
+  
+  let status: 'complete' | 'partial' | 'insufficient' = 'complete';
+  if (missingCritical.length > 0) status = 'insufficient';
+  else if (missingImportant.length > 2) status = 'partial';
+  else if (score < 70) status = 'partial';
+  
+  const adminActionRequired: string[] = [];
+  if (missingCritical.length > 0) {
+    adminActionRequired.push(`Schedule discovery call to gather: ${missingCritical.join(', ')}`);
+  }
+  if (missingImportant.length > 2) {
+    adminActionRequired.push(`Follow up to understand: ${missingImportant.join(', ')}`);
+  }
+  
+  return {
+    score,
+    status,
+    missingCritical,
+    missingImportant,
+    missingNiceToHave,
+    canGenerateClientReport: missingCritical.length === 0 && score >= 50,
+    adminActionRequired
+  };
+}
 
 // ============================================================================
 // MAIN HANDLER
@@ -184,17 +204,19 @@ serve(async (req) => {
       .from('discovery_engagements')
       .select(`
         *,
-        client:practice_members!discovery_engagements_client_id_fkey(id, name, client_company, email),
+        client:practice_members!discovery_engagements_client_id_fkey(
+          id, name, email, client_company
+        ),
         discovery:destination_discovery(*)
       `)
       .eq('id', engagementId)
       .single();
 
     if (engError || !engagement) {
-      throw new Error(`Engagement not found: ${engError?.message}`);
+      throw new Error('Engagement not found');
     }
 
-    // Fetch Pass 1 report
+    // Fetch Pass 1 results
     const { data: report, error: reportError } = await supabase
       .from('discovery_reports')
       .select('*')
@@ -222,11 +244,17 @@ serve(async (req) => {
 
     // Build the prompt
     const clientName = engagement.client?.name?.split(' ')[0] || 'they'; // First name only
+    const fullName = engagement.client?.name || 'Client';
     const companyName = engagement.client?.client_company || 'their business';
     const emotionalAnchors = report.emotional_anchors || {};
     const patterns = report.detection_patterns || {};
     const primaryRecs = report.primary_recommendations || [];
     const secondaryRecs = report.secondary_recommendations || [];
+
+    // Assess data completeness
+    const dataCompleteness = assessDataCompleteness(emotionalAnchors);
+    console.log(`[Pass 2] Data completeness: ${dataCompleteness.score}% (${dataCompleteness.status})`);
+    console.log(`[Pass 2] Missing critical: ${dataCompleteness.missingCritical.join(', ') || 'None'}`);
 
     // Build recommended services with pricing
     const recommendedServices = [...primaryRecs, ...secondaryRecs]
@@ -240,7 +268,7 @@ serve(async (req) => {
 
     // Build context from notes
     const contextSection = contextNotes?.length 
-      ? `\n\nADDITIONAL CONTEXT FROM ADVISOR:\n${contextNotes.map(n => `[${n.note_type}] ${n.title}:\n${n.content}`).join('\n\n')}`
+      ? `\n\nADDITIONAL CONTEXT FROM ADVISOR (from follow-up calls/notes):\n${contextNotes.map(n => `[${n.note_type}] ${n.title}:\n${n.content}`).join('\n\n')}`
       : '';
 
     // Build document context
@@ -248,9 +276,11 @@ serve(async (req) => {
       ? `\n\nRELEVANT DOCUMENTS:\n${documents.map(d => `- ${d.filename} (${d.document_type}): ${d.ai_summary || d.description || 'No summary'}`).join('\n')}`
       : '';
 
-    const prompt = `You are writing a Destination-Focused Discovery Report for ${clientName} from ${companyName}.
+    // ============================================================================
+    // THE MASTER PROMPT - Destination-Focused Discovery Report
+    // ============================================================================
 
-${ANTI_SLOP_RULES}
+    const prompt = `You are writing a Destination-Focused Discovery Report for ${clientName} from ${companyName}.
 
 ============================================================================
 THE FUNDAMENTAL PRINCIPLE
@@ -259,9 +289,68 @@ We're travel agents selling holidays, not airlines selling seats.
 
 ${clientName} doesn't buy "Management Accounts" - they buy knowing which customers are profitable.
 They don't buy "Systems Audit" - they buy a week without being the only one who can fix things.
-They don't buy "365 Method" - they buy leaving at 4pm to pick up the kids.
+They don't buy "365 Programme" - they buy leaving at 4pm to pick up the kids.
 
 HEADLINE the destination. Service is just how they get there.
+
+============================================================================
+WRITING RULES - CRITICAL
+============================================================================
+
+BANNED VOCABULARY (never use):
+- Additionally, Furthermore, Moreover (just continue)
+- Delve, delving (say: look at, dig into)
+- Crucial, pivotal, vital, key (show why it matters)
+- Leverage (say: use)
+- Streamline (say: simplify, speed up)
+- Optimize (say: improve)
+- Landscape (say: market, situation)
+- Ecosystem (say: system)
+- Synergy (describe the actual benefit)
+- Holistic (say: complete, whole)
+- Robust (say: strong, reliable)
+- Cutting-edge, state-of-the-art (describe what's new)
+- Innovative, innovation (show it, don't label it)
+- Journey (say: process, path, route)
+- Unlock potential (say: enable, allow)
+- Empower (say: enable, help)
+- "We recommend..." (say the outcome instead)
+- "Our services include..." (never headline services)
+- "The solution is..." (describe what changes)
+
+BANNED SENTENCE STRUCTURES:
+- "Not only X but also Y" parallelisms
+- "It's important to note that..."
+- "In today's business environment..."
+- "At its core..."
+- "At the end of the day..."
+- Starting with "Importantly," or "Notably,"
+
+WRITING STYLE:
+1. Write like you're writing to a friend going through a hard time
+2. Use their EXACT words - quote them liberally (8+ times minimum)
+3. Short paragraphs (2-3 sentences max)
+4. Be specific - use their numbers, their examples, their situations
+5. Sound human - contractions, imperfect grammar, conversational
+6. Empathy before solutions - name their pain before offering hope
+7. Personal anchors - reference spouse names, kids' ages, specific details
+8. Services as footnotes - headline the OUTCOME, service is just how
+
+============================================================================
+DATA COMPLETENESS STATUS
+============================================================================
+Score: ${dataCompleteness.score}/100 (${dataCompleteness.status})
+${dataCompleteness.missingCritical.length > 0 ? `⚠️ MISSING CRITICAL DATA: ${dataCompleteness.missingCritical.join(', ')}` : '✅ All critical data present'}
+${dataCompleteness.missingImportant.length > 0 ? `⚠️ MISSING IMPORTANT DATA: ${dataCompleteness.missingImportant.join(', ')}` : '✅ All important data present'}
+
+HANDLING MISSING DATA:
+- If tuesdayVision is missing: Acknowledge it warmly, position the discovery call as the first step
+- If emergencyLog is missing: Note we don't know what pulls them away yet
+- If suspectedTruth is missing: Note we haven't heard their gut feeling on the numbers
+- NEVER fabricate quotes or details
+- ALWAYS acknowledge gaps honestly but warmly
+- Adjust confidence scores downward for missing data
+- Remove specific ROI calculations if no supporting data
 
 ============================================================================
 CLIENT'S OWN WORDS (Use these VERBATIM - these are gold)
@@ -270,28 +359,34 @@ CLIENT'S OWN WORDS (Use these VERBATIM - these are gold)
 THEIR VISION (The Tuesday Test - what their ideal future looks like):
 "${emotionalAnchors.tuesdayTest || 'Not provided'}"
 
-THEIR MAGIC FIX (What they'd change first):
+THEIR MAGIC FIX (What they'd change first if they could):
 "${emotionalAnchors.magicFix || 'Not provided'}"
 
-THEIR CORE FRUSTRATION:
+THEIR CORE FRUSTRATION (What frustrates them most):
 "${emotionalAnchors.coreFrustration || 'Not provided'}"
 
 THEIR EMERGENCY LOG (What pulled them away recently):
 "${emotionalAnchors.emergencyLog || 'Not provided'}"
 
-HOW THE BUSINESS RELATIONSHIP FEELS:
+HOW THE BUSINESS RELATIONSHIP FEELS (Their metaphor):
 "${emotionalAnchors.relationshipMirror || 'Not provided'}"
 
-WHAT THEY'VE SACRIFICED:
+WHAT THEY'VE SACRIFICED (Personal cost):
 "${emotionalAnchors.sacrificeList || 'Not provided'}"
 
-THEIR HARD TRUTH:
+THEIR HARD TRUTH (What they've been avoiding):
 "${emotionalAnchors.hardTruth || 'Not provided'}"
 
-WHAT THEY SUSPECT ABOUT THE NUMBERS:
+WHAT THEY SUSPECT ABOUT THE NUMBERS (Financial gut feeling):
 "${emotionalAnchors.suspectedTruth || 'Not provided'}"
 
-OPERATIONAL FRUSTRATION:
+WHAT'S HIDDEN FROM TEAM (Worries they don't share):
+"${emotionalAnchors.hiddenFromTeam || 'Not provided'}"
+
+THE AVOIDED CONVERSATION (Who they need to talk to):
+"${emotionalAnchors.avoidedConversation || 'Not provided'}"
+
+OPERATIONAL FRUSTRATION (Day-to-day friction):
 "${emotionalAnchors.operationalFrustration || 'Not provided'}"
 
 ANYTHING ELSE THEY SHARED:
@@ -302,14 +397,15 @@ ${docSection}
 ============================================================================
 DETECTED PATTERNS
 ============================================================================
-${patterns.burnoutDetected ? `⚠️ BURNOUT DETECTED (${patterns.burnoutFlags} indicators): ${patterns.burnoutIndicators?.join(', ')}` : 'No burnout pattern'}
-${patterns.capitalRaisingDetected ? `💰 CAPITAL RAISING: ${patterns.capitalSignals?.join(', ')}` : 'No capital raising pattern'}
+${patterns.burnoutDetected ? `⚠️ BURNOUT DETECTED (${patterns.burnoutFlags} indicators): ${patterns.burnoutIndicators?.join(', ')}` : 'No burnout pattern detected'}
+${patterns.capitalRaisingDetected ? `💰 CAPITAL RAISING INTENT: ${patterns.capitalSignals?.join(', ')}` : 'No capital raising pattern'}
 ${patterns.lifestyleTransformationDetected ? `🔄 LIFESTYLE TRANSFORMATION: ${patterns.lifestyleSignals?.join(', ')}` : 'No lifestyle pattern'}
 
-Urgency: ${patterns.urgencyMultiplier}x (Change Readiness: ${report.change_readiness})
+Urgency Multiplier: ${patterns.urgencyMultiplier || 1}x
+Change Readiness: ${report.change_readiness || 'Unknown'}
 
 ============================================================================
-RECOMMENDED SERVICES (write these as footnotes, not headlines)
+RECOMMENDED SERVICES (write these as FOOTNOTES only, not headlines)
 ============================================================================
 ${JSON.stringify(recommendedServices, null, 2)}
 
@@ -322,121 +418,161 @@ Return a JSON object with this exact structure:
 {
   "page1_destination": {
     "headerLine": "The Tuesday You're Building Towards",
-    "visionVerbatim": "Their Tuesday Test answer, edited slightly for flow but keeping their exact words. Multiple paragraphs. Include specific details like 'leaving at 4pm', 'picking kids up from football', spouse names, etc.",
-    "destinationClarityScore": 8,
-    "clarityExplanation": "One sentence about how clear their vision is"
+    "visionProvided": true/false,
+    "visionVerbatim": "IF PROVIDED: Their Tuesday Test answer, edited slightly for flow but keeping their exact words. Include specific details like leaving times, activities, family names. IF NOT PROVIDED: A warm acknowledgment that they haven't painted the picture yet, with an invitation to have that conversation.",
+    "whatTheyWontBeDoing": ["List of things they specifically said they want to stop doing"],
+    "destinationClarityScore": 1-10,
+    "clarityExplanation": "One sentence about how clear their vision is. Be honest if data is missing."
   },
   
   "page2_gaps": {
     "headerLine": "The Gap Between Here and There",
-    "openingLine": "A punchy one-liner that names the tension. e.g. 'You're building for freedom but operating in a prison of your own making.'",
+    "dataProvided": true/false,
+    "openingLine": "A punchy one-liner capturing their core tension. Use their metaphor from relationshipMirror if powerful. e.g. 'You're building for freedom but operating in a prison of your own making.'",
+    "gapScore": 1-10,
     "gaps": [
       {
-        "title": "You Can't Leave",
-        "pattern": "Their exact words showing this pattern - quote them directly",
-        "costs": [
-          "30+ hours a week trapped in operations",
-          "No real holidays in years",
-          "A business that's unsellable without you"
-        ],
-        "shiftRequired": "What needs to change - one sentence in plain language"
+        "category": "operational|financial|strategic|people",
+        "priority": "critical|high|medium",
+        "title": "Outcome-focused title like 'You Can't Leave' not 'Founder Dependency'",
+        "pattern": "Their exact words showing this pattern - DIRECT QUOTES",
+        "timeImpact": "Specific hours or pattern",
+        "financialImpact": "Specific amount or 'Unknown - you suspect significant'",
+        "emotionalImpact": "The personal/relationship/health cost",
+        "shiftRequired": "One sentence describing what needs to change"
       }
     ]
   },
   
   "page3_journey": {
-    "headerLine": "From Here to the 4pm Pickup",
+    "headerLine": "From Here to [Their Specific Goal]",
     "timelineLabel": {
-      "now": "Prison",
-      "month3": "Clarity",
-      "month6": "Handover",
-      "month12": "Freedom"
+      "now": "Starting state word like 'Prison' or 'Blind'",
+      "month3": "Month 3 state like 'Clarity' or 'Visible'",
+      "month6": "Month 6 state like 'Control' or 'Understood'",
+      "month12": "Month 12 state like 'Freedom' or 'Designed'"
     },
     "phases": [
       {
         "timeframe": "Month 1-3",
-        "headline": "You'll Know Your Numbers",
+        "headline": "OUTCOME headline like 'You'll Know Your Numbers' NOT service name",
         "whatChanges": [
-          "You'll know which jobs make money and which don't",
-          "Cash flow stops being a surprise",
-          "You stop subsidising customers you shouldn't"
+          "Specific tangible outcome 1",
+          "Specific tangible outcome 2",
+          "Specific tangible outcome 3"
         ],
-        "feelsLike": "The fog lifts. You stop guessing whether you're making money or just turning it over. The 3am cash flow anxiety starts to fade.",
-        "outcome": "Confident financial decisions based on data, not gut feel.",
-        "enabledBy": "Monthly Management Accounts",
-        "price": "£650/month"
+        "feelsLike": "Emotional description using their language and metaphors. What the transformation FEELS like.",
+        "outcome": "Single sentence: the tangible result they can point to",
+        "enabledBy": "Service Name (footnote only)",
+        "price": "£X/month or £X one-time"
       }
     ]
   },
   
   "page4_numbers": {
-    "headerLine": "The Investment in Your Tuesday",
+    "headerLine": "The Investment in Your [Their Specific Goal]",
+    "dataProvided": true/false,
     "costOfStaying": {
-      "labourInefficiency": "£50,000 - £80,000",
-      "marginLeakage": "Unknown (you suspect significant)",
-      "yourTimeWasted": "1,500+ hours/year",
-      "businessValueImpact": "Severely discounted without you"
+      "labourInefficiency": "£X - £Y or 'Unknown - we need to assess this'",
+      "marginLeakage": "£X or 'Unknown - you suspect significant'",
+      "yourTimeWasted": "X hours/year or 'Unknown'",
+      "businessValueImpact": "Description of impact"
     },
-    "personalCost": "Another year of 70-hour weeks. Another year of missed football practice. Your kids are [X] and [Y]. The window is closing.",
+    "personalCost": "SPECIFIC personal cost using their words. Kids ages, spouse name, health mentions, sacrifices. If not provided, acknowledge we don't know what they've sacrificed yet.",
     "investment": [
       {
         "phase": "Months 1-3",
-        "amount": "£1,950",
-        "whatYouGet": "Numbers you can use"
+        "amount": "£X",
+        "whatYouGet": "OUTCOME in 5 words, not service name"
       }
     ],
-    "totalYear1": "£11,800",
-    "totalYear1Label": "Foundation for freedom",
+    "totalYear1": "£X",
+    "totalYear1Label": "Brief outcome description",
     "returns": {
+      "canCalculate": true/false,
       "conservative": {
-        "labourGains": "£25,000",
-        "marginRecovery": "£10,000",
-        "timeReclaimed": "£15,000",
-        "total": "£50,000"
+        "labourGains": "£X or null",
+        "marginRecovery": "£X or null",
+        "timeReclaimed": "£X or null",
+        "total": "£X"
       },
       "realistic": {
-        "labourGains": "£40,000",
-        "marginRecovery": "£25,000",
-        "timeReclaimed": "£30,000",
-        "total": "£95,000"
+        "labourGains": "£X or null",
+        "marginRecovery": "£X or null",
+        "timeReclaimed": "£X or null",
+        "total": "£X"
       }
     },
-    "paybackPeriod": "3-6 months",
-    "realReturn": "The 4pm pickup. The holiday you actually take. The business that runs without you in the middle."
+    "paybackPeriod": "X-Y months",
+    "realReturn": "Their specific goal in their words - the emotional return"
   },
   
   "page5_nextSteps": {
     "headerLine": "Starting The Journey",
     "thisWeek": {
-      "action": "30-minute call to talk through this report",
-      "tone": "Not a sales pitch. A conversation about what matters most and where to start. If it's not right for you, we'll tell you."
+      "action": "30-minute call to [specific purpose]",
+      "tone": "Reassurance this isn't a sales pitch. What will actually happen in the call."
     },
     "firstStep": {
-      "recommendation": "Start with the numbers",
-      "why": "You can't fix what you can't see. Monthly management accounts give you the visibility to make every other decision with confidence.",
-      "theirWordsEcho": "A quote from their assessment that ties to this recommendation",
-      "simpleCta": "£650/month to start seeing clearly."
+      "headline": "OUTCOME headline, not service name",
+      "recommendation": "What to start with and why",
+      "theirWordsEcho": "A quote from their assessment that ties to this",
+      "simpleCta": "£X to [outcome verb]"
     },
-    "theAsk": "A 2-3 sentence closing that references their stated desire for action/momentum, acknowledges past failures, and offers the practical path forward.",
-    "closingLine": "Let's talk this week."
+    "theAsk": "2-3 sentences referencing their finalInsight or desire for action. Acknowledge past failures. Offer the practical path.",
+    "closingLine": "Let's talk this week.",
+    "urgencyAnchor": "Personal anchor with time-based urgency. Kids ages. Health. Marriage. Whatever they mentioned."
   },
   
   "meta": {
-    "quotesUsed": ["Array of 8-10 direct quotes used throughout the report"],
-    "personalAnchors": ["Kids ages", "Spouse name", "Specific situations mentioned"],
-    "urgencyLevel": "high/medium/low based on patterns detected"
+    "quotesUsed": ["Array of 8-10 direct quotes used throughout"],
+    "personalAnchors": ["Kids ages", "Spouse name", "Health mentions", "Hobby mentions"],
+    "urgencyLevel": "high|medium|low",
+    "dataCompleteness": ${dataCompleteness.score},
+    "readyForClient": ${dataCompleteness.canGenerateClientReport},
+    "adminActionsNeeded": ${JSON.stringify(dataCompleteness.adminActionRequired)}
   }
 }
 
-CRITICAL REQUIREMENTS:
-1. Use their EXACT words at least 8 times (direct quotes)
-2. Include personal anchors (spouse name, kids ages if mentioned)
-3. Services ONLY appear as footnotes in "enabledBy" fields
-4. Never headline a service name
-5. Timeline phases must FEEL different, not just list features
-6. The "personalCost" in page 4 must include specific personal details they shared
-7. ROI numbers should be realistic for their business size
-8. Close with their words echoed back`;
+============================================================================
+PHASE/GAP TITLE TRANSLATIONS
+============================================================================
+
+GAPS - Use outcome-focused titles:
+| BAD (Problem-Focused) | GOOD (Outcome-Focused) |
+|-----------------------|------------------------|
+| "Founder Dependency" | "You Can't Leave" |
+| "Financial Blindness" | "You're Flying Blind" |
+| "Manual Processes" | "Everything Takes Too Long" |
+| "No Accountability" | "You Keep Trying Alone" |
+| "Key Person Risk" | "It All Sits With You" |
+
+PHASES - Headlines are outcomes:
+| SERVICE | BAD HEADLINE | GOOD HEADLINE |
+|---------|--------------|---------------|
+| Management Accounts | "Financial Reporting" | "You'll Know Your Numbers" |
+| Systems Audit | "Operational Assessment" | "You'll See Where The Time Goes" |
+| Automation | "Process Automation" | "The Manual Work Disappears" |
+| Fractional COO | "Operations Support" | "Someone Else Carries The Load" |
+| 365 Programme | "Strategic Coaching" | "You'll Have Someone In Your Corner" |
+| Business Advisory | "Exit Planning" | "You'll Know What It's Worth" |
+
+============================================================================
+VALIDATION BEFORE OUTPUT
+============================================================================
+
+Before returning, verify:
+- [ ] Client first name used throughout (not "the client")
+- [ ] 8+ direct quotes from their responses
+- [ ] Personal anchors appear 3+ times if available
+- [ ] NO service names as headlines
+- [ ] ALL services appear only in footnotes ("Enabled by:")
+- [ ] Cost of waiting includes emotional cost
+- [ ] Journey phases are outcomes, not services
+- [ ] Missing data acknowledged honestly, not fabricated
+- [ ] UK English throughout
+- [ ] No banned phrases used
+- [ ] meta.readyForClient correctly reflects data completeness`;
 
     // Call Claude via OpenRouter
     console.log('[Discovery Pass 2] Calling Claude Sonnet via OpenRouter...');
@@ -486,11 +622,18 @@ CRITICAL REQUIREMENTS:
     const tokensUsed = llmData.usage?.total_tokens || 0;
     const estimatedCost = (tokensUsed / 1000000) * 3; // Claude Sonnet pricing via OpenRouter
 
+    // Determine status based on data completeness
+    // If data is incomplete, set to 'admin_review' - admin must review before publishing to client
+    const reportStatus = dataCompleteness.canGenerateClientReport ? 'generated' : 'admin_review';
+    const engagementStatus = dataCompleteness.canGenerateClientReport ? 'pass2_complete' : 'awaiting_admin_review';
+
+    console.log(`[Pass 2] Setting status to: ${reportStatus} (data completeness: ${dataCompleteness.score}%)`);
+
     // Update report with Pass 2 results - new destination-focused structure
     await supabase
       .from('discovery_reports')
       .update({
-        status: 'generated',
+        status: reportStatus,
         // New destination-focused structure
         destination_report: narratives,
         page1_destination: narratives.page1_destination,
@@ -501,12 +644,19 @@ CRITICAL REQUIREMENTS:
         quotes_used: narratives.meta?.quotesUsed || [],
         personal_anchors: narratives.meta?.personalAnchors || [],
         urgency_level: narratives.meta?.urgencyLevel || 'medium',
+        // Data completeness tracking
+        data_completeness_score: dataCompleteness.score,
+        data_completeness_status: dataCompleteness.status,
+        missing_critical_data: dataCompleteness.missingCritical,
+        missing_important_data: dataCompleteness.missingImportant,
+        admin_actions_needed: dataCompleteness.adminActionRequired,
+        ready_for_client: dataCompleteness.canGenerateClientReport,
         // Metadata
         llm_model: 'claude-sonnet-4-20250514',
         llm_tokens_used: tokensUsed,
         llm_cost: estimatedCost,
         generation_time_ms: processingTime,
-        prompt_version: 'v3.0-destination-focused',
+        prompt_version: 'v4.0-admin-first',
         pass2_completed_at: new Date().toISOString(),
         generated_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -517,7 +667,7 @@ CRITICAL REQUIREMENTS:
     await supabase
       .from('discovery_engagements')
       .update({ 
-        status: 'pass2_complete', 
+        status: engagementStatus, 
         pass2_completed_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -528,6 +678,15 @@ CRITICAL REQUIREMENTS:
         success: true,
         engagementId,
         destinationReport: narratives,
+        dataCompleteness: {
+          score: dataCompleteness.score,
+          status: dataCompleteness.status,
+          missingCritical: dataCompleteness.missingCritical,
+          missingImportant: dataCompleteness.missingImportant,
+          canGenerateClientReport: dataCompleteness.canGenerateClientReport,
+          adminActionsNeeded: dataCompleteness.adminActionRequired
+        },
+        reportStatus,
         processingTimeMs: processingTime,
         tokensUsed,
         estimatedCost: estimatedCost.toFixed(4),
