@@ -468,7 +468,7 @@ serve(async (req) => {
       .from('discovery_engagements')
       .select(`
         *,
-        client:practice_members!discovery_engagements_client_id_fkey(id, name, company, email),
+        client:practice_members!discovery_engagements_client_id_fkey(id, name, client_company, email),
         discovery:destination_discovery(*)
       `)
       .eq('id', engagementId)

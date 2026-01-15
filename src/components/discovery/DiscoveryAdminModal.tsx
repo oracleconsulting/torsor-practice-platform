@@ -105,12 +105,12 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
       // Fetch client info
       const { data: clientData } = await supabase
         .from('practice_members')
-        .select('name, company, email')
+        .select('name, client_company, email')
         .eq('id', clientId)
         .single();
       
       if (clientData) {
-        setClientName(clientData.company || clientData.name || 'Client');
+        setClientName(clientData.client_company || clientData.name || 'Client');
       }
 
       // Fetch engagement

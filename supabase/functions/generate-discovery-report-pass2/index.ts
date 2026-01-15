@@ -181,7 +181,7 @@ serve(async (req) => {
       .from('discovery_engagements')
       .select(`
         *,
-        client:practice_members!discovery_engagements_client_id_fkey(id, name, company, email),
+        client:practice_members!discovery_engagements_client_id_fkey(id, name, client_company, email),
         discovery:destination_discovery(*)
       `)
       .eq('id', engagementId)
@@ -219,7 +219,7 @@ serve(async (req) => {
 
     // Build the prompt
     const clientName = engagement.client?.name?.split(' ')[0] || 'they'; // First name only
-    const companyName = engagement.client?.company || 'their business';
+    const companyName = engagement.client?.client_company || 'their business';
     const emotionalAnchors = report.emotional_anchors || {};
     const patterns = report.detection_patterns || {};
     const primaryRecs = report.primary_recommendations || [];
