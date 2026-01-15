@@ -150,7 +150,7 @@ INSERT INTO assessment_questions (service_line_code, section, question_id, quest
  'If money was no object and you could change ONE thing about your business tomorrow, what would it be?',
  'text', NULL,
  'Don''t filter yourself - what would genuinely transform things?',
- 400, true, 4, 'unlimited_change'),
+ 1000, true, 4, 'unlimited_change'),
 
 -- Q1.5 - Exit Mindset
 ('destination_discovery', 'Your Destination', 'dd_exit_mindset',
@@ -187,7 +187,7 @@ INSERT INTO assessment_questions (service_line_code, section, question_id, quest
  'Think about the last month. What "emergencies" pulled you away from important work - the 2am calls, the "only you can fix this" moments?',
  'text', NULL,
  'Be specific - what actually happened, who called, what broke...',
- 400, true, 9, 'emergency_log'),
+ 1000, true, 9, 'emergency_log'),
 
 -- Q2.5 - Scaling Constraint
 ('destination_discovery', 'Your Reality', 'dd_scaling_constraint',
@@ -208,7 +208,7 @@ INSERT INTO assessment_questions (service_line_code, section, question_id, quest
  'Complete this sentence: "The thing that frustrates me MOST about my business right now is..."',
  'text', NULL,
  'Be specific - what really gets to you?',
- 400, true, 12, 'core_frustration'),
+ 1000, true, 12, 'core_frustration'),
 
 -- Section 3: Your Team (5 questions)
 
@@ -238,7 +238,7 @@ INSERT INTO assessment_questions (service_line_code, section, question_id, quest
  'What does your team NOT know about the business that would surprise them?',
  'text', NULL,
  'The stuff you don''t share... the worries, the numbers, the plans...',
- 400, false, 16, 'hidden_from_team'),
+ 1000, false, 16, 'hidden_from_team'),
 
 -- Q3.5 - External View
 ('destination_discovery', 'Your Team', 'dd_external_perspective',
@@ -254,35 +254,35 @@ INSERT INTO assessment_questions (service_line_code, section, question_id, quest
  'What conversation have you been AVOIDING having?',
  'text', NULL,
  'With a team member, partner, customer, yourself...',
- 400, false, 18, 'avoided_conversation'),
+ 1000, false, 18, 'avoided_conversation'),
 
 -- Q4.2 - Hard Truth
 ('destination_discovery', 'Blind Spots', 'dd_hard_truth',
  'What''s a hard truth about your business that you''ve been reluctant to face?',
  'text', NULL,
  'The thing you know but don''t want to admit...',
- 400, false, 19, 'hard_truth'),
+ 1000, false, 19, 'hard_truth'),
 
 -- Q4.3 - Relationship Mirror
 ('destination_discovery', 'Blind Spots', 'dd_relationship_mirror',
  'Complete this sentence: "My relationship with my business feels like..."',
  'text', NULL,
  'A bad marriage I can''t leave? A needy child? An exciting puzzle? A ball and chain? A love affair gone stale?',
- 300, true, 20, 'relationship_mirror'),
+ 1000, true, 20, 'relationship_mirror'),
 
 -- Q4.4 - Sacrifice List
 ('destination_discovery', 'Blind Spots', 'dd_sacrifice_list',
  'What have you given up or sacrificed for this business?',
  'text', NULL,
  'Time with family? Your health? Holidays? Hobbies? Friendships? Peace of mind?',
- 400, true, 21, 'sacrifice_list'),
+ 1000, true, 21, 'sacrifice_list'),
 
 -- Q4.5 - Suspected Truth
 ('destination_discovery', 'Blind Spots', 'dd_suspected_truth',
  'Complete this: "If I really KNEW my numbers, I''d probably discover that..."',
  'text', NULL,
  'What do you suspect but haven''t confirmed?',
- 300, false, 22, 'suspected_truth'),
+ 1000, false, 22, 'suspected_truth'),
 
 -- Section 5: Moving Forward (3 questions)
 
@@ -291,7 +291,7 @@ INSERT INTO assessment_questions (service_line_code, section, question_id, quest
  'Wave a magic wand - what happens in your business in the next 90 days that would change everything?',
  'text', NULL,
  'Be specific - what''s the ONE thing that would transform your situation?',
- 400, true, 23, 'magic_fix'),
+ 1000, true, 23, 'magic_fix'),
 
 -- Q5.2 - Change Readiness
 ('destination_discovery', 'Moving Forward', 'dd_change_readiness',
@@ -305,7 +305,7 @@ INSERT INTO assessment_questions (service_line_code, section, question_id, quest
  'If you could tell us ONE thing that would help us help you better, what would it be?',
  'text', NULL,
  'Anything we should know that we haven''t asked...',
- 600, false, 25, 'final_insight'),
+ 1000, false, 25, 'final_insight'),
 
 -- ============================================================================
 -- PART 2: SERVICE DIAGNOSTICS (15 Questions)
@@ -424,7 +424,7 @@ INSERT INTO assessment_questions (service_line_code, section, question_id, quest
  'What''s your biggest operational frustration right now?',
  'text', NULL,
  'The thing that makes you think ''why is this so hard?''',
- 300, true, 40, 'operational_frustration');
+ 1000, true, 40, 'operational_frustration');
 
 -- Add is_active column if not exists
 ALTER TABLE assessment_questions ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
