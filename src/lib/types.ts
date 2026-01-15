@@ -14,6 +14,10 @@ export interface PracticeMember {
   role: string;
   practice_id: string;
   user_id: string | null;
+  member_type?: 'team' | 'client';
+  client_company?: string;
+  client_owner_id?: string;
+  owner?: { id: string; name: string; email: string } | null;
 }
 
 export interface SkillAssessment {
