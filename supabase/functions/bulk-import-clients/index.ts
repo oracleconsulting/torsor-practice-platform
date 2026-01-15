@@ -334,7 +334,6 @@ serve(async (req) => {
               .insert({
                 client_id: member.id,
                 practice_id: practiceId,
-                current_stage: 1,
               });
             
             if (discoveryError) {
