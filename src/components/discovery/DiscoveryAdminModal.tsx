@@ -74,7 +74,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
   
   const [generating, setGenerating] = useState(false);
   const [generatingPass, setGeneratingPass] = useState<1 | 2 | null>(null);
-  const [viewMode, setViewMode] = useState<'admin' | 'client'>('admin');
+  const [viewMode, setViewMode] = useState<'admin' | 'script' | 'client'>('admin');
   const [publishing, setPublishing] = useState(false);
   
   // Context note form
@@ -534,6 +534,175 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
               <p className="text-gray-900 dark:text-white italic">"{String(value)}"</p>
             </div>
           ))}
+      </div>
+    );
+  };
+
+  // ============================================================================
+  // CALL SCRIPT GENERATOR - For admin to use during discovery calls
+  // ============================================================================
+  const renderCallScript = () => {
+    const firstName = clientName?.split(' ')[0] || 'there';
+    const missingCritical = report?.missing_critical_data || [];
+    const missingImportant = report?.missing_important_data || [];
+    const anchors = report?.emotional_anchors || {};
+    
+    // Questions mapped to missing data fields
+    const questionBank: Record<string, { question: string; followUp: string; capture: string }> = {
+      'Tuesday Vision (5-year picture)': {
+        question: `"${firstName}, I want to understand what success really looks like for you. Forget the business for a second - paint me a picture of your ideal Tuesday, five years from now. What time do you wake up? What does your morning look like? Who are you with?"`,
+        followUp: `"And what are you NOT doing on that Tuesday? What have you stopped doing?"`,
+        capture: 'Capture: Specific times, activities, people, feelings, what they\'ve stopped doing'
+      },
+      'Core Frustration': {
+        question: `"${firstName}, when you think about your business right now, what frustrates you most? Not the daily annoyances, but the deep stuff - the thing that makes you think 'why is this still happening?'"`,
+        followUp: `"How long has that been the case? What have you tried to fix it?"`,
+        capture: 'Capture: The frustration, how long, what they\'ve tried'
+      },
+      'Emergency Log (recent disruptions)': {
+        question: `"${firstName}, think about the last month. What emergencies or unexpected issues pulled you away from what you should have been doing? Walk me through the last few times you had to drop everything."`,
+        followUp: `"How many hours a week would you say you spend firefighting vs. actual work that moves things forward?"`,
+        capture: 'Capture: Specific emergencies, patterns, hours lost'
+      },
+      'Business Relationship Metaphor': {
+        question: `"${firstName}, if your relationship with your business was a relationship with a person, what kind would it be? How would you describe it to a friend?"`,
+        followUp: `"What would need to change for that relationship to feel healthy?"`,
+        capture: 'Capture: Their metaphor, emotional language'
+      },
+      'Sacrifice List (what they\'ve given up)': {
+        question: `"${firstName}, building a business always costs something. What have you sacrificed? What have you given up or put on hold?"`,
+        followUp: `"How does your family/partner feel about those sacrifices?"`,
+        capture: 'Capture: Specific sacrifices, family impact, health, hobbies'
+      },
+      'Suspected Truth (financial gut feeling)': {
+        question: `"${firstName}, what do you suspect about your numbers that you haven't had time to confirm? If I said 'I bet you already know something's not right' - what would you point to?"`,
+        followUp: `"Which customers or jobs do you think might not be as profitable as they seem?"`,
+        capture: 'Capture: Financial suspicions, specific customers/jobs'
+      },
+      'Magic Fix (first change)': {
+        question: `"${firstName}, if I could wave a magic wand and fix ONE thing in your business tomorrow - what would make the biggest difference to your day-to-day?"`,
+        followUp: `"Why hasn't that been fixed already?"`,
+        capture: 'Capture: The one thing, barriers to fixing it'
+      },
+      'Hard Truth (avoided conversation)': {
+        question: `"${firstName}, is there a conversation you've been avoiding? Someone you need to talk to but haven't? A decision you've been putting off?"`,
+        followUp: `"What's holding you back from having that conversation?"`,
+        capture: 'Capture: The person, the conversation, barriers'
+      },
+      'Operational Frustration': {
+        question: `"${firstName}, what processes or systems in your business make you think 'why does this take so long?' or 'why is this still so manual?'"`,
+        followUp: `"What percentage of your team's time do you think goes on manual work that should be automated?"`,
+        capture: 'Capture: Specific processes, time wasted, manual work %'
+      },
+    };
+    
+    const allMissing = [...missingCritical, ...missingImportant];
+    
+    return (
+      <div className="space-y-6 print:space-y-4">
+        {/* Opening Script */}
+        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <h4 className="font-semibold text-blue-800 dark:text-blue-300 mb-2">📞 Call Opening</h4>
+          <p className="text-sm text-blue-700 dark:text-blue-400 italic leading-relaxed">
+            "{firstName}, thanks for taking this call. I've been through your Discovery Assessment and I've got a good sense of where things are - but I want to make sure I really understand your situation before we put anything together for you.
+            <br /><br />
+            This isn't a sales call. I just need to fill in some gaps so the report we create actually speaks to YOUR situation, not some generic advice.
+            <br /><br />
+            Is now still a good time? Great. This should take about 20-30 minutes."
+          </p>
+        </div>
+        
+        {/* What we already know */}
+        {Object.keys(anchors).length > 0 && (
+          <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
+            <h4 className="font-semibold text-emerald-800 dark:text-emerald-300 mb-2">✓ What We Already Know</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Reference these during the call to show you've done your homework:</p>
+            <ul className="text-sm space-y-2">
+              {anchors.tuesdayTest && <li><strong>Vision:</strong> "{String(anchors.tuesdayTest).substring(0, 100)}..."</li>}
+              {anchors.coreFrustration && <li><strong>Frustration:</strong> "{String(anchors.coreFrustration).substring(0, 100)}..."</li>}
+              {anchors.emergencyLog && <li><strong>Recent emergencies:</strong> "{String(anchors.emergencyLog).substring(0, 100)}..."</li>}
+              {anchors.sacrificeList && <li><strong>Sacrifices:</strong> "{String(anchors.sacrificeList).substring(0, 100)}..."</li>}
+            </ul>
+          </div>
+        )}
+        
+        {/* Questions to Ask */}
+        {allMissing.length > 0 ? (
+          <div className="space-y-4">
+            <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-purple-600" />
+              Questions to Ask ({allMissing.length})
+            </h4>
+            
+            {allMissing.map((field, idx) => {
+              const q = questionBank[field];
+              if (!q) return null;
+              
+              return (
+                <div key={idx} className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium uppercase tracking-wider text-purple-600">
+                      Question {idx + 1}: {field}
+                    </span>
+                    {missingCritical.includes(field) && (
+                      <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded">Critical</span>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-200 italic">
+                        {q.question}
+                      </p>
+                    </div>
+                    
+                    <div className="pl-4 border-l-2 border-purple-300">
+                      <p className="text-xs text-gray-500 uppercase mb-1">Follow-up:</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 italic">{q.followUp}</p>
+                    </div>
+                    
+                    <div className="p-2 bg-amber-50 dark:bg-amber-900/20 rounded text-xs text-amber-700 dark:text-amber-400">
+                      💡 {q.capture}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
+            <h4 className="font-semibold text-emerald-800 dark:text-emerald-300 mb-2">✓ All Key Data Captured</h4>
+            <p className="text-sm text-emerald-700 dark:text-emerald-400">
+              No critical questions needed. You can use this call to clarify details or dive deeper into specific areas.
+            </p>
+          </div>
+        )}
+        
+        {/* Closing Script */}
+        <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+          <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">📋 Call Closing</h4>
+          <p className="text-sm text-gray-700 dark:text-gray-300 italic leading-relaxed">
+            "{firstName}, that's really helpful. I've got a much clearer picture now.
+            <br /><br />
+            What I'm going to do is take everything you've told me - both from the assessment and this call - and put together a proper report that shows you exactly where you are, what's in the way, and what a realistic path forward looks like.
+            <br /><br />
+            That report isn't generic advice - it'll be specific to your situation, using your numbers and your priorities.
+            <br /><br />
+            I should have that ready for you within [TIMEFRAME]. Does that work?"
+          </p>
+        </div>
+        
+        {/* After-Call Checklist */}
+        <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+          <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-2">✅ After the Call</h4>
+          <ul className="text-sm text-slate-700 dark:text-slate-300 space-y-1">
+            <li>□ Add context notes with key quotes (use their exact words)</li>
+            <li>□ Note any personal anchors (spouse name, kids' ages, health mentions)</li>
+            <li>□ Record any specific numbers mentioned (hours, costs, team size)</li>
+            <li>□ Re-run Pass 2 to generate updated report</li>
+            <li>□ Review client view before publishing</li>
+          </ul>
+        </div>
       </div>
     );
   };
@@ -1120,15 +1289,24 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                     <button
                       onClick={() => setViewMode('admin')}
                       className={`px-3 py-1.5 rounded-lg text-sm ${
-                        viewMode === 'admin' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'
+                        viewMode === 'admin' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                       }`}
                     >
                       Admin View
                     </button>
                     <button
+                      onClick={() => setViewMode('script')}
+                      className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 ${
+                        viewMode === 'script' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                      Call Script
+                    </button>
+                    <button
                       onClick={() => setViewMode('client')}
                       className={`px-3 py-1.5 rounded-lg text-sm ${
-                        viewMode === 'client' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'
+                        viewMode === 'client' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                       }`}
                     >
                       Client View
@@ -1310,6 +1488,30 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                         </div>
                       )}
                     </div>
+                    </div>
+                  </div>
+                ) : viewMode === 'script' ? (
+                  /* Call Script View */
+                  <div className="max-w-3xl mx-auto">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
+                      <div className="flex items-center justify-between mb-6">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            Discovery Call Script
+                          </h3>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Use this script to guide your conversation with {clientName}
+                          </p>
+                        </div>
+                        <button 
+                          onClick={() => window.print()}
+                          className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center gap-2"
+                        >
+                          <FileText className="h-4 w-4" />
+                          Print
+                        </button>
+                      </div>
+                      {renderCallScript()}
                     </div>
                   </div>
                 ) : (

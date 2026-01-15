@@ -71,24 +71,12 @@ GRANT EXECUTE ON FUNCTION publish_discovery_report_to_client(UUID, UUID) TO auth
 
 -- Update RLS policy for client-side viewing
 -- Clients can only see reports that have been published to them
-CREATE POLICY IF NOT EXISTS "Clients can view published discovery reports"
-ON discovery_reports
-FOR SELECT
-USING (
-  ready_for_client = TRUE
-  AND status = 'published'
-  AND EXISTS (
-    SELECT 1 FROM discovery_engagements de
-    WHERE de.id = discovery_reports.engagement_id
-    AND de.client_id = auth.uid()
-  )
-);
-
--- Drop the policy if it exists and recreate (to handle IF NOT EXISTS limitation)
 DO $$
 BEGIN
+  -- Drop existing policy if it exists
   DROP POLICY IF EXISTS "Clients can view published discovery reports" ON discovery_reports;
   
+  -- Create the policy
   CREATE POLICY "Clients can view published discovery reports"
   ON discovery_reports
   FOR SELECT
@@ -101,5 +89,9 @@ BEGIN
       AND de.client_id = auth.uid()
     )
   );
+EXCEPTION
+  WHEN undefined_table THEN
+    -- Table doesn't exist yet, skip
+    NULL;
 END $$;
 
