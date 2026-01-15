@@ -11,7 +11,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { 
   ChevronLeft, ChevronRight, Target, Compass, MapPin, 
-  Sparkles, CheckCircle, Loader2, ArrowRight, Zap
+  Sparkles, CheckCircle, Loader2, ArrowRight, Zap, X, Save
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
@@ -83,6 +83,8 @@ export default function DestinationDiscoveryPage() {
   const [responses, setResponses] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [recommendations, setRecommendations] = useState<ServiceRecommendation[]>([]);
 
   // Load questions and saved responses
@@ -251,6 +253,7 @@ export default function DestinationDiscoveryPage() {
           console.error('❌ Error updating discovery:', updateError);
         } else {
           console.log('💾 Auto-saved responses (updated) for client:', clientSession.clientId, '-', Object.keys(responsesToSave).length, 'responses');
+          setLastSaved(new Date());
         }
       } else {
         // No existing incomplete record, insert new one
@@ -281,6 +284,7 @@ export default function DestinationDiscoveryPage() {
                 console.error('❌ Error on retry update:', retryError);
               } else {
                 console.log('💾 Auto-saved responses (updated on retry) for client:', clientSession.clientId);
+                setLastSaved(new Date());
               }
             }
           } else {
@@ -288,12 +292,38 @@ export default function DestinationDiscoveryPage() {
           }
         } else {
           console.log('💾 Auto-saved responses (inserted) for client:', clientSession.clientId, '-', Object.keys(responsesToSave).length, 'responses');
+          setLastSaved(new Date());
         }
       }
     } catch (err) {
       console.error('Error auto-saving responses:', err);
     }
   }, [clientSession?.clientId, clientSession?.practiceId]);
+
+  // Save and exit handler - saves immediately then navigates away
+  const handleSaveAndExit = async () => {
+    setSaving(true);
+    try {
+      // Clear any pending auto-save timeout
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      
+      // Save immediately
+      if (Object.keys(responses).length > 0) {
+        await saveResponses(responses);
+      }
+      
+      // Navigate to dashboard
+      navigate('/dashboard');
+    } catch (err) {
+      console.error('Error saving before exit:', err);
+      // Still navigate even if save fails - data should be in localStorage
+      navigate('/dashboard');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Debounced auto-save when responses change
   useEffect(() => {
@@ -487,6 +517,13 @@ export default function DestinationDiscoveryPage() {
               Let's Begin
               <ArrowRight className="w-5 h-5" />
             </button>
+            
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="w-full py-3 text-slate-400 hover:text-slate-300 font-medium transition-colors mt-3"
+            >
+              Back to Dashboard
+            </button>
           </div>
 
           {/* Footer */}
@@ -603,12 +640,36 @@ export default function DestinationDiscoveryPage() {
           />
         </div>
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-gray-600 text-sm">
-            <SectionIcon className="w-4 h-4" />
-            <span>{currentSection}</span>
+          <div className="flex items-center gap-3">
+            {/* Save & Exit button */}
+            <button
+              onClick={handleSaveAndExit}
+              disabled={saving}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors text-sm"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <X className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline">Save & Exit</span>
+            </button>
+            <div className="h-5 w-px bg-gray-200" />
+            <div className="flex items-center gap-2 text-gray-600 text-sm">
+              <SectionIcon className="w-4 h-4" />
+              <span>{currentSection}</span>
+            </div>
           </div>
-          <div className="text-gray-500 text-sm">
-            {currentSectionIndex + 1} of {sectionOrder.length}
+          <div className="flex items-center gap-3">
+            {lastSaved && (
+              <span className="text-xs text-green-600 hidden sm:flex items-center gap-1">
+                <Save className="w-3 h-3" />
+                Saved
+              </span>
+            )}
+            <div className="text-gray-500 text-sm">
+              {currentSectionIndex + 1} of {sectionOrder.length}
+            </div>
           </div>
         </div>
       </div>
