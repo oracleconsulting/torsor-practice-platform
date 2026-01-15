@@ -21,13 +21,15 @@ interface LayoutProps {
   subtitle?: string;
 }
 
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: Home },
-  { name: 'Assessments', href: '/assessments', icon: ClipboardList },
-  { name: 'Roadmap', href: '/roadmap', icon: Map },
-  { name: 'Tasks', href: '/tasks', icon: CheckSquare },
-  { name: 'Chat', href: '/chat', icon: MessageCircle },
-  { name: 'Appointments', href: '/appointments', icon: Calendar },
+// Navigation items with service requirements
+// Items with requiredServices will only show if client is enrolled in one of those services
+const allNavigation = [
+  { name: 'Dashboard', href: '/dashboard', icon: Home, requiredServices: null }, // Always show
+  { name: 'Assessments', href: '/assessments', icon: ClipboardList, requiredServices: ['365_method', '365_alignment', 'hidden_value_audit'] },
+  { name: 'Roadmap', href: '/roadmap', icon: Map, requiredServices: ['365_method', '365_alignment'] },
+  { name: 'Tasks', href: '/tasks', icon: CheckSquare, requiredServices: ['365_method', '365_alignment'] },
+  { name: 'Chat', href: '/chat', icon: MessageCircle, requiredServices: ['365_method', '365_alignment'] },
+  { name: 'Appointments', href: '/appointments', icon: Calendar, requiredServices: ['365_method', '365_alignment'] },
 ];
 
 export function Layout({ children, title, subtitle }: LayoutProps) {
@@ -40,6 +42,15 @@ export function Layout({ children, title, subtitle }: LayoutProps) {
     await signOut();
     navigate('/login');
   };
+
+  // Filter navigation based on enrolled services
+  const enrolledServices = clientSession?.enrolledServices || [];
+  const navigation = allNavigation.filter(item => {
+    // Items with no required services always show
+    if (!item.requiredServices) return true;
+    // Check if client has any of the required services
+    return item.requiredServices.some(service => enrolledServices.includes(service));
+  });
 
   return (
     <div className="min-h-screen bg-slate-50">

@@ -104,6 +104,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Get enrolled services for this client
+      let enrolledServices: string[] = [];
+      try {
+        const { data: enrollments } = await supabase
+          .from('client_service_lines')
+          .select('service_line:service_lines(code)')
+          .eq('client_id', data.id)
+          .neq('status', 'cancelled');
+        
+        enrolledServices = (enrollments || [])
+          .filter((e: any) => e.service_line?.code)
+          .map((e: any) => e.service_line.code);
+        
+        console.log('Enrolled services:', enrolledServices);
+      } catch (e) {
+        console.log('Could not load enrolled services:', e);
+      }
+
       const newSession: ClientSession = {
         clientId: data.id,
         practiceId: data.practice_id,
@@ -113,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: data.program_status || 'active',
         enrolledAt: data.program_enrolled_at,
         advisor,
+        enrolledServices, // Add enrolled services to session
       };
 
       setClientSession(newSession);

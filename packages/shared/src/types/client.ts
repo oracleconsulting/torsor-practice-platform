@@ -51,6 +51,7 @@ export interface ClientSession {
     name: string;
     email: string;
   } | null;
+  enrolledServices?: string[]; // Service codes the client is enrolled in
 }
 
 export interface ClientEngagementSummary {
