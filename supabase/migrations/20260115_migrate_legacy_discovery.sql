@@ -10,9 +10,10 @@ INSERT INTO discovery_engagements (
   id,
   practice_id,
   client_id,
+  discovery_id,
   status,
-  started_at,
-  completed_at,
+  assessment_started_at,
+  assessment_completed_at,
   created_at,
   updated_at
 )
@@ -20,9 +21,10 @@ SELECT
   gen_random_uuid(),
   dd.practice_id,
   dd.client_id,
+  dd.id,
   CASE 
-    WHEN dd.completed_at IS NOT NULL THEN 'completed'
-    ELSE 'in_progress'
+    WHEN dd.completed_at IS NOT NULL THEN 'responses_complete'
+    ELSE 'pending_responses'
   END,
   dd.created_at,
   dd.completed_at,
