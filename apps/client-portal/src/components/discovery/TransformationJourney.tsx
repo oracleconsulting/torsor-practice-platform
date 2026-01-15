@@ -2,6 +2,9 @@
 // Components for rendering the "travel agent" view of the discovery analysis
 // Sells the destination, not the planes
 
+import { useState } from 'react';
+import { ServiceDetailPopup } from '../ServiceDetailPopup';
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -119,6 +122,34 @@ export function JourneyPhaseCard({
   phase: TransformationPhase; 
   isLast: boolean;
 }>) {
+  const [showServicePopup, setShowServicePopup] = useState(false);
+
+  // Normalize service names - fix "365 Alignment Programme" to "Goal Alignment Programme"
+  const getDisplayName = (name: string) => {
+    if (name.toLowerCase().includes('365 alignment') || name.toLowerCase().includes('365 method')) {
+      return 'Goal Alignment Programme';
+    }
+    return name;
+  };
+
+  // Map service names to codes for the popup
+  const getServiceCode = (name: string, code?: string) => {
+    if (code) return code;
+    const nameLower = name.toLowerCase();
+    if (nameLower.includes('365') || nameLower.includes('goal alignment')) return '365_method';
+    if (nameLower.includes('systems audit')) return 'systems_audit';
+    if (nameLower.includes('management account')) return 'management_accounts';
+    if (nameLower.includes('fractional cfo')) return 'fractional_cfo';
+    if (nameLower.includes('hidden value')) return 'hidden_value_audit';
+    if (nameLower.includes('benchmark')) return 'benchmarking';
+    if (nameLower.includes('automation')) return 'automation';
+    if (nameLower.includes('exit')) return 'exit_planning';
+    return 'discovery';
+  };
+
+  const displayName = getDisplayName(phase.enabledBy);
+  const serviceCode = getServiceCode(phase.enabledBy, phase.enabledByCode);
+
   return (
     <div className="relative">
       {/* Timeline connector */}
@@ -159,10 +190,16 @@ export function JourneyPhaseCard({
             "{phase.whatChanges}"
           </p>
           
-          {/* Enabled by - the plane (small, footnote-style) */}
+          {/* Enabled by - CLICKABLE link to service details */}
           <div className="flex items-center justify-between text-sm text-gray-500">
             <span>
-              Enabled by: <span className="font-medium text-gray-700">{phase.enabledBy}</span>
+              Enabled by:{' '}
+              <button
+                onClick={() => setShowServicePopup(true)}
+                className="font-medium text-teal-600 hover:text-teal-700 underline underline-offset-2 decoration-teal-300 hover:decoration-teal-500 transition-colors"
+              >
+                {displayName}
+              </button>
             </span>
             <span className="font-semibold text-teal-600">
               {phase.investment}
@@ -170,6 +207,15 @@ export function JourneyPhaseCard({
           </div>
         </div>
       </div>
+
+      {/* Service Detail Popup */}
+      {showServicePopup && (
+        <ServiceDetailPopup
+          serviceCode={serviceCode}
+          serviceName={displayName}
+          onClose={() => setShowServicePopup(false)}
+        />
+      )}
     </div>
   );
 }
