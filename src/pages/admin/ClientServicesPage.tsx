@@ -783,6 +783,44 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         // Don't throw - assessments might not exist
       }
 
+      // Delete from audit_advisory_insights FIRST (references both destination_discovery and practice_members)
+      const { error: auditInsightsError } = await supabase
+        .from('audit_advisory_insights')
+        .delete()
+        .eq('client_id', clientToDelete.id);
+
+      if (auditInsightsError) {
+        console.error('Error deleting audit advisory insights:', auditInsightsError);
+        // Don't throw - might not exist
+      }
+
+      // Delete from discovery_reports (via discovery_engagements)
+      const { data: discoveryEngagementForDelete } = await supabase
+        .from('discovery_engagements')
+        .select('id')
+        .eq('client_id', clientToDelete.id)
+        .maybeSingle();
+      
+      if (discoveryEngagementForDelete) {
+        const { error: discoveryReportsError } = await supabase
+          .from('discovery_reports')
+          .delete()
+          .eq('engagement_id', discoveryEngagementForDelete.id);
+        
+        if (discoveryReportsError) {
+          console.error('Error deleting discovery reports:', discoveryReportsError);
+        }
+        
+        const { error: discoveryEngError } = await supabase
+          .from('discovery_engagements')
+          .delete()
+          .eq('id', discoveryEngagementForDelete.id);
+        
+        if (discoveryEngError) {
+          console.error('Error deleting discovery engagement:', discoveryEngError);
+        }
+      }
+
       // Delete from destination_discovery
       const { error: discoveryError } = await supabase
         .from('destination_discovery')
@@ -3544,8 +3582,9 @@ function DiscoveryClientModal({
           <div className="flex items-center gap-3">
             <button
               onClick={handleGenerateReport}
-              disabled={generatingReport || !discovery?.completed_at}
+              disabled={generatingReport || (!discovery?.completed_at && !discovery?.responses)}
               className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium"
+              title={!discovery?.completed_at && discovery?.responses ? 'Generate from partial responses' : undefined}
             >
               {generatingReport ? (
                 <>
