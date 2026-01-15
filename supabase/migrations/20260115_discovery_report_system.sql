@@ -373,10 +373,12 @@ CREATE TRIGGER trigger_create_discovery_engagement
 CREATE OR REPLACE FUNCTION update_discovery_engagement_status()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Check if all required fields are filled (simplified check)
-    IF NEW.dd_five_year_vision IS NOT NULL 
-       AND NEW.dd_change_readiness IS NOT NULL 
-       AND NEW.sd_financial_confidence IS NOT NULL THEN
+    -- Check if key required fields are filled in the JSONB responses column
+    -- The responses are stored as: responses->>'dd_five_year_vision' etc.
+    IF NEW.responses IS NOT NULL 
+       AND NEW.responses->>'dd_five_year_vision' IS NOT NULL 
+       AND NEW.responses->>'dd_change_readiness' IS NOT NULL 
+       AND NEW.responses->>'sd_financial_confidence' IS NOT NULL THEN
         
         UPDATE discovery_engagements
         SET status = 'responses_complete',
