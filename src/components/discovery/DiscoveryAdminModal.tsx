@@ -16,12 +16,9 @@ import {
   FileText,
   Upload,
   Plus,
-  Eye,
-  Edit2,
   Save,
   Send,
   RefreshCw,
-  CheckCircle,
   AlertTriangle,
   Clock,
   MessageSquare,
@@ -78,7 +75,6 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
   const [generating, setGenerating] = useState(false);
   const [generatingPass, setGeneratingPass] = useState<1 | 2 | null>(null);
   const [viewMode, setViewMode] = useState<'admin' | 'client'>('admin');
-  const [isEditing, setIsEditing] = useState(false);
   const [publishing, setPublishing] = useState(false);
   
   // Context note form

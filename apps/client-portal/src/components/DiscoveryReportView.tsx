@@ -7,7 +7,6 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { useClientAuth } from '../contexts/AuthContext';
 import {
   Loader2,
   Target,
@@ -54,7 +53,6 @@ const SERVICE_COLORS: Record<string, string> = {
 };
 
 export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
-  const { clientSession } = useClientAuth();
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState<any>(null);
   const [engagement, setEngagement] = useState<any>(null);
