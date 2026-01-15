@@ -409,20 +409,35 @@ function scoreServicesFromDiscovery(responses: Record<string, any>): ScoringResu
   let priorityCounter = 1;
   for (const rec of recommendations) { if (rec.score >= 50) rec.priority = priorityCounter++; }
 
+  // Extract emotional anchors - with fallbacks for legacy question IDs
   const emotionalAnchors: Record<string, string> = {
-    tuesdayTest: responses.dd_five_year_vision || '',
-    unlimitedChange: responses.dd_unlimited_change || '',
+    // Primary field || Legacy fallback
+    tuesdayTest: responses.dd_five_year_vision || responses.dd_five_year_picture || '',
+    unlimitedChange: responses.dd_unlimited_change || responses.dd_what_would_change || '',
     emergencyLog: responses.dd_emergency_log || '',
-    coreFrustration: responses.dd_core_frustration || '',
-    hiddenFromTeam: responses.dd_hidden_from_team || '',
+    coreFrustration: responses.dd_core_frustration || responses.dd_biggest_frustration || '',
+    hiddenFromTeam: responses.dd_hidden_from_team || responses.dd_team_secret || '',
     avoidedConversation: responses.dd_avoided_conversation || '',
     hardTruth: responses.dd_hard_truth || '',
-    relationshipMirror: responses.dd_relationship_mirror || '',
+    relationshipMirror: responses.dd_relationship_mirror || responses.dd_external_view || '',
     sacrificeList: responses.dd_sacrifice_list || '',
     suspectedTruth: responses.dd_suspected_truth || '',
     magicFix: responses.dd_magic_fix || '',
     operationalFrustration: responses.sd_operational_frustration || '',
-    finalInsight: responses.dd_final_insight || '',
+    finalInsight: responses.dd_final_insight || responses.dd_final_message || '',
+    // Additional legacy fields that provide value
+    ownerHours: responses.dd_owner_hours || '',
+    timeBreakdown: responses.dd_time_breakdown || '',
+    founderDependency: responses.sd_founder_dependency || '',
+    keyPersonRisk: responses.dd_key_person_risk || '',
+    manualWork: responses.sd_manual_work || '',
+    numbersAction: responses.sd_numbers_action || '',
+    holidayReality: responses.dd_holiday_reality || '',
+    changeReadiness: responses.dd_change_readiness || '',
+    successDefinition: responses.dd_success_definition || '',
+    nonNegotiables: Array.isArray(responses.dd_non_negotiables) 
+      ? responses.dd_non_negotiables.join(', ') 
+      : responses.dd_non_negotiables || '',
   };
 
   return { scores, patterns, emotionalAnchors, recommendations };
