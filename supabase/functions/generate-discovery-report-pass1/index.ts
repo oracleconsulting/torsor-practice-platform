@@ -482,6 +482,10 @@ serve(async (req) => {
       throw new Error('No discovery responses found for this engagement');
     }
 
+    // Get responses from the JSONB column (not individual columns)
+    const discoveryResponses = engagement.discovery.responses || engagement.discovery;
+    console.log('[Pass 1] Discovery responses keys:', Object.keys(discoveryResponses || {}));
+
     // Fetch any additional context notes
     const { data: contextNotes } = await supabase
       .from('discovery_context_notes')
@@ -496,8 +500,8 @@ serve(async (req) => {
       .eq('engagement_id', engagementId)
       .eq('is_for_ai_analysis', true);
 
-    // Run scoring algorithm
-    const scoringResult = scoreServicesFromDiscovery(engagement.discovery);
+    // Run scoring algorithm - pass the responses (from JSONB column or direct)
+    const scoringResult = scoreServicesFromDiscovery(discoveryResponses);
 
     // Split recommendations into primary (top 3 with score >= 50) and secondary
     const primaryRecommendations = scoringResult.recommendations
@@ -524,7 +528,7 @@ serve(async (req) => {
       detection_patterns: scoringResult.patterns,
       emotional_anchors: scoringResult.emotionalAnchors,
       urgency_multiplier: scoringResult.patterns.urgencyMultiplier,
-      change_readiness: engagement.discovery.dd_change_readiness,
+      change_readiness: discoveryResponses.dd_change_readiness || engagement.discovery.dd_change_readiness,
       primary_recommendations: primaryRecommendations,
       secondary_recommendations: secondaryRecommendations,
       pass1_completed_at: new Date().toISOString(),
@@ -588,7 +592,7 @@ serve(async (req) => {
         lifestyle_transformation_detected: scoringResult.patterns.lifestyleTransformationDetected,
         lifestyle_signals: scoringResult.patterns.lifestyleSignals,
         urgency_multiplier: scoringResult.patterns.urgencyMultiplier,
-        change_readiness: engagement.discovery.dd_change_readiness,
+        change_readiness: discoveryResponses.dd_change_readiness || engagement.discovery.dd_change_readiness,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'discovery_id' });
 
