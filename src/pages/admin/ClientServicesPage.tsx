@@ -210,6 +210,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   const [bulkImportData, setBulkImportData] = useState('');
   const [bulkImporting, setBulkImporting] = useState(false);
   const [bulkImportResults, setBulkImportResults] = useState<any>(null);
+  const [bulkSendEmails, setBulkSendEmails] = useState(false); // Default: NO auto emails
   const [deletingClient, setDeletingClient] = useState<string | null>(null);
   const [clientToDelete, setClientToDelete] = useState<{ id: string; name: string; email: string } | null>(null);
 
@@ -371,7 +372,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         body: {
           practiceId: currentMember.practice_id,
           clients,
-          sendEmails: true,
+          sendEmails: bulkSendEmails, // User controls whether to send emails
           portalUrl: 'https://torsor.co.uk/client',
           invitedByName: currentMember.name || 'Your Advisor'
         }
@@ -1398,6 +1399,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                     setShowBulkImportModal(false);
                     setBulkImportData('');
                     setBulkImportResults(null);
+                    setBulkSendEmails(false);
                   }}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
@@ -1452,6 +1454,27 @@ Jeremy Baron	jeremy@baronsec.com	Baron Securities"
                       </div>
                     )}
 
+                    {/* Email Option */}
+                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <div>
+                          <h3 className="font-medium text-gray-900">Send welcome emails automatically?</h3>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {bulkSendEmails 
+                              ? 'Clients will receive an email with their login credentials'
+                              : 'No emails sent - you will share credentials personally'
+                            }
+                          </p>
+                        </div>
+                        <div 
+                          onClick={() => setBulkSendEmails(!bulkSendEmails)}
+                          className={`relative w-12 h-6 rounded-full transition-colors ${bulkSendEmails ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                        >
+                          <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${bulkSendEmails ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                        </div>
+                      </label>
+                    </div>
+
                     {/* What happens */}
                     <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
                       <h3 className="font-medium text-amber-900 mb-2">What happens when you import</h3>
@@ -1462,15 +1485,15 @@ Jeremy Baron	jeremy@baronsec.com	Baron Securities"
                         </div>
                         <div className="flex items-center gap-2">
                           <CheckCircle className="w-4 h-4 text-amber-600" />
-                          <span>Each client receives a welcome email with login details</span>
+                          <span>Credentials shown after import so you can share them</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <CheckCircle className="w-4 h-4 text-amber-600" />
-                          <span>Clients are enrolled in Destination Discovery</span>
+                          <span>Clients enrolled in <strong>Destination Discovery</strong></span>
                         </div>
                         <div className="flex items-center gap-2">
                           <CheckCircle className="w-4 h-4 text-amber-600" />
-                          <span>Discovery results will guide service line allocation</span>
+                          <span>When they log in, Discovery assessment appears immediately</span>
                         </div>
                       </div>
                     </div>
@@ -1502,33 +1525,71 @@ Jeremy Baron	jeremy@baronsec.com	Baron Securities"
                       </div>
                     </div>
 
-                    {/* Results Details */}
-                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                        <h4 className="font-medium text-gray-900">Import Details</h4>
+                    {/* Credentials Table - Copyable */}
+                    {bulkImportResults.results?.some((r: any) => r.success) && (
+                      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                        <div className="px-4 py-3 bg-emerald-50 border-b border-emerald-200 flex items-center justify-between">
+                          <h4 className="font-medium text-emerald-900">📋 Client Credentials</h4>
+                          <button
+                            onClick={() => {
+                              const successResults = bulkImportResults.results.filter((r: any) => r.success);
+                              const text = successResults.map((r: any) => 
+                                `${r.name}\t${r.email}\t${r.password}`
+                              ).join('\n');
+                              navigator.clipboard.writeText(`Name\tEmail\tPassword\n${text}`);
+                              alert('Credentials copied to clipboard!');
+                            }}
+                            className="text-xs px-3 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
+                          >
+                            Copy All
+                          </button>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email (Username)</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Password</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {bulkImportResults.results?.filter((r: any) => r.success).map((result: any, idx: number) => (
+                                <tr key={idx} className="hover:bg-gray-50">
+                                  <td className="px-4 py-2 font-medium text-gray-900">{result.name}</td>
+                                  <td className="px-4 py-2 text-gray-600">{result.email}</td>
+                                  <td className="px-4 py-2">
+                                    <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono">{result.password}</code>
+                                  </td>
+                                  <td className="px-4 py-2 text-gray-500">{result.company || '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="px-4 py-3 bg-blue-50 border-t border-blue-200 text-xs text-blue-700">
+                          <strong>Portal URL:</strong> https://torsor.co.uk/client
+                        </div>
                       </div>
-                      <div className="max-h-64 overflow-y-auto">
-                        {bulkImportResults.results?.map((result: any, idx: number) => (
-                          <div key={idx} className={`px-4 py-3 border-b border-gray-100 flex items-center justify-between ${result.success ? '' : 'bg-red-50'}`}>
-                            <div className="flex items-center gap-3">
-                              {result.success ? (
-                                <CheckCircle className="w-5 h-5 text-emerald-500" />
-                              ) : (
-                                <AlertCircle className="w-5 h-5 text-red-500" />
-                              )}
-                              <span className="text-sm font-medium text-gray-900">{result.email}</span>
-                            </div>
-                            {result.success ? (
-                              <span className="text-xs text-emerald-600">
-                                {result.emailSent ? '✉️ Email sent' : 'Created (no email)'}
-                              </span>
-                            ) : (
+                    )}
+
+                    {/* Failed Imports */}
+                    {bulkImportResults.results?.some((r: any) => !r.success) && (
+                      <div className="bg-white rounded-lg border border-red-200 overflow-hidden">
+                        <div className="px-4 py-3 bg-red-50 border-b border-red-200">
+                          <h4 className="font-medium text-red-900">⚠️ Failed Imports</h4>
+                        </div>
+                        <div className="max-h-32 overflow-y-auto">
+                          {bulkImportResults.results?.filter((r: any) => !r.success).map((result: any, idx: number) => (
+                            <div key={idx} className="px-4 py-2 border-b border-red-100 flex items-center justify-between">
+                              <span className="text-sm text-gray-900">{result.name || result.email}</span>
                               <span className="text-xs text-red-600">{result.error}</span>
-                            )}
-                          </div>
-                        ))}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1541,6 +1602,7 @@ Jeremy Baron	jeremy@baronsec.com	Baron Securities"
                       onClick={() => {
                         setShowBulkImportModal(false);
                         setBulkImportData('');
+                        setBulkSendEmails(false);
                       }}
                       className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600"
                     >
@@ -1574,6 +1636,7 @@ Jeremy Baron	jeremy@baronsec.com	Baron Securities"
                       setShowBulkImportModal(false);
                       setBulkImportData('');
                       setBulkImportResults(null);
+                      setBulkSendEmails(false);
                     }}
                     className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
                   >

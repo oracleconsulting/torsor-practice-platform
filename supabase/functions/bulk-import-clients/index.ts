@@ -33,6 +33,9 @@ interface ImportRequest {
 
 interface ImportResult {
   email: string;
+  name: string;
+  company?: string;
+  password?: string; // Include password so user can share manually
   success: boolean;
   error?: string;
   memberId?: string;
@@ -223,6 +226,7 @@ serve(async (req) => {
         if (existingMember) {
           results.push({
             email,
+            name,
             success: false,
             error: 'Client already exists in this practice'
           });
@@ -242,12 +246,14 @@ serve(async (req) => {
           if (authError.message?.includes('already been registered')) {
             results.push({
               email,
+              name,
               success: false,
               error: 'Email already registered in auth system'
             });
           } else {
             results.push({
               email,
+              name,
               success: false,
               error: authError.message
             });
@@ -258,6 +264,7 @@ serve(async (req) => {
         if (!authData.user) {
           results.push({
             email,
+            name,
             success: false,
             error: 'Failed to create auth user'
           });
@@ -285,6 +292,7 @@ serve(async (req) => {
           await supabase.auth.admin.deleteUser(authData.user.id);
           results.push({
             email,
+            name,
             success: false,
             error: `Failed to create practice member: ${memberError.message}`
           });
@@ -322,6 +330,9 @@ serve(async (req) => {
 
         results.push({
           email,
+          name,
+          company: company || undefined,
+          password, // Include password so user can share manually
           success: true,
           memberId: member.id,
           emailSent
@@ -333,6 +344,7 @@ serve(async (req) => {
         console.error(`[Bulk Import] Error processing ${email}:`, clientError);
         results.push({
           email,
+          name,
           success: false,
           error: clientError.message || 'Unknown error'
         });
