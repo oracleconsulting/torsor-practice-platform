@@ -301,25 +301,47 @@ serve(async (req) => {
 
         // Enroll in Discovery service line
         if (discoveryService && member) {
-          await supabase
+          const { error: enrollError } = await supabase
             .from('client_service_lines')
             .insert({
               client_id: member.id,
               service_line_id: discoveryService.id,
               status: 'pending_discovery'
             });
+          
+          if (enrollError) {
+            console.error(`[Bulk Import] Failed to enroll ${email} in Discovery:`, enrollError);
+          } else {
+            console.log(`[Bulk Import] Enrolled ${email} in Discovery service line`);
+          }
+        } else if (!discoveryService) {
+          console.warn(`[Bulk Import] Discovery service line not found in database - skipping enrollment for ${email}`);
         }
 
         // Create a destination_discovery record so they appear in the Discovery list
         if (member) {
-          await supabase
+          // Check if discovery record already exists
+          const { data: existingDiscovery } = await supabase
             .from('destination_discovery')
-            .upsert({
-              client_id: member.id,
-              practice_id: practiceId,
-              current_stage: 1,
-              // No completed_at - they haven't completed it yet
-            }, { onConflict: 'client_id' });
+            .select('id')
+            .eq('client_id', member.id)
+            .maybeSingle();
+          
+          if (!existingDiscovery) {
+            const { error: discoveryError } = await supabase
+              .from('destination_discovery')
+              .insert({
+                client_id: member.id,
+                practice_id: practiceId,
+                current_stage: 1,
+              });
+            
+            if (discoveryError) {
+              console.error(`[Bulk Import] Failed to create discovery record for ${email}:`, discoveryError);
+            } else {
+              console.log(`[Bulk Import] Created discovery record for ${email}`);
+            }
+          }
         }
 
         // Send welcome email
