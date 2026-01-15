@@ -110,6 +110,9 @@ CREATE INDEX IF NOT EXISTS idx_discovery_service_triggers_service_code ON discov
 -- Clear existing discovery questions and insert the new 40-question set
 -- NOTE: Disable any audit triggers temporarily to avoid practice_id reference errors
 
+-- Add ai_anchor column if it doesn't exist
+ALTER TABLE assessment_questions ADD COLUMN IF NOT EXISTS ai_anchor TEXT;
+
 -- Temporarily disable USER triggers on assessment_questions (not system/constraint triggers)
 ALTER TABLE assessment_questions DISABLE TRIGGER USER;
 
