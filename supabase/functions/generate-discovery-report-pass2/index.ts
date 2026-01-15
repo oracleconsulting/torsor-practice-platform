@@ -156,7 +156,10 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY')!;
+    const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
+    if (!openRouterKey) {
+      throw new Error('OPENROUTER_API_KEY not configured');
+    }
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const startTime = Date.now();
@@ -435,33 +438,34 @@ CRITICAL REQUIREMENTS:
 7. ROI numbers should be realistic for their business size
 8. Close with their words echoed back`;
 
-    // Call Claude API
-    const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
+    // Call Claude via OpenRouter
+    console.log('[Discovery Pass 2] Calling Claude Sonnet via OpenRouter...');
+    const llmResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${openRouterKey}`,
         'Content-Type': 'application/json',
-        'x-api-key': anthropicKey,
-        'anthropic-version': '2023-06-01'
+        'HTTP-Referer': 'https://torsor.co.uk',
+        'X-Title': 'Torsor Discovery Pass 2'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 8000,
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ]
+        model: 'anthropic/claude-sonnet-4-20250514',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+        max_tokens: 8000
       })
     });
 
-    if (!anthropicResponse.ok) {
-      const errText = await anthropicResponse.text();
-      throw new Error(`Anthropic API error: ${errText}`);
+    if (!llmResponse.ok) {
+      const errText = await llmResponse.text();
+      throw new Error(`OpenRouter API error: ${errText}`);
     }
 
-    const anthropicData = await anthropicResponse.json();
-    const responseText = anthropicData.content[0].text;
+    const llmData = await llmResponse.json();
+    let responseText = llmData.choices[0].message.content.trim();
+    
+    // Remove markdown code fences if present
+    responseText = responseText.replace(/^```[a-z]*\s*\n?/gi, '').replace(/\n?```\s*$/g, '').trim();
 
     // Extract JSON from response
     let narratives;
@@ -479,8 +483,8 @@ CRITICAL REQUIREMENTS:
     }
 
     const processingTime = Date.now() - startTime;
-    const tokensUsed = anthropicData.usage?.input_tokens + anthropicData.usage?.output_tokens || 0;
-    const estimatedCost = (anthropicData.usage?.input_tokens || 0) * 0.003 / 1000 + (anthropicData.usage?.output_tokens || 0) * 0.015 / 1000;
+    const tokensUsed = llmData.usage?.total_tokens || 0;
+    const estimatedCost = (tokensUsed / 1000000) * 3; // Claude Sonnet pricing via OpenRouter
 
     // Update report with Pass 2 results - new destination-focused structure
     await supabase
