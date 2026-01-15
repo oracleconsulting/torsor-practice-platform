@@ -1144,20 +1144,20 @@ serve(async (req) => {
           scoringResult.emotionalAnchors, 
           service.score
         );
-        recommendations.push({
-          rank: i + 1,
+          recommendations.push({
+            rank: i + 1,
           service: {
             code: service.code,
             name: service.name,
             ...SERVICE_LINES[service.code]
           },
-          valueProposition: vp,
-          score: service.score,
+            valueProposition: vp,
+            score: service.score,
           confidence: service.confidence,
           triggers: service.triggers.slice(0, 5), // Top 5 triggers for context
           priority: service.priority,
           isFoundational: service.code === '365_method' && service.score >= 50
-        });
+          });
       }
 
       // Check if combined_advisory is recommended

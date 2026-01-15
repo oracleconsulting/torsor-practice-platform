@@ -2202,6 +2202,89 @@ function DiscoveryClientModal({
       if (analysisResult?.success && analysisResult?.report) {
         setGeneratedReport(analysisResult.report);
         setActiveTab('analysis'); // Switch to analysis tab to show report
+        
+        // ================================================================
+        // STAGE 4: Generate DESTINATION-FOCUSED report (Client View)
+        // ================================================================
+        console.log('Stage 4: Generating destination-focused client view...');
+        
+        try {
+          // Check if discovery_engagement exists, if not create one
+          let engagementId = discoveryEngagement?.id;
+          
+          if (!engagementId) {
+            // Check for existing engagement
+            const { data: existingEng } = await supabase
+              .from('discovery_engagements')
+              .select('id')
+              .eq('client_id', clientId)
+              .maybeSingle();
+            
+            if (existingEng) {
+              engagementId = existingEng.id;
+            } else {
+              // Create new engagement
+              const { data: newEng, error: engError } = await supabase
+                .from('discovery_engagements')
+                .insert({
+                  client_id: clientId,
+                  discovery_id: discovery?.id,
+                  practice_id: client?.practice_id,
+                  status: 'responses_complete'
+                })
+                .select('id')
+                .single();
+              
+              if (engError) {
+                console.warn('Stage 4: Could not create engagement:', engError.message);
+              } else {
+                engagementId = newEng?.id;
+                setDiscoveryEngagement(newEng);
+              }
+            }
+          }
+          
+          if (engagementId) {
+            // Run Pass 1 (extraction & scoring)
+            console.log('Stage 4a: Running Pass 1 (extraction)...');
+            const { data: pass1Data, error: pass1Error } = await supabase.functions.invoke('generate-discovery-report-pass1', {
+              body: { engagementId }
+            });
+            
+            if (pass1Error) {
+              console.warn('Stage 4a: Pass 1 error:', pass1Error.message);
+            } else {
+              console.log('Stage 4a: Pass 1 complete:', pass1Data);
+              
+              // Run Pass 2 (destination-focused narrative)
+              console.log('Stage 4b: Running Pass 2 (narrative)...');
+              const { data: pass2Data, error: pass2Error } = await supabase.functions.invoke('generate-discovery-report-pass2', {
+                body: { engagementId }
+              });
+              
+              if (pass2Error) {
+                console.warn('Stage 4b: Pass 2 error:', pass2Error.message);
+              } else {
+                console.log('Stage 4b: Pass 2 complete:', pass2Data);
+                
+                // Fetch the updated destination report
+                const { data: destReport } = await supabase
+                  .from('discovery_reports')
+                  .select('*')
+                  .eq('engagement_id', engagementId)
+                  .maybeSingle();
+                
+                if (destReport?.destination_report) {
+                  setDestinationReport(destReport);
+                  console.log('✅ Destination-focused client view ready!');
+                }
+              }
+            }
+          }
+        } catch (stage4Error) {
+          console.warn('Stage 4: Destination-focused generation skipped:', stage4Error);
+          // Don't fail the whole process - admin view is still available
+        }
       } else {
         throw new Error(analysisResult?.error || 'Failed to generate report');
       }

@@ -655,10 +655,10 @@ export default function DestinationDiscoveryPage() {
               <span className="hidden sm:inline">Save & Exit</span>
             </button>
             <div className="h-5 w-px bg-gray-200" />
-            <div className="flex items-center gap-2 text-gray-600 text-sm">
-              <SectionIcon className="w-4 h-4" />
-              <span>{currentSection}</span>
-            </div>
+          <div className="flex items-center gap-2 text-gray-600 text-sm">
+            <SectionIcon className="w-4 h-4" />
+            <span>{currentSection}</span>
+          </div>
           </div>
           <div className="flex items-center gap-3">
             {lastSaved && (
@@ -667,8 +667,8 @@ export default function DestinationDiscoveryPage() {
                 Saved
               </span>
             )}
-            <div className="text-gray-500 text-sm">
-              {currentSectionIndex + 1} of {sectionOrder.length}
+          <div className="text-gray-500 text-sm">
+            {currentSectionIndex + 1} of {sectionOrder.length}
             </div>
           </div>
         </div>
