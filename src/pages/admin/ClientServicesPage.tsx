@@ -39,7 +39,9 @@ import {
   Loader2,
   RefreshCw,
   Save,
-  BarChart3
+  BarChart3,
+  Quote,
+  Phone
 } from 'lucide-react';
 import { SAAdminReportView } from '../../components/systems-audit/SAAdminReportView';
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
@@ -1684,6 +1686,10 @@ function DiscoveryClientModal({
   const [sharingReport, setSharingReport] = useState(false);
   const [viewMode, setViewMode] = useState<'admin' | 'client'>('admin');
   
+  // NEW: Destination-focused report from discovery_reports table
+  const [destinationReport, setDestinationReport] = useState<any>(null);
+  const [discoveryEngagement, setDiscoveryEngagement] = useState<any>(null);
+  
   // Service assignment state
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [assigningServices, setAssigningServices] = useState(false);
@@ -1889,7 +1895,7 @@ function DiscoveryClientModal({
         .select('service_line_id, service_lines(code, name)')
         .eq('client_id', clientId);
 
-      // Fetch existing report if any
+      // Fetch existing report if any (legacy)
       const { data: existingReport } = await supabase
         .from('client_reports')
         .select('*')
@@ -1898,6 +1904,31 @@ function DiscoveryClientModal({
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      // NEW: Fetch destination-focused report from discovery_reports
+      const { data: discoveryEngagementData } = await supabase
+        .from('discovery_engagements')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (discoveryEngagementData) {
+        setDiscoveryEngagement(discoveryEngagementData);
+        
+        // Fetch the destination report
+        const { data: destReportData } = await supabase
+          .from('discovery_reports')
+          .select('*')
+          .eq('engagement_id', discoveryEngagementData.id)
+          .maybeSingle();
+        
+        if (destReportData?.destination_report) {
+          console.log('[Report] Found destination-focused report:', destReportData.id);
+          setDestinationReport(destReportData);
+        }
+      }
 
       // Add maDocuments to client data for display
       const clientWithMADocs = {
@@ -3824,113 +3855,457 @@ function DiscoveryClientModal({
                     )}
                   </div>
 
-                  {/* CLIENT VIEW - Narrative Report */}
-                  {viewMode === 'client' && generatedReport && (
-                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                      {/* Client Report Header */}
-                      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-8 text-white">
-                        <p className="text-indigo-200 text-sm mb-2">Discovery Report</p>
-                        <h2 className="text-2xl font-bold mb-2">
-                          {generatedReport.analysis?.executiveSummary?.headline || 'Your Path Forward'}
-                        </h2>
-                        <p className="text-indigo-100">
-                          {generatedReport.analysis?.executiveSummary?.keyInsight}
-                        </p>
-                      </div>
-                      
-                      <div className="p-6 space-y-6">
-                        {/* What We Heard */}
-                        {generatedReport.analysis?.executiveSummary?.whatWeHeard && (
-                          <div className="bg-indigo-50 rounded-lg p-6">
-                            <h3 className="text-lg font-semibold text-indigo-900 mb-3">What We Heard</h3>
-                            <p className="text-indigo-800 whitespace-pre-wrap">
-                              {generatedReport.analysis.executiveSummary.whatWeHeard}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Your Vision */}
-                        {generatedReport.analysis?.destinationAnalysis?.visionNarrative && (
-                          <div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-3">Your Vision</h3>
-                            <p className="text-gray-700 whitespace-pre-wrap">
-                              {generatedReport.analysis.destinationAnalysis.visionNarrative}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* The Gap */}
-                        {generatedReport.analysis?.gapAnalysis?.primaryGaps?.length > 0 && (
-                          <div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-3">What's Standing In Your Way</h3>
-                            <div className="space-y-4">
-                              {generatedReport.analysis.gapAnalysis.primaryGaps.slice(0, 3).map((gap: any, idx: number) => (
-                                <div key={idx} className="border-l-4 border-amber-500 pl-4">
-                                  <p className="font-medium text-gray-900">{gap.gap}</p>
-                                  {gap.evidence && (
-                                    <p className="text-gray-600 italic mt-1">"{gap.evidence}"</p>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Recommended Path */}
-                        {generatedReport.analysis?.recommendedInvestments?.length > 0 && (
-                          <div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-3">Our Recommendations</h3>
-                            <div className="space-y-4">
-                              {generatedReport.analysis.recommendedInvestments.slice(0, 3).map((inv: any, idx: number) => (
-                                <div key={idx} className="bg-emerald-50 rounded-lg p-4">
-                                  <div className="flex items-start justify-between mb-2">
-                                    <h4 className="font-semibold text-emerald-900">{inv.service}</h4>
-                                    <span className="text-emerald-600 font-bold">
-                                      {inv.monthlyInvestment || inv.annualInvestment}
+                  {/* CLIENT VIEW - Destination-Focused Report (NEW 5-Page Structure) */}
+                  {viewMode === 'client' && (destinationReport?.destination_report || generatedReport) && (
+                    <div className="bg-gray-50 rounded-xl p-6 space-y-8">
+                      {/* Check for new destination-focused structure first */}
+                      {(() => {
+                        const dest = destinationReport?.destination_report;
+                        const page1 = dest?.page1_destination || destinationReport?.page1_destination;
+                        const page2 = dest?.page2_gaps || destinationReport?.page2_gaps;
+                        const page3 = dest?.page3_journey || destinationReport?.page3_journey;
+                        const page4 = dest?.page4_numbers || destinationReport?.page4_numbers;
+                        const page5 = dest?.page5_nextSteps || dest?.page5_next_steps || destinationReport?.page5_next_steps;
+                        
+                        // If we have destination-focused data, render new structure
+                        if (page1 || page2 || page3 || page4 || page5) {
+                          return (
+                            <>
+                              {/* ============================================= */}
+                              {/* PAGE 1: THE DESTINATION YOU DESCRIBED */}
+                              {/* ============================================= */}
+                              {page1 && (
+                                <section className="bg-white rounded-xl shadow-sm overflow-hidden">
+                                  <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-6 border-b border-amber-100">
+                                    <span className="text-xs font-medium text-amber-600 uppercase tracking-widest">
+                                      Page 1 — Your Vision
                                     </span>
+                                    <h2 className="text-2xl font-serif text-slate-800 mt-2">
+                                      {page1.headerLine || "The Tuesday You're Building Towards"}
+                                    </h2>
                                   </div>
-                                  <p className="text-emerald-800">{inv.whyThisService}</p>
-                                  {inv.expectedOutcome && (
-                                    <p className="text-emerald-700 text-sm mt-2">
-                                      <strong>What changes:</strong> {inv.expectedOutcome}
-                                    </p>
+                                  <div className="p-6">
+                                    <div className="bg-slate-50 rounded-lg p-6 border-l-4 border-amber-400">
+                                      <Quote className="w-6 h-6 text-amber-400 mb-3" />
+                                      <blockquote className="text-lg text-slate-700 italic whitespace-pre-wrap leading-relaxed">
+                                        {page1.visionVerbatim}
+                                      </blockquote>
+                                    </div>
+                                    {page1.destinationClarityScore && (
+                                      <div className="mt-6 flex items-center gap-4">
+                                        <div className="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden">
+                                          <div 
+                                            className="h-full bg-gradient-to-r from-amber-400 to-emerald-500 rounded-full transition-all"
+                                            style={{ width: `${(page1.destinationClarityScore / 10) * 100}%` }}
+                                          />
+                                        </div>
+                                        <div className="text-sm">
+                                          <span className="font-bold text-emerald-600 text-lg">{page1.destinationClarityScore}/10</span>
+                                          <span className="text-gray-500 ml-2">Destination Clarity</span>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {page1.clarityExplanation && (
+                                      <p className="mt-2 text-sm text-gray-500">{page1.clarityExplanation}</p>
+                                    )}
+                                  </div>
+                                </section>
+                              )}
+
+                              {/* ============================================= */}
+                              {/* PAGE 2: WHAT'S IN THE WAY */}
+                              {/* ============================================= */}
+                              {page2 && (
+                                <section className="bg-white rounded-xl shadow-sm overflow-hidden">
+                                  <div className="bg-gradient-to-r from-rose-50 to-red-50 p-6 border-b border-rose-100">
+                                    <span className="text-xs font-medium text-rose-600 uppercase tracking-widest">
+                                      Page 2 — The Reality
+                                    </span>
+                                    <h2 className="text-2xl font-serif text-slate-800 mt-2">
+                                      {page2.headerLine || "The Gap Between Here and There"}
+                                    </h2>
+                                    {page2.openingLine && (
+                                      <p className="mt-2 text-rose-700 italic">{page2.openingLine}</p>
+                                    )}
+                                  </div>
+                                  <div className="p-6 space-y-4">
+                                    {page2.gaps?.map((gap: any, idx: number) => (
+                                      <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden">
+                                        <div className="bg-gray-50 px-4 py-3 flex items-center gap-2">
+                                          <AlertTriangle className="w-4 h-4 text-rose-500" />
+                                          <h3 className="font-semibold text-gray-900">{gap.title}</h3>
+                                        </div>
+                                        <div className="p-4 space-y-3">
+                                          <div className="bg-slate-50 rounded-lg p-3 border-l-4 border-slate-300">
+                                            <p className="text-xs font-medium text-slate-500 uppercase mb-1">The pattern:</p>
+                                            <p className="text-slate-700 italic">"{gap.pattern}"</p>
+                                          </div>
+                                          {gap.costs && (
+                                            <div>
+                                              <p className="text-xs font-medium text-slate-500 uppercase mb-1">What this costs you:</p>
+                                              <ul className="space-y-1">
+                                                {gap.costs.map((cost: string, cIdx: number) => (
+                                                  <li key={cIdx} className="flex items-start gap-2 text-gray-600">
+                                                    <span className="text-rose-400 mt-0.5">•</span>
+                                                    <span>{cost}</span>
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            </div>
+                                          )}
+                                          <div className="bg-emerald-50 rounded-lg p-3">
+                                            <p className="text-xs font-medium text-emerald-700 uppercase mb-1">The shift required:</p>
+                                            <p className="text-emerald-800">{gap.shiftRequired}</p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </section>
+                              )}
+
+                              {/* ============================================= */}
+                              {/* PAGE 3: THE JOURNEY */}
+                              {/* ============================================= */}
+                              {page3 && (
+                                <section className="bg-white rounded-xl shadow-sm overflow-hidden">
+                                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 border-b border-blue-100">
+                                    <span className="text-xs font-medium text-blue-600 uppercase tracking-widest">
+                                      Page 3 — The Path Forward
+                                    </span>
+                                    <h2 className="text-2xl font-serif text-slate-800 mt-2">
+                                      {page3.headerLine || "From Here to the 4pm Pickup"}
+                                    </h2>
+                                  </div>
+                                  
+                                  {/* Timeline Visual */}
+                                  {page3.timelineLabel && (
+                                    <div className="px-6 py-4 bg-slate-50 border-b border-gray-100">
+                                      <div className="flex items-center justify-between text-sm relative">
+                                        <div className="absolute top-1/2 left-8 right-8 h-0.5 bg-gray-300 -translate-y-1/2" />
+                                        {['now', 'month3', 'month6', 'month12'].map((key, idx) => (
+                                          <div key={key} className="relative flex flex-col items-center z-10">
+                                            <div className={`w-4 h-4 rounded-full border-2 ${
+                                              idx === 3 ? 'bg-emerald-500 border-emerald-500' : 'bg-white border-gray-400'
+                                            }`} />
+                                            <span className={`mt-1 text-xs ${idx === 3 ? 'text-emerald-600 font-medium' : 'text-gray-500'}`}>
+                                              {page3.timelineLabel[key]}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
                                   )}
+                                  
+                                  <div className="p-6 space-y-4">
+                                    {page3.phases?.map((phase: any, idx: number) => (
+                                      <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden">
+                                        <div className="bg-blue-50 px-4 py-3">
+                                          <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded mb-1">
+                                            {phase.timeframe}
+                                          </span>
+                                          <h3 className="font-semibold text-gray-900 text-lg">{phase.headline}</h3>
+                                        </div>
+                                        <div className="p-4 space-y-3">
+                                          {phase.whatChanges && (
+                                            <ul className="space-y-1">
+                                              {phase.whatChanges.map((change: string, cIdx: number) => (
+                                                <li key={cIdx} className="flex items-start gap-2 text-gray-700">
+                                                  <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                                                  <span>{change}</span>
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          )}
+                                          {phase.feelsLike && (
+                                            <div className="bg-amber-50 rounded-lg p-3 border border-amber-100">
+                                              <p className="text-xs font-medium text-amber-700 uppercase mb-1">What this feels like:</p>
+                                              <p className="text-amber-800 italic">{phase.feelsLike}</p>
+                                            </div>
+                                          )}
+                                          {phase.outcome && (
+                                            <p className="text-gray-700"><strong>The outcome:</strong> {phase.outcome}</p>
+                                          )}
+                                          <p className="text-xs text-gray-400 pt-2 border-t border-gray-100">
+                                            Enabled by: {phase.enabledBy} ({phase.price})
+                                          </p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </section>
+                              )}
+
+                              {/* ============================================= */}
+                              {/* PAGE 4: THE NUMBERS */}
+                              {/* ============================================= */}
+                              {page4 && (
+                                <section className="bg-white rounded-xl shadow-sm overflow-hidden">
+                                  <div className="bg-gradient-to-r from-slate-50 to-gray-50 p-6 border-b border-gray-200">
+                                    <span className="text-xs font-medium text-slate-600 uppercase tracking-widest">
+                                      Page 4 — The Investment
+                                    </span>
+                                    <h2 className="text-2xl font-serif text-slate-800 mt-2">
+                                      {page4.headerLine || "The Investment in Your Tuesday"}
+                                    </h2>
+                                  </div>
+                                  <div className="p-6 space-y-4">
+                                    {/* Cost of Staying */}
+                                    {page4.costOfStaying && (
+                                      <div className="bg-rose-50 border border-rose-200 rounded-lg p-4">
+                                        <h3 className="font-semibold text-rose-800 mb-3 flex items-center gap-2">
+                                          <AlertTriangle className="w-4 h-4" />
+                                          What Staying Here Costs
+                                        </h3>
+                                        <div className="space-y-2 text-rose-700">
+                                          {page4.costOfStaying.labourInefficiency && (
+                                            <div className="flex justify-between">
+                                              <span>Labour inefficiency</span>
+                                              <span className="font-medium">{page4.costOfStaying.labourInefficiency}</span>
+                                            </div>
+                                          )}
+                                          {page4.costOfStaying.marginLeakage && (
+                                            <div className="flex justify-between">
+                                              <span>Margin leakage</span>
+                                              <span className="font-medium">{page4.costOfStaying.marginLeakage}</span>
+                                            </div>
+                                          )}
+                                          {page4.costOfStaying.yourTimeWasted && (
+                                            <div className="flex justify-between">
+                                              <span>Your time on work below pay grade</span>
+                                              <span className="font-medium">{page4.costOfStaying.yourTimeWasted}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                        {page4.personalCost && (
+                                          <p className="mt-3 pt-3 border-t border-rose-200 text-rose-800 font-medium">
+                                            {page4.personalCost}
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {/* Investment */}
+                                    {page4.investment && (
+                                      <div className="border border-gray-200 rounded-lg p-4">
+                                        <h3 className="font-semibold text-gray-800 mb-3">What Moving Forward Costs</h3>
+                                        <div className="space-y-2">
+                                          {page4.investment.map((inv: any, idx: number) => (
+                                            <div key={idx} className="flex justify-between py-2 border-b border-gray-100 last:border-0">
+                                              <span className="text-gray-700">{inv.phase} — {inv.whatYouGet}</span>
+                                              <span className="font-semibold">{inv.amount}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                        {page4.totalYear1 && (
+                                          <div className="mt-3 pt-3 border-t-2 border-emerald-200 bg-emerald-50 -mx-4 -mb-4 p-4 rounded-b-lg flex justify-between">
+                                            <span className="font-medium text-emerald-800">Total Year 1</span>
+                                            <span className="font-bold text-emerald-800">{page4.totalYear1}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {/* Returns */}
+                                    {page4.returns && (
+                                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                                        <h3 className="font-semibold text-emerald-800 mb-3 flex items-center gap-2">
+                                          <TrendingUp className="w-4 h-4" />
+                                          The Return
+                                        </h3>
+                                        <div className="grid grid-cols-2 gap-4 mb-3">
+                                          <div className="bg-white rounded p-3">
+                                            <p className="text-xs text-gray-500 mb-1">Conservative</p>
+                                            <p className="text-xl font-bold text-emerald-600">{page4.returns.conservative?.total}</p>
+                                          </div>
+                                          <div className="bg-white rounded p-3">
+                                            <p className="text-xs text-emerald-600 mb-1">Realistic</p>
+                                            <p className="text-xl font-bold text-emerald-600">{page4.returns.realistic?.total}</p>
+                                          </div>
+                                        </div>
+                                        {page4.paybackPeriod && (
+                                          <p className="text-emerald-700">Payback period: <strong>{page4.paybackPeriod}</strong></p>
+                                        )}
+                                        {page4.realReturn && (
+                                          <p className="mt-3 pt-3 border-t border-emerald-200 text-emerald-800 italic">
+                                            But the real return? {page4.realReturn}
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </section>
+                              )}
+
+                              {/* ============================================= */}
+                              {/* PAGE 5: WHAT HAPPENS NEXT */}
+                              {/* ============================================= */}
+                              {page5 && (
+                                <section className="bg-white rounded-xl shadow-sm overflow-hidden">
+                                  <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-6 border-b border-emerald-100">
+                                    <span className="text-xs font-medium text-emerald-600 uppercase tracking-widest">
+                                      Page 5 — Next Steps
+                                    </span>
+                                    <h2 className="text-2xl font-serif text-slate-800 mt-2">
+                                      {page5.headerLine || "Starting The Journey"}
+                                    </h2>
+                                  </div>
+                                  <div className="p-6 space-y-4">
+                                    {page5.thisWeek && (
+                                      <div className="border border-gray-200 rounded-lg p-4">
+                                        <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                                          <Clock className="w-4 h-4 text-gray-600" />
+                                          This Week
+                                        </h3>
+                                        <p className="text-xl text-gray-700">{page5.thisWeek.action}</p>
+                                        <p className="text-gray-500 mt-1">{page5.thisWeek.tone}</p>
+                                      </div>
+                                    )}
+                                    
+                                    {page5.firstStep && (
+                                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                        <h3 className="font-semibold text-amber-800 mb-2 flex items-center gap-2">
+                                          <Target className="w-4 h-4" />
+                                          Your First Step
+                                        </h3>
+                                        <p className="text-xl text-amber-900 mb-2">{page5.firstStep.recommendation}</p>
+                                        <p className="text-amber-800">{page5.firstStep.why}</p>
+                                        {page5.firstStep.theirWordsEcho && (
+                                          <div className="mt-3 p-3 bg-white/70 rounded border-l-4 border-amber-400">
+                                            <p className="text-amber-800 italic">"{page5.firstStep.theirWordsEcho}"</p>
+                                            <p className="text-amber-600 text-sm mt-1">Let's fix that first.</p>
+                                          </div>
+                                        )}
+                                        {page5.firstStep.simpleCta && (
+                                          <p className="mt-3 text-lg font-semibold text-amber-900">{page5.firstStep.simpleCta}</p>
+                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {page5.theAsk && (
+                                      <div className="bg-slate-800 rounded-lg p-6 text-center">
+                                        <p className="text-slate-300 text-lg mb-4">{page5.theAsk}</p>
+                                        <button className="bg-amber-500 hover:bg-amber-400 text-slate-900 px-6 py-3 rounded-lg font-semibold inline-flex items-center gap-2 transition-colors">
+                                          <Phone className="w-5 h-5" />
+                                          Book a Conversation
+                                        </button>
+                                        {page5.closingLine && (
+                                          <p className="mt-4 text-amber-400 font-medium">{page5.closingLine}</p>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </section>
+                              )}
+                            </>
+                          );
+                        }
+                        
+                        // Fallback to legacy format if no destination report
+                        return (
+                          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                            {/* Legacy Client Report Header */}
+                            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-8 text-white">
+                              <p className="text-indigo-200 text-sm mb-2">Discovery Report</p>
+                              <h2 className="text-2xl font-bold mb-2">
+                                {generatedReport?.analysis?.executiveSummary?.headline || 'Your Path Forward'}
+                              </h2>
+                              <p className="text-indigo-100">
+                                {generatedReport?.analysis?.executiveSummary?.keyInsight}
+                              </p>
+                            </div>
+                            
+                            <div className="p-6 space-y-6">
+                              {/* What We Heard */}
+                              {generatedReport?.analysis?.executiveSummary?.whatWeHeard && (
+                                <div className="bg-indigo-50 rounded-lg p-6">
+                                  <h3 className="text-lg font-semibold text-indigo-900 mb-3">What We Heard</h3>
+                                  <p className="text-indigo-800 whitespace-pre-wrap">
+                                    {generatedReport.analysis.executiveSummary.whatWeHeard}
+                                  </p>
                                 </div>
-                              ))}
+                              )}
+
+                              {/* Your Vision */}
+                              {generatedReport?.analysis?.destinationAnalysis?.visionNarrative && (
+                                <div>
+                                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Your Vision</h3>
+                                  <p className="text-gray-700 whitespace-pre-wrap">
+                                    {generatedReport.analysis.destinationAnalysis.visionNarrative}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* The Gap */}
+                              {generatedReport?.analysis?.gapAnalysis?.primaryGaps?.length > 0 && (
+                                <div>
+                                  <h3 className="text-lg font-semibold text-gray-900 mb-3">What's Standing In Your Way</h3>
+                                  <div className="space-y-4">
+                                    {generatedReport.analysis.gapAnalysis.primaryGaps.slice(0, 3).map((gap: any, idx: number) => (
+                                      <div key={idx} className="border-l-4 border-amber-500 pl-4">
+                                        <p className="font-medium text-gray-900">{gap.gap}</p>
+                                        {gap.evidence && (
+                                          <p className="text-gray-600 italic mt-1">"{gap.evidence}"</p>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Recommended Path */}
+                              {generatedReport?.analysis?.recommendedInvestments?.length > 0 && (
+                                <div>
+                                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Our Recommendations</h3>
+                                  <div className="space-y-4">
+                                    {generatedReport.analysis.recommendedInvestments.slice(0, 3).map((inv: any, idx: number) => (
+                                      <div key={idx} className="bg-emerald-50 rounded-lg p-4">
+                                        <div className="flex items-start justify-between mb-2">
+                                          <h4 className="font-semibold text-emerald-900">{inv.service}</h4>
+                                          <span className="text-emerald-600 font-bold">
+                                            {inv.monthlyInvestment || inv.annualInvestment}
+                                          </span>
+                                        </div>
+                                        <p className="text-emerald-800">{inv.whyThisService}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Cost of Not Acting */}
+                              {generatedReport?.analysis?.gapAnalysis?.costOfInaction && (
+                                <div className="bg-red-50 rounded-lg p-6">
+                                  <h3 className="text-lg font-semibold text-red-900 mb-2">The Cost of Waiting</h3>
+                                  <p className="text-2xl font-bold text-red-700 mb-2">
+                                    {generatedReport.analysis.gapAnalysis.costOfInaction.annualFinancialCost || 
+                                     generatedReport.analysis.gapAnalysis.costOfInaction.annual}
+                                  </p>
+                                  <p className="text-red-800">
+                                    {generatedReport.analysis.gapAnalysis.costOfInaction.description}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Next Steps */}
+                              {generatedReport?.analysis?.nextSteps && (
+                                <div className="bg-gray-50 rounded-lg p-6">
+                                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Next Steps</h3>
+                                  <p className="text-gray-700 whitespace-pre-wrap">
+                                    {typeof generatedReport.analysis.nextSteps === 'string' 
+                                      ? generatedReport.analysis.nextSteps
+                                      : generatedReport.analysis.nextSteps.join('\n')}
+                                  </p>
+                                </div>
+                              )}
                             </div>
                           </div>
-                        )}
-
-                        {/* Cost of Not Acting */}
-                        {generatedReport.analysis?.gapAnalysis?.costOfInaction && (
-                          <div className="bg-red-50 rounded-lg p-6">
-                            <h3 className="text-lg font-semibold text-red-900 mb-2">The Cost of Waiting</h3>
-                            <p className="text-2xl font-bold text-red-700 mb-2">
-                              {generatedReport.analysis.gapAnalysis.costOfInaction.annualFinancialCost || 
-                               generatedReport.analysis.gapAnalysis.costOfInaction.annual}
-                            </p>
-                            <p className="text-red-800">
-                              {generatedReport.analysis.gapAnalysis.costOfInaction.description}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Next Steps */}
-                        {generatedReport.analysis?.nextSteps && (
-                          <div className="bg-gray-50 rounded-lg p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-3">Next Steps</h3>
-                            <p className="text-gray-700 whitespace-pre-wrap">
-                              {typeof generatedReport.analysis.nextSteps === 'string' 
-                                ? generatedReport.analysis.nextSteps
-                                : generatedReport.analysis.nextSteps.join('\n')}
-                            </p>
-                          </div>
-                        )}
-                      </div>
+                        );
+                      })()}
                     </div>
                   )}
 
-                  {viewMode === 'client' && !generatedReport && (
+                  {viewMode === 'client' && !generatedReport && !destinationReport && (
                     <div className="text-center py-12 bg-gray-50 rounded-xl">
                       <Sparkles className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                       <p className="text-gray-500">Generate the analysis first to preview the client view</p>
