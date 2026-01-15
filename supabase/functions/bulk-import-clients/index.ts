@@ -306,6 +306,7 @@ serve(async (req) => {
             .insert({
               client_id: member.id,
               service_line_id: discoveryService.id,
+              practice_id: practiceId,
               status: 'pending_discovery'
             });
           
