@@ -1682,6 +1682,7 @@ function DiscoveryClientModal({
   const [generatedReport, setGeneratedReport] = useState<any>(null);
   const [isReportShared, setIsReportShared] = useState(false);
   const [sharingReport, setSharingReport] = useState(false);
+  const [viewMode, setViewMode] = useState<'admin' | 'client'>('admin');
   
   // Service assignment state
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
@@ -3791,8 +3792,153 @@ function DiscoveryClientModal({
               {/* ANALYSIS TAB */}
               {activeTab === 'analysis' && (
                 <div className="space-y-6">
-                  {/* Generated Report Section */}
-                  {generatedReport && (
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setViewMode('admin')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          viewMode === 'admin'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        Admin View
+                      </button>
+                      <button
+                        onClick={() => setViewMode('client')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          viewMode === 'client'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        Client View
+                      </button>
+                    </div>
+                    {isReportShared && (
+                      <span className="flex items-center gap-1 text-sm text-emerald-600">
+                        <CheckCircle className="w-4 h-4" />
+                        Shared with client
+                      </span>
+                    )}
+                  </div>
+
+                  {/* CLIENT VIEW - Narrative Report */}
+                  {viewMode === 'client' && generatedReport && (
+                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                      {/* Client Report Header */}
+                      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-8 text-white">
+                        <p className="text-indigo-200 text-sm mb-2">Discovery Report</p>
+                        <h2 className="text-2xl font-bold mb-2">
+                          {generatedReport.analysis?.executiveSummary?.headline || 'Your Path Forward'}
+                        </h2>
+                        <p className="text-indigo-100">
+                          {generatedReport.analysis?.executiveSummary?.keyInsight}
+                        </p>
+                      </div>
+                      
+                      <div className="p-6 space-y-6">
+                        {/* What We Heard */}
+                        {generatedReport.analysis?.executiveSummary?.whatWeHeard && (
+                          <div className="bg-indigo-50 rounded-lg p-6">
+                            <h3 className="text-lg font-semibold text-indigo-900 mb-3">What We Heard</h3>
+                            <p className="text-indigo-800 whitespace-pre-wrap">
+                              {generatedReport.analysis.executiveSummary.whatWeHeard}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Your Vision */}
+                        {generatedReport.analysis?.destinationAnalysis?.visionNarrative && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-3">Your Vision</h3>
+                            <p className="text-gray-700 whitespace-pre-wrap">
+                              {generatedReport.analysis.destinationAnalysis.visionNarrative}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* The Gap */}
+                        {generatedReport.analysis?.gapAnalysis?.primaryGaps?.length > 0 && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-3">What's Standing In Your Way</h3>
+                            <div className="space-y-4">
+                              {generatedReport.analysis.gapAnalysis.primaryGaps.slice(0, 3).map((gap: any, idx: number) => (
+                                <div key={idx} className="border-l-4 border-amber-500 pl-4">
+                                  <p className="font-medium text-gray-900">{gap.gap}</p>
+                                  {gap.evidence && (
+                                    <p className="text-gray-600 italic mt-1">"{gap.evidence}"</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Recommended Path */}
+                        {generatedReport.analysis?.recommendedInvestments?.length > 0 && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-3">Our Recommendations</h3>
+                            <div className="space-y-4">
+                              {generatedReport.analysis.recommendedInvestments.slice(0, 3).map((inv: any, idx: number) => (
+                                <div key={idx} className="bg-emerald-50 rounded-lg p-4">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <h4 className="font-semibold text-emerald-900">{inv.service}</h4>
+                                    <span className="text-emerald-600 font-bold">
+                                      {inv.monthlyInvestment || inv.annualInvestment}
+                                    </span>
+                                  </div>
+                                  <p className="text-emerald-800">{inv.whyThisService}</p>
+                                  {inv.expectedOutcome && (
+                                    <p className="text-emerald-700 text-sm mt-2">
+                                      <strong>What changes:</strong> {inv.expectedOutcome}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Cost of Not Acting */}
+                        {generatedReport.analysis?.gapAnalysis?.costOfInaction && (
+                          <div className="bg-red-50 rounded-lg p-6">
+                            <h3 className="text-lg font-semibold text-red-900 mb-2">The Cost of Waiting</h3>
+                            <p className="text-2xl font-bold text-red-700 mb-2">
+                              {generatedReport.analysis.gapAnalysis.costOfInaction.annualFinancialCost || 
+                               generatedReport.analysis.gapAnalysis.costOfInaction.annual}
+                            </p>
+                            <p className="text-red-800">
+                              {generatedReport.analysis.gapAnalysis.costOfInaction.description}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Next Steps */}
+                        {generatedReport.analysis?.nextSteps && (
+                          <div className="bg-gray-50 rounded-lg p-6">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-3">Next Steps</h3>
+                            <p className="text-gray-700 whitespace-pre-wrap">
+                              {typeof generatedReport.analysis.nextSteps === 'string' 
+                                ? generatedReport.analysis.nextSteps
+                                : generatedReport.analysis.nextSteps.join('\n')}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {viewMode === 'client' && !generatedReport && (
+                    <div className="text-center py-12 bg-gray-50 rounded-xl">
+                      <Sparkles className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500">Generate the analysis first to preview the client view</p>
+                    </div>
+                  )}
+
+                  {/* ADMIN VIEW - Detailed Analysis (existing content) */}
+                  {viewMode === 'admin' && generatedReport && (
                     <div className="space-y-6">
                       {/* Executive Summary */}
                       <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-6 text-white">
@@ -4132,8 +4278,8 @@ function DiscoveryClientModal({
                     </div>
                   )}
 
-                  {/* Notes Section (show when no report or always show below) */}
-                  {!generatedReport && (
+                  {/* Notes Section (show when no report in admin view) */}
+                  {viewMode === 'admin' && !generatedReport && (
                     <>
                       <div>
                         <h4 className="font-medium text-gray-900 mb-2">Internal Analysis Notes</h4>
