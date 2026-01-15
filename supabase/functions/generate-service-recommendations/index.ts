@@ -1,12 +1,14 @@
 // ============================================================================
-// DESTINATION-FIRST SERVICE RECOMMENDATION ENGINE
+// DESTINATION-FIRST SERVICE RECOMMENDATION ENGINE v2.0
 // ============================================================================
 // Analyzes discovery responses and generates personalized service recommendations
 // with value propositions that use the CLIENT'S OWN WORDS
+// Updated: January 2026 - 40-question comprehensive scoring
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { scoreServicesFromDiscovery, type ScoringResult } from '../_shared/service-scorer-v2.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -340,51 +342,61 @@ function detectBurnoutIndicators(responses: Record<string, any>): boolean {
 
 function extractEmotionalAnchors(responses: Record<string, any>): Record<string, string> {
   return {
-    // Core destination anchors
-    fiveYearVision: responses.dd_five_year_picture || responses.dd_five_year_story || '',
-    biggestChange: responses.dd_what_would_change || responses.dd_biggest_change || '',
-    identityAspiration: responses.dd_destination_words || '',
-    freedTimeVision: responses.dd_freed_time || '',
-    coreFeelingDesired: responses.dd_success_feeling || responses.dd_success_definition || '',
+    // Core destination anchors (v2.0 field names)
+    fiveYearVision: responses.dd_five_year_vision || responses.dd_five_year_picture || '',
+    unlimitedChange: responses.dd_unlimited_change || '',
+    successDefinition: responses.dd_success_definition || '',
+    nonNegotiables: Array.isArray(responses.dd_non_negotiables) 
+      ? responses.dd_non_negotiables.join(', ') 
+      : (responses.dd_non_negotiables || ''),
+    exitMindset: responses.dd_exit_mindset || '',
     
-    // Gap analysis anchors
-    currentGap: responses.dd_current_reality || responses.dd_honest_assessment || '',
-    primaryObstacle: responses.dd_main_obstacle || responses.sd_growth_blocker || '',
-    failureInsight: responses.dd_why_not_worked || '',
-    costOfInaction: responses.dd_cost_of_staying || '',
+    // Reality anchors
+    weeklyHours: responses.dd_weekly_hours || '',
+    timeAllocation: responses.dd_time_allocation || '',
+    lastRealBreak: responses.dd_last_real_break || '',
+    emergencyLog: responses.dd_emergency_log || '',
+    scalingConstraint: responses.dd_scaling_constraint || '',
+    sleepThief: responses.dd_sleep_thief || '',
+    coreFrustration: responses.dd_core_frustration || '',
     
-    // Tuesday test anchors
-    tuesdayFrustration: responses.dd_tuesday_frustration || responses.dd_biggest_frustration || '',
-    tuesdayMagicWand: responses.dd_tuesday_magic || '',
-    tuesdayEndState: responses.dd_tuesday_energy || '',
-    operationalFrustration: responses.sd_operational_frustration || '',
+    // Team anchors
+    keyPersonDependency: responses.dd_key_person_dependency || '',
+    peopleChallenge: responses.dd_people_challenge || '',
+    delegationAbility: responses.dd_delegation_ability || '',
+    hiddenFromTeam: responses.dd_hidden_from_team || '',
+    externalPerspective: responses.dd_external_perspective || '',
     
-    // NEW: Enhanced anchors for deeper analysis
-    capitalIntent: responses.dd_if_i_knew || '',
-    hiddenTruth: responses.dd_hard_truth || '',
-    teamSecret: responses.dd_team_secret || '',
+    // Blind spot anchors
     avoidedConversation: responses.dd_avoided_conversation || '',
-    externalPerspective: responses.dd_external_view || '',
+    hardTruth: responses.dd_hard_truth || '',
+    relationshipMirror: responses.dd_relationship_mirror || '',
+    sacrificeList: responses.dd_sacrifice_list || '',
+    suspectedTruth: responses.dd_suspected_truth || '',
     
-    // Team and delegation anchors
-    teamConfidence: responses.dd_team_confidence || '',
-    keyPersonRisk: responses.dd_key_person_risk || '',
-    delegationHonesty: responses.dd_delegation_honest || '',
-    
-    // Exit and timeline anchors
-    exitThoughts: responses.dd_exit_thoughts || '',
-    exitTimeline: responses.sd_exit_timeline || '',
+    // Forward anchors
+    magicFix: responses.dd_magic_fix || '',
     changeReadiness: responses.dd_change_readiness || '',
+    finalInsight: responses.dd_final_insight || '',
     
-    // Lifestyle anchors
-    ownerHours: responses.dd_owner_hours || '',
-    holidayReality: responses.dd_holiday_reality || '',
-    sleepThieves: Array.isArray(responses.dd_sleep_thief) 
-      ? responses.dd_sleep_thief.join(', ') 
-      : (responses.dd_sleep_thief || ''),
-    
-    // Final message
-    finalMessage: responses.dd_final_message || responses.dd_anything_else || ''
+    // Service diagnostic anchors
+    financialConfidence: responses.sd_financial_confidence || '',
+    numbersActionFrequency: responses.sd_numbers_action_frequency || '',
+    benchmarkAwareness: responses.sd_benchmark_awareness || '',
+    founderDependency: responses.sd_founder_dependency || '',
+    manualWorkPercentage: responses.sd_manual_work_percentage || '',
+    manualTasks: Array.isArray(responses.sd_manual_tasks) 
+      ? responses.sd_manual_tasks.join(', ') 
+      : (responses.sd_manual_tasks || ''),
+    problemAwarenessSpeed: responses.sd_problem_awareness_speed || '',
+    planClarity: responses.sd_plan_clarity || '',
+    accountabilitySource: responses.sd_accountability_source || '',
+    growthBlocker: responses.sd_growth_blocker || '',
+    documentationReadiness: responses.sd_documentation_readiness || '',
+    valuationUnderstanding: responses.sd_valuation_understanding || '',
+    exitTimeline: responses.sd_exit_timeline || '',
+    competitivePosition: responses.sd_competitive_position || '',
+    operationalFrustration: responses.sd_operational_frustration || ''
   };
 }
 
@@ -407,7 +419,7 @@ async function generateValueProposition(
   const service = SERVICE_LINES[serviceCode];
   if (!service) return getDefaultVP(serviceCode);
 
-  // Create personalized VP using their words
+  // Create personalized VP using their words (v2.0 anchors)
   const vp = {
     headline: '',
     destination: '',
@@ -421,39 +433,50 @@ async function generateValueProposition(
   if (anchors.fiveYearVision) {
     const visionSnippet = anchors.fiveYearVision.substring(0, 150);
     vp.destination = `You painted a picture: "${visionSnippet}..."`;
+  } else if (anchors.successDefinition) {
+    vp.destination = `You're chasing ${anchors.successDefinition.toLowerCase()}.`;
   } else {
-    vp.destination = `You're chasing ${anchors.coreFeelingDesired?.toLowerCase() || 'something more'}.`;
+    vp.destination = 'You\'re building toward something bigger.';
   }
 
   // Build gap using their frustrations
-  if (anchors.tuesdayFrustration) {
-    vp.gap = `But right now, you're dealing with: "${anchors.tuesdayFrustration}"`;
-  } else if (anchors.primaryObstacle) {
-    vp.gap = `The thing in your way: ${anchors.primaryObstacle}`;
+  if (anchors.coreFrustration) {
+    vp.gap = `But right now: "${anchors.coreFrustration}"`;
+  } else if (anchors.emergencyLog) {
+    vp.gap = `Last month's reality: "${anchors.emergencyLog.substring(0, 100)}..."`;
+  } else if (anchors.sleepThief && anchors.sleepThief !== 'Nothing - I sleep fine') {
+    vp.gap = `What keeps you up: ${anchors.sleepThief}`;
   }
 
   // Build transformation based on service
   switch (serviceCode) {
     case '365_method':
       vp.headline = 'From drifting to deliberate';
-      vp.transformation = `Within 12 weeks, you'll have a clear roadmap to that vision. No more "${anchors.failureInsight || 'spinning wheels'}". Every week, you'll know exactly what to focus on.`;
-      vp.investment = `The cost of NOT doing this? You told us: "${anchors.costOfInaction?.substring(0, 100) || 'more of the same'}"`;
+      const relationshipFeel = anchors.relationshipMirror ? `"${anchors.relationshipMirror.substring(0, 50)}"` : 'being trapped';
+      const sacrificed = anchors.sacrificeList ? ` You've sacrificed ${anchors.sacrificeList.substring(0, 50)}...` : '';
+      vp.transformation = `Within 12 weeks, you'll have a clear roadmap to that vision. No more ${relationshipFeel}.${sacrificed} Every week, you'll know exactly what to focus on.`;
+      vp.investment = anchors.hardTruth 
+        ? `The cost of NOT doing this? You said: "${anchors.hardTruth.substring(0, 80)}..."`
+        : 'The cost of staying stuck is measured in years, not months.';
       vp.firstStep = 'A 90-minute strategy session to map your destination and identify the gaps.';
       break;
 
     case 'fractional_cfo':
       vp.headline = 'From guessing to knowing';
-      vp.transformation = `Imagine waking up KNOWING your numbers. No more "${anchors.tuesdayFrustration || 'uncertainty'}". Every decision backed by data you trust.`;
+      const finConfidence = anchors.financialConfidence || 'uncertainty';
+      vp.transformation = `Imagine waking up KNOWING your numbers. No more "${finConfidence}". Every decision backed by data you trust.`;
       vp.investment = 'Strategic financial leadership for a fraction of the full-time cost.';
       vp.firstStep = 'A financial health check to see exactly where you stand.';
       break;
 
     case 'systems_audit':
       vp.headline = 'From firefighting to flowing';
-      if (anchors.tuesdayMagicWand) {
-        vp.transformation = `You said you would magic away: "${anchors.tuesdayMagicWand}". Let us make that disappear - permanently.`;
+      if (anchors.magicFix) {
+        vp.transformation = `You said your magic fix would be: "${anchors.magicFix.substring(0, 100)}..." Let us make that happen.`;
+      } else if (anchors.emergencyLog) {
+        vp.transformation = `Those emergencies - "${anchors.emergencyLog.substring(0, 80)}..." - we eliminate the root causes, not just the symptoms.`;
       } else {
-        vp.transformation = 'We will find every bottleneck, every workaround, every data silo - and give you a clear roadmap to fix them.';
+        vp.transformation = 'We find every bottleneck, every workaround, every data silo - and give you a clear roadmap to fix them.';
       }
       vp.investment = 'One-time investment that pays dividends in time saved forever.';
       vp.firstStep = 'A 2-hour discovery call to map your current systems landscape.';
@@ -461,42 +484,61 @@ async function generateValueProposition(
 
     case 'management_accounts':
       vp.headline = 'From blind to informed';
-      vp.transformation = 'By the 5th of every month, you\'ll have a clear picture of exactly where you stand. P&L, cash flow, KPIs - all with commentary that actually helps.';
+      const suspected = anchors.suspectedTruth 
+        ? ` You suspect: "${anchors.suspectedTruth.substring(0, 60)}..." Let's find out.`
+        : '';
+      vp.transformation = `By the 5th of every month, you'll have a clear picture of exactly where you stand. P&L, cash flow, KPIs - all with commentary that actually helps.${suspected}`;
       vp.investment = 'Less than the cost of one bad decision made without the data.';
       vp.firstStep = 'A review of your current reporting to identify the gaps.';
       break;
 
     case 'combined_advisory':
       vp.headline = 'Board-level thinking, on-demand';
-      vp.transformation = `You said you figure things out yourself. "${anchors.operationalFrustration || 'Complex decisions'}" do not have to be solo anymore.`;
-      vp.investment = 'Executive partnership for both financial AND operational strategy.';
+      const accountable = anchors.accountabilitySource === 'No one - just me' 
+        ? 'You said no one holds you accountable.' 
+        : 'Complex decisions don\'t have to be solo anymore.';
+      vp.transformation = `${accountable} Get both financial AND operational strategic support in one relationship.`;
+      vp.investment = 'Executive partnership that grows with your ambition.';
       vp.firstStep = 'A strategic review to understand where advisory would add most value.';
       break;
 
     case 'fractional_coo':
       vp.headline = 'From essential to optional';
-      vp.transformation = `That ${anchors.primaryObstacle === 'Time - I dont have enough hours' ? 'time problem' : 'operational chaos'}? It ends when you have someone building systems that run without you.`;
+      const founderDep = anchors.founderDependency?.includes('Chaos') 
+        ? 'Right now you\'re essential to everything.' 
+        : 'Your team needs leadership, not just management.';
+      vp.transformation = `${founderDep} We build systems and develop people so the business runs without you in the middle of everything.`;
       vp.investment = 'Senior operational leadership without the £150k+ salary.';
       vp.firstStep = 'An operational assessment to identify the highest-impact areas.';
       break;
 
     case 'business_advisory':
       vp.headline = 'Protect what you\'ve built';
-      vp.transformation = 'Whether you\'re exiting in 2 years or 20, you\'ll know exactly what your business is worth and how to maximize that value.';
+      const exitTime = anchors.exitTimeline || '';
+      const exitContext = exitTime.includes('Already') || exitTime.includes('1-3') 
+        ? 'With your exit timeline approaching, preparation is everything.'
+        : 'Whether you\'re exiting in 2 years or 20, preparation starts now.';
+      vp.transformation = `${exitContext} You'll know exactly what your business is worth and how to maximize that value.`;
       vp.investment = 'The value of your business is too important to leave to chance.';
       vp.firstStep = 'A preliminary valuation and exit-readiness assessment.';
       break;
 
     case 'automation':
       vp.headline = 'From manual to magical';
-      vp.transformation = 'That repetitive work eating your team\'s time? Gone. More output, less effort, happier people.';
+      const manualTasks = anchors.manualTasks 
+        ? `Tasks like ${anchors.manualTasks.substring(0, 50)}... automated.` 
+        : 'That repetitive work eating your team\'s time? Gone.';
+      vp.transformation = `${manualTasks} More output, less effort, happier people.`;
       vp.investment = 'Typically pays for itself within 3-6 months in time saved.';
       vp.firstStep = 'An automation opportunity assessment to find the quick wins.';
       break;
 
     case 'benchmarking':
       vp.headline = 'Know exactly where you stand';
-      vp.transformation = 'You\'ll know how your margins, growth rate, and efficiency compare to similar businesses. No more wondering if you\'re ahead or behind.';
+      const competitive = anchors.competitivePosition?.includes('don\'t really know') 
+        ? 'You said you don\'t know how you compare. Let\'s find out.'
+        : 'Know exactly how your margins, growth rate, and efficiency compare.';
+      vp.transformation = `${competitive} No more wondering if you\'re ahead or behind - you\'ll have the data.`;
       vp.investment = 'Knowledge is power. This gives you the context to make better decisions.';
       vp.firstStep = 'A benchmarking report comparing you to relevant industry peers.';
       break;
@@ -537,48 +579,70 @@ serve(async (req) => {
     const { action, clientId, discoveryResponses, diagnosticResponses } = await req.json();
 
     if (action === 'calculate-recommendations') {
-      // Calculate service scores
-      const scores = await calculateServiceScores(
-        discoveryResponses || {},
-        diagnosticResponses || {},
-        supabase
-      );
+      // Combine discovery and diagnostic responses
+      const allResponses = {
+        ...(discoveryResponses || {}),
+        ...(diagnosticResponses || {})
+      };
 
-      // Sort services by score
-      const sortedServices = Object.entries(scores)
-        .sort(([, a], [, b]) => b - a)
-        .map(([code, score]) => ({ code, score, ...SERVICE_LINES[code] }));
+      // Use the new v2 comprehensive scorer
+      const scoringResult: ScoringResult = scoreServicesFromDiscovery(allResponses);
+      
+      console.log('Scoring complete:', {
+        burnoutDetected: scoringResult.patterns.burnoutDetected,
+        capitalRaisingDetected: scoringResult.patterns.capitalRaisingDetected,
+        lifestyleTransformationDetected: scoringResult.patterns.lifestyleTransformationDetected,
+        urgencyMultiplier: scoringResult.patterns.urgencyMultiplier,
+        topService: scoringResult.recommendations[0]?.name,
+        topScore: scoringResult.recommendations[0]?.score,
+      });
 
-      // Extract emotional anchors
-      const anchors = extractEmotionalAnchors(discoveryResponses || {});
-
-      // Generate VPs for top 3 services
+      // Generate VPs for recommended services (score >= 50)
       const recommendations = [];
-      for (let i = 0; i < Math.min(3, sortedServices.length); i++) {
-        const service = sortedServices[i];
-        if (service.score > 0) {
-          const vp = await generateValueProposition(service.code, anchors, service.score);
-          recommendations.push({
-            rank: i + 1,
-            service: service,
-            valueProposition: vp,
-            score: service.score,
-            isFoundational: service.code === '365_method' && service.score >= 10
-          });
-        }
+      const recommendedServices = scoringResult.recommendations.filter(s => s.recommended);
+      
+      for (let i = 0; i < Math.min(5, recommendedServices.length); i++) {
+        const service = recommendedServices[i];
+        const vp = await generateValueProposition(
+          service.code, 
+          scoringResult.emotionalAnchors, 
+          service.score
+        );
+        recommendations.push({
+          rank: i + 1,
+          service: {
+            code: service.code,
+            name: service.name,
+            ...SERVICE_LINES[service.code]
+          },
+          valueProposition: vp,
+          score: service.score,
+          confidence: service.confidence,
+          triggers: service.triggers.slice(0, 5), // Top 5 triggers for context
+          priority: service.priority,
+          isFoundational: service.code === '365_method' && service.score >= 50
+        });
       }
 
-      // Check for combined CFO/COO recommendation
-      const cfoScore = scores['fractional_cfo'] || 0;
-      const cooScore = scores['fractional_coo'] || 0;
-      if (cfoScore >= 8 && cooScore >= 8) {
-        // Suggest combined service
-        const combinedVP = await generateValueProposition('combined_advisory', anchors, cfoScore + cooScore);
+      // Check if combined_advisory is recommended
+      const combinedScore = scoringResult.scores['combined_advisory']?.score || 0;
+      if (combinedScore >= 50 && !recommendations.find(r => r.service.code === 'combined_advisory')) {
+        const combinedVP = await generateValueProposition(
+          'combined_advisory', 
+          scoringResult.emotionalAnchors, 
+          combinedScore
+        );
         recommendations.unshift({
           rank: 0,
-          service: SERVICE_LINES['combined_advisory'],
+          service: {
+            code: 'combined_advisory',
+            ...SERVICE_LINES['combined_advisory']
+          },
           valueProposition: combinedVP,
-          score: cfoScore + cooScore,
+          score: combinedScore,
+          confidence: scoringResult.scores['combined_advisory'].confidence,
+          triggers: scoringResult.scores['combined_advisory'].triggers.slice(0, 5),
+          priority: 1,
           isBundled: true,
           bundledFrom: ['fractional_cfo', 'fractional_coo']
         });
@@ -589,7 +653,7 @@ serve(async (req) => {
         // CRITICAL: Validate that clientId exists in practice_members before saving
         const { data: clientCheck, error: clientError } = await supabase
           .from('practice_members')
-          .select('id, user_id, email, member_type')
+          .select('id, user_id, email, member_type, practice_id')
           .eq('id', clientId)
           .eq('member_type', 'client')
           .maybeSingle();
@@ -601,14 +665,12 @@ serve(async (req) => {
         
         if (!clientCheck) {
           console.error(`CRITICAL: client_id ${clientId} does not exist in practice_members!`);
-          // Try to find the correct client_id by user_id if we have auth context
-          // This is a fallback for cases where clientSession.clientId is wrong
           throw new Error(`Client ID ${clientId} not found. This may indicate a data integrity issue.`);
         }
         
         console.log(`Saving discovery assessment for client_id: ${clientId}, email: ${clientCheck.email}`);
         
-        // Find existing incomplete record (should only be one due to unique constraint)
+        // Find existing incomplete record
         const { data: existingDiscovery } = await supabase
           .from('destination_discovery')
           .select('id')
@@ -620,40 +682,83 @@ serve(async (req) => {
 
         const discoveryData = {
           client_id: clientId,
-          practice_id: clientCheck.practice_id || null, // Ensure practice_id is set
-          responses: { ...discoveryResponses, ...diagnosticResponses },
-          extracted_anchors: anchors,
-          destination_clarity_score: calculateClarityScore(discoveryResponses),
-          gap_score: calculateGapScore(discoveryResponses),
+          practice_id: clientCheck.practice_id || null,
+          responses: allResponses,
+          extracted_anchors: scoringResult.emotionalAnchors,
+          destination_clarity_score: calculateClarityScore(allResponses),
+          gap_score: calculateGapScore(allResponses),
           recommended_services: recommendations,
           value_propositions: recommendations.map(r => r.valueProposition),
-          completed_at: new Date().toISOString() // Mark as completed
+          completed_at: new Date().toISOString()
         };
 
         if (existingDiscovery?.id) {
-          // Update existing incomplete record and mark as completed
           await supabase
             .from('destination_discovery')
             .update(discoveryData)
             .eq('id', existingDiscovery.id)
             .eq('client_id', clientId);
         } else {
-          // Insert new record (shouldn't happen if auto-save worked, but handle it)
           await supabase
             .from('destination_discovery')
             .insert(discoveryData);
         }
+
+        // Store detection patterns
+        await supabase
+          .from('discovery_patterns')
+          .upsert({
+            discovery_id: existingDiscovery?.id,
+            client_id: clientId,
+            burnout_detected: scoringResult.patterns.burnoutDetected,
+            burnout_flags: scoringResult.patterns.burnoutFlags,
+            burnout_indicators: scoringResult.patterns.burnoutIndicators,
+            capital_raising_detected: scoringResult.patterns.capitalRaisingDetected,
+            capital_signals: scoringResult.patterns.capitalSignals,
+            lifestyle_transformation_detected: scoringResult.patterns.lifestyleTransformationDetected,
+            lifestyle_signals: scoringResult.patterns.lifestyleSignals,
+            urgency_multiplier: scoringResult.patterns.urgencyMultiplier,
+            change_readiness: allResponses.dd_change_readiness
+          }, {
+            onConflict: 'discovery_id'
+          });
+
+        // Store individual service triggers for audit trail
+        for (const [code, serviceScore] of Object.entries(scoringResult.scores)) {
+          if (serviceScore.score > 0) {
+            for (const trigger of serviceScore.triggers) {
+              await supabase
+                .from('discovery_service_triggers')
+                .insert({
+                  discovery_id: existingDiscovery?.id,
+                  service_code: code,
+                  trigger_source: trigger.split(':')[0] || 'unknown',
+                  trigger_description: trigger,
+                  points_added: 0 // We don't track individual points in v2, just triggers
+                });
+            }
+          }
+        }
+      }
+
+      // Build score summary for response
+      const scoresSummary: Record<string, number> = {};
+      for (const [code, data] of Object.entries(scoringResult.scores)) {
+        scoresSummary[code] = data.score;
       }
 
       return new Response(JSON.stringify({
         success: true,
-        scores,
+        scores: scoresSummary,
+        detailedScores: scoringResult.scores,
         recommendations,
-        anchors,
+        anchors: scoringResult.emotionalAnchors,
+        patterns: scoringResult.patterns,
         summary: {
           primaryRecommendation: recommendations[0]?.service?.name,
           secondaryRecommendation: recommendations[1]?.service?.name,
-          totalServicesScored: Object.keys(scores).filter(k => scores[k] > 0).length
+          totalServicesScored: Object.keys(scoresSummary).filter(k => scoresSummary[k] > 0).length,
+          totalRecommended: recommendations.length
         }
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -717,22 +822,22 @@ function calculateClarityScore(responses: Record<string, any>): number {
   let score = 0;
   
   // Has clear 5-year vision
-  if (responses.dd_five_year_story?.length > 100) score += 2;
+  const vision = responses.dd_five_year_vision || responses.dd_five_year_story || '';
+  if (vision.length > 100) score += 2;
   
-  // Knows what needs to change
-  if (responses.dd_biggest_change?.length > 50) score += 2;
+  // Has magic fix / unlimited change clarity
+  const magicFix = responses.dd_magic_fix || responses.dd_unlimited_change || '';
+  if (magicFix.length > 50) score += 2;
   
-  // Clear identity aspiration
-  if (responses.dd_destination_words?.length > 20) score += 1;
+  // Clear success definition
+  if (responses.dd_success_definition && !responses.dd_success_definition.includes('Something else')) score += 2;
   
-  // Knows current gap
-  if (responses.dd_current_reality && !responses.dd_current_reality.includes('Lost')) score += 2;
+  // Has identified core frustration
+  if (responses.dd_core_frustration?.length > 30) score += 2;
   
-  // Clear priority
-  if (responses.dd_honest_priority && !responses.dd_honest_priority.includes('Something else')) score += 2;
-  
-  // Urgency clarity
-  if (responses.dd_timeline_urgency && !responses.dd_timeline_urgency.includes('Low')) score += 1;
+  // Clear change readiness
+  const readiness = responses.dd_change_readiness || '';
+  if (readiness.includes('Completely ready') || readiness.includes('Ready -')) score += 2;
   
   return Math.min(10, score);
 }
@@ -740,19 +845,26 @@ function calculateClarityScore(responses: Record<string, any>): number {
 function calculateGapScore(responses: Record<string, any>): number {
   let score = 0;
   
-  const gapMapping: Record<string, number> = {
-    'Close - I can see the path clearly': 2,
-    'Halfway - making progress but its slow': 4,
-    'Far away - I know where I want to go but not how': 6,
-    'Lost - I dont even know what I want anymore': 8,
-    'Stuck - I keep trying but nothing changes': 9
-  };
+  // Hours worked indicator
+  const hours = responses.dd_weekly_hours || '';
+  if (hours.includes('70+') || hours.includes('stopped counting')) score += 3;
+  else if (hours.includes('60-70')) score += 2;
+  else if (hours.includes('50-60')) score += 1;
   
-  score = gapMapping[responses.dd_current_reality] || 5;
+  // Firefighting ratio
+  const firefighting = responses.dd_time_allocation || '';
+  if (firefighting.includes('90%')) score += 3;
+  else if (firefighting.includes('70%')) score += 2;
   
-  // Increase if they've tried and failed
-  if (responses.dd_tried_before?.includes('Nothing - I havent known where to start')) score += 1;
-  if (responses.dd_tried_before?.includes('Given up and accepted the status quo')) score += 2;
+  // Delegation ability
+  const delegation = responses.dd_delegation_ability || '';
+  if (delegation.includes('Terrible')) score += 2;
+  else if (delegation.includes('Poor')) score += 1;
+  
+  // Last real break
+  const lastBreak = responses.dd_last_real_break || '';
+  if (lastBreak.includes('never') || lastBreak.includes('can\'t remember')) score += 2;
+  else if (lastBreak.includes('More than 2 years')) score += 1;
   
   return Math.min(10, score);
 }
