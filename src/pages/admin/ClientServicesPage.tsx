@@ -184,6 +184,14 @@ interface Client {
   progress: number;
   lastActivity: string | null;
   hasRoadmap: boolean;
+  client_owner_id?: string | null;
+  owner?: { id: string; name: string } | null;
+}
+
+interface StaffMember {
+  id: string;
+  name: string;
+  email: string;
 }
 
 export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPageProps) {
@@ -191,9 +199,11 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   const { data: currentMember } = useCurrentMember(user?.id);
   const [selectedServiceLine, setSelectedServiceLine] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
+  const [assigningOwner, setAssigningOwner] = useState<string | null>(null);
   
   // Invitation modal state
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -222,6 +232,53 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
       fetchClients();
     }
   }, [selectedServiceLine]);
+
+  // Fetch staff members for owner assignment dropdown
+  useEffect(() => {
+    const fetchStaffMembers = async () => {
+      if (!currentMember?.practice_id) return;
+      
+      const { data } = await supabase
+        .from('practice_members')
+        .select('id, name, email')
+        .eq('practice_id', currentMember.practice_id)
+        .neq('member_type', 'client')
+        .order('name');
+      
+      setStaffMembers(data || []);
+    };
+    
+    fetchStaffMembers();
+  }, [currentMember?.practice_id]);
+
+  // Handle assigning a client to a staff owner
+  const handleAssignOwner = async (clientId: string, ownerId: string | null) => {
+    setAssigningOwner(clientId);
+    try {
+      const { error } = await supabase
+        .from('practice_members')
+        .update({ client_owner_id: ownerId })
+        .eq('id', clientId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setClients(prev => prev.map(c => 
+        c.id === clientId 
+          ? { 
+              ...c, 
+              client_owner_id: ownerId,
+              owner: ownerId ? staffMembers.find(s => s.id === ownerId) || null : null
+            }
+          : c
+      ));
+    } catch (error) {
+      console.error('Error assigning owner:', error);
+      alert('Failed to assign owner');
+    } finally {
+      setAssigningOwner(null);
+    }
+  };
 
   // Send client invitation
   const handleSendInvite = async () => {
@@ -439,7 +496,9 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             client_company,
             program_status,
             last_portal_login,
-            created_at
+            created_at,
+            client_owner_id,
+            owner:practice_members!client_owner_id(id, name)
           `)
           .eq('practice_id', practiceId)
           .eq('member_type', 'client')
@@ -451,7 +510,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           discoveries?.map(d => [d.client_id, d]) || []
         );
 
-        const enrichedClients: Client[] = (discoveryClients || []).map(client => {
+        const enrichedClients: Client[] = (discoveryClients || []).map((client: any) => {
           const discovery = discoveryMap.get(client.id);
           const isComplete = discovery?.completed_at || client.program_status === 'discovery_complete';
           return {
@@ -463,7 +522,9 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             status: isComplete ? 'completed' : 'active',
             progress: isComplete ? 100 : 50,
             lastActivity: client.last_portal_login,
-            hasRoadmap: isComplete
+            hasRoadmap: isComplete,
+            client_owner_id: client.client_owner_id,
+            owner: client.owner
           };
         });
         
@@ -948,6 +1009,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Client</th>
+                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Owner</th>
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Progress</th>
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Status</th>
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Last Activity</th>
@@ -965,6 +1027,21 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                               <p className="text-sm text-gray-400">{client.company}</p>
                             )}
                           </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <select
+                            value={client.client_owner_id || ''}
+                            onChange={(e) => handleAssignOwner(client.id, e.target.value || null)}
+                            disabled={assigningOwner === client.id}
+                            className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50 min-w-[140px]"
+                          >
+                            <option value="">Unassigned</option>
+                            {staffMembers.map(staff => (
+                              <option key={staff.id} value={staff.id}>
+                                {staff.name}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
