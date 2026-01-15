@@ -110,8 +110,8 @@ CREATE INDEX IF NOT EXISTS idx_discovery_service_triggers_service_code ON discov
 -- Clear existing discovery questions and insert the new 40-question set
 -- NOTE: Disable any audit triggers temporarily to avoid practice_id reference errors
 
--- Temporarily disable triggers on assessment_questions
-ALTER TABLE assessment_questions DISABLE TRIGGER ALL;
+-- Temporarily disable USER triggers on assessment_questions (not system/constraint triggers)
+ALTER TABLE assessment_questions DISABLE TRIGGER USER;
 
 -- Clear existing discovery questions
 DELETE FROM assessment_questions WHERE service_line_code IN ('destination_discovery', 'service_diagnostic');
@@ -429,6 +429,6 @@ ALTER TABLE assessment_questions ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFA
 -- Ensure all new questions are active
 UPDATE assessment_questions SET is_active = true WHERE service_line_code IN ('destination_discovery', 'service_diagnostic');
 
--- Re-enable triggers on assessment_questions
-ALTER TABLE assessment_questions ENABLE TRIGGER ALL;
+-- Re-enable USER triggers on assessment_questions
+ALTER TABLE assessment_questions ENABLE TRIGGER USER;
 
