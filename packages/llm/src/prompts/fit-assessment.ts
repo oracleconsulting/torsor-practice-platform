@@ -7,7 +7,7 @@ import {
 } from './quality-rules';
 
 export const FIT_ASSESSMENT_PROMPT = `
-You are evaluating a potential client's fit for the 365 Alignment Programme, a comprehensive business transformation service.
+You are evaluating a potential client's fit for the Goal Alignment Programme, a comprehensive business transformation service.
 
 ${BANNED_PATTERNS}
 

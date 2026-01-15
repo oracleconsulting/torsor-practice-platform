@@ -42,7 +42,7 @@ interface ScoringResult {
 }
 
 const SCORING_SERVICES = [
-  { code: '365_method', name: '365 Alignment Programme' },
+  { code: '365_method', name: 'Goal Alignment Programme' },
   { code: 'management_accounts', name: 'Management Accounts' },
   { code: 'systems_audit', name: 'Systems Audit' },
   { code: 'automation', name: 'Automation Services' },
@@ -568,7 +568,7 @@ interface ServiceLine {
 const SERVICE_LINES: Record<string, ServiceLine> = {
   '365_method': {
     code: '365_method',
-    name: '365 Alignment Programme',
+    name: 'Goal Alignment Programme',
     shortDescription: 'Life-first business transformation',
     transformationPromise: 'From drifting to deliberate. From hoping to planning.',
     typicalMonthly: '£5,000',

@@ -119,7 +119,7 @@ interface FitAssessmentRequest {
 }
 
 const FIT_ASSESSMENT_PROMPT = `
-You are evaluating a potential client's fit for the 365 Alignment Programme, a comprehensive business transformation service.
+You are evaluating a potential client's fit for the Goal Alignment Programme, a comprehensive business transformation service.
 
 CRITICAL LANGUAGE QUALITY RULES - NEVER USE THESE PATTERNS:
 - "Here's the truth:", "Here's what I see:", "Here's what I also see:"

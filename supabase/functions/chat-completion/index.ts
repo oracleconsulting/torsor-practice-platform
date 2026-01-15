@@ -133,7 +133,7 @@ function detectComplexity(message: string, historyLength: number): 'simple' | 'c
 
 function buildSystemPrompt(clientContext: any): string {
   return `
-You are a knowledgeable business advisor assistant for the 365 Alignment Programme. You're helping ${clientContext.clientName || 'the client'} navigate their business transformation journey.
+You are a knowledgeable business advisor assistant for the Goal Alignment Programme. You're helping ${clientContext.clientName || 'the client'} navigate their business transformation journey.
 
 CRITICAL LANGUAGE QUALITY RULES - NEVER USE THESE PATTERNS:
 - "Here's the truth:", "Here's what I see:", "Here's what I also see:"

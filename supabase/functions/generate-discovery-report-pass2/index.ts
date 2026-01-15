@@ -17,16 +17,19 @@ const corsHeaders = {
 
 // ============================================================================
 // SERVICE PRICING AND OUTCOMES (Services as footnotes)
+// Defaults used if database fetch fails - canonical source is service_line_metadata
 // ============================================================================
 
-const SERVICE_DETAILS: Record<string, {
+interface ServiceDetail {
   name: string;
   price: string;
   priceType: 'monthly' | 'one-time' | 'annual';
   outcome: string;  // The destination, not the service
-}> = {
+}
+
+const DEFAULT_SERVICE_DETAILS: Record<string, ServiceDetail> = {
   'management_accounts': {
-    name: 'Monthly Management Accounts',
+    name: 'Management Accounts',
     price: '£650',
     priceType: 'monthly',
     outcome: "You'll Know Your Numbers"
@@ -38,7 +41,7 @@ const SERVICE_DETAILS: Record<string, {
     outcome: "You'll See Where The Time Goes"
   },
   '365_method': {
-    name: '365 Alignment Programme',
+    name: 'Goal Alignment Programme',
     price: '£1,500',
     priceType: 'monthly',
     outcome: "You'll Have Someone In Your Corner"
@@ -50,14 +53,14 @@ const SERVICE_DETAILS: Record<string, {
     outcome: "The Manual Work Disappears"
   },
   'fractional_cfo': {
-    name: 'Fractional CFO',
-    price: '£3,000',
+    name: 'Fractional CFO Services',
+    price: '£4,000',
     priceType: 'monthly',
     outcome: "You'll Have Strategic Financial Leadership"
   },
   'fractional_coo': {
-    name: 'Fractional COO',
-    price: '£4,000',
+    name: 'Fractional COO Services',
+    price: '£3,750',
     priceType: 'monthly',
     outcome: "Someone Else Carries The Load"
   },
@@ -69,17 +72,73 @@ const SERVICE_DETAILS: Record<string, {
   },
   'business_advisory': {
     name: 'Business Advisory & Exit Planning',
-    price: '£2,500',
-    priceType: 'monthly',
+    price: '£4,000',
+    priceType: 'one-time',
     outcome: "You'll Know What It's Worth"
   },
   'benchmarking': {
     name: 'Benchmarking Services',
-    price: '£450',
+    price: '£3,500',
     priceType: 'one-time',
     outcome: "You'll Know Where You Stand"
   }
 };
+
+// Outcome mappings (destination-focused language)
+const SERVICE_OUTCOMES: Record<string, string> = {
+  'management_accounts': "You'll Know Your Numbers",
+  'systems_audit': "You'll See Where The Time Goes",
+  '365_method': "You'll Have Someone In Your Corner",
+  'automation': "The Manual Work Disappears",
+  'fractional_cfo': "You'll Have Strategic Financial Leadership",
+  'fractional_coo': "Someone Else Carries The Load",
+  'combined_advisory': "Complete Business Transformation",
+  'business_advisory': "You'll Know What It's Worth",
+  'benchmarking': "You'll Know Where You Stand",
+};
+
+// Fetch service details from database, falling back to defaults
+async function fetchServiceDetails(supabase: any): Promise<Record<string, ServiceDetail>> {
+  try {
+    const { data, error } = await supabase
+      .from('service_line_metadata')
+      .select('code, display_name, name, pricing')
+      .eq('status', 'ready');
+    
+    if (error || !data) {
+      console.log('Using default service details (DB fetch failed):', error?.message);
+      return DEFAULT_SERVICE_DETAILS;
+    }
+    
+    const serviceDetails: Record<string, ServiceDetail> = {};
+    
+    for (const service of data) {
+      const code = service.code;
+      const pricing = service.pricing?.[0]; // Get primary pricing tier
+      
+      if (pricing) {
+        const priceType = pricing.frequency === 'monthly' ? 'monthly' 
+          : pricing.frequency === 'annual' ? 'annual' 
+          : 'one-time';
+        
+        serviceDetails[code] = {
+          name: service.display_name || service.name,
+          price: `£${pricing.amount.toLocaleString()}`,
+          priceType,
+          outcome: SERVICE_OUTCOMES[code] || DEFAULT_SERVICE_DETAILS[code]?.outcome || 'Business Transformation'
+        };
+      } else if (DEFAULT_SERVICE_DETAILS[code]) {
+        serviceDetails[code] = DEFAULT_SERVICE_DETAILS[code];
+      }
+    }
+    
+    // Merge with defaults for any missing services
+    return { ...DEFAULT_SERVICE_DETAILS, ...serviceDetails };
+  } catch (err) {
+    console.error('Error fetching service details:', err);
+    return DEFAULT_SERVICE_DETAILS;
+  }
+}
 
 // ============================================================================
 // DATA COMPLETENESS CHECKER
@@ -181,6 +240,10 @@ serve(async (req) => {
       throw new Error('OPENROUTER_API_KEY not configured');
     }
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Fetch service pricing from database (single source of truth)
+    const SERVICE_DETAILS = await fetchServiceDetails(supabase);
+    console.log('Loaded service details for', Object.keys(SERVICE_DETAILS).length, 'services');
 
     const startTime = Date.now();
 

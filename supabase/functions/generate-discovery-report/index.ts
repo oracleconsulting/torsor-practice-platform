@@ -112,7 +112,7 @@ interface ServiceLine {
 const SERVICE_LINES: Record<string, ServiceLine> = {
   '365_method': {
     code: '365_method',
-    name: '365 Alignment Programme',
+    name: 'Goal Alignment Programme',
     tiers: [
       { name: 'Lite', price: 1500, description: 'Survey + plan + one review' },
       { name: 'Growth', price: 4500, description: 'Adds quarterly reviews for 12 months' },
@@ -958,7 +958,7 @@ ${JSON.stringify(SERVICE_LINES, null, 2)}
 Generate a JSON object with the following structure.
 
 IMPORTANT: Use the EXACT pricing from the service tiers provided. Different services have different pricing models:
-- 365 Alignment Programme: Annual engagements (Lite £1,500 / Growth £4,500 / Partner £9,000)
+- Goal Alignment Programme: Annual engagements (Lite £1,500 / Growth £4,500 / Partner £9,000)
 - Fractional CFO: Monthly retainers (from £3,500-£15,000/month)
 - Systems Audit: Project-based (£1,500-£4,000 diagnostic + implementation)
 - Management Accounts: Monthly £650 or Quarterly £1,750

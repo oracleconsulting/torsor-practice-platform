@@ -40,7 +40,7 @@ export interface ScoringResult {
 
 // Service definitions
 const SERVICES = [
-  { code: '365_method', name: '365 Alignment Programme' },
+  { code: '365_method', name: 'Goal Alignment Programme' },
   { code: 'management_accounts', name: 'Management Accounts' },
   { code: 'systems_audit', name: 'Systems Audit' },
   { code: 'automation', name: 'Automation Services' },

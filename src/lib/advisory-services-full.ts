@@ -700,7 +700,7 @@ export const advisoryServicesMap: ServiceLine[] = [
   },
   {
     id: '365-alignment',
-    name: '365 Alignment Programme',
+    name: 'Goal Alignment Programme',
     description: 'Structured personal-business planning with AI-generated execution plans',
     priceRange: '£1,500 (Lite) | £4,500 (Growth) | £9,000 (Partner)',
     deliveryTime: 'Tiered delivery over 3-12 months',

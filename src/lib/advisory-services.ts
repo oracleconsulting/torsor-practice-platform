@@ -201,9 +201,9 @@ export const ADVISORY_SERVICES: ServiceLine[] = [
   },
   {
     id: '365-alignment',
-    name: '365 Alignment Programme',
-    description: 'Microsoft 365 optimization and business alignment',
-    priceRange: '£3,000-£7,500',
+    name: 'Goal Alignment Programme',
+    description: 'Life-first business transformation with 5-year vision, 6-month shift, and 12-week sprints',
+    priceRange: '£1,500-£4,500/month',
     deliveryTime: '2-6 weeks',
     requiredSkills: [
       {

@@ -8,7 +8,7 @@ export const BSG_SERVICE_LINES = [
   'Management Accounts',
   'Future Financial Information / Advisory Accelerator',
   'Benchmarking - External and Internal',
-  '365 Alignment Programme',
+  'Goal Alignment Programme',
   'Systems Audit',
   'Profit Extraction / Remuneration Strategies',
   'Fractional CFO Services',
@@ -72,17 +72,17 @@ export const SERVICE_DEFINITIONS = {
       'Report Writing'
     ]
   },
-  '365 Alignment Programme': {
+  'Goal Alignment Programme': {
     id: '365-alignment',
-    description: 'Microsoft 365 optimization and business alignment',
-    priceRange: '£3,000-£7,500',
-    deliveryTime: '2-6 weeks',
+    description: 'Life-first business transformation with 5-year vision, 6-month shift, and 12-week sprints',
+    priceRange: '£1,500-£4,500/month',
+    deliveryTime: '12-month programme',
     coreSkills: [
-      'Technology & Digital Literacy',
-      'System Implementation & Change Management',
-      'Process Design & Optimisation',
-      'Training & Knowledge Transfer',
-      'Project Management'
+      'Strategic Planning',
+      'Life-Work Integration',
+      'Accountability & Coaching',
+      'Vision Development',
+      'Business Transformation'
     ]
   },
   'Systems Audit': {

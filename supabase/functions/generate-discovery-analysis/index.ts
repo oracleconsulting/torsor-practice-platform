@@ -115,7 +115,7 @@ interface ServiceScore {
 }
 
 const SERVICES = [
-  { code: '365_method', name: '365 Alignment Programme' },
+  { code: '365_method', name: 'Goal Alignment Programme' },
   { code: 'management_accounts', name: 'Management Accounts' },
   { code: 'benchmarking', name: 'Benchmarking' },
   { code: 'systems_audit', name: 'Systems Audit' },
@@ -1297,7 +1297,7 @@ ALLOWED:
 // Service line definitions
 const SERVICE_LINES = {
   '365_method': { 
-    name: '365 Alignment Programme', 
+    name: 'Goal Alignment Programme', 
     tiers: [
       { name: 'Lite', price: 1500 }, 
       { name: 'Growth', price: 4500 }, 
@@ -2578,7 +2578,7 @@ For EARLY-STAGE / HIGH-GROWTH clients (e.g., pre-revenue startup with 5-year pro
       "title": "The Transition",
       "youWillHave": "A structured path from operator to investor. The school drop-offs you described. Progress toward the portfolio life.",
       "whatChanges": "You become optional to daily operations.",
-      "enabledBy": "365 Alignment Programme",
+      "enabledBy": "Goal Alignment Programme",
       "enabledByCode": "365_lite",
       "investment": "£1,500"
     }

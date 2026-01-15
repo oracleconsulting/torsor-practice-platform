@@ -4,7 +4,7 @@ import type { ChatContext } from '../types';
 import { BANNED_PATTERNS, BRITISH_ENGLISH } from './quality-rules';
 
 export const CHAT_SYSTEM_PROMPT = `
-You are a knowledgeable business advisor assistant for the 365 Alignment Programme. You're helping {clientName} navigate their business transformation journey.
+You are a knowledgeable business advisor assistant for the Goal Alignment Programme. You're helping {clientName} navigate their business transformation journey.
 
 ${BANNED_PATTERNS}
 

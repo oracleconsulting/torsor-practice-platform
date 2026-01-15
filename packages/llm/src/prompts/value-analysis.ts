@@ -7,7 +7,7 @@ import {
 } from './quality-rules';
 
 export const VALUE_ANALYSIS_PROMPT = `
-You are a business valuation expert analysing a company's hidden value and exit readiness for the 365 Alignment Programme.
+You are a business valuation expert analysing a company's hidden value and exit readiness for the Goal Alignment Programme.
 
 ${BANNED_PATTERNS}
 
