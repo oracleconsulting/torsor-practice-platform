@@ -1,8 +1,10 @@
 // ============================================================================
-// DISCOVERY REPORT - PASS 2: NARRATIVE GENERATION
+// DISCOVERY REPORT - PASS 2: DESTINATION-FOCUSED NARRATIVE GENERATION
 // ============================================================================
-// Takes Pass 1 structured data and generates personalized narratives using
-// the client's own words and emotional anchors. Uses Claude for generation.
+// "We're travel agents selling holidays, not airlines selling seats."
+// The client doesn't buy "Management Accounts" - they buy knowing which 
+// customers are profitable. They don't buy "Systems Audit" - they buy a 
+// week without being the only one who can fix things.
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -14,109 +16,123 @@ const corsHeaders = {
 }
 
 // ============================================================================
-// SERVICE DEFINITIONS FOR NARRATIVES
+// SERVICE PRICING AND OUTCOMES (Services as footnotes)
 // ============================================================================
 
-const SERVICE_DEFINITIONS: Record<string, {
+const SERVICE_DETAILS: Record<string, {
   name: string;
-  transformationPromise: string;
-  typicalOutcome: string;
+  price: string;
+  priceType: 'monthly' | 'one-time' | 'annual';
+  outcome: string;  // The destination, not the service
 }> = {
-  '365_method': {
-    name: '365 Alignment Programme',
-    transformationPromise: 'From drifting to deliberate. From hoping to planning.',
-    typicalOutcome: 'Business owners reclaim their time, reconnect with their purpose, and build a business that serves their life - not the other way around.'
-  },
   'management_accounts': {
-    name: 'Management Accounts',
-    transformationPromise: 'From guessing to knowing. From anxiety to confidence.',
-    typicalOutcome: 'Monthly clarity that drives decisions, spots problems early, and gives you the confidence to act.'
+    name: 'Monthly Management Accounts',
+    price: '£650',
+    priceType: 'monthly',
+    outcome: "You'll Know Your Numbers"
   },
   'systems_audit': {
     name: 'Systems Audit',
-    transformationPromise: 'From chaos to control. From firefighting to focus.',
-    typicalOutcome: 'A business that runs without you being the single point of failure. Systems that scale.'
+    price: '£4,000',
+    priceType: 'one-time',
+    outcome: "You'll See Where The Time Goes"
+  },
+  '365_method': {
+    name: '365 Alignment Programme',
+    price: '£2,000',
+    priceType: 'monthly',
+    outcome: "You'll Reclaim Your Purpose"
   },
   'automation': {
     name: 'Automation Services',
-    transformationPromise: 'From manual grind to automated growth.',
-    typicalOutcome: 'Reclaim hours every week. Eliminate errors. Scale without adding headcount.'
+    price: '£5,000',
+    priceType: 'one-time',
+    outcome: "Your Systems Will Talk To Each Other"
   },
   'fractional_cfo': {
     name: 'Fractional CFO',
-    transformationPromise: 'From reactive to strategic. From surviving to thriving.',
-    typicalOutcome: 'Board-level financial leadership without the full-time cost. Strategic decisions backed by data.'
+    price: '£3,000',
+    priceType: 'monthly',
+    outcome: "You'll Have Strategic Financial Leadership"
   },
   'fractional_coo': {
     name: 'Fractional COO',
-    transformationPromise: 'From doing everything to leading everything.',
-    typicalOutcome: 'An operations leader who gets things done, develops your team, and frees you to work ON the business.'
+    price: '£4,000',
+    priceType: 'monthly',
+    outcome: "You'll Become Optional"
   },
   'combined_advisory': {
     name: 'Combined CFO/COO Advisory',
-    transformationPromise: 'Complete business transformation. Finance and operations aligned.',
-    typicalOutcome: 'The full executive support you need without the full executive cost.'
+    price: '£6,000',
+    priceType: 'monthly',
+    outcome: "Complete Business Transformation"
   },
   'business_advisory': {
     name: 'Business Advisory & Exit Planning',
-    transformationPromise: 'From building to transitioning. From hoping to planning.',
-    typicalOutcome: 'A clear path to exit on your terms, with maximum value and minimum regret.'
+    price: '£2,500',
+    priceType: 'monthly',
+    outcome: "You'll Have A Clear Exit Path"
   },
   'benchmarking': {
     name: 'Benchmarking Services',
-    transformationPromise: 'From wondering to knowing. From assumption to evidence.',
-    typicalOutcome: 'Know exactly where you stand vs. your peers. Spot opportunities and threats before your competitors.'
+    price: '£1,200',
+    priceType: 'one-time',
+    outcome: "You'll Know Where You Stand"
   }
 };
 
 // ============================================================================
-// ANTI-AI-SLOP RULES
+// ANTI-AI-SLOP RULES (Critical for authentic output)
 // ============================================================================
 
 const ANTI_SLOP_RULES = `
 WRITING RULES - CRITICAL:
 
 BANNED VOCABULARY (never use):
-- Additionally, Furthermore, Moreover (just continue the thought)
-- Delve, delving (say: look at, examine, dig into)
-- Crucial, pivotal, vital, key (say: important, or show why it matters)
+- Additionally, Furthermore, Moreover (just continue)
+- Delve, delving (say: look at, dig into)
+- Crucial, pivotal, vital, key (show why it matters)
 - Leverage (say: use)
 - Streamline (say: simplify, speed up)
 - Optimize (say: improve)
 - Landscape (say: market, situation)
-- Ecosystem (say: system, network)
-- Synergy, synergistic (describe the actual benefit)
+- Ecosystem (say: system)
+- Synergy (describe the actual benefit)
 - Paradigm shift (describe the actual change)
 - Holistic (say: complete, whole)
 - Robust (say: strong, reliable)
-- Cutting-edge, state-of-the-art (describe what's actually new)
-- Innovative, innovation (show the innovation, don't label it)
-- Best-in-class, world-class (be specific about quality)
-- Journey (say: process, experience, path)
-- Unlock potential (say: enable, allow, make possible)
-- Drive results (say: get results, achieve)
-- Empower (say: enable, let, help)
-- Transform, transformation (describe the actual change)
-- Navigate (say: work through, handle, manage)
+- Cutting-edge, state-of-the-art (describe what's new)
+- Innovative, innovation (show it, don't label it)
+- Best-in-class, world-class (be specific)
+- Journey (say: process, path)
+- Unlock potential (say: enable, allow)
+- Drive results (say: get results)
+- Empower (say: enable, help)
+- Transform (describe the actual change)
+- Navigate (say: work through, handle)
+- "We recommend..." (say the outcome instead)
+- "Our services include..." (never headline services)
+- "The solution is..." (describe what changes)
 
 BANNED SENTENCE STRUCTURES:
-- "Not only X but also Y" parallelisms (pick X or Y)
-- "It's important to note that..." (just say the thing)
-- "In today's [adjective] business environment..." (just make your point)
-- "At its core..." (just say what it is)
-- "At the end of the day..." (just make your point)
-- Starting sentences with "Importantly," or "Notably,"
-- "The reality is that..." (just state the reality)
-- "It goes without saying..." (then don't say it)
+- "Not only X but also Y" parallelisms
+- "It's important to note that..."
+- "In today's business environment..."
+- "At its core..."
+- "At the end of the day..."
+- Starting with "Importantly," or "Notably,"
+- "The reality is that..." (just state it)
+- "It goes without saying..." (don't say it)
 
 WRITING STYLE:
-1. Write like a trusted advisor having a conversation - direct, warm, honest
-2. Use the client's EXACT words whenever possible - quote them directly
+1. Write like you're writing to a friend going through a hard time
+2. Use their EXACT words - quote them liberally (8+ times minimum)
 3. Short paragraphs (2-3 sentences max)
-4. Be specific - use numbers, examples, their actual situations
-5. Sound human - contractions are good, perfect grammar isn't always necessary
-6. Empathy before solutions - acknowledge their reality before offering answers
-7. No corporate speak - if your grandmother wouldn't say it, neither should you
+4. Be specific - use their numbers, their examples, their situations
+5. Sound human - contractions, imperfect grammar, conversational
+6. Empathy before solutions - name their pain before offering hope
+7. Personal anchors - reference spouse names, kids' ages, specific details they shared
+8. Services as footnotes - always headline the OUTCOME, service is just how they get there
 `;
 
 // ============================================================================
@@ -202,12 +218,22 @@ serve(async (req) => {
       .eq('is_for_ai_analysis', true);
 
     // Build the prompt
-    const clientName = engagement.client?.name || 'the client';
+    const clientName = engagement.client?.name?.split(' ')[0] || 'they'; // First name only
     const companyName = engagement.client?.company || 'their business';
     const emotionalAnchors = report.emotional_anchors || {};
     const patterns = report.detection_patterns || {};
     const primaryRecs = report.primary_recommendations || [];
     const secondaryRecs = report.secondary_recommendations || [];
+
+    // Build recommended services with pricing
+    const recommendedServices = [...primaryRecs, ...secondaryRecs]
+      .filter(r => r.recommended)
+      .map(r => ({
+        code: r.code,
+        ...SERVICE_DETAILS[r.code],
+        score: r.score,
+        triggers: r.triggers
+      }));
 
     // Build context from notes
     const contextSection = contextNotes?.length 
@@ -219,39 +245,38 @@ serve(async (req) => {
       ? `\n\nRELEVANT DOCUMENTS:\n${documents.map(d => `- ${d.filename} (${d.document_type}): ${d.ai_summary || d.description || 'No summary'}`).join('\n')}`
       : '';
 
-    // Build service narratives request
-    const servicesForNarratives = [...primaryRecs, ...secondaryRecs.slice(0, 2)]
-      .filter(r => r.recommended)
-      .map(r => ({
-        code: r.code,
-        name: SERVICE_DEFINITIONS[r.code]?.name || r.name,
-        score: r.score,
-        triggers: r.triggers.slice(0, 5),
-        transformationPromise: SERVICE_DEFINITIONS[r.code]?.transformationPromise || '',
-        typicalOutcome: SERVICE_DEFINITIONS[r.code]?.typicalOutcome || ''
-      }));
-
-    const prompt = `You are an expert business advisor writing a deeply personalized Discovery Report for ${clientName} from ${companyName}.
+    const prompt = `You are writing a Destination-Focused Discovery Report for ${clientName} from ${companyName}.
 
 ${ANTI_SLOP_RULES}
 
 ============================================================================
-CLIENT'S OWN WORDS (Use these VERBATIM in the report - these are their emotional anchors)
+THE FUNDAMENTAL PRINCIPLE
+============================================================================
+We're travel agents selling holidays, not airlines selling seats.
+
+${clientName} doesn't buy "Management Accounts" - they buy knowing which customers are profitable.
+They don't buy "Systems Audit" - they buy a week without being the only one who can fix things.
+They don't buy "365 Method" - they buy leaving at 4pm to pick up the kids.
+
+HEADLINE the destination. Service is just how they get there.
+
+============================================================================
+CLIENT'S OWN WORDS (Use these VERBATIM - these are gold)
 ============================================================================
 
-THEIR VISION (Tuesday Test - what their ideal future looks like):
+THEIR VISION (The Tuesday Test - what their ideal future looks like):
 "${emotionalAnchors.tuesdayTest || 'Not provided'}"
 
-THEIR MAGIC FIX (What they'd change with unlimited resources):
+THEIR MAGIC FIX (What they'd change first):
 "${emotionalAnchors.magicFix || 'Not provided'}"
 
-THEIR CORE FRUSTRATION (What frustrates them most):
+THEIR CORE FRUSTRATION:
 "${emotionalAnchors.coreFrustration || 'Not provided'}"
 
 THEIR EMERGENCY LOG (What pulled them away recently):
 "${emotionalAnchors.emergencyLog || 'Not provided'}"
 
-HOW BUSINESS RELATIONSHIP FEELS:
+HOW THE BUSINESS RELATIONSHIP FEELS:
 "${emotionalAnchors.relationshipMirror || 'Not provided'}"
 
 WHAT THEY'VE SACRIFICED:
@@ -260,7 +285,7 @@ WHAT THEY'VE SACRIFICED:
 THEIR HARD TRUTH:
 "${emotionalAnchors.hardTruth || 'Not provided'}"
 
-WHAT THEY SUSPECT ABOUT NUMBERS:
+WHAT THEY SUSPECT ABOUT THE NUMBERS:
 "${emotionalAnchors.suspectedTruth || 'Not provided'}"
 
 OPERATIONAL FRUSTRATION:
@@ -274,63 +299,141 @@ ${docSection}
 ============================================================================
 DETECTED PATTERNS
 ============================================================================
-${patterns.burnoutDetected ? `⚠️ BURNOUT PATTERN DETECTED (${patterns.burnoutFlags} indicators): ${patterns.burnoutIndicators?.join(', ')}` : 'No burnout pattern'}
-${patterns.capitalRaisingDetected ? `💰 CAPITAL RAISING PATTERN: ${patterns.capitalSignals?.join(', ')}` : 'No capital raising pattern'}
-${patterns.lifestyleTransformationDetected ? `🔄 LIFESTYLE TRANSFORMATION PATTERN: ${patterns.lifestyleSignals?.join(', ')}` : 'No lifestyle transformation pattern'}
+${patterns.burnoutDetected ? `⚠️ BURNOUT DETECTED (${patterns.burnoutFlags} indicators): ${patterns.burnoutIndicators?.join(', ')}` : 'No burnout pattern'}
+${patterns.capitalRaisingDetected ? `💰 CAPITAL RAISING: ${patterns.capitalSignals?.join(', ')}` : 'No capital raising pattern'}
+${patterns.lifestyleTransformationDetected ? `🔄 LIFESTYLE TRANSFORMATION: ${patterns.lifestyleSignals?.join(', ')}` : 'No lifestyle pattern'}
 
-Urgency Multiplier: ${patterns.urgencyMultiplier}x (Change Readiness: ${report.change_readiness})
-
-============================================================================
-SERVICE RECOMMENDATIONS (Write narratives for these)
-============================================================================
-${JSON.stringify(servicesForNarratives, null, 2)}
+Urgency: ${patterns.urgencyMultiplier}x (Change Readiness: ${report.change_readiness})
 
 ============================================================================
-YOUR TASK
+RECOMMENDED SERVICES (write these as footnotes, not headlines)
+============================================================================
+${JSON.stringify(recommendedServices, null, 2)}
+
+============================================================================
+YOUR TASK - Generate a 5-page Destination-Focused Report
 ============================================================================
 
-Generate a JSON response with the following structure. Use the client's EXACT words as quotes. Be specific to their situation. Sound like a trusted advisor, not a corporate brochure.
+Return a JSON object with this exact structure:
 
 {
-  "headline": "A punchy, attention-grabbing headline that speaks to their specific situation (15 words max)",
+  "page1_destination": {
+    "headerLine": "The Tuesday You're Building Towards",
+    "visionVerbatim": "Their Tuesday Test answer, edited slightly for flow but keeping their exact words. Multiple paragraphs. Include specific details like 'leaving at 4pm', 'picking kids up from football', spouse names, etc.",
+    "destinationClarityScore": 8,
+    "clarityExplanation": "One sentence about how clear their vision is"
+  },
   
-  "executiveSummary": "2-3 paragraphs that capture the essence of what we heard, what it means, and what we recommend. Use their words.",
+  "page2_gaps": {
+    "headerLine": "The Gap Between Here and There",
+    "openingLine": "A punchy one-liner that names the tension. e.g. 'You're building for freedom but operating in a prison of your own making.'",
+    "gaps": [
+      {
+        "title": "You Can't Leave",
+        "pattern": "Their exact words showing this pattern - quote them directly",
+        "costs": [
+          "30+ hours a week trapped in operations",
+          "No real holidays in years",
+          "A business that's unsellable without you"
+        ],
+        "shiftRequired": "What needs to change - one sentence in plain language"
+      }
+    ]
+  },
   
-  "visionNarrative": "A narrative about their vision - weave in their Tuesday Test answer. Show we heard their dreams.",
+  "page3_journey": {
+    "headerLine": "From Here to the 4pm Pickup",
+    "timelineLabel": {
+      "now": "Prison",
+      "month3": "Clarity",
+      "month6": "Handover",
+      "month12": "Freedom"
+    },
+    "phases": [
+      {
+        "timeframe": "Month 1-3",
+        "headline": "You'll Know Your Numbers",
+        "whatChanges": [
+          "You'll know which jobs make money and which don't",
+          "Cash flow stops being a surprise",
+          "You stop subsidising customers you shouldn't"
+        ],
+        "feelsLike": "The fog lifts. You stop guessing whether you're making money or just turning it over. The 3am cash flow anxiety starts to fade.",
+        "outcome": "Confident financial decisions based on data, not gut feel.",
+        "enabledBy": "Monthly Management Accounts",
+        "price": "£650/month"
+      }
+    ]
+  },
   
-  "realityCheckNarrative": "The gap between where they are and where they want to be. Use their frustrations and sacrifices as evidence.",
+  "page4_numbers": {
+    "headerLine": "The Investment in Your Tuesday",
+    "costOfStaying": {
+      "labourInefficiency": "£50,000 - £80,000",
+      "marginLeakage": "Unknown (you suspect significant)",
+      "yourTimeWasted": "1,500+ hours/year",
+      "businessValueImpact": "Severely discounted without you"
+    },
+    "personalCost": "Another year of 70-hour weeks. Another year of missed football practice. Your kids are [X] and [Y]. The window is closing.",
+    "investment": [
+      {
+        "phase": "Months 1-3",
+        "amount": "£1,950",
+        "whatYouGet": "Numbers you can use"
+      }
+    ],
+    "totalYear1": "£11,800",
+    "totalYear1Label": "Foundation for freedom",
+    "returns": {
+      "conservative": {
+        "labourGains": "£25,000",
+        "marginRecovery": "£10,000",
+        "timeReclaimed": "£15,000",
+        "total": "£50,000"
+      },
+      "realistic": {
+        "labourGains": "£40,000",
+        "marginRecovery": "£25,000",
+        "timeReclaimed": "£30,000",
+        "total": "£95,000"
+      }
+    },
+    "paybackPeriod": "3-6 months",
+    "realReturn": "The 4pm pickup. The holiday you actually take. The business that runs without you in the middle."
+  },
   
-  "blindSpotsNarrative": "What they might not be seeing clearly. Handle sensitively - these are vulnerabilities they shared.",
+  "page5_nextSteps": {
+    "headerLine": "Starting The Journey",
+    "thisWeek": {
+      "action": "30-minute call to talk through this report",
+      "tone": "Not a sales pitch. A conversation about what matters most and where to start. If it's not right for you, we'll tell you."
+    },
+    "firstStep": {
+      "recommendation": "Start with the numbers",
+      "why": "You can't fix what you can't see. Monthly management accounts give you the visibility to make every other decision with confidence.",
+      "theirWordsEcho": "A quote from their assessment that ties to this recommendation",
+      "simpleCta": "£650/month to start seeing clearly."
+    },
+    "theAsk": "A 2-3 sentence closing that references their stated desire for action/momentum, acknowledges past failures, and offers the practical path forward.",
+    "closingLine": "Let's talk this week."
+  },
   
-  "transformationPath": "How we bridge the gap. The journey from here to their Tuesday Test vision.",
-  
-  "whatWeHeard": "A 'We heard you say...' section with 5-7 bullet points of their most powerful quotes/statements",
-  
-  "whatItMeans": "Our interpretation - what these patterns suggest about their business and life",
-  
-  "whatChanges": "The transformation promise - what shifts when we work together",
-  
-  "serviceNarratives": [
-    {
-      "serviceCode": "service_code_here",
-      "serviceName": "Service Name",
-      "whyThisMatters": "Why this service specifically addresses their situation - use their words",
-      "whatWeDo": "Specific actions/deliverables tailored to their needs",
-      "expectedOutcome": "What changes for them - be specific to their stated goals",
-      "quoteTieIn": "A direct quote from their responses that this service addresses"
-    }
-  ],
-  
-  "nextSteps": "3-5 specific next steps, personalized to their urgency level and readiness",
-  
-  "conversationStarters": [
-    "Question 1 to discuss in discovery call",
-    "Question 2 based on their blind spots",
-    "Question 3 about their vision"
-  ]
+  "meta": {
+    "quotesUsed": ["Array of 8-10 direct quotes used throughout the report"],
+    "personalAnchors": ["Kids ages", "Spouse name", "Specific situations mentioned"],
+    "urgencyLevel": "high/medium/low based on patterns detected"
+  }
 }
 
-Remember: This person shared vulnerable truths with us. Honor that with a response that shows we truly listened.`;
+CRITICAL REQUIREMENTS:
+1. Use their EXACT words at least 8 times (direct quotes)
+2. Include personal anchors (spouse name, kids ages if mentioned)
+3. Services ONLY appear as footnotes in "enabledBy" fields
+4. Never headline a service name
+5. Timeline phases must FEEL different, not just list features
+6. The "personalCost" in page 4 must include specific personal details they shared
+7. ROI numbers should be realistic for their business size
+8. Close with their words echoed back`;
 
     // Call Claude API
     const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
@@ -363,7 +466,6 @@ Remember: This person shared vulnerable truths with us. Honor that with a respon
     // Extract JSON from response
     let narratives;
     try {
-      // Try to find JSON in the response
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         narratives = JSON.parse(jsonMatch[0]);
@@ -380,28 +482,27 @@ Remember: This person shared vulnerable truths with us. Honor that with a respon
     const tokensUsed = anthropicData.usage?.input_tokens + anthropicData.usage?.output_tokens || 0;
     const estimatedCost = (anthropicData.usage?.input_tokens || 0) * 0.003 / 1000 + (anthropicData.usage?.output_tokens || 0) * 0.015 / 1000;
 
-    // Update report with Pass 2 results
+    // Update report with Pass 2 results - new destination-focused structure
     await supabase
       .from('discovery_reports')
       .update({
         status: 'generated',
-        headline: narratives.headline,
-        executive_summary: narratives.executiveSummary,
-        vision_narrative: narratives.visionNarrative,
-        reality_check_narrative: narratives.realityCheckNarrative,
-        blind_spots_narrative: narratives.blindSpotsNarrative,
-        transformation_path: narratives.transformationPath,
-        service_narratives: narratives.serviceNarratives,
-        what_we_heard: narratives.whatWeHeard,
-        what_it_means: narratives.whatItMeans,
-        what_changes: narratives.whatChanges,
-        next_steps: narratives.nextSteps,
-        conversation_starters: narratives.conversationStarters,
+        // New destination-focused structure
+        destination_report: narratives,
+        page1_destination: narratives.page1_destination,
+        page2_gaps: narratives.page2_gaps,
+        page3_journey: narratives.page3_journey,
+        page4_numbers: narratives.page4_numbers,
+        page5_next_steps: narratives.page5_nextSteps,
+        quotes_used: narratives.meta?.quotesUsed || [],
+        personal_anchors: narratives.meta?.personalAnchors || [],
+        urgency_level: narratives.meta?.urgencyLevel || 'medium',
+        // Metadata
         llm_model: 'claude-sonnet-4-20250514',
         llm_tokens_used: tokensUsed,
         llm_cost: estimatedCost,
         generation_time_ms: processingTime,
-        prompt_version: 'v2.0-pass2',
+        prompt_version: 'v3.0-destination-focused',
         pass2_completed_at: new Date().toISOString(),
         generated_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -422,9 +523,7 @@ Remember: This person shared vulnerable truths with us. Honor that with a respon
       JSON.stringify({
         success: true,
         engagementId,
-        headline: narratives.headline,
-        executiveSummary: narratives.executiveSummary,
-        serviceNarrativesCount: narratives.serviceNarratives?.length || 0,
+        destinationReport: narratives,
         processingTimeMs: processingTime,
         tokensUsed,
         estimatedCost: estimatedCost.toFixed(4),
@@ -446,7 +545,7 @@ Remember: This person shared vulnerable truths with us. Honor that with a respon
         await supabase
           .from('discovery_engagements')
           .update({ 
-            status: 'pass1_complete',  // Revert to pass1_complete on failure
+            status: 'pass1_complete',
             updated_at: new Date().toISOString()
           })
           .eq('id', engagementId);
@@ -459,4 +558,3 @@ Remember: This person shared vulnerable truths with us. Honor that with a respon
     );
   }
 });
-

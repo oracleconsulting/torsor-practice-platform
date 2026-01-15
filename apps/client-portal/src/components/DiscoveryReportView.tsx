@@ -1,62 +1,51 @@
 // ============================================================================
-// DISCOVERY REPORT VIEW - CLIENT PORTAL
+// DISCOVERY REPORT VIEW - DESTINATION-FOCUSED CLIENT VIEW
 // ============================================================================
-// Beautiful client-facing view of their Discovery Report narrative
-// Shows personalized insights and service recommendations
+// "We're travel agents selling holidays, not airlines selling seats."
+// 
+// The client doesn't buy "Management Accounts" - they buy knowing which 
+// customers are profitable. They don't buy "Systems Audit" - they buy a 
+// week without being the only one who can fix things.
 // ============================================================================
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   Loader2,
+  Quote,
+  ArrowRight,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  Clock,
   Target,
   TrendingUp,
-  Users,
-  Settings,
-  BarChart3,
-  Briefcase,
-  Award,
-  Quote,
-  ChevronRight,
-  CheckCircle,
-  Sparkles,
-  ArrowRight,
-  Calendar
+  AlertTriangle,
+  CheckCircle2,
+  DollarSign,
+  Phone
 } from 'lucide-react';
 
 interface DiscoveryReportViewProps {
   clientId: string;
 }
 
-const SERVICE_ICONS: Record<string, any> = {
-  '365_method': Target,
-  'management_accounts': BarChart3,
-  'systems_audit': Settings,
-  'automation': Settings,
-  'fractional_cfo': TrendingUp,
-  'fractional_coo': Users,
-  'combined_advisory': Briefcase,
-  'business_advisory': Award,
-  'benchmarking': BarChart3,
-};
-
-const SERVICE_COLORS: Record<string, string> = {
-  '365_method': 'indigo',
-  'management_accounts': 'emerald',
-  'systems_audit': 'amber',
-  'automation': 'orange',
-  'fractional_cfo': 'blue',
-  'fractional_coo': 'cyan',
-  'combined_advisory': 'purple',
-  'business_advisory': 'rose',
-  'benchmarking': 'teal',
-};
+// Timeline dot component
+const TimelineDot = ({ active, label }: { active?: boolean; label: string }) => (
+  <div className="flex flex-col items-center">
+    <div className={`w-4 h-4 rounded-full border-2 ${
+      active ? 'bg-emerald-500 border-emerald-500' : 'bg-white border-gray-300'
+    }`} />
+    <span className="text-xs text-gray-500 mt-1 whitespace-nowrap">{label}</span>
+  </div>
+);
 
 export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState<any>(null);
-  const [engagement, setEngagement] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [expandedPhase, setExpandedPhase] = useState<number>(0);
 
   useEffect(() => {
     if (clientId) {
@@ -83,8 +72,6 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
         return;
       }
 
-      setEngagement(engagementData);
-
       // Fetch report
       const { data: reportData, error: reportError } = await supabase
         .from('discovery_reports')
@@ -108,246 +95,511 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <Loader2 className="h-10 w-10 animate-spin text-indigo-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading your report...</p>
+          <Loader2 className="h-10 w-10 animate-spin text-slate-600 mx-auto mb-4" />
+          <p className="text-slate-500 font-light">Loading your report...</p>
         </div>
       </div>
     );
   }
 
-  if (error || !report) {
+  if (error || !report?.destination_report) {
     return (
-      <div className="text-center py-16">
-        <Sparkles className="h-16 w-16 text-indigo-300 mx-auto mb-4" />
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">
+      <div className="text-center py-16 px-4">
+        <Sparkles className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+        <h2 className="text-xl font-medium text-slate-800 mb-2">
           Your Discovery Report
         </h2>
-        <p className="text-gray-600 max-w-md mx-auto">
+        <p className="text-slate-500 max-w-md mx-auto">
           {error || 'Your personalized report is being prepared. You\'ll be notified when it\'s ready.'}
         </p>
       </div>
     );
   }
 
+  const dest = report.destination_report;
+  const page1 = dest.page1_destination || report.page1_destination;
+  const page2 = dest.page2_gaps || report.page2_gaps;
+  const page3 = dest.page3_journey || report.page3_journey;
+  const page4 = dest.page4_numbers || report.page4_numbers;
+  const page5 = dest.page5_nextSteps || dest.page5_next_steps || report.page5_next_steps;
+
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Hero Section */}
-      <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 rounded-2xl p-8 md:p-12 text-white mb-8">
-        <div className="flex items-center gap-2 mb-4">
-          <Sparkles className="h-5 w-5" />
-          <span className="text-sm font-medium text-indigo-200">Your Discovery Report</span>
-        </div>
-        <h1 className="text-3xl md:text-4xl font-bold mb-4">
-          {report.headline}
-        </h1>
-        {engagement?.published_at && (
-          <p className="text-indigo-200 text-sm">
-            Prepared {new Date(engagement.published_at).toLocaleDateString('en-GB', { 
-              day: 'numeric', month: 'long', year: 'numeric' 
-            })}
-          </p>
-        )}
-      </div>
-
-      {/* Executive Summary */}
-      {report.executive_summary && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Executive Summary</h2>
-          <div className="prose prose-lg max-w-none text-gray-700">
-            <div className="whitespace-pre-wrap">{report.executive_summary}</div>
-          </div>
-        </div>
-      )}
-
-      {/* What We Heard */}
-      {report.what_we_heard && (
-        <div className="bg-indigo-50 rounded-xl p-8 mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-indigo-100 rounded-lg">
-              <Quote className="h-5 w-5 text-indigo-600" />
-            </div>
-            <h2 className="text-xl font-semibold text-indigo-900">What We Heard</h2>
-          </div>
-          <div className="prose max-w-none text-indigo-800">
-            <div className="whitespace-pre-wrap">{report.what_we_heard}</div>
-          </div>
-        </div>
-      )}
-
-      {/* Vision & Reality */}
-      <div className="grid md:grid-cols-2 gap-6 mb-8">
-        {report.vision_narrative && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <Target className="h-5 w-5 text-indigo-600" />
+    <div className="max-w-3xl mx-auto px-4 py-8">
+      
+      {/* ================================================================ */}
+      {/* PAGE 1: THE DESTINATION YOU DESCRIBED */}
+      {/* ================================================================ */}
+      {page1 && (
+        <section className="mb-16">
+          <div className="mb-8">
+            <p className="text-sm font-medium text-amber-600 uppercase tracking-widest mb-2">
               Your Vision
-            </h3>
-            <div className="text-gray-700 whitespace-pre-wrap">
-              {report.vision_narrative}
+            </p>
+            <h1 className="text-3xl md:text-4xl font-serif font-light text-slate-800 leading-tight">
+              {page1.headerLine || "The Tuesday You're Building Towards"}
+            </h1>
+          </div>
+          
+          <div className="bg-gradient-to-br from-slate-50 to-stone-50 rounded-xl p-8 border border-slate-100">
+            <Quote className="h-8 w-8 text-amber-500 mb-4 opacity-60" />
+            <blockquote className="text-lg md:text-xl text-slate-700 leading-relaxed italic whitespace-pre-wrap">
+              {page1.visionVerbatim}
+            </blockquote>
+          </div>
+          
+          {page1.destinationClarityScore && (
+            <div className="mt-6 flex items-center gap-4">
+              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-amber-400 to-emerald-500 rounded-full transition-all duration-1000"
+                  style={{ width: `${(page1.destinationClarityScore / 10) * 100}%` }}
+                />
+              </div>
+              <div className="text-sm text-slate-600">
+                <span className="font-semibold text-emerald-600">{page1.destinationClarityScore}/10</span>
+                <span className="text-slate-400 ml-2">Destination Clarity</span>
+              </div>
             </div>
-          </div>
-        )}
-        
-        {report.reality_check_narrative && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-amber-600" />
-              The Reality
-            </h3>
-            <div className="text-gray-700 whitespace-pre-wrap">
-              {report.reality_check_narrative}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* What It Means */}
-      {report.what_it_means && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">What This Means</h2>
-          <div className="text-gray-700 whitespace-pre-wrap">
-            {report.what_it_means}
-          </div>
-        </div>
+          )}
+          {page1.clarityExplanation && (
+            <p className="mt-2 text-sm text-slate-500">{page1.clarityExplanation}</p>
+          )}
+        </section>
       )}
 
-      {/* Service Recommendations */}
-      {report.service_narratives?.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-indigo-600" />
-            Our Recommendations
-          </h2>
-          
+      {/* ================================================================ */}
+      {/* PAGE 2: WHAT'S IN THE WAY */}
+      {/* ================================================================ */}
+      {page2 && (
+        <section className="mb-16">
+          <div className="mb-8">
+            <p className="text-sm font-medium text-rose-600 uppercase tracking-widest mb-2">
+              The Reality
+            </p>
+            <h2 className="text-2xl md:text-3xl font-serif font-light text-slate-800">
+              {page2.headerLine || "The Gap Between Here and There"}
+            </h2>
+            {page2.openingLine && (
+              <p className="mt-4 text-lg text-slate-600 font-light italic">
+                {page2.openingLine}
+              </p>
+            )}
+          </div>
+
           <div className="space-y-6">
-            {report.service_narratives.map((service: any, index: number) => {
-              const Icon = SERVICE_ICONS[service.serviceCode] || Target;
-              const color = SERVICE_COLORS[service.serviceCode] || 'gray';
-              
-              return (
-                <div 
-                  key={index}
-                  className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
-                >
-                  {/* Service Header */}
-                  <div className={`bg-${color}-50 px-6 py-4 border-b border-${color}-100`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 bg-${color}-100 rounded-lg`}>
-                        <Icon className={`h-5 w-5 text-${color}-600`} />
-                      </div>
-                      <h3 className={`text-lg font-semibold text-${color}-900`}>
-                        {service.serviceName}
-                      </h3>
-                    </div>
+            {page2.gaps?.map((gap: any, index: number) => (
+              <div 
+                key={index}
+                className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm"
+              >
+                <div className="p-6">
+                  <div className="flex items-start gap-3 mb-4">
+                    <AlertTriangle className="h-5 w-5 text-rose-500 flex-shrink-0 mt-0.5" />
+                    <h3 className="text-lg font-medium text-slate-800">{gap.title}</h3>
                   </div>
                   
-                  <div className="p-6 space-y-4">
-                    {/* Why This Matters */}
-                    {service.whyThisMatters && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                          Why This Matters For You
-                        </h4>
-                        <p className="text-gray-700">{service.whyThisMatters}</p>
-                      </div>
-                    )}
-                    
-                    {/* What We Do */}
-                    {service.whatWeDo && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                          What We'll Do Together
-                        </h4>
-                        <p className="text-gray-700">{service.whatWeDo}</p>
-                      </div>
-                    )}
-                    
-                    {/* Expected Outcome */}
-                    {service.expectedOutcome && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                          What Changes
-                        </h4>
-                        <p className="text-gray-700">{service.expectedOutcome}</p>
-                      </div>
-                    )}
-                    
-                    {/* Quote Tie-In */}
-                    {service.quoteTieIn && (
-                      <div className="mt-4 p-4 bg-gray-50 rounded-lg border-l-4 border-indigo-500">
-                        <p className="text-gray-600 italic">"{service.quoteTieIn}"</p>
-                        <p className="text-sm text-gray-500 mt-1">— Something you told us</p>
-                      </div>
-                    )}
+                  {/* The Pattern - Their Words */}
+                  <div className="bg-slate-50 rounded-lg p-4 mb-4 border-l-4 border-slate-300">
+                    <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-2">
+                      The pattern:
+                    </p>
+                    <p className="text-slate-700 italic">"{gap.pattern}"</p>
+                  </div>
+                  
+                  {/* What This Costs */}
+                  <div className="mb-4">
+                    <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-2">
+                      What this costs you:
+                    </p>
+                    <ul className="space-y-1">
+                      {gap.costs?.map((cost: string, costIdx: number) => (
+                        <li key={costIdx} className="flex items-start gap-2 text-slate-600">
+                          <span className="text-rose-400 mt-1">•</span>
+                          {cost}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  
+                  {/* The Shift Required */}
+                  <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-100">
+                    <p className="text-sm font-medium text-emerald-700 uppercase tracking-wide mb-1">
+                      The shift required:
+                    </p>
+                    <p className="text-emerald-800">{gap.shiftRequired}</p>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* The Transformation */}
-      {report.what_changes && (
-        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-8 mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-emerald-100 rounded-lg">
-              <CheckCircle className="h-5 w-5 text-emerald-600" />
-            </div>
-            <h2 className="text-xl font-semibold text-emerald-900">The Transformation</h2>
-          </div>
-          <div className="text-emerald-800 whitespace-pre-wrap">
-            {report.what_changes}
-          </div>
-        </div>
-      )}
-
-      {/* Next Steps */}
-      {report.next_steps && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <ArrowRight className="h-5 w-5 text-indigo-600" />
-            Next Steps
-          </h2>
-          <div className="text-gray-700 whitespace-pre-wrap">
-            {report.next_steps}
-          </div>
-        </div>
-      )}
-
-      {/* Conversation Starters */}
-      {report.conversation_starters?.length > 0 && (
-        <div className="bg-gray-50 rounded-xl p-8 mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Questions To Explore Together
-          </h2>
-          <ul className="space-y-3">
-            {report.conversation_starters.map((question: string, index: number) => (
-              <li key={index} className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-sm font-medium">
-                  {index + 1}
-                </span>
-                <span className="text-gray-700">{question}</span>
-              </li>
+              </div>
             ))}
-          </ul>
-        </div>
+          </div>
+        </section>
       )}
 
-      {/* CTA */}
-      <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl p-8 text-center text-white">
-        <h2 className="text-2xl font-bold mb-2">Ready to Take the Next Step?</h2>
-        <p className="text-indigo-100 mb-6">
-          Let's discuss how we can help you achieve your vision.
-        </p>
-        <button className="bg-white text-indigo-600 px-6 py-3 rounded-lg font-semibold hover:bg-indigo-50 transition-colors inline-flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
-          Schedule a Conversation
-        </button>
-      </div>
+      {/* ================================================================ */}
+      {/* PAGE 3: THE JOURNEY */}
+      {/* ================================================================ */}
+      {page3 && (
+        <section className="mb-16">
+          <div className="mb-8">
+            <p className="text-sm font-medium text-blue-600 uppercase tracking-widest mb-2">
+              The Path Forward
+            </p>
+            <h2 className="text-2xl md:text-3xl font-serif font-light text-slate-800">
+              {page3.headerLine || "From Here to the 4pm Pickup"}
+            </h2>
+          </div>
+
+          {/* Timeline Visual */}
+          {page3.timelineLabel && (
+            <div className="mb-8 py-6 px-4 bg-slate-50 rounded-xl">
+              <div className="flex items-center justify-between relative">
+                {/* Connection Line */}
+                <div className="absolute top-2 left-4 right-4 h-0.5 bg-slate-200" />
+                
+                <TimelineDot label={page3.timelineLabel.now || "Now"} />
+                <div className="flex-1" />
+                <TimelineDot label={page3.timelineLabel.month3 || "Month 3"} />
+                <div className="flex-1" />
+                <TimelineDot label={page3.timelineLabel.month6 || "Month 6"} />
+                <div className="flex-1" />
+                <TimelineDot active label={page3.timelineLabel.month12 || "Month 12"} />
+              </div>
+            </div>
+          )}
+
+          {/* Journey Phases */}
+          <div className="space-y-4">
+            {page3.phases?.map((phase: any, index: number) => (
+              <div 
+                key={index}
+                className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm"
+              >
+                {/* Phase Header - Clickable */}
+                <button
+                  onClick={() => setExpandedPhase(expandedPhase === index ? -1 : index)}
+                  className="w-full p-6 text-left hover:bg-slate-50 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full mb-2">
+                        {phase.timeframe}
+                      </span>
+                      <h3 className="text-xl font-medium text-slate-800">
+                        {phase.headline}
+                      </h3>
+                    </div>
+                    {expandedPhase === index ? (
+                      <ChevronUp className="h-5 w-5 text-slate-400" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-slate-400" />
+                    )}
+                  </div>
+                </button>
+                
+                {/* Expanded Content */}
+                {expandedPhase === index && (
+                  <div className="px-6 pb-6 border-t border-slate-100">
+                    {/* What Changes */}
+                    <div className="mt-4">
+                      <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-2">
+                        What changes:
+                      </p>
+                      <ul className="space-y-1">
+                        {phase.whatChanges?.map((change: string, changeIdx: number) => (
+                          <li key={changeIdx} className="flex items-start gap-2 text-slate-700">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                            {change}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    
+                    {/* What This Feels Like */}
+                    {phase.feelsLike && (
+                      <div className="mt-4 bg-amber-50 rounded-lg p-4 border border-amber-100">
+                        <p className="text-sm font-medium text-amber-700 uppercase tracking-wide mb-1">
+                          What this feels like:
+                        </p>
+                        <p className="text-amber-900 italic">{phase.feelsLike}</p>
+                      </div>
+                    )}
+                    
+                    {/* The Outcome */}
+                    {phase.outcome && (
+                      <div className="mt-4">
+                        <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-1">
+                          The outcome:
+                        </p>
+                        <p className="text-slate-700 font-medium">{phase.outcome}</p>
+                      </div>
+                    )}
+                    
+                    {/* Service Footnote */}
+                    {phase.enabledBy && (
+                      <p className="mt-4 text-sm text-slate-400">
+                        Enabled by: {phase.enabledBy} ({phase.price})
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ================================================================ */}
+      {/* PAGE 4: THE NUMBERS */}
+      {/* ================================================================ */}
+      {page4 && (
+        <section className="mb-16">
+          <div className="mb-8">
+            <p className="text-sm font-medium text-slate-500 uppercase tracking-widest mb-2">
+              The Investment
+            </p>
+            <h2 className="text-2xl md:text-3xl font-serif font-light text-slate-800">
+              {page4.headerLine || "The Investment in Your Tuesday"}
+            </h2>
+          </div>
+
+          {/* Cost of Staying */}
+          <div className="bg-rose-50 rounded-xl p-6 mb-6 border border-rose-100">
+            <h3 className="text-lg font-medium text-rose-800 mb-4 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              What Staying Here Costs
+            </h3>
+            
+            {page4.costOfStaying && (
+              <div className="space-y-2 mb-4">
+                {page4.costOfStaying.labourInefficiency && (
+                  <div className="flex justify-between text-rose-700">
+                    <span>Labour inefficiency</span>
+                    <span className="font-medium">{page4.costOfStaying.labourInefficiency}</span>
+                  </div>
+                )}
+                {page4.costOfStaying.marginLeakage && (
+                  <div className="flex justify-between text-rose-700">
+                    <span>Margin leakage</span>
+                    <span className="font-medium">{page4.costOfStaying.marginLeakage}</span>
+                  </div>
+                )}
+                {page4.costOfStaying.yourTimeWasted && (
+                  <div className="flex justify-between text-rose-700">
+                    <span>Your time on work below your pay grade</span>
+                    <span className="font-medium">{page4.costOfStaying.yourTimeWasted}</span>
+                  </div>
+                )}
+                {page4.costOfStaying.businessValueImpact && (
+                  <div className="flex justify-between text-rose-700">
+                    <span>Business value without you</span>
+                    <span className="font-medium">{page4.costOfStaying.businessValueImpact}</span>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {page4.personalCost && (
+              <div className="mt-4 pt-4 border-t border-rose-200">
+                <p className="text-sm font-medium text-rose-600 uppercase tracking-wide mb-1">
+                  Personal cost:
+                </p>
+                <p className="text-rose-800">{page4.personalCost}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Investment Table */}
+          {page4.investment && page4.investment.length > 0 && (
+            <div className="bg-white rounded-xl p-6 mb-6 border border-slate-200">
+              <h3 className="text-lg font-medium text-slate-800 mb-4 flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-slate-600" />
+                What Moving Forward Costs
+              </h3>
+              
+              <div className="divide-y divide-slate-100">
+                {page4.investment.map((inv: any, idx: number) => (
+                  <div key={idx} className="flex justify-between py-3">
+                    <div>
+                      <span className="text-slate-700">{inv.phase}</span>
+                      {inv.whatYouGet && (
+                        <span className="text-slate-400 ml-2">— {inv.whatYouGet}</span>
+                      )}
+                    </div>
+                    <span className="font-semibold text-slate-800">{inv.amount}</span>
+                  </div>
+                ))}
+                
+                {page4.totalYear1 && (
+                  <div className="flex justify-between py-3 bg-emerald-50 -mx-6 px-6 mt-2 rounded-b-lg">
+                    <span className="font-medium text-emerald-800">
+                      Total Year 1: {page4.totalYear1Label || 'Foundation for freedom'}
+                    </span>
+                    <span className="font-bold text-emerald-800">{page4.totalYear1}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Returns */}
+          {page4.returns && (
+            <div className="bg-emerald-50 rounded-xl p-6 border border-emerald-100">
+              <h3 className="text-lg font-medium text-emerald-800 mb-4 flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                The Return
+              </h3>
+              
+              <div className="grid md:grid-cols-2 gap-4 mb-4">
+                {/* Conservative */}
+                <div className="bg-white rounded-lg p-4">
+                  <p className="text-sm font-medium text-slate-500 mb-2">Conservative</p>
+                  <div className="space-y-1 text-sm text-slate-600">
+                    <div className="flex justify-between">
+                      <span>Labour efficiency</span>
+                      <span>{page4.returns.conservative?.labourGains}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Margin recovery</span>
+                      <span>{page4.returns.conservative?.marginRecovery}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Time reclaimed</span>
+                      <span>{page4.returns.conservative?.timeReclaimed}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-emerald-700 pt-2 border-t border-emerald-100">
+                      <span>Total</span>
+                      <span>{page4.returns.conservative?.total}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Realistic */}
+                <div className="bg-white rounded-lg p-4">
+                  <p className="text-sm font-medium text-emerald-600 mb-2">Realistic</p>
+                  <div className="space-y-1 text-sm text-slate-600">
+                    <div className="flex justify-between">
+                      <span>Labour efficiency</span>
+                      <span>{page4.returns.realistic?.labourGains}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Margin recovery</span>
+                      <span>{page4.returns.realistic?.marginRecovery}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Time reclaimed</span>
+                      <span>{page4.returns.realistic?.timeReclaimed}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-emerald-700 pt-2 border-t border-emerald-100">
+                      <span>Total</span>
+                      <span>{page4.returns.realistic?.total}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {page4.paybackPeriod && (
+                <p className="text-emerald-700 font-medium">
+                  Payback period: {page4.paybackPeriod}
+                </p>
+              )}
+              
+              {page4.realReturn && (
+                <div className="mt-4 pt-4 border-t border-emerald-200">
+                  <p className="text-emerald-800 italic">
+                    But the real return? {page4.realReturn}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ================================================================ */}
+      {/* PAGE 5: WHAT HAPPENS NEXT */}
+      {/* ================================================================ */}
+      {page5 && (
+        <section className="mb-8">
+          <div className="mb-8">
+            <p className="text-sm font-medium text-emerald-600 uppercase tracking-widest mb-2">
+              Next Steps
+            </p>
+            <h2 className="text-2xl md:text-3xl font-serif font-light text-slate-800">
+              {page5.headerLine || "Starting The Journey"}
+            </h2>
+          </div>
+
+          {/* This Week */}
+          {page5.thisWeek && (
+            <div className="bg-white rounded-xl p-6 mb-6 border border-slate-200">
+              <h3 className="text-lg font-medium text-slate-800 mb-2 flex items-center gap-2">
+                <Clock className="h-5 w-5 text-slate-600" />
+                This Week
+              </h3>
+              <p className="text-xl text-slate-700 font-medium mb-2">
+                {page5.thisWeek.action}
+              </p>
+              <p className="text-slate-500">
+                {page5.thisWeek.tone}
+              </p>
+            </div>
+          )}
+
+          {/* First Step */}
+          {page5.firstStep && (
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 mb-6 border border-amber-200">
+              <h3 className="text-lg font-medium text-amber-800 mb-2 flex items-center gap-2">
+                <Target className="h-5 w-5" />
+                Your First Step
+              </h3>
+              <p className="text-xl text-amber-900 font-medium mb-2">
+                {page5.firstStep.recommendation}
+              </p>
+              <p className="text-amber-800 mb-4">
+                {page5.firstStep.why}
+              </p>
+              
+              {page5.firstStep.theirWordsEcho && (
+                <div className="bg-white/60 rounded-lg p-4 mb-4 border-l-4 border-amber-400">
+                  <p className="text-amber-800 italic">
+                    "{page5.firstStep.theirWordsEcho}"
+                  </p>
+                  <p className="text-sm text-amber-600 mt-1">Let's fix that first.</p>
+                </div>
+              )}
+              
+              {page5.firstStep.simpleCta && (
+                <p className="text-lg font-semibold text-amber-900">
+                  {page5.firstStep.simpleCta}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* The Ask */}
+          {page5.theAsk && (
+            <div className="bg-slate-800 rounded-xl p-8 text-center">
+              <p className="text-slate-300 text-lg mb-6">
+                {page5.theAsk}
+              </p>
+              
+              <button className="bg-amber-500 hover:bg-amber-400 text-slate-900 px-8 py-4 rounded-lg font-semibold text-lg transition-colors inline-flex items-center gap-3 mb-4">
+                <Phone className="h-5 w-5" />
+                Book a Conversation
+              </button>
+              
+              {page5.closingLine && (
+                <p className="text-amber-400 font-medium text-lg">
+                  {page5.closingLine}
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
     </div>
   );
 }
 
 export default DiscoveryReportView;
-

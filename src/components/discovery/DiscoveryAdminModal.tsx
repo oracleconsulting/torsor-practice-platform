@@ -520,106 +520,299 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
   };
 
   const renderClientReport = () => {
-    if (!report?.headline) {
+    // Check for new destination-focused structure
+    const dest = report?.destination_report;
+    const page1 = dest?.page1_destination || report?.page1_destination;
+    const page2 = dest?.page2_gaps || report?.page2_gaps;
+    const page3 = dest?.page3_journey || report?.page3_journey;
+    const page4 = dest?.page4_numbers || report?.page4_numbers;
+    const page5 = dest?.page5_nextSteps || dest?.page5_next_steps || report?.page5_next_steps;
+
+    if (!page1 && !report?.headline) {
       return (
         <div className="text-center py-12 text-gray-500">
           <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
           <p>Report narrative not yet generated</p>
-          <p className="text-sm">Run Pass 2 to generate the client-facing report</p>
+          <p className="text-sm">Run Pass 2 to generate the destination-focused report</p>
         </div>
       );
     }
 
+    // Render destination-focused 5-page structure
     return (
-      <div className="space-y-8">
-        {/* Headline */}
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {report.headline}
-          </h2>
-        </div>
-
-        {/* Executive Summary */}
-        {report.executive_summary && (
-          <div className="prose dark:prose-invert max-w-none">
-            <h3 className="text-lg font-semibold border-b pb-2">Executive Summary</h3>
-            <div className="whitespace-pre-wrap">{report.executive_summary}</div>
-          </div>
-        )}
-
-        {/* What We Heard */}
-        {report.what_we_heard && (
-          <div className="p-6 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <h3 className="text-lg font-semibold mb-4 text-blue-900 dark:text-blue-100">
-              What We Heard
-            </h3>
-            <div className="whitespace-pre-wrap text-blue-800 dark:text-blue-200">
-              {report.what_we_heard}
+      <div className="space-y-10 bg-gray-50 dark:bg-gray-800 rounded-lg p-6">
+        {/* ================================================================ */}
+        {/* PAGE 1: THE DESTINATION YOU DESCRIBED */}
+        {/* ================================================================ */}
+        {page1 && (
+          <section className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-sm">
+            <span className="text-xs font-medium text-amber-600 uppercase tracking-widest">
+              Page 1 - Your Vision
+            </span>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mt-2">
+              {page1.headerLine || "The Tuesday You're Building Towards"}
+            </h2>
+            
+            <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border-l-4 border-amber-400">
+              <p className="text-gray-700 dark:text-gray-300 italic whitespace-pre-wrap">
+                "{page1.visionVerbatim}"
+              </p>
             </div>
-          </div>
+            
+            {page1.destinationClarityScore && (
+              <div className="mt-4 flex items-center gap-4">
+                <div className="flex-1 h-2 bg-gray-200 rounded-full">
+                  <div 
+                    className="h-full bg-emerald-500 rounded-full"
+                    style={{ width: `${(page1.destinationClarityScore / 10) * 100}%` }}
+                  />
+                </div>
+                <span className="font-semibold">{page1.destinationClarityScore}/10</span>
+              </div>
+            )}
+          </section>
         )}
 
-        {/* Vision Narrative */}
-        {report.vision_narrative && (
-          <div className="prose dark:prose-invert max-w-none">
-            <h3 className="text-lg font-semibold border-b pb-2">Your Vision</h3>
-            <div className="whitespace-pre-wrap">{report.vision_narrative}</div>
-          </div>
-        )}
-
-        {/* Reality Check */}
-        {report.reality_check_narrative && (
-          <div className="prose dark:prose-invert max-w-none">
-            <h3 className="text-lg font-semibold border-b pb-2">The Reality</h3>
-            <div className="whitespace-pre-wrap">{report.reality_check_narrative}</div>
-          </div>
-        )}
-
-        {/* Service Narratives */}
-        {report.service_narratives?.length > 0 && (
-          <div>
-            <h3 className="text-lg font-semibold border-b pb-2 mb-4">Our Recommendations</h3>
-            <div className="space-y-6">
-              {report.service_narratives.map((svc: any, idx: number) => (
-                <div key={idx} className="p-6 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    {svc.serviceName}
-                  </h4>
-                  {svc.whyThisMatters && (
-                    <div className="mb-3">
-                      <h5 className="text-sm font-medium text-gray-500 mb-1">Why This Matters For You</h5>
-                      <p className="text-gray-700 dark:text-gray-300">{svc.whyThisMatters}</p>
-                    </div>
-                  )}
-                  {svc.expectedOutcome && (
-                    <div className="mb-3">
-                      <h5 className="text-sm font-medium text-gray-500 mb-1">What Changes</h5>
-                      <p className="text-gray-700 dark:text-gray-300">{svc.expectedOutcome}</p>
-                    </div>
-                  )}
-                  {svc.quoteTieIn && (
-                    <div className="mt-3 p-3 bg-white dark:bg-gray-700 rounded border-l-4 border-blue-500">
-                      <p className="text-sm italic text-gray-600 dark:text-gray-300">
-                        "{svc.quoteTieIn}"
-                      </p>
-                    </div>
-                  )}
+        {/* ================================================================ */}
+        {/* PAGE 2: WHAT'S IN THE WAY */}
+        {/* ================================================================ */}
+        {page2 && (
+          <section className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-sm">
+            <span className="text-xs font-medium text-rose-600 uppercase tracking-widest">
+              Page 2 - The Gaps
+            </span>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mt-2">
+              {page2.headerLine || "The Gap Between Here and There"}
+            </h2>
+            
+            {page2.openingLine && (
+              <p className="mt-2 text-gray-600 dark:text-gray-400 italic">
+                {page2.openingLine}
+              </p>
+            )}
+            
+            <div className="mt-4 space-y-4">
+              {page2.gaps?.map((gap: any, idx: number) => (
+                <div key={idx} className="p-4 border rounded-lg dark:border-gray-700">
+                  <h3 className="font-semibold text-rose-700 dark:text-rose-400">{gap.title}</h3>
+                  <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-sm">
+                    <p className="italic">"{gap.pattern}"</p>
+                  </div>
+                  <ul className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                    {gap.costs?.map((cost: string, i: number) => (
+                      <li key={i}>• {cost}</li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-400">
+                    <strong>Shift:</strong> {gap.shiftRequired}
+                  </p>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         )}
 
-        {/* Next Steps */}
-        {report.next_steps && (
-          <div className="p-6 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-            <h3 className="text-lg font-semibold mb-4 text-emerald-900 dark:text-emerald-100">
-              Next Steps
-            </h3>
-            <div className="whitespace-pre-wrap text-emerald-800 dark:text-emerald-200">
-              {report.next_steps}
+        {/* ================================================================ */}
+        {/* PAGE 3: THE JOURNEY */}
+        {/* ================================================================ */}
+        {page3 && (
+          <section className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-sm">
+            <span className="text-xs font-medium text-blue-600 uppercase tracking-widest">
+              Page 3 - The Path Forward
+            </span>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mt-2">
+              {page3.headerLine || "From Here to the 4pm Pickup"}
+            </h2>
+            
+            {/* Timeline Labels */}
+            {page3.timelineLabel && (
+              <div className="mt-4 flex justify-between text-xs text-gray-500 px-2">
+                <span>{page3.timelineLabel.now}</span>
+                <span>{page3.timelineLabel.month3}</span>
+                <span>{page3.timelineLabel.month6}</span>
+                <span className="text-emerald-600 font-medium">{page3.timelineLabel.month12}</span>
+              </div>
+            )}
+            
+            <div className="mt-4 space-y-4">
+              {page3.phases?.map((phase: any, idx: number) => (
+                <div key={idx} className="p-4 border rounded-lg dark:border-gray-700">
+                  <span className="inline-block px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded mb-2">
+                    {phase.timeframe}
+                  </span>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                    {phase.headline}
+                  </h3>
+                  {phase.whatChanges && (
+                    <ul className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                      {phase.whatChanges.map((change: string, i: number) => (
+                        <li key={i}>✓ {change}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {phase.feelsLike && (
+                    <p className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 rounded text-sm text-amber-800 dark:text-amber-300 italic">
+                      {phase.feelsLike}
+                    </p>
+                  )}
+                  <p className="mt-2 text-xs text-gray-400">
+                    Enabled by: {phase.enabledBy} ({phase.price})
+                  </p>
+                </div>
+              ))}
             </div>
-          </div>
+          </section>
+        )}
+
+        {/* ================================================================ */}
+        {/* PAGE 4: THE NUMBERS */}
+        {/* ================================================================ */}
+        {page4 && (
+          <section className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-sm">
+            <span className="text-xs font-medium text-slate-600 uppercase tracking-widest">
+              Page 4 - The Investment
+            </span>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mt-2">
+              {page4.headerLine || "The Investment in Your Tuesday"}
+            </h2>
+            
+            {/* Cost of Staying */}
+            {page4.costOfStaying && (
+              <div className="mt-4 p-4 bg-rose-50 dark:bg-rose-900/20 rounded-lg">
+                <h3 className="text-sm font-semibold text-rose-700 dark:text-rose-400">
+                  Cost of Staying
+                </h3>
+                <div className="mt-2 text-sm text-rose-600 dark:text-rose-400 space-y-1">
+                  {page4.costOfStaying.labourInefficiency && (
+                    <p>Labour inefficiency: {page4.costOfStaying.labourInefficiency}</p>
+                  )}
+                  {page4.costOfStaying.marginLeakage && (
+                    <p>Margin leakage: {page4.costOfStaying.marginLeakage}</p>
+                  )}
+                </div>
+                {page4.personalCost && (
+                  <p className="mt-2 text-sm text-rose-800 dark:text-rose-300 font-medium">
+                    {page4.personalCost}
+                  </p>
+                )}
+              </div>
+            )}
+            
+            {/* Investment */}
+            {page4.investment && (
+              <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  Investment
+                </h3>
+                <div className="mt-2 space-y-1">
+                  {page4.investment.map((inv: any, idx: number) => (
+                    <div key={idx} className="flex justify-between text-sm">
+                      <span>{inv.phase}: {inv.whatYouGet}</span>
+                      <span className="font-medium">{inv.amount}</span>
+                    </div>
+                  ))}
+                </div>
+                {page4.totalYear1 && (
+                  <div className="mt-2 pt-2 border-t dark:border-gray-700 flex justify-between font-semibold">
+                    <span>Total Year 1</span>
+                    <span>{page4.totalYear1}</span>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Returns */}
+            {page4.returns && (
+              <div className="mt-4 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                <h3 className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                  Projected Return
+                </h3>
+                <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-500">Conservative</p>
+                    <p className="font-bold text-emerald-600">{page4.returns.conservative?.total}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Realistic</p>
+                    <p className="font-bold text-emerald-600">{page4.returns.realistic?.total}</p>
+                  </div>
+                </div>
+                {page4.realReturn && (
+                  <p className="mt-2 text-sm text-emerald-800 dark:text-emerald-300 italic">
+                    But the real return? {page4.realReturn}
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ================================================================ */}
+        {/* PAGE 5: NEXT STEPS */}
+        {/* ================================================================ */}
+        {page5 && (
+          <section className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-sm">
+            <span className="text-xs font-medium text-emerald-600 uppercase tracking-widest">
+              Page 5 - Next Steps
+            </span>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mt-2">
+              {page5.headerLine || "Starting The Journey"}
+            </h2>
+            
+            {page5.thisWeek && (
+              <div className="mt-4 p-4 border rounded-lg dark:border-gray-700">
+                <h3 className="font-semibold">This Week</h3>
+                <p className="mt-1 text-gray-600 dark:text-gray-400">{page5.thisWeek.action}</p>
+                <p className="mt-1 text-sm text-gray-500">{page5.thisWeek.tone}</p>
+              </div>
+            )}
+            
+            {page5.firstStep && (
+              <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                <h3 className="font-semibold text-amber-800 dark:text-amber-300">
+                  {page5.firstStep.recommendation}
+                </h3>
+                <p className="mt-1 text-amber-700 dark:text-amber-400 text-sm">
+                  {page5.firstStep.why}
+                </p>
+                {page5.firstStep.simpleCta && (
+                  <p className="mt-2 font-semibold text-amber-900 dark:text-amber-200">
+                    {page5.firstStep.simpleCta}
+                  </p>
+                )}
+              </div>
+            )}
+            
+            {page5.theAsk && (
+              <div className="mt-4 p-4 bg-slate-800 dark:bg-slate-950 rounded-lg text-center">
+                <p className="text-slate-300">{page5.theAsk}</p>
+                {page5.closingLine && (
+                  <p className="mt-2 text-amber-400 font-semibold">{page5.closingLine}</p>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Meta: Quotes Used */}
+        {report?.quotes_used?.length > 0 && (
+          <section className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-sm">
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-widest">
+              Verbatim Quotes Used ({report.quotes_used.length})
+            </span>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {report.quotes_used.slice(0, 5).map((quote: string, idx: number) => (
+                <span key={idx} className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded">
+                  "{quote.substring(0, 40)}..."
+                </span>
+              ))}
+              {report.quotes_used.length > 5 && (
+                <span className="px-2 py-1 text-xs text-gray-500">
+                  +{report.quotes_used.length - 5} more
+                </span>
+              )}
+            </div>
+          </section>
         )}
       </div>
     );
