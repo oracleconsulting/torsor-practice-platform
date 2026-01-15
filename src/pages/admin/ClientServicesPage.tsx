@@ -783,7 +783,29 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         // Don't throw - assessments might not exist
       }
 
-      // Delete from audit_advisory_insights FIRST (references both destination_discovery and practice_members)
+      // Delete from client_reports FIRST (references client_id)
+      const { error: clientReportsError } = await supabase
+        .from('client_reports')
+        .delete()
+        .eq('client_id', clientToDelete.id);
+
+      if (clientReportsError) {
+        console.error('Error deleting client reports:', clientReportsError);
+        // Don't throw - might not exist
+      }
+
+      // Delete from client_context (documents, notes, etc.)
+      const { error: clientContextError } = await supabase
+        .from('client_context')
+        .delete()
+        .eq('client_id', clientToDelete.id);
+
+      if (clientContextError) {
+        console.error('Error deleting client context:', clientContextError);
+        // Don't throw - might not exist
+      }
+
+      // Delete from audit_advisory_insights (references both destination_discovery and practice_members)
       const { error: auditInsightsError } = await supabase
         .from('audit_advisory_insights')
         .delete()
@@ -791,6 +813,17 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
 
       if (auditInsightsError) {
         console.error('Error deleting audit advisory insights:', auditInsightsError);
+        // Don't throw - might not exist
+      }
+
+      // Delete from discovery_patterns (references destination_discovery)
+      const { error: discoveryPatternsError } = await supabase
+        .from('discovery_patterns')
+        .delete()
+        .eq('client_id', clientToDelete.id);
+
+      if (discoveryPatternsError) {
+        console.error('Error deleting discovery patterns:', discoveryPatternsError);
         // Don't throw - might not exist
       }
 

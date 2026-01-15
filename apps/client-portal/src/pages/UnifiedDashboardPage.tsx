@@ -536,8 +536,12 @@ export default function UnifiedDashboardPage() {
 
   const getServiceLink = (code: string, status: string) => {
     if (code === 'discovery') {
+      // If report is shared, always show report page (even if assessment not "completed")
+      if (discoveryStatus?.reportShared) {
+        return '/discovery/report';
+      }
       if (discoveryStatus?.completed) {
-        return discoveryStatus.reportShared ? '/discovery/report' : '/discovery/complete';
+        return '/discovery/complete';
       }
       return '/discovery';
     }
@@ -578,14 +582,20 @@ export default function UnifiedDashboardPage() {
     
     // Special handling for discovery
     if (code === 'discovery') {
+      // If report is shared, always show "Report Ready" (even if assessment not "completed")
+      if (discoveryStatus?.reportShared) {
+        return {
+          label: 'Report Ready',
+          color: 'emerald',
+          icon: CheckCircle,
+        };
+      }
       if (discoveryStatus?.completed) {
-        if (discoveryStatus.reportShared) {
-          return {
-            label: 'Report Ready',
-            color: 'emerald',
-            icon: CheckCircle,
-          };
-        }
+        return {
+          label: 'Complete',
+          color: 'blue',
+          icon: CheckCircle,
+        };
       }
     }
     
