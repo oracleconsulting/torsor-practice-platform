@@ -16,8 +16,12 @@ WHERE assessment_id IS NOT NULL;
 -- Step 2: Clear all existing MA assessment responses
 -- This allows clients to retake the assessment with the new structure
 -- Now that we've cleared the FK references, this should work
+-- Note: ma_assessment_responses table is specific to MA, so we can delete all rows
+-- But we'll join with ma_engagements to be safe (only delete responses for MA engagements)
 DELETE FROM ma_assessment_responses
-WHERE service_line_code = 'management_accounts';
+WHERE engagement_id IN (
+  SELECT id FROM ma_engagements
+);
 
 -- Step 5: Clear any related assessment data in service_line_assessments
 -- for management_accounts service line
