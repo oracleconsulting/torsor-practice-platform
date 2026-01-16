@@ -575,6 +575,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_ma_periods_timestamp ON ma_periods;
 CREATE TRIGGER update_ma_periods_timestamp
   BEFORE UPDATE ON ma_periods
   FOR EACH ROW
@@ -589,6 +590,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_ma_trend_data_timestamp ON ma_trend_data;
 CREATE TRIGGER update_ma_trend_data_timestamp
   BEFORE UPDATE ON ma_trend_data
   FOR EACH ROW
@@ -603,6 +605,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_ma_commitments_timestamp ON ma_known_commitments;
 CREATE TRIGGER update_ma_commitments_timestamp
   BEFORE UPDATE ON ma_known_commitments
   FOR EACH ROW
@@ -617,6 +620,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_ma_optimisations_timestamp ON ma_optimisations;
 CREATE TRIGGER update_ma_optimisations_timestamp
   BEFORE UPDATE ON ma_optimisations
   FOR EACH ROW
