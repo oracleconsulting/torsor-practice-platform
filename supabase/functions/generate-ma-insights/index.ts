@@ -1526,24 +1526,37 @@ Respond in JSON format:
       
       // Save optimizations to database
       if (optimizations && optimizations.length > 0 && periodRecord) {
-        for (const opt of optimizations) {
-          await supabase
-            .from('ma_optimisations')
-            .upsert({
-              engagement_id: engagementId,
-              period_id: periodRecord.id,
-              category: opt.category,
-              title: opt.title,
-              description: opt.description,
-              potential_impact: opt.potential_impact,
-              effort: opt.effort,
-              steps: opt.steps,
-              priority: opt.priority,
-              urgency: opt.urgency,
-              status: 'suggested'
-            }, { onConflict: 'engagement_id,period_id' });
+        // Delete existing optimizations for this period first (to avoid duplicates on regeneration)
+        await supabase
+          .from('ma_optimisations')
+          .delete()
+          .eq('engagement_id', engagementId)
+          .eq('period_id', periodRecord.id);
+        
+        // Insert new optimizations
+        const optimizationsToInsert = optimizations.map(opt => ({
+          engagement_id: engagementId,
+          period_id: periodRecord.id,
+          category: opt.category,
+          title: opt.title,
+          description: opt.description,
+          potential_impact: opt.potential_impact,
+          effort: opt.effort,
+          steps: opt.steps,
+          priority: opt.priority,
+          urgency: opt.urgency,
+          status: 'suggested'
+        }));
+        
+        const { error: optError } = await supabase
+          .from('ma_optimisations')
+          .insert(optimizationsToInsert);
+        
+        if (optError) {
+          console.error(`[MA Insights] Error saving optimizations:`, optError);
+        } else {
+          console.log(`[MA Insights] Saved ${optimizations.length} optimizations`);
         }
-        console.log(`[MA Insights] Saved ${optimizations.length} optimizations`);
       }
       
       // Update period status
