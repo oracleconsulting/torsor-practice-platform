@@ -545,7 +545,13 @@ CREATE POLICY "Users can manage own practice optimisations" ON ma_optimisations
 -- ADD FOREIGN KEY CONSTRAINTS (after all tables exist)
 -- ============================================================================
 
--- Add FKs to ma_periods that reference tables created later
+-- Drop existing constraints if they exist, then add FKs to ma_periods
+ALTER TABLE ma_periods
+  DROP CONSTRAINT IF EXISTS fk_ma_periods_document,
+  DROP CONSTRAINT IF EXISTS fk_ma_periods_extracted_financials,
+  DROP CONSTRAINT IF EXISTS fk_ma_periods_forecast,
+  DROP CONSTRAINT IF EXISTS fk_ma_periods_insight;
+
 ALTER TABLE ma_periods
   ADD CONSTRAINT fk_ma_periods_document 
     FOREIGN KEY (document_id) REFERENCES ma_uploaded_documents(id),
