@@ -40,6 +40,9 @@ export const MANAGEMENT_ACCOUNTS_ASSESSMENT: ServiceLineAssessment = {
     'Current State',
     'Pain Points',
     'System Context',
+    'Business Model',
+    'Known Commitments',
+    'Reporting Requirements',
     'Desired Outcomes',
     'Frequency & Scope'
   ],
@@ -189,8 +192,264 @@ export const MANAGEMENT_ACCOUNTS_ASSESSMENT: ServiceLineAssessment = {
       technicalField: 'bookkeeping_owner',
       required: true
     },
+    {
+      id: 'ma_chart_of_accounts_granularity',
+      section: 'System Context',
+      question: 'How granular is your chart of accounts?',
+      type: 'single',
+      options: [
+        'Very detailed - we track by service line, department, and project',
+        'Moderately detailed - main categories plus some breakdown',
+        'Basic - standard P&L categories only',
+        'I don\'t know'
+      ],
+      technicalField: 'chart_of_accounts_granularity',
+      required: true
+    },
+    {
+      id: 'ma_revenue_tracking',
+      section: 'System Context',
+      question: 'Do you track revenue by customer or service line in your accounting system?',
+      type: 'single',
+      options: [
+        'Yes, both customer and service line',
+        'Yes, by customer only',
+        'Yes, by service line only',
+        'No, but we could set it up',
+        'No, and it would be difficult'
+      ],
+      technicalField: 'revenue_tracking',
+      required: true
+    },
 
-    // Section 4: Desired Outcomes
+    // Section 4: Business Model
+    {
+      id: 'ma_revenue_model',
+      section: 'Business Model',
+      question: 'How would you describe your revenue model?',
+      type: 'single',
+      options: [
+        'Mostly recurring (retainers, subscriptions, maintenance contracts)',
+        'Mostly project-based (fixed fee or time-based projects)',
+        'Mostly product sales (physical or digital products)',
+        'Mixed - roughly equal split',
+        'Transactional (one-off sales, no ongoing relationship)'
+      ],
+      technicalField: 'revenue_model',
+      required: true
+    },
+    {
+      id: 'ma_payment_terms_given',
+      section: 'Business Model',
+      question: 'What payment terms do you typically give customers?',
+      type: 'single',
+      options: [
+        'Payment upfront or on delivery',
+        '7-14 days',
+        '30 days',
+        '30-60 days',
+        '60+ days',
+        'It varies widely'
+      ],
+      technicalField: 'payment_terms_given',
+      required: true
+    },
+    {
+      id: 'ma_seasonality',
+      section: 'Business Model',
+      question: 'How seasonal is your business?',
+      type: 'single',
+      options: [
+        'Very seasonal - revenue can vary 50%+ between peak and trough months',
+        'Somewhat seasonal - noticeable peaks but manageable',
+        'Fairly stable - minor fluctuations month to month',
+        'Counter-cyclical - busy when others are quiet'
+      ],
+      technicalField: 'seasonality',
+      required: true
+    },
+    {
+      id: 'ma_customer_concentration',
+      section: 'Business Model',
+      question: 'If your top 3 customers left tomorrow, what % of revenue would you lose?',
+      type: 'single',
+      options: [
+        'Over 50% - we\'re heavily concentrated',
+        '30-50% - concentrated but not critical',
+        '15-30% - reasonably diversified',
+        'Under 15% - very diversified',
+        'I don\'t actually know'
+      ],
+      technicalField: 'customer_concentration',
+      required: true
+    },
+    {
+      id: 'ma_employee_count',
+      section: 'Business Model',
+      question: 'How many employees (or FTE equivalent) do you have?',
+      type: 'single',
+      options: [
+        'Just me',
+        '2-5',
+        '6-10',
+        '11-25',
+        '26-50',
+        '50+'
+      ],
+      technicalField: 'employee_count',
+      required: true
+    },
+    {
+      id: 'ma_annual_revenue',
+      section: 'Business Model',
+      question: 'What\'s your approximate annual revenue?',
+      type: 'single',
+      options: [
+        'Under £250k',
+        '£250k - £500k',
+        '£500k - £1m',
+        '£1m - £2m',
+        '£2m - £5m',
+        '£5m+'
+      ],
+      technicalField: 'annual_revenue',
+      required: true
+    },
+
+    // Section 5: Known Commitments
+    {
+      id: 'ma_upcoming_expenses',
+      section: 'Known Commitments',
+      question: 'What significant expenses do you have coming up in the next 90 days?',
+      type: 'multi',
+      options: [
+        'VAT payment',
+        'Corporation tax payment',
+        'Large supplier invoice',
+        'Equipment or vehicle purchase',
+        'Bonus or commission payments',
+        'Loan repayment',
+        'Dividend payment',
+        'Nothing significant planned',
+        'Other'
+      ],
+      technicalField: 'upcoming_expenses',
+      required: true
+    },
+    {
+      id: 'ma_planned_hires',
+      section: 'Known Commitments',
+      question: 'Are you planning to hire anyone in the next 6 months?',
+      type: 'single',
+      options: [
+        'Yes, definitely',
+        'Possibly, depends on circumstances',
+        'No plans to hire',
+        'Actually planning to reduce headcount'
+      ],
+      technicalField: 'planned_hires',
+      required: true
+    },
+    {
+      id: 'ma_debt_lease_payments',
+      section: 'Known Commitments',
+      question: 'Do you have any debt or lease payments?',
+      type: 'single',
+      options: [
+        'Yes - loans with regular repayments',
+        'Yes - asset finance / HP agreements',
+        'Yes - both loans and asset finance',
+        'No debt or lease commitments'
+      ],
+      technicalField: 'debt_lease_payments',
+      required: true
+    },
+    {
+      id: 'ma_year_end_month',
+      section: 'Known Commitments',
+      question: 'When is your financial year end?',
+      type: 'single',
+      options: [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December'
+      ],
+      technicalField: 'year_end_month',
+      required: true
+    },
+
+    // Section 6: Reporting Requirements
+    {
+      id: 'ma_report_recipients',
+      section: 'Reporting Requirements',
+      question: 'Who needs to see your management accounts?',
+      type: 'multi',
+      options: [
+        'Just me',
+        'My business partner(s)',
+        'Leadership team / department heads',
+        'Board of directors',
+        'Bank or lender',
+        'Investors',
+        'Other'
+      ],
+      technicalField: 'report_recipients',
+      required: true
+    },
+    {
+      id: 'ma_budget_forecast',
+      section: 'Reporting Requirements',
+      question: 'Do you have a budget or forecast to compare against?',
+      type: 'single',
+      options: [
+        'Yes, detailed budget by month',
+        'Yes, but high-level / annual only',
+        'No, but I\'d like one',
+        'No, and not a priority right now'
+      ],
+      technicalField: 'budget_forecast',
+      required: true
+    },
+    {
+      id: 'ma_report_format',
+      section: 'Reporting Requirements',
+      question: 'How do you want to receive your management accounts?',
+      type: 'multi',
+      options: [
+        'PDF report I can read on my phone',
+        'Interactive dashboard I can explore',
+        'Board pack with commentary',
+        'Excel file I can manipulate',
+        'All of the above'
+      ],
+      technicalField: 'report_format',
+      required: true
+    },
+    {
+      id: 'ma_prior_year_comparison',
+      section: 'Reporting Requirements',
+      question: 'Do you need to compare to prior year?',
+      type: 'single',
+      options: [
+        'Yes, and we have good prior year data',
+        'Yes, but our prior year data is messy',
+        'No, we\'re too new / prior year isn\'t relevant',
+        'No, we don\'t need that'
+      ],
+      technicalField: 'prior_year_comparison',
+      required: true
+    },
+
+    // Section 7: Desired Outcomes
     {
       id: 'ma_transformation_desires',
       section: 'Desired Outcomes',
@@ -221,7 +480,7 @@ export const MANAGEMENT_ACCOUNTS_ASSESSMENT: ServiceLineAssessment = {
       required: true
     },
 
-    // Section 5: Frequency & Scope
+    // Section 8: Frequency & Scope
     {
       id: 'ma_reporting_frequency',
       section: 'Frequency & Scope',
@@ -237,21 +496,39 @@ export const MANAGEMENT_ACCOUNTS_ASSESSMENT: ServiceLineAssessment = {
       required: true
     },
     {
-      id: 'ma_additional_reporting',
+      id: 'ma_additional_analysis',
       section: 'Frequency & Scope',
-      question: 'Beyond standard P&L and Balance Sheet, what would be genuinely useful?',
+      question: 'What specific additional analysis would be valuable?',
       type: 'multi',
       options: [
-        'Cash flow forecasting (where will we be in 30/60/90 days?)',
-        'Customer profitability analysis (who\'s actually making us money?)',
-        'Staff cost ratio tracking (are wages sustainable?)',
-        'Gross margin by service/product line',
-        'Debtor ageing (who owes us and how old?)',
-        'Budget vs actual comparison',
-        'Rolling 12-month trend analysis',
-        'I don\'t know - help me figure this out'
+        'Cash flow forecasting (30/60/90 day projections)',
+        '"What if" scenario modeling (e.g., impact of hiring, price changes)',
+        'Rolling trend analysis (6-12 month patterns)',
+        'Debtor analysis (who owes what, how old)',
+        'Profitability by service line or customer',
+        'Staff cost and productivity analysis',
+        'Working capital optimization',
+        'None of these - just the basics please'
       ],
-      technicalField: 'additional_reporting_needs',
+      technicalField: 'additional_analysis_needs',
+      required: true
+    },
+    {
+      id: 'ma_upcoming_decisions',
+      section: 'Frequency & Scope',
+      question: 'What decisions do you have coming up that better numbers would help with?',
+      type: 'multi',
+      options: [
+        'Hiring decisions',
+        'Pricing decisions',
+        'Investment / capex decisions',
+        'Acquisition opportunities',
+        'Exit or sale preparation',
+        'Funding / borrowing decisions',
+        'Premises decisions',
+        'None specific right now'
+      ],
+      technicalField: 'upcoming_decisions',
       required: true
     }
   ]
