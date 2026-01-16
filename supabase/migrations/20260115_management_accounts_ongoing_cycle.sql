@@ -387,6 +387,11 @@ ALTER TABLE ma_optimisations ENABLE ROW LEVEL SECURITY;
 
 -- Policies follow same pattern as ma_engagements
 -- Practice members can view/update, clients can view their own
+-- Drop existing policies first to avoid conflicts
+
+DROP POLICY IF EXISTS "Users can view own practice periods" ON ma_periods;
+DROP POLICY IF EXISTS "Users can insert own practice periods" ON ma_periods;
+DROP POLICY IF EXISTS "Users can update own practice periods" ON ma_periods;
 
 CREATE POLICY "Users can view own practice periods" ON ma_periods
   FOR SELECT USING (
@@ -422,6 +427,7 @@ CREATE POLICY "Users can update own practice periods" ON ma_periods
   );
 
 -- Similar policies for other tables
+DROP POLICY IF EXISTS "Users can view own practice trend data" ON ma_trend_data;
 CREATE POLICY "Users can view own practice trend data" ON ma_trend_data
   FOR SELECT USING (
     engagement_id IN (
@@ -435,6 +441,8 @@ CREATE POLICY "Users can view own practice trend data" ON ma_trend_data
     )
   );
 
+DROP POLICY IF EXISTS "Users can view own practice commitments" ON ma_known_commitments;
+DROP POLICY IF EXISTS "Users can manage own practice commitments" ON ma_known_commitments;
 CREATE POLICY "Users can view own practice commitments" ON ma_known_commitments
   FOR SELECT USING (
     engagement_id IN (
@@ -458,6 +466,8 @@ CREATE POLICY "Users can manage own practice commitments" ON ma_known_commitment
     )
   );
 
+DROP POLICY IF EXISTS "Users can view own practice forecasts" ON ma_cash_forecasts;
+DROP POLICY IF EXISTS "Users can manage own practice forecasts" ON ma_cash_forecasts;
 CREATE POLICY "Users can view own practice forecasts" ON ma_cash_forecasts
   FOR SELECT USING (
     engagement_id IN (
@@ -481,6 +491,8 @@ CREATE POLICY "Users can manage own practice forecasts" ON ma_cash_forecasts
     )
   );
 
+DROP POLICY IF EXISTS "Users can view own practice scenarios" ON ma_scenarios;
+DROP POLICY IF EXISTS "Users can manage own practice scenarios" ON ma_scenarios;
 CREATE POLICY "Users can view own practice scenarios" ON ma_scenarios
   FOR SELECT USING (
     engagement_id IN (
@@ -504,6 +516,8 @@ CREATE POLICY "Users can manage own practice scenarios" ON ma_scenarios
     )
   );
 
+DROP POLICY IF EXISTS "Users can view own practice optimisations" ON ma_optimisations;
+DROP POLICY IF EXISTS "Users can manage own practice optimisations" ON ma_optimisations;
 CREATE POLICY "Users can view own practice optimisations" ON ma_optimisations
   FOR SELECT USING (
     engagement_id IN (
