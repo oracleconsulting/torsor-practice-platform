@@ -210,6 +210,106 @@ async function fetchClientContext(supabase: any, clientId: string): Promise<Clie
 }
 
 // ============================================================================
+// GENERATE OPTIMIZATIONS (Phase 5)
+// ============================================================================
+
+function generateOptimizations(currentPeriod: any, assessment: any, comparison: any | null): any[] {
+  const optimizations: any[] = [];
+  
+  // 1. Debtor days high?
+  const debtorDays = parseFloat(currentPeriod.debtors_days?.toString() || '0');
+  if (debtorDays > 40) {
+    const improvement = debtorDays - 30;
+    const debtors = parseFloat(currentPeriod.debtors_total?.toString() || '0');
+    const cashRelease = debtors * (improvement / debtorDays);
+    
+    optimizations.push({
+      category: 'working_capital',
+      title: `Reduce debtor days from ${Math.round(debtorDays)} to 30`,
+      description: `You're collecting ${Math.round(improvement)} days slower than best practice. This ties up cash unnecessarily.`,
+      potential_impact: {
+        type: 'cash_release',
+        amount: Math.round(cashRelease),
+        timeframe: '30-60 days',
+        confidence: 'high',
+        calculation: `£${Math.round(debtors).toLocaleString()} × (${Math.round(improvement)}/${Math.round(debtorDays)}) = £${Math.round(cashRelease).toLocaleString()}`
+      },
+      effort: 'quick_win',
+      steps: [
+        'Send statement to all accounts over 30 days',
+        'Call top 5 debtors this week',
+        'Consider offering 2% early payment discount',
+        'Review payment terms on new contracts'
+      ],
+      priority: 1,
+      urgency: 'immediate'
+    });
+  }
+  
+  // 2. Staff cost ratio high?
+  const revenue = parseFloat(currentPeriod.revenue?.toString() || '0');
+  const staffCosts = parseFloat(currentPeriod.staff_costs?.toString() || '0');
+  const staffCostPct = revenue > 0 ? (staffCosts / revenue) * 100 : 0;
+  
+  if (staffCostPct > 35) {
+    const targetRatio = 32;
+    const targetStaffCost = revenue * (targetRatio / 100);
+    const gap = staffCosts - targetStaffCost;
+    
+    optimizations.push({
+      category: 'efficiency',
+      title: 'Review staff cost ratio',
+      description: `Staff costs at ${staffCostPct.toFixed(1)}% of revenue. Industry benchmark for your sector is 28-32%.`,
+      potential_impact: {
+        type: 'annual_saving',
+        amount: Math.round(gap * 12),
+        timeframe: '6-12 months',
+        confidence: 'medium',
+        calculation: `Reducing from ${staffCostPct.toFixed(1)}% to ${targetRatio}% saves £${Math.round(gap).toLocaleString()}/month`
+      },
+      effort: 'significant',
+      steps: [
+        'Benchmark salaries against market',
+        'Review utilization by team member',
+        'Identify automation opportunities',
+        'Consider revenue increase strategies first'
+      ],
+      priority: 3,
+      urgency: 'this_quarter'
+    });
+  }
+  
+  // 3. Price review needed? (simplified check)
+  if (comparison && parseFloat(comparison.revenue_vs_prior_month_pct?.toString() || '0') < 0) {
+    const potentialIncrease = revenue * 0.08; // Assume 8% increase possible
+    
+    optimizations.push({
+      category: 'revenue_opportunity',
+      title: 'Price review overdue',
+      description: `Revenue declining. Prices likely haven't been reviewed recently. Inflation alone justifies 5-8% increase.`,
+      potential_impact: {
+        type: 'annual_revenue',
+        amount: Math.round(potentialIncrease * 12 * 0.95), // Assume 5% churn
+        timeframe: 'Immediate on new work, 3-6 months on existing',
+        confidence: 'medium',
+        calculation: `8% increase on £${Math.round(revenue).toLocaleString()}/month = £${Math.round(potentialIncrease).toLocaleString()}/month (net of 5% churn)`
+      },
+      effort: 'quick_win',
+      steps: [
+        'Review competitor pricing',
+        'Start with new clients immediately',
+        'Phase in for existing clients at contract renewal',
+        'Position as annual cost-of-living adjustment'
+      ],
+      priority: 2,
+      urgency: 'immediate'
+    });
+  }
+  
+  return optimizations.sort((a, b) => a.priority - b.priority);
+}
+
+// ============================================================================
 // FETCH BENCHMARK DATA
 // ============================================================================
 
@@ -532,7 +632,11 @@ function buildV2Prompt(context: any): string {
     comparison,
     trueCash,
     clientName,
-    companyName
+    companyName,
+    trends,
+    forecast,
+    scenarios,
+    optimizations
   } = context;
   
   const periodLabel = currentPeriod.period_label || 
@@ -642,6 +746,85 @@ Revenue: ${formatCurrency(priorPeriod.revenue)}
 Operating Profit: ${formatCurrency(priorPeriod.operating_profit || priorPeriod.operatingProfit)} (${priorPeriod.operating_margin_pct || priorPeriod.operatingMarginPct || 'N/A'}%)
 Bank Balance: ${formatCurrency(priorPeriod.bank_balance || priorPeriod.bankBalance)}
 Other Overheads: ${formatCurrency(priorPeriod.other_overheads || priorPeriod.otherOverheads)}
+` : ''}
+
+${trends && trends.trends ? `
+═══════════════════════════════════════════════════════════════════════════════
+TREND ANALYSIS (${trends.periodCount} periods of data)
+═══════════════════════════════════════════════════════════════════════════════
+
+Revenue Trend: ${trends.trends.revenue.direction} (${trends.trends.revenue.avgChange > 0 ? '+' : ''}${trends.trends.revenue.avgChange.toFixed(1)}% avg MoM change)
+${trends.trends.revenue.narrative ? `→ ${trends.trends.revenue.narrative}` : ''}
+
+Operating Margin Trend: ${trends.trends.operatingMargin.direction} (${trends.trends.operatingMargin.avgChange > 0 ? '+' : ''}${trends.trends.operatingMargin.avgChange.toFixed(1)}pp avg change)
+${trends.trends.operatingMargin.narrative ? `→ ${trends.trends.operatingMargin.narrative}` : ''}
+
+Debtor Days Trend: ${trends.trends.debtorDays.direction} (${trends.trends.debtorDays.avgChange > 0 ? '+' : ''}${trends.trends.debtorDays.avgChange.toFixed(1)} days avg change)
+${trends.trends.debtorDays.narrative ? `→ ${trends.trends.debtorDays.narrative}` : ''}
+
+${trends.seasonality && trends.seasonality.detected ? `
+Seasonality Detected: ${trends.seasonality.pattern}
+Peak months: ${trends.seasonality.peakMonths.join(', ')}
+Trough months: ${trends.seasonality.troughMonths.join(', ')}
+Peak-trough difference: ${trends.seasonality.peakTroughDelta.toFixed(1)}%
+` : ''}
+` : ''}
+
+${forecast ? `
+═══════════════════════════════════════════════════════════════════════════════
+CASH FLOW FORECAST (13 weeks)
+═══════════════════════════════════════════════════════════════════════════════
+
+Opening Cash: ${formatCurrency(forecast.opening_cash || forecast.openingCash)}
+Lowest Point: ${formatCurrency(forecast.lowestPointAmount)} in week ending ${forecast.lowestPointWeek}
+Cash Runway: ${forecast.cashRunwayWeeks} weeks
+Overall Sentiment: ${forecast.sentiment || 'comfortable'}
+
+${forecast.criticalDates && forecast.criticalDates.length > 0 ? `
+CRITICAL DATES:
+${forecast.criticalDates.map((cd: any) => `• ${cd.date}: ${cd.event} (impact: ${formatCurrency(cd.impact)}, resulting balance: ${formatCurrency(cd.resulting_balance)})
+  → ${cd.action_needed || cd.actionNeeded}`).join('\n')}
+` : ''}
+
+Assumptions: ${forecast.assumptions?.revenue_assumption || 'Based on historical averages'}
+` : ''}
+
+${scenarios && scenarios.scenarios && scenarios.scenarios.length > 0 ? `
+═══════════════════════════════════════════════════════════════════════════════
+SCENARIO MODELING (What-if analysis)
+═══════════════════════════════════════════════════════════════════════════════
+
+${scenarios.scenarios.map((s: any) => `
+${s.name || s.scenario_name}:
+Verdict: ${s.verdict?.verdict || s.verdict} - ${s.verdict?.verdictSummary || s.verdict_summary}
+${s.impact ? `
+  Monthly Revenue Impact: ${formatCurrency(s.impact.monthly_revenue_impact || s.impact.monthlyRevenueImpact)}
+  Monthly Cost Impact: ${formatCurrency(s.impact.monthly_cost_impact || s.impact.monthlyCostImpact)}
+  Monthly Profit Impact: ${formatCurrency(s.impact.monthly_profit_impact || s.impact.monthlyProfitImpact)}
+  Breakeven: Month ${s.impact.breakeven_month || s.impact.breakevenMonth}
+  Year 1 Impact: ${formatCurrency(s.impact.year_one_impact || s.impact.yearOneImpact)}
+` : ''}
+${s.verdict?.conditions && s.verdict.conditions.length > 0 ? `Conditions: ${s.verdict.conditions.join(', ')}` : ''}
+${s.verdict?.risks && s.verdict.risks.length > 0 ? `Risks: ${s.verdict.risks.join('; ')}` : ''}
+`).join('\n')}
+` : ''}
+
+${optimizations && optimizations.length > 0 ? `
+═══════════════════════════════════════════════════════════════════════════════
+OPTIMIZATION OPPORTUNITIES
+═══════════════════════════════════════════════════════════════════════════════
+
+${optimizations.map((opt: any) => `
+${opt.title} (${opt.category})
+Impact: ${opt.potential_impact?.type === 'cash_release' ? `£${opt.potential_impact.amount.toLocaleString()} cash release` :
+          opt.potential_impact?.type === 'annual_saving' ? `£${opt.potential_impact.amount.toLocaleString()}/year saving` :
+          opt.potential_impact?.type === 'annual_revenue' ? `£${opt.potential_impact.amount.toLocaleString()}/year revenue` :
+          'See calculation'}
+Timeframe: ${opt.potential_impact?.timeframe || 'TBC'}
+Effort: ${opt.effort}
+Priority: ${opt.priority}/5
+Steps: ${opt.steps?.join('; ') || 'TBC'}
+`).join('\n')}
 ` : ''}
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -1091,7 +1274,148 @@ Respond in JSON format:
         console.log(`[MA Insights] Regenerate=true, skipping existing insight check`);
       }
       
-      // Build context and prompt
+      // =====================================================================
+      // PHASE 2-6: Generate trends, forecast, scenarios, and optimizations
+      // =====================================================================
+      
+      // Create or get period record
+      let periodRecord;
+      const { data: existingPeriod } = await supabase
+        .from('ma_periods')
+        .select('*')
+        .eq('engagement_id', engagementId)
+        .eq('period_end', currentPeriod.period_end_date)
+        .maybeSingle();
+      
+      if (existingPeriod) {
+        periodRecord = existingPeriod;
+      } else {
+        // Create new period
+        const { data: newPeriod, error: periodError } = await supabase
+          .from('ma_periods')
+          .insert({
+            engagement_id: engagementId,
+            period_type: 'month',
+            period_start: new Date(new Date(currentPeriod.period_end_date).setDate(1)).toISOString().split('T')[0],
+            period_end: currentPeriod.period_end_date,
+            period_label: new Date(currentPeriod.period_end_date).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
+            status: 'processing',
+            extracted_financials_id: currentPeriod.id,
+            data_received_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+        
+        if (periodError) {
+          console.error('[MA Insights] Error creating period:', periodError);
+        } else {
+          periodRecord = newPeriod;
+        }
+      }
+      
+      // Save trend data for current period
+      if (periodRecord) {
+        const { error: trendError } = await supabase
+          .from('ma_trend_data')
+          .upsert({
+            engagement_id: engagementId,
+            period_id: periodRecord.id,
+            period_end: currentPeriod.period_end_date,
+            revenue: currentPeriod.revenue,
+            gross_profit: currentPeriod.gross_profit,
+            gross_margin_pct: currentPeriod.gross_margin_pct,
+            operating_profit: currentPeriod.operating_profit,
+            operating_margin_pct: currentPeriod.operating_margin_pct,
+            net_profit: currentPeriod.net_profit,
+            net_margin_pct: currentPeriod.net_margin_pct,
+            bank_balance: currentPeriod.bank_balance,
+            true_cash: trueCash?.true_cash_available || null,
+            debtors: currentPeriod.debtors_total,
+            debtor_days: currentPeriod.debtors_days,
+            creditors: currentPeriod.creditors_total,
+            creditor_days: currentPeriod.creditors_days,
+            headcount: assessment?.ma_employee_count ? parseInt(assessment.ma_employee_count) : null,
+            revenue_per_head: assessment?.ma_employee_count ? 
+              parseFloat(currentPeriod.revenue?.toString() || '0') / parseInt(assessment.ma_employee_count) : null,
+            staff_cost_pct: currentPeriod.staff_costs ? 
+              (parseFloat(currentPeriod.staff_costs.toString()) / parseFloat(currentPeriod.revenue?.toString() || '1')) * 100 : null
+          }, { onConflict: 'engagement_id,period_end' });
+        
+        if (trendError) {
+          console.error('[MA Insights] Error saving trend data:', trendError);
+        }
+      }
+      
+      // Call calculate-ma-trends
+      let trends = null;
+      if (periodRecord) {
+        try {
+          const trendsResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/calculate-ma-trends`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+            },
+            body: JSON.stringify({ engagementId, periodId: periodRecord.id })
+          });
+          
+          if (trendsResponse.ok) {
+            trends = await trendsResponse.json();
+            console.log('[MA Insights] Trends calculated:', trends.periodCount, 'periods');
+          }
+        } catch (e) {
+          console.warn('[MA Insights] Error calling calculate-ma-trends:', e);
+        }
+      }
+      
+      // Call generate-ma-forecast
+      let forecast = null;
+      if (periodRecord) {
+        try {
+          const forecastResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-ma-forecast`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+            },
+            body: JSON.stringify({ engagementId, periodId: periodRecord.id })
+          });
+          
+          if (forecastResponse.ok) {
+            forecast = await forecastResponse.json();
+            console.log('[MA Insights] Forecast generated:', forecast.weeks, 'weeks');
+          }
+        } catch (e) {
+          console.warn('[MA Insights] Error calling generate-ma-forecast:', e);
+        }
+      }
+      
+      // Call generate-ma-scenarios
+      let scenarios = null;
+      if (periodRecord) {
+        try {
+          const scenariosResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-ma-scenarios`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+            },
+            body: JSON.stringify({ engagementId, periodId: periodRecord.id })
+          });
+          
+          if (scenariosResponse.ok) {
+            scenarios = await scenariosResponse.json();
+            console.log('[MA Insights] Scenarios generated:', scenarios.scenariosGenerated);
+          }
+        } catch (e) {
+          console.warn('[MA Insights] Error calling generate-ma-scenarios:', e);
+        }
+      }
+      
+      // Generate optimizations
+      const optimizations = generateOptimizations(currentPeriod, assessment, comparison);
+      
+      // Build context and prompt (now includes trends, forecast, scenarios, optimizations)
       const context = {
         clientName: client?.name || 'Client',
         companyName: client?.client_company || 'Company',
@@ -1099,11 +1423,15 @@ Respond in JSON format:
         currentPeriod,
         priorPeriod,
         comparison,
-        trueCash
+        trueCash,
+        trends,
+        forecast,
+        scenarios,
+        optimizations
       };
       
       const prompt = buildV2Prompt(context);
-      console.log(`[MA Insights] Calling LLM with v2 prompt...`);
+      console.log(`[MA Insights] Calling LLM with v2 prompt (includes trends, forecast, scenarios, optimizations)...`);
       
       const { response: llmResponse, usage } = await callLLM(prompt);
       console.log(`[MA Insights] LLM response received in ${usage.timeMs}ms`);
@@ -1134,6 +1462,19 @@ Respond in JSON format:
         watch_list: llmResponse.watchList,
         
         client_quotes_used: llmResponse.clientQuotesUsed,
+        
+        // Phase 2-6: Add new data
+        trend_analysis: trends?.trends || null,
+        cash_forecast: forecast ? {
+          forecastId: forecast.forecastId,
+          weeks: forecast.weeks,
+          lowestPoint: forecast.lowestPoint,
+          cashRunwayWeeks: forecast.cashRunwayWeeks,
+          criticalDates: forecast.criticalDates,
+          sentiment: forecast.sentiment
+        } : null,
+        scenarios: scenarios?.scenarios || null,
+        optimizations: optimizations || null,
         
         llm_model: 'anthropic/claude-sonnet-4.5',
         llm_tokens_used: usage.totalTokens,
