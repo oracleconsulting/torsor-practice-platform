@@ -6,13 +6,16 @@
 --          complete the new expanded 31-question onboarding assessment
 -- ============================================================================
 
--- Step 1: Un-share old MA insights with clients and remove assessment references
+-- Step 1: Un-share ALL old MA insights with clients and remove assessment references
 -- This hides old insights from the client portal and removes the assessment link
 -- We do this BEFORE deleting from ma_assessment_responses to avoid FK constraint errors
+-- We unshare ALL insights to ensure old analysis doesn't show after clearing assessment
 UPDATE ma_monthly_insights
 SET assessment_id = NULL,
     shared_with_client = FALSE
-WHERE assessment_id IS NOT NULL;
+WHERE engagement_id IN (
+  SELECT id FROM ma_engagements
+);
 
 -- Step 2: Clear all existing MA assessment responses
 -- This allows clients to retake the assessment with the new structure
