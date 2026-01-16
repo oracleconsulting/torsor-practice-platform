@@ -52,11 +52,11 @@ CREATE TABLE IF NOT EXISTS ma_periods (
   reviewed_by UUID REFERENCES practice_members(id),
   published_at TIMESTAMPTZ,
   
-  -- References to related data
-  document_id UUID REFERENCES ma_uploaded_documents(id),
-  extracted_financials_id UUID REFERENCES ma_extracted_financials(id),
-  forecast_id UUID REFERENCES ma_cash_forecasts(id),
-  insight_id UUID REFERENCES ma_monthly_insights(id),
+  -- References to related data (FKs added after tables are created)
+  document_id UUID,
+  extracted_financials_id UUID,
+  forecast_id UUID,
+  insight_id UUID,
   
   -- Period sequence
   period_number INTEGER, -- 1, 2, 3... for this engagement
