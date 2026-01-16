@@ -528,6 +528,21 @@ CREATE POLICY "Users can manage own practice optimisations" ON ma_optimisations
   );
 
 -- ============================================================================
+-- ADD FOREIGN KEY CONSTRAINTS (after all tables exist)
+-- ============================================================================
+
+-- Add FKs to ma_periods that reference tables created later
+ALTER TABLE ma_periods
+  ADD CONSTRAINT fk_ma_periods_document 
+    FOREIGN KEY (document_id) REFERENCES ma_uploaded_documents(id),
+  ADD CONSTRAINT fk_ma_periods_extracted_financials 
+    FOREIGN KEY (extracted_financials_id) REFERENCES ma_extracted_financials(id),
+  ADD CONSTRAINT fk_ma_periods_forecast 
+    FOREIGN KEY (forecast_id) REFERENCES ma_cash_forecasts(id),
+  ADD CONSTRAINT fk_ma_periods_insight 
+    FOREIGN KEY (insight_id) REFERENCES ma_monthly_insights(id);
+
+-- ============================================================================
 -- TRIGGERS
 -- ============================================================================
 
