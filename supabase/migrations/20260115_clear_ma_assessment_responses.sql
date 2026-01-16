@@ -6,11 +6,12 @@
 --          complete the new expanded 31-question onboarding assessment
 -- ============================================================================
 
--- Step 1: Remove ALL foreign key references from ma_monthly_insights
--- This preserves existing insights but removes the assessment link
+-- Step 1: Un-share old MA insights with clients and remove assessment references
+-- This hides old insights from the client portal and removes the assessment link
 -- We do this BEFORE deleting from ma_assessment_responses to avoid FK constraint errors
 UPDATE ma_monthly_insights
-SET assessment_id = NULL
+SET assessment_id = NULL,
+    shared_with_client = FALSE
 WHERE assessment_id IS NOT NULL;
 
 -- Step 2: Clear all existing MA assessment responses
