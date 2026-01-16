@@ -1524,12 +1524,52 @@ Respond in JSON format:
         insight = inserted;
       }
       
+      // Save optimizations to database
+      if (optimizations && optimizations.length > 0 && periodRecord) {
+        for (const opt of optimizations) {
+          await supabase
+            .from('ma_optimisations')
+            .upsert({
+              engagement_id: engagementId,
+              period_id: periodRecord.id,
+              category: opt.category,
+              title: opt.title,
+              description: opt.description,
+              potential_impact: opt.potential_impact,
+              effort: opt.effort,
+              steps: opt.steps,
+              priority: opt.priority,
+              urgency: opt.urgency,
+              status: 'suggested'
+            }, { onConflict: 'engagement_id,period_id' });
+        }
+        console.log(`[MA Insights] Saved ${optimizations.length} optimizations`);
+      }
+      
+      // Update period status
+      if (periodRecord) {
+        await supabase
+          .from('ma_periods')
+          .update({ 
+            insight_id: insight.id,
+            status: 'review',
+            processing_completed_at: new Date().toISOString()
+          })
+          .eq('id', periodRecord.id);
+        console.log(`[MA Insights] Updated period ${periodRecord.id} to 'review' status`);
+      }
+      
       console.log(`[MA Insights] Saved v2 insight: ${insight.id}`);
       
       return new Response(
         JSON.stringify({
           success: true,
           insightId: insight.id,
+          periodId: periodRecord?.id || null,
+          trendsGenerated: !!trends,
+          forecastGenerated: !!forecast,
+          scenariosGenerated: scenarios?.scenariosGenerated || 0,
+          optimizationsGenerated: optimizations?.length || 0,
           usage: {
             tokens: usage.totalTokens,
             cost: usage.cost,
