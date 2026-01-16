@@ -6,21 +6,16 @@
 --          This can be run independently to fix the issue without clearing data
 -- ============================================================================
 
--- Un-share ALL MA insights immediately
+-- Un-share ALL MA insights immediately (regardless of engagement_id)
+-- This is more aggressive to catch any orphaned insights
 UPDATE ma_monthly_insights
 SET shared_with_client = FALSE
-WHERE shared_with_client = TRUE
-  AND engagement_id IN (
-    SELECT id FROM ma_engagements
-  );
+WHERE shared_with_client = TRUE;
 
 -- Also clear assessment_id references while we're at it
 UPDATE ma_monthly_insights
 SET assessment_id = NULL
-WHERE assessment_id IS NOT NULL
-  AND engagement_id IN (
-    SELECT id FROM ma_engagements
-  );
+WHERE assessment_id IS NOT NULL;
 
 -- Return count of insights that were unshared
 SELECT 
