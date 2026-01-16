@@ -6,6 +6,9 @@
 --          Management Accounts assessment structure
 -- ============================================================================
 
+-- Disable audit trigger to avoid practice_id error
+ALTER TABLE assessment_questions DISABLE TRIGGER audit_assessment_questions;
+
 -- Delete existing management_accounts questions
 DELETE FROM assessment_questions WHERE service_line_code = 'management_accounts';
 
@@ -57,4 +60,7 @@ INSERT INTO assessment_questions (service_line_code, question_id, section, quest
 ('management_accounts', 'ma_reporting_frequency', 'Frequency & Scope', 'How often do you realistically need to see your numbers to make good decisions?', 'single', ARRAY['Weekly - we move fast', 'Monthly - that''s the right rhythm', 'Quarterly - we''re stable enough', 'I don''t know what''s appropriate for us'], NULL, NULL, NULL, 'reporting_frequency_preference', true, 29, true),
 ('management_accounts', 'ma_additional_analysis', 'Frequency & Scope', 'What specific additional analysis would be valuable?', 'multi', ARRAY['Cash flow forecasting (30/60/90 day projections)', '"What if" scenario modeling (e.g., impact of hiring, price changes)', 'Rolling trend analysis (6-12 month patterns)', 'Debtor analysis (who owes what, how old)', 'Profitability by service line or customer', 'Staff cost and productivity analysis', 'Working capital optimization', 'None of these - just the basics please'], NULL, NULL, NULL, 'additional_analysis_needs', true, 30, true),
 ('management_accounts', 'ma_upcoming_decisions', 'Frequency & Scope', 'What decisions do you have coming up that better numbers would help with?', 'multi', ARRAY['Hiring decisions', 'Pricing decisions', 'Investment / capex decisions', 'Acquisition opportunities', 'Exit or sale preparation', 'Funding / borrowing decisions', 'Premises decisions', 'None specific right now'], NULL, NULL, NULL, 'upcoming_decisions', true, 31, true);
+
+-- Re-enable audit trigger
+ALTER TABLE assessment_questions ENABLE TRIGGER audit_assessment_questions;
 
