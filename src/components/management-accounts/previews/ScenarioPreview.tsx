@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Check, AlertTriangle } from 'lucide-react';
 
 interface ScenarioPreviewProps {
@@ -206,7 +206,6 @@ export function ScenarioPreview({
   if (type === 'client_loss') {
     const totalRevenue = 2000000; // example
     const percentOfRevenue = (clientRevenue / totalRevenue) * 100;
-    const fixedCosts = 800000; // example
     const variableCostRatio = 0.3;
     const lostProfit = clientRevenue * (1 - variableCostRatio);
     const monthsToRecover = Math.ceil(lostProfit / (totalRevenue * 0.1 / 12)); // assume 10% margin

@@ -1,4 +1,3 @@
-import React from 'react';
 import { CheckCircle, TrendingUp, Target, Lightbulb, FileText } from 'lucide-react';
 import { TrueCashPreview } from './previews/TrueCashPreview';
 import { ForecastPreview } from './previews/ForecastPreview';
@@ -15,8 +14,7 @@ interface MAClientReportViewProps {
   onTierSelect?: (tier: string) => void;
 }
 
-export function MAClientReportView({ report, engagement, onTierSelect }: MAClientReportViewProps) {
-  const p1 = report.pass1_data;
+export function MAClientReportView({ report, onTierSelect }: MAClientReportViewProps) {
   const p2 = report.pass2_data || report.client_view;
   
   if (!p2) {

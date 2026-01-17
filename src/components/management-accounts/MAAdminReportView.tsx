@@ -1,4 +1,3 @@
-import React from 'react';
 import { 
   AlertTriangle, 
   MessageSquare, 
@@ -6,7 +5,6 @@ import {
   Target,
   CheckCircle,
   TrendingUp,
-  Users,
   FileText
 } from 'lucide-react';
 
@@ -19,7 +17,7 @@ interface MAAdminReportViewProps {
   engagement?: any;
 }
 
-export function MAAdminReportView({ report, engagement }: MAAdminReportViewProps) {
+export function MAAdminReportView({ report }: MAAdminReportViewProps) {
   const p1 = report.pass1_data;
   const admin = p1?.adminGuidance;
   
