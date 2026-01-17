@@ -678,6 +678,35 @@ export default function ServiceAssessmentPage() {
     window.scrollTo(0, 0);
   };
 
+  // Auto-save responses when they change (debounced)
+  useEffect(() => {
+    // Skip auto-save during initial load
+    if (isInitialLoadRef.current || loading || !assessment) return;
+    
+    // Clear existing timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+    
+    // Set new timer to save after 2 seconds of inactivity
+    autoSaveTimerRef.current = setTimeout(() => {
+      if (Object.keys(responses).length > 0) {
+        saveProgress(false); // Don't show saving indicator for auto-save
+      }
+    }, 2000);
+    
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [responses, loading, assessment]);
+
+  const handleSaveAndExit = async () => {
+    await saveProgress(true);
+    navigate('/dashboard');
+  };
+
   if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><Loader2 className="w-8 h-8 text-indigo-600 animate-spin" /></div>;
   if (!assessment) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><p>Assessment not found</p></div>;
 
@@ -807,7 +836,16 @@ export default function ServiceAssessmentPage() {
               <div className="flex items-center gap-2"><Icon className="w-5 h-5 text-indigo-600" /><h1 className="font-bold text-gray-900">{assessment.title}</h1></div>
               <p className="text-sm text-gray-500">{assessment.subtitle}</p>
             </div>
-            {saving && <span className="text-gray-500 text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Saving...</span>}
+            <div className="flex items-center gap-3">
+              {saving && <span className="text-gray-500 text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Saving...</span>}
+              <button
+                onClick={handleSaveAndExit}
+                disabled={saving}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save & Exit
+              </button>
+            </div>
           </div>
           <div className="mt-4 flex gap-2">
             {assessment.sections.map((s, i) => {
