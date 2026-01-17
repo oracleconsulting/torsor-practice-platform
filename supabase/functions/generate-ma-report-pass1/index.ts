@@ -174,10 +174,10 @@ serve(async (req) => {
       effectivePracticeId = engagement.practice_id;
       console.log('[MA Pass1] Found engagement for client:', clientData?.name);
     } else {
-      // No engagement - fetch client details directly
+      // No engagement - fetch client details from practice_members
       const { data: client, error: clientError } = await supabase
-        .from('users')
-        .select('id, name, email, client_company')
+        .from('practice_members')
+        .select('id, name, email, client_company, practice_id')
         .eq('id', clientId)
         .single();
 
@@ -187,6 +187,7 @@ serve(async (req) => {
 
       clientData = client;
       effectiveClientId = clientId;
+      effectivePracticeId = client.practice_id; // Get practice from the client record
       console.log('[MA Pass1] Working with client directly (no engagement):', clientData?.name);
     }
 

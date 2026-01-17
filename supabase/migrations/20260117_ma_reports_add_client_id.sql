@@ -5,6 +5,7 @@
 -- ============================================================================
 
 -- Add client_id column if it doesn't exist
+-- References practice_members which is the client table in this system
 DO $$ 
 BEGIN
   IF NOT EXISTS (
@@ -12,7 +13,7 @@ BEGIN
     WHERE table_name = 'ma_assessment_reports' AND column_name = 'client_id'
   ) THEN
     ALTER TABLE ma_assessment_reports 
-    ADD COLUMN client_id UUID REFERENCES users(id);
+    ADD COLUMN client_id UUID REFERENCES practice_members(id);
   END IF;
 END $$;
 
@@ -89,13 +90,16 @@ CREATE POLICY "Practice members can manage own MA reports" ON ma_assessment_repo
   );
 
 -- Clients can view shared reports
+-- client_id references practice_members(id), so we check if the practice_member's user_id matches
 CREATE POLICY "Clients can view shared MA reports" ON ma_assessment_reports
   FOR SELECT USING (
     shared_with_client = true
     AND (
-      client_id = auth.uid()
+      client_id IN (SELECT id FROM practice_members WHERE user_id = auth.uid())
       OR engagement_id IN (
-        SELECT id FROM ma_engagements WHERE client_id = auth.uid()
+        SELECT id FROM ma_engagements WHERE client_id IN (
+          SELECT id FROM practice_members WHERE user_id = auth.uid()
+        )
       )
     )
   );
