@@ -76,7 +76,9 @@ export default function UnifiedDashboardPage() {
   const [services, setServices] = useState<ServiceEnrollment[]>([]);
   const [discoveryStatus, setDiscoveryStatus] = useState<DiscoveryStatus | null>(null);
   const [maInsightShared, setMAInsightShared] = useState(false);
+  const [maAssessmentCompleted, setMAAssessmentCompleted] = useState(false);
   const maInsightSharedRef = useRef(false);
+  const maAssessmentCompletedRef = useRef(false);
   const [systemsAuditStage, setSystemsAuditStage] = useState<{
     stage1Complete: boolean;
     stage2Complete: boolean;
@@ -207,6 +209,30 @@ export default function UnifiedDashboardPage() {
       maInsightSharedRef.current = hasSharedMAInsight;
       setMAInsightShared(hasSharedMAInsight);
       console.log('📊 MA Insight shared status set to:', hasSharedMAInsight);
+
+      // Check MA assessment completion status
+      let maAssessmentDone = false;
+      if (clientSession?.clientId) {
+        const { data: maAssessment, error: maAssessmentError } = await supabase
+          .from('service_line_assessments')
+          .select('completed_at')
+          .eq('client_id', clientSession.clientId)
+          .eq('service_line_code', 'management_accounts')
+          .maybeSingle();
+        
+        if (maAssessment?.completed_at) {
+          maAssessmentDone = true;
+          console.log('✅ MA Assessment completed at:', maAssessment.completed_at);
+        } else {
+          console.log('📋 MA Assessment not yet completed');
+        }
+        if (maAssessmentError) {
+          console.error('❌ Error checking MA assessment:', maAssessmentError);
+        }
+      }
+      maAssessmentCompletedRef.current = maAssessmentDone;
+      setMAAssessmentCompleted(maAssessmentDone);
+      console.log('📊 MA Assessment completed status set to:', maAssessmentDone);
 
       // Check Systems Audit engagement status
       if (clientSession?.clientId) {
@@ -604,9 +630,17 @@ export default function UnifiedDashboardPage() {
       // Use ref for immediate access, fallback to state
       if (maInsightSharedRef.current || maInsightShared) {
         return {
-          label: 'Analysis Ready',
+          label: 'Ready to View',
           color: 'emerald',
           icon: CheckCircle,
+        };
+      }
+      // Check if assessment is completed but insights not shared yet
+      if (maAssessmentCompletedRef.current || maAssessmentCompleted) {
+        return {
+          label: 'Completed - Awaiting Review',
+          color: 'amber',
+          icon: Clock,
         };
       }
       // Default for MA - show assessment status
@@ -830,12 +864,19 @@ export default function UnifiedDashboardPage() {
                     className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${
                       status.color === 'emerald'
                         ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                        : status.color === 'amber'
+                        ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
                         : `${colors.bg} ${colors.text} hover:opacity-90 border ${colors.border}`
                     }`}
                   >
                     {status.color === 'emerald' ? (
                       <>
                         View Details
+                        <ChevronRight className="w-4 h-4" />
+                      </>
+                    ) : status.label.includes('Awaiting') ? (
+                      <>
+                        View Submission
                         <ChevronRight className="w-4 h-4" />
                       </>
                     ) : (
