@@ -297,7 +297,7 @@ serve(async (req) => {
         'X-Title': 'Torsor MA Report Pass1',
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-sonnet-4',
+        model: 'anthropic/claude-sonnet-4.5',
         max_tokens: 8000,
         messages: [
           {
@@ -349,7 +349,7 @@ serve(async (req) => {
         status: 'pass1_complete',
         pass1_data: pass1Data,
         pass1_completed_at: new Date().toISOString(),
-        pass1_model: 'anthropic/claude-sonnet-4',
+        pass1_model: 'anthropic/claude-sonnet-4.5',
         pass1_cost: cost,
         admin_view: pass1Data.adminGuidance, // Admin view is primarily from pass1
       })

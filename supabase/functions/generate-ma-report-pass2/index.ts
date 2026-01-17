@@ -144,7 +144,7 @@ serve(async (req) => {
       throw new Error('OPENROUTER_API_KEY not configured');
     }
 
-    console.log('[MA Pass2] Calling Claude Sonnet 4.5 via OpenRouter...');
+    console.log('[MA Pass2] Calling Claude Opus 4.5 via OpenRouter for narrative generation...');
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -155,7 +155,7 @@ serve(async (req) => {
         'X-Title': 'Torsor MA Report Pass2',
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-sonnet-4',
+        model: 'anthropic/claude-opus-4.5',
         max_tokens: 4000,
         messages: [
           {
@@ -195,9 +195,10 @@ serve(async (req) => {
     }
 
     // Calculate cost (OpenRouter uses OpenAI-style usage format)
+    // Opus 4.5 pricing: $15/1M input, $75/1M output
     const inputTokens = openRouterResponse.usage?.prompt_tokens || 0;
     const outputTokens = openRouterResponse.usage?.completion_tokens || 0;
-    const cost = (inputTokens * 0.003 + outputTokens * 0.015) / 1000;
+    const cost = (inputTokens * 0.015 + outputTokens * 0.075) / 1000;
 
     // Build client view combining pass1 and pass2 data
     const clientView = {
@@ -220,7 +221,7 @@ serve(async (req) => {
         status: 'generated',
         pass2_data: pass2Data,
         pass2_completed_at: new Date().toISOString(),
-        pass2_model: 'anthropic/claude-sonnet-4',
+        pass2_model: 'anthropic/claude-opus-4.5',
         pass2_cost: cost,
         client_view: clientView,
       })
