@@ -131,45 +131,70 @@ serve(async (req) => {
   }
 
   try {
-    const { engagementId } = await req.json();
+    const { engagementId, clientId, practiceId } = await req.json();
 
-    if (!engagementId) {
-      throw new Error('engagementId is required');
+    if (!engagementId && !clientId) {
+      throw new Error('Either engagementId or clientId is required');
     }
 
-    console.log('[MA Pass1] Starting extraction for engagement:', engagementId);
+    console.log('[MA Pass1] Starting extraction for:', engagementId ? `engagement ${engagementId}` : `client ${clientId}`);
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get engagement details
-    const { data: engagement, error: engagementError } = await supabase
-      .from('ma_engagements')
-      .select(`
-        *,
-        client:client_id (
-          id, name, email, client_company
-        ),
-        practice:practice_id (
-          id, name
-        )
-      `)
-      .eq('id', engagementId)
-      .single();
+    let clientData: any = null;
+    let effectiveClientId = clientId;
+    let effectivePracticeId = practiceId;
+    let effectiveEngagementId = engagementId;
 
-    if (engagementError || !engagement) {
-      throw new Error(`Engagement not found: ${engagementError?.message}`);
+    // If engagementId provided, get details from engagement
+    if (engagementId) {
+      const { data: engagement, error: engagementError } = await supabase
+        .from('ma_engagements')
+        .select(`
+          *,
+          client:client_id (
+            id, name, email, client_company
+          ),
+          practice:practice_id (
+            id, name
+          )
+        `)
+        .eq('id', engagementId)
+        .single();
+
+      if (engagementError || !engagement) {
+        throw new Error(`Engagement not found: ${engagementError?.message}`);
+      }
+
+      clientData = engagement.client;
+      effectiveClientId = engagement.client_id;
+      effectivePracticeId = engagement.practice_id;
+      console.log('[MA Pass1] Found engagement for client:', clientData?.name);
+    } else {
+      // No engagement - fetch client details directly
+      const { data: client, error: clientError } = await supabase
+        .from('users')
+        .select('id, name, email, client_company')
+        .eq('id', clientId)
+        .single();
+
+      if (clientError || !client) {
+        throw new Error(`Client not found: ${clientError?.message}`);
+      }
+
+      clientData = client;
+      effectiveClientId = clientId;
+      console.log('[MA Pass1] Working with client directly (no engagement):', clientData?.name);
     }
-
-    console.log('[MA Pass1] Found engagement for client:', engagement.client?.name);
 
     // Get assessment responses from service_line_assessments
     const { data: assessmentData, error: assessmentError } = await supabase
       .from('service_line_assessments')
       .select('responses, extracted_insights, completed_at')
-      .eq('client_id', engagement.client_id)
+      .eq('client_id', effectiveClientId)
       .eq('service_line_code', 'management_accounts')
       .single();
 
@@ -179,27 +204,43 @@ serve(async (req) => {
 
     console.log('[MA Pass1] Found assessment responses:', Object.keys(assessmentData.responses).length, 'answers');
 
-    // Check for linked discovery engagement
+    // Check for linked discovery engagement (only if we have an engagement with discovery link)
     let discoveryData = null;
-    if (engagement.discovery_engagement_id) {
-      const { data: discovery } = await supabase
-        .from('discovery_engagements')
-        .select('*')
-        .eq('id', engagement.discovery_engagement_id)
-        .single();
-      
-      if (discovery) {
-        discoveryData = discovery;
-        console.log('[MA Pass1] Found linked discovery data');
-      }
+    // Try to find discovery data via discovery_engagements for this client
+    const { data: discoveryEngagement } = await supabase
+      .from('discovery_engagements')
+      .select('*')
+      .eq('client_id', effectiveClientId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    if (discoveryEngagement) {
+      discoveryData = discoveryEngagement;
+      console.log('[MA Pass1] Found linked discovery data');
     }
 
     // Create or update report record
-    const { data: existingReport } = await supabase
-      .from('ma_assessment_reports')
-      .select('id')
-      .eq('engagement_id', engagementId)
-      .single();
+    // First try to find existing report by client_id (since we may not have engagement)
+    let existingReport = null;
+    if (effectiveEngagementId) {
+      const { data } = await supabase
+        .from('ma_assessment_reports')
+        .select('id')
+        .eq('engagement_id', effectiveEngagementId)
+        .maybeSingle();
+      existingReport = data;
+    }
+    
+    // Also check by client_id if no engagement
+    if (!existingReport && effectiveClientId) {
+      const { data } = await supabase
+        .from('ma_assessment_reports')
+        .select('id')
+        .eq('client_id', effectiveClientId)
+        .maybeSingle();
+      existingReport = data;
+    }
 
     let reportId: string;
     if (existingReport) {
@@ -216,9 +257,11 @@ serve(async (req) => {
       const { data: newReport, error: createError } = await supabase
         .from('ma_assessment_reports')
         .insert({
-          engagement_id: engagementId,
+          client_id: effectiveClientId,
+          practice_id: effectivePracticeId,
+          engagement_id: effectiveEngagementId || null,
           status: 'pass1_running',
-          discovery_engagement_id: engagement.discovery_engagement_id
+          discovery_engagement_id: discoveryData?.id || null
         })
         .select('id')
         .single();
@@ -232,7 +275,7 @@ serve(async (req) => {
     // Build the prompt
     const prompt = buildPass1Prompt(
       assessmentData.responses,
-      engagement,
+      clientData,
       discoveryData
     );
 
@@ -312,7 +355,7 @@ serve(async (req) => {
 
     console.log('[MA Pass1] Pass 1 complete. Triggering Pass 2...');
 
-    // Trigger Pass 2 automatically
+    // Trigger Pass 2 automatically - pass reportId so pass2 can find the report
     const pass2Response = await fetch(
       `${supabaseUrl}/functions/v1/generate-ma-report-pass2`,
       {
@@ -321,7 +364,11 @@ serve(async (req) => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${supabaseServiceKey}`,
         },
-        body: JSON.stringify({ engagementId }),
+        body: JSON.stringify({ 
+          reportId,
+          engagementId: effectiveEngagementId,
+          clientId: effectiveClientId 
+        }),
       }
     );
 
@@ -359,10 +406,10 @@ serve(async (req) => {
 
 function buildPass1Prompt(
   assessmentResponses: Record<string, any>,
-  engagement: any,
+  clientData: any,
   discoveryData: any
 ): string {
-  const companyName = engagement.client?.client_company || engagement.client?.name || 'Unknown Company';
+  const companyName = clientData?.client_company || clientData?.name || 'Unknown Company';
   
   return `You are analyzing a Management Accounts assessment for a UK accountancy practice.
 
@@ -376,8 +423,8 @@ ${JSON.stringify(assessmentResponses, null, 2)}
 
 ## CLIENT DETAILS
 Company: ${companyName}
-Contact: ${engagement.client?.name || 'Unknown'}
-Email: ${engagement.client?.email || 'Unknown'}
+Contact: ${clientData?.name || 'Unknown'}
+Email: ${clientData?.email || 'Unknown'}
 
 ${discoveryData ? `
 ## DISCOVERY ASSESSMENT DATA (from earlier assessment)

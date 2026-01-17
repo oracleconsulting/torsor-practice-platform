@@ -56,25 +56,50 @@ serve(async (req) => {
   }
 
   try {
-    const { engagementId } = await req.json();
+    const { reportId, engagementId, clientId } = await req.json();
 
-    if (!engagementId) {
-      throw new Error('engagementId is required');
+    if (!reportId && !engagementId && !clientId) {
+      throw new Error('Either reportId, engagementId, or clientId is required');
     }
 
-    console.log('[MA Pass2] Starting narrative generation for engagement:', engagementId);
+    console.log('[MA Pass2] Starting narrative generation for:', reportId ? `report ${reportId}` : engagementId ? `engagement ${engagementId}` : `client ${clientId}`);
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get the report with pass1 data
-    const { data: report, error: reportError } = await supabase
-      .from('ma_assessment_reports')
-      .select('*')
-      .eq('engagement_id', engagementId)
-      .single();
+    // Get the report with pass1 data - try by reportId first, then engagementId, then clientId
+    let report = null;
+    let reportError = null;
+    
+    if (reportId) {
+      const { data, error } = await supabase
+        .from('ma_assessment_reports')
+        .select('*')
+        .eq('id', reportId)
+        .single();
+      report = data;
+      reportError = error;
+    } else if (engagementId) {
+      const { data, error } = await supabase
+        .from('ma_assessment_reports')
+        .select('*')
+        .eq('engagement_id', engagementId)
+        .single();
+      report = data;
+      reportError = error;
+    } else if (clientId) {
+      const { data, error } = await supabase
+        .from('ma_assessment_reports')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      report = data;
+      reportError = error;
+    }
 
     if (reportError || !report) {
       throw new Error(`Report not found: ${reportError?.message}`);

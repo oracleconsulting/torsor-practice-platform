@@ -5380,32 +5380,45 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
         setIsMAInsightShared(false);
       }
       
-      // Load MA Assessment Report (Two-Pass Architecture) if engagement exists
-      console.log('[MA Report] Checking engagement for two-pass report:', engagement?.id || 'No engagement found');
+      // Load MA Assessment Report (Two-Pass Architecture)
+      // Reports can exist without engagement (pre-sales analysis to secure the engagement)
+      console.log('[MA Report] Checking for two-pass report, engagement:', engagement?.id || 'None', 'client:', clientId);
+      
+      // Set engagementId if we have one (optional for two-pass system)
+      setMAEngagementId(engagement?.id || null);
+      
+      // Try to find report by engagement_id first, then by client_id
+      let assessmentReport = null;
+      
       if (engagement) {
-        setMAEngagementId(engagement.id);
-        console.log('[MA Report] Set engagementId:', engagement.id);
-        
-        const { data: assessmentReport } = await supabase
+        const { data } = await supabase
           .from('ma_assessment_reports')
           .select('*')
           .eq('engagement_id', engagement.id)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-        
-        if (assessmentReport) {
-          setMAAssessmentReport(assessmentReport);
-          setMAReportStatus(assessmentReport.status);
-          setIsMAReportShared(assessmentReport.shared_with_client || false);
-          console.log('[MA Report] Loaded assessment report:', assessmentReport.id, 'Status:', assessmentReport.status);
-        } else {
-          setMAAssessmentReport(null);
-          setMAReportStatus(null);
-          setIsMAReportShared(false);
-        }
+        assessmentReport = data;
+      }
+      
+      // If no report found via engagement, check by client_id
+      if (!assessmentReport) {
+        const { data } = await supabase
+          .from('ma_assessment_reports')
+          .select('*')
+          .eq('client_id', clientId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        assessmentReport = data;
+      }
+      
+      if (assessmentReport) {
+        setMAAssessmentReport(assessmentReport);
+        setMAReportStatus(assessmentReport.status);
+        setIsMAReportShared(assessmentReport.shared_with_client || false);
+        console.log('[MA Report] Loaded assessment report:', assessmentReport.id, 'Status:', assessmentReport.status);
       } else {
-        setMAEngagementId(null);
         setMAAssessmentReport(null);
         setMAReportStatus(null);
         setIsMAReportShared(false);
@@ -6940,17 +6953,16 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                   </div>
 
                   {/* NEW: Two-Pass Report Generation (Assessment-Focused) */}
-                  <div className={`rounded-xl p-6 ${maEngagementId ? 'bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200' : 'bg-gray-50 border border-gray-200'}`}>
+                  {/* Works with clientId directly - no engagement required for pre-sales analysis */}
+                  <div className="rounded-xl p-6 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200">
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                          <Sparkles className={`w-5 h-5 ${maEngagementId ? 'text-purple-600' : 'text-gray-400'}`} />
+                          <Sparkles className="w-5 h-5 text-purple-600" />
                           Two-Pass Assessment Report
                         </h3>
                         <p className="text-sm text-gray-600 mt-1">
-                          {maEngagementId 
-                            ? 'Generate comprehensive admin guidance and client presentation from the 20-question assessment'
-                            : 'No MA engagement found. Create an engagement first to enable two-pass report generation.'}
+                          Generate comprehensive admin guidance and client presentation from the assessment to help secure the engagement
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -6969,43 +6981,39 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                              'Pending'}
                           </span>
                         )}
-                        {!maEngagementId && (
-                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-                            No Engagement
-                          </span>
-                        )}
                         <button
                           onClick={async () => {
-                            if (!maEngagementId) {
-                              alert('No active MA engagement found for this client. Please create an engagement first via the MA Sales Flow or database.');
-                              return;
-                            }
-                              
                               setGeneratingMAReport(true);
                               setMAReportStatus('pass1_running');
                               
                               try {
-                                console.log('[MA Report] Starting two-pass generation for engagement:', maEngagementId);
+                                console.log('[MA Report] Starting two-pass generation for client:', clientId);
                                 
-                                // Call Pass 1 - this will automatically trigger Pass 2
+                                // Call Pass 1 - uses clientId directly, no engagement required
                                 const { data, error } = await supabase.functions.invoke('generate-ma-report-pass1', {
-                                  body: { engagementId: maEngagementId }
+                                  body: { 
+                                    clientId: clientId,
+                                    practiceId: client?.practice_id,
+                                    engagementId: maEngagementId || null // optional - include if exists
+                                  }
                                 });
                                 
                                 if (error) throw error;
                                 
                                 console.log('[MA Report] Pass 1 response:', data);
+                                const reportId = data?.reportId;
                                 
                                 // Poll for completion (Pass 2 is triggered automatically by Pass 1)
                                 let attempts = 0;
-                                const maxAttempts = 30; // 30 seconds max
+                                const maxAttempts = 60; // 60 seconds max (increased for AI processing)
                                 
                                 const pollForCompletion = async () => {
-                                  const { data: report } = await supabase
-                                    .from('ma_assessment_reports')
-                                    .select('*')
-                                    .eq('engagement_id', maEngagementId)
-                                    .single();
+                                  // Query by reportId if available, otherwise by client_id
+                                  const query = reportId 
+                                    ? supabase.from('ma_assessment_reports').select('*').eq('id', reportId).single()
+                                    : supabase.from('ma_assessment_reports').select('*').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).single();
+                                  
+                                  const { data: report } = await query;
                                   
                                   if (report) {
                                     setMAReportStatus(report.status);
