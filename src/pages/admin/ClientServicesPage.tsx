@@ -5334,9 +5334,11 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
       }
       
       // Fallback to old client_context format if v2 not found
+      // IMPORTANT: Must filter by data_source_type to avoid showing unrelated notes
       const maInsightContext = !maInsightV2 ? (context || []).find((c: any) => 
         c.context_type === 'note' && 
         c.processed === true && 
+        c.data_source_type === 'management_accounts_analysis' &&
         c.content && 
         typeof c.content === 'string' &&
         (c.content.includes('"headline"') || c.content.includes('"keyInsights"'))
