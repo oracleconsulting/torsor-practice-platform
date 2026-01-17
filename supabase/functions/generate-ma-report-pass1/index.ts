@@ -8,6 +8,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
+// Declare EdgeRuntime for Supabase Edge Functions
+declare const EdgeRuntime: {
+  waitUntil: (promise: Promise<any>) => void;
+} | undefined;
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -273,121 +278,151 @@ serve(async (req) => {
 
     console.log('[MA Pass1] Report ID:', reportId);
 
-    // Build the prompt
-    const prompt = buildPass1Prompt(
-      assessmentData.responses,
-      clientData,
-      discoveryData
-    );
+    // Return immediately - the frontend will poll for status
+    // Process the AI work in the background
+    const backgroundProcess = async () => {
+      try {
+        // Build the prompt
+        const prompt = buildPass1Prompt(
+          assessmentData.responses,
+          clientData,
+          discoveryData
+        );
 
-    // Call Claude API
-    const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
-    if (!openRouterKey) {
-      throw new Error('OPENROUTER_API_KEY not configured');
-    }
+        // Call Claude API
+        const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
+        if (!openRouterKey) {
+          throw new Error('OPENROUTER_API_KEY not configured');
+        }
 
-    console.log('[MA Pass1] Calling Claude Sonnet 4.5 via OpenRouter...');
+        console.log('[MA Pass1] Calling Claude Sonnet 4.5 via OpenRouter...');
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openRouterKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://torsor.co.uk',
-        'X-Title': 'Torsor MA Report Pass1',
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-sonnet-4.5',
-        max_tokens: 8000,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openRouterKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://torsor.co.uk',
+            'X-Title': 'Torsor MA Report Pass1',
           },
-        ],
-      }),
-    });
+          body: JSON.stringify({
+            model: 'anthropic/claude-sonnet-4.5',
+            max_tokens: 8000,
+            messages: [
+              {
+                role: 'user',
+                content: prompt,
+              },
+            ],
+          }),
+        });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
-    }
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+        }
 
-    const openRouterResponse = await response.json();
-    const content = openRouterResponse.choices?.[0]?.message?.content || '';
-    
-    if (!content) {
-      throw new Error('Empty response from AI');
-    }
+        const openRouterResponse = await response.json();
+        const content = openRouterResponse.choices?.[0]?.message?.content || '';
+        
+        if (!content) {
+          throw new Error('Empty response from AI');
+        }
 
-    // Parse JSON response
-    let pass1Data: MAPass1Output;
-    try {
-      // Extract JSON from response (handle markdown code blocks)
-      let jsonStr = content;
-      if (content.includes('```json')) {
-        jsonStr = content.split('```json')[1].split('```')[0].trim();
-      } else if (content.includes('```')) {
-        jsonStr = content.split('```')[1].split('```')[0].trim();
+        // Parse JSON response
+        let pass1Data: MAPass1Output;
+        try {
+          // Extract JSON from response (handle markdown code blocks)
+          let jsonStr = content;
+          if (content.includes('```json')) {
+            jsonStr = content.split('```json')[1].split('```')[0].trim();
+          } else if (content.includes('```')) {
+            jsonStr = content.split('```')[1].split('```')[0].trim();
+          }
+          pass1Data = JSON.parse(jsonStr);
+        } catch (parseError) {
+          console.error('[MA Pass1] JSON parse error:', parseError);
+          console.error('[MA Pass1] Raw content:', content.substring(0, 500));
+          throw new Error('Failed to parse Claude response as JSON');
+        }
+
+        // Calculate cost (OpenRouter uses OpenAI-style usage format)
+        const inputTokens = openRouterResponse.usage?.prompt_tokens || 0;
+        const outputTokens = openRouterResponse.usage?.completion_tokens || 0;
+        const cost = (inputTokens * 0.003 + outputTokens * 0.015) / 1000;
+
+        // Update report with pass1 data
+        const { error: updateError } = await supabase
+          .from('ma_assessment_reports')
+          .update({
+            status: 'pass1_complete',
+            pass1_data: pass1Data,
+            pass1_completed_at: new Date().toISOString(),
+            pass1_model: 'anthropic/claude-sonnet-4.5',
+            pass1_cost: cost,
+            admin_view: pass1Data.adminGuidance, // Admin view is primarily from pass1
+          })
+          .eq('id', reportId);
+
+        if (updateError) {
+          throw new Error(`Failed to update report: ${updateError.message}`);
+        }
+
+        console.log('[MA Pass1] Pass 1 complete. Triggering Pass 2...');
+
+        // Trigger Pass 2 automatically - pass reportId so pass2 can find the report
+        const pass2Response = await fetch(
+          `${supabaseUrl}/functions/v1/generate-ma-report-pass2`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({ 
+              reportId,
+              engagementId: effectiveEngagementId,
+              clientId: effectiveClientId 
+            }),
+          }
+        );
+
+        if (!pass2Response.ok) {
+          console.error('[MA Pass1] Pass 2 trigger failed, but Pass 1 is complete');
+        }
+
+        console.log('[MA Pass1] Background processing complete');
+
+      } catch (bgError: any) {
+        console.error('[MA Pass1] Background processing error:', bgError);
+        // Update report with error status
+        await supabase
+          .from('ma_assessment_reports')
+          .update({
+            status: 'error',
+            error_message: bgError.message,
+            error_at: new Date().toISOString(),
+          })
+          .eq('id', reportId);
       }
-      pass1Data = JSON.parse(jsonStr);
-    } catch (parseError) {
-      console.error('[MA Pass1] JSON parse error:', parseError);
-      console.error('[MA Pass1] Raw content:', content.substring(0, 500));
-      throw new Error('Failed to parse Claude response as JSON');
+    };
+
+    // Start background processing (don't await - let it run)
+    // Use EdgeRuntime.waitUntil if available, otherwise just start the promise
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+      EdgeRuntime.waitUntil(backgroundProcess());
+    } else {
+      // Fallback: start the promise without awaiting
+      backgroundProcess();
     }
 
-    // Calculate cost (OpenRouter uses OpenAI-style usage format)
-    const inputTokens = openRouterResponse.usage?.prompt_tokens || 0;
-    const outputTokens = openRouterResponse.usage?.completion_tokens || 0;
-    const cost = (inputTokens * 0.003 + outputTokens * 0.015) / 1000;
-
-    // Update report with pass1 data
-    const { error: updateError } = await supabase
-      .from('ma_assessment_reports')
-      .update({
-        status: 'pass1_complete',
-        pass1_data: pass1Data,
-        pass1_completed_at: new Date().toISOString(),
-        pass1_model: 'anthropic/claude-sonnet-4.5',
-        pass1_cost: cost,
-        admin_view: pass1Data.adminGuidance, // Admin view is primarily from pass1
-      })
-      .eq('id', reportId);
-
-    if (updateError) {
-      throw new Error(`Failed to update report: ${updateError.message}`);
-    }
-
-    console.log('[MA Pass1] Pass 1 complete. Triggering Pass 2...');
-
-    // Trigger Pass 2 automatically - pass reportId so pass2 can find the report
-    const pass2Response = await fetch(
-      `${supabaseUrl}/functions/v1/generate-ma-report-pass2`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-        },
-        body: JSON.stringify({ 
-          reportId,
-          engagementId: effectiveEngagementId,
-          clientId: effectiveClientId 
-        }),
-      }
-    );
-
-    if (!pass2Response.ok) {
-      console.error('[MA Pass1] Pass 2 trigger failed, but Pass 1 is complete');
-    }
-
+    // Return immediately with report ID - frontend will poll for status
     return new Response(
       JSON.stringify({
         success: true,
         reportId,
-        status: 'pass1_complete',
-        pass1Data,
+        status: 'pass1_running',
+        message: 'Report generation started. Poll for status updates.',
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
