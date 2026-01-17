@@ -5192,32 +5192,60 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
         }
       }
 
-      // Fetch assessment responses (discovery assessments)
-      const { data: assessments } = await supabase
-        .from('client_assessments')
-        .select('assessment_type, responses, status, completed_at')
-        .eq('client_id', clientId)
-        .in('assessment_type', ['part1', 'part2', 'part3']);
+      // Fetch assessments based on service line context
+      // For service-specific views (like management_accounts), only show relevant assessments
+      let allAssessments: any[] = [];
+      
+      if (serviceLineCode === 'management_accounts') {
+        // For Management Accounts, only show MA assessment
+        const { data: maAssessment } = await supabase
+          .from('service_line_assessments')
+          .select('id, service_line_code, responses, completion_percentage, completed_at, extracted_insights, started_at, updated_at')
+          .eq('client_id', clientId)
+          .eq('service_line_code', 'management_accounts')
+          .maybeSingle();
+        
+        if (maAssessment) {
+          allAssessments = [{
+            assessment_type: maAssessment.service_line_code,
+            responses: maAssessment.responses,
+            status: maAssessment.completed_at ? 'completed' : (maAssessment.completion_percentage > 0 ? 'in_progress' : 'not_started'),
+            completed_at: maAssessment.completed_at,
+            extracted_insights: maAssessment.extracted_insights,
+            completion_percentage: maAssessment.completion_percentage,
+            is_service_line: true
+          }];
+        }
+      } else {
+        // For other service lines or general views, fetch all assessments
+        // Fetch discovery assessments (Part 1, 2, 3)
+        const { data: assessments } = await supabase
+          .from('client_assessments')
+          .select('assessment_type, responses, status, completed_at')
+          .eq('client_id', clientId)
+          .in('assessment_type', ['part1', 'part2', 'part3']);
 
-      // Fetch service line assessments (management_accounts, 365_method, etc.)
-      const { data: serviceAssessments } = await supabase
-        .from('service_line_assessments')
-        .select('id, service_line_code, responses, completion_percentage, completed_at, extracted_insights, started_at, updated_at')
-        .eq('client_id', clientId);
+        // Fetch service line assessments for the specific service line
+        const { data: serviceAssessments } = await supabase
+          .from('service_line_assessments')
+          .select('id, service_line_code, responses, completion_percentage, completed_at, extracted_insights, started_at, updated_at')
+          .eq('client_id', clientId)
+          .eq('service_line_code', serviceLineCode);
 
-      // Convert service line assessments to same format as discovery assessments
-      const formattedServiceAssessments = (serviceAssessments || []).map((sa: any) => ({
-        assessment_type: sa.service_line_code,
-        responses: sa.responses,
-        status: sa.completed_at ? 'completed' : (sa.completion_percentage > 0 ? 'in_progress' : 'not_started'),
-        completed_at: sa.completed_at,
-        extracted_insights: sa.extracted_insights,
-        completion_percentage: sa.completion_percentage,
-        is_service_line: true // Flag to distinguish in UI
-      }));
+        // Convert service line assessments to same format as discovery assessments
+        const formattedServiceAssessments = (serviceAssessments || []).map((sa: any) => ({
+          assessment_type: sa.service_line_code,
+          responses: sa.responses,
+          status: sa.completed_at ? 'completed' : (sa.completion_percentage > 0 ? 'in_progress' : 'not_started'),
+          completed_at: sa.completed_at,
+          extracted_insights: sa.extracted_insights,
+          completion_percentage: sa.completion_percentage,
+          is_service_line: true // Flag to distinguish in UI
+        }));
 
-      // Combine all assessments
-      const allAssessments = [...(assessments || []), ...formattedServiceAssessments];
+        // Combine - only include discovery assessments for non-MA service lines that need them
+        allAssessments = [...(assessments || []), ...formattedServiceAssessments];
+      }
 
       const { data: context } = await supabase
         .from('client_context')
