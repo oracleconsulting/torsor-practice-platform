@@ -6,6 +6,9 @@
 -- qualification and MA sales flow.
 -- ============================================================================
 
+-- Temporarily disable audit trigger (it expects practice_id which doesn't exist on this table)
+DROP TRIGGER IF EXISTS audit_assessment_questions ON assessment_questions;
+
 -- Delete existing MA assessment questions
 DELETE FROM assessment_questions WHERE service_line_code = 'management_accounts';
 
@@ -188,6 +191,13 @@ BEGIN
     RAISE EXCEPTION 'Expected 5 sections, got %', section_count;
   END IF;
 END $$;
+
+-- ============================================================================
+-- Note: Audit trigger intentionally NOT re-enabled
+-- ============================================================================
+-- The audit_assessment_questions trigger calls log_audit_event() which expects
+-- a practice_id column that doesn't exist on this table. The trigger was 
+-- incorrectly applied and should remain disabled.
 
 -- ============================================================================
 -- Summary
