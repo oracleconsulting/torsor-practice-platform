@@ -1,0 +1,526 @@
+// ============================================================================
+// MANAGEMENT ACCOUNTS REPORT - PASS 1: EXTRACTION & ANALYSIS
+// ============================================================================
+// Purpose: Extract all facts, numbers, quotes from assessment. Analyze patterns.
+// Generate admin guidance for follow-up call.
+// ============================================================================
+
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface MAPass1Output {
+  clientProfile: {
+    companyName: string;
+    annualRevenue: string;
+    headcount: number;
+    industry: string;
+    discoveryLinked: boolean;
+  };
+  clientQuotes: {
+    tuesdayQuestion: string;
+    avoidedCalculation: string;
+    expensiveBlindspot: string;
+    decisionStory: string;
+    worstCashMoment: string | null;
+    reportsMissing: string;
+    visibilityTransformation: string;
+    sleepBetter: string;
+  };
+  extractedFacts: {
+    specificNames: string[];
+    specificAmounts: string[];
+    specificEvents: string[];
+    timeframes: string[];
+  };
+  assessmentAnswers: {
+    yearendSurprise: string;
+    numbersRelationship: string;
+    decisionSpeed: string;
+    decisionConfidence: number;
+    upcomingDecisions: string[];
+    cashVisibility30Day: string;
+    cashSurprises: string;
+    taxPreparedness: string;
+    currentReports: string[];
+    reportUsefulness: string;
+    scenarioInterest: string[];
+    desiredFrequency: string;
+  };
+  painAnalysis: {
+    primaryPain: {
+      category: 'cash_visibility' | 'profitability' | 'decision_confidence' | 'reporting_gap';
+      confidence: 'high' | 'medium' | 'low';
+      evidence: string[];
+    };
+    secondaryPains: Array<{
+      category: string;
+      confidence: string;
+      evidence: string[];
+    }>;
+  };
+  findings: Array<{
+    id: string;
+    title: string;
+    finding: string;
+    implication: string;
+    recommendedAction: string;
+    severity: 'critical' | 'significant' | 'moderate';
+    category: 'cash' | 'profitability' | 'decisions' | 'reporting' | 'operations';
+  }>;
+  quickWins: Array<{
+    title: string;
+    description: string;
+    timing: string;
+    benefit: string;
+  }>;
+  tierRecommendation: {
+    tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+    rationale: string;
+    keyDrivers: string[];
+  };
+  adminGuidance: {
+    quickProfile: {
+      primaryPain: string;
+      secondaryPain: string;
+      confidenceScore: number;
+      desiredFrequency: string;
+      recommendedTier: string;
+    };
+    quotesToUse: Array<{
+      quote: string;
+      context: string;
+    }>;
+    gapsToFill: Array<{
+      gap: string;
+      suggestedQuestion: string;
+      whyNeeded: string;
+    }>;
+    questionsToAsk: Array<{
+      question: string;
+      purpose: string;
+      listenFor: string;
+    }>;
+    objectionHandling: Array<{
+      objection: string;
+      response: string;
+      theirDataToReference: string;
+    }>;
+    scenariosToBuild: Array<{
+      type: string;
+      name: string;
+      reason: string;
+    }>;
+  };
+  discoveryContext?: {
+    sleepThieves: string[];
+    scalingConstraint: string;
+    coreFrustration: string;
+    successDefinition: string;
+    fiveYearVision: string;
+  };
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    const { engagementId } = await req.json();
+
+    if (!engagementId) {
+      throw new Error('engagementId is required');
+    }
+
+    console.log('[MA Pass1] Starting extraction for engagement:', engagementId);
+
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get engagement details
+    const { data: engagement, error: engagementError } = await supabase
+      .from('ma_engagements')
+      .select(`
+        *,
+        client:client_id (
+          id, name, email, client_company
+        ),
+        practice:practice_id (
+          id, name
+        )
+      `)
+      .eq('id', engagementId)
+      .single();
+
+    if (engagementError || !engagement) {
+      throw new Error(`Engagement not found: ${engagementError?.message}`);
+    }
+
+    console.log('[MA Pass1] Found engagement for client:', engagement.client?.name);
+
+    // Get assessment responses from service_line_assessments
+    const { data: assessmentData, error: assessmentError } = await supabase
+      .from('service_line_assessments')
+      .select('responses, extracted_insights, completed_at')
+      .eq('client_id', engagement.client_id)
+      .eq('service_line_code', 'management_accounts')
+      .single();
+
+    if (assessmentError || !assessmentData?.responses) {
+      throw new Error(`Assessment responses not found: ${assessmentError?.message}`);
+    }
+
+    console.log('[MA Pass1] Found assessment responses:', Object.keys(assessmentData.responses).length, 'answers');
+
+    // Check for linked discovery engagement
+    let discoveryData = null;
+    if (engagement.discovery_engagement_id) {
+      const { data: discovery } = await supabase
+        .from('discovery_engagements')
+        .select('*')
+        .eq('id', engagement.discovery_engagement_id)
+        .single();
+      
+      if (discovery) {
+        discoveryData = discovery;
+        console.log('[MA Pass1] Found linked discovery data');
+      }
+    }
+
+    // Create or update report record
+    const { data: existingReport } = await supabase
+      .from('ma_assessment_reports')
+      .select('id')
+      .eq('engagement_id', engagementId)
+      .single();
+
+    let reportId: string;
+    if (existingReport) {
+      reportId = existingReport.id;
+      await supabase
+        .from('ma_assessment_reports')
+        .update({ 
+          status: 'pass1_running',
+          error_message: null,
+          error_at: null
+        })
+        .eq('id', reportId);
+    } else {
+      const { data: newReport, error: createError } = await supabase
+        .from('ma_assessment_reports')
+        .insert({
+          engagement_id: engagementId,
+          status: 'pass1_running',
+          discovery_engagement_id: engagement.discovery_engagement_id
+        })
+        .select('id')
+        .single();
+
+      if (createError) throw createError;
+      reportId = newReport.id;
+    }
+
+    console.log('[MA Pass1] Report ID:', reportId);
+
+    // Build the prompt
+    const prompt = buildPass1Prompt(
+      assessmentData.responses,
+      engagement,
+      discoveryData
+    );
+
+    // Call Claude API
+    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    if (!anthropicApiKey) {
+      throw new Error('ANTHROPIC_API_KEY not configured');
+    }
+
+    console.log('[MA Pass1] Calling Claude API...');
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': anthropicApiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 8000,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Claude API error: ${response.status} - ${errorText}`);
+    }
+
+    const claudeResponse = await response.json();
+    const content = claudeResponse.content[0].text;
+
+    // Parse JSON response
+    let pass1Data: MAPass1Output;
+    try {
+      // Extract JSON from response (handle markdown code blocks)
+      let jsonStr = content;
+      if (content.includes('```json')) {
+        jsonStr = content.split('```json')[1].split('```')[0].trim();
+      } else if (content.includes('```')) {
+        jsonStr = content.split('```')[1].split('```')[0].trim();
+      }
+      pass1Data = JSON.parse(jsonStr);
+    } catch (parseError) {
+      console.error('[MA Pass1] JSON parse error:', parseError);
+      console.error('[MA Pass1] Raw content:', content.substring(0, 500));
+      throw new Error('Failed to parse Claude response as JSON');
+    }
+
+    // Calculate cost
+    const inputTokens = claudeResponse.usage?.input_tokens || 0;
+    const outputTokens = claudeResponse.usage?.output_tokens || 0;
+    const cost = (inputTokens * 0.003 + outputTokens * 0.015) / 1000;
+
+    // Update report with pass1 data
+    const { error: updateError } = await supabase
+      .from('ma_assessment_reports')
+      .update({
+        status: 'pass1_complete',
+        pass1_data: pass1Data,
+        pass1_completed_at: new Date().toISOString(),
+        pass1_model: 'claude-sonnet-4-20250514',
+        pass1_cost: cost,
+        admin_view: pass1Data.adminGuidance, // Admin view is primarily from pass1
+      })
+      .eq('id', reportId);
+
+    if (updateError) {
+      throw new Error(`Failed to update report: ${updateError.message}`);
+    }
+
+    console.log('[MA Pass1] Pass 1 complete. Triggering Pass 2...');
+
+    // Trigger Pass 2 automatically
+    const pass2Response = await fetch(
+      `${supabaseUrl}/functions/v1/generate-ma-report-pass2`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ engagementId }),
+      }
+    );
+
+    if (!pass2Response.ok) {
+      console.error('[MA Pass1] Pass 2 trigger failed, but Pass 1 is complete');
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        reportId,
+        status: 'pass1_complete',
+        pass1Data,
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+
+  } catch (error) {
+    console.error('[MA Pass1] Error:', error);
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message,
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
+});
+
+function buildPass1Prompt(
+  assessmentResponses: Record<string, any>,
+  engagement: any,
+  discoveryData: any
+): string {
+  const companyName = engagement.client?.client_company || engagement.client?.name || 'Unknown Company';
+  
+  return `You are analyzing a Management Accounts assessment for a UK accountancy practice.
+
+## YOUR TASK
+Extract ALL facts, numbers, names, and quotes from the assessment responses.
+Analyze the patterns to identify pain points and recommendations.
+Generate practical admin guidance for the follow-up call.
+
+## ASSESSMENT RESPONSES
+${JSON.stringify(assessmentResponses, null, 2)}
+
+## CLIENT DETAILS
+Company: ${companyName}
+Contact: ${engagement.client?.name || 'Unknown'}
+Email: ${engagement.client?.email || 'Unknown'}
+
+${discoveryData ? `
+## DISCOVERY ASSESSMENT DATA (from earlier assessment)
+This client previously completed a Discovery assessment. Use this context:
+${JSON.stringify(discoveryData, null, 2)}
+` : ''}
+
+## EXTRACTION RULES
+1. Extract EVERY specific name mentioned (people, companies, contracts) - e.g., "Sarah", "Henderson contract", "Hartley & Co"
+2. Extract EVERY specific number/amount mentioned - e.g., "£95k", "£180k", "30 days"
+3. Extract EVERY specific event or incident described - e.g., "February crisis", "delayed hire"
+4. Preserve exact quotes - do not paraphrase. Use their actual words.
+5. Note timeframes and sequences - "four months", "last year"
+
+## ANALYSIS RULES
+1. Primary pain = the thing that comes up most often with most evidence
+2. Confidence score comes from their self-assessment (question about decision confidence)
+3. Tier recommendation based on:
+   - Bronze (£750): Just wants basics, low engagement with numbers, stable business
+   - Silver (£1,500): Wants trends and insights, medium engagement, some decisions coming
+   - Gold (£3,000): Wants scenarios and forecasting, upcoming major decisions, cash concerns
+   - Platinum (£5,000): Complex needs, board reporting, high frequency, multiple stakeholders
+
+## ADMIN GUIDANCE RULES
+1. Gaps to fill = information we need but don't have (roles, salaries, client payment terms)
+2. Questions to ask should use their specific situation, not generic questions
+3. Objection handling must reference their own data/stories from the assessment
+4. Quotes to use = short, punchy, emotional - not full paragraphs
+
+## FINDINGS RULES
+1. Maximum 5 findings, prioritize by severity and impact
+2. Each finding must reference specific details from their responses
+3. Recommendations should be actionable and specific
+
+## QUICK WINS RULES
+1. Exactly 3 quick wins
+2. Things they can implement immediately with existing data
+3. Demonstrate competence before formal engagement
+
+## OUTPUT FORMAT
+Return ONLY valid JSON matching this exact structure (no markdown, no explanation):
+
+{
+  "clientProfile": {
+    "companyName": "string",
+    "annualRevenue": "string estimate based on context",
+    "headcount": number,
+    "industry": "string",
+    "discoveryLinked": boolean
+  },
+  "clientQuotes": {
+    "tuesdayQuestion": "their exact Tuesday question",
+    "avoidedCalculation": "what they avoid calculating",
+    "expensiveBlindspot": "their costly blind spot story",
+    "decisionStory": "their decision-making story",
+    "worstCashMoment": "their cash crisis story or null",
+    "reportsMissing": "what reports don't tell them",
+    "visibilityTransformation": "what would change with visibility",
+    "sleepBetter": "what would help them sleep better"
+  },
+  "extractedFacts": {
+    "specificNames": ["array of names mentioned"],
+    "specificAmounts": ["array of amounts mentioned"],
+    "specificEvents": ["array of events/incidents"],
+    "timeframes": ["array of timeframes mentioned"]
+  },
+  "assessmentAnswers": {
+    "yearendSurprise": "their answer",
+    "numbersRelationship": "their answer",
+    "decisionSpeed": "their answer",
+    "decisionConfidence": number 1-10,
+    "upcomingDecisions": ["array"],
+    "cashVisibility30Day": "their answer",
+    "cashSurprises": "their answer",
+    "taxPreparedness": "their answer",
+    "currentReports": ["array"],
+    "reportUsefulness": "their answer",
+    "scenarioInterest": ["array"],
+    "desiredFrequency": "their answer"
+  },
+  "painAnalysis": {
+    "primaryPain": {
+      "category": "cash_visibility|profitability|decision_confidence|reporting_gap",
+      "confidence": "high|medium|low",
+      "evidence": ["evidence strings"]
+    },
+    "secondaryPains": [{"category": "string", "confidence": "string", "evidence": ["strings"]}]
+  },
+  "findings": [
+    {
+      "id": "finding_1",
+      "title": "Short punchy title",
+      "finding": "What we found using their specifics",
+      "implication": "Why it matters",
+      "recommendedAction": "What to do",
+      "severity": "critical|significant|moderate",
+      "category": "cash|profitability|decisions|reporting|operations"
+    }
+  ],
+  "quickWins": [
+    {
+      "title": "Quick win title",
+      "description": "What to do",
+      "timing": "When/how long",
+      "benefit": "What they'll gain"
+    }
+  ],
+  "tierRecommendation": {
+    "tier": "bronze|silver|gold|platinum",
+    "rationale": "Why this tier",
+    "keyDrivers": ["What drove this recommendation"]
+  },
+  "adminGuidance": {
+    "quickProfile": {
+      "primaryPain": "One line summary",
+      "secondaryPain": "One line summary",
+      "confidenceScore": number,
+      "desiredFrequency": "string",
+      "recommendedTier": "string"
+    },
+    "quotesToUse": [
+      {"quote": "Short quote", "context": "When to use it"}
+    ],
+    "gapsToFill": [
+      {"gap": "What's missing", "suggestedQuestion": "How to ask", "whyNeeded": "Why we need it"}
+    ],
+    "questionsToAsk": [
+      {"question": "The question", "purpose": "Why ask", "listenFor": "What to note"}
+    ],
+    "objectionHandling": [
+      {"objection": "Common objection", "response": "How to respond", "theirDataToReference": "Their data to use"}
+    ],
+    "scenariosToBuild": [
+      {"type": "hire|price|client_loss", "name": "Scenario name", "reason": "Why build this"}
+    ]
+  }${discoveryData ? `,
+  "discoveryContext": {
+    "sleepThieves": ["from discovery"],
+    "scalingConstraint": "from discovery",
+    "coreFrustration": "from discovery",
+    "successDefinition": "from discovery",
+    "fiveYearVision": "from discovery"
+  }` : ''}
+}`;
+}
+
