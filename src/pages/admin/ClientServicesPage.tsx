@@ -50,6 +50,9 @@ import { BenchmarkingAdminView } from '../../components/benchmarking/admin/Bench
 import { calculateFounderRisk } from '../../lib/services/benchmarking/founder-risk-calculator';
 import { resolveIndustryCode } from '../../lib/services/benchmarking/industry-mapper';
 
+// Management Accounts Report Components (Two-Pass Architecture)
+import { MAAdminReportView, MAClientReportView } from '../../components/management-accounts';
+
 
 interface ClientServicesPageProps {
   currentPage: Page;
@@ -5053,6 +5056,13 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
   const [isMAInsightShared, setIsMAInsightShared] = useState(false);
   const [maViewMode, setMAViewMode] = useState<'admin' | 'client'>('admin');
   
+  // MA Two-Pass Report state (new architecture)
+  const [maAssessmentReport, setMAAssessmentReport] = useState<any>(null);
+  const [generatingMAReport, setGeneratingMAReport] = useState(false);
+  const [maReportStatus, setMAReportStatus] = useState<string | null>(null);
+  const [isMAReportShared, setIsMAReportShared] = useState(false);
+  const [maEngagementId, setMAEngagementId] = useState<string | null>(null);
+  
   // Context form state
   const [showAddContext, setShowAddContext] = useState(false);
   const [newContext, setNewContext] = useState({ 
@@ -5368,6 +5378,35 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
         setMAInsightContextId(null);
         setMAInsightV2Id(null);
         setIsMAInsightShared(false);
+      }
+      
+      // Load MA Assessment Report (Two-Pass Architecture) if engagement exists
+      if (engagement) {
+        setMAEngagementId(engagement.id);
+        
+        const { data: assessmentReport } = await supabase
+          .from('ma_assessment_reports')
+          .select('*')
+          .eq('engagement_id', engagement.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (assessmentReport) {
+          setMAAssessmentReport(assessmentReport);
+          setMAReportStatus(assessmentReport.status);
+          setIsMAReportShared(assessmentReport.shared_with_client || false);
+          console.log('[MA Report] Loaded assessment report:', assessmentReport.id, 'Status:', assessmentReport.status);
+        } else {
+          setMAAssessmentReport(null);
+          setMAReportStatus(null);
+          setIsMAReportShared(false);
+        }
+      } else {
+        setMAEngagementId(null);
+        setMAAssessmentReport(null);
+        setMAReportStatus(null);
+        setIsMAReportShared(false);
       }
       
       setClient({
@@ -6779,10 +6818,10 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         Client View
                       </button>
                     </div>
-                    {isMAInsightShared && (
+                    {(isMAInsightShared || isMAReportShared) && (
                       <span className="flex items-center gap-1 text-sm text-emerald-600">
                         <CheckCircle className="w-4 h-4" />
-                        Shared with client
+                        {isMAReportShared ? 'Report shared with client' : 'Insights shared with client'}
                       </span>
                     )}
                   </div>
@@ -6897,6 +6936,239 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                       </div>
                     </div>
                   </div>
+
+                  {/* NEW: Two-Pass Report Generation (Assessment-Focused) */}
+                  {maEngagementId && (
+                    <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                            <Sparkles className="w-5 h-5 text-purple-600" />
+                            Two-Pass Assessment Report
+                          </h3>
+                          <p className="text-sm text-gray-600 mt-1">
+                            Generate comprehensive admin guidance and client presentation from the 20-question assessment
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {maReportStatus && (
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              maReportStatus === 'generated' ? 'bg-emerald-100 text-emerald-700' :
+                              maReportStatus === 'error' ? 'bg-red-100 text-red-700' :
+                              maReportStatus?.includes('running') ? 'bg-amber-100 text-amber-700' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              {maReportStatus === 'generated' ? '✓ Report Ready' :
+                               maReportStatus === 'error' ? '✗ Error' :
+                               maReportStatus === 'pass1_running' ? 'Pass 1 Running...' :
+                               maReportStatus === 'pass2_running' ? 'Pass 2 Running...' :
+                               maReportStatus === 'pass1_complete' ? 'Pass 1 Complete' :
+                               'Pending'}
+                            </span>
+                          )}
+                          <button
+                            onClick={async () => {
+                              if (!maEngagementId) {
+                                alert('No active engagement found. Please ensure the client has an MA engagement.');
+                                return;
+                              }
+                              
+                              setGeneratingMAReport(true);
+                              setMAReportStatus('pass1_running');
+                              
+                              try {
+                                console.log('[MA Report] Starting two-pass generation for engagement:', maEngagementId);
+                                
+                                // Call Pass 1 - this will automatically trigger Pass 2
+                                const { data, error } = await supabase.functions.invoke('generate-ma-report-pass1', {
+                                  body: { engagementId: maEngagementId }
+                                });
+                                
+                                if (error) throw error;
+                                
+                                console.log('[MA Report] Pass 1 response:', data);
+                                
+                                // Poll for completion (Pass 2 is triggered automatically by Pass 1)
+                                let attempts = 0;
+                                const maxAttempts = 30; // 30 seconds max
+                                
+                                const pollForCompletion = async () => {
+                                  const { data: report } = await supabase
+                                    .from('ma_assessment_reports')
+                                    .select('*')
+                                    .eq('engagement_id', maEngagementId)
+                                    .single();
+                                  
+                                  if (report) {
+                                    setMAReportStatus(report.status);
+                                    
+                                    if (report.status === 'generated') {
+                                      setMAAssessmentReport(report);
+                                      setIsMAReportShared(report.shared_with_client || false);
+                                      console.log('[MA Report] Generation complete!');
+                                      return true;
+                                    } else if (report.status === 'error') {
+                                      throw new Error(report.error_message || 'Report generation failed');
+                                    }
+                                  }
+                                  
+                                  return false;
+                                };
+                                
+                                // Initial check
+                                let complete = await pollForCompletion();
+                                
+                                // Poll every second if not complete
+                                while (!complete && attempts < maxAttempts) {
+                                  await new Promise(resolve => setTimeout(resolve, 1000));
+                                  complete = await pollForCompletion();
+                                  attempts++;
+                                }
+                                
+                                if (!complete) {
+                                  console.log('[MA Report] Polling timeout - check status manually');
+                                  await fetchClientDetail(); // Refresh to get latest state
+                                }
+                                
+                              } catch (error: any) {
+                                console.error('[MA Report] Error:', error);
+                                setMAReportStatus('error');
+                                alert('Failed to generate report: ' + (error.message || 'Unknown error'));
+                              } finally {
+                                setGeneratingMAReport(false);
+                              }
+                            }}
+                            disabled={generatingMAReport}
+                            className="px-5 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 flex items-center gap-2 font-medium"
+                          >
+                            {generatingMAReport ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-4 h-4" />
+                                {maAssessmentReport ? 'Regenerate Report' : 'Generate Report'}
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* What the two-pass approach generates */}
+                      <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-purple-200">
+                        <div className="bg-white/70 rounded-lg p-3">
+                          <p className="text-sm font-medium text-purple-900">Pass 1: Admin Guidance</p>
+                          <p className="text-xs text-purple-700 mt-1">
+                            Extracts quotes, identifies gaps, generates call scripts, objection handling, and scenarios to build
+                          </p>
+                        </div>
+                        <div className="bg-white/70 rounded-lg p-3">
+                          <p className="text-sm font-medium text-purple-900">Pass 2: Client Presentation</p>
+                          <p className="text-xs text-purple-700 mt-1">
+                            Creates the "wow" - visual previews, emotional connection, tier recommendations
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Show Two-Pass Report if available */}
+                  {maAssessmentReport && maAssessmentReport.status === 'generated' && (
+                    <div className="space-y-6">
+                      {/* Report Header with Share Status */}
+                      <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-purple-600" />
+                            Assessment Analysis Report
+                          </h3>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {isMAReportShared ? (
+                              <span className="flex items-center gap-2">
+                                <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                                Shared with client
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-2">
+                                <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                                Not shared with client
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            const newSharedStatus = !isMAReportShared;
+                            
+                            try {
+                              const { error } = await supabase
+                                .from('ma_assessment_reports')
+                                .update({ 
+                                  shared_with_client: newSharedStatus,
+                                  shared_at: newSharedStatus ? new Date().toISOString() : null,
+                                  shared_by: newSharedStatus ? currentMember?.id : null
+                                })
+                                .eq('id', maAssessmentReport.id);
+                              
+                              if (error) throw error;
+                              
+                              setIsMAReportShared(newSharedStatus);
+                              
+                              if (newSharedStatus) {
+                                alert('Report shared with client');
+                              } else {
+                                alert('Report removed from client view');
+                              }
+                            } catch (error: any) {
+                              console.error('Error updating share status:', error);
+                              alert('Failed to update share status: ' + error.message);
+                            }
+                          }}
+                          className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                            isMAReportShared
+                              ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              : 'bg-purple-600 text-white hover:bg-purple-700'
+                          }`}
+                        >
+                          {isMAReportShared ? (
+                            <>
+                              <X className="w-4 h-4" />
+                              Remove from Client View
+                            </>
+                          ) : (
+                            <>
+                              <Share2 className="w-4 h-4" />
+                              Share with Client
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      
+                      {/* Render the appropriate view component */}
+                      <MAAdminReportView 
+                        report={{
+                          pass1_data: maAssessmentReport.pass1_data,
+                          pass2_data: maAssessmentReport.pass2_data,
+                          admin_view: maAssessmentReport.admin_view
+                        }}
+                        engagement={client}
+                      />
+                    </div>
+                  )}
+
+                  {/* Divider if both old insights and new report exist */}
+                  {maAssessmentReport && maAssessmentReport.status === 'generated' && maInsights && (
+                    <div className="relative py-4">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-gray-200"></div>
+                      </div>
+                      <div className="relative flex justify-center">
+                        <span className="bg-gray-50 px-3 text-sm text-gray-500">Legacy Insights (below)</span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Existing Insights */}
                   {maInsights && (() => {
@@ -7362,83 +7634,104 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                   </>
                   )}
 
-                  {/* CLIENT VIEW - Simplified presentation of insights */}
-                  {maViewMode === 'client' && maInsights && (() => {
-                    const insight = maInsights.insight || maInsights;
-                    return (
-                      <div className="space-y-6">
-                        {/* Client-facing header */}
-                        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 text-white">
-                          <h2 className="text-xl font-semibold mb-2">Your Financial Analysis</h2>
-                          <p className="text-blue-100">Insights from your assessment and documents</p>
-                        </div>
+                  {/* CLIENT VIEW - Show Two-Pass Report if available, otherwise legacy insights */}
+                  {maViewMode === 'client' && (
+                    <>
+                      {/* NEW: Two-Pass Client Report View */}
+                      {maAssessmentReport && maAssessmentReport.status === 'generated' && maAssessmentReport.pass2_data && (
+                        <MAClientReportView 
+                          report={{
+                            pass1_data: maAssessmentReport.pass1_data,
+                            pass2_data: maAssessmentReport.pass2_data,
+                            client_view: maAssessmentReport.client_view
+                          }}
+                          engagement={client}
+                          onTierSelect={(tier) => {
+                            console.log('[MA Report] Client selected tier:', tier);
+                            // Could trigger engagement creation or update
+                          }}
+                        />
+                      )}
 
-                        {/* Headline */}
-                        {insight.headline && (
-                          <div className={`rounded-xl p-6 ${
-                            insight.headline.sentiment === 'warning' ? 'bg-amber-50 border-2 border-amber-200' :
-                            insight.headline.sentiment === 'critical' ? 'bg-red-50 border-2 border-red-200' :
-                            insight.headline.sentiment === 'positive' ? 'bg-emerald-50 border-2 border-emerald-200' :
-                            'bg-blue-50 border-2 border-blue-200'
-                          }`}>
-                            <p className="text-lg font-semibold text-gray-900 leading-relaxed">{insight.headline.text}</p>
-                          </div>
-                        )}
-
-                        {/* Key Findings - Simplified */}
-                        {insight.keyInsights && insight.keyInsights.length > 0 && (
-                          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                            <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                              <h3 className="text-lg font-semibold text-gray-900">Key Findings</h3>
+                      {/* Legacy Insights View - only show if no two-pass report */}
+                      {!maAssessmentReport?.pass2_data && maInsights && (() => {
+                        const insight = maInsights.insight || maInsights;
+                        return (
+                          <div className="space-y-6">
+                            {/* Client-facing header */}
+                            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 text-white">
+                              <h2 className="text-xl font-semibold mb-2">Your Financial Analysis</h2>
+                              <p className="text-blue-100">Insights from your assessment and documents</p>
                             </div>
-                            <div className="p-6 space-y-4">
-                              {insight.keyInsights.map((ki: any, idx: number) => (
-                                <div key={idx} className="border-l-4 border-indigo-500 pl-4 py-2">
-                                  <p className="font-medium text-gray-900">{ki.finding}</p>
-                                  {ki.action && (
-                                    <p className="text-sm text-indigo-600 mt-2">→ {ki.action}</p>
-                                  )}
+
+                            {/* Headline */}
+                            {insight.headline && (
+                              <div className={`rounded-xl p-6 ${
+                                insight.headline.sentiment === 'warning' ? 'bg-amber-50 border-2 border-amber-200' :
+                                insight.headline.sentiment === 'critical' ? 'bg-red-50 border-2 border-red-200' :
+                                insight.headline.sentiment === 'positive' ? 'bg-emerald-50 border-2 border-emerald-200' :
+                                'bg-blue-50 border-2 border-blue-200'
+                              }`}>
+                                <p className="text-lg font-semibold text-gray-900 leading-relaxed">{insight.headline.text}</p>
+                              </div>
+                            )}
+
+                            {/* Key Findings - Simplified */}
+                            {insight.keyInsights && insight.keyInsights.length > 0 && (
+                              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                                  <h3 className="text-lg font-semibold text-gray-900">Key Findings</h3>
                                 </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Quick Wins */}
-                        {insight.quickWins && insight.quickWins.length > 0 && (
-                          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                            <div className="bg-emerald-50 px-6 py-4 border-b border-emerald-200">
-                              <h3 className="text-lg font-semibold text-emerald-900">Quick Wins</h3>
-                            </div>
-                            <div className="p-6 space-y-4">
-                              {insight.quickWins.map((qw: any, idx: number) => (
-                                <div key={idx} className="flex items-start gap-3 p-4 bg-emerald-50 rounded-lg">
-                                  <span className="text-emerald-600 text-xl">✓</span>
-                                  <div>
-                                    <p className="font-medium text-emerald-900">{qw.action}</p>
-                                    {qw.timeframe && (
-                                      <p className="text-sm text-emerald-700 mt-1">{qw.timeframe}</p>
-                                    )}
-                                  </div>
+                                <div className="p-6 space-y-4">
+                                  {insight.keyInsights.map((ki: any, idx: number) => (
+                                    <div key={idx} className="border-l-4 border-indigo-500 pl-4 py-2">
+                                      <p className="font-medium text-gray-900">{ki.finding}</p>
+                                      {ki.action && (
+                                        <p className="text-sm text-indigo-600 mt-2">→ {ki.action}</p>
+                                      )}
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                              </div>
+                            )}
 
-                        {/* Recommended Approach Summary */}
-                        {insight.recommendedApproach?.summary && (
-                          <div className="bg-white border border-gray-200 rounded-xl p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Recommended Approach</h3>
-                            <p className="text-gray-700 leading-relaxed">{insight.recommendedApproach.summary}</p>
+                            {/* Quick Wins */}
+                            {insight.quickWins && insight.quickWins.length > 0 && (
+                              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                                <div className="bg-emerald-50 px-6 py-4 border-b border-emerald-200">
+                                  <h3 className="text-lg font-semibold text-emerald-900">Quick Wins</h3>
+                                </div>
+                                <div className="p-6 space-y-4">
+                                  {insight.quickWins.map((qw: any, idx: number) => (
+                                    <div key={idx} className="flex items-start gap-3 p-4 bg-emerald-50 rounded-lg">
+                                      <span className="text-emerald-600 text-xl">✓</span>
+                                      <div>
+                                        <p className="font-medium text-emerald-900">{qw.action}</p>
+                                        {qw.timeframe && (
+                                          <p className="text-sm text-emerald-700 mt-1">{qw.timeframe}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Recommended Approach Summary */}
+                            {insight.recommendedApproach?.summary && (
+                              <div className="bg-white border border-gray-200 rounded-xl p-6">
+                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Recommended Approach</h3>
+                                <p className="text-gray-700 leading-relaxed">{insight.recommendedApproach.summary}</p>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })()}
+                        );
+                      })()}
+                    </>
+                  )}
 
                   {/* No insights message for client view */}
-                  {maViewMode === 'client' && !maInsights && (
+                  {maViewMode === 'client' && !maInsights && !maAssessmentReport?.pass2_data && (
                     <div className="text-center py-12 bg-gray-50 rounded-xl">
                       <p className="text-gray-500">No analysis available yet</p>
                       <p className="text-sm text-gray-400 mt-2">Your advisor will share insights once they're ready</p>
