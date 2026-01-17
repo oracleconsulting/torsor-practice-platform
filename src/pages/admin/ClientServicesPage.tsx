@@ -5051,6 +5051,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
   const [maInsightContextId, setMAInsightContextId] = useState<string | null>(null);
   const [maInsightV2Id, setMAInsightV2Id] = useState<string | null>(null); // For v2 insights from ma_monthly_insights
   const [isMAInsightShared, setIsMAInsightShared] = useState(false);
+  const [maViewMode, setMAViewMode] = useState<'admin' | 'client'>('admin');
   
   // Context form state
   const [showAddContext, setShowAddContext] = useState(false);
@@ -6754,6 +6755,41 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
               {/* ANALYSIS TAB (Management Accounts) */}
               {activeTab === 'analysis' && isManagementAccounts && (
                 <div className="space-y-6">
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setMAViewMode('admin')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          maViewMode === 'admin'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        Admin View
+                      </button>
+                      <button
+                        onClick={() => setMAViewMode('client')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          maViewMode === 'client'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        Client View
+                      </button>
+                    </div>
+                    {isMAInsightShared && (
+                      <span className="flex items-center gap-1 text-sm text-emerald-600">
+                        <CheckCircle className="w-4 h-4" />
+                        Shared with client
+                      </span>
+                    )}
+                  </div>
+
+                  {/* ADMIN VIEW */}
+                  {maViewMode === 'admin' && (
+                  <>
                   <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
                     <p className="text-sm text-indigo-800">
                       <strong>AI Analysis:</strong> Generate narrative insights from the client's assessment and uploaded documents.
@@ -7323,6 +7359,91 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                       </div>
                     );
                   })()}
+                  </>
+                  )}
+
+                  {/* CLIENT VIEW - Simplified presentation of insights */}
+                  {maViewMode === 'client' && maInsights && (() => {
+                    const insight = maInsights.insight || maInsights;
+                    return (
+                      <div className="space-y-6">
+                        {/* Client-facing header */}
+                        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 text-white">
+                          <h2 className="text-xl font-semibold mb-2">Your Financial Analysis</h2>
+                          <p className="text-blue-100">Insights from your assessment and documents</p>
+                        </div>
+
+                        {/* Headline */}
+                        {insight.headline && (
+                          <div className={`rounded-xl p-6 ${
+                            insight.headline.sentiment === 'warning' ? 'bg-amber-50 border-2 border-amber-200' :
+                            insight.headline.sentiment === 'critical' ? 'bg-red-50 border-2 border-red-200' :
+                            insight.headline.sentiment === 'positive' ? 'bg-emerald-50 border-2 border-emerald-200' :
+                            'bg-blue-50 border-2 border-blue-200'
+                          }`}>
+                            <p className="text-lg font-semibold text-gray-900 leading-relaxed">{insight.headline.text}</p>
+                          </div>
+                        )}
+
+                        {/* Key Findings - Simplified */}
+                        {insight.keyInsights && insight.keyInsights.length > 0 && (
+                          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                            <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                              <h3 className="text-lg font-semibold text-gray-900">Key Findings</h3>
+                            </div>
+                            <div className="p-6 space-y-4">
+                              {insight.keyInsights.map((ki: any, idx: number) => (
+                                <div key={idx} className="border-l-4 border-indigo-500 pl-4 py-2">
+                                  <p className="font-medium text-gray-900">{ki.finding}</p>
+                                  {ki.action && (
+                                    <p className="text-sm text-indigo-600 mt-2">→ {ki.action}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Quick Wins */}
+                        {insight.quickWins && insight.quickWins.length > 0 && (
+                          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                            <div className="bg-emerald-50 px-6 py-4 border-b border-emerald-200">
+                              <h3 className="text-lg font-semibold text-emerald-900">Quick Wins</h3>
+                            </div>
+                            <div className="p-6 space-y-4">
+                              {insight.quickWins.map((qw: any, idx: number) => (
+                                <div key={idx} className="flex items-start gap-3 p-4 bg-emerald-50 rounded-lg">
+                                  <span className="text-emerald-600 text-xl">✓</span>
+                                  <div>
+                                    <p className="font-medium text-emerald-900">{qw.action}</p>
+                                    {qw.timeframe && (
+                                      <p className="text-sm text-emerald-700 mt-1">{qw.timeframe}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Recommended Approach Summary */}
+                        {insight.recommendedApproach?.summary && (
+                          <div className="bg-white border border-gray-200 rounded-xl p-6">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Recommended Approach</h3>
+                            <p className="text-gray-700 leading-relaxed">{insight.recommendedApproach.summary}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* No insights message for client view */}
+                  {maViewMode === 'client' && !maInsights && (
+                    <div className="text-center py-12 bg-gray-50 rounded-xl">
+                      <p className="text-gray-500">No analysis available yet</p>
+                      <p className="text-sm text-gray-400 mt-2">Your advisor will share insights once they're ready</p>
+                    </div>
+                  )}
                 </div>
               )}
 
