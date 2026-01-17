@@ -154,7 +154,7 @@ INSERT INTO assessment_questions (
  'Which "what if" questions would you most want to be able to answer?',
  'multi',
  '["What if we raised prices 10%?", "What if we hired another person?", "What if we lost our biggest client?", "What if we reduced debtor days?", "What if we cut overheads by 15%?", "What if revenue dropped 20%?", "What if we took on that big project?", "What if we invested in new equipment?"]',
- NULL, 3, 'scenario_interest', NULL, true, 19, true),
+ NULL, NULL, 3, 'scenario_interest', NULL, true, 19, true),
 
 ('management_accounts', 'ma_desired_frequency', 'The Destination',
  'How often would you realistically want to see updated numbers?',
