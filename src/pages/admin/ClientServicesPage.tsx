@@ -5381,8 +5381,10 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
       }
       
       // Load MA Assessment Report (Two-Pass Architecture) if engagement exists
+      console.log('[MA Report] Checking engagement for two-pass report:', engagement?.id || 'No engagement found');
       if (engagement) {
         setMAEngagementId(engagement.id);
+        console.log('[MA Report] Set engagementId:', engagement.id);
         
         const { data: assessmentReport } = await supabase
           .from('ma_assessment_reports')
@@ -6938,40 +6940,46 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                   </div>
 
                   {/* NEW: Two-Pass Report Generation (Assessment-Focused) */}
-                  {maEngagementId && (
-                    <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                            <Sparkles className="w-5 h-5 text-purple-600" />
-                            Two-Pass Assessment Report
-                          </h3>
-                          <p className="text-sm text-gray-600 mt-1">
-                            Generate comprehensive admin guidance and client presentation from the 20-question assessment
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          {maReportStatus && (
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              maReportStatus === 'generated' ? 'bg-emerald-100 text-emerald-700' :
-                              maReportStatus === 'error' ? 'bg-red-100 text-red-700' :
-                              maReportStatus?.includes('running') ? 'bg-amber-100 text-amber-700' :
-                              'bg-gray-100 text-gray-600'
-                            }`}>
-                              {maReportStatus === 'generated' ? '✓ Report Ready' :
-                               maReportStatus === 'error' ? '✗ Error' :
-                               maReportStatus === 'pass1_running' ? 'Pass 1 Running...' :
-                               maReportStatus === 'pass2_running' ? 'Pass 2 Running...' :
-                               maReportStatus === 'pass1_complete' ? 'Pass 1 Complete' :
-                               'Pending'}
-                            </span>
-                          )}
-                          <button
-                            onClick={async () => {
-                              if (!maEngagementId) {
-                                alert('No active engagement found. Please ensure the client has an MA engagement.');
-                                return;
-                              }
+                  <div className={`rounded-xl p-6 ${maEngagementId ? 'bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200' : 'bg-gray-50 border border-gray-200'}`}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                          <Sparkles className={`w-5 h-5 ${maEngagementId ? 'text-purple-600' : 'text-gray-400'}`} />
+                          Two-Pass Assessment Report
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {maEngagementId 
+                            ? 'Generate comprehensive admin guidance and client presentation from the 20-question assessment'
+                            : 'No MA engagement found. Create an engagement first to enable two-pass report generation.'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {maReportStatus && (
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            maReportStatus === 'generated' ? 'bg-emerald-100 text-emerald-700' :
+                            maReportStatus === 'error' ? 'bg-red-100 text-red-700' :
+                            maReportStatus?.includes('running') ? 'bg-amber-100 text-amber-700' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {maReportStatus === 'generated' ? '✓ Report Ready' :
+                             maReportStatus === 'error' ? '✗ Error' :
+                             maReportStatus === 'pass1_running' ? 'Pass 1 Running...' :
+                             maReportStatus === 'pass2_running' ? 'Pass 2 Running...' :
+                             maReportStatus === 'pass1_complete' ? 'Pass 1 Complete' :
+                             'Pending'}
+                          </span>
+                        )}
+                        {!maEngagementId && (
+                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                            No Engagement
+                          </span>
+                        )}
+                        <button
+                          onClick={async () => {
+                            if (!maEngagementId) {
+                              alert('No active MA engagement found for this client. Please create an engagement first via the MA Sales Flow or database.');
+                              return;
+                            }
                               
                               setGeneratingMAReport(true);
                               setMAReportStatus('pass1_running');
@@ -7057,22 +7065,23 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                       </div>
                       
                       {/* What the two-pass approach generates */}
-                      <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-purple-200">
-                        <div className="bg-white/70 rounded-lg p-3">
-                          <p className="text-sm font-medium text-purple-900">Pass 1: Admin Guidance</p>
-                          <p className="text-xs text-purple-700 mt-1">
-                            Extracts quotes, identifies gaps, generates call scripts, objection handling, and scenarios to build
-                          </p>
+                      {maEngagementId && (
+                        <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-purple-200">
+                          <div className="bg-white/70 rounded-lg p-3">
+                            <p className="text-sm font-medium text-purple-900">Pass 1: Admin Guidance</p>
+                            <p className="text-xs text-purple-700 mt-1">
+                              Extracts quotes, identifies gaps, generates call scripts, objection handling, and scenarios to build
+                            </p>
+                          </div>
+                          <div className="bg-white/70 rounded-lg p-3">
+                            <p className="text-sm font-medium text-purple-900">Pass 2: Client Presentation</p>
+                            <p className="text-xs text-purple-700 mt-1">
+                              Creates the "wow" - visual previews, emotional connection, tier recommendations
+                            </p>
+                          </div>
                         </div>
-                        <div className="bg-white/70 rounded-lg p-3">
-                          <p className="text-sm font-medium text-purple-900">Pass 2: Client Presentation</p>
-                          <p className="text-xs text-purple-700 mt-1">
-                            Creates the "wow" - visual previews, emotional connection, tier recommendations
-                          </p>
-                        </div>
-                      </div>
+                      )}
                     </div>
-                  )}
 
                   {/* Show Two-Pass Report if available */}
                   {maAssessmentReport && maAssessmentReport.status === 'generated' && (
