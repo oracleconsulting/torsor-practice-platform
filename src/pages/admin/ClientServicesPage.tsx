@@ -915,13 +915,13 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                 <Upload className="w-4 h-4" />
                 Bulk Import
               </button>
-              <button 
-                onClick={() => setShowInviteModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-              >
-                <Mail className="w-4 h-4" />
-                Invite Client
-              </button>
+            <button 
+              onClick={() => setShowInviteModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              <Mail className="w-4 h-4" />
+              Invite Client
+            </button>
             </div>
           </div>
         </div>
@@ -6079,13 +6079,13 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         : `Part ${assessment.assessment_type.replace('part', '')} Assessment`;
                       
                       return (
-                        <div key={assessment.assessment_type} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                      <div key={assessment.assessment_type} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
                           <div className={`px-6 py-4 border-b border-gray-200 ${isServiceLine ? 'bg-indigo-50' : 'bg-gray-50'}`}>
-                            <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between">
                               <div>
                                 <h3 className="text-lg font-semibold text-gray-900">
                                   {title}
-                                </h3>
+                            </h3>
                                 {isServiceLine && (
                                   <span className="text-xs text-indigo-600 font-medium">Service Line Assessment</span>
                                 )}
@@ -6096,24 +6096,24 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                     {assessment.completion_percentage}% complete
                                   </span>
                                 )}
-                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                                  assessment.status === 'completed' 
-                                    ? 'bg-emerald-100 text-emerald-700' 
+                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                              assessment.status === 'completed' 
+                                ? 'bg-emerald-100 text-emerald-700' 
                                     : assessment.status === 'in_progress'
                                     ? 'bg-amber-100 text-amber-700'
                                     : 'bg-gray-100 text-gray-700'
-                                }`}>
-                                  {assessment.status || 'in_progress'}
-                                </span>
+                            }`}>
+                              {assessment.status || 'in_progress'}
+                            </span>
                               </div>
-                            </div>
-                            {assessment.completed_at && (
-                              <p className="text-sm text-gray-500 mt-1">
-                                Completed: {new Date(assessment.completed_at).toLocaleString()}
-                              </p>
-                            )}
                           </div>
-                          <div className="p-6">
+                          {assessment.completed_at && (
+                            <p className="text-sm text-gray-500 mt-1">
+                              Completed: {new Date(assessment.completed_at).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                        <div className="p-6">
                             {assessment.extracted_insights && Object.keys(assessment.extracted_insights).length > 0 && (
                               <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
                                 <h4 className="text-sm font-semibold text-emerald-800 mb-2">Extracted Insights</h4>
@@ -6122,11 +6122,11 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                 </pre>
                               </div>
                             )}
-                            <pre className="bg-gray-50 rounded-lg p-4 overflow-x-auto text-sm text-gray-700 max-h-96 overflow-y-auto">
-                              {JSON.stringify(assessment.responses, null, 2)}
-                            </pre>
-                          </div>
+                          <pre className="bg-gray-50 rounded-lg p-4 overflow-x-auto text-sm text-gray-700 max-h-96 overflow-y-auto">
+                            {JSON.stringify(assessment.responses, null, 2)}
+                          </pre>
                         </div>
+                      </div>
                       );
                     })
                   ) : (

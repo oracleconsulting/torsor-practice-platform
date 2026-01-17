@@ -3,6 +3,7 @@ import LoginPage from '@/pages/LoginPage';
 import DashboardPage from '@/pages/DashboardPage';
 import ClientsPage from '@/pages/ClientsPage';
 import ClientDetailPage from '@/pages/ClientDetailPage';
+import MAPreCallPage from '@/pages/clients/MAPreCallPage';
 import { Loader2 } from 'lucide-react';
 
 function AppRouter() {
@@ -58,6 +59,11 @@ function AppRouter() {
 
   // Simple routing based on pathname
   const path = window.location.pathname;
+
+  // MA Pre-Call page
+  if (path.includes('/ma-precall')) {
+    return <MAPreCallPage />;
+  }
 
   if (path.startsWith('/clients/') && path.length > 10) {
     return <ClientDetailPage />;

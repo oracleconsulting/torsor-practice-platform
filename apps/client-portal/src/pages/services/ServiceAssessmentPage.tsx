@@ -934,6 +934,29 @@ function QuestionCard({ question, value, onChange }: { question: AssessmentQuest
           {question.charLimit && <p className="text-sm text-gray-400 text-right mt-1">{value?.length || 0} / {question.charLimit}</p>}
         </div>
       )}
+
+      {question.type === 'slider' && (
+        <div className="space-y-4">
+          <div className="flex justify-between text-sm text-gray-500">
+            <span>{question.sliderLabels?.min || question.sliderMin}</span>
+            <span className="font-medium text-lg text-indigo-600">{value || question.sliderMin || 1}</span>
+            <span>{question.sliderLabels?.max || question.sliderMax}</span>
+          </div>
+          <input
+            type="range"
+            min={question.sliderMin || 1}
+            max={question.sliderMax || 10}
+            value={value || question.sliderMin || 1}
+            onChange={e => onChange(Number(e.target.value))}
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+          />
+          <div className="flex justify-between text-xs text-gray-400">
+            {Array.from({ length: (question.sliderMax || 10) - (question.sliderMin || 1) + 1 }, (_, i) => (
+              <span key={i}>{(question.sliderMin || 1) + i}</span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
