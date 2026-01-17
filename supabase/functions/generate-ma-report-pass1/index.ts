@@ -281,22 +281,23 @@ serve(async (req) => {
     );
 
     // Call Claude API
-    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
-    if (!anthropicApiKey) {
-      throw new Error('ANTHROPIC_API_KEY not configured');
+    const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
+    if (!openRouterKey) {
+      throw new Error('OPENROUTER_API_KEY not configured');
     }
 
-    console.log('[MA Pass1] Calling Claude API...');
+    console.log('[MA Pass1] Calling Claude Sonnet 4.5 via OpenRouter...');
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${openRouterKey}`,
         'Content-Type': 'application/json',
-        'x-api-key': anthropicApiKey,
-        'anthropic-version': '2023-06-01',
+        'HTTP-Referer': 'https://torsor.co.uk',
+        'X-Title': 'Torsor MA Report Pass1',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'anthropic/claude-sonnet-4',
         max_tokens: 8000,
         messages: [
           {
@@ -309,11 +310,15 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Claude API error: ${response.status} - ${errorText}`);
+      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
     }
 
-    const claudeResponse = await response.json();
-    const content = claudeResponse.content[0].text;
+    const openRouterResponse = await response.json();
+    const content = openRouterResponse.choices?.[0]?.message?.content || '';
+    
+    if (!content) {
+      throw new Error('Empty response from AI');
+    }
 
     // Parse JSON response
     let pass1Data: MAPass1Output;
@@ -332,9 +337,9 @@ serve(async (req) => {
       throw new Error('Failed to parse Claude response as JSON');
     }
 
-    // Calculate cost
-    const inputTokens = claudeResponse.usage?.input_tokens || 0;
-    const outputTokens = claudeResponse.usage?.output_tokens || 0;
+    // Calculate cost (OpenRouter uses OpenAI-style usage format)
+    const inputTokens = openRouterResponse.usage?.prompt_tokens || 0;
+    const outputTokens = openRouterResponse.usage?.completion_tokens || 0;
     const cost = (inputTokens * 0.003 + outputTokens * 0.015) / 1000;
 
     // Update report with pass1 data
@@ -344,7 +349,7 @@ serve(async (req) => {
         status: 'pass1_complete',
         pass1_data: pass1Data,
         pass1_completed_at: new Date().toISOString(),
-        pass1_model: 'claude-sonnet-4-20250514',
+        pass1_model: 'anthropic/claude-sonnet-4',
         pass1_cost: cost,
         admin_view: pass1Data.adminGuidance, // Admin view is primarily from pass1
       })
