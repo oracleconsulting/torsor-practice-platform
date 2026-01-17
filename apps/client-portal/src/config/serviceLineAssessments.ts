@@ -84,7 +84,7 @@ export const MANAGEMENT_ACCOUNTS_ASSESSMENT: ServiceLineAssessment = {
       question: 'What\'s your "Tuesday morning" financial question? The thing you wish you could instantly answer when you sit down?',
       type: 'text',
       placeholder: 'E.g., "How much cash will we have in 30 days?" / "Which client is most profitable?"',
-      charLimit: 200,
+      charLimit: 1000,
       emotionalAnchor: 'tuesday_financial_question',
       required: true
     },
@@ -94,7 +94,7 @@ export const MANAGEMENT_ACCOUNTS_ASSESSMENT: ServiceLineAssessment = {
       question: 'If you could magic away ONE financial uncertainty, what would it be?',
       type: 'text',
       placeholder: 'Describe the financial worry that keeps you up at night...',
-      charLimit: 300,
+      charLimit: 1000,
       emotionalAnchor: 'magic_away_financial',
       required: true
     },
@@ -139,7 +139,7 @@ export const MANAGEMENT_ACCOUNTS_ASSESSMENT: ServiceLineAssessment = {
       question: 'Last time you had a big business decision to make, how did financials inform it?',
       type: 'text',
       placeholder: 'E.g., hiring, pricing, investment, taking on a big client...',
-      charLimit: 300,
+      charLimit: 1000,
       emotionalAnchor: 'decision_making_story',
       required: true
     },
@@ -475,7 +475,7 @@ export const MANAGEMENT_ACCOUNTS_ASSESSMENT: ServiceLineAssessment = {
       question: 'What does "financial visibility" look like to you? Paint the picture.',
       type: 'text',
       placeholder: 'Describe your ideal state - how it feels, what you can do, what questions you can answer...',
-      charLimit: 400,
+      charLimit: 1000,
       emotionalAnchor: 'financial_visibility_vision',
       required: true
     },
