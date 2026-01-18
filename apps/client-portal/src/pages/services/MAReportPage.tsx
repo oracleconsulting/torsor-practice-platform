@@ -436,9 +436,10 @@ export default function MAReportPage() {
         estimatedCost: null 
       })),
       desiredFrequency: (twoPassData.pass1_data.adminGuidance?.quickProfile?.desiredFrequency?.toLowerCase()?.includes('quarter') 
-        ? 'quarterly' : 'monthly') as 'monthly' | 'quarterly',
-      recommendedTier: (twoPassData.pass1_data.adminGuidance?.quickProfile?.recommendedTier || 
-        twoPassData.pass2_data?.recommendedApproach?.tier || 'gold') as 'bronze' | 'silver' | 'gold' | 'platinum'
+        ? 'quarterly' : 'monthly'),
+      // TierComparisonView will normalize this to lowercase and validate
+      recommendedTier: twoPassData.pass1_data.adminGuidance?.quickProfile?.recommendedTier || 
+        twoPassData.pass2_data?.recommendedApproach?.tier || 'gold'
     },
     financialContext: {
       recentMistakeCost: twoPassData.pass1_data.extractedFacts?.painMetrics?.recentMistakeCost || 80000,

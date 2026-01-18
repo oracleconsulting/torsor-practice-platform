@@ -23,8 +23,8 @@ interface TierComparisonProps {
     tuesdayQuestion: string;
     upcomingDecisions: string[];
     painPoints: Array<{ title: string; estimatedCost: number | null }>;
-    recommendedTier: 'bronze' | 'silver' | 'gold' | 'platinum';
-    desiredFrequency: 'monthly' | 'quarterly';
+    recommendedTier?: string; // Can be any case - will be normalized
+    desiredFrequency?: 'monthly' | 'quarterly';
   };
   financialContext: {
     recentMistakeCost?: number;
@@ -122,13 +122,26 @@ function cn(...classes: (string | boolean | undefined)[]) {
   return classes.filter(Boolean).join(' ');
 }
 
+// Helper to normalize tier value
+function normalizeTier(tier: string | undefined | null): TierKey {
+  if (!tier) return 'gold'; // Default to gold
+  const normalized = tier.toLowerCase() as TierKey;
+  // Ensure it's a valid tier key
+  if (normalized in tiers) return normalized;
+  return 'gold'; // Fallback to gold
+}
+
 export function TierComparisonView({ 
   clientData, 
   financialContext, 
   onTierSelect 
 }: TierComparisonProps) {
-  const [selectedTier, setSelectedTier] = useState<TierKey>(clientData.recommendedTier);
-  const [frequency, setFrequency] = useState<'monthly' | 'quarterly'>(clientData.desiredFrequency);
+  // Normalize the recommended tier to ensure it's a valid key
+  const normalizedRecommendedTier = normalizeTier(clientData.recommendedTier);
+  const normalizedFrequency = clientData.desiredFrequency || 'monthly';
+  
+  const [selectedTier, setSelectedTier] = useState<TierKey>(normalizedRecommendedTier);
+  const [frequency, setFrequency] = useState<'monthly' | 'quarterly'>(normalizedFrequency);
   const [showDetails, setShowDetails] = useState(true);
   const isMonthly = frequency === 'monthly';
   
@@ -136,6 +149,9 @@ export function TierComparisonView({
   const calculateValue = useMemo(() => {
     return (tierId: TierKey) => {
       const tier = tiers[tierId];
+      
+      // Safety check - should never happen but prevents crashes
+      if (!tier) return null;
       
       const annualCost = isMonthly 
         ? tier.monthlyPrice * 12 
@@ -258,7 +274,7 @@ export function TierComparisonView({
       <div className="text-center">
         <h2 className="text-2xl font-bold text-slate-800">Choose Your Level</h2>
         <p className="text-slate-600 mt-2">
-          Based on your answers, we recommend <span className="font-bold text-blue-600">{clientData.recommendedTier.toUpperCase()}</span>
+          Based on your answers, we recommend <span className="font-bold text-blue-600">{normalizedRecommendedTier.toUpperCase()}</span>
         </p>
       </div>
       
@@ -309,7 +325,7 @@ export function TierComparisonView({
       <div className={cn("grid gap-4", isMonthly ? "md:grid-cols-4" : "md:grid-cols-3")}>
         {availableTiers.map(([id, tier]) => {
           const isSelected = selectedTier === id;
-          const isRecommended = clientData.recommendedTier === id;
+          const isRecommended = normalizedRecommendedTier === id;
           const value = calculateValue(id);
           
           return (
