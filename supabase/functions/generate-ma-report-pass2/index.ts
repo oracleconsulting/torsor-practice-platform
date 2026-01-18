@@ -56,13 +56,17 @@ serve(async (req) => {
   }
 
   try {
-    const { reportId, engagementId, clientId } = await req.json();
+    const { reportId, engagementId, clientId, additionalContext } = await req.json();
 
     if (!reportId && !engagementId && !clientId) {
       throw new Error('Either reportId, engagementId, or clientId is required');
     }
 
+    const isRegeneration = !!additionalContext;
     console.log('[MA Pass2] Starting narrative generation for:', reportId ? `report ${reportId}` : engagementId ? `engagement ${engagementId}` : `client ${clientId}`);
+    if (isRegeneration) {
+      console.log('[MA Pass2] Regeneration mode with additional context');
+    }
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -135,8 +139,8 @@ serve(async (req) => {
 
     console.log('[MA Pass2] Pass 1 data found, generating narratives...');
 
-    // Build the prompt
-    const prompt = buildPass2Prompt(report.pass1_data);
+    // Build the prompt (with additional context if regenerating)
+    const prompt = buildPass2Prompt(report.pass1_data, additionalContext);
 
     // Call Claude via OpenRouter
     const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
@@ -283,7 +287,25 @@ serve(async (req) => {
   }
 });
 
-function buildPass2Prompt(pass1Data: any): string {
+function buildPass2Prompt(pass1Data: any, additionalContext?: any): string {
+  let contextSection = '';
+  
+  if (additionalContext) {
+    contextSection = `
+## ADDITIONAL CONTEXT FROM FOLLOW-UP CALL
+This is a regeneration request with new context from the sales call. Use this information to enhance and personalize the output.
+
+${additionalContext.callNotes ? `### Call Notes\n${additionalContext.callNotes}\n` : ''}
+${additionalContext.callTranscript ? `### Call Transcript\n${additionalContext.callTranscript.substring(0, 5000)}\n` : ''}
+${additionalContext.clientObjections ? `### Client Objections Raised\nAddress these concerns in the narrative:\n${additionalContext.clientObjections}\n` : ''}
+${additionalContext.tierDiscussed ? `### Tier Interest\nClient showed interest in: ${additionalContext.tierDiscussed.toUpperCase()} tier. Adjust recommendation if appropriate.\n` : ''}
+${additionalContext.gapsFilled && Object.keys(additionalContext.gapsFilled).length > 0 ? `### Gaps Filled During Call\n${JSON.stringify(additionalContext.gapsFilled, null, 2)}\n` : ''}
+${additionalContext.additionalInsights ? `### Additional Insights\n${additionalContext.additionalInsights}\n` : ''}
+
+IMPORTANT: Use any new specific details (names, numbers, concerns) from this context to make the output more personalized and address any objections raised.
+`;
+  }
+
   return `You are writing the client-facing analysis for a Management Accounts assessment.
 
 ## YOUR TASK
@@ -292,7 +314,7 @@ Create compelling, personalized content that:
 2. Creates the "wow" (help them visualize what better looks like)
 3. Connects to emotion (their fears, their hopes, their goals)
 4. Leads to action (natural progression to tier selection)
-
+${contextSection}
 ## PASS 1 DATA (extracted from their assessment)
 ${JSON.stringify(pass1Data, null, 2)}
 

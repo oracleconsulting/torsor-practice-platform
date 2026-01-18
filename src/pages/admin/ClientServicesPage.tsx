@@ -5059,6 +5059,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: s
   // MA Two-Pass Report state (new architecture)
   const [maAssessmentReport, setMAAssessmentReport] = useState<any>(null);
   const [generatingMAReport, setGeneratingMAReport] = useState(false);
+  const [regeneratingMAReport, setRegeneratingMAReport] = useState(false);
   const [maReportStatus, setMAReportStatus] = useState<string | null>(null);
   const [isMAReportShared, setIsMAReportShared] = useState(false);
   const [maEngagementId, setMAEngagementId] = useState<string | null>(null);
@@ -7171,6 +7172,41 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           admin_view: maAssessmentReport.admin_view
                         }}
                         engagement={client}
+                        clientName={client?.name || client?.client_company}
+                        isRegenerating={regeneratingMAReport}
+                        onRegenerateClientView={async (context) => {
+                          if (!maAssessmentReport?.id) {
+                            alert('No report to regenerate');
+                            return;
+                          }
+                          
+                          setRegeneratingMAReport(true);
+                          try {
+                            console.log('[MA Regenerate] Starting regeneration with context:', context);
+                            
+                            // Call Pass 2 again with additional context
+                            const { data, error } = await supabase.functions.invoke('generate-ma-report-pass2', {
+                              body: { 
+                                reportId: maAssessmentReport.id,
+                                clientId: clientId,
+                                additionalContext: context
+                              }
+                            });
+                            
+                            if (error) throw error;
+                            
+                            console.log('[MA Regenerate] Regeneration complete:', data);
+                            
+                            // Refresh the report
+                            await fetchClientDetail();
+                            alert('Client view regenerated successfully!');
+                          } catch (err: any) {
+                            console.error('[MA Regenerate] Error:', err);
+                            alert('Failed to regenerate: ' + (err.message || 'Unknown error'));
+                          } finally {
+                            setRegeneratingMAReport(false);
+                          }
+                        }}
                       />
                     </div>
                   )}
