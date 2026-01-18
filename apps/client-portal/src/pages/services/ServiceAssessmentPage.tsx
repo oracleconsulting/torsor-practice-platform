@@ -71,7 +71,24 @@ export default function ServiceAssessmentPage() {
         try {
           console.log('🔍 Checking for shared MA insight...');
           
-          // First check v2 insights from ma_monthly_insights
+          // FIRST: Check for two-pass assessment report (new system)
+          const { data: assessmentReport } = await supabase
+            .from('ma_assessment_reports')
+            .select('id, status, shared_with_client, pass2_data, client_view')
+            .eq('client_id', clientSession.clientId)
+            .eq('shared_with_client', true)
+            .eq('status', 'generated')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (assessmentReport && (assessmentReport.pass2_data || assessmentReport.client_view)) {
+            console.log('✅ Two-pass MA assessment report found, redirecting to report page');
+            navigate('/service/management_accounts/report', { replace: true });
+            return;
+          }
+          
+          // Check v2 insights from ma_monthly_insights
           const { data: engagement } = await supabase
             .from('ma_engagements')
             .select('id')

@@ -87,7 +87,76 @@ export default function MAReportPage() {
     }
 
     try {
-      // First check v2 insights from ma_monthly_insights
+      // FIRST: Check for two-pass assessment report (new system)
+      const { data: assessmentReport } = await supabase
+        .from('ma_assessment_reports')
+        .select('*')
+        .eq('client_id', clientSession.clientId)
+        .eq('shared_with_client', true)
+        .eq('status', 'generated')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (assessmentReport && (assessmentReport.pass2_data || assessmentReport.client_view)) {
+        console.log('[MA Report] Found two-pass assessment report:', assessmentReport.id);
+        const p2 = assessmentReport.pass2_data || assessmentReport.client_view || {};
+        const p1 = assessmentReport.pass1_data || {};
+        
+        // Convert two-pass format to MAInsight format for display
+        const insightData: MAInsight = {
+          headline: p2.headline ? {
+            text: p2.headline,
+            sentiment: 'warning' as const // The headline is usually attention-grabbing
+          } : {
+            text: 'Your Financial Analysis is Ready',
+            sentiment: 'neutral' as const
+          },
+          // Map clientFindings to keyInsights
+          keyInsights: (p2.clientFindings || []).map((f: any) => ({
+            finding: f.headline || f.detail,
+            implication: f.cost || f.detail,
+            action: undefined
+          })),
+          // Map quickWins
+          quickWins: (p2.quickWins || []).map((qw: any) => ({
+            action: qw.action,
+            impact: qw.benefit,
+            timeframe: qw.timing
+          })),
+          // Map recommendedApproach
+          recommendedApproach: p2.recommendedApproach ? {
+            summary: p2.recommendedApproach.summary,
+            frequency: p2.recommendedApproach.frequency,
+            focusAreas: p2.recommendedApproach.focusAreas
+          } : undefined,
+          // Map goalConnection to goalsConnection
+          goalsConnection: p2.goalConnection ? {
+            narrative: p2.goalConnection.narrative,
+            theirWords: p2.goalConnection.theirWords
+          } : undefined,
+          // Map tuesdayAnswerPreview to tuesdayQuestionAnswer
+          tuesdayQuestionAnswer: p2.tuesdayAnswerPreview?.question ? {
+            originalQuestion: p2.tuesdayAnswerPreview.question,
+            answer: p2.tuesdayAnswerPreview.introText || 'See the visual preview below.',
+            supportingData: [],
+            verdict: undefined
+          } : (p1.clientQuotes?.tuesdayQuestion ? {
+            originalQuestion: p1.clientQuotes.tuesdayQuestion,
+            answer: 'See your personalized analysis below.',
+            supportingData: [],
+            verdict: undefined
+          } : undefined),
+          // Transformation quotes
+          clientQuotesUsed: p2.transformationSection?.quotes || []
+        };
+        
+        setInsight(insightData);
+        setLoading(false);
+        return;
+      }
+      
+      // Check v2 insights from ma_monthly_insights
       const { data: engagement } = await supabase
         .from('ma_engagements')
         .select('id')
