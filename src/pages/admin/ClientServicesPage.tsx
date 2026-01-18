@@ -7092,9 +7092,20 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                       )}
                     </div>
 
-                  {/* Show Two-Pass Report if available */}
-                  {maAssessmentReport && maAssessmentReport.status === 'generated' && (
+                  {/* Show Two-Pass Report if available (also show during regeneration to preserve tabs) */}
+                  {maAssessmentReport && (maAssessmentReport.status === 'generated' || maAssessmentReport.status === 'pass2_running' || regeneratingMAReport) && maAssessmentReport.pass1_data && (
                     <div className="space-y-6">
+                      {/* Regenerating Banner */}
+                      {(maAssessmentReport.status === 'pass2_running' || regeneratingMAReport) && (
+                        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-center gap-3">
+                          <Loader2 className="w-5 h-5 text-purple-600 animate-spin" />
+                          <div>
+                            <p className="font-medium text-purple-800">Regenerating client view...</p>
+                            <p className="text-sm text-purple-600">Using your call notes, transcript, and any additional context</p>
+                          </div>
+                        </div>
+                      )}
+                      
                       {/* Report Header with Share Status */}
                       <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between">
                         <div>
@@ -7230,7 +7241,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                   )}
 
                   {/* Divider if both old insights and new report exist */}
-                  {maAssessmentReport && maAssessmentReport.status === 'generated' && maInsights && (
+                  {maAssessmentReport && (maAssessmentReport.status === 'generated' || maAssessmentReport.status === 'pass2_running') && maAssessmentReport.pass1_data && maInsights && (
                     <div className="relative py-4">
                       <div className="absolute inset-0 flex items-center">
                         <div className="w-full border-t border-gray-200"></div>

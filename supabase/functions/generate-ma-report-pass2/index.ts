@@ -113,7 +113,8 @@ serve(async (req) => {
       throw new Error('Pass 1 data not found. Run pass 1 first.');
     }
 
-    if (report.status !== 'pass1_complete') {
+    // Skip early return only if NOT regenerating
+    if (report.status !== 'pass1_complete' && !isRegeneration) {
       console.log('[MA Pass2] Report status:', report.status);
       if (report.status === 'generated') {
         console.log('[MA Pass2] Report already generated, returning existing data');
@@ -130,6 +131,10 @@ serve(async (req) => {
         );
       }
     }
+    
+    if (isRegeneration) {
+      console.log('[MA Pass2] Regeneration requested - will regenerate even though status is:', report.status);
+    }
 
     // Update status
     await supabase
@@ -139,8 +144,54 @@ serve(async (req) => {
 
     console.log('[MA Pass2] Pass 1 data found, generating narratives...');
 
-    // Build the prompt (with additional context if regenerating)
-    const prompt = buildPass2Prompt(report.pass1_data, additionalContext);
+    // Fetch uploaded documents and their extracted data if available
+    let uploadedDocumentsContext = '';
+    try {
+      // Get engagement ID from report
+      const engagementIdToUse = report.engagement_id;
+      
+      if (engagementIdToUse) {
+        const { data: documents } = await supabase
+          .from('ma_uploaded_documents')
+          .select('*')
+          .eq('engagement_id', engagementIdToUse)
+          .eq('processing_status', 'completed');
+        
+        if (documents && documents.length > 0) {
+          console.log(`[MA Pass2] Found ${documents.length} processed documents to include`);
+          
+          const docSummaries = documents.map(doc => {
+            const extracted = doc.extracted_data || {};
+            return {
+              type: doc.document_type || 'unknown',
+              filename: doc.original_name,
+              // Include key extracted financial data
+              revenue: extracted.revenue,
+              costs: extracted.costs,
+              profit: extracted.profit,
+              cashBalance: extracted.cashBalance,
+              keyMetrics: extracted.keyMetrics,
+              trends: extracted.trends,
+              summary: extracted.summary,
+            };
+          });
+          
+          uploadedDocumentsContext = `
+## UPLOADED FINANCIAL DOCUMENTS
+The client has provided the following financial documents. Use this data to make your analysis more specific and accurate:
+
+${JSON.stringify(docSummaries, null, 2)}
+
+Use specific numbers from these documents to strengthen your findings and recommendations.
+`;
+        }
+      }
+    } catch (docErr) {
+      console.error('[MA Pass2] Error fetching documents (non-fatal):', docErr);
+    }
+
+    // Build the prompt (with additional context if regenerating, and documents)
+    const prompt = buildPass2Prompt(report.pass1_data, additionalContext, uploadedDocumentsContext);
 
     // Call Claude via OpenRouter
     const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
@@ -287,7 +338,7 @@ serve(async (req) => {
   }
 });
 
-function buildPass2Prompt(pass1Data: any, additionalContext?: any): string {
+function buildPass2Prompt(pass1Data: any, additionalContext?: any, uploadedDocumentsContext?: string): string {
   let contextSection = '';
   
   if (additionalContext) {
@@ -307,6 +358,7 @@ IMPORTANT: Use any new specific details (names, numbers, concerns) from this con
   }
 
   return `You are writing the client-facing analysis for a Management Accounts assessment.
+${uploadedDocumentsContext || ''}
 
 ## YOUR TASK
 Create compelling, personalized content that:
