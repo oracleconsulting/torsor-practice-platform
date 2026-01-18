@@ -7173,6 +7173,24 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         }}
                         engagement={client}
                         clientName={client?.name || client?.client_company}
+                        initialContext={maAssessmentReport.call_context || undefined}
+                        onSaveContext={async (context) => {
+                          try {
+                            const { error } = await supabase
+                              .from('ma_assessment_reports')
+                              .update({ call_context: context })
+                              .eq('id', maAssessmentReport.id);
+                            
+                            if (error) {
+                              console.error('[MA Context] Failed to save:', error);
+                              throw error;
+                            }
+                            console.log('[MA Context] Saved successfully');
+                          } catch (err) {
+                            console.error('[MA Context] Save error:', err);
+                            throw err;
+                          }
+                        }}
                         isRegenerating={regeneratingMAReport}
                         onRegenerateClientView={async (context) => {
                           if (!maAssessmentReport?.id) {

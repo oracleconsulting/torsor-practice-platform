@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Phone,
   FileText,
@@ -13,7 +13,8 @@ import {
   HelpCircle,
   ShieldAlert,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  Save
 } from 'lucide-react';
 
 // Types
@@ -45,10 +46,11 @@ interface MAPass1Data {
   tierRecommendation: { tier: string; rationale: string; keyDrivers: string[] };
 }
 
-interface AdditionalContext {
+export interface AdditionalContext {
   callNotes: string;
   callTranscript: string;
   gapsFilled: Record<string, string>;
+  gapsChecked?: Record<string, boolean>;
   tierDiscussed: string;
   clientObjections: string;
   additionalInsights: string;
@@ -66,6 +68,8 @@ interface MAAdminReportViewProps {
     id?: string;
   };
   clientName?: string;
+  initialContext?: AdditionalContext;
+  onSaveContext?: (context: AdditionalContext) => Promise<void>;
   onRegenerateClientView?: (context: AdditionalContext) => Promise<void>;
   isRegenerating?: boolean;
 }
@@ -74,24 +78,79 @@ export function MAAdminReportView({
   report, 
   engagement,
   clientName,
+  initialContext,
+  onSaveContext,
   onRegenerateClientView,
   isRegenerating = false 
 }: MAAdminReportViewProps) {
   const p1 = report.pass1_data;
   const admin = p1?.adminGuidance;
   
-  // State
+  // State - initialize from initialContext if provided
   const [activeTab, setActiveTab] = useState<'script' | 'analysis' | 'capture' | 'regenerate'>('script');
-  const [callNotes, setCallNotes] = useState('');
-  const [callTranscript, setCallTranscript] = useState('');
-  const [gapsFilled, setGapsFilled] = useState<Record<string, string>>({});
-  const [gapsChecked, setGapsChecked] = useState<Record<string, boolean>>({});
-  const [tierDiscussed, setTierDiscussed] = useState(admin?.quickProfile?.recommendedTier || 'gold');
-  const [clientObjections, setClientObjections] = useState('');
-  const [additionalInsights, setAdditionalInsights] = useState('');
-  const [completedPhases, setCompletedPhases] = useState<string[]>([]);
+  const [callNotes, setCallNotes] = useState(initialContext?.callNotes || '');
+  const [callTranscript, setCallTranscript] = useState(initialContext?.callTranscript || '');
+  const [gapsFilled, setGapsFilled] = useState<Record<string, string>>(initialContext?.gapsFilled || {});
+  const [gapsChecked, setGapsChecked] = useState<Record<string, boolean>>(initialContext?.gapsChecked || {});
+  const [tierDiscussed, setTierDiscussed] = useState(initialContext?.tierDiscussed || admin?.quickProfile?.recommendedTier || 'gold');
+  const [clientObjections, setClientObjections] = useState(initialContext?.clientObjections || '');
+  const [additionalInsights, setAdditionalInsights] = useState(initialContext?.additionalInsights || '');
+  const [completedPhases, setCompletedPhases] = useState<string[]>(initialContext?.completedPhases || []);
   const [expandedObjections, setExpandedObjections] = useState<Record<number, boolean>>({});
   const [expandedFindings, setExpandedFindings] = useState<Record<number, boolean>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  
+  // Debounced auto-save
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  const getCurrentContext = useCallback((): AdditionalContext => ({
+    callNotes,
+    callTranscript,
+    gapsFilled,
+    gapsChecked,
+    tierDiscussed,
+    clientObjections,
+    additionalInsights,
+    completedPhases
+  }), [callNotes, callTranscript, gapsFilled, gapsChecked, tierDiscussed, clientObjections, additionalInsights, completedPhases]);
+  
+  // Auto-save context when it changes
+  useEffect(() => {
+    if (!onSaveContext) return;
+    
+    // Clear any existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    // Debounce save - wait 1.5 seconds after last change
+    saveTimeoutRef.current = setTimeout(async () => {
+      const context = getCurrentContext();
+      // Only save if there's actual content
+      const hasContent = context.callNotes || context.callTranscript || 
+        Object.keys(context.gapsFilled).length > 0 || context.clientObjections || 
+        context.additionalInsights || context.completedPhases.length > 0;
+      
+      if (hasContent) {
+        setIsSaving(true);
+        try {
+          await onSaveContext(context);
+          setLastSaved(new Date());
+        } catch (err) {
+          console.error('[MAAdminReport] Failed to save context:', err);
+        } finally {
+          setIsSaving(false);
+        }
+      }
+    }, 1500);
+    
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [callNotes, callTranscript, gapsFilled, gapsChecked, tierDiscussed, clientObjections, additionalInsights, completedPhases, onSaveContext, getCurrentContext]);
   
   if (!p1 || !admin) {
     return (
@@ -188,7 +247,29 @@ export function MAAdminReportView({
       
       {/* Main Tabbed Interface */}
       <div className="w-full">
-        {/* Tab Headers */}
+        {/* Save Status + Tab Headers */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs text-slate-500">
+            {/* Empty left side for balance */}
+          </div>
+          {onSaveContext && (
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : lastSaved ? (
+                <>
+                  <Save className="h-3 w-3 text-green-500" />
+                  <span>Saved {lastSaved.toLocaleTimeString()}</span>
+                </>
+              ) : (
+                <span>Auto-save enabled</span>
+              )}
+            </div>
+          )}
+        </div>
         <div className="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-lg">
           <button
             onClick={() => setActiveTab('script')}
