@@ -1,8 +1,10 @@
-import { CheckCircle, TrendingUp, Target, Lightbulb, FileText } from 'lucide-react';
+import { useState } from 'react';
+import { CheckCircle, TrendingUp, Target, Lightbulb, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { TrueCashPreview } from './previews/TrueCashPreview';
 import { ForecastPreview } from './previews/ForecastPreview';
 import { ScenarioPreview } from './previews/ScenarioPreview';
 import { TierSelector } from './TierSelector';
+import { TierComparisonView } from './TierComparisonView';
 
 interface MAClientReportViewProps {
   report: {
@@ -12,9 +14,12 @@ interface MAClientReportViewProps {
   };
   engagement?: any;
   onTierSelect?: (tier: string) => void;
+  showTierComparison?: boolean; // Default true - show the full tier comparison
 }
 
-export function MAClientReportView({ report, onTierSelect }: MAClientReportViewProps) {
+export function MAClientReportView({ report, onTierSelect, showTierComparison = true }: MAClientReportViewProps) {
+  const [showFullComparison, setShowFullComparison] = useState(false);
+  const p1 = report.pass1_data;
   const p2 = report.pass2_data || report.client_view;
   
   if (!p2) {
@@ -39,6 +44,36 @@ export function MAClientReportView({ report, onTierSelect }: MAClientReportViewP
       { label: 'Confirmed receivables (7 days)', amount: 10000 },
     ],
   };
+
+  // Extract data for tier comparison from pass1 data
+  const tierComparisonData = p1 ? {
+    clientData: {
+      annualRevenue: p1.extractedFacts?.financial?.annualRevenue,
+      tuesdayQuestion: p1.clientQuotes?.tuesdayQuestion || 'Can I afford to make this decision?',
+      upcomingDecisions: p1.adminGuidance?.scenariosToBuild?.map((s: any) => s.name) || [],
+      painPoints: (p1.findings || []).map((f: any) => ({ 
+        title: f.title, 
+        estimatedCost: null 
+      })),
+      scenarioInterests: p1.adminGuidance?.scenariosToBuild?.map((s: any) => s.type) || [],
+      desiredFrequency: (p1.adminGuidance?.quickProfile?.desiredFrequency?.toLowerCase()?.includes('quarter') 
+        ? 'quarterly' : 'monthly') as 'monthly' | 'quarterly',
+      recommendedTier: (p1.tierRecommendation?.tier || 'gold') as 'bronze' | 'silver' | 'gold' | 'platinum'
+    },
+    financialContext: {
+      // Try to extract from assessment data, default to reasonable estimates
+      recentMistakeCost: p1.extractedFacts?.painMetrics?.recentMistakeCost || 
+        (p1.clientQuotes?.avoidedCalculation ? 80000 : undefined),
+      pendingDecisionValue: p1.extractedFacts?.painMetrics?.pendingDecisionValue || 
+        (p1.adminGuidance?.scenariosToBuild?.length > 0 ? 50000 : undefined),
+      cashCrisisHistory: p1.clientQuotes?.worstCashMoment ? true : 
+        (p1.findings?.some((f: any) => f.title?.toLowerCase().includes('cash')) || false),
+      unprofitableClientSuspected: p1.findings?.some((f: any) => 
+        f.title?.toLowerCase().includes('client') || f.title?.toLowerCase().includes('profitability')
+      ) || false,
+      estimatedMarginLeakage: p1.extractedFacts?.painMetrics?.estimatedMarginLeakage || 25000
+    }
+  } : null;
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
@@ -223,8 +258,49 @@ export function MAClientReportView({ report, onTierSelect }: MAClientReportViewP
         </div>
       )}
       
-      {/* Tier Selector */}
-      {p2.recommendedApproach?.tier && (
+      {/* Tier Comparison / Selector */}
+      {p2.recommendedApproach?.tier && showTierComparison && tierComparisonData && (
+        <div className="space-y-4">
+          {/* Expandable Tier Comparison */}
+          <button
+            onClick={() => setShowFullComparison(!showFullComparison)}
+            className="w-full flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-colors"
+          >
+            <div className="text-left">
+              <p className="font-semibold text-blue-900">Compare All Tiers & See Your ROI</p>
+              <p className="text-sm text-blue-700">
+                See what each tier delivers, sample reports, and calculate your return on investment
+              </p>
+            </div>
+            {showFullComparison ? (
+              <ChevronUp className="h-5 w-5 text-blue-600 flex-shrink-0" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-blue-600 flex-shrink-0" />
+            )}
+          </button>
+          
+          {showFullComparison && (
+            <div className="border border-slate-200 rounded-xl p-6 bg-white">
+              <TierComparisonView
+                clientData={tierComparisonData.clientData}
+                financialContext={tierComparisonData.financialContext}
+                onTierSelect={(tier) => onTierSelect?.(tier)}
+              />
+            </div>
+          )}
+          
+          {/* Always show simple tier selector as well */}
+          {!showFullComparison && (
+            <TierSelector 
+              recommendedTier={p2.recommendedApproach.tier}
+              onSelect={onTierSelect}
+            />
+          )}
+        </div>
+      )}
+      
+      {/* Fallback to simple selector if no comparison data */}
+      {p2.recommendedApproach?.tier && (!showTierComparison || !tierComparisonData) && (
         <TierSelector 
           recommendedTier={p2.recommendedApproach.tier}
           onSelect={onTierSelect}
