@@ -7006,7 +7006,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                 
                                 // Poll for completion (Pass 2 is triggered automatically by Pass 1)
                                 let attempts = 0;
-                                const maxAttempts = 60; // 60 seconds max (increased for AI processing)
+                                const maxAttempts = 90; // 180 seconds max (3 minutes for AI processing both passes)
                                 
                                 const pollForCompletion = async () => {
                                   // Query by reportId if available, otherwise by client_id
@@ -7018,6 +7018,12 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                   
                                   if (report) {
                                     setMAReportStatus(report.status);
+                                    
+                                    // Also update the report in state if pass1 is complete (so admin view is available)
+                                    if (report.status === 'pass1_complete' || report.status === 'pass2_running') {
+                                      setMAAssessmentReport(report);
+                                      console.log('[MA Report] Pass 1 complete, admin view available');
+                                    }
                                     
                                     if (report.status === 'generated') {
                                       setMAAssessmentReport(report);
@@ -7035,16 +7041,19 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                 // Initial check
                                 let complete = await pollForCompletion();
                                 
-                                // Poll every second if not complete
+                                // Poll every 2 seconds if not complete
                                 while (!complete && attempts < maxAttempts) {
-                                  await new Promise(resolve => setTimeout(resolve, 1000));
+                                  await new Promise(resolve => setTimeout(resolve, 2000));
                                   complete = await pollForCompletion();
                                   attempts++;
                                 }
                                 
                                 if (!complete) {
                                   console.log('[MA Report] Polling timeout - check status manually');
-                                  await fetchClientDetail(); // Refresh to get latest state
+                                  // Final refresh to get latest state
+                                  await fetchClientDetail();
+                                  // Show a more helpful message
+                                  alert('Report generation is taking longer than expected. The admin view should be available. Refresh the page in a minute to see the client view.');
                                 }
                                 
                               } catch (error: any) {
@@ -7719,8 +7728,20 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                   {/* CLIENT VIEW - Show Two-Pass Report if available, otherwise legacy insights */}
                   {maViewMode === 'client' && (
                     <>
+                      {/* Regenerating state for client view */}
+                      {maAssessmentReport && (maAssessmentReport.status === 'pass2_running' || regeneratingMAReport) && (
+                        <div className="flex flex-col items-center justify-center py-16 bg-white border border-gray-200 rounded-xl">
+                          <Loader2 className="w-12 h-12 text-purple-600 animate-spin mb-4" />
+                          <h3 className="text-lg font-semibold text-gray-900 mb-2">Regenerating Client Report...</h3>
+                          <p className="text-gray-500 text-center max-w-md">
+                            Using your call notes, transcript, and additional context to create an enhanced client presentation.
+                          </p>
+                          <p className="text-sm text-gray-400 mt-4">This may take 30-60 seconds</p>
+                        </div>
+                      )}
+                      
                       {/* NEW: Two-Pass Client Report View */}
-                      {maAssessmentReport && maAssessmentReport.status === 'generated' && maAssessmentReport.pass2_data && (
+                      {maAssessmentReport && maAssessmentReport.status === 'generated' && maAssessmentReport.pass2_data && !regeneratingMAReport && (
                         <MAClientReportView 
                           report={{
                             pass1_data: maAssessmentReport.pass1_data,
@@ -7734,9 +7755,25 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           }}
                         />
                       )}
+                      
+                      {/* Show message if pass1 exists but pass2 doesn't (and not regenerating) */}
+                      {maAssessmentReport && maAssessmentReport.pass1_data && !maAssessmentReport.pass2_data && 
+                       maAssessmentReport.status !== 'pass2_running' && !regeneratingMAReport && (
+                        <div className="text-center py-12 bg-white border border-gray-200 rounded-xl">
+                          <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                          <h3 className="text-lg font-semibold text-gray-900 mb-2">Client Report Not Yet Generated</h3>
+                          <p className="text-gray-500 mb-4">Pass 1 analysis is complete. Use the Admin View to generate the client presentation.</p>
+                          <button
+                            onClick={() => setMAViewMode('admin')}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            Switch to Admin View
+                          </button>
+                        </div>
+                      )}
 
                       {/* Legacy Insights View - only show if no two-pass report */}
-                      {!maAssessmentReport?.pass2_data && maInsights && (() => {
+                      {!maAssessmentReport?.pass2_data && !maAssessmentReport?.pass1_data && maInsights && (() => {
                         const insight = maInsights.insight || maInsights;
                         return (
                           <div className="space-y-6">
