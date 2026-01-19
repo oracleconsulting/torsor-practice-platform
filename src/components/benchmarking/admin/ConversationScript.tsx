@@ -12,7 +12,6 @@ import {
   Building2,
   ListChecks,
   Clock,
-  AlertCircle,
   Target,
   Ear,
   Shield,
