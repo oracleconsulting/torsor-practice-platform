@@ -133,10 +133,46 @@ Analyze this client against the benchmarks and produce a structured JSON output.
 RULES:
 1. Compare EVERY available metric (including derived/calculated metrics shown above)
 2. Calculate percentile position for each (where client value falls between p25/p50/p75)
-3. Quantify the annual £ impact of gaps (difference vs median × revenue)
+3. Quantify the annual £ impact of gaps - BUT READ THE DOUBLE-COUNTING RULES BELOW
 4. Use their EXACT WORDS when referencing their concerns
 5. Generate actionable admin guidance
 6. Flag any data gaps that need collection
+
+═══════════════════════════════════════════════════════════════════════════════
+CRITICAL: DO NOT DOUBLE-COUNT OPPORTUNITIES
+═══════════════════════════════════════════════════════════════════════════════
+
+Revenue per employee is an OUTCOME METRIC - it improves WHEN you fix utilisation, rates, or margins.
+It is NOT a separate lever you can pull.
+
+WRONG (double counting):
+- Utilisation gap: £184,000
+- Rate increase: £82,000  
+- Revenue per employee gap: £410,000
+- TOTAL: £676,000 ❌ This is fantasy
+
+RIGHT (realistic):
+- Utilisation gap: £184,000 (this is the PRIMARY lever)
+- Rate increase: £82,000 (independent lever)
+- TOTAL REALISTIC OPPORTUNITY: £266,000 ✓
+
+HIERARCHY OF METRICS:
+1. INPUT LEVERS (count these): Utilisation rate, Hourly rates, Project margins
+2. OUTCOME METRICS (DO NOT add to total): Revenue per employee (this is the RESULT)
+
+REALISTIC OPPORTUNITY CALCULATION:
+- Pick the 2-3 most actionable INPUT levers
+- Calculate their individual impact on revenue
+- Be conservative - assume 50-70% of theoretical gap is capturable
+- The totalAnnualOpportunity should be 15-40% of current revenue MAX for most firms
+- If your total exceeds 50% of current revenue, you've almost certainly double-counted
+
+PRESENT HONESTLY:
+- "Improving utilisation to median could add £X"
+- "This would bring revenue per employee closer to the £145K median"
+- NOT "£410K from revenue per employee PLUS £184K from utilisation"
+
+The client isn't stupid. Telling a £750K business they're leaving £700K on the table sounds like nonsense.
 
 ═══════════════════════════════════════════════════════════════════════════════
 MINIMUM VIABLE ANALYSIS RULES - CRITICAL
@@ -185,13 +221,21 @@ If data is partial, clearly state:
 - Which metrics could not be assessed
 - What additional data would enable fuller analysis
 
-Example partial analysis output:
-"Based on available data (revenue £750,000, 8 employees), your revenue per 
-head of £93,750 sits 35% below the industry median of £145,000. This 
-suggests a potential £410,000 annual opportunity if efficiency reaches 
-median levels. However, without utilisation rate and project margin data, 
-we cannot pinpoint whether the gap stems from pricing, capacity, or 
-project profitability issues."
+Example GOOD analysis (honest, actionable):
+"Your utilisation rate of 57% is 14 points below the 71% industry median. 
+Improving to median would add approximately £130,000-£180,000 in billable 
+capacity - if you have the work to fill it. Combined with a modest rate 
+increase (£85 to £95/hr), the realistic opportunity is £200,000-£250,000 
+annually. This would bring your revenue per employee from £93,750 closer 
+to the £120,000 mark - not quite median, but a solid improvement."
+
+Example BAD analysis (double-counted nonsense):
+"Revenue per employee gap: £410,000. Plus utilisation gap: £184,000. 
+Plus rate gap: £82,000. Total: £676,000!" 
+❌ This is absurd - you've told a £750K business to nearly double.
+
+THE SMELL TEST: If your total opportunity exceeds 40% of current revenue, 
+you've probably made an error. Re-check for double counting.
 
 OUTPUT FORMAT (JSON):
 {
@@ -248,17 +292,26 @@ OUTPUT FORMAT (JSON):
   ],
   
   "opportunitySizing": {
-    "totalAnnualOpportunity": number,
+    "totalAnnualOpportunity": number, // MUST be realistic - typically 15-40% of current revenue. NEVER double-count.
+    "realisticCaptureRate": number, // What % of the theoretical gap is realistically capturable (typically 50-70%)
     "breakdown": [
       {
-        "metric": "string",
+        "metric": "string", // ONLY actionable INPUT levers (utilisation, rates, margins) - NOT outcome metrics like revenue per employee
         "currentValue": number,
-        "targetValue": number,
-        "annualImpact": number,
+        "targetValue": number, // Target should be median, NOT top quartile (be realistic)
+        "theoreticalGap": number, // The full mathematical gap
+        "realisticCapture": number, // What they can actually capture (50-70% of theoretical)
+        "annualImpact": number, // Use realisticCapture, not theoreticalGap
         "difficulty": "easy" | "medium" | "hard",
-        "timeframe": "string"
+        "timeframe": "string",
+        "dependsOn": "string or null" // What else needs to happen first
       }
-    ]
+    ],
+    "outcomeProjection": {
+      "currentRevenuePerEmployee": number,
+      "projectedRevenuePerEmployee": number, // What it WOULD be if they capture the opportunity
+      "percentileImprovement": "string" // e.g., "15th to 35th percentile"
+    }
   },
   
   "recommendations": [
