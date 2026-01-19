@@ -56,9 +56,17 @@ DERIVED METRICS (Calculated from available data):
 ${assessment.revenue_per_employee ? `- Revenue per Employee: £${assessment.revenue_per_employee.toLocaleString()} (calculated from revenue ÷ employees)` : ''}
 ${assessment.gross_margin ? `- Gross Margin: ${assessment.gross_margin}% (calculated from gross profit ÷ revenue)` : ''}
 ${assessment.net_margin ? `- Net Margin: ${assessment.net_margin}% (calculated from net profit ÷ revenue)` : ''}
-${assessment.client_concentration_top3 ? `- Client Concentration (Top 3): ${assessment.client_concentration_top3}% (from HVA)` : ''}
+${assessment.client_concentration_top3 ? `- Client Concentration (Top 3): ${assessment.client_concentration_top3}%` : ''}
 ${assessment._enriched_revenue ? `- Revenue: £${assessment._enriched_revenue.toLocaleString()} (extracted from assessment)` : ''}
 ${assessment._enriched_employee_count ? `- Employee Count: ${assessment._enriched_employee_count} (extracted from assessment)` : ''}
+
+SUPPLEMENTARY METRICS (Collected during practitioner conversations):
+${assessment.utilisation_rate ? `- Utilisation Rate: ${assessment.utilisation_rate}% (billable time as % of total)` : ''}
+${assessment.hourly_rate ? `- Average Hourly Rate: £${assessment.hourly_rate}/hr (blended across all staff)` : ''}
+${assessment.project_margin ? `- Project Margins: ${assessment.project_margin}% (gross margin on projects)` : ''}
+${assessment.ebitda_margin ? `- EBITDA Margin: ${assessment.ebitda_margin}%` : ''}
+${assessment.debtor_days ? `- Debtor Days: ${assessment.debtor_days} days` : ''}
+${assessment.revenue_growth ? `- Revenue Growth: ${assessment.revenue_growth}% YoY` : ''}
 ` : '';
 
   return `
@@ -268,47 +276,74 @@ OUTPUT FORMAT (JSON):
   ],
   
   "adminGuidance": {
+    "openingStatement": "A 2-3 sentence opening statement the practitioner should use. Reference the £ opportunity and percentile position. Connect to their stated concern. Example: 'Based on our benchmarking analysis, we've identified a £410,000 annual opportunity. Your revenue per employee of £93,750 places you at the 15th percentile - meaning 85% of comparable firms are generating more revenue per head.'",
+    
     "talkingPoints": [
       {
-        "topic": "string",
-        "point": "string",
-        "clientQuoteToReference": "string",
-        "dataPoint": "string",
-        "importance": "critical" | "high" | "medium"
+        "topic": "string - The main subject area (e.g., 'Revenue efficiency gap', 'Founder dependency risk')",
+        "point": "string - The specific insight to communicate to the client",
+        "clientQuoteToReference": "string - Exact quote from their assessment to reference back",
+        "dataPoint": "string - The specific numbers to cite (e.g., '£93,750 vs £145,000 median')",
+        "importance": "critical" | "high" | "medium",
+        "conversationScript": "string - FULL script of exactly what to say to the client, including: 1) How to introduce this topic, 2) How to present the data, 3) How to connect to their stated concern, 4) What questions this should prompt",
+        "whatToListenFor": "string - Signs and signals to look for in client's response",
+        "potentialPushback": "string - How clients might resist this finding and how to respond"
       }
     ],
+    
     "questionsToAsk": [
       {
-        "question": "string",
-        "purpose": "string",
-        "expectedInsight": "string",
-        "followUp": "string"
+        "question": "string - The actual question to ask",
+        "purpose": "string - What you're trying to learn",
+        "expectedInsight": "string - What a good answer would reveal",
+        "followUp": "string - Follow-up question if they don't fully answer",
+        "probeDeeper": ["string - Additional probing questions to dig deeper"],
+        "dataThisReveals": "string - What metric or insight this question helps collect"
       }
     ],
+    
+    "dataCollectionScript": [
+      {
+        "metricNeeded": "string - e.g., 'Utilisation Rate', 'Hourly Rates', 'Project Margins'",
+        "whyNeeded": "string - Why this data matters for the analysis",
+        "howToAsk": "string - Exactly how to phrase the request",
+        "industryContext": "string - Industry benchmark to provide context (e.g., 'Most agencies run 65-75% utilisation')",
+        "followUpIfUnsure": "string - What to ask if they don't know the number",
+        "howToRecord": "string - What format/unit to capture the answer"
+      }
+    ],
+    
     "nextSteps": [
       {
-        "action": "string",
+        "action": "string - Specific action to take",
         "owner": "practice" | "client" | "joint",
-        "timing": "string",
-        "outcome": "string",
-        "priority": number
+        "timing": "string - When this should happen",
+        "outcome": "string - What success looks like",
+        "priority": number,
+        "scriptToAgree": "string - Exact words to use when agreeing this action with the client"
       }
     ],
+    
     "tasks": [
       {
-        "task": "string",
-        "assignTo": "string",
-        "dueDate": "string",
-        "deliverable": "string"
+        "task": "string - Specific internal task",
+        "assignTo": "string - Role that should handle this",
+        "dueDate": "string - Relative timing (e.g., '3 days', '1 week')",
+        "deliverable": "string - What artifact this produces",
+        "dependsOn": "string or null - What needs to happen first"
       }
     ],
+    
     "riskFlags": [
       {
-        "flag": "string",
-        "mitigation": "string",
-        "severity": "high" | "medium" | "low"
+        "flag": "string - The risk or concern",
+        "mitigation": "string - How to address it",
+        "severity": "high" | "medium" | "low",
+        "warningSignsInConversation": "string - What the client might say that confirms this risk"
       }
-    ]
+    ],
+    
+    "closingScript": "string - How to wrap up the conversation. Should include: 1) Summary of key findings, 2) Confirmation of agreed next steps, 3) Timeline for follow-up, 4) Any homework for the client"
   },
   
   "dataGaps": [
@@ -924,6 +959,68 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any): any {
     enriched.client_concentration_top3 = parseFloat(hvaData.responses.top3_customer_revenue_percentage);
     derivedFields.push('client_concentration_top3 (from HVA)');
     console.log(`[BM Pass 1] Extracted client_concentration_top3 from HVA: ${enriched.client_concentration_top3}%`);
+  }
+  
+  // ==========================================================================
+  // SUPPLEMENTARY DATA (Collected by practitioners via Data Collection panel)
+  // ==========================================================================
+  
+  const responses = assessmentData.responses || {};
+  
+  // Utilisation Rate - percentage of billable time
+  const utilisationRate = parseFloat(responses['Utilisation Rate']) || parseFloat(responses['bm_supp_Utilisation Rate']);
+  if (utilisationRate) {
+    enriched.utilisation_rate = utilisationRate;
+    derivedFields.push('utilisation_rate (supplementary)');
+    console.log(`[BM Pass 1] Supplementary: utilisation_rate = ${utilisationRate}%`);
+  }
+  
+  // Hourly Rates - average blended rate
+  const hourlyRates = parseFloat(responses['Hourly Rates']) || parseFloat(responses['bm_supp_Hourly Rates']);
+  if (hourlyRates) {
+    enriched.hourly_rate = hourlyRates;
+    derivedFields.push('hourly_rate (supplementary)');
+    console.log(`[BM Pass 1] Supplementary: hourly_rate = £${hourlyRates}/hr`);
+  }
+  
+  // Project Margins - gross margin on projects
+  const projectMargins = parseFloat(responses['Project Margins']) || parseFloat(responses['bm_supp_Project Margins']);
+  if (projectMargins) {
+    enriched.project_margin = projectMargins;
+    derivedFields.push('project_margin (supplementary)');
+    console.log(`[BM Pass 1] Supplementary: project_margin = ${projectMargins}%`);
+  }
+  
+  // Client Concentration - from supplementary (overrides HVA if present)
+  const clientConcentration = parseFloat(responses['Client Concentration']) || parseFloat(responses['bm_supp_Client Concentration']);
+  if (clientConcentration) {
+    enriched.client_concentration_top3 = clientConcentration;
+    derivedFields.push('client_concentration_top3 (supplementary)');
+    console.log(`[BM Pass 1] Supplementary: client_concentration = ${clientConcentration}%`);
+  }
+  
+  // EBITDA Margin
+  const ebitdaMargin = parseFloat(responses['EBITDA Margin']) || parseFloat(responses['bm_supp_EBITDA Margin']);
+  if (ebitdaMargin) {
+    enriched.ebitda_margin = ebitdaMargin;
+    derivedFields.push('ebitda_margin (supplementary)');
+    console.log(`[BM Pass 1] Supplementary: ebitda_margin = ${ebitdaMargin}%`);
+  }
+  
+  // Debtor Days
+  const debtorDays = parseFloat(responses['Debtor Days']) || parseFloat(responses['bm_supp_Debtor Days']);
+  if (debtorDays) {
+    enriched.debtor_days = debtorDays;
+    derivedFields.push('debtor_days (supplementary)');
+    console.log(`[BM Pass 1] Supplementary: debtor_days = ${debtorDays} days`);
+  }
+  
+  // Revenue Growth
+  const revenueGrowth = parseFloat(responses['Revenue Growth']) || parseFloat(responses['bm_supp_Revenue Growth']);
+  if (revenueGrowth) {
+    enriched.revenue_growth = revenueGrowth;
+    derivedFields.push('revenue_growth (supplementary)');
+    console.log(`[BM Pass 1] Supplementary: revenue_growth = ${revenueGrowth}%`);
   }
   
   enriched.derived_fields = derivedFields;
@@ -1637,11 +1734,14 @@ When writing narratives:
       total_annual_opportunity: pass1Data.opportunitySizing.totalAnnualOpportunity,
       opportunity_breakdown: pass1Data.opportunitySizing.breakdown,
       recommendations: pass1Data.recommendations,
+      admin_opening_statement: pass1Data.adminGuidance.openingStatement,
       admin_talking_points: pass1Data.adminGuidance.talkingPoints,
       admin_questions_to_ask: pass1Data.adminGuidance.questionsToAsk,
+      admin_data_collection_script: pass1Data.adminGuidance.dataCollectionScript,
       admin_next_steps: pass1Data.adminGuidance.nextSteps,
       admin_tasks: pass1Data.adminGuidance.tasks,
       admin_risk_flags: pass1Data.adminGuidance.riskFlags,
+      admin_closing_script: pass1Data.adminGuidance.closingScript,
       pass1_data: pass1Data,
       llm_model: 'claude-sonnet-4',
       llm_tokens_used: tokensUsed,

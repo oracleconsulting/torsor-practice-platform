@@ -14,11 +14,14 @@ interface BenchmarkAnalysis {
   overall_percentile?: number;
   gap_count?: number;
   strength_count?: number;
+  admin_opening_statement?: string;
   admin_talking_points?: string;
   admin_questions_to_ask?: string;
+  admin_data_collection_script?: string;
   admin_next_steps?: string;
   admin_tasks?: string;
   admin_risk_flags?: string;
+  admin_closing_script?: string;
   recommendations?: string;
   pass1_data?: string;
   industry_code?: string;
@@ -93,17 +96,21 @@ export function BenchmarkingAdminView({
   
   const talkingPoints = safeJsonParse(data.admin_talking_points, []);
   const questionsToAsk = safeJsonParse(data.admin_questions_to_ask, []);
+  const dataCollectionScript = safeJsonParse(data.admin_data_collection_script, []);
   const nextSteps = safeJsonParse(data.admin_next_steps, []);
   const tasks = safeJsonParse(data.admin_tasks, []);
   const riskFlags = safeJsonParse(data.admin_risk_flags, []);
   const pass1Data = safeJsonParse<Pass1Data>(data.pass1_data, {});
+  const closingScript = data.admin_closing_script || '';
   
   // Get revenue per employee from metrics comparison (where it was calculated) or fallback to clientData
   const metrics = safeJsonParse<Array<{ metricCode?: string; clientValue?: number }>>(data.metrics_comparison, []);
   const revPerEmployeeMetric = metrics.find((m) => m.metricCode === 'revenue_per_consultant' || m.metricCode === 'revenue_per_employee');
   const revPerEmployee = revPerEmployeeMetric?.clientValue || clientData.revenuePerEmployee || 0;
   
-  const openingStatement = `Based on our benchmarking analysis, we've identified a £${parseFloat(data.total_annual_opportunity || '0').toLocaleString()} annual opportunity. Your revenue per employee of £${revPerEmployee.toLocaleString()} places you at the ${data.overall_percentile || 0}th percentile - meaning ${100 - (data.overall_percentile || 0)}% of comparable firms are generating more revenue per head. Let me walk you through what we've found and what it means for your business.`;
+  // Use admin opening statement from data if available, otherwise generate a default
+  const defaultOpeningStatement = `Based on our benchmarking analysis, we've identified a £${parseFloat(data.total_annual_opportunity || '0').toLocaleString()} annual opportunity. Your revenue per employee of £${revPerEmployee.toLocaleString()} places you at the ${data.overall_percentile || 0}th percentile - meaning ${100 - (data.overall_percentile || 0)}% of comparable firms are generating more revenue per head. Let me walk you through what we've found and what it means for your business.`;
+  const openingStatement = data.admin_opening_statement || defaultOpeningStatement;
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -217,8 +224,10 @@ export function BenchmarkingAdminView({
                     openingStatement={openingStatement}
                     talkingPoints={talkingPoints}
                     questionsToAsk={questionsToAsk}
+                    dataCollectionScript={dataCollectionScript}
                     nextSteps={nextSteps}
                     tasks={tasks}
+                    closingScript={closingScript}
                   />
                 )}
                 
