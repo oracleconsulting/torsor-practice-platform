@@ -350,54 +350,77 @@ Use specific numbers from these documents to strengthen your findings and recomm
 });
 
 function buildPass2Prompt(pass1Data: any, additionalContext?: any, uploadedDocumentsContext?: string): string {
-  let contextSection = '';
+  const isRegeneration = additionalContext && (
+    (additionalContext.gapsWithLabels && Object.keys(additionalContext.gapsWithLabels).length > 0) ||
+    (additionalContext.gapsFilled && Object.keys(additionalContext.gapsFilled).length > 0) ||
+    additionalContext.callNotes ||
+    additionalContext.callTranscript
+  );
   
-  if (additionalContext) {
-    // Build gaps section - prefer structured labels, fall back to raw JSON
-    let gapsSection = '';
-    if (additionalContext.gapsWithLabels && Object.keys(additionalContext.gapsWithLabels).length > 0) {
-      gapsSection = `### CRITICAL: New Information Captured During Call
-These specific details were captured during the follow-up call. You MUST use these exact numbers in your output:
-
-${Object.entries(additionalContext.gapsWithLabels).map(([topic, data]: [string, any]) => 
-  `**${topic}**\nAnswer: ${data.answer}`
-).join('\n\n')}`;
-    } else if (additionalContext.gapsFilled && Object.keys(additionalContext.gapsFilled).length > 0) {
-      // Fall back to raw gaps but format them better
-      const gapValues = Object.values(additionalContext.gapsFilled).filter((v: any) => v && String(v).trim());
-      if (gapValues.length > 0) {
-        gapsSection = `### CRITICAL: New Information Captured During Call
-These specific details were captured during the follow-up call. You MUST use these exact numbers in your output:
-
-${gapValues.map((answer: any, i: number) => `Detail ${i + 1}: ${answer}`).join('\n\n')}`;
-      }
-    }
+  // Build the new data section prominently for regenerations
+  let newDataSection = '';
+  let specificNumbersForOutput = '';
+  
+  if (isRegeneration) {
+    // Extract specific numbers to embed in output instructions
+    const gapsData = additionalContext.gapsWithLabels || {};
+    const gapEntries = Object.entries(gapsData);
     
-    contextSection = `
-## ⚠️ REGENERATION WITH NEW CALL DATA - READ CAREFULLY ⚠️
+    // Build a clear summary of the NEW facts
+    const newFacts: string[] = [];
+    gapEntries.forEach(([topic, data]: [string, any]) => {
+      newFacts.push(`• ${topic}: ${data.answer}`);
+    });
+    
+    newDataSection = `
+════════════════════════════════════════════════════════════════════════════════
+██ STOP! THIS IS A REGENERATION WITH NEW CLIENT DATA - READ THIS FIRST! ██
+════════════════════════════════════════════════════════════════════════════════
 
-This is a REGENERATION request. The advisor has conducted a follow-up call and captured NEW SPECIFIC INFORMATION.
+The advisor has just had a call with this client and captured SPECIFIC NEW INFORMATION.
+You MUST use these exact details in your output. Generic placeholders are FORBIDDEN.
 
-**YOUR #1 PRIORITY: Use the specific numbers, names, and details from this section. Do NOT use placeholder or generic language when you have real data.**
+## NEW INFORMATION FROM CLIENT CALL:
+${newFacts.join('\n')}
 
-${additionalContext.callNotes ? `### Call Notes\n${additionalContext.callNotes}\n` : ''}
-${additionalContext.callTranscript ? `### Call Transcript\n${additionalContext.callTranscript.substring(0, 8000)}\n` : ''}
-${gapsSection}
-${additionalContext.clientObjections ? `### Client Objections to Address\n${additionalContext.clientObjections}\n` : ''}
-${additionalContext.tierDiscussed ? `### Tier Interest\nClient showed interest in: ${additionalContext.tierDiscussed.toUpperCase()} tier.\n` : ''}
-${additionalContext.additionalInsights ? `### Additional Context\n${additionalContext.additionalInsights}\n` : ''}
+${additionalContext.callNotes ? `## CALL NOTES:\n${additionalContext.callNotes}\n` : ''}
+${additionalContext.tierDiscussed ? `## CLIENT TIER INTEREST: ${additionalContext.tierDiscussed}\n` : ''}
+${additionalContext.clientObjections ? `## OBJECTIONS TO ADDRESS:\n${additionalContext.clientObjections}\n` : ''}
 
-## MANDATORY REQUIREMENTS FOR THIS REGENERATION:
-1. If MRR/ARR numbers are provided above, use them (e.g., "At £0 MRR currently with £40k YTD consulting revenue...")
-2. If burn rate is provided above, use it (e.g., "Your £22k monthly burn gives you 9 months runway...")  
-3. If hiring triggers are mentioned, reference them specifically (e.g., "Your £200k ARR trigger for hiring...")
-4. If funding plans are mentioned, incorporate them (e.g., "Your seed round target at £500k ARR...")
-5. NEVER say generic things like "your current revenue" when you have the actual number above
-
+════════════════════════════════════════════════════════════════════════════════
 `;
+
+    // Build specific requirements based on actual data provided
+    const requirements: string[] = [];
+    gapEntries.forEach(([topic, data]: [string, any]) => {
+      const answer = data.answer || '';
+      if (topic.toLowerCase().includes('mrr') || topic.toLowerCase().includes('arr') || topic.toLowerCase().includes('revenue')) {
+        requirements.push(`- Use "${answer.substring(0, 100)}..." when discussing revenue/MRR/ARR`);
+      }
+      if (topic.toLowerCase().includes('burn') || topic.toLowerCase().includes('runway') || topic.toLowerCase().includes('cash')) {
+        requirements.push(`- Use "${answer.substring(0, 100)}..." when discussing burn rate/runway/cash`);
+      }
+      if (topic.toLowerCase().includes('hiring') || topic.toLowerCase().includes('roles')) {
+        requirements.push(`- Use "${answer.substring(0, 100)}..." when discussing hiring plans`);
+      }
+      if (topic.toLowerCase().includes('funding')) {
+        requirements.push(`- Use "${answer.substring(0, 100)}..." when discussing funding plans`);
+      }
+    });
+    
+    if (requirements.length > 0) {
+      specificNumbersForOutput = `
+## ⛔ REGENERATION OUTPUT REQUIREMENTS ⛔
+You MUST incorporate these specific details from the call:
+${requirements.join('\n')}
+
+DO NOT use generic phrases like "Role X at £Xk" or "your current revenue" - use the ACTUAL numbers above!
+`;
+    }
   }
 
   return `You are writing the client-facing analysis for a Management Accounts assessment.
+${isRegeneration ? newDataSection : ''}
 ${uploadedDocumentsContext || ''}
 
 ## YOUR TASK
@@ -406,24 +429,25 @@ Create compelling, personalized content that:
 2. Creates the "wow" (help them visualize what better looks like)
 3. Connects to emotion (their fears, their hopes, their goals)
 4. Leads to action (natural progression to tier selection)
-${contextSection}
-## PASS 1 DATA (extracted from their assessment)
+
+## PASS 1 DATA (background from their assessment)
 ${JSON.stringify(pass1Data, null, 2)}
 
 ## WRITING RULES
 
 ### Headline
 - Must be punchy and specific
-- Use their actual numbers from the assessment
+- Use their actual numbers ${isRegeneration ? 'FROM THE NEW CALL DATA ABOVE' : 'from the assessment'}
 - Show the cost of status quo
 - Maximum 2 sentences
-- Example: "You're running a £2m-£5m business by checking your bank balance, which has already cost you £80k in missed opportunities and created cash crises that forced you to delay hires twice."
+${isRegeneration ? '- EXAMPLE WITH NEW DATA: "atherio is burning £22k/month pre-revenue with 9 months runway, yet you\'re making hiring decisions without knowing your £200k ARR trigger point will actually support those roles."' : '- Example: "You\'re running a £2m-£5m business by checking your bank balance, which has already cost you £80k in missed opportunities."'}
 
 ### Client Findings (max 3)
 - Short headlines that name the problem specifically
-- Use THEIR names/numbers: "The £95k illusion", "The Henderson unknown", "The Morrison blindspot"
+- Use THEIR names/numbers: "The £22k blind spot", "The 9-month runway question", "The £200k trigger unknown"
 - Quantify the cost where possible
 - Each should be punchy, not a paragraph
+${isRegeneration ? '- USE THE SPECIFIC NUMBERS FROM THE CALL DATA SECTION ABOVE!' : ''}
 
 ### Tuesday Answer Preview
 - Determine which visual previews to show based on their Tuesday question:
@@ -440,11 +464,13 @@ ${JSON.stringify(pass1Data, null, 2)}
 ### Quick Wins (exactly 3)
 - Reformatted from pass1 for client consumption
 - Clear timing and benefit
+${isRegeneration ? '- Reference specific numbers from call: "Calculate impact of £40k CSE hire on your £22k burn rate"' : ''}
 
 ### Recommended Approach
 - One paragraph summary of what we'll deliver
 - Connect to their specific pain points
 - Explain why the recommended tier fits them
+${isRegeneration && additionalContext?.tierDiscussed ? `- Client showed interest in ${additionalContext.tierDiscussed} - align recommendation accordingly` : ''}
 
 ### Goal Connection
 - This is the emotional close
@@ -458,18 +484,19 @@ ${JSON.stringify(pass1Data, null, 2)}
 - "I want to be direct", "Let me be honest"
 - Starting sentences with "Your"
 - Generic consulting speak
+${isRegeneration ? '- "Role X at £Xk salary" - USE THE ACTUAL ROLE AND SALARY FROM CALL DATA\n- "your current revenue" - USE THE ACTUAL £40k YTD NUMBER\n- Any placeholder like "X" when real data exists above' : ''}
 
 ## TONE
 - Direct, confident, specific
 - UK English (organisation not organization)
 - No corporate waffle
 - Short sentences. Punch, don't pad.
-
+${specificNumbersForOutput}
 ## OUTPUT FORMAT
 Return ONLY valid JSON matching this structure (no markdown, no explanation):
 
 {
-  "headline": "Punchy headline using their numbers and specifics",
+  "headline": "${isRegeneration ? 'USE SPECIFIC £22k burn, 9 months runway, £200k ARR trigger etc from call data' : 'Punchy headline using their numbers and specifics'}",
   "tuesdayAnswerPreview": {
     "question": "Their exact Tuesday question verbatim",
     "introText": "Here's what answering that could look like...",
@@ -480,7 +507,7 @@ Return ONLY valid JSON matching this structure (no markdown, no explanation):
   },
   "clientFindings": [
     {
-      "headline": "The £X Problem (short, punchy)",
+      "headline": "${isRegeneration ? 'The £22k Burn Blindspot (USE REAL NUMBERS!)' : 'The £X Problem (short, punchy)'}",
       "detail": "One sentence explanation",
       "cost": "Quantified cost or impact"
     }
@@ -492,7 +519,7 @@ Return ONLY valid JSON matching this structure (no markdown, no explanation):
   },
   "quickWins": [
     {
-      "action": "What to do",
+      "action": "${isRegeneration ? 'Model the £40k CSE hire against £22k burn (USE REAL NUMBERS!)' : 'What to do'}",
       "timing": "When",
       "benefit": "What they gain"
     }
@@ -501,7 +528,7 @@ Return ONLY valid JSON matching this structure (no markdown, no explanation):
     "summary": "One paragraph describing the service",
     "frequency": "Monthly/weekly etc",
     "focusAreas": ["Focus 1", "Focus 2", "Focus 3"],
-    "tier": "bronze|silver|gold|platinum",
+    "tier": "${isRegeneration && additionalContext?.tierDiscussed ? additionalContext.tierDiscussed.toLowerCase().split(' ')[0] : 'bronze|silver|gold|platinum'}",
     "tierRationale": "Why this tier fits their situation"
   },
   "goalConnection": {
