@@ -50,6 +50,7 @@ export interface AdditionalContext {
   callNotes: string;
   callTranscript: string;
   gapsFilled: Record<string, string>;
+  gapsWithLabels?: Record<string, { question: string; answer: string }>; // Structured version for AI
   gapsChecked?: Record<string, boolean>;
   tierDiscussed: string;
   clientObjections: string;
@@ -181,10 +182,25 @@ export function MAAdminReportView({
   
   const handleRegenerate = async () => {
     if (onRegenerateClientView) {
+      // Build structured gaps with labels so AI knows what each answer refers to
+      const gapsWithLabels: Record<string, { question: string; answer: string }> = {};
+      if (admin.gapsToFill) {
+        admin.gapsToFill.forEach((gap, i) => {
+          const answer = gapsFilled[`gap_${i}`];
+          if (answer && answer.trim()) {
+            gapsWithLabels[gap.gap] = {
+              question: gap.suggestedQuestion,
+              answer: answer.trim()
+            };
+          }
+        });
+      }
+      
       await onRegenerateClientView({
         callNotes,
         callTranscript,
         gapsFilled,
+        gapsWithLabels, // Include structured version for AI
         tierDiscussed,
         clientObjections,
         additionalInsights,
@@ -474,13 +490,19 @@ export function MAAdminReportView({
                           <p className="text-xs text-slate-600">
                             Ask: <span className="italic">"{gap.suggestedQuestion}"</span>
                           </p>
-                          <input
-                            type="text"
+                          <textarea
                             placeholder="Capture response..."
                             value={gapsFilled[`gap_${i}`] || ''}
                             onChange={(e) => handleGapUpdate(i, e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            maxLength={500}
+                            rows={2}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
                           />
+                          {gapsFilled[`gap_${i}`] && (
+                            <p className="text-xs text-slate-400 text-right">
+                              {gapsFilled[`gap_${i}`].length}/500
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -748,8 +770,10 @@ export function MAAdminReportView({
                     value={callNotes}
                     onChange={(e) => setCallNotes(e.target.value)}
                     rows={5}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    maxLength={2000}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
                   />
+                  <p className="text-xs text-slate-400 text-right mt-1">{callNotes.length}/2000</p>
                 </div>
               </div>
               
@@ -765,9 +789,11 @@ export function MAAdminReportView({
                     placeholder="Paste transcript here..."
                     value={callTranscript}
                     onChange={(e) => setCallTranscript(e.target.value)}
-                    rows={6}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                    rows={8}
+                    maxLength={15000}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono resize-y"
                   />
+                  <p className="text-xs text-slate-400 text-right mt-1">{callTranscript.length}/15,000</p>
                 </div>
               </div>
               
@@ -783,9 +809,11 @@ export function MAAdminReportView({
                     placeholder="e.g., 'Concerned about price', 'Needs to discuss with partner'..."
                     value={clientObjections}
                     onChange={(e) => setClientObjections(e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    rows={4}
+                    maxLength={1500}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
                   />
+                  <p className="text-xs text-slate-400 text-right mt-1">{clientObjections.length}/1,500</p>
                 </div>
               </div>
               
@@ -827,9 +855,11 @@ export function MAAdminReportView({
                     placeholder="e.g., 'Business partner is skeptical', 'Year-end in 6 weeks'..."
                     value={additionalInsights}
                     onChange={(e) => setAdditionalInsights(e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    rows={4}
+                    maxLength={1500}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
                   />
+                  <p className="text-xs text-slate-400 text-right mt-1">{additionalInsights.length}/1,500</p>
                 </div>
               </div>
               

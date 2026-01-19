@@ -350,7 +350,11 @@ ${additionalContext.callNotes ? `### Call Notes\n${additionalContext.callNotes}\
 ${additionalContext.callTranscript ? `### Call Transcript\n${additionalContext.callTranscript.substring(0, 5000)}\n` : ''}
 ${additionalContext.clientObjections ? `### Client Objections Raised\nAddress these concerns in the narrative:\n${additionalContext.clientObjections}\n` : ''}
 ${additionalContext.tierDiscussed ? `### Tier Interest\nClient showed interest in: ${additionalContext.tierDiscussed.toUpperCase()} tier. Adjust recommendation if appropriate.\n` : ''}
-${additionalContext.gapsFilled && Object.keys(additionalContext.gapsFilled).length > 0 ? `### Gaps Filled During Call\n${JSON.stringify(additionalContext.gapsFilled, null, 2)}\n` : ''}
+${additionalContext.gapsWithLabels && Object.keys(additionalContext.gapsWithLabels).length > 0 
+  ? `### Information Gaps Filled During Call\nThese are key details captured during the call that were missing from the assessment. Use these specific details to make the analysis more accurate and personalized:\n\n${Object.entries(additionalContext.gapsWithLabels).map(([topic, data]: [string, any]) => `**${topic}**\nQuestion asked: "${data.question}"\nClient's answer: ${data.answer}\n`).join('\n')}`
+  : (additionalContext.gapsFilled && Object.keys(additionalContext.gapsFilled).length > 0 
+      ? `### Gaps Filled During Call\n${JSON.stringify(additionalContext.gapsFilled, null, 2)}\n` 
+      : '')}
 ${additionalContext.additionalInsights ? `### Additional Insights\n${additionalContext.additionalInsights}\n` : ''}
 
 IMPORTANT: Use any new specific details (names, numbers, concerns) from this context to make the output more personalized and address any objections raised.
