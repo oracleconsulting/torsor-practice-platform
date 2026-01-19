@@ -83,3 +83,4 @@ WHERE dd.client_id = pm.id
   AND dd.practice_id IS NULL
   AND pm.member_type = 'client';
 
+

@@ -116,3 +116,4 @@ GRANT EXECUTE ON FUNCTION unassign_client_owner(UUID) TO authenticated;
 -- RLS policy: Staff can only see/manage clients in their practice
 -- (This leverages existing practice-level RLS)
 
+

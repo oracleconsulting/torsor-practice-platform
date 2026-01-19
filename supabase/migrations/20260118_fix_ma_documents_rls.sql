@@ -44,3 +44,4 @@ BEGIN
   RAISE NOTICE 'All practice members can now view documents for their practice';
 END $$;
 
+

@@ -50,3 +50,4 @@ SELECT 'audit_advisory_insights DELETE policy' as policy,
            AND policyname = 'Practice members can delete audit insights'
        ) THEN 'Created' ELSE 'Failed' END as status;
 
+

@@ -368,3 +368,4 @@ function generateDebtorNarrative(trend: TrendAnalysis, periods: any[]): string {
   }
 }
 
+

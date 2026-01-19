@@ -131,3 +131,4 @@ export function calculateFounderRisk(hvaData: any): FounderRiskResult {
   };
 }
 
+

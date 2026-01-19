@@ -67,3 +67,4 @@ END $$;
 
 COMMENT ON TABLE client_tasks IS 'Tracks sprint tasks for clients with completion status and feedback';
 COMMENT ON COLUMN client_tasks.metadata IS 'Flexible JSONB storage for task properties like whyThisMatters, milestone, tools, etc.';
+

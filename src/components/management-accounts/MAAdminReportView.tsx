@@ -184,9 +184,16 @@ export function MAAdminReportView({
     if (onRegenerateClientView) {
       // Build structured gaps with labels so AI knows what each answer refers to
       const gapsWithLabels: Record<string, { question: string; answer: string }> = {};
+      
+      // Debug logging
+      console.log('[MA Regenerate Debug] admin.gapsToFill:', admin?.gapsToFill);
+      console.log('[MA Regenerate Debug] gapsFilled state:', gapsFilled);
+      console.log('[MA Regenerate Debug] gapsFilled keys:', Object.keys(gapsFilled));
+      
       if (admin.gapsToFill) {
         admin.gapsToFill.forEach((gap, i) => {
           const answer = gapsFilled[`gap_${i}`];
+          console.log(`[MA Regenerate Debug] Gap ${i}: "${gap.gap}" -> answer: "${answer?.substring(0, 50)}..."`);
           if (answer && answer.trim()) {
             gapsWithLabels[gap.gap] = {
               question: gap.suggestedQuestion,
@@ -195,6 +202,9 @@ export function MAAdminReportView({
           }
         });
       }
+      
+      console.log('[MA Regenerate Debug] Final gapsWithLabels:', gapsWithLabels);
+      console.log('[MA Regenerate Debug] gapsWithLabels count:', Object.keys(gapsWithLabels).length);
       
       await onRegenerateClientView({
         callNotes,

@@ -221,3 +221,4 @@ COMMENT ON COLUMN service_line_metadata.display_name IS 'User-facing name (e.g.,
 COMMENT ON COLUMN service_line_metadata.manual_content IS 'Markdown/rich text content for inline manual display';
 COMMENT ON COLUMN service_line_metadata.manual_file_path IS 'Path to PDF manual in service-manuals storage bucket';
 
+

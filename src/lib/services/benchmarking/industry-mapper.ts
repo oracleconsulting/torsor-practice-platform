@@ -83,3 +83,4 @@ export function resolveIndustryCode(sicCode: string | null | undefined, subSecto
   return { code: 'CONSULT', name: 'General Consultancy', confidence: 50 };
 }
 
+

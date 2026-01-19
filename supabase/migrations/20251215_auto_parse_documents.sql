@@ -243,3 +243,4 @@ ON CONFLICT DO NOTHING;
 COMMENT ON TABLE document_parse_queue IS 'Queue for documents awaiting PDF parsing and financial data extraction';
 COMMENT ON VIEW v_document_parsing_status IS 'View showing document parsing status and extracted financial data';
 
+

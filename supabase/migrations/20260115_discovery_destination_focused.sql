@@ -32,3 +32,4 @@ COMMENT ON COLUMN discovery_reports.quotes_used IS 'Array of 8+ verbatim quotes 
 COMMENT ON COLUMN discovery_reports.personal_anchors IS 'Personal details used (spouse name, kids ages, etc)';
 COMMENT ON COLUMN discovery_reports.urgency_level IS 'high/medium/low based on detected patterns';
 
+

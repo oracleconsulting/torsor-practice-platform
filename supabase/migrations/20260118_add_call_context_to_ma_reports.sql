@@ -21,3 +21,4 @@ BEGIN
   RAISE NOTICE 'call_context column added to ma_assessment_reports';
 END $$;
 
+
