@@ -436,7 +436,7 @@ export default function MAReportPage() {
         estimatedCost: null 
       })),
       desiredFrequency: (twoPassData.pass1_data.adminGuidance?.quickProfile?.desiredFrequency?.toLowerCase()?.includes('quarter') 
-        ? 'quarterly' : 'monthly'),
+        ? 'quarterly' : 'monthly') as 'monthly' | 'quarterly',
       // TierComparisonView will normalize this to lowercase and validate
       recommendedTier: twoPassData.pass1_data.adminGuidance?.quickProfile?.recommendedTier || 
         twoPassData.pass2_data?.recommendedApproach?.tier || 'gold'
