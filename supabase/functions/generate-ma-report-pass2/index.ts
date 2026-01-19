@@ -65,7 +65,18 @@ serve(async (req) => {
     const isRegeneration = !!additionalContext;
     console.log('[MA Pass2] Starting narrative generation for:', reportId ? `report ${reportId}` : engagementId ? `engagement ${engagementId}` : `client ${clientId}`);
     if (isRegeneration) {
-      console.log('[MA Pass2] Regeneration mode with additional context');
+      console.log('[MA Pass2] Regeneration mode with additional context:');
+      console.log('[MA Pass2] - callNotes length:', additionalContext.callNotes?.length || 0);
+      console.log('[MA Pass2] - callTranscript length:', additionalContext.callTranscript?.length || 0);
+      console.log('[MA Pass2] - gapsFilled keys:', additionalContext.gapsFilled ? Object.keys(additionalContext.gapsFilled) : 'none');
+      console.log('[MA Pass2] - gapsWithLabels keys:', additionalContext.gapsWithLabels ? Object.keys(additionalContext.gapsWithLabels) : 'none');
+      console.log('[MA Pass2] - tierDiscussed:', additionalContext.tierDiscussed || 'none');
+      if (additionalContext.gapsFilled) {
+        console.log('[MA Pass2] - gapsFilled values:', JSON.stringify(additionalContext.gapsFilled).substring(0, 500));
+      }
+      if (additionalContext.gapsWithLabels) {
+        console.log('[MA Pass2] - gapsWithLabels sample:', JSON.stringify(Object.entries(additionalContext.gapsWithLabels).slice(0, 2)));
+      }
     }
 
     // Initialize Supabase client
@@ -342,22 +353,47 @@ function buildPass2Prompt(pass1Data: any, additionalContext?: any, uploadedDocum
   let contextSection = '';
   
   if (additionalContext) {
+    // Build gaps section - prefer structured labels, fall back to raw JSON
+    let gapsSection = '';
+    if (additionalContext.gapsWithLabels && Object.keys(additionalContext.gapsWithLabels).length > 0) {
+      gapsSection = `### CRITICAL: New Information Captured During Call
+These specific details were captured during the follow-up call. You MUST use these exact numbers in your output:
+
+${Object.entries(additionalContext.gapsWithLabels).map(([topic, data]: [string, any]) => 
+  `**${topic}**\nAnswer: ${data.answer}`
+).join('\n\n')}`;
+    } else if (additionalContext.gapsFilled && Object.keys(additionalContext.gapsFilled).length > 0) {
+      // Fall back to raw gaps but format them better
+      const gapValues = Object.values(additionalContext.gapsFilled).filter((v: any) => v && String(v).trim());
+      if (gapValues.length > 0) {
+        gapsSection = `### CRITICAL: New Information Captured During Call
+These specific details were captured during the follow-up call. You MUST use these exact numbers in your output:
+
+${gapValues.map((answer: any, i: number) => `Detail ${i + 1}: ${answer}`).join('\n\n')}`;
+      }
+    }
+    
     contextSection = `
-## ADDITIONAL CONTEXT FROM FOLLOW-UP CALL
-This is a regeneration request with new context from the sales call. Use this information to enhance and personalize the output.
+## ⚠️ REGENERATION WITH NEW CALL DATA - READ CAREFULLY ⚠️
+
+This is a REGENERATION request. The advisor has conducted a follow-up call and captured NEW SPECIFIC INFORMATION.
+
+**YOUR #1 PRIORITY: Use the specific numbers, names, and details from this section. Do NOT use placeholder or generic language when you have real data.**
 
 ${additionalContext.callNotes ? `### Call Notes\n${additionalContext.callNotes}\n` : ''}
-${additionalContext.callTranscript ? `### Call Transcript\n${additionalContext.callTranscript.substring(0, 5000)}\n` : ''}
-${additionalContext.clientObjections ? `### Client Objections Raised\nAddress these concerns in the narrative:\n${additionalContext.clientObjections}\n` : ''}
-${additionalContext.tierDiscussed ? `### Tier Interest\nClient showed interest in: ${additionalContext.tierDiscussed.toUpperCase()} tier. Adjust recommendation if appropriate.\n` : ''}
-${additionalContext.gapsWithLabels && Object.keys(additionalContext.gapsWithLabels).length > 0 
-  ? `### Information Gaps Filled During Call\nThese are key details captured during the call that were missing from the assessment. Use these specific details to make the analysis more accurate and personalized:\n\n${Object.entries(additionalContext.gapsWithLabels).map(([topic, data]: [string, any]) => `**${topic}**\nQuestion asked: "${data.question}"\nClient's answer: ${data.answer}\n`).join('\n')}`
-  : (additionalContext.gapsFilled && Object.keys(additionalContext.gapsFilled).length > 0 
-      ? `### Gaps Filled During Call\n${JSON.stringify(additionalContext.gapsFilled, null, 2)}\n` 
-      : '')}
-${additionalContext.additionalInsights ? `### Additional Insights\n${additionalContext.additionalInsights}\n` : ''}
+${additionalContext.callTranscript ? `### Call Transcript\n${additionalContext.callTranscript.substring(0, 8000)}\n` : ''}
+${gapsSection}
+${additionalContext.clientObjections ? `### Client Objections to Address\n${additionalContext.clientObjections}\n` : ''}
+${additionalContext.tierDiscussed ? `### Tier Interest\nClient showed interest in: ${additionalContext.tierDiscussed.toUpperCase()} tier.\n` : ''}
+${additionalContext.additionalInsights ? `### Additional Context\n${additionalContext.additionalInsights}\n` : ''}
 
-IMPORTANT: Use any new specific details (names, numbers, concerns) from this context to make the output more personalized and address any objections raised.
+## MANDATORY REQUIREMENTS FOR THIS REGENERATION:
+1. If MRR/ARR numbers are provided above, use them (e.g., "At £0 MRR currently with £40k YTD consulting revenue...")
+2. If burn rate is provided above, use it (e.g., "Your £22k monthly burn gives you 9 months runway...")  
+3. If hiring triggers are mentioned, reference them specifically (e.g., "Your £200k ARR trigger for hiring...")
+4. If funding plans are mentioned, incorporate them (e.g., "Your seed round target at £500k ARR...")
+5. NEVER say generic things like "your current revenue" when you have the actual number above
+
 `;
   }
 
