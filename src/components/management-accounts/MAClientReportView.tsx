@@ -39,9 +39,63 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
     if (!callContext?.gapsWithLabels && !callContext?.gapsFilled) return null;
     
     const gaps = callContext.gapsWithLabels || {};
+    const gapsFilled = callContext.gapsFilled || {};
     const data: any = {};
     
-    // Search ALL gap answers for financial patterns (data may be in unexpected gaps)
+    // PRIORITY 1: Check the dedicated "essential" fields first (these are explicit captures)
+    if (gapsFilled.essential_bank_balance) {
+      const match = gapsFilled.essential_bank_balance.match(/£?([\d,]+)\s*k?/i);
+      if (match) {
+        const num = parseInt(match[1].replace(/,/g, ''));
+        data.bankBalance = gapsFilled.essential_bank_balance.toLowerCase().includes('k') && num < 1000 ? num * 1000 : num;
+        console.log('[MAClientView] Found essential bank balance:', data.bankBalance);
+      }
+    }
+    
+    if (gapsFilled.essential_year_end) {
+      data.yearEnd = gapsFilled.essential_year_end;
+      console.log('[MAClientView] Found year end:', data.yearEnd);
+    }
+    
+    if (gapsFilled.essential_vat) {
+      data.vatStatus = gapsFilled.essential_vat;
+      // Try to extract VAT amount if mentioned
+      const vatAmountMatch = gapsFilled.essential_vat.match(/£?([\d,]+)\s*k?\s*(?:vat|due|owed)/i);
+      if (vatAmountMatch) {
+        const num = parseInt(vatAmountMatch[1].replace(/,/g, ''));
+        data.vatOwed = gapsFilled.essential_vat.toLowerCase().includes('k') && num < 100 ? num * 1000 : num;
+      }
+      console.log('[MAClientView] Found VAT status:', data.vatStatus);
+    }
+    
+    if (gapsFilled.essential_payroll) {
+      data.payroll = gapsFilled.essential_payroll;
+      // Try to extract payroll amount
+      const payrollMatch = gapsFilled.essential_payroll.match(/£?([\d,]+)\s*k?\s*(?:per|\/|a)?\s*month/i);
+      if (payrollMatch) {
+        const num = parseInt(payrollMatch[1].replace(/,/g, ''));
+        data.monthlyPayroll = gapsFilled.essential_payroll.toLowerCase().includes('k') && num < 100 ? num * 1000 : num;
+      }
+      console.log('[MAClientView] Found payroll:', data.payroll);
+    }
+    
+    if (gapsFilled.essential_expenses) {
+      data.imminentExpenses = gapsFilled.essential_expenses;
+      console.log('[MAClientView] Found imminent expenses:', data.imminentExpenses);
+    }
+    
+    if (gapsFilled.essential_receivables) {
+      data.expectedReceivables = gapsFilled.essential_receivables;
+      // Try to extract receivables amount
+      const recMatch = gapsFilled.essential_receivables.match(/£?([\d,]+)\s*k?/i);
+      if (recMatch && !gapsFilled.essential_receivables.toLowerCase().includes('nothing')) {
+        const num = parseInt(recMatch[1].replace(/,/g, ''));
+        data.receivablesAmount = gapsFilled.essential_receivables.toLowerCase().includes('k') && num < 1000 ? num * 1000 : num;
+      }
+      console.log('[MAClientView] Found receivables:', data.expectedReceivables);
+    }
+    
+    // PRIORITY 2: Search ALL gap answers for financial patterns (data may be in unexpected gaps)
     const allAnswers = Object.entries(gaps).map(([topic, value]: [string, any]) => ({
       topic: topic.toLowerCase(),
       answer: (value?.answer || '').toLowerCase()
@@ -52,20 +106,22 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
     
     console.log('[MAClientView] Searching for financial data in:', combinedText.substring(0, 500));
     
-    // Look for bank balance patterns like "£205k in the bank", "bank balance £205k", "$205,000 bank"
-    const bankPatterns = [
-      /£([\d,]+)k?\s*(?:in the bank|bank balance|in bank|cash in bank)/i,
-      /bank\s*(?:balance|account)?\s*(?:of|:)?\s*£?([\d,]+)k?/i,
-      /(?:have|got)\s*£([\d,]+)k?\s*(?:in|cash)/i,
-    ];
-    
-    for (const pattern of bankPatterns) {
-      const match = combinedText.match(pattern);
-      if (match) {
-        const num = parseInt(match[1].replace(/,/g, ''));
-        data.bankBalance = combinedText.includes('k') && num < 1000 ? num * 1000 : num;
-        console.log('[MAClientView] Found bank balance:', data.bankBalance);
-        break;
+    // Look for bank balance patterns (only if not found in essential fields)
+    if (!data.bankBalance) {
+      const bankPatterns = [
+        /£([\d,]+)k?\s*(?:in the bank|bank balance|in bank|cash in bank)/i,
+        /bank\s*(?:balance|account)?\s*(?:of|:)?\s*£?([\d,]+)k?/i,
+        /(?:have|got)\s*£([\d,]+)k?\s*(?:in|cash)/i,
+      ];
+      
+      for (const pattern of bankPatterns) {
+        const match = combinedText.match(pattern);
+        if (match) {
+          const num = parseInt(match[1].replace(/,/g, ''));
+          data.bankBalance = combinedText.includes('k') && num < 1000 ? num * 1000 : num;
+          console.log('[MAClientView] Found bank balance in gaps:', data.bankBalance);
+          break;
+        }
       }
     }
     
@@ -118,27 +174,70 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
   const hasRealFinancialData = !!financialData?.bankBalance;
 
   // Build True Cash data - use REAL data if available, otherwise show illustrative example
-  const trueCashData = hasRealFinancialData ? {
-    bankBalance: financialData.bankBalance,
-    // If we have bank balance but not detailed liabilities, show a simpler version
-    trueCash: financialData.bankBalance, // We don't know true deductions yet
-    deductions: [] as { label: string; amount: number }[],
-    isIllustrative: false,
-    showSimple: true, // Flag to show simpler version without fake deductions
-  } : {
-    // Illustrative example when we don't have real data
-    bankBalance: 95430,
-    trueCash: 46920,
-    deductions: [
-      { label: 'VAT owed', amount: -22150 },
-      { label: 'PAYE/NI due', amount: -8800 },
-      { label: 'Corporation tax provision', amount: -15000 },
-      { label: 'Committed creditors', amount: -12560 },
-      { label: 'Confirmed receivables (7 days)', amount: 10000 },
-    ],
-    isIllustrative: true,
-    showSimple: false,
+  const buildTrueCashData = () => {
+    if (!hasRealFinancialData) {
+      // Illustrative example when we don't have real data
+      return {
+        bankBalance: 95430,
+        trueCash: 46920,
+        deductions: [
+          { label: 'VAT owed', amount: -22150 },
+          { label: 'PAYE/NI due', amount: -8800 },
+          { label: 'Corporation tax provision', amount: -15000 },
+          { label: 'Committed creditors', amount: -12560 },
+          { label: 'Confirmed receivables (7 days)', amount: 10000 },
+        ],
+        isIllustrative: true,
+        showSimple: false,
+      };
+    }
+    
+    // We have real data - build deductions from captured essential fields
+    const deductions: { label: string; amount: number }[] = [];
+    let trueCash = financialData.bankBalance;
+    
+    // Add VAT if captured
+    if (financialData.vatOwed) {
+      deductions.push({ label: 'VAT owed', amount: -financialData.vatOwed });
+      trueCash -= financialData.vatOwed;
+    } else if (financialData.vatStatus && !financialData.vatStatus.toLowerCase().includes('not registered')) {
+      // VAT registered but no amount - show as "to be calculated"
+      deductions.push({ label: 'VAT (to calculate)', amount: 0 });
+    }
+    
+    // Add PAYE/Payroll if captured
+    if (financialData.monthlyPayroll) {
+      deductions.push({ label: 'PAYE/NI (estimated)', amount: -Math.round(financialData.monthlyPayroll * 0.25) }); // ~25% of payroll
+      trueCash -= Math.round(financialData.monthlyPayroll * 0.25);
+    }
+    
+    // Add receivables if captured
+    if (financialData.receivablesAmount) {
+      deductions.push({ label: 'Expected receivables', amount: financialData.receivablesAmount });
+      trueCash += financialData.receivablesAmount;
+    }
+    
+    // If no deductions were captured, show simple view
+    const showSimple = deductions.length === 0;
+    
+    return {
+      bankBalance: financialData.bankBalance,
+      trueCash: showSimple ? financialData.bankBalance : trueCash,
+      deductions,
+      isIllustrative: false,
+      showSimple,
+      // Additional data for display
+      monthlyBurn: financialData.monthlyBurn,
+      runwayMonths: financialData.runwayMonths,
+      yearEnd: financialData.yearEnd,
+      vatStatus: financialData.vatStatus,
+      payroll: financialData.payroll,
+      imminentExpenses: financialData.imminentExpenses,
+      expectedReceivables: financialData.expectedReceivables,
+    };
   };
+  
+  const trueCashData = buildTrueCashData();
 
   // Extract data for tier comparison from pass1 data
   const tierComparisonData = p1 ? {
@@ -226,6 +325,47 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
                           <span className="font-bold text-blue-600">{financialData.runwayMonths} months</span>
                         </div>
                       )}
+                      
+                      {/* Show additional captured context */}
+                      {(trueCashData.yearEnd || trueCashData.vatStatus || trueCashData.payroll) && (
+                        <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
+                          {trueCashData.yearEnd && (
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-gray-500">Year end:</span>
+                              <span className="text-gray-700">{trueCashData.yearEnd}</span>
+                            </div>
+                          )}
+                          {trueCashData.vatStatus && (
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-gray-500">VAT:</span>
+                              <span className="text-gray-700">{trueCashData.vatStatus}</span>
+                            </div>
+                          )}
+                          {trueCashData.payroll && (
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-gray-500">Payroll:</span>
+                              <span className="text-gray-700">{trueCashData.payroll}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Show imminent expenses and receivables if captured */}
+                      {(trueCashData.imminentExpenses || trueCashData.expectedReceivables) && (
+                        <div className="mt-4 space-y-2">
+                          {trueCashData.imminentExpenses && !trueCashData.imminentExpenses.toLowerCase().includes('nothing') && (
+                            <div className="p-2 bg-amber-50 border border-amber-200 rounded text-sm">
+                              <span className="text-amber-700">⚠️ Coming up: {trueCashData.imminentExpenses}</span>
+                            </div>
+                          )}
+                          {trueCashData.expectedReceivables && !trueCashData.expectedReceivables.toLowerCase().includes('nothing') && (
+                            <div className="p-2 bg-green-50 border border-green-200 rounded text-sm">
+                              <span className="text-green-700">📥 Expected: {trueCashData.expectedReceivables}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
                       <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                         <p className="text-sm text-blue-800">
                           We'll calculate your <span className="font-semibold">True Cash</span> position (after VAT, PAYE, and commitments) in our first session.

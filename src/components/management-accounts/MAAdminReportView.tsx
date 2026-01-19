@@ -520,6 +520,112 @@ export function MAAdminReportView({
                 </div>
               </div>
               
+              {/* Phase 3b: Essential Financial Data - ALWAYS capture these */}
+              <div className="bg-white border-2 border-blue-300 rounded-xl overflow-hidden">
+                <div className="bg-blue-50 px-6 py-3 border-b border-blue-200 flex items-center justify-between">
+                  <h3 className="flex items-center gap-2 text-blue-800 font-semibold">
+                    <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">💰</span>
+                    Essential Financial Data
+                    <span className="text-blue-600 font-normal text-sm ml-2">Required for accurate forecasts</span>
+                  </h3>
+                </div>
+                <div className="p-6 space-y-4">
+                  <p className="text-sm text-blue-700 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                    ⚠️ <strong>Always capture these</strong> - needed for True Cash calculation and 13-week forecasts
+                  </p>
+                  
+                  {/* Current Bank Balance */}
+                  <div className="border rounded-lg p-3">
+                    <p className="font-medium text-sm mb-1">💵 Current Bank Balance</p>
+                    <p className="text-xs text-slate-600 mb-2">
+                      Ask: <span className="italic">"What's roughly in your bank account right now?"</span>
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="e.g., £205k, £205,000"
+                      value={gapsFilled['essential_bank_balance'] || ''}
+                      onChange={(e) => setGapsFilled(prev => ({ ...prev, essential_bank_balance: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  
+                  {/* Year End Date */}
+                  <div className="border rounded-lg p-3">
+                    <p className="font-medium text-sm mb-1">📅 Financial Year End</p>
+                    <p className="text-xs text-slate-600 mb-2">
+                      Ask: <span className="italic">"When does your financial year end?"</span>
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="e.g., 31 March, 31 December"
+                      value={gapsFilled['essential_year_end'] || ''}
+                      onChange={(e) => setGapsFilled(prev => ({ ...prev, essential_year_end: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  
+                  {/* VAT Registration */}
+                  <div className="border rounded-lg p-3">
+                    <p className="font-medium text-sm mb-1">🧾 VAT Status & Quarters</p>
+                    <p className="text-xs text-slate-600 mb-2">
+                      Ask: <span className="italic">"Are you VAT registered? When's your next VAT payment due?"</span>
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="e.g., Yes, quarterly, next due Feb 7th / No, not registered"
+                      value={gapsFilled['essential_vat'] || ''}
+                      onChange={(e) => setGapsFilled(prev => ({ ...prev, essential_vat: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  
+                  {/* PAYE/Payroll */}
+                  <div className="border rounded-lg p-3">
+                    <p className="font-medium text-sm mb-1">👥 Payroll & PAYE</p>
+                    <p className="text-xs text-slate-600 mb-2">
+                      Ask: <span className="italic">"Do you have employees? What's your monthly payroll roughly?"</span>
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="e.g., £15k/month, 3 employees / Just founders, no PAYE"
+                      value={gapsFilled['essential_payroll'] || ''}
+                      onChange={(e) => setGapsFilled(prev => ({ ...prev, essential_payroll: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  
+                  {/* Imminent Large Expenses */}
+                  <div className="border rounded-lg p-3">
+                    <p className="font-medium text-sm mb-1">⚡ Imminent Large Expenses</p>
+                    <p className="text-xs text-slate-600 mb-2">
+                      Ask: <span className="italic">"Any big expenses or investments coming up in the next 3 months?"</span>
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="e.g., £20k software investment in March / Nothing major planned"
+                      value={gapsFilled['essential_expenses'] || ''}
+                      onChange={(e) => setGapsFilled(prev => ({ ...prev, essential_expenses: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  
+                  {/* Expected Receivables */}
+                  <div className="border rounded-lg p-3">
+                    <p className="font-medium text-sm mb-1">📥 Expected Receivables</p>
+                    <p className="text-xs text-slate-600 mb-2">
+                      Ask: <span className="italic">"Any significant invoices you're expecting payment on soon?"</span>
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="e.g., £30k due next week from Client X / Nothing outstanding"
+                      value={gapsFilled['essential_receivables'] || ''}
+                      onChange={(e) => setGapsFilled(prev => ({ ...prev, essential_receivables: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+              
               {/* Phase 4: Present Solution */}
               <div className={`bg-white border border-gray-200 rounded-xl overflow-hidden ${completedPhases.includes('solution') ? 'opacity-60' : ''}`}>
                 <div className="bg-green-50 px-6 py-3 border-b border-gray-200">
