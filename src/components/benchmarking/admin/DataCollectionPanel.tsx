@@ -157,7 +157,7 @@ const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
     conversationScript: `"How has your revenue grown compared to last year? Growth rate helps us understand your trajectory and market position."`,
     followUpQuestions: [
       'Is this growth organic or have you acquired clients/teams?',
-      'What's driving the growth or lack of growth?',
+      "What's driving the growth or lack of growth?",
       'What do you expect for next year?'
     ],
     benchmark: { p25: 5, p50: 12, p75: 25 },
