@@ -4,7 +4,8 @@ import { ConversationScript } from './ConversationScript';
 import { RiskFlagsPanel } from './RiskFlagsPanel';
 import { NextStepsPanel } from './NextStepsPanel';
 import { ClientDataReference } from './ClientDataReference';
-import { FileText, MessageSquare, AlertTriangle, ListTodo } from 'lucide-react';
+import { DataCollectionPanel } from './DataCollectionPanel';
+import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, RefreshCw } from 'lucide-react';
 
 interface BenchmarkAnalysis {
   headline: string;
@@ -44,7 +45,11 @@ interface BenchmarkingAdminViewProps {
     name: string;
     confidence: number;
   };
+  engagementId?: string;
   onSwitchToClient?: () => void;
+  onRegenerate?: () => Promise<void>;
+  onSaveSupplementaryData?: (data: Record<string, number | string>) => Promise<void>;
+  isRegenerating?: boolean;
 }
 
 // Helper to safely parse JSON (handles both string and already-parsed objects)
@@ -71,8 +76,18 @@ interface Pass1Data {
   };
 }
 
-export function BenchmarkingAdminView({ data, clientData, founderRisk, industryMapping, onSwitchToClient }: BenchmarkingAdminViewProps) {
-  const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'actions' | 'raw'>('script');
+export function BenchmarkingAdminView({ 
+  data, 
+  clientData, 
+  founderRisk, 
+  industryMapping, 
+  engagementId,
+  onSwitchToClient,
+  onRegenerate,
+  onSaveSupplementaryData,
+  isRegenerating = false
+}: BenchmarkingAdminViewProps) {
+  const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'actions' | 'collect' | 'raw'>('script');
   
   const talkingPoints = safeJsonParse(data.admin_talking_points, []);
   const questionsToAsk = safeJsonParse(data.admin_questions_to_ask, []);
@@ -166,6 +181,22 @@ export function BenchmarkingAdminView({ data, clientData, founderRisk, industryM
                   Next Steps
                 </button>
                 <button
+                  onClick={() => setActiveTab('collect')}
+                  className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative ${
+                    activeTab === 'collect'
+                      ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  Collect Data
+                  {(pass1Data?.dataGaps?.length || 0) > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 text-white text-xs rounded-full flex items-center justify-center">
+                      {pass1Data?.dataGaps?.length}
+                    </span>
+                  )}
+                </button>
+                <button
                   onClick={() => setActiveTab('raw')}
                   className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
                     activeTab === 'raw'
@@ -193,6 +224,17 @@ export function BenchmarkingAdminView({ data, clientData, founderRisk, industryM
                 
                 {activeTab === 'actions' && (
                   <NextStepsPanel nextSteps={nextSteps} tasks={tasks} />
+                )}
+                
+                {activeTab === 'collect' && (
+                  <DataCollectionPanel
+                    missingData={pass1Data?.dataGaps?.map((g: any) => g.metric) || []}
+                    engagementId={engagementId || ''}
+                    industryCode={industryMapping?.code || data.industry_code}
+                    onSave={onSaveSupplementaryData}
+                    onRegenerate={onRegenerate}
+                    isLoading={isRegenerating}
+                  />
                 )}
                 
                 {activeTab === 'raw' && (

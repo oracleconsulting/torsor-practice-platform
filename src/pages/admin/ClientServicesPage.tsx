@@ -9193,6 +9193,70 @@ function BenchmarkingClientModal({
     }
   };
 
+  // Handle saving supplementary data from the Data Collection panel
+  const handleSaveSupplementaryData = async (data: Record<string, number | string>) => {
+    if (!engagement) {
+      throw new Error('No engagement found');
+    }
+    
+    console.log('[Benchmarking] Saving supplementary data:', data);
+    
+    const { data: result, error } = await supabase.functions.invoke('save-bm-supplementary-data', {
+      body: {
+        engagementId: engagement.id,
+        data,
+        collectedBy: currentMember?.name || 'Admin'
+      }
+    });
+    
+    if (error) {
+      console.error('[Benchmarking] Error saving supplementary data:', error);
+      throw new Error(error.message || 'Failed to save data');
+    }
+    
+    console.log('[Benchmarking] Supplementary data saved:', result);
+    
+    // Refresh assessment data
+    const { data: updatedResponses } = await supabase
+      .from('bm_assessment_responses')
+      .select('*')
+      .eq('engagement_id', engagement.id)
+      .maybeSingle();
+    
+    if (updatedResponses) {
+      setAssessmentResponses(updatedResponses);
+    }
+  };
+
+  // Handle regenerating the report with updated data
+  const handleRegenerateWithNewData = async () => {
+    if (!engagement) return;
+    
+    setGenerating(true);
+    try {
+      // Use the regenerate function which forces benchmark refresh
+      const { data: result, error } = await supabase.functions.invoke('regenerate-bm-report', {
+        body: {
+          engagementId: engagement.id,
+          forceRefreshBenchmarks: true,
+          reason: 'Regeneration with supplementary data collected'
+        }
+      });
+      
+      if (error) throw error;
+      
+      console.log('[Benchmarking] Regeneration result:', result);
+      
+      // Refresh the data
+      await fetchData();
+    } catch (error: any) {
+      console.error('[Benchmarking] Error regenerating report:', error);
+      alert(`Error: ${error.message || 'Unknown error'}`);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const handleShareWithClient = async () => {
     if (!engagement) return;
     
@@ -9550,7 +9614,11 @@ function BenchmarkingClientModal({
                               hvaData={hvaStatus}
                               founderRisk={founderRisk}
                               industryMapping={industryMapping}
+                              engagementId={engagement?.id}
                               onSwitchToClient={() => setViewMode('client')}
+                              onSaveSupplementaryData={handleSaveSupplementaryData}
+                              onRegenerate={handleRegenerateWithNewData}
+                              isRegenerating={generating}
                             />
                           );
                         })()
