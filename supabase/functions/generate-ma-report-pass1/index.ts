@@ -490,10 +490,23 @@ ${JSON.stringify(discoveryData, null, 2)}
    - Platinum (£5,000): Complex needs, board reporting, high frequency, multiple stakeholders
 
 ## ADMIN GUIDANCE RULES
-1. Gaps to fill = information we need but don't have (roles, salaries, client payment terms)
+1. Gaps to fill = information we need but don't have for accurate forecasting
 2. Questions to ask should use their specific situation, not generic questions
 3. Objection handling must reference their own data/stories from the assessment
 4. Quotes to use = short, punchy, emotional - not full paragraphs
+
+## MANDATORY GAPS TO FILL (Always include these if not already known):
+You MUST include these gaps - they are essential for building accurate forecasts:
+- Current bank balance: "What's your current bank balance, roughly?"
+- Year-end date: "When does your financial year end?"
+- VAT quarters: "Are you VAT registered? When's your next VAT payment due?"
+- Imminent expenses: "Any large expenses or investments coming up in the next 3 months?"
+- Expected receivables: "Any significant invoices you're expecting payment on soon?"
+- Current MRR/ARR: "What's your current MRR and ARR?" (if SaaS/subscription business)
+- Monthly burn rate: "What's your approximate monthly operating cost?"
+- Hiring plans: If they mention hiring - "What roles, when, and at what salary?"
+- Funding timeline: If they mention funding - "What amount and by when?"
+Add these to gapsToFill with appropriate suggested questions based on their specific context.
 
 ## FINDINGS RULES
 1. Maximum 5 findings, prioritize by severity and impact

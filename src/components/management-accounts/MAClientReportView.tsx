@@ -11,6 +11,7 @@ interface MAClientReportViewProps {
     pass1_data: any;
     pass2_data?: any;
     client_view?: any;
+    call_context?: any; // Context captured during call (gaps filled, notes, etc.)
   };
   engagement?: any;
   onTierSelect?: (tier: string) => void;
@@ -21,6 +22,7 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
   const [showFullComparison, setShowFullComparison] = useState(false);
   const p1 = report.pass1_data;
   const p2 = report.pass2_data || report.client_view;
+  const callContext = report.call_context;
   
   if (!p2) {
     return (
@@ -32,8 +34,59 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
     );
   }
 
-  // Build sample True Cash data from extracted facts
-  const trueCashSample = {
+  // Extract financial data from call context if available
+  const extractFinancialDataFromGaps = () => {
+    if (!callContext?.gapsWithLabels && !callContext?.gapsFilled) return null;
+    
+    const gaps = callContext.gapsWithLabels || {};
+    const data: any = {};
+    
+    // Look for bank balance
+    Object.entries(gaps).forEach(([topic, value]: [string, any]) => {
+      const answer = value?.answer || '';
+      const topicLower = topic.toLowerCase();
+      
+      // Extract bank balance
+      if (topicLower.includes('bank') || topicLower.includes('cash position')) {
+        const match = answer.match(/£?([\d,]+)k?/i);
+        if (match) {
+          data.bankBalance = parseInt(match[1].replace(/,/g, '')) * (answer.toLowerCase().includes('k') ? 1000 : 1);
+        }
+      }
+      
+      // Extract burn rate
+      if (topicLower.includes('burn') || topicLower.includes('operating cost')) {
+        const match = answer.match(/£?([\d,]+)k?/i);
+        if (match) {
+          data.monthlyBurn = parseInt(match[1].replace(/,/g, '')) * (answer.toLowerCase().includes('k') ? 1000 : 1);
+        }
+      }
+      
+      // Extract runway
+      if (topicLower.includes('runway') || answer.toLowerCase().includes('month')) {
+        const match = answer.match(/(\d+)\s*month/i);
+        if (match) {
+          data.runwayMonths = parseInt(match[1]);
+        }
+      }
+    });
+    
+    return Object.keys(data).length > 0 ? data : null;
+  };
+
+  const financialData = extractFinancialDataFromGaps();
+  const hasRealFinancialData = !!financialData?.bankBalance;
+
+  // Build True Cash data - use REAL data if available, otherwise show illustrative example
+  const trueCashData = hasRealFinancialData ? {
+    bankBalance: financialData.bankBalance,
+    // If we have bank balance but not detailed liabilities, show a simpler version
+    trueCash: financialData.bankBalance, // We don't know true deductions yet
+    deductions: [] as { label: string; amount: number }[],
+    isIllustrative: false,
+    showSimple: true, // Flag to show simpler version without fake deductions
+  } : {
+    // Illustrative example when we don't have real data
     bankBalance: 95430,
     trueCash: 46920,
     deductions: [
@@ -43,6 +96,8 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
       { label: 'Committed creditors', amount: -12560 },
       { label: 'Confirmed receivables (7 days)', amount: 10000 },
     ],
+    isIllustrative: true,
+    showSimple: false,
   };
 
   // Extract data for tier comparison from pass1 data
@@ -106,24 +161,68 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
             {/* Visual Previews */}
             <div className="space-y-6">
               {p2.tuesdayAnswerPreview.showTrueCash && (
-                <TrueCashPreview {...trueCashSample} />
+                <div>
+                  {trueCashData.isIllustrative && (
+                    <p className="text-xs text-amber-600 mb-2 italic">
+                      📊 Illustrative example - we'll calculate your actual True Cash position in our first session
+                    </p>
+                  )}
+                  {trueCashData.showSimple ? (
+                    <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+                      <h4 className="font-semibold text-lg mb-4 text-gray-900">Your Current Position</h4>
+                      <div className="flex justify-between items-center text-lg">
+                        <span className="text-gray-600">Bank balance:</span>
+                        <span className="font-bold text-green-600">£{trueCashData.bankBalance.toLocaleString()}</span>
+                      </div>
+                      {financialData?.monthlyBurn && (
+                        <div className="flex justify-between items-center text-lg mt-3">
+                          <span className="text-gray-600">Monthly burn:</span>
+                          <span className="font-bold text-red-600">£{financialData.monthlyBurn.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {financialData?.runwayMonths && (
+                        <div className="flex justify-between items-center text-lg mt-3">
+                          <span className="text-gray-600">Runway:</span>
+                          <span className="font-bold text-blue-600">{financialData.runwayMonths} months</span>
+                        </div>
+                      )}
+                      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm text-blue-800">
+                          We'll calculate your <span className="font-semibold">True Cash</span> position (after VAT, PAYE, and commitments) in our first session.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <TrueCashPreview {...trueCashData} />
+                  )}
+                </div>
               )}
               
               {p2.tuesdayAnswerPreview.showForecast && (
-                <ForecastPreview 
-                  weeks={13}
-                  criticalDate={{
-                    week: 'Feb 24',
-                    event: 'VAT + Payroll collision',
-                    lowestPoint: 18370
-                  }}
-                />
+                <div>
+                  <p className="text-xs text-amber-600 mb-2 italic">
+                    📊 Illustrative forecast - we'll build your actual 13-week projection with real payment dates
+                  </p>
+                  <ForecastPreview 
+                    weeks={13}
+                    criticalDate={{
+                      week: 'Week 8',
+                      event: 'Potential cash pinch point',
+                      lowestPoint: financialData?.bankBalance ? Math.round(financialData.bankBalance * 0.2) : 18370
+                    }}
+                  />
+                </div>
               )}
               
               {p2.tuesdayAnswerPreview.showScenario && p2.tuesdayAnswerPreview.scenarioType && (
-                <ScenarioPreview 
-                  type={p2.tuesdayAnswerPreview.scenarioType as 'hire' | 'price' | 'client_loss' | 'investment'}
-                />
+                <div>
+                  <p className="text-xs text-amber-600 mb-2 italic">
+                    📊 Interactive scenario tool - adjust the sliders to model your specific situation
+                  </p>
+                  <ScenarioPreview 
+                    type={p2.tuesdayAnswerPreview.scenarioType as 'hire' | 'price' | 'client_loss' | 'investment'}
+                  />
+                </div>
               )}
             </div>
           </div>
