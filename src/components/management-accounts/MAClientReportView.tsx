@@ -243,39 +243,86 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
   const detectClientStage = (): 'pre_revenue' | 'early_stage' | 'established' => {
     // PRIORITY 1: Use Pass 1's explicit stage detection if available
     if (p1?.clientStage) {
+      console.log('[ClientStage] Using Pass 1 stage:', p1.clientStage);
       return p1.clientStage;
     }
     
     // PRIORITY 2: Check extracted financial data from gaps
-    if (financialData?.mrr === 0 || financialData?.arr === 0) return 'pre_revenue';
+    if (financialData?.mrr === 0 || financialData?.arr === 0) {
+      console.log('[ClientStage] Detected pre-revenue from financialData (mrr/arr = 0)');
+      return 'pre_revenue';
+    }
     
     // PRIORITY 3: Check pass1 extracted facts
     const revenue = p1?.extractedFacts?.financial?.annualRevenue;
-    if (revenue === 0) return 'pre_revenue';
+    if (revenue === 0) {
+      console.log('[ClientStage] Detected pre-revenue from annual revenue = 0');
+      return 'pre_revenue';
+    }
     
-    // PRIORITY 4: Check for pre-revenue indicators in the assessment text
-    const assessmentText = JSON.stringify(p1 || {}).toLowerCase();
-    if (assessmentText.includes('pre-revenue') || 
-        assessmentText.includes('pre revenue') ||
-        assessmentText.includes('zero mrr') ||
-        assessmentText.includes('£0 mrr') ||
-        assessmentText.includes('not yet trading') ||
-        assessmentText.includes('no revenue yet')) {
+    // PRIORITY 4: Search ALL report data for pre-revenue indicators (p1, p2, callContext)
+    const allReportText = JSON.stringify({
+      p1: p1 || {},
+      p2: p2 || {},
+      callContext: callContext || {}
+    }).toLowerCase();
+    
+    // Aggressive pre-revenue detection patterns
+    const preRevenuePatterns = [
+      'pre-revenue',
+      'pre revenue', 
+      'prerevenue',
+      'zero mrr',
+      '£0 mrr',
+      '$0 mrr',
+      '0 mrr',
+      'no mrr',
+      'zero arr',
+      '£0 arr',
+      '$0 arr',
+      '0 arr',
+      'no arr',
+      'not yet trading',
+      'no revenue yet',
+      'no customers yet',
+      'haven\'t started trading',
+      'before first customer',
+      'seed stage',
+      'pre-seed',
+      'runway', // Strong indicator - established businesses rarely talk about runway
+      'burn rate', // Strong indicator when combined with no revenue
+    ];
+    
+    // Check for strong pre-revenue indicators
+    const strongIndicators = preRevenuePatterns.filter(p => allReportText.includes(p));
+    
+    // If we find "runway" or "burn rate" AND no revenue mentions, it's pre-revenue
+    const hasRunwayBurnTalk = allReportText.includes('runway') || allReportText.includes('burn rate');
+    const hasRevenueIndicator = /\£[\d,]+\s*(mrr|arr|revenue)/i.test(allReportText) && 
+                                !/\£0\s*(mrr|arr)/i.test(allReportText);
+    
+    if (strongIndicators.length > 0 || (hasRunwayBurnTalk && !hasRevenueIndicator)) {
+      console.log('[ClientStage] Detected pre-revenue from text patterns:', strongIndicators.slice(0, 3));
       return 'pre_revenue';
     }
     
     // PRIORITY 5: Check for early-stage indicators
-    if (assessmentText.includes('just started') ||
-        assessmentText.includes('first year') ||
-        assessmentText.includes('startup')) {
+    if (allReportText.includes('just started') ||
+        allReportText.includes('first year') ||
+        allReportText.includes('startup') ||
+        allReportText.includes('early stage')) {
+      console.log('[ClientStage] Detected early-stage from text patterns');
       return 'early_stage';
     }
     
+    console.log('[ClientStage] Defaulting to established');
     return 'established';
   };
   
   const clientStage = detectClientStage();
   const isPreRevenue = clientStage === 'pre_revenue';
+  
+  console.log('[ClientStage] Final detection:', clientStage, 'isPreRevenue:', isPreRevenue);
 
   // Extract data for tier comparison from pass1 data
   const tierComparisonData = p1 ? {
