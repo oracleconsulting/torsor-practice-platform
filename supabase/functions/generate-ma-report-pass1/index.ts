@@ -19,12 +19,14 @@ const corsHeaders = {
 };
 
 interface MAPass1Output {
+  clientStage: 'pre_revenue' | 'early_stage' | 'established';
   clientProfile: {
     companyName: string;
     annualRevenue: string;
     headcount: number;
     industry: string;
     discoveryLinked: boolean;
+    stageIndicators?: string[];
   };
   clientQuotes: {
     tuesdayQuestion: string;
@@ -459,6 +461,33 @@ Extract ALL facts, numbers, names, and quotes from the assessment responses.
 Analyze the patterns to identify pain points and recommendations.
 Generate practical admin guidance for the follow-up call.
 
+## CLIENT STAGE DETECTION (CRITICAL)
+First, determine the client's business stage. This affects everything else:
+
+**PRE_REVENUE** - Identify if ANY of these apply:
+- Zero MRR/ARR, no customers yet
+- "Pre-revenue", "haven't started trading", "startup", "no revenue yet"
+- Only has runway/burn rate, no income
+- Building product but no sales
+- Seeking seed funding before revenue
+
+**EARLY_STAGE** - Less than 2 years of trading OR:
+- Under £250k annual revenue
+- Still finding product-market fit
+- Erratic/unpredictable revenue patterns
+- Small customer base (<10 customers)
+
+**ESTABLISHED** - Default if neither above:
+- Predictable revenue patterns
+- Multiple years of trading history
+- Stable customer base
+- Historical data to analyze
+
+The client stage MUST be set correctly as it determines:
+- Which gaps to ask about
+- What value proposition to show
+- How to frame recommendations
+
 ## ASSESSMENT RESPONSES
 ${JSON.stringify(assessmentResponses, null, 2)}
 
@@ -483,7 +512,21 @@ ${JSON.stringify(discoveryData, null, 2)}
 ## ANALYSIS RULES
 1. Primary pain = the thing that comes up most often with most evidence
 2. Confidence score comes from their self-assessment (question about decision confidence)
-3. Tier recommendation based on:
+3. Tier recommendation based on CLIENT STAGE + needs:
+
+   **For PRE-REVENUE clients:**
+   - Bronze: Basic burn rate tracking, simple runway monitoring
+   - Silver: Scenario modelling for hiring decisions, runway planning
+   - Gold (often best): Investor-ready financials, milestone tracking, comprehensive scenario planning
+   - Platinum: Multiple stakeholders, board reporting, complex cap table
+
+   **For EARLY-STAGE clients:**
+   - Bronze: Basic MRR tracking, simple cash position
+   - Silver: Growth trend analysis, unit economics starting
+   - Gold: Full scenario modelling, break-even planning, hiring decisions
+   - Platinum: Board-level reporting, multiple product lines
+
+   **For ESTABLISHED clients:**
    - Bronze (£750): Just wants basics, low engagement with numbers, stable business
    - Silver (£1,500): Wants trends and insights, medium engagement, some decisions coming
    - Gold (£3,000): Wants scenarios and forecasting, upcoming major decisions, cash concerns
@@ -495,18 +538,36 @@ ${JSON.stringify(discoveryData, null, 2)}
 3. Objection handling must reference their own data/stories from the assessment
 4. Quotes to use = short, punchy, emotional - not full paragraphs
 
-## MANDATORY GAPS TO FILL (Always include these if not already known):
-You MUST include these gaps - they are essential for building accurate forecasts:
+## MANDATORY GAPS TO FILL (Adjust based on client stage):
+
+### FOR ALL CLIENTS:
 - Current bank balance: "What's your current bank balance, roughly?"
 - Year-end date: "When does your financial year end?"
-- VAT quarters: "Are you VAT registered? When's your next VAT payment due?"
+- VAT status: "Are you VAT registered? When's your next VAT payment due?"
 - Imminent expenses: "Any large expenses or investments coming up in the next 3 months?"
+
+### FOR PRE-REVENUE CLIENTS (add these):
+- Monthly burn rate: "What's your monthly burn rate / operating cost?"
+- Runway calculation: "How many months of runway do you have?"
+- Funding timeline: "When are you planning to raise, and how much?"
+- Revenue projections: "Do you have revenue projections? What assumptions?"
+- First customer target: "When do you expect your first customer?"
+- Key milestones: "What milestones trigger next decisions (e.g., hiring, funding)?"
+
+### FOR EARLY-STAGE CLIENTS (add these):
+- Current MRR/ARR: "What's your current MRR and ARR?"
+- Customer count: "How many paying customers do you have?"
+- Monthly burn vs revenue: "What's the gap between income and costs?"
+- Break-even timeline: "When do you expect to break even?"
+- Hiring plans: If mentioned - "What roles, when, and at what salary?"
+
+### FOR ESTABLISHED CLIENTS (add these):
 - Expected receivables: "Any significant invoices you're expecting payment on soon?"
-- Current MRR/ARR: "What's your current MRR and ARR?" (if SaaS/subscription business)
-- Monthly burn rate: "What's your approximate monthly operating cost?"
-- Hiring plans: If they mention hiring - "What roles, when, and at what salary?"
-- Funding timeline: If they mention funding - "What amount and by when?"
-Add these to gapsToFill with appropriate suggested questions based on their specific context.
+- Seasonal patterns: "Does your business have seasonal cash patterns?"
+- Major contracts: "Any large contracts coming up for renewal?"
+- Growth plans: "What growth initiatives are you considering?"
+
+Add these to gapsToFill with appropriate suggested questions based on their specific context and stage.
 
 ## FINDINGS RULES
 1. Maximum 5 findings, prioritize by severity and impact
@@ -522,12 +583,14 @@ Add these to gapsToFill with appropriate suggested questions based on their spec
 Return ONLY valid JSON matching this exact structure (no markdown, no explanation):
 
 {
+  "clientStage": "pre_revenue|early_stage|established",
   "clientProfile": {
     "companyName": "string",
     "annualRevenue": "string estimate based on context",
     "headcount": number,
     "industry": "string",
-    "discoveryLinked": boolean
+    "discoveryLinked": boolean,
+    "stageIndicators": ["evidence for chosen stage"]
   },
   "clientQuotes": {
     "tuesdayQuestion": "their exact Tuesday question",

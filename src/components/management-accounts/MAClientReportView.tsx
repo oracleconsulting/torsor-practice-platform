@@ -239,16 +239,21 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
   
   const trueCashData = buildTrueCashData();
 
-  // Detect if client is pre-revenue (for adjusting ROI display)
-  const detectPreRevenue = () => {
-    // Check extracted financial data from gaps
-    if (financialData?.mrr === 0 || financialData?.arr === 0) return true;
+  // Detect client stage (for adjusting ROI display and recommendations)
+  const detectClientStage = (): 'pre_revenue' | 'early_stage' | 'established' => {
+    // PRIORITY 1: Use Pass 1's explicit stage detection if available
+    if (p1?.clientStage) {
+      return p1.clientStage;
+    }
     
-    // Check pass1 extracted facts
+    // PRIORITY 2: Check extracted financial data from gaps
+    if (financialData?.mrr === 0 || financialData?.arr === 0) return 'pre_revenue';
+    
+    // PRIORITY 3: Check pass1 extracted facts
     const revenue = p1?.extractedFacts?.financial?.annualRevenue;
-    if (revenue === 0) return true;
+    if (revenue === 0) return 'pre_revenue';
     
-    // Check for pre-revenue indicators in the assessment
+    // PRIORITY 4: Check for pre-revenue indicators in the assessment text
     const assessmentText = JSON.stringify(p1 || {}).toLowerCase();
     if (assessmentText.includes('pre-revenue') || 
         assessmentText.includes('pre revenue') ||
@@ -256,13 +261,21 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
         assessmentText.includes('£0 mrr') ||
         assessmentText.includes('not yet trading') ||
         assessmentText.includes('no revenue yet')) {
-      return true;
+      return 'pre_revenue';
     }
     
-    return false;
+    // PRIORITY 5: Check for early-stage indicators
+    if (assessmentText.includes('just started') ||
+        assessmentText.includes('first year') ||
+        assessmentText.includes('startup')) {
+      return 'early_stage';
+    }
+    
+    return 'established';
   };
   
-  const isPreRevenue = detectPreRevenue();
+  const clientStage = detectClientStage();
+  const isPreRevenue = clientStage === 'pre_revenue';
 
   // Extract data for tier comparison from pass1 data
   const tierComparisonData = p1 ? {
