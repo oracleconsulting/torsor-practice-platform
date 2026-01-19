@@ -1372,8 +1372,66 @@ serve(async (req) => {
       client_concentration: assessmentData.client_concentration_top3
     });
     
-    // Get benchmarks for this industry/size
+    // Calculate employee band for benchmark lookup
     const employeeBand = calculateEmployeeBand(assessmentData._enriched_employee_count || assessmentData.employee_count || 0);
+    
+    // ═══════════════════════════════════════════════════════════════
+    // LIVE BENCHMARK REFRESH: Always check for fresh data on benchmarking service
+    // ═══════════════════════════════════════════════════════════════
+    
+    // Get industry name for live search
+    let industryNameForSearch = industry?.name || assessmentData.industry_code;
+    
+    // Check if benchmarks need refreshing (always refresh for benchmarking service line)
+    console.log('[BM Pass 1] Checking benchmark data freshness for:', assessmentData.industry_code);
+    
+    try {
+      // Call fetch-industry-benchmarks to refresh if needed
+      const supabaseUrl = Deno.env.get('SUPABASE_URL');
+      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      
+      if (supabaseUrl && serviceRoleKey) {
+        const refreshResponse = await fetch(`${supabaseUrl}/functions/v1/fetch-industry-benchmarks`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${serviceRoleKey}`
+          },
+          body: JSON.stringify({
+            industryCode: assessmentData.industry_code,
+            industryName: industryNameForSearch,
+            revenueBand: assessmentData.revenue_band,
+            employeeBand: employeeBand,
+            forceRefresh: false, // Let the function check cache freshness (30 days)
+            triggeredBy: 'benchmarking_service',
+            engagementId: engagementId
+          })
+        });
+        
+        if (refreshResponse.ok) {
+          const refreshResult = await refreshResponse.json();
+          console.log('[BM Pass 1] Benchmark refresh result:', {
+            source: refreshResult.source,
+            metricsCount: refreshResult.metricCount,
+            updated: refreshResult.metricsUpdated,
+            created: refreshResult.metricsCreated,
+            confidence: refreshResult.confidenceScore
+          });
+          
+          if (refreshResult.source === 'live_search') {
+            console.log('[BM Pass 1] Fresh benchmark data fetched from live search');
+            console.log('[BM Pass 1] Sources:', refreshResult.sources?.slice(0, 3));
+          }
+        } else {
+          console.warn('[BM Pass 1] Benchmark refresh failed, using existing data:', refreshResponse.status);
+        }
+      }
+    } catch (refreshError) {
+      // Non-fatal: continue with existing benchmark data
+      console.warn('[BM Pass 1] Benchmark refresh error (continuing with existing data):', refreshError);
+    }
+    
+    // Get benchmarks for this industry/size (now potentially refreshed)
     const { data: benchmarks } = await supabaseClient
       .from('benchmark_data')
       .select(`
@@ -1384,6 +1442,15 @@ serve(async (req) => {
       .or(`revenue_band.eq.${assessmentData.revenue_band},revenue_band.eq.all`)
       .or(`employee_band.eq.${employeeBand},employee_band.eq.all`)
       .eq('is_current', true);
+    
+    // Log benchmark data sources for transparency
+    if (benchmarks && benchmarks.length > 0) {
+      const liveSearchCount = benchmarks.filter((b: any) => b.fetched_via === 'live_search').length;
+      const manualCount = benchmarks.filter((b: any) => b.fetched_via === 'manual' || !b.fetched_via).length;
+      console.log(`[BM Pass 1] Using ${benchmarks.length} benchmarks (${liveSearchCount} from live search, ${manualCount} from static data)`);
+    } else {
+      console.warn('[BM Pass 1] No benchmark data found for industry:', assessmentData.industry_code);
+    }
     
     // ═══════════════════════════════════════════════════════════════
     // HVA INTEGRATION: Extract metrics, calculate risk, extract quotes
@@ -1581,7 +1648,12 @@ When writing narratives:
       llm_cost: cost,
       generation_time_ms: generationTime,
       benchmark_data_as_of: new Date().toISOString().split('T')[0],
-      data_sources: benchmarks?.map((b: any) => b.data_source).filter(Boolean) || []
+      data_sources: [
+        // Include unique data sources from benchmarks
+        ...new Set((benchmarks || []).map((b: any) => b.data_source).filter(Boolean)),
+        // Include source URLs from live search benchmarks
+        ...new Set((benchmarks || []).flatMap((b: any) => b.sources || []).filter(Boolean))
+      ].slice(0, 20) // Limit to 20 sources
     };
     
     // Add founder risk data if available

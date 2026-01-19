@@ -408,15 +408,45 @@ ${additionalContext.clientObjections ? `## OBJECTIONS TO ADDRESS:\n${additionalC
       }
     });
     
-    if (requirements.length > 0) {
-      specificNumbersForOutput = `
-## ⛔ REGENERATION OUTPUT REQUIREMENTS ⛔
-You MUST incorporate these specific details from the call:
-${requirements.join('\n')}
+    // Extract key numbers from the answers to create a mandatory checklist
+    const extractedNumbers: string[] = [];
+    gapEntries.forEach(([topic, data]: [string, any]) => {
+      const answer = data.answer || '';
+      // Look for money amounts like £22k, £40k, £200k
+      const moneyMatches = answer.match(/£[\d,]+k?/gi) || [];
+      moneyMatches.forEach((m: string) => extractedNumbers.push(m));
+      // Look for percentages
+      const pctMatches = answer.match(/\d+%/g) || [];
+      pctMatches.forEach((m: string) => extractedNumbers.push(m));
+      // Look for months/runway
+      const monthMatches = answer.match(/\d+\s*months?/gi) || [];
+      monthMatches.forEach((m: string) => extractedNumbers.push(m));
+    });
+    
+    // Dedupe and create the checklist
+    const uniqueNumbers = [...new Set(extractedNumbers)].slice(0, 10);
+    
+    specificNumbersForOutput = `
+## ⛔⛔⛔ MANDATORY OUTPUT VERIFICATION ⛔⛔⛔
 
-DO NOT use generic phrases like "Role X at £Xk" or "your current revenue" - use the ACTUAL numbers above!
+Your output will be REJECTED if it contains generic placeholders.
+
+### NUMBERS THAT MUST APPEAR IN YOUR OUTPUT:
+${uniqueNumbers.map(n => `✓ "${n}" - MUST appear somewhere in your JSON output`).join('\n')}
+
+### PHRASES THAT WILL CAUSE REJECTION:
+✗ "Role X" or "£Xk salary" - REJECTED (use actual: Customer Success Executive £40k)
+✗ "your current revenue" - REJECTED (use actual: £0 MRR, £40k YTD consulting)  
+✗ "your burn rate" - REJECTED (use actual: £22k/month burn)
+✗ Any "X" placeholder - REJECTED
+
+### BEFORE OUTPUTTING, VERIFY:
+1. Does your headline contain at least ONE specific number from the call? (e.g., £22k, 9 months, £200k)
+2. Do your clientFindings headlines contain actual £ amounts, not "£X"?
+3. Do your quickWins reference the specific roles and salaries mentioned?
+
+IF YOU CANNOT FIND SPECIFIC NUMBERS IN YOUR OUTPUT, GO BACK AND REWRITE IT.
 `;
-    }
   }
 
   return `You are writing the client-facing analysis for a Management Accounts assessment.
