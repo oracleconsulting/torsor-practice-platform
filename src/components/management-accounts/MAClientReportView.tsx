@@ -239,6 +239,31 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
   
   const trueCashData = buildTrueCashData();
 
+  // Detect if client is pre-revenue (for adjusting ROI display)
+  const detectPreRevenue = () => {
+    // Check extracted financial data from gaps
+    if (financialData?.mrr === 0 || financialData?.arr === 0) return true;
+    
+    // Check pass1 extracted facts
+    const revenue = p1?.extractedFacts?.financial?.annualRevenue;
+    if (revenue === 0) return true;
+    
+    // Check for pre-revenue indicators in the assessment
+    const assessmentText = JSON.stringify(p1 || {}).toLowerCase();
+    if (assessmentText.includes('pre-revenue') || 
+        assessmentText.includes('pre revenue') ||
+        assessmentText.includes('zero mrr') ||
+        assessmentText.includes('£0 mrr') ||
+        assessmentText.includes('not yet trading') ||
+        assessmentText.includes('no revenue yet')) {
+      return true;
+    }
+    
+    return false;
+  };
+  
+  const isPreRevenue = detectPreRevenue();
+
   // Extract data for tier comparison from pass1 data
   const tierComparisonData = p1 ? {
     clientData: {
@@ -252,7 +277,8 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
       scenarioInterests: p1.adminGuidance?.scenariosToBuild?.map((s: any) => s.type) || [],
       desiredFrequency: (p1.adminGuidance?.quickProfile?.desiredFrequency?.toLowerCase()?.includes('quarter') 
         ? 'quarterly' : 'monthly') as 'monthly' | 'quarterly',
-      recommendedTier: (p1.tierRecommendation?.tier || 'gold') as 'bronze' | 'silver' | 'gold' | 'platinum'
+      recommendedTier: (p1.tierRecommendation?.tier || 'gold') as 'bronze' | 'silver' | 'gold' | 'platinum',
+      isPreRevenue, // Pass pre-revenue flag
     },
     financialContext: {
       // Try to extract from assessment data, default to reasonable estimates
@@ -265,9 +291,21 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
       unprofitableClientSuspected: p1.findings?.some((f: any) => 
         f.title?.toLowerCase().includes('client') || f.title?.toLowerCase().includes('profitability')
       ) || false,
-      estimatedMarginLeakage: p1.extractedFacts?.painMetrics?.estimatedMarginLeakage || 25000
+      estimatedMarginLeakage: p1.extractedFacts?.painMetrics?.estimatedMarginLeakage || 25000,
+      // Pre-revenue specific context
+      hasProjections: !!p1.extractedFacts?.projections,
+      seekingFunding: assessmentMentionsFunding(p1),
+      burnRate: financialData?.monthlyBurn,
+      runway: financialData?.runwayMonths,
+      bankBalance: financialData?.bankBalance,
     }
   } : null;
+  
+  // Helper to detect if funding is mentioned
+  function assessmentMentionsFunding(pass1Data: any): boolean {
+    const text = JSON.stringify(pass1Data || {}).toLowerCase();
+    return text.includes('funding') || text.includes('seed') || text.includes('investor') || text.includes('raise');
+  }
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
