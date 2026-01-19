@@ -164,20 +164,26 @@ serve(async (req) => {
     // STEP 5: Log the data collection for audit
     // =========================================================================
     
-    await supabase.from('benchmark_search_log').insert({
-      industry_code: existingAssessment?.industry_code || 'unknown',
-      industry_name: 'Supplementary Data Collection',
-      search_provider: 'manual',
-      model_used: 'admin-collection',
-      search_query: `Collected: ${Object.keys(data).join(', ')}`,
-      status: 'success',
-      metrics_found: Object.keys(data).length,
-      triggered_by: 'manual',
-      engagement_id: engagementId,
-      completed_at: new Date().toISOString()
-    }).catch(err => {
+    // Log collection (non-fatal if it fails)
+    try {
+      const { error: logError } = await supabase.from('benchmark_search_log').insert({
+        industry_code: existingAssessment?.industry_code || 'unknown',
+        industry_name: 'Supplementary Data Collection',
+        search_provider: 'manual',
+        model_used: 'admin-collection',
+        search_query: `Collected: ${Object.keys(data).join(', ')}`,
+        status: 'success',
+        metrics_found: Object.keys(data).length,
+        triggered_by: 'manual',
+        engagement_id: engagementId,
+        completed_at: new Date().toISOString()
+      });
+      if (logError) {
+        console.warn('[BM Supplementary] Failed to log collection (non-fatal):', logError);
+      }
+    } catch (err) {
       console.warn('[BM Supplementary] Failed to log collection (non-fatal):', err);
-    });
+    }
 
     // =========================================================================
     // STEP 6: Return success with summary
