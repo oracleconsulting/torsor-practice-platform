@@ -7222,7 +7222,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           try {
                             console.log('[MA Regenerate] Starting regeneration with context:', context);
                             
-                            // Call Pass 2 again with additional context
+                            // Call Pass 2 again with additional context (Client View)
                             const { data, error } = await supabase.functions.invoke('generate-ma-report-pass2', {
                               body: { 
                                 reportId: maAssessmentReport.id,
@@ -7233,11 +7233,26 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             
                             if (error) throw error;
                             
-                            console.log('[MA Regenerate] Regeneration complete:', data);
+                            console.log('[MA Regenerate] Client view regeneration complete:', data);
+                            
+                            // Also regenerate Admin View (scenarios, findings) with the call context
+                            console.log('[MA Regenerate] Now regenerating admin view...');
+                            const { data: adminData, error: adminError } = await supabase.functions.invoke('regenerate-ma-admin-view', {
+                              body: { 
+                                reportId: maAssessmentReport.id,
+                                clientId: clientId
+                              }
+                            });
+                            
+                            if (adminError) {
+                              console.warn('[MA Regenerate] Admin view regeneration failed (non-fatal):', adminError);
+                            } else {
+                              console.log('[MA Regenerate] Admin view regeneration complete:', adminData);
+                            }
                             
                             // Refresh the report
                             await fetchClientDetail();
-                            alert('Client view regenerated successfully!');
+                            alert('Report regenerated successfully with call context!');
                           } catch (err: any) {
                             console.error('[MA Regenerate] Error:', err);
                             alert('Failed to regenerate: ' + (err.message || 'Unknown error'));
