@@ -178,13 +178,16 @@ interface DataCollectionPanelProps {
 
 export function DataCollectionPanel({
   missingData,
-  engagementId,
+  engagementId: _engagementId,
   existingValues = {},
-  industryCode,
+  industryCode: _industryCode,
   onSave,
   onRegenerate,
   isLoading = false
 }: DataCollectionPanelProps) {
+  // Note: engagementId and industryCode are available for future use (e.g., loading existing values)
+  void _engagementId;
+  void _industryCode;
   const [collectedData, setCollectedData] = useState<Record<string, string>>(
     Object.fromEntries(
       Object.entries(existingValues).map(([k, v]) => [k, String(v)])

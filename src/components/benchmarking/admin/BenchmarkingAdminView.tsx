@@ -5,7 +5,7 @@ import { RiskFlagsPanel } from './RiskFlagsPanel';
 import { NextStepsPanel } from './NextStepsPanel';
 import { ClientDataReference } from './ClientDataReference';
 import { DataCollectionPanel } from './DataCollectionPanel';
-import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, RefreshCw } from 'lucide-react';
+import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList } from 'lucide-react';
 
 interface BenchmarkAnalysis {
   headline: string;
