@@ -7761,7 +7761,8 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           report={{
                             pass1_data: maAssessmentReport.pass1_data,
                             pass2_data: maAssessmentReport.pass2_data,
-                            client_view: maAssessmentReport.client_view
+                            client_view: maAssessmentReport.client_view,
+                            call_context: maAssessmentReport.call_context // Pass call context for real financial data
                           }}
                           engagement={client}
                           onTierSelect={(tier) => {

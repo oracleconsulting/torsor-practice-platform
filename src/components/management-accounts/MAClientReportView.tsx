@@ -41,36 +41,76 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
     const gaps = callContext.gapsWithLabels || {};
     const data: any = {};
     
-    // Look for bank balance
-    Object.entries(gaps).forEach(([topic, value]: [string, any]) => {
-      const answer = value?.answer || '';
-      const topicLower = topic.toLowerCase();
-      
-      // Extract bank balance
-      if (topicLower.includes('bank') || topicLower.includes('cash position')) {
-        const match = answer.match(/£?([\d,]+)k?/i);
-        if (match) {
-          data.bankBalance = parseInt(match[1].replace(/,/g, '')) * (answer.toLowerCase().includes('k') ? 1000 : 1);
-        }
-      }
-      
-      // Extract burn rate
-      if (topicLower.includes('burn') || topicLower.includes('operating cost')) {
-        const match = answer.match(/£?([\d,]+)k?/i);
-        if (match) {
-          data.monthlyBurn = parseInt(match[1].replace(/,/g, '')) * (answer.toLowerCase().includes('k') ? 1000 : 1);
-        }
-      }
-      
-      // Extract runway
-      if (topicLower.includes('runway') || answer.toLowerCase().includes('month')) {
-        const match = answer.match(/(\d+)\s*month/i);
-        if (match) {
-          data.runwayMonths = parseInt(match[1]);
-        }
-      }
-    });
+    // Search ALL gap answers for financial patterns (data may be in unexpected gaps)
+    const allAnswers = Object.entries(gaps).map(([topic, value]: [string, any]) => ({
+      topic: topic.toLowerCase(),
+      answer: (value?.answer || '').toLowerCase()
+    }));
     
+    // Combine all answers for pattern searching
+    const combinedText = allAnswers.map(g => `${g.topic}: ${g.answer}`).join(' | ');
+    
+    console.log('[MAClientView] Searching for financial data in:', combinedText.substring(0, 500));
+    
+    // Look for bank balance patterns like "£205k in the bank", "bank balance £205k", "$205,000 bank"
+    const bankPatterns = [
+      /£([\d,]+)k?\s*(?:in the bank|bank balance|in bank|cash in bank)/i,
+      /bank\s*(?:balance|account)?\s*(?:of|:)?\s*£?([\d,]+)k?/i,
+      /(?:have|got)\s*£([\d,]+)k?\s*(?:in|cash)/i,
+    ];
+    
+    for (const pattern of bankPatterns) {
+      const match = combinedText.match(pattern);
+      if (match) {
+        const num = parseInt(match[1].replace(/,/g, ''));
+        data.bankBalance = combinedText.includes('k') && num < 1000 ? num * 1000 : num;
+        console.log('[MAClientView] Found bank balance:', data.bankBalance);
+        break;
+      }
+    }
+    
+    // Look for burn rate patterns
+    const burnPatterns = [
+      /burn\s*(?:rate)?\s*(?:of|is|at|:)?\s*(?:about|approximately|roughly)?\s*£?([\d,]+)k?\s*(?:per|\/|a)?\s*month/i,
+      /£([\d,]+)k?\s*(?:per|\/|a)?\s*month\s*(?:burn|operating|costs?)/i,
+      /monthly\s*(?:burn|operating|costs?)\s*(?:of|is|:)?\s*£?([\d,]+)k?/i,
+    ];
+    
+    for (const pattern of burnPatterns) {
+      const match = combinedText.match(pattern);
+      if (match) {
+        const num = parseInt(match[1].replace(/,/g, ''));
+        data.monthlyBurn = combinedText.includes('k') && num < 100 ? num * 1000 : num;
+        console.log('[MAClientView] Found burn rate:', data.monthlyBurn);
+        break;
+      }
+    }
+    
+    // Look for runway patterns
+    const runwayMatch = combinedText.match(/(\d+)\s*months?\s*(?:of)?\s*runway/i) ||
+                        combinedText.match(/runway\s*(?:of|:)?\s*(\d+)\s*months?/i) ||
+                        combinedText.match(/cash\s*runway\s*(?:of|:)?\s*(\d+)\s*months?/i);
+    if (runwayMatch) {
+      data.runwayMonths = parseInt(runwayMatch[1]);
+      console.log('[MAClientView] Found runway:', data.runwayMonths);
+    }
+    
+    // Look for MRR/ARR patterns
+    const mrrMatch = combinedText.match(/mrr\s*(?:of|is|at|:)?\s*£?([\d,]+)k?/i) ||
+                     combinedText.match(/£([\d,]+)k?\s*mrr/i);
+    if (mrrMatch) {
+      const num = parseInt(mrrMatch[1].replace(/,/g, ''));
+      data.mrr = combinedText.includes('k') && num < 1000 ? num * 1000 : num;
+    }
+    
+    // Check for zero MRR indicators
+    if (combinedText.includes('zero') && (combinedText.includes('mrr') || combinedText.includes('arr'))) {
+      data.mrr = 0;
+      data.arr = 0;
+      console.log('[MAClientView] Found zero MRR/ARR');
+    }
+    
+    console.log('[MAClientView] Extracted financial data:', data);
     return Object.keys(data).length > 0 ? data : null;
   };
 
