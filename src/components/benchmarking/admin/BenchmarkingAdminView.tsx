@@ -46,6 +46,7 @@ interface BenchmarkingAdminViewProps {
     confidence: number;
   };
   engagementId?: string;
+  supplementaryData?: Record<string, number | string>;
   onSwitchToClient?: () => void;
   onRegenerate?: () => Promise<void>;
   onSaveSupplementaryData?: (data: Record<string, number | string>) => Promise<void>;
@@ -82,6 +83,7 @@ export function BenchmarkingAdminView({
   founderRisk, 
   industryMapping, 
   engagementId,
+  supplementaryData = {},
   onSwitchToClient,
   onRegenerate,
   onSaveSupplementaryData,
@@ -215,6 +217,8 @@ export function BenchmarkingAdminView({
                     openingStatement={openingStatement}
                     talkingPoints={talkingPoints}
                     questionsToAsk={questionsToAsk}
+                    nextSteps={nextSteps}
+                    tasks={tasks}
                   />
                 )}
                 
@@ -230,6 +234,7 @@ export function BenchmarkingAdminView({
                   <DataCollectionPanel
                     missingData={pass1Data?.dataGaps?.map((g: any) => g.metric) || []}
                     engagementId={engagementId || ''}
+                    existingValues={supplementaryData}
                     industryCode={industryMapping?.code || data.industry_code}
                     onSave={onSaveSupplementaryData}
                     onRegenerate={onRegenerate}

@@ -9604,6 +9604,21 @@ function BenchmarkingClientModal({
                           const subSector = responses.bm_sub_sector || responses.sub_sector;
                           const industryMapping = resolveIndustryCode(sicCode, subSector);
                           
+                          // Extract supplementary data from responses (saved via Data Collection panel)
+                          const supplementaryData: Record<string, number | string> = {};
+                          const suppKeys = [
+                            'Utilisation Rate', 'Hourly Rates', 'Project Margins', 
+                            'Client Concentration', 'EBITDA Margin', 'Debtor Days',
+                            'Gross Margin', 'Net Margin', 'Revenue Growth'
+                          ];
+                          for (const key of suppKeys) {
+                            // Check both the direct key and the bm_supp_ prefixed version
+                            const value = responses[key] || responses[`bm_supp_${key}`];
+                            if (value !== undefined && value !== null && value !== '') {
+                              supplementaryData[key] = typeof value === 'number' ? value : parseFloat(value) || value;
+                            }
+                          }
+                          
                           return (
                             <BenchmarkingAdminView
                               data={report}
@@ -9616,6 +9631,7 @@ function BenchmarkingClientModal({
                               founderRisk={founderRisk}
                               industryMapping={industryMapping}
                               engagementId={engagement?.id}
+                              supplementaryData={supplementaryData}
                               onSwitchToClient={() => setViewMode('client')}
                               onSaveSupplementaryData={handleSaveSupplementaryData}
                               onRegenerate={handleRegenerateWithNewData}
