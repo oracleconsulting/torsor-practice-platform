@@ -79,11 +79,12 @@ const RECOMMENDATION_STYLES = {
 
 export function ScenarioBuilder({
   engagementId,
-  tier,
+  tier: _tier,
   baseData,
   onSave,
   existingScenario
 }: ScenarioBuilderProps) {
+  // _tier reserved for future scenario limit enforcement
   const [scenarioType, setScenarioType] = useState<ScenarioType>(existingScenario?.scenario_type || 'hire');
   const [name, setName] = useState(existingScenario?.name || '');
   const [running, setRunning] = useState(false);
