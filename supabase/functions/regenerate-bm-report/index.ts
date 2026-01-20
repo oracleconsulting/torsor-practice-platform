@@ -202,53 +202,24 @@ serve(async (req) => {
     }
 
     const pass1Result = await pass1Response.json();
-    console.log('[BM Regenerate] Pass 1 complete:', pass1Result);
+    console.log('[BM Regenerate] Pass 1 triggered successfully:', pass1Result);
 
     // =========================================================================
-    // STEP 7: Poll for Pass 2 completion (triggered automatically by Pass 1)
+    // STEP 7: Return immediately - let frontend poll for completion
     // =========================================================================
+    // IMPORTANT: Don't wait here! The HTTP connection will timeout.
+    // Pass 1 triggers Pass 2 automatically, and the frontend polls for status.
     
-    console.log('[BM Regenerate] Polling for Pass 2 completion...');
+    console.log('[BM Regenerate] Returning immediately - frontend will poll for completion');
     
-    let newReport: any = null;
-    const maxPolls = 30; // 30 polls * 3 seconds = 90 seconds max wait
-    const pollInterval = 3000; // 3 seconds between polls
+    // Get the current report state (might be pass1_complete or still processing)
+    const { data: currentState } = await supabase
+      .from('bm_reports')
+      .select('id, status')
+      .eq('engagement_id', options.engagementId)
+      .single();
     
-    for (let poll = 0; poll < maxPolls; poll++) {
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
-      
-      const { data: reportCheck } = await supabase
-        .from('bm_reports')
-        .select('*')
-        .eq('engagement_id', options.engagementId)
-        .single();
-      
-      if (reportCheck) {
-        console.log(`[BM Regenerate] Poll ${poll + 1}: status = ${reportCheck.status}`);
-        
-        if (reportCheck.status === 'generated' || reportCheck.status === 'approved' || reportCheck.status === 'published') {
-          newReport = reportCheck;
-          console.log('[BM Regenerate] Pass 2 complete!');
-          break;
-        }
-      }
-      
-      // If still waiting after 60 seconds, log a warning but continue
-      if (poll === 20) {
-        console.warn('[BM Regenerate] Still waiting for Pass 2 after 60 seconds...');
-      }
-    }
-    
-    // If polling timed out, fetch whatever we have
-    if (!newReport) {
-      console.warn('[BM Regenerate] Polling timed out, fetching current state');
-      const { data: finalReport } = await supabase
-        .from('bm_reports')
-        .select('*')
-        .eq('engagement_id', options.engagementId)
-        .single();
-      newReport = finalReport;
-    }
+    const newReport = currentState;
 
     // =========================================================================
     // STEP 8: Log the regeneration for audit
