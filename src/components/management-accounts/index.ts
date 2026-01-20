@@ -10,7 +10,10 @@ export { KPIDashboard } from './KPIDashboard';
 export { KPIDetailView } from './KPIDetailView';
 export { KPIPreview } from './KPIPreview';
 
-// Preview Components
+// True Cash Component
+export { TrueCashCard } from './TrueCashCard';
+
+// Preview Components (for proposals/reports)
 export { TrueCashPreview } from './previews/TrueCashPreview';
 export { ForecastPreview } from './previews/ForecastPreview';
 export { ScenarioPreview } from './previews/ScenarioPreview';
