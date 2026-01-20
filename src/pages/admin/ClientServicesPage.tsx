@@ -9632,18 +9632,14 @@ function BenchmarkingClientModal({
                           const subSector = responses.bm_sub_sector || responses.sub_sector;
                           const industryMapping = resolveIndustryCode(sicCode, subSector);
                           
-                          // Extract supplementary data from responses (saved via Data Collection panel)
+                          // Extract ALL supplementary data from responses (saved via Data Collection panel)
+                          // Dynamically extracts any key with bm_supp_ prefix
                           const supplementaryData: Record<string, number | string> = {};
-                          const suppKeys = [
-                            'Utilisation Rate', 'Hourly Rates', 'Project Margins', 
-                            'Client Concentration', 'EBITDA Margin', 'Debtor Days',
-                            'Gross Margin', 'Net Margin', 'Revenue Growth'
-                          ];
-                          for (const key of suppKeys) {
-                            // Check both the direct key and the bm_supp_ prefixed version
-                            const value = responses[key] || responses[`bm_supp_${key}`];
-                            if (value !== undefined && value !== null && value !== '') {
-                              supplementaryData[key] = typeof value === 'number' ? value : parseFloat(value) || value;
+                          for (const [key, value] of Object.entries(responses)) {
+                            if (key.startsWith('bm_supp_') && value !== undefined && value !== null && value !== '') {
+                              // Remove the bm_supp_ prefix to get the original metric name
+                              const metricName = key.replace('bm_supp_', '');
+                              supplementaryData[metricName] = typeof value === 'number' ? value : (parseFloat(value) || value);
                             }
                           }
                           

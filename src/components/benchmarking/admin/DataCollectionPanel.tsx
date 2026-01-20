@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   MessageSquare, 
   Save, 
@@ -224,6 +224,20 @@ export function DataCollectionPanel({
       Object.entries(existingValues).map(([k, v]) => [k, String(v)])
     )
   );
+  
+  // Sync state when existingValues changes (e.g., after save or data reload)
+  useEffect(() => {
+    const newValues = Object.fromEntries(
+      Object.entries(existingValues).map(([k, v]) => [k, String(v)])
+    );
+    // Only update if there are actual values to set
+    if (Object.keys(newValues).length > 0) {
+      setCollectedData(prev => ({
+        ...prev,
+        ...newValues
+      }));
+    }
+  }, [existingValues]);
   const [expandedMetric, setExpandedMetric] = useState<string | null>(
     missingData.length > 0 ? missingData[0] : null
   );
@@ -364,6 +378,27 @@ export function DataCollectionPanel({
         }`}>
           {saveMessage.type === 'success' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
           {saveMessage.text}
+        </div>
+      )}
+
+      {/* Previously Collected Data - Show any saved values for editing */}
+      {Object.keys(existingValues).length > 0 && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Check className="w-4 h-4 text-emerald-600" />
+            <span className="text-sm font-semibold text-emerald-800">Previously Collected Data</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {Object.entries(existingValues).map(([key, value]) => (
+              <div key={key} className="bg-white rounded px-3 py-2 text-sm">
+                <span className="text-slate-500">{key}:</span>{' '}
+                <span className="font-medium text-slate-900">{String(value)}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-emerald-600 mt-2">
+            These values have been saved. You can update them below.
+          </p>
         </div>
       )}
 
