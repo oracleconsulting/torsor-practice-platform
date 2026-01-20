@@ -56,6 +56,10 @@ import { MAAdminReportView, MAClientReportView } from '../../components/manageme
 // Test Client Panel for testing workflows
 import { TestClientPanel } from '../../components/admin/TestClientPanel';
 
+// Accounts Upload for Benchmarking
+import { AccountsUploadPanel } from '../../components/benchmarking/admin/AccountsUploadPanel';
+import { FinancialDataReviewModal } from '../../components/benchmarking/admin/FinancialDataReviewModal';
+
 
 interface ClientServicesPageProps {
   currentPage: Page;
@@ -8828,6 +8832,11 @@ function BenchmarkingClientModal({
   const [generating, setGenerating] = useState(false);
   const [clientName, setClientName] = useState<string>('');
   const [viewMode, setViewMode] = useState<'admin' | 'client'>('admin');
+  
+  // Accounts upload state
+  const [accountUploads, setAccountUploads] = useState<any[]>([]);
+  const [financialData, setFinancialData] = useState<any[]>([]);
+  const [reviewingFinancialData, setReviewingFinancialData] = useState<any>(null);
 
   useEffect(() => {
     if (currentMember?.practice_id) {
@@ -9140,10 +9149,38 @@ function BenchmarkingClientModal({
         
         setHvaStatus(hvaData);
       }
+      
+      // Load uploaded accounts data
+      await loadAccountsData();
     } catch (error) {
       console.error('[Benchmarking Modal] Error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+  
+  // Load uploaded accounts and financial data
+  const loadAccountsData = async () => {
+    try {
+      // Load uploads
+      const { data: uploads } = await supabase
+        .from('client_accounts_uploads')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false });
+      
+      if (uploads) setAccountUploads(uploads);
+      
+      // Load financial data
+      const { data: financial } = await supabase
+        .from('client_financial_data')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('fiscal_year', { ascending: false });
+      
+      if (financial) setFinancialData(financial);
+    } catch (err) {
+      console.log('[Benchmarking Modal] Could not load accounts data (table may not exist yet)');
     }
   };
 
@@ -9494,18 +9531,58 @@ function BenchmarkingClientModal({
               {/* CONTEXT / DOCUMENTS TAB */}
               {activeTab === 'context' && (
                 <div className="space-y-6">
+                  {/* Accounts Upload Section */}
                   <div className="border border-gray-200 rounded-xl overflow-hidden">
-                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                      <h3 className="font-semibold text-gray-900">Context Notes & Documents</h3>
-                      <p className="text-sm text-gray-600 mt-1">Additional context and documents for this engagement</p>
+                    <div className="bg-emerald-50 px-6 py-4 border-b border-gray-200">
+                      <h3 className="font-semibold text-gray-900">Client Accounts</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Upload 2-3 years of accounts for more accurate benchmarking analysis
+                      </p>
                     </div>
                     <div className="p-6">
-                      <div className="text-center py-8 text-gray-500">
-                        Context notes and document upload coming soon
+                      {currentMember?.practice_id ? (
+                        <AccountsUploadPanel
+                          clientId={clientId}
+                          practiceId={currentMember.practice_id}
+                          existingUploads={accountUploads}
+                          existingFinancialData={financialData}
+                          onUploadComplete={loadAccountsData}
+                          onReviewData={(data) => setReviewingFinancialData(data)}
+                        />
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          Loading...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Context Notes Section (placeholder for future) */}
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                      <h3 className="font-semibold text-gray-900">Context Notes</h3>
+                      <p className="text-sm text-gray-600 mt-1">Additional notes about this client</p>
+                    </div>
+                    <div className="p-6">
+                      <div className="text-center py-8 text-gray-400">
+                        Context notes coming soon
                       </div>
                     </div>
                   </div>
                 </div>
+              )}
+              
+              {/* Financial Data Review Modal */}
+              {reviewingFinancialData && (
+                <FinancialDataReviewModal
+                  data={reviewingFinancialData}
+                  previousYearData={financialData.find(f => f.fiscal_year === reviewingFinancialData.fiscal_year - 1)}
+                  onClose={() => setReviewingFinancialData(null)}
+                  onConfirm={() => {
+                    setReviewingFinancialData(null);
+                    loadAccountsData();
+                  }}
+                />
               )}
 
               {/* ANALYSIS TAB */}
