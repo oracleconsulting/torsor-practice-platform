@@ -1,23 +1,13 @@
 // ============================================================================
-// Management Accounts Types
+// MANAGEMENT ACCOUNTS TYPE DEFINITIONS
 // ============================================================================
 
-// ---- ENUMS ----
+// Tier types
+export type TierType = 'bronze' | 'silver' | 'gold' | 'platinum';
+export type FrequencyType = 'monthly' | 'quarterly';
+export type RAGStatus = 'green' | 'amber' | 'red' | 'grey';
 
-export type MATier = 'bronze' | 'silver' | 'gold' | 'platinum';
-export type MAFrequency = 'monthly' | 'quarterly';
-
-export type MAEngagementStatus = 'pending' | 'active' | 'paused' | 'cancelled';
-
-export type MAPeriodStatus = 
-  | 'pending'
-  | 'data_received'
-  | 'in_progress'
-  | 'review'
-  | 'approved'
-  | 'delivered'
-  | 'client_reviewed';
-
+// Document types
 export type MADocumentType = 
   | 'pnl'
   | 'balance_sheet'
@@ -32,6 +22,7 @@ export type MADocumentType =
   | 'board_pack'
   | 'client_report';
 
+// Insight types
 export type MAInsightType = 
   | 'observation'
   | 'warning'
@@ -39,114 +30,178 @@ export type MAInsightType =
   | 'recommendation'
   | 'action_required';
 
-export type MAInsightCategory = 
-  | 'cash'
-  | 'profitability'
-  | 'clients'
-  | 'operations'
-  | 'growth'
-  | 'efficiency'
-  | 'risk'
-  | 'tax'
-  | 'compliance';
+// Period status
+export type PeriodStatus = 
+  | 'pending'
+  | 'data_received'
+  | 'in_progress'
+  | 'review'
+  | 'approved'
+  | 'delivered'
+  | 'client_reviewed';
 
-export type MAWatchItemType = 
-  | 'debtor'
-  | 'creditor'
-  | 'kpi_threshold'
-  | 'cash_warning'
-  | 'client_concern'
-  | 'renewal'
-  | 'vat_quarter'
-  | 'year_end'
-  | 'custom';
+// ============================================================================
+// TIER FEATURES CONFIGURATION
+// ============================================================================
 
-export type MAScenarioType = 
-  | 'hire'
-  | 'pricing'
-  | 'client_loss'
-  | 'investment'
-  | 'expansion'
-  | 'custom';
+export const TIER_FEATURES: Record<TierType, {
+  name: string;
+  price: number;
+  frequency: string;
+  kpiLimit: number | 'unlimited';
+  insightLimit: number;
+  includesForecast: boolean;
+  includesScenarios: boolean;
+  scenarioLimit: number;
+  includesProfitability: boolean;
+  includesRecommendations: boolean;
+  advisoryCalls: string;
+  features: string[];
+}> = {
+  bronze: {
+    name: 'Bronze - Essentials',
+    price: 750,
+    frequency: 'monthly',
+    kpiLimit: 3,
+    insightLimit: 3,
+    includesForecast: false,
+    includesScenarios: false,
+    scenarioLimit: 0,
+    includesProfitability: false,
+    includesRecommendations: false,
+    advisoryCalls: 'None',
+    features: [
+      'Monthly P&L & Balance Sheet',
+      'True Cash calculation',
+      'Tuesday question answered',
+      '3 key insights',
+      'Watch list (3 metrics)',
+    ],
+  },
+  silver: {
+    name: 'Silver - Full Picture',
+    price: 1500,
+    frequency: 'monthly',
+    kpiLimit: 5,
+    insightLimit: 5,
+    includesForecast: false,
+    includesScenarios: false,
+    scenarioLimit: 0,
+    includesProfitability: false,
+    includesRecommendations: true,
+    advisoryCalls: 'Quarterly',
+    features: [
+      'Everything in Bronze',
+      '6-month trend analysis',
+      '5 key insights',
+      'Watch list (5 metrics)',
+      'Optimisation suggestions',
+      'Quarterly advisory call',
+    ],
+  },
+  gold: {
+    name: 'Gold - Decision-Ready',
+    price: 3000,
+    frequency: 'monthly',
+    kpiLimit: 10,
+    insightLimit: 10,
+    includesForecast: true,
+    includesScenarios: true,
+    scenarioLimit: 3,
+    includesProfitability: true,
+    includesRecommendations: true,
+    advisoryCalls: 'Monthly',
+    features: [
+      'Everything in Silver',
+      '13-week cash forecast',
+      'Scenario dashboard',
+      '3 pre-built scenarios',
+      'Monthly advisory call',
+      'Budget vs actual tracking',
+    ],
+  },
+  platinum: {
+    name: 'Platinum - Board-Level',
+    price: 5000,
+    frequency: 'monthly',
+    kpiLimit: 'unlimited',
+    insightLimit: 20,
+    includesForecast: true,
+    includesScenarios: true,
+    scenarioLimit: -1, // unlimited
+    includesProfitability: true,
+    includesRecommendations: true,
+    advisoryCalls: 'Fortnightly',
+    features: [
+      'Everything in Gold',
+      'Weekly flash reports',
+      'Unlimited scenarios',
+      'Custom KPI dashboard',
+      'Fortnightly calls',
+      'Benchmarking included',
+      'Board pack preparation',
+    ],
+  },
+};
 
-export type RAGStatus = 'green' | 'amber' | 'red' | 'grey';
-
-export type ClientVerdict = 
-  | 'protect_grow'
-  | 'maintain'
-  | 'reprice'
-  | 'renegotiate'
-  | 'exit';
-
-// ---- CORE ENTITIES ----
+// ============================================================================
+// DATABASE ENTITY INTERFACES
+// ============================================================================
 
 export interface MAEngagement {
   id: string;
   client_id: string;
-  practice_id: string;
-  tier: MATier;
-  frequency: MAFrequency;
+  tier: TierType;
+  frequency: FrequencyType;
   monthly_fee: number;
+  annual_fee?: number;
   start_date: string;
   end_date?: string;
-  status: MAEngagementStatus;
+  status: 'pending' | 'active' | 'paused' | 'cancelled';
   onboarding_completed_at?: string;
   xero_connected: boolean;
   qbo_connected: boolean;
-  default_tuesday_question?: string;
   assigned_to?: string;
-  reviewer_id?: string;
-  financial_year_end_month?: number;
-  vat_registered: boolean;
-  vat_quarter_end_month?: number;
+  reviewer?: string;
   created_at: string;
   updated_at: string;
   created_by?: string;
-  // Joined fields
-  client_name?: string;
-  client_company?: string;
-  assigned_to_name?: string;
 }
 
 export interface MAPeriod {
   id: string;
   engagement_id: string;
-  period_type: MAFrequency;
+  period_type: FrequencyType;
   period_start: string;
   period_end: string;
-  period_label: string;
-  status: MAPeriodStatus;
+  period_label?: string;
+  status: PeriodStatus;
   due_date?: string;
-  data_received_at?: string;
   delivered_at?: string;
   client_viewed_at?: string;
   tuesday_question?: string;
   tuesday_question_asked_at?: string;
   tuesday_answer?: string;
-  tuesday_answer_format?: 'text' | 'calculation' | 'scenario' | 'chart';
+  tuesday_answer_format?: 'text' | 'calculation' | 'scenario';
   review_call_scheduled_at?: string;
   review_call_completed_at?: string;
   review_call_notes?: string;
   review_call_duration_mins?: number;
-  checklist_status?: Record<string, boolean>;
   created_at: string;
   updated_at: string;
-  prepared_by?: string;
-  reviewed_by?: string;
 }
 
 export interface MADocument {
   id: string;
   period_id: string;
-  engagement_id: string;
+  engagement_id?: string;
   document_type: MADocumentType;
   file_name: string;
   file_path: string;
   file_size?: number;
   mime_type?: string;
   extraction_status: 'pending' | 'processing' | 'completed' | 'failed' | 'not_required';
-  extracted_data?: Record<string, any>;
-  extraction_error?: string;
+  extracted_data?: Record<string, unknown>;
   uploaded_at: string;
   uploaded_by?: string;
 }
@@ -154,7 +209,6 @@ export interface MADocument {
 export interface MAFinancialData {
   id: string;
   period_id: string;
-  engagement_id: string;
   // P&L
   revenue?: number;
   cost_of_sales?: number;
@@ -162,9 +216,8 @@ export interface MAFinancialData {
   overheads?: number;
   operating_profit?: number;
   interest?: number;
-  tax_charge?: number;
+  tax?: number;
   net_profit?: number;
-  revenue_breakdown?: Record<string, number>;
   // Balance Sheet
   cash_at_bank?: number;
   trade_debtors?: number;
@@ -189,106 +242,115 @@ export interface MAFinancialData {
   net_current_assets?: number;
   // True Cash
   true_cash?: number;
-  true_cash_calculation?: TrueCashCalculation;
-  true_cash_runway_months?: number;
+  true_cash_calculation?: Record<string, unknown>;
   // Comparatives
   prior_month_revenue?: number;
   prior_year_revenue?: number;
   budget_revenue?: number;
   // Headcount
   fte_count?: number;
-  headcount_breakdown?: Record<string, number>;
+  // Operating costs (for runway calculation)
   monthly_operating_costs?: number;
   // Meta
   data_source?: 'xero_api' | 'qbo_api' | 'upload' | 'manual';
   confidence_level?: 'high' | 'medium' | 'low';
-  data_notes?: string;
+  notes?: string;
   created_at: string;
   updated_at: string;
-  entered_by?: string;
 }
 
-export interface TrueCashCalculation {
-  bank_balance: number;
-  vat_provision: number;
-  paye_ni: number;
-  corporation_tax: number;
-  committed_payments: number;
-  confirmed_receivables: number;
-  true_cash: number;
+export interface MAKPIDefinition {
+  code: string;
+  name: string;
+  category: 'cash_working_capital' | 'revenue_growth' | 'profitability' | 'utilisation_efficiency' | 'client_health';
+  description?: string;
+  calculation_formula?: string;
+  unit: 'currency' | 'percentage' | 'days' | 'ratio' | 'number';
+  decimal_places: number;
+  higher_is_better?: boolean;
+  default_target?: number;
+  min_tier: TierType;
+  rag_green_threshold?: number;
+  rag_amber_threshold?: number;
+  rag_red_threshold?: number;
+  is_active: boolean;
+  display_order: number;
+}
+
+export interface MAKPISelection {
+  id: string;
+  engagement_id: string;
+  kpi_code: string;
+  is_mandatory: boolean;
+  display_order?: number;
+  custom_target?: number;
+  custom_rag_green?: number;
+  custom_rag_amber?: number;
+  custom_rag_red?: number;
+  selected_at: string;
+  selected_by?: string;
+}
+
+export interface MAKPIValue {
+  id: string;
+  period_id: string;
+  kpi_code: string;
+  kpi_name?: string;
+  kpi_unit?: string;
+  kpi_category?: string;
+  value: number;
+  previous_value?: number;
+  yoy_value?: number;
+  target_value?: number;
+  benchmark_value?: number;
+  change_absolute?: number;
+  change_percentage?: number;
+  yoy_change_percentage?: number;
+  rag_status?: RAGStatus;
+  trend?: 'up' | 'down' | 'stable';
+  auto_commentary?: string;
+  manual_commentary?: string;
+  higher_is_better?: boolean;
+  calculated_at: string;
 }
 
 export interface MAInsight {
   id: string;
   period_id: string;
-  engagement_id: string;
   insight_type: MAInsightType;
-  category?: MAInsightCategory;
+  category?: string;
   title: string;
   description: string;
-  metric_value?: number;
-  metric_comparison?: number;
-  metric_unit?: string;
   recommendation?: string;
   recommendation_priority?: 'high' | 'medium' | 'low';
   recommendation_timing?: string;
   related_kpi_code?: string;
-  related_client_name?: string;
-  supporting_data?: Record<string, any>;
-  min_tier: MATier;
+  related_client_id?: string;
+  supporting_data?: Record<string, unknown>;
+  metric_value?: number;
+  metric_comparison?: number;
+  metric_unit?: 'currency' | 'percentage' | 'number';
+  min_tier: TierType;
   show_to_client: boolean;
   client_acknowledged_at?: string;
   action_taken?: string;
   action_completed_at?: string;
   display_order?: number;
-  is_auto_generated: boolean;
   created_at: string;
   created_by?: string;
 }
-
-export interface MAWatchItem {
-  id: string;
-  engagement_id: string;
-  item_type: MAWatchItemType;
-  title: string;
-  description?: string;
-  reference_type?: string;
-  reference_id?: string;
-  current_value?: number;
-  threshold_value?: number;
-  threshold_direction?: 'above' | 'below' | 'approaching' | 'overdue';
-  status: 'active' | 'acknowledged' | 'resolved' | 'dismissed';
-  priority?: 'high' | 'medium' | 'low';
-  due_date?: string;
-  triggered_at: string;
-  acknowledged_at?: string;
-  resolved_at?: string;
-  resolution_notes?: string;
-  origin_period_id?: string;
-  created_at: string;
-  created_by?: string;
-}
-
-// ---- FORECASTS (Gold+) ----
 
 export interface MACashForecast {
   id: string;
   engagement_id: string;
-  period_id?: string;
-  forecast_type: '13_week' | '6_month' | '12_month';
-  forecast_date: string;
+  forecast_type: '13_week' | '6_month';
+  created_date: string;
   base_cash_position: number;
   status: 'draft' | 'published' | 'superseded';
-  has_warnings: boolean;
-  first_warning_week?: number;
-  lowest_balance?: number;
-  lowest_balance_week?: number;
   created_at: string;
   created_by?: string;
   published_at?: string;
   notes?: string;
-  // Joined
-  periods?: MACashForecastPeriod[];
 }
 
 export interface MACashForecastPeriod {
@@ -297,100 +359,47 @@ export interface MACashForecastPeriod {
   period_number: number;
   period_start: string;
   period_end: string;
-  period_label: string;
+  period_label?: string;
   opening_balance: number;
   forecast_receipts: number;
-  receipt_details: Array<{ name: string; amount: number; confidence?: string }>;
+  receipt_details?: Record<string, unknown>;
   forecast_payments: number;
-  payment_details: Array<{ name: string; amount: number; type?: string }>;
+  payment_details?: Record<string, unknown>;
   net_movement: number;
   closing_balance: number;
   is_warning: boolean;
   warning_message?: string;
-  warning_severity?: 'watch' | 'caution' | 'critical';
-  recommended_actions: string[];
+  recommended_actions?: string[];
   actual_receipts?: number;
   actual_payments?: number;
   actual_closing?: number;
-  variance_receipts?: number;
-  variance_payments?: number;
   variance_notes?: string;
 }
-
-// ---- SCENARIOS (Gold+) ----
 
 export interface MAScenario {
   id: string;
   engagement_id: string;
-  scenario_type: MAScenarioType;
+  scenario_type: 'hire' | 'pricing' | 'client_loss' | 'investment' | 'custom';
   name: string;
   description?: string;
   status: 'draft' | 'active' | 'archived';
   is_pre_built: boolean;
-  inputs: ScenarioInputs;
-  outputs?: ScenarioOutputs;
-  summary_headline?: string;
-  summary_detail?: string;
+  inputs: Record<string, unknown>;
+  outputs?: Record<string, unknown>;
+  summary_answer?: string;
   recommendation?: 'proceed' | 'caution' | 'dont_proceed' | 'needs_more_info';
-  break_even_months?: number;
-  first_year_impact?: number;
-  cash_impact_monthly?: number;
   created_at: string;
   created_by?: string;
   last_run_at?: string;
-  updated_at: string;
 }
-
-export interface ScenarioInputs {
-  // Hire scenario
-  role?: string;
-  salary?: number;
-  employer_ni?: number;
-  pension?: number;
-  other_costs?: number;
-  start_date?: string;
-  expected_utilisation?: number;
-  ramp_months?: number;
-  charge_rate?: number;
-  // Pricing scenario
-  price_change_pct?: number;
-  affected_clients?: string[];
-  implementation_date?: string;
-  expected_churn_pct?: number;
-  // Client loss scenario
-  client_name?: string;
-  client_revenue?: number;
-  associated_costs?: number;
-  // Investment scenario
-  investment_amount?: number;
-  expected_return_pct?: number;
-  payback_months?: number;
-  // Custom
-  custom_inputs?: Record<string, any>;
-}
-
-export interface ScenarioOutputs {
-  total_annual_cost?: number;
-  monthly_cost?: number;
-  breakeven_month?: number;
-  first_year_contribution?: number;
-  cash_impact_by_month?: number[];
-  sensitivity_analysis?: Record<string, any>;
-  // Custom outputs
-  [key: string]: any;
-}
-
-// ---- CLIENT PROFITABILITY (Gold+) ----
 
 export interface MAClientProfitability {
   id: string;
   period_id: string;
-  engagement_id: string;
   client_name: string;
   client_ref?: string;
   revenue: number;
   revenue_ytd?: number;
-  revenue_prior_year?: number;
   direct_labour_cost?: number;
   direct_labour_hours?: number;
   subcontractor_cost?: number;
@@ -399,241 +408,83 @@ export interface MAClientProfitability {
   gross_profit?: number;
   gross_margin_pct?: number;
   allocated_overhead?: number;
-  overhead_allocation_method?: 'revenue_proportion' | 'labour_hours' | 'fixed' | 'none';
+  overhead_allocation_method?: string;
   net_profit?: number;
   net_margin_pct?: number;
   effective_hourly_rate?: number;
   target_margin_pct?: number;
   margin_vs_target?: number;
   rag_status?: RAGStatus;
-  verdict?: ClientVerdict;
+  verdict?: 'protect_grow' | 'maintain' | 'reprice' | 'renegotiate' | 'exit';
   analysis_notes?: string;
   recommended_action?: string;
   created_at: string;
-  created_by?: string;
 }
 
-// ---- KPIs ----
-
-export interface MAKPIValue {
+export interface MAWatchListItem {
   id: string;
-  period_id?: string;
   engagement_id: string;
-  kpi_code: string;
-  period_end: string;
-  value: number;
-  previous_value?: number;
-  previous_year_value?: number;
-  target_value?: number;
-  benchmark_value?: number;
-  rag_status?: RAGStatus;
-  trend?: 'improving' | 'stable' | 'declining';
-  change_vs_previous?: number;
-  change_vs_previous_pct?: number;
-  auto_commentary?: string;
-  human_commentary?: string;
-  // Joined
-  kpi_name?: string;
-  kpi_unit?: string;
-  kpi_category?: string;
-  higher_is_better?: boolean;
+  item_type: 'debtor' | 'creditor' | 'kpi_threshold' | 'cash_warning' | 'client_concern' | 'renewal' | 'custom';
+  title: string;
+  description?: string;
+  current_value?: number;
+  threshold_value?: number;
+  threshold_direction?: 'above' | 'below' | 'approaching';
+  status: 'active' | 'acknowledged' | 'resolved' | 'dismissed';
+  priority?: 'high' | 'medium' | 'low';
+  due_date?: string;
+  triggered_at: string;
+  acknowledged_at?: string;
+  resolved_at?: string;
+  resolution_notes?: string;
+  created_at: string;
 }
 
-// ---- TIER FEATURES ----
-
-export interface TierFeatures {
-  tier: MATier;
-  kpi_limit: number;
-  insight_count: number;
-  has_recommendations: boolean;
-  has_watch_list: boolean;
-  has_cash_forecast: boolean;
-  has_scenarios: boolean;
-  scenario_limit?: number;
-  has_client_profitability: boolean;
-  has_benchmarks: boolean;
-  has_board_pack: boolean;
-  call_frequency: 'none' | 'quarterly' | 'monthly' | 'fortnightly';
-}
-
-export const TIER_FEATURES: Record<MATier, TierFeatures> = {
-  bronze: {
-    tier: 'bronze',
-    kpi_limit: 3,
-    insight_count: 3,
-    has_recommendations: false,
-    has_watch_list: false,
-    has_cash_forecast: false,
-    has_scenarios: false,
-    has_client_profitability: false,
-    has_benchmarks: false,
-    has_board_pack: false,
-    call_frequency: 'none',
-  },
-  silver: {
-    tier: 'silver',
-    kpi_limit: 5,
-    insight_count: 5,
-    has_recommendations: true,
-    has_watch_list: true,
-    has_cash_forecast: false,
-    has_scenarios: false,
-    has_client_profitability: false,
-    has_benchmarks: false,
-    has_board_pack: false,
-    call_frequency: 'quarterly',
-  },
-  gold: {
-    tier: 'gold',
-    kpi_limit: 8,
-    insight_count: 7,
-    has_recommendations: true,
-    has_watch_list: true,
-    has_cash_forecast: true,
-    has_scenarios: true,
-    scenario_limit: 3,
-    has_client_profitability: true,
-    has_benchmarks: false,
-    has_board_pack: false,
-    call_frequency: 'monthly',
-  },
-  platinum: {
-    tier: 'platinum',
-    kpi_limit: 999,
-    insight_count: 10,
-    has_recommendations: true,
-    has_watch_list: true,
-    has_cash_forecast: true,
-    has_scenarios: true,
-    scenario_limit: 999,
-    has_client_profitability: true,
-    has_benchmarks: true,
-    has_board_pack: true,
-    call_frequency: 'fortnightly',
-  },
-};
-
-// ---- DELIVERY CHECKLIST ----
+// ============================================================================
+// DELIVERY WORKFLOW
+// ============================================================================
 
 export interface DeliveryChecklistItem {
   id: string;
   label: string;
+  description?: string;
   required: boolean;
   completed: boolean;
-  min_tier?: MATier;
+  completedAt?: string;
+  completedBy?: string;
 }
 
-export function getDeliveryChecklist(tier: MATier, periodData: {
-  documents: MADocument[];
-  kpis: MAKPIValue[];
-  insights: MAInsight[];
-  period: MAPeriod;
-  forecast?: MACashForecast;
-}): DeliveryChecklistItem[] {
-  const features = TIER_FEATURES[tier];
-  const { documents, kpis, insights, period, forecast } = periodData;
-
-  const items: DeliveryChecklistItem[] = [
-    {
-      id: 'documents_uploaded',
-      label: 'Management accounts uploaded',
-      required: true,
-      completed: documents.some(d => 
-        d.document_type === 'management_pack' || 
-        (documents.some(d => d.document_type === 'pnl') && documents.some(d => d.document_type === 'balance_sheet'))
-      ),
-    },
-    {
-      id: 'true_cash_calculated',
-      label: 'True Cash Position calculated',
-      required: true,
-      completed: kpis.some(k => k.kpi_code === 'true_cash' && k.value !== null),
-    },
-    {
-      id: 'kpis_calculated',
-      label: 'All selected KPIs calculated',
-      required: true,
-      completed: kpis.length >= features.kpi_limit && kpis.every(k => k.value !== null),
-    },
-    {
-      id: 'tuesday_question_answered',
-      label: 'Tuesday Question answered',
-      required: true,
-      completed: !!period.tuesday_answer,
-    },
-    {
-      id: 'insights_added',
-      label: `Key insights added (min ${features.insight_count})`,
-      required: true,
-      completed: insights.length >= features.insight_count,
-    },
+export function getDeliveryChecklist(tier: TierType): DeliveryChecklistItem[] {
+  const baseItems: DeliveryChecklistItem[] = [
+    { id: 'data_uploaded', label: 'Financial data uploaded/received', required: true, completed: false },
+    { id: 'data_validated', label: 'Data validated (reconciled to TB)', required: true, completed: false },
+    { id: 'true_cash_calculated', label: 'True Cash calculated', required: true, completed: false },
+    { id: 'kpis_calculated', label: 'KPIs calculated', required: true, completed: false },
+    { id: 'insights_generated', label: 'Insights written', required: true, completed: false },
+    { id: 'tuesday_answered', label: 'Tuesday question answered', required: true, completed: false },
+    { id: 'reviewed', label: 'Reviewed by second pair of eyes', required: true, completed: false },
+    { id: 'report_generated', label: 'Report PDF generated', required: true, completed: false },
   ];
 
-  // Silver+ items
-  if (features.has_recommendations) {
-    items.push({
-      id: 'recommendations_added',
-      label: 'Recommendations added to insights',
-      required: true,
-      completed: insights.filter(i => i.recommendation).length >= 3,
-      min_tier: 'silver',
-    });
-    items.push({
-      id: 'watch_list_reviewed',
-      label: 'Watch list reviewed and updated',
-      required: true,
-      completed: true, // Would need actual data
-      min_tier: 'silver',
-    });
+  if (tier === 'silver' || tier === 'gold' || tier === 'platinum') {
+    baseItems.push(
+      { id: 'recommendations_added', label: 'Recommendations written', required: true, completed: false }
+    );
   }
 
-  // Gold+ items
-  if (features.has_cash_forecast) {
-    items.push({
-      id: 'forecast_updated',
-      label: 'Cash forecast updated',
-      required: true,
-      completed: !!forecast && forecast.status === 'published',
-      min_tier: 'gold',
-    });
-    items.push({
-      id: 'profitability_analysed',
-      label: 'Client profitability analysed',
-      required: true,
-      completed: true, // Would need actual data
-      min_tier: 'gold',
-    });
+  if (tier === 'gold' || tier === 'platinum') {
+    baseItems.push(
+      { id: 'forecast_updated', label: '13-week forecast updated', required: true, completed: false },
+      { id: 'scenarios_reviewed', label: 'Scenarios reviewed', required: false, completed: false },
+      { id: 'profitability_updated', label: 'Client profitability updated', required: false, completed: false }
+    );
   }
 
-  // Platinum items
-  if (features.has_benchmarks) {
-    items.push({
-      id: 'benchmarks_added',
-      label: 'Industry benchmarks added',
-      required: true,
-      completed: kpis.every(k => k.benchmark_value !== null),
-      min_tier: 'platinum',
-    });
+  if (tier === 'platinum') {
+    baseItems.push(
+      { id: 'board_pack_prepared', label: 'Board pack prepared', required: false, completed: false }
+    );
   }
 
-  if (features.has_board_pack) {
-    items.push({
-      id: 'board_pack_ready',
-      label: 'Board pack prepared',
-      required: false,
-      completed: documents.some(d => d.document_type === 'board_pack'),
-      min_tier: 'platinum',
-    });
-  }
-
-  // Final step
-  items.push({
-    id: 'quality_review',
-    label: 'Quality review completed',
-    required: true,
-    completed: period.status === 'approved' || period.status === 'delivered',
-  });
-
-  return items;
+  return baseItems;
 }
-

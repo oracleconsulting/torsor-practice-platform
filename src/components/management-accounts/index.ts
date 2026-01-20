@@ -13,6 +13,25 @@ export { KPIPreview } from './KPIPreview';
 // True Cash Component
 export { TrueCashCard } from './TrueCashCard';
 
+// Document Upload
+export { DocumentUploader } from './DocumentUploader';
+
+// Insights
+export { InsightCard } from './InsightCard';
+export { InsightEditor } from './InsightEditor';
+
+// Tuesday Question
+export { TuesdayQuestionDisplay } from './TuesdayQuestionDisplay';
+
+// Watch List
+export { WatchListPanel } from './WatchListPanel';
+
+// Admin Workflow
+export { PeriodDeliveryChecklist } from './PeriodDeliveryChecklist';
+
+// Client Dashboard
+export { MAClientDashboard } from './MAClientDashboard';
+
 // Preview Components (for proposals/reports)
 export { TrueCashPreview } from './previews/TrueCashPreview';
 export { ForecastPreview } from './previews/ForecastPreview';
