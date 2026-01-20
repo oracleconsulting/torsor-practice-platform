@@ -342,11 +342,11 @@ RESPOND WITH JSON ARRAY ONLY:
   }
 ]`;
 
-  // Use Claude via OpenRouter - it has native PDF support
-  // Format: file object with filename and base64 data
-  console.log('[OpenRouter PDF] Sending PDF to Claude via OpenRouter...');
+  // Try multiple formats for PDF upload via OpenRouter
+  // Format 1: Anthropic's native document format (for Claude)
+  console.log('[OpenRouter PDF] Trying Claude with document format...');
   
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  let response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
@@ -361,15 +361,16 @@ RESPOND WITH JSON ARRAY ONLY:
           role: "user",
           content: [
             {
-              type: "text",
-              text: prompt
-            },
-            {
-              type: "file",
-              file: {
-                filename: "accounts.pdf",
+              type: "document",
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
                 data: base64
               }
+            },
+            {
+              type: "text",
+              text: prompt
             }
           ]
         }
@@ -382,20 +383,19 @@ RESPOND WITH JSON ARRAY ONLY:
   if (response.ok) {
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
-    
     if (content) {
-      console.log('[OpenRouter PDF] Response received from Claude');
-      console.log('[OpenRouter PDF] Raw:', content.substring(0, 300));
+      console.log('[OpenRouter PDF] Claude document format worked!');
       return parseFinancialJson(content);
     }
   }
   
-  // Log error and try GPT-4o as fallback
-  const errorText = await response.text();
-  console.log('[OpenRouter PDF] Claude failed:', response.status, errorText.substring(0, 200));
+  let errorText = await response.text();
+  console.log('[OpenRouter PDF] Claude document format failed:', response.status, errorText.substring(0, 300));
+
+  // Format 2: image_url with data URI (works for some models)
+  console.log('[OpenRouter PDF] Trying GPT-4o with image_url format...');
   
-  console.log('[OpenRouter PDF] Trying GPT-4o...');
-  const gptResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
@@ -414,10 +414,9 @@ RESPOND WITH JSON ARRAY ONLY:
               text: prompt
             },
             {
-              type: "file",
-              file: {
-                filename: "accounts.pdf",
-                data: base64
+              type: "image_url",
+              image_url: {
+                url: `data:application/pdf;base64,${base64}`
               }
             }
           ]
@@ -428,23 +427,22 @@ RESPOND WITH JSON ARRAY ONLY:
     })
   });
 
-  if (gptResponse.ok) {
-    const data = await gptResponse.json();
+  if (response.ok) {
+    const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
-    
     if (content) {
-      console.log('[OpenRouter PDF] Response received from GPT-4o');
-      console.log('[OpenRouter PDF] Raw:', content.substring(0, 300));
+      console.log('[OpenRouter PDF] GPT-4o image_url format worked!');
       return parseFinancialJson(content);
     }
   }
   
-  const gptError = await gptResponse.text();
-  console.log('[OpenRouter PDF] GPT-4o failed:', gptResponse.status, gptError.substring(0, 200));
+  errorText = await response.text();
+  console.log('[OpenRouter PDF] GPT-4o failed:', response.status, errorText.substring(0, 300));
 
-  // Final fallback: Try Gemini with different format
-  console.log('[OpenRouter PDF] Trying Gemini...');
-  const geminiResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  // Format 3: Try Gemini 1.5 Pro (correct model name)
+  console.log('[OpenRouter PDF] Trying Gemini 1.5 Pro...');
+  
+  response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
@@ -453,7 +451,7 @@ RESPOND WITH JSON ARRAY ONLY:
       "X-Title": "Torsor Accounts Processing"
     },
     body: JSON.stringify({
-      model: "google/gemini-flash-1.5",
+      model: "google/gemini-pro-1.5",
       messages: [
         {
           role: "user",
@@ -463,10 +461,9 @@ RESPOND WITH JSON ARRAY ONLY:
               text: prompt
             },
             {
-              type: "file",
-              file: {
-                filename: "accounts.pdf",
-                data: base64
+              type: "image_url",
+              image_url: {
+                url: `data:application/pdf;base64,${base64}`
               }
             }
           ]
@@ -477,23 +474,71 @@ RESPOND WITH JSON ARRAY ONLY:
     })
   });
 
-  if (geminiResponse.ok) {
-    const data = await geminiResponse.json();
+  if (response.ok) {
+    const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
-    
     if (content) {
-      console.log('[OpenRouter PDF] Response received from Gemini');
+      console.log('[OpenRouter PDF] Gemini Pro worked!');
       return parseFinancialJson(content);
     }
   }
   
-  const geminiError = await geminiResponse.text();
-  console.log('[OpenRouter PDF] Gemini failed:', geminiResponse.status, geminiError.substring(0, 200));
+  errorText = await response.text();
+  console.log('[OpenRouter PDF] Gemini Pro failed:', response.status, errorText.substring(0, 300));
 
-  // All models failed - throw helpful error
+  // Format 4: Try Claude 3.5 Sonnet (older, known to work)
+  console.log('[OpenRouter PDF] Trying Claude 3.5 Sonnet...');
+  
+  response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://torsor.io",
+      "X-Title": "Torsor Accounts Processing"
+    },
+    body: JSON.stringify({
+      model: "anthropic/claude-3.5-sonnet",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "document",
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                data: base64
+              }
+            },
+            {
+              type: "text",
+              text: prompt
+            }
+          ]
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 4000
+    })
+  });
+
+  if (response.ok) {
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (content) {
+      console.log('[OpenRouter PDF] Claude 3.5 Sonnet worked!');
+      return parseFinancialJson(content);
+    }
+  }
+  
+  errorText = await response.text();
+  console.log('[OpenRouter PDF] Claude 3.5 Sonnet failed:', response.status, errorText.substring(0, 300));
+
+  // All formats failed - throw helpful error
   throw new Error(
-    'Unable to extract data from PDF. All models (Claude, GPT-4o, Gemini) failed. ' +
-    'Please try: 1) Export as CSV/Excel, or 2) Enter data manually.'
+    'Unable to extract data from PDF via OpenRouter. ' +
+    'Please try: 1) Export as CSV/Excel, or 2) Enter data manually in the review screen.'
   );
 }
 
