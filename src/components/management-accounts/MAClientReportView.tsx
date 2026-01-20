@@ -641,6 +641,10 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
         <KPIPreview 
           tier={p2.recommendedApproach.tier as 'bronze' | 'silver' | 'gold' | 'platinum'}
           recommendations={p1?.kpiRecommendations}
+          onUpgrade={(tier) => {
+            setShowFullComparison(true);
+            onTierSelect?.(tier);
+          }}
         />
       )}
       
