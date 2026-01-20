@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-// @ts-ignore - pdf-parse works in Deno via esm.sh
-import pdfParse from "https://esm.sh/pdf-parse@1.1.1";
+// @ts-ignore - PDF.js for Deno
+import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -266,7 +266,7 @@ serve(async (req) => {
   }
 });
 
-// Extract financial data from PDF using pdf-parse (same as Lightpoint)
+// Extract financial data from PDF using PDF.js (Deno-compatible)
 // This extracts text first, then sends to LLM for analysis
 async function extractFromPDFWithVision(
   fileBlob: Blob,
@@ -276,37 +276,53 @@ async function extractFromPDFWithVision(
   const arrayBuffer = await fileBlob.arrayBuffer();
   const buffer = new Uint8Array(arrayBuffer);
   
-  // Step 1: Extract text from PDF using pdf-parse (like Lightpoint)
-  console.log('[PDF Parse] Extracting text from PDF using pdf-parse...');
+  // Step 1: Extract text from PDF using PDF.js
+  console.log('[PDF.js] Extracting text from PDF...');
   
   let extractedText = '';
   try {
-    const pdfData = await pdfParse(buffer);
-    extractedText = pdfData.text?.trim() || '';
-    console.log(`[PDF Parse] Extracted ${extractedText.length} characters`);
+    // Load PDF document
+    const loadingTask = pdfjsLib.getDocument({ data: buffer });
+    const pdfDoc = await loadingTask.promise;
+    
+    console.log(`[PDF.js] PDF loaded, ${pdfDoc.numPages} pages`);
+    
+    // Extract text from all pages
+    const textParts: string[] = [];
+    for (let i = 1; i <= pdfDoc.numPages; i++) {
+      const page = await pdfDoc.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
+      textParts.push(pageText);
+    }
+    
+    extractedText = textParts.join('\n\n').trim();
+    console.log(`[PDF.js] Extracted ${extractedText.length} characters from ${pdfDoc.numPages} pages`);
     
     if (extractedText.length > 100) {
-      console.log('[PDF Parse] Preview:', extractedText.substring(0, 500));
+      console.log('[PDF.js] Preview:', extractedText.substring(0, 500));
     }
   } catch (pdfError) {
-    console.error('[PDF Parse] pdf-parse failed:', pdfError);
+    console.error('[PDF.js] PDF.js extraction failed:', pdfError);
   }
   
-  // If pdf-parse extracted good text, send to Claude for analysis
+  // If PDF.js extracted good text, send to Claude for analysis
   if (extractedText && extractedText.length > 200) {
-    console.log('[PDF Parse] Sending extracted text to Claude for analysis...');
+    console.log('[PDF.js] Sending extracted text to Claude for analysis...');
     return await extractFinancialDataFromText(extractedText, hintYear, apiKey);
   }
   
-  // If pdf-parse failed or got little text, fall back to advanced extraction
-  console.log('[PDF Parse] Text extraction insufficient, trying advanced extraction...');
+  // If PDF.js failed or got little text, fall back to advanced extraction
+  console.log('[PDF.js] Text extraction insufficient, trying advanced extraction...');
   const advancedText = await extractTextFromPDFAdvanced(buffer);
   
   if (advancedText && advancedText.length > 200) {
     // Check for financial terms
     const hasFinancialTerms = /revenue|turnover|profit|loss|assets|debtors|creditors/i.test(advancedText);
     if (hasFinancialTerms) {
-      console.log('[PDF Parse] Advanced extraction found financial terms, sending to Claude...');
+      console.log('[PDF.js] Advanced extraction found financial terms, sending to Claude...');
       return await extractFinancialDataFromText(advancedText, hintYear, apiKey);
     }
   }
