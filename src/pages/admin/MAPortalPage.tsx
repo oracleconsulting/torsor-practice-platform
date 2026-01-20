@@ -126,7 +126,8 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
   
   // Period detail state
   const [period, setPeriod] = useState<MAPeriod | null>(null);
-  const [documents, setDocuments] = useState<MADocument[]>([]);
+  const [_documents, setDocuments] = useState<MADocument[]>([]);
+  // _documents loaded for period - displayed in upload step
   const [_financialData, setFinancialData] = useState<MAFinancialData | null>(null);
   // _financialData loaded for period detail - used for KPI calculations
   const [insights, setInsights] = useState<MAInsight[]>([]);
@@ -945,7 +946,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
             <PeriodDeliveryChecklist
               periodId={period.id}
               tier={tier}
-              periodLabel={period.period_label}
+              periodLabel={period.period_label || 'Current Period'}
               onComplete={() => {
                 // Refresh period data
                 loadPeriodDetail(engagement.id, period.id);
