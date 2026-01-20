@@ -89,7 +89,8 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 type TierKey = 'bronze' | 'silver' | 'gold' | 'platinum';
 
-export function KPIPreview({ tier, recommendations, onUpgrade }: KPIPreviewProps) {
+export function KPIPreview({ tier, recommendations: _recommendations, onUpgrade }: KPIPreviewProps) {
+  // Note: _recommendations can be used in future to override default KPIs with AI-suggested ones
   const [selectedTier, setSelectedTier] = useState<TierKey>(tier);
   const [showAllKPIs, setShowAllKPIs] = useState(false);
   
@@ -149,7 +150,6 @@ export function KPIPreview({ tier, recommendations, onUpgrade }: KPIPreviewProps
             const info = TIER_INFO[t];
             const isSelected = selectedTier === t;
             const isRecommended = t === tier;
-            const kpiCount = TIER_KPIS[t].length;
             
             return (
               <button
