@@ -166,11 +166,23 @@ const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
   }
 };
 
+// LLM-generated data collection script (preferred over hardcoded definitions)
+interface LLMDataCollectionScript {
+  metricNeeded: string;
+  whyNeeded: string;
+  howToAsk: string;
+  industryContext?: string;
+  followUpIfUnsure?: string;
+  howToRecord?: string;
+}
+
 interface DataCollectionPanelProps {
   missingData: string[];
   engagementId: string;
   existingValues?: Record<string, number | string>;
   industryCode?: string;
+  // LLM-generated scripts from admin guidance (takes priority over hardcoded)
+  llmScripts?: LLMDataCollectionScript[];
   onSave?: (data: Record<string, number | string>) => Promise<void>;
   onRegenerate?: () => void;
   isLoading?: boolean;
@@ -181,11 +193,12 @@ export function DataCollectionPanel({
   engagementId: _engagementId,
   existingValues = {},
   industryCode: _industryCode,
+  llmScripts = [],
   onSave,
   onRegenerate,
   isLoading = false
 }: DataCollectionPanelProps) {
-  // Note: engagementId and industryCode are available for future use (e.g., loading existing values)
+  // Note: engagementId and industryCode are available for future use
   void _engagementId;
   void _industryCode;
   const [collectedData, setCollectedData] = useState<Record<string, string>>(
@@ -242,8 +255,46 @@ export function DataCollectionPanel({
   const totalMissing = missingData.length;
   const allCollected = collectedCount >= totalMissing;
 
+  // First check LLM-generated scripts, then fallback to hardcoded, then generate dynamic
+  const getLLMScript = (metricName: string): LLMDataCollectionScript | null => {
+    return llmScripts.find(s => s.metricNeeded === metricName) || null;
+  };
+  
   const getMetricDefinition = (metricName: string): MetricDefinition | null => {
-    return METRIC_DEFINITIONS[metricName] || null;
+    // First check hardcoded definitions
+    if (METRIC_DEFINITIONS[metricName]) {
+      return METRIC_DEFINITIONS[metricName];
+    }
+    
+    // If not found, check if we have an LLM script and create a definition from it
+    const llmScript = getLLMScript(metricName);
+    if (llmScript) {
+      return {
+        code: metricName.toLowerCase().replace(/\s+/g, '_'),
+        name: metricName,
+        unit: 'number', // Default, could be smarter
+        description: llmScript.whyNeeded,
+        conversationScript: `"${llmScript.howToAsk}"`,
+        followUpQuestions: llmScript.followUpIfUnsure ? [llmScript.followUpIfUnsure] : [],
+        inputPlaceholder: llmScript.howToRecord || 'Enter value',
+        inputHelp: llmScript.industryContext || 'Enter the metric value'
+      };
+    }
+    
+    // Generate a generic definition for unknown metrics
+    return {
+      code: metricName.toLowerCase().replace(/\s+/g, '_'),
+      name: metricName,
+      unit: 'number',
+      description: `Information about ${metricName}`,
+      conversationScript: `"Can you tell me about your ${metricName}? This will help us provide a more complete analysis."`,
+      followUpQuestions: [
+        'Do you track this metric currently?',
+        'Can you estimate if you don\'t have exact figures?'
+      ],
+      inputPlaceholder: 'Enter value',
+      inputHelp: `Please provide your ${metricName}`
+    };
   };
 
   const formatBenchmark = (value: number, unit: string) => {

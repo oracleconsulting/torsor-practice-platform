@@ -5,7 +5,8 @@ import { RiskFlagsPanel } from './RiskFlagsPanel';
 import { NextStepsPanel } from './NextStepsPanel';
 import { ClientDataReference } from './ClientDataReference';
 import { DataCollectionPanel } from './DataCollectionPanel';
-import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList } from 'lucide-react';
+import { BenchmarkSourcesPanel } from './BenchmarkSourcesPanel';
+import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database } from 'lucide-react';
 
 interface BenchmarkAnalysis {
   headline: string;
@@ -27,6 +28,8 @@ interface BenchmarkAnalysis {
   industry_code?: string;
   metrics_comparison?: string;
   created_at?: string;
+  data_sources?: string[];
+  benchmark_data_as_of?: string;
 }
 
 interface BenchmarkingAdminViewProps {
@@ -92,7 +95,7 @@ export function BenchmarkingAdminView({
   onSaveSupplementaryData,
   isRegenerating = false
 }: BenchmarkingAdminViewProps) {
-  const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'actions' | 'collect' | 'raw'>('script');
+  const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'actions' | 'collect' | 'sources' | 'raw'>('script');
   
   const talkingPoints = safeJsonParse(data.admin_talking_points, []);
   const questionsToAsk = safeJsonParse(data.admin_questions_to_ask, []);
@@ -206,6 +209,17 @@ export function BenchmarkingAdminView({
                   )}
                 </button>
                 <button
+                  onClick={() => setActiveTab('sources')}
+                  className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
+                    activeTab === 'sources'
+                      ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <Database className="w-4 h-4" />
+                  Sources
+                </button>
+                <button
                   onClick={() => setActiveTab('raw')}
                   className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
                     activeTab === 'raw'
@@ -245,9 +259,29 @@ export function BenchmarkingAdminView({
                     engagementId={engagementId || ''}
                     existingValues={supplementaryData}
                     industryCode={industryMapping?.code || data.industry_code}
+                    llmScripts={dataCollectionScript}
                     onSave={onSaveSupplementaryData}
                     onRegenerate={onRegenerate}
                     isLoading={isRegenerating}
+                  />
+                )}
+                
+                {activeTab === 'sources' && (
+                  <BenchmarkSourcesPanel
+                    metrics={metrics.map((m: any) => ({
+                      metricCode: m.metricCode,
+                      metricName: m.metricName,
+                      p25: m.p25,
+                      p50: m.p50,
+                      p75: m.p75,
+                      source: m.source,
+                      sourceUrl: m.sourceUrl,
+                      confidence: m.confidence
+                    }))}
+                    sources={data.data_sources || []}
+                    industryName={industryMapping?.name || 'Unknown Industry'}
+                    industryCode={industryMapping?.code || data.industry_code || ''}
+                    dataAsOf={data.benchmark_data_as_of}
                   />
                 )}
                 

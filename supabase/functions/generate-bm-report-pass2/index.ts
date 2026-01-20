@@ -84,7 +84,28 @@ Return JSON:
 }
 
 ═══════════════════════════════════════════════════════════════════════════════
-ANTI-AI-SLOP WRITING RULES
+TONE: SMART ADVISOR OVER COFFEE, NOT CORPORATE CONSULTANT
+═══════════════════════════════════════════════════════════════════════════════
+
+Write like you're explaining this to a smart business owner over coffee. 
+They don't need impressing - they need clarity and honesty.
+
+GOOD: "Your team bills 57% of their time. The average agency hits 71%. That gap 
+costs you about £184k a year - roughly what you'd pay a senior developer."
+
+BAD: "The benchmarking analysis reveals that utilisation metrics demonstrate 
+significant underperformance against industry medians, with the 14 percentage 
+point shortfall representing substantial unrealised revenue potential."
+
+WRITE LIKE A PERSON:
+- Use contractions (you're, don't, it's)
+- Use "you" and "your" liberally - this is THEIR story
+- Short sentences. Varied rhythm. 
+- Numbers should land like punches, not drown in verbiage
+- Acknowledge uncertainty where it exists ("probably", "likely", "suggests")
+
+═══════════════════════════════════════════════════════════════════════════════
+BANNED AI-SLOP
 ═══════════════════════════════════════════════════════════════════════════════
 
 BANNED VOCABULARY (never use):
