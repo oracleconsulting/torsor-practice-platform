@@ -13,7 +13,8 @@ import {
 interface MetricDefinition {
   code: string;
   name: string;
-  unit: 'percent' | 'currency' | 'days' | 'ratio' | 'number';
+  unit: 'percent' | 'currency' | 'days' | 'ratio' | 'number' | 'text';
+  inputType?: 'number' | 'text' | 'textarea'; // Controls the input field type
   description: string;
   conversationScript: string;
   followUpQuestions: string[];
@@ -24,6 +25,23 @@ interface MetricDefinition {
   };
   inputPlaceholder: string;
   inputHelp: string;
+}
+
+// Helper to detect if a metric needs complex input (not just a number)
+function needsTextInput(metricName: string): boolean {
+  const textPatterns = [
+    /breakdown/i,
+    /by\s+(service|type|role|seniority|level)/i,
+    /rate\s+card/i,
+    /describe/i,
+    /explain/i,
+    /list/i,
+    /details/i,
+    /structure/i,
+    /process/i,
+    /approach/i,
+  ];
+  return textPatterns.some(pattern => pattern.test(metricName));
 }
 
 // Define all collectible metrics with conversation scripts
@@ -268,16 +286,23 @@ export function DataCollectionPanel({
     
     // If not found, check if we have an LLM script and create a definition from it
     const llmScript = getLLMScript(metricName);
+    const isTextMetric = needsTextInput(metricName);
+    
     if (llmScript) {
       return {
         code: metricName.toLowerCase().replace(/\s+/g, '_'),
         name: metricName,
-        unit: 'number', // Default, could be smarter
+        unit: isTextMetric ? 'text' : 'number',
+        inputType: isTextMetric ? 'textarea' : 'number',
         description: llmScript.whyNeeded,
         conversationScript: `"${llmScript.howToAsk}"`,
         followUpQuestions: llmScript.followUpIfUnsure ? [llmScript.followUpIfUnsure] : [],
-        inputPlaceholder: llmScript.howToRecord || 'Enter value',
-        inputHelp: llmScript.industryContext || 'Enter the metric value'
+        inputPlaceholder: isTextMetric 
+          ? 'e.g., Junior: £50/hr, Mid: £75/hr, Senior: £120/hr' 
+          : (llmScript.howToRecord || 'Enter value'),
+        inputHelp: llmScript.industryContext || (isTextMetric 
+          ? 'Describe the breakdown or provide multiple values'
+          : 'Enter the metric value')
       };
     }
     
@@ -285,14 +310,17 @@ export function DataCollectionPanel({
     return {
       code: metricName.toLowerCase().replace(/\s+/g, '_'),
       name: metricName,
-      unit: 'number',
+      unit: isTextMetric ? 'text' : 'number',
+      inputType: isTextMetric ? 'textarea' : 'number',
       description: `Information about ${metricName}`,
       conversationScript: `"Can you tell me about your ${metricName}? This will help us provide a more complete analysis."`,
       followUpQuestions: [
         'Do you track this metric currently?',
         'Can you estimate if you don\'t have exact figures?'
       ],
-      inputPlaceholder: 'Enter value',
+      inputPlaceholder: isTextMetric 
+        ? 'Describe the breakdown or provide details...' 
+        : 'Enter value',
       inputHelp: `Please provide your ${metricName}`
     };
   };
@@ -459,25 +487,45 @@ export function DataCollectionPanel({
                     <label className="text-xs font-semibold text-slate-500 uppercase block mb-1.5">
                       Client's Value
                     </label>
-                    <div className="flex items-center gap-2">
-                      {definition.unit === 'currency' && (
-                        <span className="text-slate-400">£</span>
-                      )}
-                      <input
-                        type="number"
-                        value={collectedData[metricName] || ''}
-                        onChange={(e) => handleInputChange(metricName, e.target.value)}
-                        placeholder={definition.inputPlaceholder}
-                        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                      {definition.unit === 'percent' && (
-                        <span className="text-slate-400">%</span>
-                      )}
-                      {definition.unit === 'days' && (
-                        <span className="text-slate-400">days</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-400 mt-1">{definition.inputHelp}</p>
+                    {definition.inputType === 'textarea' || definition.unit === 'text' ? (
+                      // Textarea for complex/descriptive metrics
+                      <div>
+                        <textarea
+                          value={collectedData[metricName] || ''}
+                          onChange={(e) => handleInputChange(metricName, e.target.value)}
+                          placeholder={definition.inputPlaceholder}
+                          rows={4}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                        />
+                        <p className="text-xs text-slate-500 mt-1.5">
+                          {definition.inputHelp}
+                        </p>
+                      </div>
+                    ) : (
+                      // Number input for numeric metrics
+                      <div className="flex items-center gap-2">
+                        {definition.unit === 'currency' && (
+                          <span className="text-slate-400">£</span>
+                        )}
+                        <input
+                          type="number"
+                          value={collectedData[metricName] || ''}
+                          onChange={(e) => handleInputChange(metricName, e.target.value)}
+                          placeholder={definition.inputPlaceholder}
+                          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        {definition.unit === 'percent' && (
+                          <span className="text-slate-400">%</span>
+                        )}
+                        {definition.unit === 'days' && (
+                          <span className="text-slate-400">days</span>
+                        )}
+                      </div>
+                    )}
+                    {/* Only show help text for number inputs (textarea has its own) */}
+                    {definition.inputType !== 'textarea' && definition.unit !== 'text' && (
+                      <p className="text-xs text-slate-400 mt-1">{definition.inputHelp}</p>
+                    )}
                   </div>
                 </div>
               )}

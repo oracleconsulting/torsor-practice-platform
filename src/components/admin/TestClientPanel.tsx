@@ -12,10 +12,7 @@ import {
   ClipboardList,
   ChevronDown,
   ChevronRight,
-  User,
-  Building2,
-  Mail,
-  Briefcase
+  User
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -97,7 +94,6 @@ export function TestClientPanel({
   onTestClientReset
 }: TestClientPanelProps) {
   const [testClient, setTestClient] = useState<TestClient | null>(null);
-  const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [filling, setFilling] = useState(false);
