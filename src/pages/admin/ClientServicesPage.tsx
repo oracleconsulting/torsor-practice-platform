@@ -9739,7 +9739,7 @@ function BenchmarkingClientModal({
                               hvaData={hvaStatus}
                               founderRisk={founderRisk}
                               industryMapping={industryMapping}
-                              clientId={selectedClient || undefined}
+                              clientId={clientId}
                               practiceId={currentMember?.practice_id}
                               engagementId={engagement?.id}
                               supplementaryData={supplementaryData}
