@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// @ts-ignore - pdf-parse works in Deno via esm.sh
+import pdfParse from "https://esm.sh/pdf-parse@1.1.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -264,285 +266,59 @@ serve(async (req) => {
   }
 });
 
-// Extract financial data from PDF using OpenRouter with native PDF support
-// OpenRouter supports PDFs via Claude (native), Gemini (native), and auto-parsing
+// Extract financial data from PDF using pdf-parse (same as Lightpoint)
+// This extracts text first, then sends to LLM for analysis
 async function extractFromPDFWithVision(
   fileBlob: Blob,
   hintYear: number | null,
   apiKey: string
 ): Promise<ExtractedFinancialData[]> {
   const arrayBuffer = await fileBlob.arrayBuffer();
-  const bytes = new Uint8Array(arrayBuffer);
+  const buffer = new Uint8Array(arrayBuffer);
   
-  // Convert to base64
-  let base64 = '';
-  const chunkSize = 8192;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.slice(i, i + chunkSize);
-    base64 += String.fromCharCode.apply(null, Array.from(chunk));
+  // Step 1: Extract text from PDF using pdf-parse (like Lightpoint)
+  console.log('[PDF Parse] Extracting text from PDF using pdf-parse...');
+  
+  let extractedText = '';
+  try {
+    const pdfData = await pdfParse(buffer);
+    extractedText = pdfData.text?.trim() || '';
+    console.log(`[PDF Parse] Extracted ${extractedText.length} characters`);
+    
+    if (extractedText.length > 100) {
+      console.log('[PDF Parse] Preview:', extractedText.substring(0, 500));
+    }
+  } catch (pdfError) {
+    console.error('[PDF Parse] pdf-parse failed:', pdfError);
   }
-  base64 = btoa(base64);
   
-  const yearHint = hintYear ? `The user indicated this is for fiscal year ${hintYear}.` : '';
-  
-  const prompt = `You are a UK accountant extracting data from statutory accounts or management accounts.
-
-Analyze this PDF document and extract ALL financial figures for EACH fiscal year.
-
-${yearHint}
-
-EXTRACT FOR EACH YEAR FOUND:
-
-PROFIT & LOSS:
-- fiscal_year: The year (e.g., 2024)
-- fiscal_year_end: End date (e.g., "2024-12-31")
-- revenue: Turnover/sales total
-- cost_of_sales: Cost of sales / direct costs
-- gross_profit: Gross profit (revenue - cost of sales)
-- staff_costs: Staff/employee costs
-- operating_expenses: Total administrative/operating expenses
-- depreciation: Depreciation charge
-- net_profit: Net profit or loss after tax
-
-BALANCE SHEET:
-- debtors: Trade debtors / accounts receivable
-- creditors: Trade creditors / accounts payable
-- cash: Cash at bank and in hand
-- fixed_assets: Tangible fixed assets
-- net_assets: Total net assets / shareholders funds
-
-IMPORTANT:
-- Extract data for ALL years shown (e.g., YE 2024 AND YE 2025)
-- Use exact numbers from the accounts (no rounding)
-- Positive numbers for income/assets, negative for losses
-- Use null if a value is not shown
-
-RESPOND WITH JSON ARRAY ONLY:
-[
-  {
-    "fiscal_year": 2024,
-    "fiscal_year_end": "2024-12-31",
-    "revenue": 610000,
-    "cost_of_sales": 212000,
-    "gross_profit": 398000,
-    "operating_expenses": 418000,
-    "depreciation": 16000,
-    "net_profit": -24000,
-    "debtors": 78000,
-    "creditors": 36000,
-    "cash": 18000,
-    "fixed_assets": 32000,
-    "net_assets": 36000,
-    "confidence": 0.95,
-    "notes": ["Loss-making year"]
-  },
-  {
-    "fiscal_year": 2025,
-    ...
+  // If pdf-parse extracted good text, send to Claude for analysis
+  if (extractedText && extractedText.length > 200) {
+    console.log('[PDF Parse] Sending extracted text to Claude for analysis...');
+    return await extractFinancialDataFromText(extractedText, hintYear, apiKey);
   }
-]`;
-
-  // Try multiple formats for PDF upload via OpenRouter
-  // Format 1: Anthropic's native document format (for Claude)
-  console.log('[OpenRouter PDF] Trying Claude with document format...');
   
-  let response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://torsor.io",
-      "X-Title": "Torsor Accounts Processing"
-    },
-    body: JSON.stringify({
-      model: "anthropic/claude-sonnet-4",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "document",
-              source: {
-                type: "base64",
-                media_type: "application/pdf",
-                data: base64
-              }
-            },
-            {
-              type: "text",
-              text: prompt
-            }
-          ]
-        }
-      ],
-      temperature: 0.1,
-      max_tokens: 4000
-    })
-  });
-
-  if (response.ok) {
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    if (content) {
-      console.log('[OpenRouter PDF] Claude document format worked!');
-      return parseFinancialJson(content);
+  // If pdf-parse failed or got little text, fall back to advanced extraction
+  console.log('[PDF Parse] Text extraction insufficient, trying advanced extraction...');
+  const advancedText = await extractTextFromPDFAdvanced(buffer);
+  
+  if (advancedText && advancedText.length > 200) {
+    // Check for financial terms
+    const hasFinancialTerms = /revenue|turnover|profit|loss|assets|debtors|creditors/i.test(advancedText);
+    if (hasFinancialTerms) {
+      console.log('[PDF Parse] Advanced extraction found financial terms, sending to Claude...');
+      return await extractFinancialDataFromText(advancedText, hintYear, apiKey);
     }
   }
   
-  let errorText = await response.text();
-  console.log('[OpenRouter PDF] Claude document format failed:', response.status, errorText.substring(0, 300));
-
-  // Format 2: image_url with data URI (works for some models)
-  console.log('[OpenRouter PDF] Trying GPT-4o with image_url format...');
-  
-  response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://torsor.io",
-      "X-Title": "Torsor Accounts Processing"
-    },
-    body: JSON.stringify({
-      model: "openai/gpt-4o",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: prompt
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:application/pdf;base64,${base64}`
-              }
-            }
-          ]
-        }
-      ],
-      temperature: 0.1,
-      max_tokens: 4000
-    })
-  });
-
-  if (response.ok) {
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    if (content) {
-      console.log('[OpenRouter PDF] GPT-4o image_url format worked!');
-      return parseFinancialJson(content);
-    }
-  }
-  
-  errorText = await response.text();
-  console.log('[OpenRouter PDF] GPT-4o failed:', response.status, errorText.substring(0, 300));
-
-  // Format 3: Try Gemini 1.5 Pro (correct model name)
-  console.log('[OpenRouter PDF] Trying Gemini 1.5 Pro...');
-  
-  response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://torsor.io",
-      "X-Title": "Torsor Accounts Processing"
-    },
-    body: JSON.stringify({
-      model: "google/gemini-pro-1.5",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: prompt
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:application/pdf;base64,${base64}`
-              }
-            }
-          ]
-        }
-      ],
-      temperature: 0.1,
-      max_tokens: 4000
-    })
-  });
-
-  if (response.ok) {
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    if (content) {
-      console.log('[OpenRouter PDF] Gemini Pro worked!');
-      return parseFinancialJson(content);
-    }
-  }
-  
-  errorText = await response.text();
-  console.log('[OpenRouter PDF] Gemini Pro failed:', response.status, errorText.substring(0, 300));
-
-  // Format 4: Try Claude 3.5 Sonnet (older, known to work)
-  console.log('[OpenRouter PDF] Trying Claude 3.5 Sonnet...');
-  
-  response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://torsor.io",
-      "X-Title": "Torsor Accounts Processing"
-    },
-    body: JSON.stringify({
-      model: "anthropic/claude-3.5-sonnet",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "document",
-              source: {
-                type: "base64",
-                media_type: "application/pdf",
-                data: base64
-              }
-            },
-            {
-              type: "text",
-              text: prompt
-            }
-          ]
-        }
-      ],
-      temperature: 0.1,
-      max_tokens: 4000
-    })
-  });
-
-  if (response.ok) {
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    if (content) {
-      console.log('[OpenRouter PDF] Claude 3.5 Sonnet worked!');
-      return parseFinancialJson(content);
-    }
-  }
-  
-  errorText = await response.text();
-  console.log('[OpenRouter PDF] Claude 3.5 Sonnet failed:', response.status, errorText.substring(0, 300));
-
-  // All formats failed - throw helpful error
+  // Last resort: throw error with helpful message
   throw new Error(
-    'Unable to extract data from PDF via OpenRouter. ' +
-    'Please try: 1) Export as CSV/Excel, or 2) Enter data manually in the review screen.'
+    'Unable to extract text from this PDF. The file may be scanned/image-based. ' +
+    'Please try: 1) Export as CSV or Excel, or 2) Enter data manually in the review screen.'
   );
 }
 
-// Advanced PDF text extraction - handles more PDF structures
+// Advanced PDF text extraction - handles more PDF structures (fallback if pdf-parse fails)
 async function extractTextFromPDFAdvanced(bytes: Uint8Array): Promise<string> {
   const decoder = new TextDecoder('latin1');
   const content = decoder.decode(bytes);
