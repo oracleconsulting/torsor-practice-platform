@@ -126,7 +126,7 @@ export function TestClientPanel({
           practice_id: practiceId,
           name: testClientData.name,
           email: testClientData.email,
-          company: testClientData.company,
+          client_company: testClientData.company,  // Note: column is client_company not company
           member_type: 'client',
           status: 'active',
           is_test_client: true
@@ -140,7 +140,7 @@ export function TestClientPanel({
         id: newClient.id,
         name: newClient.name,
         email: newClient.email,
-        company: newClient.company,
+        company: newClient.client_company,  // Map from client_company
         created_at: newClient.created_at
       });
       
