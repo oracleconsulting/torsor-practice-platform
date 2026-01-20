@@ -32,6 +32,11 @@ export { PeriodDeliveryChecklist } from './PeriodDeliveryChecklist';
 // Client Dashboard
 export { MAClientDashboard } from './MAClientDashboard';
 
+// Gold+ Features
+export { CashForecastChart } from './CashForecastChart';
+export { ScenarioBuilder } from './ScenarioBuilder';
+export { ClientProfitabilityTable } from './ClientProfitabilityTable';
+
 // Preview Components (for proposals/reports)
 export { TrueCashPreview } from './previews/TrueCashPreview';
 export { ForecastPreview } from './previews/ForecastPreview';
