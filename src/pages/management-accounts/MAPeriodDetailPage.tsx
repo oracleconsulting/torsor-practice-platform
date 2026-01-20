@@ -21,8 +21,7 @@ import {
   InsightCard,
   InsightEditor,
   PeriodDeliveryChecklist,
-  TrueCashCard,
-  KPIDashboard
+  TrueCashCard
 } from '../../components/management-accounts';
 import { calculateTrueCash, formatTrueCashForDisplay } from '../../services/ma/true-cash';
 import type { 
@@ -33,7 +32,6 @@ import type {
   MAInsight,
   MAKPIValue
 } from '../../types/ma';
-import { TIER_FEATURES } from '../../types/ma';
 
 type WorkflowTab = 'upload' | 'data' | 'kpis' | 'insights' | 'tuesday' | 'deliver';
 
@@ -431,20 +429,46 @@ export function MAPeriodDetailPage() {
               <div className="bg-white border border-slate-200 rounded-xl p-6">
                 <h2 className="text-lg font-semibold text-slate-800 mb-4">KPI Calculations</h2>
                 {kpis.length > 0 ? (
-                  <KPIDashboard
-                    engagementId={engagement.id}
-                    kpis={kpis.map(k => ({
-                      kpi_code: k.kpi_code,
-                      kpi_name: k.kpi_name || k.kpi_code,
-                      current_value: k.value,
-                      previous_value: k.previous_value,
-                      target_value: k.target_value,
-                      rag_status: k.rag_status,
-                      unit: k.kpi_unit || 'number',
-                      category: k.kpi_category || 'Other',
-                      auto_commentary: k.auto_commentary,
-                    }))}
-                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {kpis.map(kpi => (
+                      <div 
+                        key={kpi.kpi_code}
+                        className={`p-4 rounded-lg border ${
+                          kpi.rag_status === 'green' ? 'border-green-200 bg-green-50' :
+                          kpi.rag_status === 'amber' ? 'border-amber-200 bg-amber-50' :
+                          kpi.rag_status === 'red' ? 'border-red-200 bg-red-50' :
+                          'border-slate-200 bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <span className="text-sm font-medium text-slate-600">
+                            {kpi.kpi_name || kpi.kpi_code}
+                          </span>
+                          {kpi.rag_status && (
+                            <span className={`w-2 h-2 rounded-full ${
+                              kpi.rag_status === 'green' ? 'bg-green-500' :
+                              kpi.rag_status === 'amber' ? 'bg-amber-500' :
+                              kpi.rag_status === 'red' ? 'bg-red-500' :
+                              'bg-slate-400'
+                            }`} />
+                          )}
+                        </div>
+                        <div className="text-2xl font-bold text-slate-800">
+                          {kpi.value?.toLocaleString() ?? '-'}
+                        </div>
+                        {kpi.previous_value !== undefined && kpi.previous_value !== null && (
+                          <div className="text-sm text-slate-500 mt-1">
+                            Previous: {kpi.previous_value.toLocaleString()}
+                          </div>
+                        )}
+                        {kpi.auto_commentary && (
+                          <p className="text-xs text-slate-500 mt-2 line-clamp-2">
+                            {kpi.auto_commentary}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 ) : (
                   <div className="text-center py-8 text-slate-500">
                     <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />

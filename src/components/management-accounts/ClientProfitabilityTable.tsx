@@ -42,11 +42,12 @@ const RAG_COLORS: Record<RAGStatus, { bg: string; text: string; dot: string }> =
 };
 
 export function ClientProfitabilityTable({
-  periodId,
+  periodId: _periodId,
   clients,
   onUpdate,
   editable = false
 }: ClientProfitabilityTableProps) {
+  // _periodId reserved for future use (e.g., saving updates)
   const [expandedClient, setExpandedClient] = useState<string | null>(null);
   const [editingClient, setEditingClient] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<MAClientProfitability>>({});

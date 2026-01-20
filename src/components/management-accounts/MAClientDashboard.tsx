@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { TrueCashCard } from './TrueCashCard';
-import { KPIDashboard } from './KPIDashboard';
 import { TuesdayQuestionDisplay } from './TuesdayQuestionDisplay';
 import { InsightCard } from './InsightCard';
 import { formatTrueCashForDisplay, calculateTrueCash } from '../../services/ma/true-cash';
@@ -255,16 +254,34 @@ export function MAClientDashboard({ engagementId, periodId }: MAClientDashboardP
         <TrueCashCard data={trueCashDisplay} />
       )}
 
-      {/* KPI Grid */}
+      {/* KPI Summary */}
       {kpis.length > 0 && (
         <div>
           <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-blue-500" />
-            Your KPIs
+            Your KPIs ({kpis.length})
           </h2>
-          <KPIDashboard 
-            engagementId={engagementId}
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {kpis.slice(0, 6).map(kpi => (
+              <div 
+                key={kpi.kpi_code}
+                className={`p-4 rounded-lg border ${
+                  kpi.rag_status === 'green' ? 'border-green-200 bg-green-50' :
+                  kpi.rag_status === 'amber' ? 'border-amber-200 bg-amber-50' :
+                  kpi.rag_status === 'red' ? 'border-red-200 bg-red-50' :
+                  'border-slate-200 bg-slate-50'
+                }`}
+              >
+                <div className="text-sm text-slate-500 mb-1">{kpi.kpi_name || kpi.kpi_code}</div>
+                <div className="text-2xl font-bold text-slate-800">
+                  {kpi.value?.toLocaleString() ?? '-'}
+                </div>
+                {kpi.auto_commentary && (
+                  <p className="text-xs text-slate-500 mt-2">{kpi.auto_commentary}</p>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

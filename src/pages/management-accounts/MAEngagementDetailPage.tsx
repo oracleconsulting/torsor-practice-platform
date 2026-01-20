@@ -19,13 +19,11 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { 
-  KPISelector, 
   WatchListPanel, 
   TrueCashCard 
 } from '../../components/management-accounts';
 import { formatTrueCashForDisplay, calculateTrueCash } from '../../services/ma/true-cash';
-import type { MAEngagement, MAPeriod, MAFinancialData } from '../../types/ma';
-import { TIER_FEATURES } from '../../types/ma';
+import type { MAEngagement, MAPeriod, MAFinancialData, TierType } from '../../types/ma';
 
 const PERIOD_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   pending: { label: 'Pending', color: 'text-slate-500', bg: 'bg-slate-100', icon: <Clock className="h-3 w-3" /> },
@@ -45,6 +43,7 @@ export function MAEngagementDetailPage() {
   const [periods, setPeriods] = useState<MAPeriod[]>([]);
   const [latestFinancials, setLatestFinancials] = useState<MAFinancialData | null>(null);
   const [activeTab, setActiveTab] = useState<'periods' | 'kpis' | 'watchlist'>('periods');
+  const [showNewPeriodModal, setShowNewPeriodModal] = useState(false);
 
   useEffect(() => {
     if (engagementId) {
@@ -433,10 +432,16 @@ export function MAEngagementDetailPage() {
       )}
 
       {activeTab === 'kpis' && (
-        <KPISelector
-          engagementId={engagement.id}
-          tier={tier}
-        />
+        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
+          <BarChart3 className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-slate-700 mb-2">KPI Configuration</h3>
+          <p className="text-slate-500 mb-4">
+            Configure which KPIs to track for this engagement.
+          </p>
+          <p className="text-sm text-slate-400">
+            KPI selection is managed during period setup.
+          </p>
+        </div>
       )}
 
       {activeTab === 'watchlist' && (

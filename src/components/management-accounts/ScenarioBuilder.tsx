@@ -128,7 +128,7 @@ export function ScenarioBuilder({
   });
 
   const tierConfig = TIER_FEATURES[tier];
-  const maxScenarios = tierConfig.scenarioLimit;
+  // Note: tierConfig.scenarioLimit could be used to limit scenarios in future
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 0 }).format(value);

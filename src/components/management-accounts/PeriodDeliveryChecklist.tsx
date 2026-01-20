@@ -26,11 +26,12 @@ interface PeriodDeliveryChecklistProps {
 
 export function PeriodDeliveryChecklist({
   periodId,
-  engagementId,
+  engagementId: _engagementId,
   tier,
   periodLabel,
   onComplete
 }: PeriodDeliveryChecklistProps) {
+  // _engagementId reserved for future cross-engagement features
   const [items, setItems] = useState<DeliveryChecklistItem[]>(() => getDeliveryChecklist(tier));
   const [expanded, setExpanded] = useState(true);
   const [delivering, setDelivering] = useState(false);
