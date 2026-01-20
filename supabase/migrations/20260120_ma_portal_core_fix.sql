@@ -173,6 +173,255 @@ USING (
   )
 );
 
+-- ============================================================================
+-- FIX: Ensure ma_periods table has all required columns
+-- ============================================================================
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ma_periods') THEN
+    CREATE TABLE ma_periods (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      engagement_id UUID REFERENCES ma_engagements(id) NOT NULL,
+      period_type VARCHAR(20) NOT NULL CHECK (period_type IN ('monthly', 'quarterly')),
+      period_start DATE NOT NULL,
+      period_end DATE NOT NULL,
+      period_label VARCHAR(50),
+      status VARCHAR(30) DEFAULT 'pending' CHECK (status IN (
+        'pending', 'data_received', 'in_progress', 'review', 'approved', 'delivered', 'client_reviewed'
+      )),
+      due_date DATE,
+      data_received_at TIMESTAMPTZ,
+      delivered_at TIMESTAMPTZ,
+      client_viewed_at TIMESTAMPTZ,
+      tuesday_question TEXT,
+      tuesday_question_asked_at TIMESTAMPTZ,
+      tuesday_answer TEXT,
+      tuesday_answer_format VARCHAR(20) CHECK (tuesday_answer_format IN ('text', 'calculation', 'scenario', 'chart')),
+      review_call_scheduled_at TIMESTAMPTZ,
+      review_call_completed_at TIMESTAMPTZ,
+      review_call_notes TEXT,
+      review_call_duration_mins INTEGER,
+      review_call_recording_url TEXT,
+      checklist_status JSONB DEFAULT '{}',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      prepared_by UUID,
+      reviewed_by UUID,
+      UNIQUE(engagement_id, period_start)
+    );
+  END IF;
+END $$;
+
+-- Add missing columns to ma_periods
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ma_periods' AND column_name = 'due_date') THEN
+    ALTER TABLE ma_periods ADD COLUMN due_date DATE;
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ma_periods' AND column_name = 'period_label') THEN
+    ALTER TABLE ma_periods ADD COLUMN period_label VARCHAR(50);
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ma_periods' AND column_name = 'status') THEN
+    ALTER TABLE ma_periods ADD COLUMN status VARCHAR(30) DEFAULT 'pending';
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ma_periods' AND column_name = 'delivered_at') THEN
+    ALTER TABLE ma_periods ADD COLUMN delivered_at TIMESTAMPTZ;
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ma_periods' AND column_name = 'tuesday_question') THEN
+    ALTER TABLE ma_periods ADD COLUMN tuesday_question TEXT;
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ma_periods' AND column_name = 'tuesday_answer') THEN
+    ALTER TABLE ma_periods ADD COLUMN tuesday_answer TEXT;
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ma_periods' AND column_name = 'period_start') THEN
+    ALTER TABLE ma_periods ADD COLUMN period_start DATE;
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ma_periods' AND column_name = 'period_end') THEN
+    ALTER TABLE ma_periods ADD COLUMN period_end DATE;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_ma_periods_engagement ON ma_periods(engagement_id);
+CREATE INDEX IF NOT EXISTS idx_ma_periods_status ON ma_periods(status);
+CREATE INDEX IF NOT EXISTS idx_ma_periods_dates ON ma_periods(period_start, period_end);
+CREATE INDEX IF NOT EXISTS idx_ma_periods_due ON ma_periods(due_date);
+
+ALTER TABLE ma_periods ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view periods for accessible engagements" ON ma_periods;
+DROP POLICY IF EXISTS "Users can insert periods" ON ma_periods;
+DROP POLICY IF EXISTS "Users can update periods" ON ma_periods;
+
+CREATE POLICY "Users can view periods for accessible engagements"
+ON ma_periods FOR SELECT
+TO authenticated
+USING (
+  engagement_id IN (
+    SELECT id FROM ma_engagements 
+    WHERE practice_id IN (
+      SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
+    )
+  )
+);
+
+CREATE POLICY "Users can insert periods"
+ON ma_periods FOR INSERT
+TO authenticated
+WITH CHECK (
+  engagement_id IN (
+    SELECT id FROM ma_engagements 
+    WHERE practice_id IN (
+      SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
+    )
+  )
+);
+
+CREATE POLICY "Users can update periods"
+ON ma_periods FOR UPDATE
+TO authenticated
+USING (
+  engagement_id IN (
+    SELECT id FROM ma_engagements 
+    WHERE practice_id IN (
+      SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
+    )
+  )
+);
+
+-- ============================================================================
+-- FIX: Ensure ma_financial_data table exists
+-- ============================================================================
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ma_financial_data') THEN
+    CREATE TABLE ma_financial_data (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      period_id UUID REFERENCES ma_periods(id) NOT NULL UNIQUE,
+      engagement_id UUID REFERENCES ma_engagements(id) NOT NULL,
+      revenue DECIMAL(15,2),
+      cost_of_sales DECIMAL(15,2),
+      gross_profit DECIMAL(15,2),
+      overheads DECIMAL(15,2),
+      operating_profit DECIMAL(15,2),
+      interest DECIMAL(15,2),
+      tax_charge DECIMAL(15,2),
+      net_profit DECIMAL(15,2),
+      cash_at_bank DECIMAL(15,2),
+      trade_debtors DECIMAL(15,2),
+      trade_creditors DECIMAL(15,2),
+      vat_liability DECIMAL(15,2),
+      paye_liability DECIMAL(15,2),
+      corporation_tax_liability DECIMAL(15,2),
+      true_cash DECIMAL(15,2),
+      true_cash_calculation JSONB,
+      true_cash_runway_months DECIMAL(5,2),
+      monthly_operating_costs DECIMAL(15,2),
+      data_source VARCHAR(20),
+      confidence_level VARCHAR(20),
+      data_notes TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      entered_by UUID
+    );
+  END IF;
+END $$;
+
+-- Add missing columns to ma_financial_data
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ma_financial_data' AND column_name = 'true_cash') THEN
+    ALTER TABLE ma_financial_data ADD COLUMN true_cash DECIMAL(15,2);
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ma_financial_data' AND column_name = 'true_cash_runway_months') THEN
+    ALTER TABLE ma_financial_data ADD COLUMN true_cash_runway_months DECIMAL(5,2);
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ma_financial_data' AND column_name = 'revenue') THEN
+    ALTER TABLE ma_financial_data ADD COLUMN revenue DECIMAL(15,2);
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ma_financial_data' AND column_name = 'net_profit') THEN
+    ALTER TABLE ma_financial_data ADD COLUMN net_profit DECIMAL(15,2);
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_ma_financial_data_period ON ma_financial_data(period_id);
+CREATE INDEX IF NOT EXISTS idx_ma_financial_data_engagement ON ma_financial_data(engagement_id);
+
+ALTER TABLE ma_financial_data ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Access financial data via engagement" ON ma_financial_data;
+
+CREATE POLICY "Access financial data via engagement"
+ON ma_financial_data FOR ALL
+TO authenticated
+USING (
+  engagement_id IN (
+    SELECT id FROM ma_engagements 
+    WHERE practice_id IN (
+      SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
+    )
+  )
+);
+
+-- ============================================================================
+-- FIX: Ensure ma_insights table exists
+-- ============================================================================
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ma_insights') THEN
+    CREATE TABLE ma_insights (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      period_id UUID REFERENCES ma_periods(id) NOT NULL,
+      engagement_id UUID REFERENCES ma_engagements(id) NOT NULL,
+      insight_type VARCHAR(50) NOT NULL,
+      category VARCHAR(50),
+      title VARCHAR(200) NOT NULL,
+      description TEXT NOT NULL,
+      recommendation TEXT,
+      recommendation_priority VARCHAR(20),
+      related_kpi_code VARCHAR(50),
+      supporting_data JSONB,
+      min_tier VARCHAR(20) DEFAULT 'bronze',
+      show_to_client BOOLEAN DEFAULT TRUE,
+      display_order INTEGER,
+      is_auto_generated BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      created_by UUID
+    );
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_ma_insights_period ON ma_insights(period_id);
+CREATE INDEX IF NOT EXISTS idx_ma_insights_engagement ON ma_insights(engagement_id);
+
+ALTER TABLE ma_insights ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Access insights via engagement" ON ma_insights;
+
+CREATE POLICY "Access insights via engagement"
+ON ma_insights FOR ALL
+TO authenticated
+USING (
+  engagement_id IN (
+    SELECT id FROM ma_engagements 
+    WHERE practice_id IN (
+      SELECT practice_id FROM practice_members WHERE user_id = auth.uid()
+    )
+  )
+);
+
 -- Now recreate the views
 DROP VIEW IF EXISTS ma_engagement_summary;
 DROP VIEW IF EXISTS ma_period_summary;
