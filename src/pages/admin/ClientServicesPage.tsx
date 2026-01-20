@@ -7147,7 +7147,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         </div>
                       )}
                       
-                      {/* Report Header with Share Status */}
+                      {/* Report Header with Share Status and Portal Link */}
                       <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between">
                         <div>
                           <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -7168,7 +7168,18 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             )}
                           </p>
                         </div>
-                        <button
+                        <div className="flex items-center gap-3">
+                          {/* Go to MA Portal Button */}
+                          {maEngagementId && (
+                            <button
+                              onClick={() => onNavigate('ma-portal')}
+                              className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                            >
+                              <TrendingUp className="w-4 h-4" />
+                              Go to MA Portal
+                            </button>
+                          )}
+                          <button
                           onClick={async () => {
                             const newSharedStatus = !isMAReportShared;
                             
@@ -7214,6 +7225,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             </>
                           )}
                         </button>
+                        </div>
                       </div>
                       
                       {/* Render the appropriate view component */}
@@ -7797,9 +7809,57 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             call_context: maAssessmentReport.call_context // Pass call context for real financial data
                           }}
                           engagement={client}
-                          onTierSelect={(tier) => {
+                          onTierSelect={async (tier) => {
                             console.log('[MA Report] Client selected tier:', tier);
-                            // Could trigger engagement creation or update
+                            // Parse tier - might be "gold_monthly" or just "gold"
+                            const [tierName, frequency] = tier.includes('_') ? tier.split('_') : [tier, 'monthly'];
+                            
+                            try {
+                              // Check if engagement exists
+                              const { data: existing } = await supabase
+                                .from('ma_engagements')
+                                .select('id, tier')
+                                .eq('client_id', clientId)
+                                .maybeSingle();
+                              
+                              if (existing) {
+                                // Update existing engagement tier
+                                const { error: updateError } = await supabase
+                                  .from('ma_engagements')
+                                  .update({ 
+                                    tier: tierName,
+                                    frequency: frequency as 'monthly' | 'quarterly',
+                                    monthly_fee: tierName === 'bronze' ? 750 : tierName === 'silver' ? 1500 : tierName === 'gold' ? 3000 : 5000
+                                  })
+                                  .eq('id', existing.id);
+                                
+                                if (updateError) throw updateError;
+                                setMAEngagementId(existing.id);
+                                alert(`Engagement updated to ${tierName.charAt(0).toUpperCase() + tierName.slice(1)} tier! Go to MA Portal to manage deliverables.`);
+                              } else {
+                                // Create new engagement
+                                const { data: newEng, error: createError } = await supabase
+                                  .from('ma_engagements')
+                                  .insert({
+                                    client_id: clientId,
+                                    practice_id: client?.practice_id,
+                                    tier: tierName,
+                                    frequency: frequency as 'monthly' | 'quarterly',
+                                    monthly_fee: tierName === 'bronze' ? 750 : tierName === 'silver' ? 1500 : tierName === 'gold' ? 3000 : 5000,
+                                    status: 'active',
+                                    start_date: new Date().toISOString().split('T')[0]
+                                  })
+                                  .select('id')
+                                  .single();
+                                
+                                if (createError) throw createError;
+                                setMAEngagementId(newEng.id);
+                                alert(`${tierName.charAt(0).toUpperCase() + tierName.slice(1)} engagement created! Go to MA Portal to start delivering.`);
+                              }
+                            } catch (error) {
+                              console.error('[MA Report] Error creating/updating engagement:', error);
+                              alert('Failed to create engagement. Please try again.');
+                            }
                           }}
                         />
                       )}
