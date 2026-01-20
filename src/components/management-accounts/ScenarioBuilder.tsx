@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { MAScenario, TierType } from '../../types/ma';
-import { TIER_FEATURES } from '../../types/ma';
 
 interface ScenarioBuilderProps {
   engagementId: string;
@@ -127,10 +126,7 @@ export function ScenarioBuilder({
     returnTimeframe: 12,
   });
 
-  const tierConfig = TIER_FEATURES[tier];
-  // Note: tierConfig.scenarioLimit could be used to limit scenarios in future
-
-  const formatCurrency = (value: number) =>
+const formatCurrency = (value: number) =>
     new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 0 }).format(value);
 
   // Run scenario calculations
