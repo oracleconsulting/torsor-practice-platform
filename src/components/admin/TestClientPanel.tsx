@@ -134,6 +134,7 @@ export function TestClientPanel({
           email: testClientData.email,
           client_company: testClientData.company,
           member_type: 'client',
+          role: 'client',  // Required column
           program_status: 'test_client'
         })
         .select()
