@@ -264,12 +264,12 @@ serve(async (req) => {
   }
 });
 
-// Extract financial data from PDF using Google's native Gemini API
-// OpenRouter doesn't support PDF uploads, so we use Google's API directly
+// Extract financial data from PDF using OpenRouter with native PDF support
+// OpenRouter supports PDFs via Claude (native), Gemini (native), and auto-parsing
 async function extractFromPDFWithVision(
   fileBlob: Blob,
   hintYear: number | null,
-  openrouterKey: string
+  apiKey: string
 ): Promise<ExtractedFinancialData[]> {
   const arrayBuffer = await fileBlob.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
@@ -342,81 +342,158 @@ RESPOND WITH JSON ARRAY ONLY:
   }
 ]`;
 
-  // Try Google's native Gemini API (supports PDF natively)
-  const googleApiKey = Deno.env.get("GOOGLE_AI_API_KEY");
+  // Use Claude via OpenRouter - it has native PDF support
+  // Format: file object with filename and base64 data
+  console.log('[OpenRouter PDF] Sending PDF to Claude via OpenRouter...');
   
-  if (googleApiKey) {
-    console.log('[Google Gemini] Using native Gemini API for PDF...');
-    
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${googleApiKey}`,
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://torsor.io",
+      "X-Title": "Torsor Accounts Processing"
+    },
+    body: JSON.stringify({
+      model: "anthropic/claude-sonnet-4",
+      messages: [
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: prompt },
-                {
-                  inline_data: {
-                    mime_type: "application/pdf",
-                    data: base64
-                  }
-                }
-              ]
-            }],
-            generationConfig: {
-              temperature: 0.1,
-              maxOutputTokens: 4000
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: prompt
+            },
+            {
+              type: "file",
+              file: {
+                filename: "accounts.pdf",
+                data: base64
+              }
             }
-          })
+          ]
         }
-      );
+      ],
+      temperature: 0.1,
+      max_tokens: 4000
+    })
+  });
 
-      if (response.ok) {
-        const data = await response.json();
-        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        
-        if (content) {
-          console.log('[Google Gemini] Response received');
-          console.log('[Google Gemini] Raw:', content.substring(0, 300));
-          return parseFinancialJson(content);
-        }
-      } else {
-        const errorText = await response.text();
-        console.log('[Google Gemini] API error:', response.status, errorText.substring(0, 200));
-      }
-    } catch (e) {
-      console.log('[Google Gemini] Error:', e);
+  if (response.ok) {
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    
+    if (content) {
+      console.log('[OpenRouter PDF] Response received from Claude');
+      console.log('[OpenRouter PDF] Raw:', content.substring(0, 300));
+      return parseFinancialJson(content);
     }
-  } else {
-    console.log('[Google Gemini] No GOOGLE_AI_API_KEY found, skipping native API');
   }
+  
+  // Log error and try GPT-4o as fallback
+  const errorText = await response.text();
+  console.log('[OpenRouter PDF] Claude failed:', response.status, errorText.substring(0, 200));
+  
+  console.log('[OpenRouter PDF] Trying GPT-4o...');
+  const gptResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://torsor.io",
+      "X-Title": "Torsor Accounts Processing"
+    },
+    body: JSON.stringify({
+      model: "openai/gpt-4o",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: prompt
+            },
+            {
+              type: "file",
+              file: {
+                filename: "accounts.pdf",
+                data: base64
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 4000
+    })
+  });
 
-  // Fallback: Try text extraction + Claude
-  console.log('[PDF Fallback] Trying text extraction...');
-  
-  const extractedText = await extractTextFromPDFAdvanced(bytes);
-  console.log(`[PDF Fallback] Extracted ${extractedText?.length || 0} chars`);
-  
-  // Check if text looks like actual content (not just garbage)
-  const hasFinancialTerms = extractedText && (
-    /revenue|turnover|profit|loss|assets|liabilities/i.test(extractedText) ||
-    /£\d|GBP|\d{3},\d{3}/i.test(extractedText)
-  );
-  
-  if (hasFinancialTerms && extractedText.length > 200) {
-    console.log('[PDF Fallback] Text contains financial terms, sending to Claude');
-    return await extractFinancialDataFromText(extractedText, hintYear, openrouterKey);
+  if (gptResponse.ok) {
+    const data = await gptResponse.json();
+    const content = data.choices?.[0]?.message?.content;
+    
+    if (content) {
+      console.log('[OpenRouter PDF] Response received from GPT-4o');
+      console.log('[OpenRouter PDF] Raw:', content.substring(0, 300));
+      return parseFinancialJson(content);
+    }
   }
   
-  // If text extraction got garbage, throw helpful error
-  console.log('[PDF Fallback] Text extraction failed - no meaningful content');
+  const gptError = await gptResponse.text();
+  console.log('[OpenRouter PDF] GPT-4o failed:', gptResponse.status, gptError.substring(0, 200));
+
+  // Final fallback: Try Gemini with different format
+  console.log('[OpenRouter PDF] Trying Gemini...');
+  const geminiResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://torsor.io",
+      "X-Title": "Torsor Accounts Processing"
+    },
+    body: JSON.stringify({
+      model: "google/gemini-flash-1.5",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: prompt
+            },
+            {
+              type: "file",
+              file: {
+                filename: "accounts.pdf",
+                data: base64
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 4000
+    })
+  });
+
+  if (geminiResponse.ok) {
+    const data = await geminiResponse.json();
+    const content = data.choices?.[0]?.message?.content;
+    
+    if (content) {
+      console.log('[OpenRouter PDF] Response received from Gemini');
+      return parseFinancialJson(content);
+    }
+  }
+  
+  const geminiError = await geminiResponse.text();
+  console.log('[OpenRouter PDF] Gemini failed:', geminiResponse.status, geminiError.substring(0, 200));
+
+  // All models failed - throw helpful error
   throw new Error(
-    'Unable to extract data from this PDF. The file may be scanned/image-based or use complex encoding. ' +
-    'Options: 1) Add GOOGLE_AI_API_KEY to Supabase secrets for native PDF support, ' +
-    '2) Export the accounts as CSV/Excel, or 3) Enter data manually.'
+    'Unable to extract data from PDF. All models (Claude, GPT-4o, Gemini) failed. ' +
+    'Please try: 1) Export as CSV/Excel, or 2) Enter data manually.'
   );
 }
 
