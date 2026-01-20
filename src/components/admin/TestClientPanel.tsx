@@ -45,18 +45,35 @@ interface AssessmentField {
 }
 
 // Assessment templates for each service line
+// These match the actual assessment questions in the assessment builder
 const ASSESSMENT_TEMPLATES: Record<string, AssessmentField[]> = {
   benchmarking: [
-    { key: 'bm_revenue_exact', label: 'Annual Revenue (£)', type: 'number', placeholder: '750000', required: true },
+    // Section 1: Classification
+    { key: 'business_description', label: 'Business Description', type: 'textarea', placeholder: 'We run a software development agency specializing in React and Node.js applications for fintech clients.', required: true },
+    { key: 'industry_selection', label: 'Industry', type: 'select', options: ['Accountancy & Tax Services', 'Legal Services', 'Management Consultancy', 'Recruitment & Staffing', 'Marketing & PR Agencies', 'IT Services & Software', 'Architecture', 'Engineering Consultancy', 'Financial Services', 'Healthcare Services'], required: true },
+    { key: 'bm_sub_sector', label: 'Niche/Specialisation', type: 'text', placeholder: 'e.g., SaaS development, Fintech' },
+    { key: 'bm_sic_code', label: 'SIC Code (if known)', type: 'text', placeholder: '62020' },
+    
+    // Section 2: Size Context
+    { key: 'bm_revenue_exact', label: 'Revenue (last 12 months) £', type: 'number', placeholder: '750000', required: true },
     { key: 'bm_employee_count', label: 'Number of Employees', type: 'number', placeholder: '8', required: true },
-    { key: 'bm_sic_code', label: 'SIC Code', type: 'text', placeholder: '62020' },
-    { key: 'bm_sub_sector', label: 'Sub-sector', type: 'text', placeholder: 'Software Development' },
-    { key: 'business_description', label: 'Business Description', type: 'textarea', placeholder: 'Describe the business...' },
-    { key: 'performance_perception', label: 'Performance Perception', type: 'select', options: ['Above average', 'Average', 'Below average', 'Not sure'] },
-    { key: 'suspected_underperformance', label: 'Suspected Underperformance', type: 'textarea', placeholder: 'Where do you think you might be underperforming?' },
-    { key: 'leaving_money', label: 'Where Leaving Money', type: 'textarea', placeholder: 'Where do you think you might be leaving money on the table?' },
-    { key: 'benchmark_magic_fix', label: 'Magic Fix', type: 'textarea', placeholder: 'If you could fix one thing overnight, what would it be?' },
-    { key: 'action_readiness', label: 'Action Readiness', type: 'select', options: ['Ready to act immediately', 'Need to plan first', 'Just exploring', 'Not ready'] },
+    { key: 'years_trading', label: 'Years Trading', type: 'select', options: ['Under 2 years', '2-5 years', '5-10 years', '10+ years'], required: true },
+    { key: 'primary_region', label: 'Primary Region', type: 'select', options: ['London', 'South East England', 'Midlands', 'North of England', 'Scotland', 'Wales', 'Northern Ireland', 'Remote/National', 'International'], required: true },
+    
+    // Section 3: Perception
+    { key: 'performance_perception', label: 'Performance vs Competitors', type: 'select', options: ['Top 10% - Industry leader', 'Top 25% - Above average', 'Middle of the pack', 'Below average', 'Honestly, I don\'t know'], required: true },
+    { key: 'metrics_tracked', label: 'Metrics Currently Tracked', type: 'text', placeholder: 'Revenue, Gross Profit %, Net Profit %, Cash Flow' },
+    { key: 'competitor_comparison', label: 'How do you compare to competitors?', type: 'textarea', placeholder: 'We look at their pricing and client list' },
+    
+    // Section 4: Priorities  
+    { key: 'suspected_underperformance', label: 'Where do you SUSPECT underperformance?', type: 'textarea', placeholder: 'I think our gross margins are lower than they should be', required: true },
+    { key: 'leaving_money', label: 'Where might you be leaving money on the table?', type: 'textarea', placeholder: 'Pricing too low? Costs too high? Missing revenue streams?' },
+    { key: 'top_quartile_goals', label: 'Where would you most like to be TOP QUARTILE?', type: 'text', placeholder: 'Profitability, Revenue Growth, Efficiency' },
+    
+    // Section 5: Magic Action
+    { key: 'benchmark_magic_fix', label: 'What would you DO with benchmark insights?', type: 'textarea', placeholder: 'I\'d restructure our pricing based on what top performers charge', required: true },
+    { key: 'action_readiness', label: 'Ready to act on findings?', type: 'select', options: ['Ready to act immediately', 'Will feed into planning for next quarter', 'Just want awareness for now', 'Need to share with team/board first'], required: true },
+    { key: 'blind_spot_fear', label: 'What blind spot are you afraid this might reveal?', type: 'textarea', placeholder: 'The thing you hope ISN\'T true about your business...' },
   ],
   hidden_value_audit: [
     { key: 'top3_customer_revenue_percentage', label: 'Top 3 Customers (% of Revenue)', type: 'number', placeholder: '45' },
