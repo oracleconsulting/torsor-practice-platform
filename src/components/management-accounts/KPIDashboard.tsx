@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -360,7 +360,6 @@ export function KPIDashboard({
   onSettings,
   isLoading,
 }: KPIDashboardProps) {
-  // Future: const [showAllKPIs, setShowAllKPIs] = useState(false);
   
   // Sort KPIs by display order
   const sortedKPIs = useMemo(() => 
