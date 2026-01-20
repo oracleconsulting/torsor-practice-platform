@@ -40,23 +40,43 @@ export function MetricComparisonCard({
   const isGap = higherIsBetter ? clientValue < medianValue : clientValue > medianValue;
   const gapAmount = Math.abs(clientValue - medianValue);
   
-  // Calculate position on scale with clean rounding
-  const calculateScale = (clientVal: number, p25Val: number, p75Val: number) => {
+  // Calculate position on scale with clean rounding based on format
+  const calculateScale = (clientVal: number, p25Val: number, p75Val: number, fmt: string) => {
     const minValue = Math.min(clientVal, p25Val);
     const maxValue = Math.max(clientVal, p75Val);
     const range = maxValue - minValue;
     const padding = range * 0.15;
     
-    // Round to nice numbers based on range
-    const roundTo = range > 100000 ? 10000 : range > 10000 ? 5000 : 1000;
+    // Different rounding for different formats
+    let roundTo: number;
+    if (fmt === 'percent') {
+      // For percentages, round to 5 or 10
+      roundTo = range > 50 ? 10 : 5;
+    } else if (fmt === 'days') {
+      // For days, round to 5 or 10
+      roundTo = range > 50 ? 10 : 5;
+    } else {
+      // For currency/numbers, round based on magnitude
+      roundTo = range > 100000 ? 10000 : range > 10000 ? 5000 : range > 1000 ? 500 : 100;
+    }
     
-    const scaleMin = Math.floor((minValue - padding) / roundTo) * roundTo;
-    const scaleMax = Math.ceil((maxValue + padding) / roundTo) * roundTo;
+    let scaleMin = Math.floor((minValue - padding) / roundTo) * roundTo;
+    let scaleMax = Math.ceil((maxValue + padding) / roundTo) * roundTo;
+    
+    // Ensure minimum is 0 for percentages and days (can't be negative)
+    if ((fmt === 'percent' || fmt === 'days') && scaleMin < 0) {
+      scaleMin = 0;
+    }
+    
+    // Cap percentage scales at sensible values
+    if (fmt === 'percent' && scaleMax > 100 && maxValue <= 100) {
+      scaleMax = 100;
+    }
     
     return { scaleMin, scaleMax };
   };
   
-  const { scaleMin, scaleMax } = calculateScale(clientValue, p25, p75);
+  const { scaleMin, scaleMax } = calculateScale(clientValue, p25, p75, format);
   const scaleRange = scaleMax - scaleMin;
   
   const clientPosition = ((clientValue - scaleMin) / scaleRange) * 100;

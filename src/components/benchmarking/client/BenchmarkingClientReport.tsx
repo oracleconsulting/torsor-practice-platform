@@ -38,6 +38,54 @@ const safeJsonParse = <T,>(value: string | T | null | undefined, fallback: T): T
   return value as T;
 };
 
+// Helper to determine the correct format for a metric based on its code
+const getMetricFormat = (metricCode: string | undefined): 'currency' | 'percent' | 'number' | 'days' => {
+  if (!metricCode) return 'number';
+  
+  const code = metricCode.toLowerCase();
+  
+  // Days metrics
+  if (code.includes('days') || code.includes('debtor') || code.includes('creditor')) {
+    return 'days';
+  }
+  
+  // Percentage metrics
+  if (
+    code.includes('margin') || 
+    code.includes('rate') || 
+    code.includes('utilisation') ||
+    code.includes('utilization') ||
+    code.includes('concentration') ||
+    code.includes('growth') ||
+    code.includes('retention') ||
+    code.includes('turnover') ||
+    code.includes('percentage') ||
+    code.includes('pct') ||
+    code.includes('ratio')
+  ) {
+    return 'percent';
+  }
+  
+  // Currency metrics
+  if (
+    code.includes('revenue') || 
+    code.includes('profit') ||
+    code.includes('ebitda') ||
+    code.includes('hourly') ||
+    code.includes('salary') ||
+    code.includes('cost') ||
+    code.includes('fee') ||
+    code.includes('price') ||
+    code.includes('value') ||
+    code.includes('per_employee')
+  ) {
+    return 'currency';
+  }
+  
+  // Default to number for anything else
+  return 'number';
+};
+
 export function BenchmarkingClientReport({ data }: BenchmarkingClientReportProps) {
   const metrics = safeJsonParse(data.metrics_comparison, []);
   const recommendations = safeJsonParse(data.recommendations, []);
@@ -81,20 +129,31 @@ export function BenchmarkingClientReport({ data }: BenchmarkingClientReportProps
           <div>
             <h2 className="text-xl font-semibold text-slate-900 mb-4">Key Metrics</h2>
             <div className="grid gap-6 md:grid-cols-2">
-              {metrics.map((metric: any, i: number) => (
-                <MetricComparisonCard
-                  key={i}
-                  metricName={metric.metricName || metric.metric}
-                  clientValue={metric.clientValue}
-                  medianValue={metric.p50}
-                  p25={metric.p25}
-                  p75={metric.p75}
-                  percentile={metric.percentile}
-                  format={metric.metricCode?.includes('margin') || metric.metricCode?.includes('rate') ? 'percent' : 'currency'}
-                  higherIsBetter={!metric.metricCode?.includes('days') && !metric.metricCode?.includes('concentration')}
-                  annualImpact={metric.annualImpact}
-                />
-              ))}
+              {metrics.map((metric: any, i: number) => {
+                const metricCode = metric.metricCode?.toLowerCase() || '';
+                // For most metrics, higher is better. But for days (debtor/creditor) and concentration, lower is better.
+                const higherIsBetter = !(
+                  metricCode.includes('days') || 
+                  metricCode.includes('debtor') || 
+                  metricCode.includes('creditor') ||
+                  metricCode.includes('concentration')
+                );
+                
+                return (
+                  <MetricComparisonCard
+                    key={i}
+                    metricName={metric.metricName || metric.metric}
+                    clientValue={metric.clientValue}
+                    medianValue={metric.p50}
+                    p25={metric.p25}
+                    p75={metric.p75}
+                    percentile={metric.percentile}
+                    format={getMetricFormat(metric.metricCode)}
+                    higherIsBetter={higherIsBetter}
+                    annualImpact={metric.annualImpact}
+                  />
+                );
+              })}
             </div>
           </div>
         )}
