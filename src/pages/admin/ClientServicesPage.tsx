@@ -9639,7 +9639,15 @@ function BenchmarkingClientModal({
                             if (key.startsWith('bm_supp_') && value !== undefined && value !== null && value !== '') {
                               // Remove the bm_supp_ prefix to get the original metric name
                               const metricName = key.replace('bm_supp_', '');
-                              supplementaryData[metricName] = typeof value === 'number' ? value : (parseFloat(value) || value);
+                              // Handle different value types
+                              if (typeof value === 'number') {
+                                supplementaryData[metricName] = value;
+                              } else if (typeof value === 'string') {
+                                const numVal = parseFloat(value);
+                                supplementaryData[metricName] = isNaN(numVal) ? value : numVal;
+                              } else {
+                                supplementaryData[metricName] = String(value);
+                              }
                             }
                           }
                           
