@@ -264,75 +264,65 @@ serve(async (req) => {
   }
 });
 
-// Extract financial data from PDF using Claude's document vision
-// This sends the PDF directly to Claude which can read and understand it
+// Extract financial data from PDF using Google Gemini (supports native PDF)
+// Falls back to text extraction + Claude if Gemini fails
 async function extractFromPDFWithVision(
   fileBlob: Blob,
   hintYear: number | null,
   apiKey: string
 ): Promise<ExtractedFinancialData[]> {
   const arrayBuffer = await fileBlob.arrayBuffer();
-  const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+  const bytes = new Uint8Array(arrayBuffer);
   
-  const currentYear = new Date().getFullYear();
+  // First, try to extract text from PDF directly
+  console.log('[PDF Extract] Attempting text extraction from PDF...');
+  const extractedText = await extractTextFromPDFAdvanced(bytes);
+  
+  if (extractedText && extractedText.length > 200) {
+    console.log(`[PDF Extract] Extracted ${extractedText.length} chars of text`);
+    // Use Claude to analyze the extracted text
+    return await extractFinancialDataFromText(extractedText, hintYear, apiKey);
+  }
+  
+  // If text extraction failed, try Google Gemini with native PDF support
+  console.log('[PDF Extract] Text extraction insufficient, trying Gemini PDF...');
+  
+  // Convert to base64 for Gemini
+  let base64 = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.slice(i, i + chunkSize);
+    base64 += String.fromCharCode.apply(null, Array.from(chunk));
+  }
+  base64 = btoa(base64);
+  
   const yearHint = hintYear ? `The user indicated this is for fiscal year ${hintYear}.` : '';
   
-  const prompt = `You are a financial data extraction specialist. Analyze this PDF document containing company accounts.
+  const prompt = `Analyze this PDF document containing company statutory accounts or financial statements.
 
 ${yearHint}
 
-IMPORTANT: This document may contain MULTIPLE YEARS of data. Extract data for EACH year separately.
+Extract ALL financial data for EACH fiscal year found in the document.
 
-For EACH fiscal year found, extract:
-
-P&L METRICS:
-- fiscal_year: The year (e.g., 2024, 2025)
-- revenue: Total revenue/turnover
-- cost_of_sales: Direct costs / cost of sales
+For each year, extract these specific values:
+- fiscal_year: The year number (e.g., 2024)
+- revenue/turnover: Total sales/turnover
+- cost_of_sales: Direct costs
 - gross_profit: Revenue minus cost of sales
-- operating_expenses: Total overheads/operating expenses
-- ebitda: Operating profit + depreciation + amortisation (calculate if needed)
-- depreciation: Depreciation charge
-- net_profit: Profit after tax / Net profit
-
-BALANCE SHEET:
-- debtors: Trade debtors / receivables
-- creditors: Trade creditors / payables
+- operating_expenses: Total overheads
+- depreciation: Depreciation amount
+- net_profit: Profit/loss after tax
+- debtors: Trade debtors/receivables  
+- creditors: Trade creditors/payables
 - cash: Cash at bank
-- fixed_assets: Tangible/fixed assets
+- fixed_assets: Tangible assets
 - net_assets: Total net assets
 
-RESPOND IN JSON FORMAT - an array with one object per year found:
-[
-  {
-    "fiscal_year": 2024,
-    "fiscal_year_end": "2024-12-31",
-    "revenue": 610000,
-    "cost_of_sales": 212000,
-    "gross_profit": 398000,
-    "gross_margin_pct": 65.2,
-    "operating_expenses": 418000,
-    "ebitda": -4000,
-    "depreciation": 16000,
-    "net_profit": -24000,
-    "debtors": 78000,
-    "creditors": 36000,
-    "cash": 18000,
-    "fixed_assets": 32000,
-    "net_assets": 36000,
-    "confidence": 0.95,
-    "notes": ["EBITDA calculated from operating profit + depreciation"]
-  },
-  {
-    "fiscal_year": 2025,
-    ...
-  }
-]
+Return JSON array format:
+[{"fiscal_year": 2024, "revenue": 610000, "gross_profit": 398000, ...}]
 
-Return ONLY valid JSON array. Use null for values not found. Confidence should be 0.0-1.0 based on clarity.`;
+Return ONLY valid JSON. Use null for missing values.`;
 
-  console.log('[PDF Vision] Sending PDF to Claude for analysis...');
-  
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -342,7 +332,7 @@ Return ONLY valid JSON array. Use null for values not found. Confidence should b
       "X-Title": "Torsor Accounts Processing"
     },
     body: JSON.stringify({
-      model: "anthropic/claude-sonnet-4",
+      model: "google/gemini-flash-1.5",
       messages: [
         {
           role: "user",
@@ -352,9 +342,10 @@ Return ONLY valid JSON array. Use null for values not found. Confidence should b
               text: prompt
             },
             {
-              type: "image_url",
-              image_url: {
-                url: `data:application/pdf;base64,${base64}`
+              type: "file",
+              file: {
+                filename: "accounts.pdf",
+                content: base64
               }
             }
           ]
@@ -367,72 +358,223 @@ Return ONLY valid JSON array. Use null for values not found. Confidence should b
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('[PDF Vision] API error:', response.status, errorText);
-    throw new Error(`Vision API error: ${response.status}`);
+    console.error('[Gemini PDF] API error:', response.status, errorText);
+    throw new Error(`Gemini API error: ${response.status} - Unable to process PDF`);
   }
 
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content;
 
   if (!content) {
-    throw new Error('No response from Vision API');
+    throw new Error('No response from Gemini API');
   }
 
-  console.log('[PDF Vision] Response received, parsing...');
+  console.log('[Gemini PDF] Response received, parsing...');
 
-  // Parse JSON response
+  return parseFinancialJson(content);
+}
+
+// Advanced PDF text extraction - handles more PDF structures
+async function extractTextFromPDFAdvanced(bytes: Uint8Array): Promise<string> {
+  const decoder = new TextDecoder('latin1');
+  const content = decoder.decode(bytes);
+  
+  const extractedParts: string[] = [];
+  
+  // Method 1: Extract text objects (Tj and TJ operators)
+  const textMatches = content.match(/\((.*?)\)\s*Tj/g);
+  if (textMatches) {
+    for (const match of textMatches) {
+      const text = match.replace(/\((.*?)\)\s*Tj/, '$1');
+      if (text.length > 1) {
+        extractedParts.push(text);
+      }
+    }
+  }
+  
+  // Method 2: Extract TJ arrays (multiple text strings)
+  const tjArrays = content.match(/\[(.*?)\]\s*TJ/g);
+  if (tjArrays) {
+    for (const arr of tjArrays) {
+      const strings = arr.match(/\((.*?)\)/g);
+      if (strings) {
+        const combined = strings.map(s => s.slice(1, -1)).join('');
+        if (combined.length > 1) {
+          extractedParts.push(combined);
+        }
+      }
+    }
+  }
+  
+  // Method 3: Look for readable text in streams (FlateDecode streams may have plain text)
+  const streamMatches = content.match(/stream\r?\n([\s\S]*?)\r?\nendstream/g);
+  if (streamMatches) {
+    for (const stream of streamMatches) {
+      // Filter to readable ASCII
+      const readable = stream.replace(/[^\x20-\x7E\r\n]/g, ' ')
+                             .replace(/\s+/g, ' ')
+                             .trim();
+      // Look for financial keywords
+      if (readable.length > 50 && 
+          (readable.match(/revenue|turnover|profit|loss|assets|liabilities|balance|cash|debtors|creditors/i))) {
+        extractedParts.push(readable);
+      }
+    }
+  }
+  
+  // Method 4: Extract literal strings that look like financial data
+  const stringMatches = content.match(/\(([^)]{3,100})\)/g);
+  if (stringMatches) {
+    for (const match of stringMatches) {
+      const str = match.slice(1, -1);
+      // Keep strings that look like labels or numbers
+      if (/[a-zA-Z]{2,}|[\d,]+/.test(str) && !/^[\\x]/.test(str)) {
+        extractedParts.push(str);
+      }
+    }
+  }
+  
+  // Method 5: Look for structured data patterns (tables)
+  const numberPattern = /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/g;
+  const numbers = content.match(numberPattern);
+  if (numbers && numbers.length > 10) {
+    // Found significant numeric data
+    extractedParts.push('Numeric data found: ' + numbers.slice(0, 50).join(', '));
+  }
+  
+  const result = extractedParts.join('\n');
+  
+  // Clean up and dedupe
+  const lines = result.split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 2)
+    .filter((l, i, arr) => arr.indexOf(l) === i);
+  
+  return lines.join('\n');
+}
+
+// Extract financial data from text using Claude
+async function extractFinancialDataFromText(
+  text: string,
+  hintYear: number | null,
+  apiKey: string
+): Promise<ExtractedFinancialData[]> {
+  const yearHint = hintYear ? `The user indicated this is for fiscal year ${hintYear}.` : '';
+  
+  const prompt = `Extract financial data from these statutory accounts/financial statements.
+
+${yearHint}
+
+TEXT CONTENT:
+${text.substring(0, 15000)}
+
+EXTRACT FOR EACH FISCAL YEAR:
+- fiscal_year: Year (number)
+- fiscal_year_end: Date string (e.g., "2024-12-31")
+- revenue: Turnover/sales
+- cost_of_sales: Cost of sales/direct costs
+- gross_profit: Gross profit
+- operating_expenses: Total overheads
+- ebitda: EBITDA or calculate from operating profit + depreciation
+- depreciation: Depreciation charge
+- net_profit: Net profit/loss after tax
+- debtors: Trade debtors/receivables
+- creditors: Trade creditors/payables
+- cash: Cash at bank
+- fixed_assets: Tangible/fixed assets
+- net_assets: Net assets/shareholders funds
+- confidence: 0.0-1.0 based on data clarity
+
+RESPOND WITH JSON ARRAY ONLY:
+[{"fiscal_year": 2024, "revenue": 610000, ...}, {"fiscal_year": 2025, ...}]
+
+Use null for missing values. Include notes array explaining any calculations.`;
+
+  console.log('[Text Extract] Sending to Claude for analysis...');
+  
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://torsor.io",
+      "X-Title": "Torsor Accounts Processing"
+    },
+    body: JSON.stringify({
+      model: "anthropic/claude-sonnet-4",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.1,
+      max_tokens: 4000
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[Text Extract] API error:', response.status, errorText);
+    throw new Error(`Claude API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+
+  if (!content) {
+    throw new Error('No response from Claude');
+  }
+
+  console.log('[Text Extract] Response received');
+  return parseFinancialJson(content);
+}
+
+// Parse JSON response from LLM
+function parseFinancialJson(content: string): ExtractedFinancialData[] {
   try {
+    // Try to extract JSON from markdown code blocks or raw
     const jsonMatch = content.match(/```json\n?([\s\S]*?)\n?```/) || 
                       content.match(/```\n?([\s\S]*?)\n?```/) ||
                       [null, content];
     const jsonStr = jsonMatch[1] || content;
-    const parsed = JSON.parse(jsonStr.trim());
+    
+    // Clean up common issues
+    const cleaned = jsonStr
+      .trim()
+      .replace(/,\s*}/g, '}')
+      .replace(/,\s*]/g, ']');
+    
+    const parsed = JSON.parse(cleaned);
     
     // Ensure it's an array
     const years = Array.isArray(parsed) ? parsed : [parsed];
     
-    console.log(`[PDF Vision] Extracted ${years.length} year(s) of data`);
-    
-    return years as ExtractedFinancialData[];
+    // Ensure each year has required fields
+    return years.map(year => ({
+      fiscal_year: year.fiscal_year || new Date().getFullYear(),
+      fiscal_year_end: year.fiscal_year_end,
+      revenue: year.revenue || year.turnover,
+      cost_of_sales: year.cost_of_sales,
+      gross_profit: year.gross_profit,
+      gross_margin_pct: year.gross_margin_pct,
+      operating_expenses: year.operating_expenses || year.overheads,
+      ebitda: year.ebitda,
+      ebitda_margin_pct: year.ebitda_margin_pct,
+      depreciation: year.depreciation,
+      amortisation: year.amortisation,
+      interest_paid: year.interest_paid || year.interest,
+      tax: year.tax || year.corporation_tax,
+      net_profit: year.net_profit || year.profit_after_tax,
+      net_margin_pct: year.net_margin_pct,
+      debtors: year.debtors || year.trade_debtors || year.receivables,
+      creditors: year.creditors || year.trade_creditors || year.payables,
+      cash: year.cash || year.cash_at_bank,
+      fixed_assets: year.fixed_assets || year.tangible_assets,
+      net_assets: year.net_assets || year.shareholders_funds,
+      confidence: year.confidence || 0.7,
+      notes: year.notes || []
+    }));
     
   } catch (parseError) {
-    console.error('[PDF Vision] Failed to parse response:', content);
-    throw new Error('Failed to parse financial data from PDF');
+    console.error('[Parse] Failed to parse JSON:', content.substring(0, 500));
+    throw new Error('Failed to parse financial data from response');
   }
-}
-
-// Legacy text-based PDF extraction (fallback)
-async function extractTextFromPDF(fileBlob: Blob): Promise<string> {
-  const arrayBuffer = await fileBlob.arrayBuffer();
-  const bytes = new Uint8Array(arrayBuffer);
-  
-  let text = '';
-  const decoder = new TextDecoder('latin1');
-  const content = decoder.decode(bytes);
-  
-  // Extract text between stream markers
-  const streamMatches = content.match(/stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g);
-  if (streamMatches) {
-    for (const match of streamMatches) {
-      const streamContent = match.replace(/stream[\r\n]+/, '').replace(/[\r\n]+endstream/, '');
-      const printable = streamContent.replace(/[^\x20-\x7E\r\n]/g, ' ').trim();
-      if (printable.length > 50) {
-        text += printable + '\n';
-      }
-    }
-  }
-  
-  const stringMatches = content.match(/\(([^)]{10,})\)/g);
-  if (stringMatches) {
-    for (const match of stringMatches) {
-      const str = match.slice(1, -1);
-      if (str.length > 10 && /[a-zA-Z]/.test(str)) {
-        text += str + '\n';
-      }
-    }
-  }
-
-  return text;
 }
 
 // Extract text from Excel files
