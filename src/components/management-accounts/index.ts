@@ -8,6 +8,7 @@ export { TierComparisonView } from './TierComparisonView';
 export { KPISelector } from './KPISelector';
 export { KPIDashboard } from './KPIDashboard';
 export { KPIDetailView } from './KPIDetailView';
+export { KPIPreview } from './KPIPreview';
 
 // Preview Components
 export { TrueCashPreview } from './previews/TrueCashPreview';

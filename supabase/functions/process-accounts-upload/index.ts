@@ -41,6 +41,7 @@ interface ExtractedFinancialData {
   debtor_days?: number;
   creditor_days?: number;
   employee_count?: number;
+  revenue_per_employee?: number;
   confidence: number;
   notes: string[];
 }
@@ -92,135 +93,147 @@ serve(async (req) => {
 
     console.log(`[Accounts Process] File downloaded, size: ${fileData.size} bytes`);
 
-    // Extract text based on file type
-    let extractedText = '';
+    // Extract financial data based on file type
+    let extractedYears: ExtractedFinancialData[] = [];
     
     if (upload.file_type === 'pdf') {
-      extractedText = await extractTextFromPDF(fileData);
-    } else if (upload.file_type === 'csv') {
-      extractedText = await fileData.text();
-    } else if (['xlsx', 'xls'].includes(upload.file_type)) {
-      extractedText = await extractTextFromExcel(fileData);
+      // Use Claude Vision to read PDF directly - handles multi-year documents
+      console.log('[Accounts Process] Using Vision API for PDF extraction...');
+      extractedYears = await extractFromPDFWithVision(fileData, upload.fiscal_year, openrouterKey);
+    } else {
+      // For CSV/Excel, extract text and use LLM
+      let extractedText = '';
+      if (upload.file_type === 'csv') {
+        extractedText = await fileData.text();
+      } else if (['xlsx', 'xls'].includes(upload.file_type)) {
+        extractedText = await extractTextFromExcel(fileData);
+      }
+      
+      if (!extractedText || extractedText.length < 100) {
+        throw new Error('Could not extract sufficient text from file.');
+      }
+      
+      console.log(`[Accounts Process] Extracted ${extractedText.length} characters of text`);
+      
+      const singleYearData = await extractFinancialDataWithLLM(extractedText, upload.fiscal_year, openrouterKey);
+      extractedYears = [singleYearData];
     }
 
-    if (!extractedText || extractedText.length < 100) {
-      throw new Error('Could not extract sufficient text from file. Please ensure the file contains readable financial data.');
-    }
+    console.log(`[Accounts Process] Extraction complete, found ${extractedYears.length} year(s) of data`);
 
-    console.log(`[Accounts Process] Extracted ${extractedText.length} characters of text`);
+    // Process each year of data
+    const savedRecords: any[] = [];
+    
+    for (const financialData of extractedYears) {
+      // Calculate derived metrics
+      if (financialData.revenue && financialData.gross_profit) {
+        financialData.gross_margin_pct = Number(((financialData.gross_profit / financialData.revenue) * 100).toFixed(1));
+      }
+      if (financialData.revenue && financialData.ebitda) {
+        financialData.ebitda_margin_pct = Number(((financialData.ebitda / financialData.revenue) * 100).toFixed(1));
+      }
+      if (financialData.revenue && financialData.net_profit) {
+        financialData.net_margin_pct = Number(((financialData.net_profit / financialData.revenue) * 100).toFixed(1));
+      }
+      if (financialData.revenue && financialData.employee_count && financialData.employee_count > 0) {
+        financialData.revenue_per_employee = Math.round(financialData.revenue / financialData.employee_count);
+      }
+      if (financialData.revenue && financialData.debtors) {
+        financialData.debtor_days = Math.round((financialData.debtors / financialData.revenue) * 365);
+      }
+      if (financialData.cost_of_sales && financialData.creditors) {
+        financialData.creditor_days = Math.round((financialData.creditors / financialData.cost_of_sales) * 365);
+      }
+      
+      console.log(`[Accounts Process] Saving FY${financialData.fiscal_year}: Revenue £${financialData.revenue?.toLocaleString()}, Confidence ${financialData.confidence}`);
+      
+      // Save to database (upsert by client_id + fiscal_year)
+      const { data: savedData, error: saveError } = await supabase
+        .from('client_financial_data')
+        .upsert({
+          client_id: upload.client_id,
+          practice_id: upload.practice_id,
+          upload_id: uploadId,
+          fiscal_year: financialData.fiscal_year,
+          fiscal_year_end: financialData.fiscal_year_end,
+          period_months: financialData.period_months || 12,
+          revenue: financialData.revenue,
+          cost_of_sales: financialData.cost_of_sales,
+          gross_profit: financialData.gross_profit,
+          gross_margin_pct: financialData.gross_margin_pct,
+          operating_expenses: financialData.operating_expenses,
+          ebitda: financialData.ebitda,
+          ebitda_margin_pct: financialData.ebitda_margin_pct,
+          depreciation: financialData.depreciation,
+          amortisation: financialData.amortisation,
+          interest_paid: financialData.interest_paid,
+          tax: financialData.tax,
+          net_profit: financialData.net_profit,
+          net_margin_pct: financialData.net_margin_pct,
+          total_assets: financialData.total_assets,
+          current_assets: financialData.current_assets,
+          fixed_assets: financialData.fixed_assets,
+          total_liabilities: financialData.total_liabilities,
+          current_liabilities: financialData.current_liabilities,
+          long_term_liabilities: financialData.long_term_liabilities,
+          net_assets: financialData.net_assets,
+          debtors: financialData.debtors,
+          creditors: financialData.creditors,
+          stock: financialData.stock,
+          cash: financialData.cash,
+          debtor_days: financialData.debtor_days,
+          creditor_days: financialData.creditor_days,
+          employee_count: financialData.employee_count,
+          revenue_per_employee: financialData.revenue_per_employee,
+          data_source: 'upload',
+          confidence_score: financialData.confidence,
+          notes: financialData.notes?.join('\n') || null
+        }, {
+          onConflict: 'client_id,fiscal_year'
+        })
+        .select()
+        .single();
 
-    // Use LLM to extract financial data
-    const financialData = await extractFinancialDataWithLLM(
-      extractedText, 
-      upload.fiscal_year,
-      openrouterKey
-    );
+      if (saveError) {
+        console.error(`[Accounts Process] Save error for FY${financialData.fiscal_year}:`, saveError);
+      } else {
+        savedRecords.push(savedData);
+      }
+    }
+    
+    // Use the most recent year for the upload record summary
+    const latestYear = extractedYears.sort((a, b) => (b.fiscal_year || 0) - (a.fiscal_year || 0))[0];
 
-    console.log(`[Accounts Process] LLM extraction complete, confidence: ${financialData.confidence}`);
-
-    // Calculate derived metrics
-    if (financialData.revenue && financialData.gross_profit) {
-      financialData.gross_margin_pct = Number(((financialData.gross_profit / financialData.revenue) * 100).toFixed(1));
-    }
-    if (financialData.revenue && financialData.ebitda) {
-      financialData.ebitda_margin_pct = Number(((financialData.ebitda / financialData.revenue) * 100).toFixed(1));
-    }
-    if (financialData.revenue && financialData.net_profit) {
-      financialData.net_margin_pct = Number(((financialData.net_profit / financialData.revenue) * 100).toFixed(1));
-    }
-    if (financialData.revenue && financialData.employee_count && financialData.employee_count > 0) {
-      financialData.revenue_per_employee = Math.round(financialData.revenue / financialData.employee_count);
-    }
-    if (financialData.revenue && financialData.debtors) {
-      financialData.debtor_days = Math.round((financialData.debtors / financialData.revenue) * 365);
-    }
-    if (financialData.cost_of_sales && financialData.creditors) {
-      financialData.creditor_days = Math.round((financialData.creditors / financialData.cost_of_sales) * 365);
-    }
-
-    // Store extracted data
-    const { data: savedData, error: saveError } = await supabase
-      .from('client_financial_data')
-      .upsert({
-        client_id: upload.client_id,
-        practice_id: upload.practice_id,
-        upload_id: uploadId,
-        fiscal_year: financialData.fiscal_year,
-        fiscal_year_end: financialData.fiscal_year_end,
-        period_months: financialData.period_months || 12,
-        revenue: financialData.revenue,
-        cost_of_sales: financialData.cost_of_sales,
-        gross_profit: financialData.gross_profit,
-        gross_margin_pct: financialData.gross_margin_pct,
-        operating_expenses: financialData.operating_expenses,
-        ebitda: financialData.ebitda,
-        ebitda_margin_pct: financialData.ebitda_margin_pct,
-        depreciation: financialData.depreciation,
-        amortisation: financialData.amortisation,
-        interest_paid: financialData.interest_paid,
-        tax: financialData.tax,
-        net_profit: financialData.net_profit,
-        net_margin_pct: financialData.net_margin_pct,
-        total_assets: financialData.total_assets,
-        current_assets: financialData.current_assets,
-        fixed_assets: financialData.fixed_assets,
-        total_liabilities: financialData.total_liabilities,
-        current_liabilities: financialData.current_liabilities,
-        long_term_liabilities: financialData.long_term_liabilities,
-        net_assets: financialData.net_assets,
-        debtors: financialData.debtors,
-        creditors: financialData.creditors,
-        stock: financialData.stock,
-        cash: financialData.cash,
-        debtor_days: financialData.debtor_days,
-        creditor_days: financialData.creditor_days,
-        employee_count: financialData.employee_count,
-        revenue_per_employee: financialData.revenue_per_employee,
-        data_source: 'upload',
-        confidence_score: financialData.confidence,
-        notes: financialData.notes?.join('\n') || null
-      }, {
-        onConflict: 'client_id,fiscal_year'
-      })
-      .select()
-      .single();
-
-    if (saveError) {
-      console.error(`[Accounts Process] Save error:`, saveError);
-      throw saveError;
-    }
-
-    // Update upload record
+    // Update upload record with summary of extraction
     await supabase
       .from('client_accounts_uploads')
       .update({
         status: 'extracted',
         processing_completed_at: new Date().toISOString(),
-        fiscal_year: financialData.fiscal_year,
-        fiscal_year_end: financialData.fiscal_year_end,
-        extraction_confidence: financialData.confidence,
-        raw_extraction: financialData
+        fiscal_year: latestYear.fiscal_year,
+        fiscal_year_end: latestYear.fiscal_year_end,
+        extraction_confidence: latestYear.confidence,
+        raw_extraction: { years: extractedYears }
       })
       .eq('id', uploadId);
 
-    console.log(`[Accounts Process] Processing complete for upload ${uploadId}`);
+    console.log(`[Accounts Process] Processing complete for upload ${uploadId} - ${savedRecords.length} year(s) saved`);
 
     return new Response(
       JSON.stringify({
         success: true,
         uploadId,
-        financialDataId: savedData?.id,
-        fiscalYear: financialData.fiscal_year,
-        confidence: financialData.confidence,
-        notes: financialData.notes,
-        extractedMetrics: {
-          revenue: financialData.revenue,
-          gross_margin_pct: financialData.gross_margin_pct,
-          ebitda_margin_pct: financialData.ebitda_margin_pct,
-          net_margin_pct: financialData.net_margin_pct,
-          debtor_days: financialData.debtor_days,
-          employee_count: financialData.employee_count
-        }
+        yearsExtracted: extractedYears.length,
+        savedRecords: savedRecords.length,
+        fiscalYears: extractedYears.map(y => y.fiscal_year),
+        latestYear: {
+          fiscalYear: latestYear.fiscal_year,
+          revenue: latestYear.revenue,
+          grossProfit: latestYear.gross_profit,
+          netProfit: latestYear.net_profit,
+          confidence: latestYear.confidence
+        },
+        notes: latestYear.notes
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -251,27 +264,157 @@ serve(async (req) => {
   }
 });
 
-// Extract text from PDF using basic parsing
-// Note: For production, consider using a dedicated PDF parsing service
+// Extract financial data from PDF using Claude's document vision
+// This sends the PDF directly to Claude which can read and understand it
+async function extractFromPDFWithVision(
+  fileBlob: Blob,
+  hintYear: number | null,
+  apiKey: string
+): Promise<ExtractedFinancialData[]> {
+  const arrayBuffer = await fileBlob.arrayBuffer();
+  const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+  
+  const currentYear = new Date().getFullYear();
+  const yearHint = hintYear ? `The user indicated this is for fiscal year ${hintYear}.` : '';
+  
+  const prompt = `You are a financial data extraction specialist. Analyze this PDF document containing company accounts.
+
+${yearHint}
+
+IMPORTANT: This document may contain MULTIPLE YEARS of data. Extract data for EACH year separately.
+
+For EACH fiscal year found, extract:
+
+P&L METRICS:
+- fiscal_year: The year (e.g., 2024, 2025)
+- revenue: Total revenue/turnover
+- cost_of_sales: Direct costs / cost of sales
+- gross_profit: Revenue minus cost of sales
+- operating_expenses: Total overheads/operating expenses
+- ebitda: Operating profit + depreciation + amortisation (calculate if needed)
+- depreciation: Depreciation charge
+- net_profit: Profit after tax / Net profit
+
+BALANCE SHEET:
+- debtors: Trade debtors / receivables
+- creditors: Trade creditors / payables
+- cash: Cash at bank
+- fixed_assets: Tangible/fixed assets
+- net_assets: Total net assets
+
+RESPOND IN JSON FORMAT - an array with one object per year found:
+[
+  {
+    "fiscal_year": 2024,
+    "fiscal_year_end": "2024-12-31",
+    "revenue": 610000,
+    "cost_of_sales": 212000,
+    "gross_profit": 398000,
+    "gross_margin_pct": 65.2,
+    "operating_expenses": 418000,
+    "ebitda": -4000,
+    "depreciation": 16000,
+    "net_profit": -24000,
+    "debtors": 78000,
+    "creditors": 36000,
+    "cash": 18000,
+    "fixed_assets": 32000,
+    "net_assets": 36000,
+    "confidence": 0.95,
+    "notes": ["EBITDA calculated from operating profit + depreciation"]
+  },
+  {
+    "fiscal_year": 2025,
+    ...
+  }
+]
+
+Return ONLY valid JSON array. Use null for values not found. Confidence should be 0.0-1.0 based on clarity.`;
+
+  console.log('[PDF Vision] Sending PDF to Claude for analysis...');
+  
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://torsor.io",
+      "X-Title": "Torsor Accounts Processing"
+    },
+    body: JSON.stringify({
+      model: "anthropic/claude-sonnet-4",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: prompt
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:application/pdf;base64,${base64}`
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 4000
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[PDF Vision] API error:', response.status, errorText);
+    throw new Error(`Vision API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+
+  if (!content) {
+    throw new Error('No response from Vision API');
+  }
+
+  console.log('[PDF Vision] Response received, parsing...');
+
+  // Parse JSON response
+  try {
+    const jsonMatch = content.match(/```json\n?([\s\S]*?)\n?```/) || 
+                      content.match(/```\n?([\s\S]*?)\n?```/) ||
+                      [null, content];
+    const jsonStr = jsonMatch[1] || content;
+    const parsed = JSON.parse(jsonStr.trim());
+    
+    // Ensure it's an array
+    const years = Array.isArray(parsed) ? parsed : [parsed];
+    
+    console.log(`[PDF Vision] Extracted ${years.length} year(s) of data`);
+    
+    return years as ExtractedFinancialData[];
+    
+  } catch (parseError) {
+    console.error('[PDF Vision] Failed to parse response:', content);
+    throw new Error('Failed to parse financial data from PDF');
+  }
+}
+
+// Legacy text-based PDF extraction (fallback)
 async function extractTextFromPDF(fileBlob: Blob): Promise<string> {
   const arrayBuffer = await fileBlob.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
   
-  // Convert to string and try to extract readable text
-  // This is a simplified approach - PDFs with complex encoding may need external service
   let text = '';
-  
-  // Try to find text streams in PDF
   const decoder = new TextDecoder('latin1');
   const content = decoder.decode(bytes);
   
-  // Extract text between stream markers (simplified)
+  // Extract text between stream markers
   const streamMatches = content.match(/stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g);
   if (streamMatches) {
     for (const match of streamMatches) {
-      // Try to decode content
       const streamContent = match.replace(/stream[\r\n]+/, '').replace(/[\r\n]+endstream/, '');
-      // Filter to printable characters
       const printable = streamContent.replace(/[^\x20-\x7E\r\n]/g, ' ').trim();
       if (printable.length > 50) {
         text += printable + '\n';
@@ -279,7 +422,6 @@ async function extractTextFromPDF(fileBlob: Blob): Promise<string> {
     }
   }
   
-  // Also try to find literal strings
   const stringMatches = content.match(/\(([^)]{10,})\)/g);
   if (stringMatches) {
     for (const match of stringMatches) {
@@ -288,12 +430,6 @@ async function extractTextFromPDF(fileBlob: Blob): Promise<string> {
         text += str + '\n';
       }
     }
-  }
-
-  // If we couldn't extract much text, the PDF might need OCR
-  if (text.length < 200) {
-    console.warn('[PDF Extract] Limited text extracted - PDF may require OCR');
-    text = `[Limited text extraction - PDF may be scanned/image-based]\n${text}`;
   }
 
   return text;

@@ -5,6 +5,7 @@ import { ForecastPreview } from './previews/ForecastPreview';
 import { ScenarioPreview } from './previews/ScenarioPreview';
 import { TierSelector } from './TierSelector';
 import { TierComparisonView } from './TierComparisonView';
+import { KPIPreview } from './KPIPreview';
 
 interface MAClientReportViewProps {
   report: {
@@ -178,15 +179,15 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
     if (!hasRealFinancialData) {
       // Illustrative example when we don't have real data
       return {
-        bankBalance: 95430,
-        trueCash: 46920,
-        deductions: [
-          { label: 'VAT owed', amount: -22150 },
-          { label: 'PAYE/NI due', amount: -8800 },
-          { label: 'Corporation tax provision', amount: -15000 },
-          { label: 'Committed creditors', amount: -12560 },
-          { label: 'Confirmed receivables (7 days)', amount: 10000 },
-        ],
+    bankBalance: 95430,
+    trueCash: 46920,
+    deductions: [
+      { label: 'VAT owed', amount: -22150 },
+      { label: 'PAYE/NI due', amount: -8800 },
+      { label: 'Corporation tax provision', amount: -15000 },
+      { label: 'Committed creditors', amount: -12560 },
+      { label: 'Confirmed receivables (7 days)', amount: 10000 },
+    ],
         isIllustrative: true,
         showSimple: false,
       };
@@ -481,9 +482,9 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
                   <p className="text-xs text-amber-600 mb-2 italic">
                     📊 Illustrative forecast - we'll build your actual 13-week projection with real payment dates
                   </p>
-                  <ForecastPreview 
-                    weeks={13}
-                    criticalDate={{
+                <ForecastPreview 
+                  weeks={13}
+                  criticalDate={{
                       week: 'Week 8',
                       event: 'Potential cash pinch point',
                       lowestPoint: financialData?.bankBalance ? Math.round(financialData.bankBalance * 0.2) : 18370
@@ -497,9 +498,9 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
                   <p className="text-xs text-amber-600 mb-2 italic">
                     📊 Interactive scenario tool - adjust the sliders to model your specific situation
                   </p>
-                  <ScenarioPreview 
-                    type={p2.tuesdayAnswerPreview.scenarioType as 'hire' | 'price' | 'client_loss' | 'investment'}
-                  />
+                <ScenarioPreview 
+                  type={p2.tuesdayAnswerPreview.scenarioType as 'hire' | 'price' | 'client_loss' | 'investment'}
+                />
                 </div>
               )}
             </div>
@@ -633,6 +634,14 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
             )}
           </div>
         </div>
+      )}
+      
+      {/* KPI Preview - Show what metrics will be tracked */}
+      {p2.recommendedApproach?.tier && (
+        <KPIPreview 
+          tier={p2.recommendedApproach.tier as 'bronze' | 'silver' | 'gold' | 'platinum'}
+          recommendations={p1?.kpiRecommendations}
+        />
       )}
       
       {/* Tier Comparison / Selector */}
