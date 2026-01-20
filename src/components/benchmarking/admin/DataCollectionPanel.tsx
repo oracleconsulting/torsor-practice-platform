@@ -234,7 +234,11 @@ export function DataCollectionPanel({
     }
   };
 
-  const collectedCount = Object.values(collectedData).filter(v => v && v.trim() !== '').length;
+  // Only count items that are CURRENTLY missing AND have a value collected
+  const collectedCount = missingData.filter(metric => {
+    const value = collectedData[metric];
+    return value && value.trim() !== '';
+  }).length;
   const totalMissing = missingData.length;
   const allCollected = collectedCount >= totalMissing;
 

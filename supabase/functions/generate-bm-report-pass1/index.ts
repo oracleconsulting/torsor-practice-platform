@@ -324,7 +324,15 @@ OUTPUT FORMAT (JSON):
       "annualValue": number,
       "difficulty": "easy" | "medium" | "hard",
       "timeframe": "string",
-      "linkedService": "string or null"
+      "linkedService": "string or null",
+      "implementationSteps": [
+        "string - Specific actionable step 1",
+        "string - Specific actionable step 2",
+        "string - Specific actionable step 3 (minimum 3, maximum 6 steps)"
+      ],
+      "quickWins": ["string - Things they can do this week"],
+      "warningSignsOfFailure": ["string - How to know if this isn't working"],
+      "whatWeCanHelp": "string - Specific service/support we can provide for this recommendation"
     }
   ],
   
@@ -379,13 +387,15 @@ OUTPUT FORMAT (JSON):
     
     "tasks": [
       {
-        "task": "string - Specific internal task",
+        "task": "string - Specific internal task that ADDS VALUE beyond what this report already provides",
         "assignTo": "string - Role that should handle this",
         "dueDate": "string - Relative timing (e.g., '3 days', '1 week')",
         "deliverable": "string - What artifact this produces",
         "dependsOn": "string or null - What needs to happen first"
       }
     ],
+    
+    "TASK_RULES": "NEVER suggest tasks like 'research industry benchmarks' or 'analyse benchmarking data' - WE JUST DID THAT. Tasks should be ADDITIVE value: 1) Client-specific deliverables (time tracking templates, rate cards), 2) Implementation support (process documentation, training materials), 3) Follow-up analysis (deep dives into specific areas). If a task duplicates what this benchmarking report provides, DELETE IT.",
     
     "riskFlags": [
       {

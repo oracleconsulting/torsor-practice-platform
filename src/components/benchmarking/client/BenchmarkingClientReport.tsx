@@ -17,6 +17,8 @@ interface BenchmarkAnalysis {
   total_annual_opportunity: string;
   recommendations?: string;
   created_at?: string;
+  data_sources?: string[];
+  benchmark_data_as_of?: string;
 }
 
 interface BenchmarkingClientReportProps {
@@ -144,6 +146,28 @@ export function BenchmarkingClientReport({ data }: BenchmarkingClientReportProps
             Schedule a Discussion
           </button>
         </div>
+        
+        {/* Data Sources / Methodology */}
+        {data.data_sources && data.data_sources.length > 0 && (
+          <div className="bg-slate-100 rounded-lg p-4 text-sm text-slate-600">
+            <p className="font-medium text-slate-700 mb-2">Benchmark Data Sources</p>
+            <p className="text-xs text-slate-500 mb-2">
+              Analysis based on industry benchmarks as of {data.benchmark_data_as_of || 'recent data'}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {data.data_sources.slice(0, 8).map((source, i) => (
+                <span key={i} className="px-2 py-1 bg-white rounded text-xs text-slate-600 border border-slate-200">
+                  {source}
+                </span>
+              ))}
+              {data.data_sources.length > 8 && (
+                <span className="px-2 py-1 text-xs text-slate-400">
+                  +{data.data_sources.length - 8} more
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

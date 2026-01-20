@@ -13,6 +13,9 @@ interface Recommendation {
   difficulty: 'easy' | 'medium' | 'hard';
   priority: number;
   linkedService?: string;
+  implementationSteps?: string[];
+  quickWins?: string[];
+  whatWeCanHelp?: string;
 }
 
 interface RecommendationsSectionProps {
@@ -135,6 +138,46 @@ export function RecommendationsSection({
                       </div>
                     )}
                   </div>
+                  
+                  {/* Implementation Steps */}
+                  {rec.implementationSteps && rec.implementationSteps.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-slate-100">
+                      <p className="text-sm font-medium text-slate-700 mb-2">How to implement:</p>
+                      <ol className="space-y-1.5">
+                        {rec.implementationSteps.map((step, si) => (
+                          <li key={si} className="text-sm text-slate-600 flex items-start gap-2">
+                            <span className="text-slate-400 font-medium min-w-[1.25rem]">{si + 1}.</span>
+                            {step}
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+                  
+                  {/* Quick Wins */}
+                  {rec.quickWins && rec.quickWins.length > 0 && (
+                    <div className="mt-3 p-3 bg-emerald-50 rounded-lg">
+                      <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1">
+                        ⚡ Start this week
+                      </p>
+                      <ul className="space-y-1">
+                        {rec.quickWins.map((win, wi) => (
+                          <li key={wi} className="text-sm text-emerald-800 flex items-start gap-1.5">
+                            <span className="text-emerald-500">→</span>
+                            {win}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {/* What We Can Help With */}
+                  {rec.whatWeCanHelp && (
+                    <div className="mt-3 p-3 bg-blue-50 rounded-lg text-sm">
+                      <span className="font-medium text-blue-700">How we can help: </span>
+                      <span className="text-blue-800">{rec.whatWeCanHelp}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
