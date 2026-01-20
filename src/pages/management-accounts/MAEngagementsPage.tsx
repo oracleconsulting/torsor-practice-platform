@@ -6,21 +6,26 @@ import {
   Plus, 
   Search, 
   Users, 
-  Calendar, 
   TrendingUp,
   AlertTriangle,
   CheckCircle2,
   Clock,
-  Filter,
-  MoreVertical,
   FileText,
   Settings
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import type { MAEngagement, MAPeriod, TierType } from '@/types/ma';
-import { TIER_FEATURES } from '@/types/ma';
+import { supabase } from '../../lib/supabase';
+import type { MAEngagement, MAPeriod, TierType } from '../../types/ma';
+import { TIER_FEATURES } from '../../types/ma';
 
-interface EngagementWithClient extends MAEngagement {
+interface EngagementWithClient {
+  id: string;
+  client_id: string;
+  tier: TierType;
+  frequency: string;
+  monthly_fee: number;
+  status: 'pending' | 'active' | 'paused' | 'cancelled';
+  start_date: string;
+  created_at: string;
   client?: {
     name: string;
     company_name?: string;

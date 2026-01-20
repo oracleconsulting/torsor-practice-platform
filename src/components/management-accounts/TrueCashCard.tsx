@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Info, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
-import type { TrueCashDisplay } from '@/services/ma/true-cash';
+import type { TrueCashDisplay } from '../../services/ma/true-cash';
 
 interface TrueCashCardProps {
   data: TrueCashDisplay;

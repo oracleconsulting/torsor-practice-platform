@@ -12,7 +12,7 @@ import {
   Check,
   ExternalLink
 } from 'lucide-react';
-import type { MAInsight, MAInsightType } from '@/types/ma';
+import type { MAInsight, MAInsightType } from '../../types/ma';
 
 interface InsightCardProps {
   insight: MAInsight;

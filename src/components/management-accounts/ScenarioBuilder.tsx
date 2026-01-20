@@ -14,9 +14,9 @@ import {
   Play,
   Save
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import type { MAScenario, TierType } from '@/types/ma';
-import { TIER_FEATURES } from '@/types/ma';
+import { supabase } from '../../lib/supabase';
+import type { MAScenario, TierType } from '../../types/ma';
+import { TIER_FEATURES } from '../../types/ma';
 
 interface ScenarioBuilderProps {
   engagementId: string;

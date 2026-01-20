@@ -4,8 +4,8 @@
 // Calculate all KPIs from financial data with auto-commentary
 // ============================================================================
 
-import { supabase } from '@/lib/supabase';
-import type { MAFinancialData, RAGStatus } from '@/types/ma';
+import { supabase } from '../../lib/supabase';
+import type { MAFinancialData, RAGStatus } from '../../types/ma';
 
 export interface KPICalculationResult {
   code: string;
@@ -302,13 +302,13 @@ export function calculateAllKPIs(
       previousValue: previousValue ?? undefined,
       target: targets[code],
       benchmark: benchmarks[code],
-      changeAbsolute: previousValue !== undefined ? value - previousValue : undefined,
-      changePercent: previousValue !== undefined && previousValue !== 0 
-        ? ((value - previousValue) / previousValue) * 100 
-        : undefined,
+    changeAbsolute: previousValue !== undefined && previousValue !== null ? value - previousValue : undefined,
+    changePercent: previousValue !== undefined && previousValue !== null && previousValue !== 0 
+      ? ((value - previousValue) / previousValue) * 100 
+      : undefined,
       ragStatus,
       higherIsBetter,
-      autoCommentary: generateCommentary(code, value, previousValue, ragStatus),
+      autoCommentary: generateCommentary(code, value, previousValue ?? undefined, ragStatus),
       category,
     });
   };
@@ -402,7 +402,7 @@ export async function runKPICalculation(
     .select('kpi_code')
     .eq('engagement_id', engagementId);
 
-  const selectedKPIs = selections?.map(s => s.kpi_code) || ['debtor_days', 'operating_margin', 'true_cash'];
+  const selectedKPIs = selections?.map((s: { kpi_code: string }) => s.kpi_code) || ['debtor_days', 'operating_margin', 'true_cash'];
 
   // Get current period financial data
   const { data: currentData } = await supabase

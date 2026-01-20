@@ -13,9 +13,9 @@ import {
   Check,
   ChevronDown
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import type { MAWatchListItem, TierType } from '@/types/ma';
-import { TIER_FEATURES } from '@/types/ma';
+import { supabase } from '../../lib/supabase';
+import type { MAWatchListItem, TierType } from '../../types/ma';
+import { TIER_FEATURES } from '../../types/ma';
 
 interface WatchListPanelProps {
   engagementId: string;

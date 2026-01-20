@@ -7,7 +7,6 @@ import {
   Calendar,
   FileText,
   TrendingUp,
-  Users,
   Settings,
   Plus,
   CheckCircle2,
@@ -18,16 +17,15 @@ import {
   Edit,
   BarChart3
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { 
   KPISelector, 
   WatchListPanel, 
-  PeriodDeliveryChecklist,
   TrueCashCard 
-} from '@/components/management-accounts';
-import { formatTrueCashForDisplay, calculateTrueCash } from '@/services/ma/true-cash';
-import type { MAEngagement, MAPeriod, MAFinancialData, TierType } from '@/types/ma';
-import { TIER_FEATURES } from '@/types/ma';
+} from '../../components/management-accounts';
+import { formatTrueCashForDisplay, calculateTrueCash } from '../../services/ma/true-cash';
+import type { MAEngagement, MAPeriod, MAFinancialData } from '../../types/ma';
+import { TIER_FEATURES } from '../../types/ma';
 
 const PERIOD_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   pending: { label: 'Pending', color: 'text-slate-500', bg: 'bg-slate-100', icon: <Clock className="h-3 w-3" /> },
@@ -47,7 +45,6 @@ export function MAEngagementDetailPage() {
   const [periods, setPeriods] = useState<MAPeriod[]>([]);
   const [latestFinancials, setLatestFinancials] = useState<MAFinancialData | null>(null);
   const [activeTab, setActiveTab] = useState<'periods' | 'kpis' | 'watchlist'>('periods');
-  const [showNewPeriodModal, setShowNewPeriodModal] = useState(false);
 
   useEffect(() => {
     if (engagementId) {
@@ -164,7 +161,6 @@ export function MAEngagementDetailPage() {
   }
 
   const tier = engagement.tier;
-  const tierConfig = TIER_FEATURES[tier];
   const trueCashData = latestFinancials?.cash_at_bank
     ? formatTrueCashForDisplay(calculateTrueCash({
         bankBalance: latestFinancials.cash_at_bank,

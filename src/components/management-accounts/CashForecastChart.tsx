@@ -7,10 +7,9 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
-  Calendar,
   Info
 } from 'lucide-react';
-import type { MACashForecast, MACashForecastPeriod } from '@/types/ma';
+import type { MACashForecast, MACashForecastPeriod } from '../../types/ma';
 
 interface CashForecastChartProps {
   forecast: MACashForecast;
@@ -164,7 +163,7 @@ export function CashForecastChart({
                   d={`
                     ${periods
                       .filter(p => p.actual_closing !== null)
-                      .map((p, i, arr) => {
+                      .map((p, i) => {
                         const periodIndex = periods.indexOf(p);
                         const x = (periodIndex / (periods.length - 1)) * 100;
                         const y = getYPosition(p.actual_closing!);
@@ -305,7 +304,7 @@ export function CashForecastChart({
                   )}
                   {period.recommended_actions && period.recommended_actions.length > 0 && (
                     <ul className="mt-1 space-y-1">
-                      {period.recommended_actions.map((action, idx) => (
+                      {period.recommended_actions.map((action: string, idx: number) => (
                         <li key={idx} className="text-amber-600 flex items-start gap-1">
                           <span className="text-amber-500">→</span> {action}
                         </li>

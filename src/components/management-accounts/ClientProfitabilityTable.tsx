@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { 
   Users, 
-  TrendingUp, 
-  TrendingDown,
   ArrowUpRight,
   ArrowDownRight,
   Shield,
@@ -18,8 +16,8 @@ import {
   Save,
   X
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import type { MAClientProfitability, RAGStatus } from '@/types/ma';
+import { supabase } from '../../lib/supabase';
+import type { MAClientProfitability, RAGStatus } from '../../types/ma';
 
 interface ClientProfitabilityTableProps {
   periodId: string;

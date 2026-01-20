@@ -10,20 +10,19 @@ import {
   Clock,
   ChevronRight
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { TrueCashCard } from './TrueCashCard';
 import { KPIDashboard } from './KPIDashboard';
 import { TuesdayQuestionDisplay } from './TuesdayQuestionDisplay';
 import { InsightCard } from './InsightCard';
-import { formatTrueCashForDisplay, calculateTrueCash } from '@/services/ma/true-cash';
+import { formatTrueCashForDisplay, calculateTrueCash } from '../../services/ma/true-cash';
 import type { 
   MAEngagement, 
   MAPeriod, 
   MAFinancialData, 
   MAInsight, 
-  MAKPIValue,
-  TIER_FEATURES 
-} from '@/types/ma';
+  MAKPIValue
+} from '../../types/ma';
 
 interface MAClientDashboardProps {
   engagementId: string;
@@ -67,8 +66,8 @@ export function MAClientDashboard({ engagementId, periodId }: MAClientDashboardP
         
         // Find current period (either specified or most recent delivered)
         const period = periodId 
-          ? allPeriods.find(p => p.id === periodId)
-          : allPeriods.find(p => p.status === 'delivered') || allPeriods[0];
+          ? allPeriods.find((p: MAPeriod) => p.id === periodId)
+          : allPeriods.find((p: MAPeriod) => p.status === 'delivered') || allPeriods[0];
         
         if (period) {
           setCurrentPeriod(period);
@@ -161,8 +160,6 @@ export function MAClientDashboard({ engagementId, periodId }: MAClientDashboardP
 
   const tier = engagement.tier;
   const showRecommendations = tier !== 'bronze';
-  const showForecast = tier === 'gold' || tier === 'platinum';
-  const showProfitability = tier === 'gold' || tier === 'platinum';
 
   // Build True Cash display data
   const trueCashDisplay = financialData?.cash_at_bank 
@@ -267,20 +264,6 @@ export function MAClientDashboard({ engagementId, periodId }: MAClientDashboardP
           </h2>
           <KPIDashboard 
             engagementId={engagementId}
-            kpis={kpis.map(k => ({
-              kpi_code: k.kpi_code,
-              kpi_name: k.kpi_name || k.kpi_code,
-              current_value: k.value,
-              previous_value: k.previous_value,
-              target_value: k.target_value,
-              benchmark_value: k.benchmark_value,
-              rag_status: k.rag_status,
-              trend: k.trend,
-              unit: k.kpi_unit || 'number',
-              category: k.kpi_category || 'Other',
-              auto_commentary: k.auto_commentary,
-              higher_is_better: k.higher_is_better,
-            }))}
           />
         </div>
       )}

@@ -12,13 +12,13 @@ import {
   Send,
   FileText
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import type { TierType, DeliveryChecklistItem } from '@/types/ma';
-import { getDeliveryChecklist } from '@/types/ma';
+import { supabase } from '../../lib/supabase';
+import type { TierType, DeliveryChecklistItem } from '../../types/ma';
+import { getDeliveryChecklist } from '../../types/ma';
 
 interface PeriodDeliveryChecklistProps {
   periodId: string;
-  engagementId: string;
+  engagementId?: string;
   tier: TierType;
   periodLabel: string;
   onComplete?: () => void;

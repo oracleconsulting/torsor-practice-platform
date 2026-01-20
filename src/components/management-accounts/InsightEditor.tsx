@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { 
   AlertTriangle, 
   Lightbulb, 
@@ -12,8 +12,8 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import type { MAInsight, MAInsightType, TierType } from '@/types/ma';
+import { supabase } from '../../lib/supabase';
+import type { MAInsight, MAInsightType, TierType } from '../../types/ma';
 
 interface InsightEditorProps {
   periodId: string;
@@ -133,7 +133,7 @@ export function InsightEditor({
   };
 
   const updateField = <K extends keyof MAInsight>(field: K, value: MAInsight[K]) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev: Partial<MAInsight>) => ({ ...prev, [field]: value }));
   };
 
   return (

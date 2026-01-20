@@ -7,6 +7,17 @@ export type TierType = 'bronze' | 'silver' | 'gold' | 'platinum';
 export type FrequencyType = 'monthly' | 'quarterly';
 export type RAGStatus = 'green' | 'amber' | 'red' | 'grey';
 
+// True Cash Calculation structure
+export interface TrueCashCalculation {
+  bank_balance: number;
+  vat_provision: number;
+  paye_ni: number;
+  corporation_tax: number;
+  committed_payments: number;
+  confirmed_receivables: number;
+  true_cash: number;
+}
+
 // Document types
 export type MADocumentType = 
   | 'pnl'
@@ -242,7 +253,8 @@ export interface MAFinancialData {
   net_current_assets?: number;
   // True Cash
   true_cash?: number;
-  true_cash_calculation?: Record<string, unknown>;
+  true_cash_calculation?: TrueCashCalculation;
+  true_cash_runway_months?: number;
   // Comparatives
   prior_month_revenue?: number;
   prior_year_revenue?: number;

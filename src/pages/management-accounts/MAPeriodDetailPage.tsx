@@ -11,37 +11,29 @@ import {
   HelpCircle,
   Send,
   CheckCircle2,
-  Clock,
-  AlertTriangle,
   BarChart3,
-  MessageSquare,
-  Calendar,
   Eye,
   Edit
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../../lib/supabase';
 import {
   DocumentUploader,
   InsightCard,
   InsightEditor,
   PeriodDeliveryChecklist,
   TrueCashCard,
-  KPIDashboard,
-  CashForecastChart,
-  ScenarioBuilder,
-  ClientProfitabilityTable
-} from '@/components/management-accounts';
-import { calculateTrueCash, formatTrueCashForDisplay } from '@/services/ma/true-cash';
+  KPIDashboard
+} from '../../components/management-accounts';
+import { calculateTrueCash, formatTrueCashForDisplay } from '../../services/ma/true-cash';
 import type { 
   MAEngagement, 
   MAPeriod, 
   MADocument, 
   MAFinancialData, 
   MAInsight,
-  MAKPIValue,
-  TierType 
-} from '@/types/ma';
-import { TIER_FEATURES } from '@/types/ma';
+  MAKPIValue
+} from '../../types/ma';
+import { TIER_FEATURES } from '../../types/ma';
 
 type WorkflowTab = 'upload' | 'data' | 'kpis' | 'insights' | 'tuesday' | 'deliver';
 
@@ -187,9 +179,6 @@ export function MAPeriodDetailPage() {
     setEditingInsight(undefined);
   };
 
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 0 }).format(value);
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -207,7 +196,6 @@ export function MAPeriodDetailPage() {
   }
 
   const tier = engagement.tier;
-  const tierConfig = TIER_FEATURES[tier];
   const trueCashData = financialData?.cash_at_bank
     ? formatTrueCashForDisplay(calculateTrueCash({
         bankBalance: financialData.cash_at_bank,
@@ -261,7 +249,7 @@ export function MAPeriodDetailPage() {
 
         {/* Workflow Steps */}
         <div className="flex items-center gap-1 mt-4 overflow-x-auto pb-2">
-          {WORKFLOW_STEPS.map((step, idx) => {
+          {WORKFLOW_STEPS.map((step) => {
             const isActive = activeTab === step.tab;
             const isComplete = 
               (step.tab === 'upload' && documents.length > 0) ||

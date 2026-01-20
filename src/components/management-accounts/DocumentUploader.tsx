@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useDropzone } from 'react-dropzone';
+import { useState, useCallback, useRef } from 'react';
 import { Upload, FileText, CheckCircle, AlertCircle, X, Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import type { MADocumentType } from '@/types/ma';
+import { supabase } from '../../lib/supabase';
+import type { MADocumentType } from '../../types/ma';
 
 interface DocumentUploaderProps {
   periodId: string;
@@ -92,21 +91,23 @@ export function DocumentUploader({
   const [selectedType, setSelectedType] = useState<MADocumentType>('management_pack');
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    setIsUploading(true);
+  const handleFiles = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
     
-    for (const file of acceptedFiles) {
-      // Add file to list with uploading status
+    setIsUploading(true);
+    const fileArray = Array.from(files);
+    
+    for (const file of fileArray) {
       setUploadedFiles(prev => [...prev, { name: file.name, status: 'uploading' }]);
       
       try {
-        // Generate unique file path
         const timestamp = Date.now();
         const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
         const filePath = `ma/${engagementId}/${periodId}/${timestamp}_${sanitizedName}`;
         
-        // Upload to Supabase Storage
         const { error: uploadError } = await supabase.storage
           .from('documents')
           .upload(filePath, file, {
@@ -116,7 +117,6 @@ export function DocumentUploader({
         
         if (uploadError) throw uploadError;
         
-        // Create database record
         const { data: doc, error: dbError } = await supabase
           .from('ma_documents')
           .insert({
@@ -136,7 +136,6 @@ export function DocumentUploader({
         
         if (dbError) throw dbError;
         
-        // Update status to success
         setUploadedFiles(prev => 
           prev.map(f => 
             f.name === file.name 
@@ -161,16 +160,25 @@ export function DocumentUploader({
     onUploadComplete?.();
   }, [periodId, engagementId, selectedType, onUploadComplete]);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
-    onDrop,
-    accept: {
-      'application/pdf': ['.pdf'],
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-      'text/csv': ['.csv'],
-      'application/vnd.ms-excel': ['.xls'],
-    },
-    disabled: isUploading,
-  });
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragActive(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragActive(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragActive(false);
+    handleFiles(e.dataTransfer.files);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleFiles(e.target.files);
+  };
 
   const removeFile = (fileName: string) => {
     setUploadedFiles(prev => prev.filter(f => f.name !== fileName));
@@ -182,7 +190,6 @@ export function DocumentUploader({
 
   return (
     <div className="space-y-4">
-      {/* Document type selector */}
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-2">
           Document Type
@@ -204,9 +211,11 @@ export function DocumentUploader({
         </p>
       </div>
 
-      {/* Dropzone */}
       <div
-        {...getRootProps()}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={() => fileInputRef.current?.click()}
         className={`
           border-2 border-dashed rounded-xl p-8 text-center cursor-pointer
           transition-all duration-200
@@ -217,7 +226,14 @@ export function DocumentUploader({
           ${isUploading ? 'opacity-50 pointer-events-none' : ''}
         `}
       >
-        <input {...getInputProps()} />
+        <input 
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".pdf,.xlsx,.csv,.xls"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
         
         <div className="flex flex-col items-center gap-3">
           {isUploading ? (
@@ -243,7 +259,6 @@ export function DocumentUploader({
         </div>
       </div>
 
-      {/* Upload status */}
       {uploadedFiles.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -279,7 +294,6 @@ export function DocumentUploader({
                 )}
                 
                 <FileText className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                
                 <span className="flex-1 truncate">{file.name}</span>
                 
                 {file.status === 'error' && (
@@ -304,4 +318,3 @@ export function DocumentUploader({
 }
 
 export default DocumentUploader;
-

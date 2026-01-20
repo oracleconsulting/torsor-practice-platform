@@ -5,8 +5,8 @@
 // vs what the bank balance shows.
 // ============================================================================
 
-import { supabase } from '@/lib/supabase';
-import type { TrueCashCalculation, RAGStatus } from '@/types/ma';
+import { supabase } from '../../lib/supabase';
+import type { TrueCashCalculation, RAGStatus } from '../../types/ma';
 
 export interface TrueCashInputs {
   bankBalance: number;
