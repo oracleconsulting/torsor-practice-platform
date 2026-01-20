@@ -967,21 +967,100 @@ function formatQuotesForPrompt(quotes: any[]): string {
 
 /**
  * Enrich benchmark data by calculating derived metrics from available raw data
+ * Priority: Uploaded Accounts > Supplementary Data > Assessment Data
  */
-function enrichBenchmarkData(assessmentData: any, hvaData: any): any {
+function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancialData?: any[]): any {
   const enriched = { ...assessmentData };
   const derivedFields: string[] = [];
   
-  // Extract revenue from multiple possible field names
-  const revenue = 
+  // ==========================================================================
+  // UPLOADED ACCOUNTS DATA (Highest priority - actual verified figures)
+  // ==========================================================================
+  
+  if (uploadedFinancialData && uploadedFinancialData.length > 0) {
+    const latest = uploadedFinancialData[0]; // Most recent confirmed year
+    
+    console.log('[BM Enrich] Using uploaded accounts data:', {
+      fiscalYear: latest.fiscal_year,
+      revenue: latest.revenue,
+      confidence: latest.confidence_score
+    });
+    
+    // Use actual revenue from accounts
+    if (latest.revenue) {
+      enriched._enriched_revenue = latest.revenue;
+      enriched.data_source = 'uploaded_accounts';
+      derivedFields.push('revenue (from uploaded accounts)');
+    }
+    
+    // Use actual employee count if available
+    if (latest.employee_count) {
+      enriched._enriched_employee_count = latest.employee_count;
+      derivedFields.push('employee_count (from uploaded accounts)');
+    }
+    
+    // Use actual gross margin
+    if (latest.gross_margin_pct) {
+      enriched.gross_margin = latest.gross_margin_pct;
+      derivedFields.push('gross_margin (from uploaded accounts)');
+    }
+    
+    // Use actual EBITDA margin
+    if (latest.ebitda_margin_pct) {
+      enriched.ebitda_margin = latest.ebitda_margin_pct;
+      derivedFields.push('ebitda_margin (from uploaded accounts)');
+    }
+    
+    // Use actual net margin
+    if (latest.net_margin_pct) {
+      enriched.net_margin = latest.net_margin_pct;
+      derivedFields.push('net_margin (from uploaded accounts)');
+    }
+    
+    // Use actual debtor days
+    if (latest.debtor_days) {
+      enriched.debtor_days = latest.debtor_days;
+      derivedFields.push('debtor_days (from uploaded accounts)');
+    }
+    
+    // Use actual revenue per employee
+    if (latest.revenue_per_employee) {
+      enriched.revenue_per_employee = latest.revenue_per_employee;
+      derivedFields.push('revenue_per_employee (from uploaded accounts)');
+    }
+    
+    // Calculate YoY growth if we have 2+ years
+    if (uploadedFinancialData.length >= 2) {
+      const prevYear = uploadedFinancialData[1];
+      if (latest.revenue && prevYear.revenue && prevYear.revenue > 0) {
+        enriched.revenue_growth = Number((((latest.revenue - prevYear.revenue) / prevYear.revenue) * 100).toFixed(1));
+        derivedFields.push('revenue_growth (from uploaded accounts YoY)');
+      }
+    }
+    
+    // Store metadata about the data source
+    enriched._accounts_data = {
+      years_available: uploadedFinancialData.length,
+      latest_year: latest.fiscal_year,
+      confidence: latest.confidence_score,
+      source: 'uploaded_accounts'
+    };
+  }
+  
+  // ==========================================================================
+  // FALLBACK TO ASSESSMENT DATA (if not from accounts)
+  // ==========================================================================
+  
+  // Extract revenue from multiple possible field names (only if not from accounts)
+  const revenue = enriched._enriched_revenue || 
     parseFloat(assessmentData.responses?.bm_revenue_exact) ||
     parseFloat(assessmentData.responses?.revenue) ||
     parseFloat(assessmentData.responses?.annual_revenue) ||
     parseFloat(assessmentData.responses?.turnover) ||
     assessmentData.revenue;
   
-  // Extract employee count from multiple possible field names
-  const employeeCount = 
+  // Extract employee count from multiple possible field names (only if not from accounts)
+  const employeeCount = enriched._enriched_employee_count ||
     parseFloat(assessmentData.responses?.bm_employee_count) ||
     parseFloat(assessmentData.responses?.employee_count) ||
     parseFloat(assessmentData.responses?.headcount) ||
@@ -1520,8 +1599,31 @@ serve(async (req) => {
       .eq('assessment_type', 'part3')
       .maybeSingle();
     
-    // ENRICH DATA: Calculate derived metrics
-    const assessmentData = enrichBenchmarkData(rawAssessmentData, hvaData);
+    // Get uploaded financial data if available (confirmed accounts take precedence)
+    let uploadedFinancialData = null;
+    try {
+      const { data: financialData, error: finError } = await supabaseClient
+        .from('client_financial_data')
+        .select('*')
+        .eq('client_id', engagement.client_id)
+        .not('confirmed_at', 'is', null)  // Only use confirmed data
+        .order('fiscal_year', { ascending: false })
+        .limit(3);
+      
+      if (!finError && financialData && financialData.length > 0) {
+        uploadedFinancialData = financialData;
+        console.log('[BM Pass 1] Found uploaded accounts data:', {
+          years: financialData.map(f => f.fiscal_year),
+          latestRevenue: financialData[0].revenue,
+          dataSource: 'uploaded_accounts'
+        });
+      }
+    } catch (finErr) {
+      console.log('[BM Pass 1] No uploaded accounts data (table may not exist yet)');
+    }
+    
+    // ENRICH DATA: Calculate derived metrics (using uploaded accounts if available)
+    const assessmentData = enrichBenchmarkData(rawAssessmentData, hvaData, uploadedFinancialData);
     
     console.log('[BM Pass 1] Data enrichment complete:', {
       derived_fields: assessmentData.derived_fields,
