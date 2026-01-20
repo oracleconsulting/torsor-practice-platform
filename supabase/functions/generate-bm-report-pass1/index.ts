@@ -1973,33 +1973,38 @@ When writing narratives:
     
     console.log('[BM Pass 1] Saved. Triggering Pass 2...');
     
-    // Trigger Pass 2 asynchronously
+    // Trigger Pass 2 - fire and forget (don't await completion)
+    // IMPORTANT: Must trigger BEFORE returning response, setTimeout is unreliable in edge functions
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
     if (supabaseUrl && serviceRoleKey) {
-      setTimeout(async () => {
-        try {
-          console.log('[BM Pass 1] Calling Pass 2 function...');
-          const pass2Response = await fetch(`${supabaseUrl}/functions/v1/generate-bm-report-pass2`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${serviceRoleKey}`
-            },
-            body: JSON.stringify({ engagementId })
-          });
-          
+      // Fire-and-forget: Start the request but don't wait for response
+      // This ensures the request is sent before the function returns
+      console.log('[BM Pass 1] Calling Pass 2 function (fire-and-forget)...');
+      
+      fetch(`${supabaseUrl}/functions/v1/generate-bm-report-pass2`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${serviceRoleKey}`
+        },
+        body: JSON.stringify({ engagementId })
+      })
+        .then(async (pass2Response) => {
           if (!pass2Response.ok) {
             const errorText = await pass2Response.text();
             console.error('[BM Pass 1] Pass 2 trigger failed:', pass2Response.status, errorText);
           } else {
             console.log('[BM Pass 1] Pass 2 triggered successfully');
           }
-        } catch (err) {
+        })
+        .catch((err) => {
           console.error('[BM Pass 1] Failed to trigger Pass 2:', err);
-        }
-      }, 2000);
+        });
+      
+      // Small delay to ensure fetch is initiated before returning
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
     
     return new Response(
