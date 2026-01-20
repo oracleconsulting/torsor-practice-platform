@@ -1981,26 +1981,54 @@ When writing narratives:
       industry || {}
     );
     
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openRouterKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-sonnet-4',
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
-        temperature: 0.3,
-      }),
-    });
+    // Retry logic for transient network errors
+    const maxRetries = 3;
+    let result: any = null;
+    let lastError: Error | null = null;
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`[BM Pass 1] API call attempt ${attempt}/${maxRetries}...`);
+        
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openRouterKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'anthropic/claude-sonnet-4',
+            messages: [{ role: 'user', content: prompt }],
+            response_format: { type: 'json_object' },
+            temperature: 0.3,
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+        }
+        
+        result = await response.json();
+        break; // Success, exit retry loop
+        
+      } catch (error) {
+        lastError = error as Error;
+        console.warn(`[BM Pass 1] Attempt ${attempt} failed:`, error.message);
+        
+        if (attempt < maxRetries) {
+          // Exponential backoff: 2s, 4s, 8s
+          const delay = Math.pow(2, attempt) * 1000;
+          console.log(`[BM Pass 1] Retrying in ${delay/1000}s...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
     }
     
-    const result = await response.json();
+    if (!result) {
+      throw lastError || new Error('Failed to get response from OpenRouter after retries');
+    }
+    
     let content = result.choices[0].message.content;
     
     // Strip markdown code blocks if present (```json ... ```)
