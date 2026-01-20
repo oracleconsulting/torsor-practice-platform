@@ -33,6 +33,17 @@ interface BenchmarkAnalysis {
   created_at?: string;
   data_sources?: string[];
   benchmark_data_as_of?: string;
+  benchmark_sources_detail?: {
+    metricSources?: Record<string, any>;
+    uniqueSources?: any[];
+    totalMetrics?: number;
+    liveSearchCount?: number;
+    manualDataCount?: number;
+    overallConfidence?: number;
+    dataQualityNotes?: string;
+    marketContext?: string;
+    lastRefreshed?: string;
+  };
 }
 
 interface BenchmarkingAdminViewProps {
@@ -386,6 +397,7 @@ export function BenchmarkingAdminView({
                       confidence: m.confidence
                     }))}
                     sources={data.data_sources || []}
+                    detailedSources={data.benchmark_sources_detail}
                     industryName={industryMapping?.name || 'Unknown Industry'}
                     industryCode={industryMapping?.code || data.industry_code || ''}
                     dataAsOf={data.benchmark_data_as_of}

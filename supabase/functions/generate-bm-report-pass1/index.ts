@@ -1411,6 +1411,157 @@ Respond with ONLY the industry code (e.g., "AGENCY_DEV" or "CONSULT"). Do not in
   return null;
 }
 
+/**
+ * Build rich source data for display - simplified list for client view
+ */
+function buildRichSourceData(benchmarks: any[]): string[] {
+  const sources = new Set<string>();
+  
+  for (const b of benchmarks) {
+    // Add primary data source
+    if (b.data_source) {
+      sources.add(b.data_source);
+    }
+    
+    // Add any additional sources from the sources array
+    if (b.sources && Array.isArray(b.sources)) {
+      for (const s of b.sources) {
+        if (typeof s === 'string' && s.trim()) {
+          sources.add(s);
+        }
+      }
+    }
+  }
+  
+  return Array.from(sources).slice(0, 20);
+}
+
+/**
+ * Build detailed source data for admin view - includes full metadata
+ */
+function buildDetailedSourceData(benchmarks: any[]): any {
+  const metricSources: Record<string, any> = {};
+  const uniqueSources: any[] = [];
+  const seenSourceUrls = new Set<string>();
+  
+  for (const b of benchmarks) {
+    const metricCode = b.metric_code;
+    
+    // Build per-metric source info
+    metricSources[metricCode] = {
+      metricCode,
+      metricName: b.benchmark_metrics?.name || metricCode,
+      p25: b.p25,
+      p50: b.p50,
+      p75: b.p75,
+      source: b.data_source || 'Research data',
+      sources: b.sources || [],
+      confidence: b.confidence_score,
+      fetchedVia: b.fetched_via || 'manual',
+      lastUpdated: b.updated_at,
+      region: b.region || 'UK'
+    };
+    
+    // Extract unique sources with metadata
+    if (b.raw_search_response?.sources && Array.isArray(b.raw_search_response.sources)) {
+      for (const source of b.raw_search_response.sources) {
+        const url = source.url || source.name;
+        if (url && !seenSourceUrls.has(url)) {
+          seenSourceUrls.add(url);
+          uniqueSources.push({
+            name: source.name || extractDomainName(url),
+            url: source.url,
+            type: source.type || classifySourceType(source.name || source.url || ''),
+            relevance: source.relevance,
+            metrics: [metricCode]
+          });
+        } else if (url && seenSourceUrls.has(url)) {
+          // Add metric to existing source
+          const existing = uniqueSources.find(s => s.url === url || s.name === source.name);
+          if (existing && !existing.metrics.includes(metricCode)) {
+            existing.metrics.push(metricCode);
+          }
+        }
+      }
+    }
+    
+    // Also extract from sources array if present
+    if (b.sources && Array.isArray(b.sources)) {
+      for (const sourceStr of b.sources) {
+        if (typeof sourceStr === 'string' && !seenSourceUrls.has(sourceStr)) {
+          seenSourceUrls.add(sourceStr);
+          uniqueSources.push({
+            name: extractDomainName(sourceStr),
+            url: sourceStr.startsWith('http') ? sourceStr : null,
+            type: classifySourceType(sourceStr),
+            metrics: [metricCode]
+          });
+        }
+      }
+    }
+  }
+  
+  // Find most recent search response for methodology context
+  const latestSearchResponse = benchmarks.find(b => b.raw_search_response)?.raw_search_response;
+  
+  return {
+    metricSources,
+    uniqueSources,
+    totalMetrics: Object.keys(metricSources).length,
+    liveSearchCount: benchmarks.filter(b => b.fetched_via === 'live_search').length,
+    manualDataCount: benchmarks.filter(b => b.fetched_via === 'manual' || !b.fetched_via).length,
+    overallConfidence: latestSearchResponse?.overallConfidence,
+    dataQualityNotes: latestSearchResponse?.dataQualityNotes,
+    marketContext: latestSearchResponse?.marketContext,
+    lastRefreshed: benchmarks.reduce((latest, b) => {
+      const updated = new Date(b.updated_at);
+      return updated > latest ? updated : latest;
+    }, new Date(0)).toISOString()
+  };
+}
+
+/**
+ * Extract domain name from URL for display
+ */
+function extractDomainName(urlOrName: string): string {
+  if (!urlOrName) return 'Unknown Source';
+  
+  try {
+    if (urlOrName.startsWith('http')) {
+      const url = new URL(urlOrName);
+      return url.hostname.replace('www.', '');
+    }
+    return urlOrName;
+  } catch {
+    return urlOrName;
+  }
+}
+
+/**
+ * Classify source type based on name/URL
+ */
+function classifySourceType(sourceName: string): string {
+  const name = sourceName.toLowerCase();
+  
+  if (name.includes('ons') || name.includes('gov.uk') || name.includes('statistics') || name.includes('hmrc')) {
+    return 'government';
+  }
+  if (name.includes('ibis') || name.includes('statista') || name.includes('euromonitor')) {
+    return 'research';
+  }
+  if (name.includes('spi') || name.includes('deltek') || name.includes('benchbee') || name.includes('association')) {
+    return 'trade_association';
+  }
+  if (name.includes('companies house') || name.includes('annual report') || name.includes('financial')) {
+    return 'company_data';
+  }
+  if (name.includes('crunchbase') || name.includes('linkedin') || name.includes('glassdoor')) {
+    return 'aggregator';
+  }
+  
+  return 'research';
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -1913,12 +2064,9 @@ When writing narratives:
       llm_cost: cost,
       generation_time_ms: generationTime,
       benchmark_data_as_of: new Date().toISOString().split('T')[0],
-      data_sources: [
-        // Include unique data sources from benchmarks
-        ...new Set((benchmarks || []).map((b: any) => b.data_source).filter(Boolean)),
-        // Include source URLs from live search benchmarks
-        ...new Set((benchmarks || []).flatMap((b: any) => b.sources || []).filter(Boolean))
-      ].slice(0, 20) // Limit to 20 sources
+      // Rich source information for transparency
+      data_sources: buildRichSourceData(benchmarks || []),
+      benchmark_sources_detail: buildDetailedSourceData(benchmarks || [])
     };
     
     // Add founder risk data if available
