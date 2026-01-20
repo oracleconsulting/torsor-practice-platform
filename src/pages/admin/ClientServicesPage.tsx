@@ -1244,7 +1244,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           <ClientDetailModal 
             clientId={selectedClient} 
             serviceLineCode={selectedServiceLine}
-            onClose={() => setSelectedClient(null)} 
+            onClose={() => setSelectedClient(null)}
+            onNavigate={onNavigate}
           />
         )}
 
@@ -5068,7 +5069,7 @@ function DiscoveryClientModal({
 }
 
 // Enhanced Client Detail Modal with full functionality
-function ClientDetailModal({ clientId, serviceLineCode, onClose }: { clientId: string; serviceLineCode: string; onClose: () => void }) {
+function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: { clientId: string; serviceLineCode: string; onClose: () => void; onNavigate: (page: Page) => void }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const [client, setClient] = useState<any>(null);
