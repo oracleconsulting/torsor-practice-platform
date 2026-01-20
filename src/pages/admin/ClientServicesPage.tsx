@@ -9662,6 +9662,8 @@ function BenchmarkingClientModal({
                               hvaData={hvaStatus}
                               founderRisk={founderRisk}
                               industryMapping={industryMapping}
+                              clientId={selectedClient || undefined}
+                              practiceId={currentMember?.practice_id}
                               engagementId={engagement?.id}
                               supplementaryData={supplementaryData}
                               onSwitchToClient={() => setViewMode('client')}

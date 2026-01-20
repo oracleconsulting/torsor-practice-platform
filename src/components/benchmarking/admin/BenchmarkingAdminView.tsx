@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { QuickStatsBar } from './QuickStatsBar';
 import { ConversationScript } from './ConversationScript';
 import { RiskFlagsPanel } from './RiskFlagsPanel';
@@ -6,7 +6,10 @@ import { NextStepsPanel } from './NextStepsPanel';
 import { ClientDataReference } from './ClientDataReference';
 import { DataCollectionPanel } from './DataCollectionPanel';
 import { BenchmarkSourcesPanel } from './BenchmarkSourcesPanel';
-import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database } from 'lucide-react';
+import { AccountsUploadPanel } from './AccountsUploadPanel';
+import { FinancialDataReviewModal } from './FinancialDataReviewModal';
+import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload } from 'lucide-react';
+import { supabase } from '../../../lib/supabase';
 
 interface BenchmarkAnalysis {
   headline: string;
@@ -51,12 +54,41 @@ interface BenchmarkingAdminViewProps {
     name: string;
     confidence: number;
   };
+  clientId?: string;
+  practiceId?: string;
   engagementId?: string;
   supplementaryData?: Record<string, number | string>;
   onSwitchToClient?: () => void;
   onRegenerate?: () => Promise<void>;
   onSaveSupplementaryData?: (data: Record<string, number | string>) => Promise<void>;
   isRegenerating?: boolean;
+}
+
+interface AccountUpload {
+  id: string;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  status: 'pending' | 'processing' | 'extracted' | 'confirmed' | 'failed';
+  fiscal_year?: number;
+  extraction_confidence?: number;
+  error_message?: string;
+  created_at: string;
+}
+
+interface FinancialData {
+  id: string;
+  fiscal_year: number;
+  revenue?: number;
+  gross_margin_pct?: number;
+  ebitda_margin_pct?: number;
+  net_margin_pct?: number;
+  debtor_days?: number;
+  employee_count?: number;
+  revenue_per_employee?: number;
+  confidence_score?: number;
+  confirmed_at?: string;
+  notes?: string;
 }
 
 // Helper to safely parse JSON (handles both string and already-parsed objects)
@@ -88,6 +120,8 @@ export function BenchmarkingAdminView({
   clientData, 
   founderRisk, 
   industryMapping, 
+  clientId,
+  practiceId,
   engagementId,
   supplementaryData = {},
   onSwitchToClient,
@@ -95,7 +129,45 @@ export function BenchmarkingAdminView({
   onSaveSupplementaryData,
   isRegenerating = false
 }: BenchmarkingAdminViewProps) {
-  const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'actions' | 'collect' | 'sources' | 'raw'>('script');
+  const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'actions' | 'collect' | 'accounts' | 'sources' | 'raw'>('script');
+  
+  // Accounts upload state
+  const [accountUploads, setAccountUploads] = useState<AccountUpload[]>([]);
+  const [financialData, setFinancialData] = useState<FinancialData[]>([]);
+  const [reviewingData, setReviewingData] = useState<FinancialData | null>(null);
+  
+  // Load accounts data
+  const loadAccountsData = async () => {
+    if (!clientId) return;
+    
+    try {
+      // Load uploads
+      const { data: uploads } = await supabase
+        .from('client_accounts_uploads')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false });
+      
+      if (uploads) setAccountUploads(uploads as AccountUpload[]);
+      
+      // Load financial data
+      const { data: financial } = await supabase
+        .from('client_financial_data')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('fiscal_year', { ascending: false });
+      
+      if (financial) setFinancialData(financial as FinancialData[]);
+    } catch (err) {
+      console.log('Could not load accounts data (table may not exist yet)');
+    }
+  };
+  
+  useEffect(() => {
+    if (clientId) {
+      loadAccountsData();
+    }
+  }, [clientId]);
   
   const talkingPoints = safeJsonParse(data.admin_talking_points, []);
   const questionsToAsk = safeJsonParse(data.admin_questions_to_ask, []);
@@ -209,6 +281,22 @@ export function BenchmarkingAdminView({
                   )}
                 </button>
                 <button
+                  onClick={() => setActiveTab('accounts')}
+                  className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative ${
+                    activeTab === 'accounts'
+                      ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <Upload className="w-4 h-4" />
+                  Accounts
+                  {financialData.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 text-white text-xs rounded-full flex items-center justify-center">
+                      {financialData.length}
+                    </span>
+                  )}
+                </button>
+                <button
                   onClick={() => setActiveTab('sources')}
                   className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
                     activeTab === 'sources'
@@ -264,6 +352,25 @@ export function BenchmarkingAdminView({
                     onRegenerate={onRegenerate}
                     isLoading={isRegenerating}
                   />
+                )}
+                
+                {activeTab === 'accounts' && clientId && practiceId && (
+                  <AccountsUploadPanel
+                    clientId={clientId}
+                    practiceId={practiceId}
+                    existingUploads={accountUploads}
+                    existingFinancialData={financialData}
+                    onUploadComplete={loadAccountsData}
+                    onReviewData={(data) => setReviewingData(data)}
+                  />
+                )}
+                
+                {activeTab === 'accounts' && (!clientId || !practiceId) && (
+                  <div className="text-center py-8 text-slate-500">
+                    <Upload className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p>Client context not available</p>
+                    <p className="text-sm mt-1">Cannot upload accounts without client information</p>
+                  </div>
                 )}
                 
                 {activeTab === 'sources' && (
@@ -331,6 +438,19 @@ export function BenchmarkingAdminView({
           </div>
         </div>
       </div>
+      
+      {/* Financial Data Review Modal */}
+      {reviewingData && (
+        <FinancialDataReviewModal
+          data={reviewingData}
+          previousYearData={financialData.find(f => f.fiscal_year === reviewingData.fiscal_year - 1)}
+          onClose={() => setReviewingData(null)}
+          onConfirm={() => {
+            setReviewingData(null);
+            loadAccountsData();
+          }}
+        />
+      )}
     </div>
   );
 }
