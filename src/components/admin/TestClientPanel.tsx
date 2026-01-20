@@ -70,6 +70,11 @@ const ASSESSMENT_TEMPLATES: Record<string, AssessmentField[]> = {
     { key: 'leaving_money', label: 'Where might you be leaving money on the table?', type: 'textarea', placeholder: 'Pricing too low? Costs too high? Missing revenue streams?' },
     { key: 'top_quartile_goals', label: 'Where would you most like to be TOP QUARTILE?', type: 'text', placeholder: 'Profitability, Revenue Growth, Efficiency' },
     
+    // Section 4b: Risk & Structure (NEW - high-value questions)
+    { key: 'top3_client_concentration', label: 'Top 3 Clients (% of Revenue)', type: 'select', options: ['Under 25%', '25-40%', '40-60%', 'Over 60%', 'Don\'t know'], required: true },
+    { key: 'revenue_model_mix', label: 'Primary Revenue Model', type: 'select', options: ['Mostly project-based (one-off)', 'Mostly retainer/recurring', 'Mostly product/licensing', 'Mixed - roughly equal'], required: true },
+    { key: 'founder_delivery_involvement', label: 'Founder Involvement in Delivery', type: 'select', options: ['Under 10% - fully delegated', '10-30% - oversight only', '30-50% - key accounts', 'Over 50% - heavily involved'], required: true },
+    
     // Section 5: Magic Action
     { key: 'benchmark_magic_fix', label: 'What would you DO with benchmark insights?', type: 'textarea', placeholder: 'I\'d restructure our pricing based on what top performers charge', required: true },
     { key: 'action_readiness', label: 'Ready to act on findings?', type: 'select', options: ['Ready to act immediately', 'Will feed into planning for next quarter', 'Just want awareness for now', 'Need to share with team/board first'], required: true },
