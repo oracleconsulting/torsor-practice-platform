@@ -4,8 +4,12 @@ export { MAClientReportView } from './MAClientReportView';
 export { TierSelector } from './TierSelector';
 export { TierComparisonView } from './TierComparisonView';
 
+// KPI Components
+export { KPISelector } from './KPISelector';
+export { KPIDashboard } from './KPIDashboard';
+export { KPIDetailView } from './KPIDetailView';
+
 // Preview Components
 export { TrueCashPreview } from './previews/TrueCashPreview';
 export { ForecastPreview } from './previews/ForecastPreview';
 export { ScenarioPreview } from './previews/ScenarioPreview';
-

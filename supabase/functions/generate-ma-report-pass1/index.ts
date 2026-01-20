@@ -579,6 +579,48 @@ Add these to gapsToFill with appropriate suggested questions based on their spec
 2. Things they can implement immediately with existing data
 3. Demonstrate competence before formal engagement
 
+## KPI RECOMMENDATION RULES
+Recommend KPIs based on the client's situation. Available KPIs by code:
+
+**Cash & Working Capital:**
+- true_cash (ALWAYS include - mandatory)
+- debtor_days (if they mention collection issues, cash problems)
+- creditor_days (if they pay suppliers slowly or manage cash flow)
+- cash_conversion_cycle (for service businesses with WIP)
+- working_capital_ratio (if cash tight or balance sheet concerns)
+
+**Revenue & Growth:**
+- monthly_revenue (basic tracking)
+- yoy_revenue_growth (if comparing to last year)
+- avg_project_value (agencies, consultancies)
+- revenue_per_employee (if headcount/efficiency mentioned)
+- recurring_revenue_pct (subscription/retainer businesses)
+
+**Profitability:**
+- gross_margin (if direct costs, pricing issues)
+- operating_margin (overall profitability concerns)
+- net_margin (bottom line focus)
+- revenue_per_salary (if salaries high burden)
+- overhead_pct (if overhead/cost control mentioned)
+
+**Utilisation & Efficiency:**
+- billable_utilisation (time-based businesses)
+- effective_hourly_rate (if rate leakage or discounting)
+- wip_value (if billing delays, unbilled work)
+- project_margin (client profitability analysis)
+
+**Client Health:**
+- client_concentration (if dependent on key clients)
+- client_retention (if churn concerns)
+- client_lifetime_value (strategic client focus)
+- new_client_revenue_pct (business development balance)
+
+Recommend based on tier limits:
+- Bronze: 3 KPIs (true_cash + 2 most relevant)
+- Silver: 5 KPIs (true_cash + 4 most relevant)
+- Gold: 8 KPIs (true_cash + 7 most relevant)
+- Platinum: Recommend comprehensive set
+
 ## OUTPUT FORMAT
 Return ONLY valid JSON matching this exact structure (no markdown, no explanation):
 
@@ -654,6 +696,13 @@ Return ONLY valid JSON matching this exact structure (no markdown, no explanatio
     "rationale": "Why this tier",
     "keyDrivers": ["What drove this recommendation"]
   },
+  "kpiRecommendations": [
+    {
+      "kpi_code": "KPI code from list below",
+      "priority": 1,
+      "rationale": "Why this KPI matters for this client"
+    }
+  ],
   "adminGuidance": {
     "quickProfile": {
       "primaryPain": "One line summary",
