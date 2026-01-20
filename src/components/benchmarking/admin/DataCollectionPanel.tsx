@@ -40,6 +40,17 @@ function needsTextInput(metricName: string): boolean {
     /structure/i,
     /process/i,
     /approach/i,
+    // Catch "service-specific" or "role-specific" or similar
+    /\w+-specific/i,
+    // Catch plural rates that aren't "utilisation rate" etc.
+    /^(?!.*utilisation)(?!.*hourly)(?!.*blended).*rates$/i,
+    // Individual anything suggests multiple items
+    /individual/i,
+    // Per-person or per-service breakdowns
+    /per\s+(person|service|client|project)/i,
+    // Pricing tiers or structures
+    /pricing/i,
+    /tiers?$/i,
   ];
   return textPatterns.some(pattern => pattern.test(metricName));
 }
