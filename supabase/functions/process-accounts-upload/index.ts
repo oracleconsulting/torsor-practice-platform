@@ -264,8 +264,8 @@ serve(async (req) => {
   }
 });
 
-// Extract financial data from PDF using Google Gemini (supports native PDF)
-// Falls back to text extraction + Claude if Gemini fails
+// Extract financial data from PDF using Google Gemini (native PDF support)
+// Gemini can read PDFs directly - more reliable than text extraction
 async function extractFromPDFWithVision(
   fileBlob: Blob,
   hintYear: number | null,
@@ -274,20 +274,7 @@ async function extractFromPDFWithVision(
   const arrayBuffer = await fileBlob.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
   
-  // First, try to extract text from PDF directly
-  console.log('[PDF Extract] Attempting text extraction from PDF...');
-  const extractedText = await extractTextFromPDFAdvanced(bytes);
-  
-  if (extractedText && extractedText.length > 200) {
-    console.log(`[PDF Extract] Extracted ${extractedText.length} chars of text`);
-    // Use Claude to analyze the extracted text
-    return await extractFinancialDataFromText(extractedText, hintYear, apiKey);
-  }
-  
-  // If text extraction failed, try Google Gemini with native PDF support
-  console.log('[PDF Extract] Text extraction insufficient, trying Gemini PDF...');
-  
-  // Convert to base64 for Gemini
+  // Convert to base64
   let base64 = '';
   const chunkSize = 8192;
   for (let i = 0; i < bytes.length; i += chunkSize) {
@@ -298,32 +285,67 @@ async function extractFromPDFWithVision(
   
   const yearHint = hintYear ? `The user indicated this is for fiscal year ${hintYear}.` : '';
   
-  const prompt = `Analyze this PDF document containing company statutory accounts or financial statements.
+  const prompt = `You are a UK accountant extracting data from statutory accounts or management accounts.
+
+Analyze this PDF document and extract ALL financial figures for EACH fiscal year.
 
 ${yearHint}
 
-Extract ALL financial data for EACH fiscal year found in the document.
+EXTRACT FOR EACH YEAR FOUND:
 
-For each year, extract these specific values:
-- fiscal_year: The year number (e.g., 2024)
-- revenue/turnover: Total sales/turnover
-- cost_of_sales: Direct costs
-- gross_profit: Revenue minus cost of sales
-- operating_expenses: Total overheads
-- depreciation: Depreciation amount
-- net_profit: Profit/loss after tax
-- debtors: Trade debtors/receivables  
-- creditors: Trade creditors/payables
-- cash: Cash at bank
-- fixed_assets: Tangible assets
-- net_assets: Total net assets
+PROFIT & LOSS:
+- fiscal_year: The year (e.g., 2024)
+- fiscal_year_end: End date (e.g., "2024-12-31")
+- revenue: Turnover/sales total
+- cost_of_sales: Cost of sales / direct costs
+- gross_profit: Gross profit (revenue - cost of sales)
+- staff_costs: Staff/employee costs
+- operating_expenses: Total administrative/operating expenses
+- depreciation: Depreciation charge
+- net_profit: Net profit or loss after tax
 
-Return JSON array format:
-[{"fiscal_year": 2024, "revenue": 610000, "gross_profit": 398000, ...}]
+BALANCE SHEET:
+- debtors: Trade debtors / accounts receivable
+- creditors: Trade creditors / accounts payable
+- cash: Cash at bank and in hand
+- fixed_assets: Tangible fixed assets
+- net_assets: Total net assets / shareholders funds
 
-Return ONLY valid JSON. Use null for missing values.`;
+IMPORTANT:
+- Extract data for ALL years shown (e.g., YE 2024 AND YE 2025)
+- Use exact numbers from the accounts (no rounding)
+- Positive numbers for income/assets, negative for losses
+- Use null if a value is not shown
 
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+RESPOND WITH JSON ARRAY ONLY:
+[
+  {
+    "fiscal_year": 2024,
+    "fiscal_year_end": "2024-12-31",
+    "revenue": 610000,
+    "cost_of_sales": 212000,
+    "gross_profit": 398000,
+    "operating_expenses": 418000,
+    "depreciation": 16000,
+    "net_profit": -24000,
+    "debtors": 78000,
+    "creditors": 36000,
+    "cash": 18000,
+    "fixed_assets": 32000,
+    "net_assets": 36000,
+    "confidence": 0.95,
+    "notes": ["Loss-making year"]
+  },
+  {
+    "fiscal_year": 2025,
+    ...
+  }
+]`;
+
+  // Try Gemini Flash first (best for documents)
+  console.log('[Gemini PDF] Sending PDF to Gemini for analysis...');
+  
+  let response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
@@ -342,10 +364,9 @@ Return ONLY valid JSON. Use null for missing values.`;
               text: prompt
             },
             {
-              type: "file",
-              file: {
-                filename: "accounts.pdf",
-                content: base64
+              type: "image_url",
+              image_url: {
+                url: `data:application/pdf;base64,${base64}`
               }
             }
           ]
@@ -356,10 +377,55 @@ Return ONLY valid JSON. Use null for missing values.`;
     })
   });
 
+  // If Gemini fails, try Gemini Pro
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('[Gemini PDF] API error:', response.status, errorText);
-    throw new Error(`Gemini API error: ${response.status} - Unable to process PDF`);
+    console.log('[Gemini PDF] Flash failed, trying Pro:', response.status);
+    
+    response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://torsor.io",
+        "X-Title": "Torsor Accounts Processing"
+      },
+      body: JSON.stringify({
+        model: "google/gemini-pro-1.5",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: prompt
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:application/pdf;base64,${base64}`
+                }
+              }
+            ]
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 4000
+      })
+    });
+  }
+
+  // If both Gemini models fail, fall back to text extraction + Claude
+  if (!response.ok) {
+    console.log('[Gemini PDF] Both models failed, falling back to text extraction');
+    
+    const extractedText = await extractTextFromPDFAdvanced(bytes);
+    if (extractedText && extractedText.length > 100) {
+      console.log(`[PDF Fallback] Using text extraction (${extractedText.length} chars)`);
+      return await extractFinancialDataFromText(extractedText, hintYear, apiKey);
+    }
+    
+    throw new Error('Unable to extract data from PDF - please try CSV or Excel format');
   }
 
   const data = await response.json();
@@ -370,6 +436,7 @@ Return ONLY valid JSON. Use null for missing values.`;
   }
 
   console.log('[Gemini PDF] Response received, parsing...');
+  console.log('[Gemini PDF] Raw response:', content.substring(0, 500));
 
   return parseFinancialJson(content);
 }
