@@ -53,6 +53,9 @@ import { resolveIndustryCode } from '../../lib/services/benchmarking/industry-ma
 // Management Accounts Report Components (Two-Pass Architecture)
 import { MAAdminReportView, MAClientReportView } from '../../components/management-accounts';
 
+// Test Client Panel for testing workflows
+import { TestClientPanel } from '../../components/admin/TestClientPanel';
+
 
 interface ClientServicesPageProps {
   currentPage: Page;
@@ -189,6 +192,7 @@ interface Client {
   hasRoadmap: boolean;
   client_owner_id?: string | null;
   owner?: { id: string; name: string } | null;
+  is_test_client?: boolean;
 }
 
 interface StaffMember {
@@ -1046,6 +1050,23 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
               </div>
             </div>
 
+            {/* Test Mode Panel */}
+            {currentMember?.practice_id && selectedServiceLine && (
+              <TestClientPanel
+                practiceId={currentMember.practice_id}
+                serviceLineCode={selectedServiceLine}
+                serviceLineName={SERVICE_LINES.find(s => s.id === selectedServiceLine)?.name || selectedServiceLine}
+                onTestClientCreated={(clientId) => {
+                  console.log('Test client created:', clientId);
+                  fetchClients();
+                }}
+                onTestClientReset={() => {
+                  console.log('Test client reset');
+                  fetchClients();
+                }}
+              />
+            )}
+
             {/* Search and Filter */}
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="flex gap-4">
@@ -1094,11 +1115,18 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                     {filteredClients.map((client) => (
                       <tr key={client.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4">
-                          <div>
-                            <p className="font-medium text-gray-900">{client.name}</p>
-                            <p className="text-sm text-gray-500">{client.email}</p>
-                            {client.company && (
-                              <p className="text-sm text-gray-400">{client.company}</p>
+                          <div className="flex items-start gap-2">
+                            <div>
+                              <p className="font-medium text-gray-900">{client.name}</p>
+                              <p className="text-sm text-gray-500">{client.email}</p>
+                              {client.company && (
+                                <p className="text-sm text-gray-400">{client.company}</p>
+                              )}
+                            </div>
+                            {client.is_test_client && (
+                              <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">
+                                TEST
+                              </span>
                             )}
                           </div>
                         </td>
