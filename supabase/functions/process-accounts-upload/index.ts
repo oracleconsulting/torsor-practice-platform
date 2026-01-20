@@ -264,12 +264,12 @@ serve(async (req) => {
   }
 });
 
-// Extract financial data from PDF using Google Gemini (native PDF support)
-// Gemini can read PDFs directly - more reliable than text extraction
+// Extract financial data from PDF using Google's native Gemini API
+// OpenRouter doesn't support PDF uploads, so we use Google's API directly
 async function extractFromPDFWithVision(
   fileBlob: Blob,
   hintYear: number | null,
-  apiKey: string
+  openrouterKey: string
 ): Promise<ExtractedFinancialData[]> {
   const arrayBuffer = await fileBlob.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
@@ -342,103 +342,82 @@ RESPOND WITH JSON ARRAY ONLY:
   }
 ]`;
 
-  // Try Gemini Flash first (best for documents)
-  console.log('[Gemini PDF] Sending PDF to Gemini for analysis...');
+  // Try Google's native Gemini API (supports PDF natively)
+  const googleApiKey = Deno.env.get("GOOGLE_AI_API_KEY");
   
-  let response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://torsor.io",
-      "X-Title": "Torsor Accounts Processing"
-    },
-    body: JSON.stringify({
-      model: "google/gemini-flash-1.5",
-      messages: [
+  if (googleApiKey) {
+    console.log('[Google Gemini] Using native Gemini API for PDF...');
+    
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${googleApiKey}`,
         {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: prompt
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:application/pdf;base64,${base64}`
-              }
-            }
-          ]
-        }
-      ],
-      temperature: 0.1,
-      max_tokens: 4000
-    })
-  });
-
-  // If Gemini fails, try Gemini Pro
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.log('[Gemini PDF] Flash failed, trying Pro:', response.status);
-    
-    response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://torsor.io",
-        "X-Title": "Torsor Accounts Processing"
-      },
-      body: JSON.stringify({
-        model: "google/gemini-pro-1.5",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: prompt
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:application/pdf;base64,${base64}`
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: prompt },
+                {
+                  inline_data: {
+                    mime_type: "application/pdf",
+                    data: base64
+                  }
                 }
-              }
-            ]
-          }
-        ],
-        temperature: 0.1,
-        max_tokens: 4000
-      })
-    });
-  }
+              ]
+            }],
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 4000
+            }
+          })
+        }
+      );
 
-  // If both Gemini models fail, fall back to text extraction + Claude
-  if (!response.ok) {
-    console.log('[Gemini PDF] Both models failed, falling back to text extraction');
-    
-    const extractedText = await extractTextFromPDFAdvanced(bytes);
-    if (extractedText && extractedText.length > 100) {
-      console.log(`[PDF Fallback] Using text extraction (${extractedText.length} chars)`);
-      return await extractFinancialDataFromText(extractedText, hintYear, apiKey);
+      if (response.ok) {
+        const data = await response.json();
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (content) {
+          console.log('[Google Gemini] Response received');
+          console.log('[Google Gemini] Raw:', content.substring(0, 300));
+          return parseFinancialJson(content);
+        }
+      } else {
+        const errorText = await response.text();
+        console.log('[Google Gemini] API error:', response.status, errorText.substring(0, 200));
+      }
+    } catch (e) {
+      console.log('[Google Gemini] Error:', e);
     }
-    
-    throw new Error('Unable to extract data from PDF - please try CSV or Excel format');
+  } else {
+    console.log('[Google Gemini] No GOOGLE_AI_API_KEY found, skipping native API');
   }
 
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
-
-  if (!content) {
-    throw new Error('No response from Gemini API');
+  // Fallback: Try text extraction + Claude
+  console.log('[PDF Fallback] Trying text extraction...');
+  
+  const extractedText = await extractTextFromPDFAdvanced(bytes);
+  console.log(`[PDF Fallback] Extracted ${extractedText?.length || 0} chars`);
+  
+  // Check if text looks like actual content (not just garbage)
+  const hasFinancialTerms = extractedText && (
+    /revenue|turnover|profit|loss|assets|liabilities/i.test(extractedText) ||
+    /£\d|GBP|\d{3},\d{3}/i.test(extractedText)
+  );
+  
+  if (hasFinancialTerms && extractedText.length > 200) {
+    console.log('[PDF Fallback] Text contains financial terms, sending to Claude');
+    return await extractFinancialDataFromText(extractedText, hintYear, openrouterKey);
   }
-
-  console.log('[Gemini PDF] Response received, parsing...');
-  console.log('[Gemini PDF] Raw response:', content.substring(0, 500));
-
-  return parseFinancialJson(content);
+  
+  // If text extraction got garbage, throw helpful error
+  console.log('[PDF Fallback] Text extraction failed - no meaningful content');
+  throw new Error(
+    'Unable to extract data from this PDF. The file may be scanned/image-based or use complex encoding. ' +
+    'Options: 1) Add GOOGLE_AI_API_KEY to Supabase secrets for native PDF support, ' +
+    '2) Export the accounts as CSV/Excel, or 3) Enter data manually.'
+  );
 }
 
 // Advanced PDF text extraction - handles more PDF structures
