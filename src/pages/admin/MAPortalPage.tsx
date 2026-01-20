@@ -9,7 +9,6 @@ import {
   Calendar,
   FileText,
   TrendingUp,
-  Settings,
   CheckCircle2,
   Clock,
   AlertTriangle,
@@ -33,7 +32,6 @@ import {
 } from '../../components/management-accounts';
 import { calculateTrueCash, formatTrueCashForDisplay } from '../../services/ma/true-cash';
 import type { 
-  MAEngagement, 
   MAPeriod, 
   MADocument,
   MAFinancialData, 
@@ -41,7 +39,6 @@ import type {
   MAKPIValue,
   TierType 
 } from '../../types/ma';
-import { TIER_FEATURES } from '../../types/ma';
 import type { NavigationProps } from '../../types/navigation';
 
 // ============================================================================
@@ -109,7 +106,7 @@ const WORKFLOW_STEPS: { tab: WorkflowTab; label: string; icon: React.ReactNode }
 // MAIN COMPONENT
 // ============================================================================
 
-export function MAPortalPage({ onNavigate, currentPage }: NavigationProps) {
+export function MAPortalPage({ onNavigate, currentPage: _currentPage }: NavigationProps) {
   // Navigation state
   const [view, setView] = useState<PortalView>('list');
   const [selectedEngagementId, setSelectedEngagementId] = useState<string | null>(null);
@@ -130,7 +127,8 @@ export function MAPortalPage({ onNavigate, currentPage }: NavigationProps) {
   // Period detail state
   const [period, setPeriod] = useState<MAPeriod | null>(null);
   const [documents, setDocuments] = useState<MADocument[]>([]);
-  const [financialData, setFinancialData] = useState<MAFinancialData | null>(null);
+  const [_financialData, setFinancialData] = useState<MAFinancialData | null>(null);
+  // _financialData loaded for period detail - used for KPI calculations
   const [insights, setInsights] = useState<MAInsight[]>([]);
   const [kpis, setKpis] = useState<MAKPIValue[]>([]);
   const [workflowTab, setWorkflowTab] = useState<WorkflowTab>('upload');
@@ -758,8 +756,11 @@ export function MAPortalPage({ onNavigate, currentPage }: NavigationProps) {
             <div className="space-y-6">
               <DocumentUploader
                 periodId={period.id}
-                existingDocuments={documents}
-                onUploadComplete={(docs) => setDocuments([...documents, ...docs])}
+                engagementId={engagement.id}
+                onUploadComplete={() => {
+                  // Reload documents after upload
+                  loadPeriodDetail(engagement.id, period.id);
+                }}
               />
               <button
                 onClick={() => setWorkflowTab('data')}
@@ -846,15 +847,21 @@ export function MAPortalPage({ onNavigate, currentPage }: NavigationProps) {
               {insights.length > 0 ? (
                 <div className="space-y-4">
                   {insights.map(insight => (
-                    <InsightCard
-                      key={insight.id}
-                      insight={insight}
-                      tier={tier}
-                      onEdit={() => {
-                        setEditingInsight(insight);
-                        setShowInsightEditor(true);
-                      }}
-                    />
+                    <div key={insight.id} className="relative">
+                      <InsightCard
+                        insight={insight}
+                        showRecommendation
+                      />
+                      <button
+                        onClick={() => {
+                          setEditingInsight(insight);
+                          setShowInsightEditor(true);
+                        }}
+                        className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                    </div>
                   ))}
                 </div>
               ) : (
@@ -867,8 +874,8 @@ export function MAPortalPage({ onNavigate, currentPage }: NavigationProps) {
               {showInsightEditor && (
                 <InsightEditor
                   periodId={period.id}
-                  tier={tier}
-                  existingInsight={editingInsight}
+                  engagementTier={tier}
+                  insight={editingInsight ?? undefined}
                   onSave={(newInsight) => {
                     if (editingInsight) {
                       setInsights(insights.map(i => i.id === newInsight.id ? newInsight : i));
