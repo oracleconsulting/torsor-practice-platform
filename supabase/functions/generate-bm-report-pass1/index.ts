@@ -1499,6 +1499,23 @@ function buildDetailedSourceData(benchmarks: any[]): any {
         }
       }
     }
+    
+    // Extract from data_source field (for manually seeded data)
+    if (b.data_source && typeof b.data_source === 'string' && !seenSourceUrls.has(b.data_source)) {
+      seenSourceUrls.add(b.data_source);
+      uniqueSources.push({
+        name: b.data_source,
+        url: null,
+        type: classifySourceType(b.data_source),
+        metrics: [metricCode]
+      });
+    } else if (b.data_source && seenSourceUrls.has(b.data_source)) {
+      // Add metric to existing source
+      const existing = uniqueSources.find(s => s.name === b.data_source);
+      if (existing && !existing.metrics.includes(metricCode)) {
+        existing.metrics.push(metricCode);
+      }
+    }
   }
   
   // Find most recent search response for methodology context
