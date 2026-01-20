@@ -122,18 +122,16 @@ const RAG_CONFIG = {
 };
 
 // Trend icons
-function TrendIcon({ trend, higher_is_better }: { trend: string | null; higher_is_better: boolean | null }) {
+function TrendIcon({ trend }: { trend: string | null }) {
   if (!trend || trend === 'stable') {
     return <Minus className="h-4 w-4 text-slate-400" />;
   }
   
-  const isGood = (trend === 'improving');
-  
   if (trend === 'improving') {
-    return <TrendingUp className={cn("h-4 w-4", isGood ? "text-green-500" : "text-red-500")} />;
+    return <TrendingUp className="h-4 w-4 text-green-500" />;
   }
   
-  return <TrendingDown className={cn("h-4 w-4", isGood ? "text-green-500" : "text-red-500")} />;
+  return <TrendingDown className="h-4 w-4 text-red-500" />;
 }
 
 // Single KPI Tile Component
@@ -215,7 +213,7 @@ function KPITile({
           )}
         </div>
         
-        <TrendIcon trend={kpi.trend} higher_is_better={kpi.higher_is_better} />
+        <TrendIcon trend={kpi.trend} />
       </div>
       
       {/* Target comparison */}
@@ -362,7 +360,7 @@ export function KPIDashboard({
   onSettings,
   isLoading,
 }: KPIDashboardProps) {
-  const [showAllKPIs, setShowAllKPIs] = useState(false);
+  // Future: const [showAllKPIs, setShowAllKPIs] = useState(false);
   
   // Sort KPIs by display order
   const sortedKPIs = useMemo(() => 

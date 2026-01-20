@@ -104,10 +104,8 @@ export function KPISelector({
 
   // Count selections
   const selectedCount = selectedKPIs.length;
-  const mandatoryCount = selectedKPIs.filter(s => s.is_mandatory).length;
-  const optionalCount = selectedCount - mandatoryCount;
   const remainingSlots = maxKPIs - selectedCount;
-  const canAddMore = remainingSlots > 0 || tier === 'platinum';
+  const canAddMore = remainingSlots > 0 || maxKPIs === 999; // 999 = unlimited (platinum)
 
   // Check if a KPI is selected
   const isSelected = (code: string) => selectedKPIs.some(s => s.kpi_code === code);
@@ -251,7 +249,7 @@ export function KPISelector({
         </div>
 
         {/* Upgrade prompt if at limit */}
-        {!canAddMore && tier !== 'platinum' && (
+        {!canAddMore && maxKPIs !== 999 && (
           <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center justify-between">
             <div>
               <p className="font-medium text-amber-800">Want to track more KPIs?</p>

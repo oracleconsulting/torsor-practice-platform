@@ -5,7 +5,6 @@ import {
   ArrowLeft,
   TrendingUp, 
   TrendingDown,
-  Minus,
   Target,
   AlertCircle,
   CheckCircle,
@@ -156,7 +155,6 @@ function SparklineChart({
   const range = max - min;
   
   const chartHeight = 200;
-  const chartWidth = 100; // percentage
   
   // Generate points for the line
   const points = history.map((point, i) => {
