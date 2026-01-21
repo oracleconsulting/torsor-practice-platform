@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import {
+  AdminKPIManager,
   DocumentUploader,
   FinancialDataEntry,
   InsightCard,
@@ -1013,42 +1014,15 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
 
           {/* KPIs Tab */}
           {workflowTab === 'kpis' && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-xl border border-slate-200 p-6">
-                <h2 className="text-lg font-semibold text-slate-800 mb-4">KPI Calculations</h2>
-                {kpis.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {kpis.map(kpi => (
-                      <div 
-                        key={kpi.id || kpi.kpi_code}
-                        className={`p-4 rounded-lg border ${
-                          kpi.rag_status === 'green' ? 'border-green-200 bg-green-50' :
-                          kpi.rag_status === 'amber' ? 'border-amber-200 bg-amber-50' :
-                          kpi.rag_status === 'red' ? 'border-red-200 bg-red-50' :
-                          'border-slate-200 bg-slate-50'
-                        }`}
-                      >
-                        <div className="text-sm text-slate-500 mb-1">{kpi.kpi_code}</div>
-                        <div className="text-2xl font-bold text-slate-800">
-                          {kpi.value?.toLocaleString() ?? '-'}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-slate-500">
-                    <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No KPIs calculated yet</p>
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() => setWorkflowTab('insights')}
-                className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-              >
-                Continue to Insights →
-              </button>
-            </div>
+            <AdminKPIManager
+              engagementId={engagement.id}
+              periodId={period.id}
+              tier={tier}
+              financialData={periodFinancialData}
+              existingKpis={kpis}
+              onSave={(updatedKpis) => setKpis(updatedKpis)}
+              onContinue={() => setWorkflowTab('insights')}
+            />
           )}
 
           {/* Insights Tab */}
