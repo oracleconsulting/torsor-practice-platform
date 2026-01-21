@@ -88,25 +88,40 @@ export function InsightsReviewPanel({
         rag_status: k.rag_status,
       }));
 
+      const requestBody = {
+        engagementId,
+        periodId,
+        tier,
+        clientName,
+        financialData,
+        kpis: kpiData,
+        tuesdayQuestion,
+      };
+      
+      console.log('[InsightsReviewPanel] Sending request:', requestBody);
+
       const response = await supabase.functions.invoke('generate-ma-insights', {
-        body: {
-          engagementId,
-          periodId,
-          tier,
-          clientName,
-          financialData,
-          kpis: kpiData,
-          tuesdayQuestion,
-        },
+        body: requestBody,
       });
 
+      console.log('[InsightsReviewPanel] Response:', response);
+
       if (response.error) {
+        console.error('[InsightsReviewPanel] Edge function error:', response.error);
         throw new Error(response.error.message);
       }
 
-      if (response.data?.insights) {
+      console.log('[InsightsReviewPanel] Response data:', response.data);
+
+      if (response.data?.insights && response.data.insights.length > 0) {
+        console.log('[InsightsReviewPanel] Adding', response.data.insights.length, 'insights');
         // Merge with existing insights
         onInsightsUpdate([...insights, ...response.data.insights]);
+      } else if (response.data?.success === false) {
+        throw new Error(response.data.error || 'Unknown error from edge function');
+      } else {
+        console.warn('[InsightsReviewPanel] No insights in response');
+        alert('No insights were generated. Please check the edge function is deployed.');
       }
     } catch (error: any) {
       console.error('[InsightsReviewPanel] Error generating insights:', error);
