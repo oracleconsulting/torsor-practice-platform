@@ -32,8 +32,8 @@ export interface ServiceLineAssessment {
 // ============================================================================
 
 export const MANAGEMENT_ACCOUNTS_ASSESSMENT: ServiceLineAssessment = {
-  code: 'management_accounts',
-  name: 'Management Accounts',
+  code: 'business_intelligence',
+  name: 'Business Intelligence',
   title: 'Financial Visibility Diagnostic',
   subtitle: 'Help us understand your relationship with your numbers',
   sections: [

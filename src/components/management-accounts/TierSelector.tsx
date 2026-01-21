@@ -2,6 +2,17 @@ import { Check, Star } from 'lucide-react';
 import { TIER_FEATURES, getPriceRange } from '../../types/ma';
 import type { TierType } from '../../types/ma';
 
+// Map legacy tier names to new tier names
+const LEGACY_TIER_MAP: Record<string, TierType> = {
+  'bronze': 'clarity',
+  'silver': 'foresight', 
+  'gold': 'strategic',
+  'platinum': 'strategic',
+  'clarity': 'clarity',
+  'foresight': 'foresight',
+  'strategic': 'strategic',
+};
+
 interface TierSelectorProps {
   recommendedTier: TierType;
   selectedTier?: TierType;
@@ -80,19 +91,22 @@ export function TierSelector({
   onSelect,
   showPrices = true 
 }: TierSelectorProps) {
-  const activeTier = selectedTier || recommendedTier;
+  // Map legacy tier names to new names
+  const mappedRecommended = LEGACY_TIER_MAP[recommendedTier] || 'clarity';
+  const mappedSelected = selectedTier ? (LEGACY_TIER_MAP[selectedTier] || 'clarity') : undefined;
+  const activeTier = mappedSelected || mappedRecommended;
 
   return (
     <div className="py-8">
       <h3 className="text-2xl font-bold text-center mb-2 text-gray-900">Choose Your Tier</h3>
       <p className="text-center text-gray-600 mb-8">
         Based on your needs, we recommend{' '}
-        <span className="font-semibold text-blue-600">{TIER_FEATURES[recommendedTier].label}</span>
+        <span className="font-semibold text-blue-600">{TIER_FEATURES[mappedRecommended]?.label || 'Clarity'}</span>
       </p>
       
       <div className="grid md:grid-cols-3 gap-6">
         {tiers.map((tier) => {
-          const isRecommended = tier.id === recommendedTier;
+          const isRecommended = tier.id === mappedRecommended;
           const isSelected = tier.id === activeTier;
           
           return (

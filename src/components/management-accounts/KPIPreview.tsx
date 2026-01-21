@@ -87,17 +87,31 @@ const CATEGORY_COLORS: Record<string, string> = {
   'Client Health': 'bg-pink-100 text-pink-700 border-pink-200',
 };
 
+// Map legacy tier names to new tier names
+const LEGACY_TIER_MAP: Record<string, TierType> = {
+  'bronze': 'clarity',
+  'silver': 'foresight', 
+  'gold': 'strategic',
+  'platinum': 'strategic',
+  // New tiers map to themselves
+  'clarity': 'clarity',
+  'foresight': 'foresight',
+  'strategic': 'strategic',
+};
+
 export function KPIPreview({ tier, recommendations: _recommendations, onUpgrade }: KPIPreviewProps) {
   // Note: _recommendations can be used in future to override default KPIs with AI-suggested ones
-  const [selectedTier, setSelectedTier] = useState<TierType>(tier);
+  // Map legacy tier names to new names
+  const mappedTier = LEGACY_TIER_MAP[tier] || 'clarity';
+  const [selectedTier, setSelectedTier] = useState<TierType>(mappedTier);
   const [showAllKPIs, setShowAllKPIs] = useState(false);
   
   const tierOrder: TierType[] = ['clarity', 'foresight', 'strategic'];
-  const currentTierIndex = tierOrder.indexOf(tier);
+  const currentTierIndex = tierOrder.indexOf(mappedTier);
   
-  // Get KPIs available at the selected tier
-  const availableKpis = TIER_KPIS[selectedTier];
-  const selectedTierInfo = TIER_INFO[selectedTier];
+  // Get KPIs available at the selected tier (with fallback)
+  const availableKpis = TIER_KPIS[selectedTier] || TIER_KPIS['clarity'];
+  const selectedTierInfo = TIER_INFO[selectedTier] || TIER_INFO['clarity'];
   
   // Get KPIs for display (either available ones or all with locked state)
   const displayKpis = showAllKPIs 

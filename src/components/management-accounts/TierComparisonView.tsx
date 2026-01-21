@@ -128,12 +128,25 @@ function cn(...classes: (string | boolean | undefined)[]) {
   return classes.filter(Boolean).join(' ');
 }
 
+// Map legacy tier names to new tier names
+const LEGACY_TIER_MAP: Record<string, TierType> = {
+  'bronze': 'clarity',
+  'silver': 'foresight', 
+  'gold': 'strategic',
+  'platinum': 'strategic',
+  'clarity': 'clarity',
+  'foresight': 'foresight',
+  'strategic': 'strategic',
+};
+
 export function TierComparisonView({ 
   clientData, 
   financialContext, 
   onTierSelect 
 }: TierComparisonProps) {
-  const [selectedTier, setSelectedTier] = useState<TierType>(clientData.recommendedTier);
+  // Map legacy tier names to new names
+  const mappedRecommendedTier = LEGACY_TIER_MAP[clientData.recommendedTier] || 'clarity';
+  const [selectedTier, setSelectedTier] = useState<TierType>(mappedRecommendedTier);
   const [frequency, setFrequency] = useState<'monthly' | 'quarterly'>(clientData.desiredFrequency);
   const isMonthly = frequency === 'monthly';
   const isPreRevenue = clientData.isPreRevenue;

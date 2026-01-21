@@ -82,9 +82,9 @@ export const ADVISORY_SERVICES: ServiceLine[] = [
     ]
   },
   {
-    id: 'management-accounts',
-    name: 'Management Accounts',
-    description: 'Regular financial reporting with KPI analysis',
+    id: 'business-intelligence',
+    name: 'Business Intelligence',
+    description: 'Financial clarity with True Cash position, KPIs, insights and forecasts',
     priceRange: '£650/month',
     deliveryTime: 'Monthly/quarterly',
     requiredSkills: [

@@ -10,7 +10,7 @@ export function Navigation({ currentPage, onNavigate }: NavigationProps) {
     { id: 'cpd' as const, label: 'CPD Tracker', icon: Award },
     { id: 'training' as const, label: 'Training', icon: BookOpen },
     { id: 'clients' as const, label: 'Client Services', icon: Users },
-    { id: 'ma-portal' as const, label: 'MA Portal', icon: Calculator },
+    { id: 'ma-portal' as const, label: 'BI Portal', icon: Calculator },
     { id: 'assessments' as const, label: 'Assessments', icon: ClipboardList },
     { id: 'delivery' as const, label: 'Delivery Teams', icon: Truck },
     { id: 'config' as const, label: 'Service Config', icon: Settings },

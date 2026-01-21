@@ -14,9 +14,9 @@ interface DocumentUploaderProps {
 
 const DOCUMENT_TYPE_INFO: Record<MADocumentType, { label: string; accept: string; description: string }> = {
   management_pack: { 
-    label: 'Management Accounts Pack', 
+    label: 'Business Intelligence Pack', 
     accept: '.pdf', 
-    description: 'Combined MA pack (PDF)' 
+    description: 'Combined BI pack (PDF)' 
   },
   pnl: { 
     label: 'Profit & Loss', 

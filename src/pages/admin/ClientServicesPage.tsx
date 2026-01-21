@@ -111,10 +111,10 @@ const SERVICE_LINES = [
     status: 'ready'
   },
   { 
-    id: 'management_accounts', 
-    code: 'management_accounts',
-    name: 'Management Accounts',
-    description: 'Monthly financial visibility with P&L, Balance Sheet, KPIs and Cash Flow analysis',
+    id: 'business_intelligence', 
+    code: 'business_intelligence',
+    name: 'Business Intelligence',
+    description: 'Financial clarity with True Cash position, KPIs, insights, forecasts and scenario modelling',
     icon: LineChart,
     color: 'emerald',
     monthlyRevenue: 650,
@@ -5076,7 +5076,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   const [loading, setLoading] = useState(true);
   
   // Service-line specific tabs
-  const isManagementAccounts = serviceLineCode === 'management_accounts';
+  const isManagementAccounts = serviceLineCode === 'management_accounts' || serviceLineCode === 'business_intelligence';
   const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'sprint' | 'assessments' | 'documents' | 'analysis'>(
     isManagementAccounts ? 'assessments' : 'overview'
   );
@@ -5241,13 +5241,13 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
       // For service-specific views (like management_accounts), only show relevant assessments
       let allAssessments: any[] = [];
       
-      if (serviceLineCode === 'management_accounts') {
-        // For Management Accounts, only show MA assessment
+      if (serviceLineCode === 'management_accounts' || serviceLineCode === 'business_intelligence') {
+        // For Business Intelligence (formerly Management Accounts), only show BI assessment
         const { data: maAssessment } = await supabase
           .from('service_line_assessments')
           .select('id, service_line_code, responses, completion_percentage, completed_at, extracted_insights, started_at, updated_at')
           .eq('client_id', clientId)
-          .eq('service_line_code', 'management_accounts')
+          .in('service_line_code', ['management_accounts', 'business_intelligence'])
           .maybeSingle();
         
         if (maAssessment) {
@@ -5383,7 +5383,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
       const maInsightContext = !maInsightV2 ? (context || []).find((c: any) => 
         c.context_type === 'note' && 
         c.processed === true && 
-        c.data_source_type === 'management_accounts_analysis' &&
+        (c.data_source_type === 'management_accounts_analysis' || c.data_source_type === 'business_intelligence_analysis') &&
         c.content && 
         typeof c.content === 'string' &&
         (c.content.includes('"headline"') || c.content.includes('"keyInsights"'))
@@ -6971,10 +6971,10 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
 
                     {/* Prerequisites Check */}
                     <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-200">
-                      <div className={`p-3 rounded-lg ${client?.assessments?.some((a: any) => a.assessment_type === 'management_accounts' && a.status === 'completed') ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-200'}`}>
+                      <div className={`p-3 rounded-lg ${client?.assessments?.some((a: any) => (a.assessment_type === 'management_accounts' || a.assessment_type === 'business_intelligence') && a.status === 'completed') ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-200'}`}>
                         <p className="text-sm font-medium">Assessment</p>
-                        <p className={`text-xs ${client?.assessments?.some((a: any) => a.assessment_type === 'management_accounts' && a.status === 'completed') ? 'text-emerald-600' : 'text-gray-500'}`}>
-                          {client?.assessments?.some((a: any) => a.assessment_type === 'management_accounts' && a.status === 'completed') ? '✓ Completed' : '○ Pending'}
+                        <p className={`text-xs ${client?.assessments?.some((a: any) => (a.assessment_type === 'management_accounts' || a.assessment_type === 'business_intelligence') && a.status === 'completed') ? 'text-emerald-600' : 'text-gray-500'}`}>
+                          {client?.assessments?.some((a: any) => (a.assessment_type === 'management_accounts' || a.assessment_type === 'business_intelligence') && a.status === 'completed') ? '✓ Completed' : '○ Pending'}
                         </p>
                       </div>
                       <div className={`p-3 rounded-lg ${client?.documents?.length > 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-200'}`}>

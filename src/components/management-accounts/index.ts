@@ -1,4 +1,4 @@
-// Management Accounts Report Components
+// Business Intelligence Report Components
 export { MAAdminReportView } from './MAAdminReportView';
 export { MAClientReportView } from './MAClientReportView';
 export { TierSelector } from './TierSelector';

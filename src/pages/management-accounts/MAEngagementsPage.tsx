@@ -143,7 +143,7 @@ export function MAEngagementsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Management Accounts</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Business Intelligence</h1>
           <p className="text-slate-600 mt-1">Manage client engagements and reporting periods</p>
         </div>
         <button

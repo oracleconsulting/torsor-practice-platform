@@ -49,7 +49,7 @@ export const advisoryServicesMap: ServiceLine[] = [
       'Chart of accounts setup',
       'Link bookkeeping to analytics (Xero → Spotlight/Syft)',
       'Dashboard setup for monitoring',
-      'Produce Management Accounts',
+      'Produce Business Intelligence reports',
       'Forecasting and cashflow facilitation'
     ],
     benefits: [
@@ -177,9 +177,9 @@ export const advisoryServicesMap: ServiceLine[] = [
     ]
   },
   {
-    id: 'management-accounts',
-    name: 'Management Accounts',
-    description: 'Regular financial reporting with KPI analysis and insights',
+    id: 'business-intelligence',
+    name: 'Business Intelligence',
+    description: 'Financial clarity with True Cash position, KPIs, AI insights and forecasts',
     priceRange: '£650/month (monthly) or £1,750/quarter',
     deliveryTime: 'Monthly or quarterly delivery',
     features: [
@@ -709,7 +709,7 @@ export const advisoryServicesMap: ServiceLine[] = [
       'AI-generated plan: outcomes, constraints, resources, risks, milestones',
       'Quarterly accountability reviews',
       'Weekly progress tracker in portal',
-      'Optional BRaaS/Management Accounts integration'
+      'Optional BRaaS/Business Intelligence integration'
     ],
     benefits: [
       'Aligns personal and corporate goals',
