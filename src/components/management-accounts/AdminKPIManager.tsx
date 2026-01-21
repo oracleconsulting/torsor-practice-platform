@@ -200,31 +200,33 @@ export function AdminKPIManager({
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Delete existing KPIs for this period
+      // Calculate period dates
+      const periodEndDate = new Date().toISOString().split('T')[0];
+      const periodStartDate = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0];
+      
+      // Delete existing KPIs for this engagement/period (we'll re-insert the selected ones)
+      // Note: ma_kpi_tracking doesn't have period_id, it uses period_start/period_end
       await supabase
         .from('ma_kpi_tracking')
         .delete()
-        .eq('period_id', periodId);
+        .eq('engagement_id', engagementId)
+        .eq('period_end', periodEndDate);
 
-      // Insert new KPIs
+      // Insert new KPIs - only include columns that exist in ma_kpi_tracking table
+      
       const kpisToInsert = selectedKpis.map(code => {
-        const kpiDef = AVAILABLE_KPIS.find(k => k.code === code);
         const vals = kpiValues[code] || { value: '', target: '', commentary: '' };
         const numValue = parseFloat(vals.value) || null;
         const numTarget = parseFloat(vals.target) || null;
         
         return {
           engagement_id: engagementId,
-          period_id: periodId,
-          kpi_code: code,
-          kpi_name: kpiDef?.name || code,
+          kpi_code: code.toLowerCase(), // Must match ma_kpi_definitions codes
+          period_start: periodStartDate,
+          period_end: periodEndDate,
           value: numValue,
           target_value: numTarget,
-          rag_status: numValue !== null ? calculateRAG(code, numValue, numTarget || 0) : 'grey',
-          unit: kpiDef?.unit || 'number',
-          category: kpiDef?.category || 'Other',
-          auto_commentary: vals.commentary || null,
-          period_end: new Date().toISOString().split('T')[0],
+          rag_status: numValue !== null ? calculateRAG(code, numValue, numTarget || 0) : null,
         };
       });
 
@@ -240,7 +242,8 @@ export function AdminKPIManager({
       const { data: updatedKpis } = await supabase
         .from('ma_kpi_tracking')
         .select('*')
-        .eq('period_id', periodId);
+        .eq('engagement_id', engagementId)
+        .eq('period_end', periodEndDate);
 
       onSave(updatedKpis || []);
       setSaved(true);
