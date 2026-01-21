@@ -40,6 +40,8 @@ interface KPIDefinition {
 const AVAILABLE_KPIS: KPIDefinition[] = [
   // Cash & Working Capital
   { code: 'true_cash', name: 'True Cash', category: 'Cash & Working Capital', description: 'Actual available cash after liabilities', unit: 'currency', higher_is_better: true, tier_availability: ['bronze', 'silver', 'gold', 'platinum'] },
+  { code: 'burn_rate', name: 'Monthly Burn Rate', category: 'Cash & Working Capital', description: 'Net monthly cash outflow', unit: 'currency', higher_is_better: false, tier_availability: ['bronze', 'silver', 'gold', 'platinum'] },
+  { code: 'cash_runway', name: 'Cash Runway', category: 'Cash & Working Capital', description: 'Months of operation at current burn', unit: 'months', higher_is_better: true, tier_availability: ['bronze', 'silver', 'gold', 'platinum'] },
   { code: 'debtor_days', name: 'Debtor Days', category: 'Cash & Working Capital', description: 'Average days to collect receivables', unit: 'days', higher_is_better: false, tier_availability: ['silver', 'gold', 'platinum'] },
   { code: 'creditor_days', name: 'Creditor Days', category: 'Cash & Working Capital', description: 'Average days to pay suppliers', unit: 'days', higher_is_better: true, tier_availability: ['silver', 'gold', 'platinum'] },
   { code: 'working_capital_ratio', name: 'Working Capital Ratio', category: 'Cash & Working Capital', description: 'Current assets / current liabilities', unit: 'ratio', higher_is_better: true, tier_availability: ['silver', 'gold', 'platinum'] },
