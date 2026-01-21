@@ -19,7 +19,9 @@ import {
   Lightbulb,
   HelpCircle,
   Send,
-  Calculator
+  Calculator,
+  X,
+  Loader2
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import {
@@ -127,15 +129,22 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
   
   // Period detail state
   const [period, setPeriod] = useState<MAPeriod | null>(null);
-  const [_documents, setDocuments] = useState<MADocument[]>([]);
-  // _documents loaded for period - displayed in upload step
-  const [_financialData, setFinancialData] = useState<MAFinancialData | null>(null);
-  // _financialData loaded for period detail - used for KPI calculations
+  const [periodDocuments, setPeriodDocuments] = useState<MADocument[]>([]);
+  const [periodFinancialData, setPeriodFinancialData] = useState<MAFinancialData | null>(null);
   const [insights, setInsights] = useState<MAInsight[]>([]);
   const [kpis, setKpis] = useState<MAKPIValue[]>([]);
   const [workflowTab, setWorkflowTab] = useState<WorkflowTab>('upload');
   const [showInsightEditor, setShowInsightEditor] = useState(false);
   const [editingInsight, setEditingInsight] = useState<MAInsight | null>(null);
+  
+  // New Period Modal state
+  const [showNewPeriodModal, setShowNewPeriodModal] = useState(false);
+  const [newPeriodForm, setNewPeriodForm] = useState({
+    periodStart: '',
+    periodEnd: '',
+    periodLabel: '',
+  });
+  const [creatingPeriod, setCreatingPeriod] = useState(false);
 
   // ============================================================================
   // DATA LOADING
@@ -281,7 +290,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
         .select('*')
         .eq('period_id', perId);
 
-      setDocuments(docsData || []);
+      setPeriodDocuments(docsData || []);
 
       // Load financial data
       const { data: finData } = await supabase
@@ -290,7 +299,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
         .eq('period_id', perId)
         .single();
 
-      setFinancialData(finData);
+      setPeriodFinancialData(finData);
 
       // Load insights
       const { data: insightsData } = await supabase
@@ -339,6 +348,77 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
       setSelectedEngagementId(null);
       setView('list');
     }
+  };
+
+  // ============================================================================
+  // PERIOD CREATION
+  // ============================================================================
+
+  const createPeriod = async () => {
+    if (!engagement || !newPeriodForm.periodStart || !newPeriodForm.periodEnd) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    setCreatingPeriod(true);
+    try {
+      // Generate a label if not provided
+      const startDate = new Date(newPeriodForm.periodStart);
+      const endDate = new Date(newPeriodForm.periodEnd);
+      const label = newPeriodForm.periodLabel || 
+        `${startDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`;
+
+      const { data: newPeriod, error } = await supabase
+        .from('ma_periods')
+        .insert({
+          engagement_id: engagement.id,
+          period_start: newPeriodForm.periodStart,
+          period_end: newPeriodForm.periodEnd,
+          period_label: label,
+          status: 'draft',
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Add to periods list
+      setPeriods(prev => [newPeriod, ...prev]);
+      
+      // Reset form and close modal
+      setNewPeriodForm({ periodStart: '', periodEnd: '', periodLabel: '' });
+      setShowNewPeriodModal(false);
+      
+      // Navigate to the new period
+      navigateToPeriod(engagement.id, newPeriod.id);
+    } catch (error: any) {
+      console.error('[MA Portal] Error creating period:', error);
+      alert('Failed to create period: ' + error.message);
+    } finally {
+      setCreatingPeriod(false);
+    }
+  };
+
+  const getDefaultPeriodDates = () => {
+    // Default to previous month
+    const now = new Date();
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastDayOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+    
+    return {
+      start: lastMonth.toISOString().split('T')[0],
+      end: lastDayOfLastMonth.toISOString().split('T')[0],
+    };
+  };
+
+  const openNewPeriodModal = () => {
+    const defaults = getDefaultPeriodDates();
+    setNewPeriodForm({
+      periodStart: defaults.start,
+      periodEnd: defaults.end,
+      periodLabel: '',
+    });
+    setShowNewPeriodModal(true);
   };
 
   // ============================================================================
@@ -643,7 +723,10 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-slate-800">Reporting Periods</h2>
-                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                <button 
+                  onClick={openNewPeriodModal}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                >
                   <Plus className="h-4 w-4" />
                   New Period
                 </button>
@@ -709,6 +792,89 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
             />
           )}
         </div>
+
+        {/* New Period Modal */}
+        {showNewPeriodModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-slate-800">Create New Period</h2>
+                <button
+                  onClick={() => setShowNewPeriodModal(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600 rounded-lg"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Period Start *
+                    </label>
+                    <input
+                      type="date"
+                      value={newPeriodForm.periodStart}
+                      onChange={(e) => setNewPeriodForm(prev => ({ ...prev, periodStart: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Period End *
+                    </label>
+                    <input
+                      type="date"
+                      value={newPeriodForm.periodEnd}
+                      onChange={(e) => setNewPeriodForm(prev => ({ ...prev, periodEnd: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Period Label <span className="text-slate-400">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newPeriodForm.periodLabel}
+                    onChange={(e) => setNewPeriodForm(prev => ({ ...prev, periodLabel: e.target.value }))}
+                    placeholder="e.g., December 2025"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Leave blank to auto-generate from end date
+                  </p>
+                </div>
+              </div>
+              <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3">
+                <button
+                  onClick={() => setShowNewPeriodModal(false)}
+                  className="px-4 py-2 text-slate-600 hover:text-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={createPeriod}
+                  disabled={creatingPeriod || !newPeriodForm.periodStart || !newPeriodForm.periodEnd}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {creatingPeriod ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4" />
+                      Create Period
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
