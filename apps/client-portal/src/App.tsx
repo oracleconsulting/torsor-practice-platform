@@ -21,6 +21,7 @@ import ChatPage from './pages/chat/ChatPage';
 import AppointmentsPage from './pages/appointments/AppointmentsPage';
 import ServiceAssessmentPage from './pages/services/ServiceAssessmentPage';
 import MAReportPage from './pages/services/MAReportPage';
+import MADashboardPage from './pages/services/MADashboardPage';
 import MAPresentationPage from './pages/services/MAPresentationPage';
 import SystemInventoryPage from './pages/services/SystemInventoryPage';
 import ProcessDeepDivesPage from './pages/services/ProcessDeepDivesPage';
@@ -70,6 +71,7 @@ function App() {
             {/* Service Line Assessments */}
             <Route path="/service/:serviceCode/assessment" element={<ServiceAssessmentPage />} />
             <Route path="/service/management_accounts/report" element={<MAReportPage />} />
+            <Route path="/service/management_accounts/dashboard" element={<MADashboardPage />} />
             <Route path="/service/management_accounts/presentation" element={<MAPresentationPage />} />
             <Route path="/service/systems_audit/inventory" element={<SystemInventoryPage />} />
             <Route path="/service/systems_audit/process-deep-dives" element={<ProcessDeepDivesPage />} />
