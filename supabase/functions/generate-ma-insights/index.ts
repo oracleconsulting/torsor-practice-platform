@@ -1,11 +1,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import Anthropic from "npm:@anthropic-ai/sdk@0.39.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 interface FinancialData {
   revenue?: number;
@@ -70,9 +71,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!anthropicApiKey) {
-      throw new Error("ANTHROPIC_API_KEY not configured");
+    const openRouterApiKey = Deno.env.get("OPENROUTER_API_KEY");
+    if (!openRouterApiKey) {
+      throw new Error("OPENROUTER_API_KEY not configured");
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -105,34 +106,51 @@ Deno.serve(async (req) => {
       tuesdayQuestion,
     });
 
-    const anthropic = new Anthropic({ apiKey: anthropicApiKey });
-
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 8000,
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
+    // Call OpenRouter API with Claude Sonnet 4.5
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openRouterApiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://torsor.co.uk",
+        "X-Title": "Torsor MA Insights",
+      },
+      body: JSON.stringify({
+        model: "anthropic/claude-sonnet-4",
+        max_tokens: 8000,
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+      }),
     });
 
-    const content = response.content[0];
-    if (content.type !== "text") {
-      throw new Error("Unexpected response type from Claude");
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[generate-ma-insights] OpenRouter API error:", errorText);
+      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+    }
+
+    const aiResponse = await response.json();
+    const content = aiResponse.choices?.[0]?.message?.content;
+    
+    if (!content) {
+      console.error("[generate-ma-insights] No content in response:", aiResponse);
+      throw new Error("No content in AI response");
     }
 
     // Parse the JSON response
     let insights: GeneratedInsight[];
     try {
-      const jsonMatch = content.text.match(/\[[\s\S]*\]/);
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
       if (!jsonMatch) {
         throw new Error("No JSON array found in response");
       }
       insights = JSON.parse(jsonMatch[0]);
     } catch (parseError) {
-      console.error("[generate-ma-insights] Failed to parse response:", content.text);
+      console.error("[generate-ma-insights] Failed to parse response:", content);
       throw new Error("Failed to parse insights from AI response");
     }
 
