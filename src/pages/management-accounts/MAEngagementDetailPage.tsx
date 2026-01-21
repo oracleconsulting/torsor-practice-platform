@@ -188,10 +188,9 @@ export function MAEngagementDetailPage() {
           </h1>
           <div className="flex items-center gap-3 mt-2">
             <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-              tier === 'platinum' ? 'bg-violet-100 text-violet-700' :
-              tier === 'gold' ? 'bg-yellow-100 text-yellow-800' :
-              tier === 'silver' ? 'bg-slate-200 text-slate-800' :
-              'bg-amber-100 text-amber-800'
+              tier === 'strategic' ? 'bg-purple-100 text-purple-700' :
+              tier === 'foresight' ? 'bg-indigo-100 text-indigo-800' :
+              'bg-blue-100 text-blue-800'
             }`}>
               {tier.charAt(0).toUpperCase() + tier.slice(1)} • {formatCurrency(engagement.monthly_fee)}/mo
             </span>

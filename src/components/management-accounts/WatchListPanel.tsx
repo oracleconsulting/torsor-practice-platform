@@ -63,7 +63,7 @@ export function WatchListPanel({
   const [showAddForm, setShowAddForm] = useState(false);
 
   const tierConfig = TIER_FEATURES[tier];
-  const displayLimit = maxItems ?? (tier === 'platinum' ? 20 : tier === 'gold' ? 10 : tier === 'silver' ? 5 : 3);
+  const displayLimit = maxItems ?? (tier === 'strategic' ? 20 : tier === 'foresight' ? 10 : 5);
 
   useEffect(() => {
     loadWatchList();

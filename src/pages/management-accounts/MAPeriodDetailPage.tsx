@@ -517,7 +517,7 @@ export function MAPeriodDetailPage() {
                     <div key={insight.id} className="relative group">
                       <InsightCard
                         insight={insight}
-                        showRecommendation={tier !== 'bronze'}
+                        showRecommendation={tier !== 'clarity'}
                       />
                       <button
                         onClick={() => {

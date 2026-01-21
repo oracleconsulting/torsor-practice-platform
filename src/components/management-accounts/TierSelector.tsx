@@ -1,68 +1,75 @@
-import { Check } from 'lucide-react';
+import { Check, Star } from 'lucide-react';
+import { TIER_FEATURES, TierType, getPriceRange } from '../../types/ma';
 
 interface TierSelectorProps {
-  recommendedTier: string;
-  selectedTier?: string;
-  onSelect?: (tier: string) => void;
+  recommendedTier: TierType;
+  selectedTier?: TierType;
+  onSelect?: (tier: TierType) => void;
   showPrices?: boolean;
 }
 
-const tiers = [
+const tiers: Array<{
+  id: TierType;
+  name: string;
+  tagline: string;
+  priceRange: string;
+  features: string[];
+  color: string;
+  bgColor: string;
+  borderColor: string;
+}> = [
   {
-    id: 'bronze',
-    name: 'Bronze',
-    price: '£750',
-    subtitle: 'Essentials',
+    id: 'clarity',
+    name: 'Clarity',
+    tagline: 'See where you are',
+    priceRange: getPriceRange('clarity'),
     features: [
-      'Monthly P&L & Balance Sheet',
-      'True Cash calculation',
-      'Tuesday question answered',
-      '3 key insights',
-      'Watch list (3 metrics)',
+      'Business Intelligence Portal',
+      'True Cash Position',
+      'Core KPIs (5)',
+      'AI-generated insights',
+      'Tuesday Question answered',
+      '30-min review call',
     ],
+    color: 'blue',
+    bgColor: 'bg-blue-50',
+    borderColor: 'border-blue-500',
   },
   {
-    id: 'silver',
-    name: 'Silver',
-    price: '£1,500',
-    subtitle: 'Full Picture',
+    id: 'foresight',
+    name: 'Foresight',
+    tagline: 'See where you could be',
+    priceRange: getPriceRange('foresight'),
     features: [
-      'Everything in Bronze',
-      '6-month trend analysis',
-      '5 key insights',
-      'Watch list (5 metrics)',
-      'Optimisation suggestions',
-      'Quarterly advisory call',
-    ],
-  },
-  {
-    id: 'gold',
-    name: 'Gold',
-    price: '£3,000',
-    subtitle: 'Decision-Ready',
-    features: [
-      'Everything in Silver',
+      'Everything in Clarity',
+      'Extended KPIs (8)',
+      'Actionable recommendations',
       '13-week cash forecast',
-      'Scenario dashboard',
       '3 pre-built scenarios',
-      'Monthly advisory call',
-      'Budget vs actual tracking',
+      'Client profitability analysis',
+      '45-min review call',
     ],
+    color: 'indigo',
+    bgColor: 'bg-indigo-50',
+    borderColor: 'border-indigo-500',
   },
   {
-    id: 'platinum',
-    name: 'Platinum',
-    price: '£5,000',
-    subtitle: 'Board-Level',
+    id: 'strategic',
+    name: 'Strategic',
+    tagline: 'Your financial partner',
+    priceRange: getPriceRange('strategic'),
     features: [
-      'Everything in Gold',
-      'Weekly flash reports',
+      'Everything in Foresight',
+      'Custom KPIs (unlimited)',
       'Unlimited scenarios',
-      'Custom KPI dashboard',
-      'Fortnightly calls',
-      'Benchmarking included',
-      'Board pack preparation',
+      'Weekly cash flash',
+      'Board pack generation',
+      'Industry benchmarking',
+      '60-min review call',
     ],
+    color: 'purple',
+    bgColor: 'bg-purple-50',
+    borderColor: 'border-purple-500',
   },
 ];
 
@@ -76,13 +83,13 @@ export function TierSelector({
 
   return (
     <div className="py-8">
-      <h3 className="text-2xl font-bold text-center mb-2 text-gray-900">Choose Your Level</h3>
+      <h3 className="text-2xl font-bold text-center mb-2 text-gray-900">Choose Your Tier</h3>
       <p className="text-center text-gray-600 mb-8">
-        Based on your answers, we recommend{' '}
-        <span className="font-semibold text-blue-600">{recommendedTier.toUpperCase()}</span>
+        Based on your needs, we recommend{' '}
+        <span className="font-semibold text-blue-600">{TIER_FEATURES[recommendedTier].label}</span>
       </p>
       
-      <div className="grid md:grid-cols-4 gap-4">
+      <div className="grid md:grid-cols-3 gap-6">
         {tiers.map((tier) => {
           const isRecommended = tier.id === recommendedTier;
           const isSelected = tier.id === activeTier;
@@ -90,33 +97,49 @@ export function TierSelector({
           return (
             <div
               key={tier.id}
-              className={`rounded-xl border-2 p-6 cursor-pointer transition-all ${
+              className={`rounded-xl border-2 p-6 cursor-pointer transition-all relative ${
                 isSelected
-                  ? 'border-blue-500 bg-blue-50 shadow-lg scale-[1.02]'
+                  ? `${tier.borderColor} ${tier.bgColor} shadow-lg scale-[1.02]`
                   : isRecommended
-                  ? 'border-blue-300 bg-blue-50/50'
+                  ? `${tier.borderColor}/50 ${tier.bgColor}/50`
                   : 'border-gray-200 hover:border-gray-300 hover:shadow'
               }`}
               onClick={() => onSelect?.(tier.id)}
             >
               {isRecommended && (
-                <div className="text-xs font-semibold text-blue-600 uppercase mb-2 tracking-wide">
-                  Recommended
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold text-white ${
+                    tier.id === 'clarity' ? 'bg-blue-500' :
+                    tier.id === 'foresight' ? 'bg-indigo-500' :
+                    'bg-purple-500'
+                  }`}>
+                    <Star className="h-3 w-3" />
+                    Recommended
+                  </div>
                 </div>
               )}
-              <h4 className="text-xl font-bold text-gray-900">{tier.name}</h4>
+              
+              <h4 className="text-xl font-bold text-gray-900 mt-2">{tier.name}</h4>
+              <p className="text-sm text-gray-600 mb-3">{tier.tagline}</p>
+              
               {showPrices && (
-                <>
-                  <p className="text-2xl font-bold text-blue-600">{tier.price}</p>
-                  <p className="text-sm text-gray-500 mb-4">/month</p>
-                </>
+                <div className="mb-4">
+                  <p className={`text-lg font-bold ${
+                    tier.id === 'clarity' ? 'text-blue-600' :
+                    tier.id === 'foresight' ? 'text-indigo-600' :
+                    'text-purple-600'
+                  }`}>{tier.priceRange}</p>
+                  <p className="text-xs text-gray-500">Based on annual turnover</p>
+                </div>
               )}
-              <p className="text-sm font-medium text-gray-700 mb-4">{tier.subtitle}</p>
+              
               <ul className="space-y-2">
                 {tier.features.map((feature, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm">
                     <Check className={`h-4 w-4 flex-shrink-0 mt-0.5 ${
-                      isSelected ? 'text-blue-600' : 'text-green-500'
+                      tier.id === 'clarity' ? 'text-blue-500' :
+                      tier.id === 'foresight' ? 'text-indigo-500' :
+                      'text-purple-500'
                     }`} />
                     <span className="text-gray-700">{feature}</span>
                   </li>
@@ -124,8 +147,16 @@ export function TierSelector({
               </ul>
               
               {isSelected && (
-                <div className="mt-4 pt-4 border-t border-blue-200">
-                  <div className="flex items-center justify-center gap-2 text-blue-600 font-medium">
+                <div className={`mt-4 pt-4 border-t ${
+                  tier.id === 'clarity' ? 'border-blue-200' :
+                  tier.id === 'foresight' ? 'border-indigo-200' :
+                  'border-purple-200'
+                }`}>
+                  <div className={`flex items-center justify-center gap-2 font-medium ${
+                    tier.id === 'clarity' ? 'text-blue-600' :
+                    tier.id === 'foresight' ? 'text-indigo-600' :
+                    'text-purple-600'
+                  }`}>
                     <Check className="h-5 w-5" />
                     Selected
                   </div>
@@ -135,9 +166,12 @@ export function TierSelector({
           );
         })}
       </div>
+      
+      <p className="text-center text-sm text-gray-500 mt-6">
+        Strategic tier is monthly only. Clarity and Foresight available monthly or quarterly.
+      </p>
     </div>
   );
 }
 
 export default TierSelector;
-

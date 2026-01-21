@@ -9,7 +9,7 @@ interface SectionVisibilityPanelProps {
   onToggle: (sectionId: SectionId) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
   onClose: () => void;
-  tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  tier: 'clarity' | 'foresight' | 'strategic';
 }
 
 const SECTION_CONFIG: Record<SectionId, { label: string; description: string; minTier?: string }> = {
@@ -24,7 +24,7 @@ const SECTION_CONFIG: Record<SectionId, { label: string; description: string; mi
   cash_forecast: {
     label: 'Cash Forecast',
     description: '13-week/6-month cash projection with scenarios',
-    minTier: 'gold',
+    minTier: 'foresight',
   },
   insights: {
     label: 'Insights & Recommendations',
@@ -33,7 +33,7 @@ const SECTION_CONFIG: Record<SectionId, { label: string; description: string; mi
   profitability: {
     label: 'Client Profitability',
     description: 'Revenue and margin by client',
-    minTier: 'gold',
+    minTier: 'foresight',
   },
   kpis: {
     label: 'Key Performance Indicators',
@@ -49,7 +49,7 @@ const SECTION_CONFIG: Record<SectionId, { label: string; description: string; mi
   },
 };
 
-const TIER_LEVELS = { bronze: 0, silver: 1, gold: 2, platinum: 3 };
+const TIER_LEVELS = { clarity: 0, foresight: 1, strategic: 2 };
 
 export function SectionVisibilityPanel({
   sections,

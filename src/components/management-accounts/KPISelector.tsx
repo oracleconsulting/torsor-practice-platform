@@ -31,7 +31,7 @@ interface KPISelectorProps {
   availableKPIs: KPIDefinition[];
   selectedKPIs: KPISelection[];
   maxKPIs: number;
-  tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  tier: 'clarity' | 'foresight' | 'strategic';
   industryType?: string;
   onSelectionChange: (selections: KPISelection[]) => void;
   onUpgradeClick?: () => void;
@@ -254,7 +254,7 @@ export function KPISelector({
             <div>
               <p className="font-medium text-amber-800">Want to track more KPIs?</p>
               <p className="text-sm text-amber-700">
-                Upgrade to {tier === 'bronze' ? 'Silver (5 KPIs)' : tier === 'silver' ? 'Gold (8 KPIs)' : 'Platinum (unlimited)'} for more insights.
+                Upgrade to {tier === 'clarity' ? 'Foresight (8 KPIs)' : 'Strategic (unlimited)'} for more insights.
               </p>
             </div>
             {onUpgradeClick && (
@@ -339,7 +339,7 @@ export function KPISelector({
                                   Mandatory
                                 </span>
                               )}
-                              {benchmark && tier !== 'bronze' && tier !== 'silver' && (
+                              {benchmark && tier !== 'clarity' && (
                                 <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
                                   Benchmark: {benchmark}
                                 </span>

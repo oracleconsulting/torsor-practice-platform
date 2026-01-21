@@ -35,10 +35,9 @@ interface EngagementWithClient {
 }
 
 const TIER_COLORS: Record<TierType, { bg: string; text: string; border: string }> = {
-  bronze: { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-200' },
-  silver: { bg: 'bg-slate-200', text: 'text-slate-800', border: 'border-slate-300' },
-  gold: { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-300' },
-  platinum: { bg: 'bg-violet-100', text: 'text-violet-800', border: 'border-violet-200' },
+  clarity: { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200' },
+  foresight: { bg: 'bg-indigo-100', text: 'text-indigo-800', border: 'border-indigo-200' },
+  strategic: { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200' },
 };
 
 const STATUS_CONFIG = {
@@ -223,10 +222,9 @@ export function MAEngagementsPage() {
             className="px-3 py-2 border border-slate-300 rounded-lg bg-white"
           >
             <option value="all">All Tiers</option>
-            <option value="bronze">Bronze</option>
-            <option value="silver">Silver</option>
-            <option value="gold">Gold</option>
-            <option value="platinum">Platinum</option>
+            <option value="clarity">Clarity</option>
+            <option value="foresight">Foresight</option>
+            <option value="strategic">Strategic</option>
           </select>
           <select
             value={filterStatus}
@@ -342,8 +340,8 @@ export function MAEngagementsPage() {
       </div>
 
       {/* Quick Stats by Tier */}
-      <div className="grid grid-cols-4 gap-4">
-        {(['bronze', 'silver', 'gold', 'platinum'] as TierType[]).map(tier => {
+      <div className="grid grid-cols-3 gap-4">
+        {(['clarity', 'foresight', 'strategic'] as TierType[]).map(tier => {
           const count = engagements.filter(e => e.tier === tier && e.status === 'active').length;
           const tierConfig = TIER_FEATURES[tier];
           const tierColors = TIER_COLORS[tier];

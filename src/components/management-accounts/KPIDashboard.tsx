@@ -43,7 +43,7 @@ interface KPIData {
 interface KPIDashboardProps {
   kpis: KPIData[];
   asOfDate: string;
-  engagementTier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  engagementTier: 'clarity' | 'foresight' | 'strategic';
   industryType?: string;
   onKPIClick?: (kpiCode: string) => void;
   onRefresh?: () => void;
@@ -371,8 +371,8 @@ export function KPIDashboard({
   const trueCashKPI = sortedKPIs.find(k => k.kpi_code === 'true_cash');
   const otherKPIs = sortedKPIs.filter(k => k.kpi_code !== 'true_cash');
   
-  // Show benchmarks for Gold+ tiers
-  const showBenchmarks = engagementTier === 'gold' || engagementTier === 'platinum';
+  // Show benchmarks for Strategic tier only
+  const showBenchmarks = engagementTier === 'strategic';
   
   // Count RAG statuses
   const ragCounts = useMemo(() => {

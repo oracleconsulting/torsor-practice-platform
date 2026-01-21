@@ -70,7 +70,7 @@ interface KPIDetailData {
 
 interface KPIDetailViewProps {
   data: KPIDetailData;
-  engagementTier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  engagementTier: 'clarity' | 'foresight' | 'strategic';
   onBack: () => void;
 }
 
@@ -290,8 +290,8 @@ export function KPIDetailView({
   onBack,
 }: KPIDetailViewProps) {
   const rag = data.rag_status ? RAG_CONFIG[data.rag_status] : null;
-  const showBenchmark = engagementTier === 'gold' || engagementTier === 'platinum';
-  const showRecommendation = engagementTier !== 'bronze';
+  const showBenchmark = engagementTier === 'strategic';
+  const showRecommendation = engagementTier !== 'clarity';
   
   // Determine if change is good
   const changeIsGood = useMemo(() => {

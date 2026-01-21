@@ -28,10 +28,9 @@ interface MADashboardProps {
 }
 
 const TIER_CONFIG: Record<TierType, { label: string; color: string; showForecast: boolean; showProfitability: boolean }> = {
-  bronze: { label: 'Bronze', color: 'bg-amber-600', showForecast: false, showProfitability: false },
-  silver: { label: 'Silver', color: 'bg-slate-400', showForecast: false, showProfitability: false },
-  gold: { label: 'Gold', color: 'bg-yellow-500', showForecast: true, showProfitability: true },
-  platinum: { label: 'Platinum', color: 'bg-slate-700', showForecast: true, showProfitability: true },
+  clarity: { label: 'Clarity', color: 'bg-blue-600', showForecast: false, showProfitability: false },
+  foresight: { label: 'Foresight', color: 'bg-indigo-600', showForecast: true, showProfitability: true },
+  strategic: { label: 'Strategic', color: 'bg-purple-600', showForecast: true, showProfitability: true },
 };
 
 export function MADashboard({ engagementId, periodId, isAdmin = false }: MADashboardProps) {
@@ -97,7 +96,7 @@ export function MADashboard({ engagementId, periodId, isAdmin = false }: MADashb
     );
   }
 
-  const tier = (engagement.tier || 'bronze') as TierType;
+  const tier = (engagement.tier || 'clarity') as TierType;
   const tierConfig = TIER_CONFIG[tier];
 
   // Toggle insight expansion

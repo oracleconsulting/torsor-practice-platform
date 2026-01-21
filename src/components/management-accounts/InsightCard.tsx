@@ -186,7 +186,7 @@ export function InsightCard({
             </div>
           )}
           
-          {/* Recommendation (Silver+ only) */}
+          {/* Recommendation (Foresight+ only) */}
           {showRecommendation && insight.recommendation && (
             <div className="bg-white/60 rounded-lg p-3 border border-slate-200/50">
               <div className="flex items-center gap-2 mb-1">

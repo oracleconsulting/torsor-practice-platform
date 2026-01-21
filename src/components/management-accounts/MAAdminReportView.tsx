@@ -93,7 +93,7 @@ export function MAAdminReportView({
   const [callTranscript, setCallTranscript] = useState(initialContext?.callTranscript || '');
   const [gapsFilled, setGapsFilled] = useState<Record<string, string>>(initialContext?.gapsFilled || {});
   const [gapsChecked, setGapsChecked] = useState<Record<string, boolean>>(initialContext?.gapsChecked || {});
-  const [tierDiscussed, setTierDiscussed] = useState(initialContext?.tierDiscussed || admin?.quickProfile?.recommendedTier || 'gold');
+  const [tierDiscussed, setTierDiscussed] = useState(initialContext?.tierDiscussed || admin?.quickProfile?.recommendedTier || 'foresight');
   const [clientObjections, setClientObjections] = useState(initialContext?.clientObjections || '');
   const [additionalInsights, setAdditionalInsights] = useState(initialContext?.additionalInsights || '');
   const [completedPhases, setCompletedPhases] = useState<string[]>(initialContext?.completedPhases || []);
@@ -224,17 +224,15 @@ export function MAAdminReportView({
   const totalGaps = admin.gapsToFill?.length || 0;
 
   const tierColors: Record<string, string> = {
-    bronze: 'border-orange-400 text-orange-400',
-    silver: 'border-gray-400 text-gray-400',
-    gold: 'border-amber-400 text-amber-400',
-    platinum: 'border-purple-400 text-purple-400'
+    clarity: 'border-blue-400 text-blue-400',
+    foresight: 'border-indigo-400 text-indigo-400',
+    strategic: 'border-purple-400 text-purple-400'
   };
-  
+
   const tierBgColors: Record<string, string> = {
-    bronze: 'bg-orange-600',
-    silver: 'bg-gray-600',
-    gold: 'bg-amber-600',
-    platinum: 'bg-purple-600'
+    clarity: 'bg-blue-600',
+    foresight: 'bg-indigo-600',
+    strategic: 'bg-purple-600'
   };
 
   return (
@@ -264,9 +262,9 @@ export function MAAdminReportView({
             </div>
           </div>
           <span className={`text-lg px-4 py-2 border-2 rounded-lg font-semibold ${
-            tierColors[admin.quickProfile?.recommendedTier] || tierColors.gold
+            tierColors[admin.quickProfile?.recommendedTier] || tierColors.foresight
           }`}>
-            Recommend {(admin.quickProfile?.recommendedTier || 'GOLD').toUpperCase()}
+            Recommend {(admin.quickProfile?.recommendedTier || 'FORESIGHT').toUpperCase()}
           </span>
         </div>
       </div>
@@ -682,9 +680,9 @@ export function MAAdminReportView({
                   <div className="p-4 bg-purple-50 rounded-lg">
                     <div className="flex items-center gap-2 mb-2">
                       <span className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${
-                        tierBgColors[admin.quickProfile?.recommendedTier] || tierBgColors.gold
+                        tierBgColors[admin.quickProfile?.recommendedTier] || tierBgColors.foresight
                       }`}>
-                        {(admin.quickProfile?.recommendedTier || 'GOLD').toUpperCase()}
+                        {(admin.quickProfile?.recommendedTier || 'FORESIGHT').toUpperCase()}
                       </span>
                     </div>
                     <p className="text-sm text-purple-900">{(p1.tierRecommendation?.rationale || '').substring(0, 200)}...</p>
@@ -844,7 +842,7 @@ export function MAAdminReportView({
               {p1.tierRecommendation && (
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
                   <h3 className="font-semibold text-gray-900 mb-3">
-                    Tier Recommendation: {(p1.tierRecommendation.tier || 'GOLD').toUpperCase()}
+                    Tier Recommendation: {(p1.tierRecommendation.tier || 'FORESIGHT').toUpperCase()}
                   </h3>
                   <p className="text-sm mb-4">{p1.tierRecommendation.rationale}</p>
                   {p1.tierRecommendation.keyDrivers && p1.tierRecommendation.keyDrivers.length > 0 && (
@@ -942,7 +940,7 @@ export function MAAdminReportView({
                     Which tier did the client show interest in?
                   </p>
                   <div className="flex gap-2">
-                    {['bronze', 'silver', 'gold', 'platinum'].map((tier) => (
+                    {['clarity', 'foresight', 'strategic'].map((tier) => (
                       <button
                         key={tier}
                         onClick={() => setTierDiscussed(tier)}

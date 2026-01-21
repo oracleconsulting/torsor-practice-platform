@@ -36,7 +36,7 @@ export { ClientReportPreview } from './ClientReportPreview';
 // Client Dashboard
 export { MAClientDashboard } from './MAClientDashboard';
 
-// Gold+ Features
+// Foresight+ Features
 export { CashForecastChart } from './CashForecastChart';
 export { ScenarioBuilder } from './ScenarioBuilder';
 export { ClientProfitabilityTable } from './ClientProfitabilityTable';

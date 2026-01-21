@@ -74,10 +74,9 @@ interface EngagementWithClient {
 // ============================================================================
 
 const TIER_COLORS: Record<TierType, { bg: string; text: string; border: string }> = {
-  bronze: { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-200' },
-  silver: { bg: 'bg-slate-200', text: 'text-slate-800', border: 'border-slate-300' },
-  gold: { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-300' },
-  platinum: { bg: 'bg-violet-100', text: 'text-violet-800', border: 'border-violet-200' },
+  clarity: { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200' },
+  foresight: { bg: 'bg-indigo-100', text: 'text-indigo-800', border: 'border-indigo-200' },
+  strategic: { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200' },
 };
 
 const STATUS_CONFIG = {
@@ -493,7 +492,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
       }))
     : null;
 
-  const tier = engagement?.tier as TierType || 'bronze';
+  const tier = engagement?.tier as TierType || 'clarity';
 
   // ============================================================================
   // RENDER: LOADING
@@ -522,7 +521,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
           <div className="max-w-7xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-slate-800">Management Accounts Portal</h1>
+                <h1 className="text-2xl font-bold text-slate-800">Business Intelligence Portal</h1>
                 <p className="text-slate-500 mt-1">Manage client engagements and deliverables</p>
               </div>
               <button
@@ -555,10 +554,9 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
               className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Tiers</option>
-              <option value="bronze">Bronze</option>
-              <option value="silver">Silver</option>
-              <option value="gold">Gold</option>
-              <option value="platinum">Platinum</option>
+              <option value="clarity">Clarity</option>
+              <option value="foresight">Foresight</option>
+              <option value="strategic">Strategic</option>
             </select>
           </div>
 

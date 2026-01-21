@@ -158,7 +158,7 @@ export function MAClientDashboard({ engagementId, periodId }: MAClientDashboardP
   }
 
   const tier = engagement.tier;
-  const showRecommendations = tier !== 'bronze';
+  const showRecommendations = tier !== 'clarity';
 
   // Build True Cash display data
   const trueCashDisplay = financialData?.cash_at_bank 
@@ -186,10 +186,9 @@ export function MAClientDashboard({ engagementId, periodId }: MAClientDashboardP
           <div className="flex items-center gap-3 mt-1">
             <span className="text-slate-600">{currentPeriod.period_label}</span>
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-              tier === 'platinum' ? 'bg-violet-100 text-violet-700' :
-              tier === 'gold' ? 'bg-yellow-100 text-yellow-700' :
-              tier === 'silver' ? 'bg-slate-200 text-slate-700' :
-              'bg-amber-100 text-amber-700'
+              tier === 'strategic' ? 'bg-purple-100 text-purple-700' :
+              tier === 'foresight' ? 'bg-indigo-100 text-indigo-700' :
+              'bg-blue-100 text-blue-700'
             }`}>
               {tier.charAt(0).toUpperCase() + tier.slice(1)}
             </span>
@@ -339,7 +338,7 @@ export function MAClientDashboard({ engagementId, periodId }: MAClientDashboardP
       )}
 
       {/* Review Call Scheduling (if not done) */}
-      {tier !== 'bronze' && !currentPeriod.review_call_completed_at && (
+      {tier !== 'clarity' && !currentPeriod.review_call_completed_at && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
           <div className="flex items-start gap-4">
             <Clock className="h-6 w-6 text-blue-500 flex-shrink-0" />

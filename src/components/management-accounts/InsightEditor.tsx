@@ -46,7 +46,7 @@ const INSIGHT_TYPES: { value: MAInsightType; label: string; icon: React.ReactNod
     value: 'recommendation', 
     label: 'Recommendation', 
     icon: <Lightbulb className="h-4 w-4" />,
-    description: 'Specific advice (Silver+ only)'
+    description: 'Specific advice (Foresight+ only)'
   },
   { 
     value: 'action_required', 
@@ -84,13 +84,13 @@ export function InsightEditor({
     recommendation: '',
     recommendation_priority: 'medium',
     recommendation_timing: '',
-    min_tier: 'bronze',
+    min_tier: 'clarity',
     show_to_client: true,
     ...insight
   });
 
   const isEditing = !!insight;
-  const canAddRecommendation = engagementTier !== 'bronze';
+  const canAddRecommendation = engagementTier !== 'clarity';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -275,12 +275,12 @@ export function InsightEditor({
             </div>
           </div>
 
-          {/* Recommendation (Silver+ only) */}
+          {/* Recommendation (Foresight+ only) */}
           {canAddRecommendation && (
             <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-4">
               <h4 className="font-medium text-blue-800 flex items-center gap-2">
                 <Lightbulb className="h-4 w-4" />
-                Recommendation (Silver+ Feature)
+                Recommendation (Foresight+ Feature)
               </h4>
               
               <div>

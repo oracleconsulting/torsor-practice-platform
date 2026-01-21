@@ -5,7 +5,7 @@
 
 export const BSG_SERVICE_LINES = [
   'Automation',
-  'Management Accounts',
+  'Business Intelligence',
   'Future Financial Information / Advisory Accelerator',
   'Benchmarking - External and Internal',
   'Goal Alignment Programme',
@@ -33,17 +33,17 @@ export const SERVICE_DEFINITIONS = {
       'Client Communication'
     ]
   },
-  'Management Accounts': {
-    id: 'management-accounts',
-    description: 'Regular financial reporting with KPI analysis',
-    priceRange: '£650/month',
+  'Business Intelligence': {
+    id: 'business-intelligence',
+    description: 'Financial clarity with True Cash position, KPIs, insights, forecasts and scenario modelling',
+    priceRange: '£2,000 - £8,000/month',
     deliveryTime: 'Monthly/quarterly',
     coreSkills: [
       'Management Reporting',
       'Financial Analysis',
       'KPI Framework Design',
-      'Cash Flow Management',
-      'Variance Analysis'
+      'Cash Flow Forecasting',
+      'Scenario Modelling'
     ]
   },
   'Future Financial Information / Advisory Accelerator': {

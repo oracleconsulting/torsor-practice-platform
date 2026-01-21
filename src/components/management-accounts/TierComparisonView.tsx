@@ -11,8 +11,10 @@ import {
   Clock,
   TrendingUp,
   AlertCircle,
-  Target
+  Target,
+  Star
 } from 'lucide-react';
+import { TIER_FEATURES, TierType, TURNOVER_BANDS, getPrice, getPriceRange } from '../../types/ma';
 
 interface TierComparisonProps {
   clientData: {
@@ -22,8 +24,8 @@ interface TierComparisonProps {
     painPoints: Array<{ title: string; estimatedCost: number | null }>;
     scenarioInterests: string[];
     desiredFrequency: 'monthly' | 'quarterly';
-    recommendedTier: 'bronze' | 'silver' | 'gold' | 'platinum';
-    isPreRevenue?: boolean; // Flag for pre-revenue/startup clients
+    recommendedTier: TierType;
+    isPreRevenue?: boolean;
   };
   financialContext: {
     recentMistakeCost?: number;
@@ -31,7 +33,6 @@ interface TierComparisonProps {
     cashCrisisHistory?: boolean;
     unprofitableClientSuspected?: boolean;
     estimatedMarginLeakage?: number;
-    // Pre-revenue specific context
     hasProjections?: boolean;
     seekingFunding?: boolean;
     burnRate?: number;
@@ -41,93 +42,86 @@ interface TierComparisonProps {
   onTierSelect: (tier: string) => void;
 }
 
-// Tier definitions - reframed as depth of support
-const tiers = {
-  bronze: {
-    name: 'Bronze',
-    monthlyPrice: 750,
-    quarterlyPrice: 2000,
-    tagline: "You see what's happening",
-    description: "Clear visibility of your financial reality. We show you what's actually happening. You decide what to do about it.",
-    perfectFor: "Businesses that want clarity but have the confidence to act independently.",
-    kpiCount: 3,
-    insightCount: 3,
-    support: 'Self-serve',
-    callTime: null,
-    responseTime: '48 hours',
-    plusFeatures: [
-      'True Cash Position calculated',
-      '3 KPIs you choose',
-      '3 key insights flagged',
-      'Your Tuesday Question answered',
-    ],
-  },
-  silver: {
-    name: 'Silver',
-    monthlyPrice: 1500,
-    quarterlyPrice: 4000,
-    tagline: "You know what to do",
-    description: "We tell you what we'd do. When we spot a cash collision, we don't just flag it - we tell you how to handle it.",
-    perfectFor: "Businesses that want a trusted advisor, not just a report.",
+// New tier definitions
+const tiers: Record<TierType, {
+  name: string;
+  tagline: string;
+  description: string;
+  perfectFor: string;
+  kpiCount: number | string;
+  insightCount: number;
+  support: string;
+  callMinutes: number | null;
+  responseTime: string;
+  features: string[];
+  color: string;
+}> = {
+  clarity: {
+    name: 'Clarity',
+    tagline: 'See where you are',
+    description: 'Clear visibility of your financial reality. True Cash position, core KPIs, AI insights, and your questions answered.',
+    perfectFor: 'Businesses that want clarity and actionable insights to guide their own decisions.',
     kpiCount: 5,
-    insightCount: 5,
+    insightCount: 7,
     support: '30-min monthly call',
-    callTime: '30 mins',
+    callMinutes: 30,
     responseTime: '48 hours',
-    plusFeatures: [
-      '5 KPIs with action recommendations',
-      '5 insights with "what we\'d do"',
-      'Decision support guidance',
-      '6-month trend analysis',
-      '30-minute monthly review call',
+    features: [
+      'Business Intelligence Portal',
+      'True Cash Position calculated',
+      '5 core KPIs tracked',
+      'AI-generated insights (max 7)',
+      'Your Tuesday Question answered',
+      'Monthly/quarterly PDF report',
+      '30-minute review call',
     ],
+    color: 'blue'
   },
-  gold: {
-    name: 'Gold',
-    monthlyPrice: 3000,
-    quarterlyPrice: 7500,
-    tagline: "You see ahead",
-    description: "We model your decisions before you make them. Want to hire? We'll show you exactly when you break even and what risks exist.",
-    perfectFor: "Businesses making significant decisions needing scenario analysis.",
+  foresight: {
+    name: 'Foresight',
+    tagline: 'See where you could be',
+    description: "We model your decisions before you make them. See ahead with 13-week forecasts, scenario models, and client profitability analysis.",
+    perfectFor: 'Businesses making significant decisions needing forward-looking analysis.',
     kpiCount: 8,
     insightCount: 7,
     support: '45-min monthly call',
-    callTime: '45 mins',
+    callMinutes: 45,
     responseTime: '24 hours',
-    plusFeatures: [
-      '8 KPIs with industry benchmarks',
-      '7 insights prioritised by impact',
+    features: [
+      'Everything in Clarity',
+      '8 KPIs with industry context',
+      'Actionable recommendations',
       '13-week rolling cash forecast',
       '3 pre-built scenario models',
       'Client profitability analysis',
-      '45-minute monthly strategy call',
+      'Watch list alerts',
+      '45-minute review call',
     ],
+    color: 'indigo'
   },
-  platinum: {
-    name: 'Platinum',
-    monthlyPrice: 5000,
-    quarterlyPrice: null,
-    tagline: "Board-ready visibility",
-    description: "Full visibility with weekly updates, benchmarking, and board-pack documentation. Partner-level access.",
-    perfectFor: "Businesses with stakeholders who need professional reporting.",
+  strategic: {
+    name: 'Strategic',
+    tagline: 'Your financial partner',
+    description: 'Board-level support and CFO gateway. Unlimited scenarios, weekly updates, benchmarking, and board pack generation.',
+    perfectFor: 'Businesses with stakeholders who need professional reporting and strategic partnership.',
     kpiCount: 'Custom',
-    insightCount: 'Unlimited',
-    support: 'Fortnightly calls',
-    callTime: 'Fortnightly',
+    insightCount: 7,
+    support: '60-min + ad-hoc calls',
+    callMinutes: 60,
     responseTime: 'Same day',
-    plusFeatures: [
-      'Custom KPI dashboard',
-      'Unlimited insights',
-      'Weekly flash reports',
+    features: [
+      'Everything in Foresight',
+      'Custom KPI dashboard (unlimited)',
       'Unlimited scenario models',
+      'Weekly cash flash reports',
+      'Board pack generation',
       'Industry benchmarking',
-      'Fortnightly partner calls',
-      'Board-pack documentation',
+      'Ad-hoc advisory access',
+      '60-minute review call',
     ],
+    color: 'purple'
   }
 };
-
-type TierKey = keyof typeof tiers;
 
 function cn(...classes: (string | boolean | undefined)[]) {
   return classes.filter(Boolean).join(' ');
@@ -138,236 +132,127 @@ export function TierComparisonView({
   financialContext, 
   onTierSelect 
 }: TierComparisonProps) {
-  const [selectedTier, setSelectedTier] = useState<TierKey>(clientData.recommendedTier);
+  const [selectedTier, setSelectedTier] = useState<TierType>(clientData.recommendedTier);
   const [frequency, setFrequency] = useState<'monthly' | 'quarterly'>(clientData.desiredFrequency);
   const isMonthly = frequency === 'monthly';
-  
   const isPreRevenue = clientData.isPreRevenue;
   
-  // Calculate VALUE (not ROI) for each tier - always positive framing
+  // Determine turnover band for pricing
+  const turnoverBandIndex = useMemo(() => {
+    if (!clientData.annualRevenue) return 0;
+    const band = TURNOVER_BANDS.find(b => 
+      clientData.annualRevenue! >= b.min && (b.max === null || clientData.annualRevenue! < b.max)
+    );
+    return band?.index ?? 0;
+  }, [clientData.annualRevenue]);
+  
+  // Calculate pricing for each tier
+  const getTierPrice = (tier: TierType) => {
+    if (tier === 'strategic' && !isMonthly) {
+      return null; // Strategic is monthly only
+    }
+    try {
+      return getPrice(tier, turnoverBandIndex, frequency);
+    } catch {
+      return null;
+    }
+  };
+  
+  // Calculate VALUE for each tier
   const calculateValue = useMemo(() => {
-    return (tierId: TierKey) => {
-      const tier = tiers[tierId];
+    return (tierId: TierType) => {
+      const price = getTierPrice(tierId);
+      if (!price) return null;
       
-      const annualCost = isMonthly 
-        ? tier.monthlyPrice * 12 
-        : (tier.quarterlyPrice || 0) * 4;
+      const annualCost = isMonthly ? price * 12 : price * 4;
       
-      if (annualCost === 0) return null;
+      const valueItems: Array<{ description: string; value: number | null; tier: TierType; isQualitative?: boolean }> = [];
       
-      // Value items based on client's situation
-      const valueItems: Array<{ description: string; value: number | null; tier: TierKey; isQualitative?: boolean }> = [];
-      
-      // ============================================
-      // PRE-REVENUE CLIENTS: Different value framing
-      // ============================================
       if (isPreRevenue) {
-        // ALL TIERS: Infrastructure value
-        valueItems.push({
-          description: 'Financial infrastructure ready from day 1 of trading',
-          value: null,
-          tier: 'bronze',
-          isQualitative: true
-        });
+        // Pre-revenue value items (qualitative)
+        valueItems.push(
+          { description: 'Financial infrastructure ready from day 1 of trading', value: null, tier: 'clarity', isQualitative: true },
+          { description: 'Track burn rate and runway in real-time', value: null, tier: 'clarity', isQualitative: true },
+          { description: 'Your Tuesday Question answered as soon as revenue starts', value: null, tier: 'clarity', isQualitative: true }
+        );
         
-        valueItems.push({
-          description: 'Track burn rate and runway in real-time',
-          value: null,
-          tier: 'bronze',
-          isQualitative: true
-        });
-        
-        valueItems.push({
-          description: 'Your Tuesday Question answered as soon as revenue starts',
-          value: null,
-          tier: 'bronze',
-          isQualitative: true
-        });
-        
-        // SILVER+: Guidance for pre-revenue
-        if (['silver', 'gold', 'platinum'].includes(tierId)) {
-          valueItems.push({
-            description: 'Expert guidance on startup financial decisions',
-            value: null,
-            tier: 'silver',
-            isQualitative: true
-          });
-          
-          valueItems.push({
-            description: 'Avoid common pre-revenue cash mistakes',
-            value: null,
-            tier: 'silver',
-            isQualitative: true
-          });
-        }
-        
-        // GOLD+: Scenario modelling and investor readiness
-        if (['gold', 'platinum'].includes(tierId)) {
-          valueItems.push({
-            description: 'Model hiring decisions before committing runway',
-            value: null,
-            tier: 'gold',
-            isQualitative: true
-          });
-          
-          valueItems.push({
-            description: 'Scenario model your first 12 months of trading',
-            value: null,
-            tier: 'gold',
-            isQualitative: true
-          });
+        if (['foresight', 'strategic'].includes(tierId)) {
+          valueItems.push(
+            { description: 'Expert guidance on startup financial decisions', value: null, tier: 'foresight', isQualitative: true },
+            { description: 'Model hiring decisions before committing runway', value: null, tier: 'foresight', isQualitative: true }
+          );
           
           if (financialContext.seekingFunding) {
-            valueItems.push({
-              description: 'Investor-ready financials for seed conversations',
-              value: null,
-              tier: 'gold',
-              isQualitative: true
-            });
-          }
-          
-          if (financialContext.burnRate && financialContext.runway) {
-            valueItems.push({
-              description: `Protect your ${financialContext.runway}-month runway with proactive monitoring`,
-              value: null,
-              tier: 'gold',
-              isQualitative: true
-            });
+            valueItems.push({ description: 'Investor-ready financials for seed conversations', value: null, tier: 'foresight', isQualitative: true });
           }
         }
         
-        // PLATINUM: Board-level for pre-revenue
-        if (tierId === 'platinum') {
-          valueItems.push({
-            description: 'Weekly updates as you scale',
-            value: null,
-            tier: 'platinum',
-            isQualitative: true
-          });
-          valueItems.push({
-            description: 'Board-ready investor reporting pack',
-            value: null,
-            tier: 'platinum',
-            isQualitative: true
-          });
+        if (tierId === 'strategic') {
+          valueItems.push(
+            { description: 'Weekly updates as you scale', value: null, tier: 'strategic', isQualitative: true },
+            { description: 'Board-ready investor reporting pack', value: null, tier: 'strategic', isQualitative: true }
+          );
         }
       } else {
-        // ============================================
-        // ESTABLISHED CLIENTS: Quantifiable ROI
-        // ============================================
-      
-      // ALL TIERS: Clarity value (we always tell them what we see)
-      valueItems.push({
-        description: 'Know your True Cash vs bank balance fiction',
-        value: 3000,
-        tier: 'bronze'
-      });
-      
-      valueItems.push({
-        description: 'Your Tuesday Question answered every month',
-        value: 2500,
-        tier: 'bronze'
-      });
-      
-      valueItems.push({
-        description: 'Stop the 3am cash spreadsheets',
-        value: 3000,
-        tier: 'bronze'
-      });
-      
-      // SILVER+: Guidance value
-      if (['silver', 'gold', 'platinum'].includes(tierId)) {
-        valueItems.push({
-          description: "Know what to do (we tell you, not just show you)",
-          value: 5000,
-          tier: 'silver'
-        });
+        // Established business value items (quantifiable)
+        valueItems.push(
+          { description: 'Know your True Cash vs bank balance fiction', value: 3000, tier: 'clarity' },
+          { description: 'Your Tuesday Question answered every month', value: 2500, tier: 'clarity' },
+          { description: 'Stop the 3am cash spreadsheets', value: 3000, tier: 'clarity' }
+        );
         
-        if (financialContext.cashCrisisHistory) {
-          valueItems.push({
-            description: "Clear guidance when cash gets tight",
-            value: 8000,
-            tier: 'silver'
-          });
-        }
-      }
-      
-      // GOLD+: Foresight value
-      if (['gold', 'platinum'].includes(tierId)) {
-        if (financialContext.pendingDecisionValue) {
-          valueItems.push({
-            description: `Model ${clientData.upcomingDecisions[0] || 'your hire'} before committing`,
-            value: Math.round(financialContext.pendingDecisionValue * 0.15),
-            tier: 'gold'
-          });
+        if (['foresight', 'strategic'].includes(tierId)) {
+          valueItems.push({ description: "Know what to do (we tell you, not just show you)", value: 5000, tier: 'foresight' });
+          
+          if (financialContext.cashCrisisHistory) {
+            valueItems.push({ description: 'See cash collisions 6 weeks out (13-week forecast)', value: 15000, tier: 'foresight' });
+          }
+          
+          if (financialContext.unprofitableClientSuspected) {
+            valueItems.push({ description: 'Confirm which clients are actually profitable', value: financialContext.estimatedMarginLeakage || 20000, tier: 'foresight' });
+          }
+          
+          if (financialContext.pendingDecisionValue) {
+            valueItems.push({ description: `Model ${clientData.upcomingDecisions[0] || 'your hire'} before committing`, value: Math.round(financialContext.pendingDecisionValue * 0.15), tier: 'foresight' });
+          }
         }
         
-        if (financialContext.cashCrisisHistory) {
-          valueItems.push({
-            description: 'See cash collisions 6 weeks out (13-week forecast)',
-            value: 15000,
-            tier: 'gold'
-          });
-        }
-        
-        if (financialContext.unprofitableClientSuspected) {
-          valueItems.push({
-            description: 'Confirm which clients are actually profitable',
-            value: financialContext.estimatedMarginLeakage || 20000,
-            tier: 'gold'
-          });
-        }
-        
-        if (financialContext.recentMistakeCost) {
-          valueItems.push({
-            description: 'Avoid another missed opportunity (scenario modelling)',
-            value: Math.round(financialContext.recentMistakeCost * 0.5),
-            tier: 'gold'
-          });
-        }
-      }
-      
-      // PLATINUM: Board-level value
-      if (tierId === 'platinum') {
-        valueItems.push({
-          description: 'Weekly updates - no surprises ever',
-          value: 5000,
-          tier: 'platinum'
-        });
-        valueItems.push({
-          description: 'Board-ready reports for stakeholders',
-          value: 8000,
-          tier: 'platinum'
-        });
+        if (tierId === 'strategic') {
+          valueItems.push(
+            { description: 'Weekly updates - no surprises ever', value: 5000, tier: 'strategic' },
+            { description: 'Board-ready reports for stakeholders', value: 8000, tier: 'strategic' }
+          );
         }
       }
       
       // Filter to items available at this tier
-      const tierOrder: TierKey[] = ['bronze', 'silver', 'gold', 'platinum'];
+      const tierOrder: TierType[] = ['clarity', 'foresight', 'strategic'];
       const tierIndex = tierOrder.indexOf(tierId);
       const availableItems = valueItems.filter(item => 
         tierOrder.indexOf(item.tier) <= tierIndex
       );
       
-      // For pre-revenue, we don't calculate ROI - just show qualitative value
       const quantifiableItems = availableItems.filter(item => !item.isQualitative && item.value !== null);
       const totalValue = quantifiableItems.reduce((sum, item) => sum + (item.value || 0), 0);
       const netBenefit = totalValue - annualCost;
-      const roi = totalValue > 0 ? Math.round((netBenefit / annualCost) * 100) : null;
       const paybackMonths = totalValue > 0 ? Math.ceil(annualCost / (totalValue / 12)) : null;
       
       return {
         annualCost,
+        monthlyPrice: price,
         totalValue,
         netBenefit,
-        roi,
         paybackMonths,
         valueItems: availableItems
       };
     };
-  }, [clientData, financialContext, isMonthly]);
+  }, [clientData, financialContext, isMonthly, turnoverBandIndex, isPreRevenue]);
   
-  const availableTiers = Object.entries(tiers).filter(([id]) => isMonthly || id !== 'platinum') as [TierKey, typeof tiers[TierKey]][];
+  // Filter out Strategic tier for quarterly
+  const availableTiers = (Object.keys(tiers) as TierType[]).filter(id => 
+    isMonthly || id !== 'strategic'
+  );
+  
   const currentTier = tiers[selectedTier];
   const currentValue = calculateValue(selectedTier);
   
@@ -375,9 +260,9 @@ export function TierComparisonView({
     <div className="space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-slate-800">Compare Your Options</h2>
+        <h2 className="text-2xl font-bold text-slate-800">Choose Your Business Intelligence Tier</h2>
         <p className="text-slate-600 mt-2 max-w-2xl mx-auto">
-          Every package shows you what's really happening. Higher tiers help you do something about it.
+          All tiers show you the same insights. Higher tiers add forecasting, scenarios, and deeper support.
         </p>
       </div>
       
@@ -396,7 +281,12 @@ export function TierComparisonView({
             Monthly
           </button>
           <button
-            onClick={() => setFrequency('quarterly')}
+            onClick={() => {
+              setFrequency('quarterly');
+              if (selectedTier === 'strategic') {
+                setSelectedTier('foresight');
+              }
+            }}
             className={cn(
               "px-6 py-2 rounded-md text-sm font-medium transition-all",
               frequency === 'quarterly'
@@ -409,7 +299,7 @@ export function TierComparisonView({
         </div>
       </div>
       
-      {/* Quarterly Warning if relevant */}
+      {/* Quarterly Warning */}
       {!isMonthly && (financialContext.cashCrisisHistory || clientData.upcomingDecisions.length > 0) && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 max-w-2xl mx-auto">
           <div className="flex gap-3">
@@ -420,7 +310,7 @@ export function TierComparisonView({
                 You mentioned {financialContext.cashCrisisHistory ? 'cash timing challenges' : ''} 
                 {financialContext.cashCrisisHistory && clientData.upcomingDecisions.length > 0 ? ' and ' : ''}
                 {clientData.upcomingDecisions.length > 0 ? 'upcoming decisions' : ''}.
-                Monthly reporting gives you faster visibility when it matters.
+                Monthly reporting gives you faster visibility.
               </p>
             </div>
           </div>
@@ -429,80 +319,100 @@ export function TierComparisonView({
       
       {/* Tier Selection Tabs */}
       <div className={cn(
-        "grid gap-3",
-        isMonthly ? "grid-cols-4" : "grid-cols-3"
+        "grid gap-4",
+        availableTiers.length === 3 ? "grid-cols-3" : "grid-cols-2"
       )}>
-        {availableTiers.map(([id, tier]) => (
-          <button
-            key={id}
-            onClick={() => setSelectedTier(id)}
-            className={cn(
-              "flex flex-col items-center py-5 px-4 rounded-xl border-2 transition-all relative",
-              selectedTier === id
-                ? "border-blue-500 bg-blue-50 shadow-lg"
-                : "border-slate-200 bg-white hover:border-slate-300 hover:shadow",
-              clientData.recommendedTier === id && selectedTier !== id && "ring-2 ring-blue-200"
-            )}
-          >
-            {clientData.recommendedTier === id && (
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs bg-blue-600 text-white px-3 py-1 rounded-full font-medium">
-                Recommended
+        {availableTiers.map((id) => {
+          const tier = tiers[id];
+          const price = getTierPrice(id);
+          
+          return (
+            <button
+              key={id}
+              onClick={() => setSelectedTier(id)}
+              className={cn(
+                "flex flex-col items-center py-5 px-4 rounded-xl border-2 transition-all relative",
+                selectedTier === id
+                  ? id === 'clarity' ? "border-blue-500 bg-blue-50 shadow-lg"
+                  : id === 'foresight' ? "border-indigo-500 bg-indigo-50 shadow-lg"
+                  : "border-purple-500 bg-purple-50 shadow-lg"
+                  : "border-slate-200 bg-white hover:border-slate-300 hover:shadow",
+                clientData.recommendedTier === id && selectedTier !== id && "ring-2 ring-offset-2 " + 
+                  (id === 'clarity' ? 'ring-blue-200' : id === 'foresight' ? 'ring-indigo-200' : 'ring-purple-200')
+              )}
+            >
+              {clientData.recommendedTier === id && (
+                <span className={cn(
+                  "absolute -top-3 left-1/2 -translate-x-1/2 text-xs text-white px-3 py-1 rounded-full font-medium flex items-center gap-1",
+                  id === 'clarity' ? 'bg-blue-600' : id === 'foresight' ? 'bg-indigo-600' : 'bg-purple-600'
+                )}>
+                  <Star className="h-3 w-3" /> Recommended
+                </span>
+              )}
+              <span className="font-bold text-lg text-slate-800">{tier.name}</span>
+              <span className={cn(
+                "text-2xl font-bold mt-1",
+                id === 'clarity' ? 'text-blue-600' : id === 'foresight' ? 'text-indigo-600' : 'text-purple-600'
+              )}>
+                {price ? `£${price.toLocaleString()}` : 'N/A'}
               </span>
-            )}
-            <span className="font-bold text-lg text-slate-800">{tier.name}</span>
-            <span className="text-2xl font-bold text-blue-600 mt-1">
-              £{(isMonthly ? tier.monthlyPrice : tier.quarterlyPrice)?.toLocaleString()}
-            </span>
-            <span className="text-sm text-slate-500">
-              /{isMonthly ? 'month' : 'quarter'}
-            </span>
-            <span className="text-sm text-slate-600 mt-2 italic">
-              {tier.tagline}
-            </span>
-          </button>
-        ))}
+              <span className="text-sm text-slate-500">
+                /{isMonthly ? 'month' : 'quarter'}
+              </span>
+              <span className="text-sm text-slate-600 mt-2 italic">
+                {tier.tagline}
+              </span>
+            </button>
+          );
+        })}
       </div>
       
-      {/* ALL PACKAGES INCLUDE - No X marks anywhere */}
+      {/* Turnover Band Info */}
+      {clientData.annualRevenue && (
+        <p className="text-center text-sm text-slate-500">
+          Pricing based on annual turnover of £{clientData.annualRevenue.toLocaleString()} 
+          ({TURNOVER_BANDS[turnoverBandIndex]?.label})
+        </p>
+      )}
+      
+      {/* ALL PACKAGES INCLUDE */}
       <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6">
         <div className="flex items-center gap-2 mb-4">
           <Target className="h-5 w-5 text-emerald-600" />
-          <h3 className="font-bold text-emerald-800">ALL PACKAGES INCLUDE</h3>
+          <h3 className="font-bold text-emerald-800">ALL TIERS INCLUDE</h3>
         </div>
         <div className="grid md:grid-cols-2 gap-3">
           <div className="flex items-center gap-2">
             <Check className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-            <span className="text-emerald-800">True Cash Position (not bank balance fiction)</span>
+            <span className="text-emerald-800">True Cash Position (not bank balance)</span>
           </div>
           <div className="flex items-center gap-2">
             <Check className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-            <span className="text-emerald-800">Your Tuesday Question answered each month</span>
+            <span className="text-emerald-800">Your Tuesday Question answered</span>
           </div>
           <div className="flex items-center gap-2">
             <Check className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-            <span className="text-emerald-800">Monthly P&L and Balance Sheet</span>
+            <span className="text-emerald-800">AI-generated insights (up to 7)</span>
           </div>
           <div className="flex items-center gap-2">
             <Check className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-            <span className="text-emerald-800">Key insights flagged (problems we spot)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Check className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-            <span className="text-emerald-800">Interactive dashboard + PDF summary</span>
+            <span className="text-emerald-800">Interactive dashboard + PDF report</span>
           </div>
         </div>
         <p className="text-sm text-emerald-700 mt-4 pt-4 border-t border-emerald-200">
-          <strong>We will always tell you</strong> when we see a cash collision coming, a client that's not profitable, 
-          a hiring decision that needs attention, or an opportunity window opening.
+          <strong>Same insights at every tier</strong> - we always show you problems we spot. 
+          Higher tiers add forecasts, scenarios, and deeper partnership.
         </p>
       </div>
       
       {/* Selected Tier Detail */}
       {currentValue && (
         <div className="space-y-6">
-          {/* Tier Header */}
           <div className="text-center py-4 border-b border-slate-200">
-            <h3 className="text-2xl font-bold text-slate-800">{currentTier.name}</h3>
+            <h3 className={cn(
+              "text-2xl font-bold",
+              selectedTier === 'clarity' ? 'text-blue-700' : selectedTier === 'foresight' ? 'text-indigo-700' : 'text-purple-700'
+            )}>{currentTier.name}</h3>
             <p className="text-slate-600 mt-1 max-w-xl mx-auto">{currentTier.description}</p>
             <p className="text-sm text-slate-500 mt-2 italic">
               Perfect for: {currentTier.perfectFor}
@@ -512,16 +422,31 @@ export function TierComparisonView({
           <div className="grid md:grid-cols-2 gap-6">
             {/* What's in this tier */}
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-              <div className="bg-slate-50 px-5 py-3 border-b border-slate-200">
+              <div className={cn(
+                "px-5 py-3 border-b",
+                selectedTier === 'clarity' ? 'bg-blue-50 border-blue-100' : 
+                selectedTier === 'foresight' ? 'bg-indigo-50 border-indigo-100' : 
+                'bg-purple-50 border-purple-100'
+              )}>
                 <h4 className="font-semibold text-slate-800 flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-blue-500" />
+                  <FileText className={cn(
+                    "h-5 w-5",
+                    selectedTier === 'clarity' ? 'text-blue-500' : 
+                    selectedTier === 'foresight' ? 'text-indigo-500' : 
+                    'text-purple-500'
+                  )} />
                   What's in {currentTier.name}
                 </h4>
               </div>
               <div className="p-5 space-y-3">
-                {currentTier.plusFeatures.map((feature, i) => (
+                {currentTier.features.map((feature, i) => (
                   <div key={i} className="flex items-start gap-3">
-                    <Check className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                    <Check className={cn(
+                      "h-5 w-5 flex-shrink-0 mt-0.5",
+                      selectedTier === 'clarity' ? 'text-blue-500' : 
+                      selectedTier === 'foresight' ? 'text-indigo-500' : 
+                      'text-purple-500'
+                    )} />
                     <span className="text-slate-700">{feature}</span>
                   </div>
                 ))}
@@ -556,7 +481,8 @@ export function TierComparisonView({
                   <div>
                     <p className="font-medium text-slate-800">Review Calls</p>
                     <p className="text-sm text-slate-600">
-                      {currentTier.callTime || 'Not included'} {currentTier.callTime && (isMonthly ? 'monthly' : 'quarterly')}
+                      {currentTier.callMinutes} minutes {isMonthly ? 'monthly' : 'quarterly'}
+                      {selectedTier === 'strategic' && ' + ad-hoc access'}
                     </p>
                   </div>
                 </div>
@@ -577,41 +503,60 @@ export function TierComparisonView({
                   </div>
                   <div>
                     <p className="font-medium text-slate-800">Dashboard</p>
-                    <p className="text-sm text-slate-600">Interactive + PDF summary</p>
+                    <p className="text-sm text-slate-600">Interactive portal + PDF summary</p>
                   </div>
                 </div>
               </div>
             </div>
           </div>
           
-          {/* Investment Analysis - Different framing for pre-revenue vs established */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl overflow-hidden">
-            <div className="bg-blue-100 px-5 py-3 border-b border-blue-200">
-              <h4 className="font-semibold text-blue-800 flex items-center gap-2">
+          {/* Investment Analysis */}
+          <div className={cn(
+            "border rounded-xl overflow-hidden",
+            selectedTier === 'clarity' ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200' : 
+            selectedTier === 'foresight' ? 'bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200' : 
+            'bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200'
+          )}>
+            <div className={cn(
+              "px-5 py-3 border-b",
+              selectedTier === 'clarity' ? 'bg-blue-100 border-blue-200' : 
+              selectedTier === 'foresight' ? 'bg-indigo-100 border-indigo-200' : 
+              'bg-purple-100 border-purple-200'
+            )}>
+              <h4 className={cn(
+                "font-semibold flex items-center gap-2",
+                selectedTier === 'clarity' ? 'text-blue-800' : 
+                selectedTier === 'foresight' ? 'text-indigo-800' : 
+                'text-purple-800'
+              )}>
                 <Calculator className="h-5 w-5" />
                 {isPreRevenue ? 'Pre-Revenue Investment' : 'Your Investment Analysis'}
               </h4>
             </div>
             <div className="p-5 space-y-5">
               <div className="text-center">
-                <p className="text-sm text-blue-700">Annual Investment</p>
-                <p className="text-3xl font-bold text-blue-800">
+                <p className="text-sm text-slate-600">Annual Investment</p>
+                <p className={cn(
+                  "text-3xl font-bold",
+                  selectedTier === 'clarity' ? 'text-blue-800' : 
+                  selectedTier === 'foresight' ? 'text-indigo-800' : 
+                  'text-purple-800'
+                )}>
                   £{currentValue.annualCost.toLocaleString()}
                 </p>
               </div>
               
               {isPreRevenue ? (
-                // PRE-REVENUE: Show qualitative value, not ROI
                 <>
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                     <p className="text-sm text-amber-800">
                       <strong>Pre-Revenue Note:</strong> ROI calculations require trading history. 
-                      Once you have 3+ months of revenue, we'll show quantified value based on your actual numbers.
+                      Once you have 3+ months of revenue, we'll show quantified value.
                     </p>
                   </div>
                   
-                  <div className="border-t border-blue-200 pt-5">
-                    <p className="font-medium text-blue-800 mb-3">
+                  <div className="border-t border-slate-200 pt-5">
+                    <p className="font-medium text-slate-800 mb-3">
                       What {currentTier.name} gives you as you grow:
                     </p>
                     <div className="space-y-3">
@@ -623,83 +568,57 @@ export function TierComparisonView({
                       ))}
                     </div>
                   </div>
-                  
-                  <div className="bg-white rounded-lg p-4 space-y-3">
-                    <p className="font-semibold text-slate-800 text-sm">Why invest before revenue?</p>
-                    <div className="space-y-2 text-sm text-slate-600">
-                      <div className="flex items-start gap-2">
-                        <span className="text-blue-500">→</span>
-                        <span><strong>Infrastructure ready:</strong> No scrambling when you close your first deal</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <span className="text-blue-500">→</span>
-                        <span><strong>Runway protection:</strong> Proactive burn rate monitoring from day 1</span>
-                      </div>
-                      {financialContext.seekingFunding && (
-                        <div className="flex items-start gap-2">
-                          <span className="text-blue-500">→</span>
-                          <span><strong>Investor-ready:</strong> Clean financials for your seed conversations</span>
-                        </div>
-                      )}
-                      <div className="flex items-start gap-2">
-                        <span className="text-blue-500">→</span>
-                        <span><strong>Decision confidence:</strong> Model hires before committing limited runway</span>
-                      </div>
-                    </div>
-                  </div>
                 </>
               ) : (
-                // ESTABLISHED: Show quantified ROI
                 <>
-              <div className="border-t border-blue-200 pt-5">
-                <p className="font-medium text-blue-800 mb-3">
-                  Based on YOUR situation, {currentTier.name} would help you:
-                </p>
-                <div className="space-y-2">
-                  {currentValue.valueItems.map((item, i) => (
-                    <div key={i} className="flex items-start justify-between gap-4 text-sm">
-                      <div className="flex items-start gap-2">
-                        <Check className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
-                        <span className="text-slate-700">{item.description}</span>
-                      </div>
+                  <div className="border-t border-slate-200 pt-5">
+                    <p className="font-medium text-slate-800 mb-3">
+                      Based on YOUR situation, {currentTier.name} would help you:
+                    </p>
+                    <div className="space-y-2">
+                      {currentValue.valueItems.map((item, i) => (
+                        <div key={i} className="flex items-start justify-between gap-4 text-sm">
+                          <div className="flex items-start gap-2">
+                            <Check className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span className="text-slate-700">{item.description}</span>
+                          </div>
                           {item.value !== null && (
-                      <span className="text-blue-700 font-medium whitespace-nowrap">
-                        £{item.value.toLocaleString()}
-                      </span>
+                            <span className="text-slate-700 font-medium whitespace-nowrap">
+                              £{item.value.toLocaleString()}
+                            </span>
                           )}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="bg-white rounded-lg p-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">Potential Annual Value</span>
-                  <span className="font-medium text-slate-800">£{currentValue.totalValue.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">Annual Investment</span>
-                  <span className="font-medium text-slate-800">£{currentValue.annualCost.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
-                  <span className="font-semibold text-slate-800">Net Benefit</span>
-                  <span className={cn(
-                    "font-bold",
-                    currentValue.netBenefit >= 0 ? "text-green-600" : "text-slate-600"
-                  )}>
-                    {currentValue.netBenefit >= 0 ? '+' : ''}£{currentValue.netBenefit.toLocaleString()}
-                  </span>
-                </div>
                   </div>
+                  
+                  <div className="bg-white rounded-lg p-4 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Potential Annual Value</span>
+                      <span className="font-medium text-slate-800">£{currentValue.totalValue.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Annual Investment</span>
+                      <span className="font-medium text-slate-800">£{currentValue.annualCost.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
+                      <span className="font-semibold text-slate-800">Net Benefit</span>
+                      <span className={cn(
+                        "font-bold",
+                        currentValue.netBenefit >= 0 ? "text-green-600" : "text-slate-600"
+                      )}>
+                        {currentValue.netBenefit >= 0 ? '+' : ''}£{currentValue.netBenefit.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {currentValue.paybackMonths && currentValue.paybackMonths <= 12 && (
+                    <p className="text-center text-sm text-green-600 font-medium pt-2">
+                      Pays for itself in {currentValue.paybackMonths} months
+                    </p>
+                  )}
                 </>
               )}
-              
-              {/* Payback message - only for established businesses with calculated ROI */}
-              {!isPreRevenue && currentValue.paybackMonths && currentValue.paybackMonths <= 12 && (
-                  <p className="text-center text-sm text-green-600 font-medium pt-2">
-                    Pays for itself in {currentValue.paybackMonths} months
-                  </p>
-                )}
             </div>
           </div>
           
@@ -725,8 +644,10 @@ export function TierComparisonView({
             <button 
               onClick={() => onTierSelect(`${selectedTier}_${frequency}`)}
               className={cn(
-                "min-w-[320px] px-8 py-4 rounded-xl font-semibold text-white transition-all text-lg",
-                "bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200"
+                "min-w-[320px] px-8 py-4 rounded-xl font-semibold text-white transition-all text-lg shadow-lg",
+                selectedTier === 'clarity' ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-200' : 
+                selectedTier === 'foresight' ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200' : 
+                'bg-purple-600 hover:bg-purple-700 shadow-purple-200'
               )}
             >
               Select {currentTier.name} {isMonthly ? 'Monthly' : 'Quarterly'}
@@ -735,9 +656,6 @@ export function TierComparisonView({
               £{currentValue.annualCost.toLocaleString()}/year
               {!isPreRevenue && currentValue.netBenefit > 0 && (
                 <> • Net benefit: +£{currentValue.netBenefit.toLocaleString()}</>
-              )}
-              {isPreRevenue && (
-                <> • Infrastructure investment for growth</>
               )}
             </p>
           </div>
@@ -753,7 +671,7 @@ function TierPreview({
   tuesdayQuestion,
   isMonthly
 }: { 
-  tier: TierKey;
+  tier: TierType;
   tuesdayQuestion: string;
   isMonthly: boolean;
 }) {
@@ -771,7 +689,7 @@ function TierPreview({
           <div className="text-xs text-green-600">+8% profit</div>
         </PreviewCard>
         
-        {tier === 'bronze' && (
+        {tier === 'clarity' && (
           <>
             <PreviewCard title="Key Insight">
               <div className="text-sm text-amber-600 font-medium">Cash timing risk</div>
@@ -784,20 +702,7 @@ function TierPreview({
           </>
         )}
         
-        {tier === 'silver' && (
-          <>
-            <PreviewCard title="Our Advice">
-              <div className="text-sm text-green-600 font-medium">"Push invoice, delay VAT"</div>
-              <div className="text-xs text-slate-500">specific guidance</div>
-            </PreviewCard>
-            <PreviewCard title="Watch Item">
-              <div className="text-sm text-amber-600 font-medium">Debtor days: 41</div>
-              <div className="text-xs text-amber-600">Action: Chase Smith Ltd</div>
-            </PreviewCard>
-          </>
-        )}
-        
-        {(tier === 'gold' || tier === 'platinum') && (
+        {tier === 'foresight' && (
           <>
             <PreviewCard title={isMonthly ? "Week 6 Alert" : "Month 2 Alert"}>
               <div className="text-xl font-bold text-amber-600">£18,370</div>
@@ -809,10 +714,23 @@ function TierPreview({
             </PreviewCard>
           </>
         )}
+        
+        {tier === 'strategic' && (
+          <>
+            <PreviewCard title={isMonthly ? "Week 6 Alert" : "Month 2 Alert"}>
+              <div className="text-xl font-bold text-amber-600">£18,370</div>
+              <div className="text-xs text-amber-600">Cash pinch coming</div>
+            </PreviewCard>
+            <PreviewCard title="Board Pack">
+              <div className="text-sm font-medium text-purple-600">Ready to send</div>
+              <div className="text-xs text-slate-500">stakeholder format</div>
+            </PreviewCard>
+          </>
+        )}
       </div>
       
-      {/* Tier-specific content */}
-      {(tier === 'gold' || tier === 'platinum') && (
+      {/* Forecast preview for Foresight and Strategic */}
+      {(tier === 'foresight' || tier === 'strategic') && (
         <div className="bg-slate-50 rounded-lg p-4">
           <p className="text-sm font-medium text-slate-700 mb-2">
             {isMonthly ? '13-Week Cash Forecast:' : '6-Month Cash Outlook:'}
@@ -840,23 +758,42 @@ function TierPreview({
         </div>
       )}
       
-      {/* Your Tuesday Question - all tiers answer this */}
-      <div className="bg-blue-50 rounded-lg p-4">
-        <p className="text-sm font-medium text-blue-800 mb-1">Your Tuesday Question:</p>
-        <p className="text-blue-700 italic">"{tuesdayQuestion || 'Can we actually afford this hire?'}"</p>
-        <p className="text-sm text-blue-600 mt-2 font-medium">
-          → {tier === 'bronze' ? 'Answered clearly' : 
-             tier === 'silver' ? 'Answered with our recommendation' :
-             'Answered with scenario model'}
+      {/* Your Tuesday Question */}
+      <div className={cn(
+        "rounded-lg p-4",
+        tier === 'clarity' ? 'bg-blue-50' : 
+        tier === 'foresight' ? 'bg-indigo-50' : 
+        'bg-purple-50'
+      )}>
+        <p className={cn(
+          "text-sm font-medium mb-1",
+          tier === 'clarity' ? 'text-blue-800' : 
+          tier === 'foresight' ? 'text-indigo-800' : 
+          'text-purple-800'
+        )}>Your Tuesday Question:</p>
+        <p className={cn(
+          "italic",
+          tier === 'clarity' ? 'text-blue-700' : 
+          tier === 'foresight' ? 'text-indigo-700' : 
+          'text-purple-700'
+        )}>"{tuesdayQuestion || 'Can we actually afford this hire?'}"</p>
+        <p className={cn(
+          "text-sm mt-2 font-medium",
+          tier === 'clarity' ? 'text-blue-600' : 
+          tier === 'foresight' ? 'text-indigo-600' : 
+          'text-purple-600'
+        )}>
+          → {tier === 'clarity' ? 'Answered with clear analysis' : 
+             tier === 'foresight' ? 'Answered with scenario model' :
+             'Answered with full scenario + board impact'}
         </p>
       </div>
       
       {/* Tier-specific summary */}
       <p className="text-sm text-slate-500 text-center pt-2">
-        {tier === 'bronze' && "You see what's happening. You decide what to do."}
-        {tier === 'silver' && "You know what to do because we tell you."}
-        {tier === 'gold' && "You see ahead because we model the options."}
-        {tier === 'platinum' && "Board-level visibility with weekly updates."}
+        {tier === 'clarity' && "Clear visibility of your financial reality."}
+        {tier === 'foresight' && "See ahead with forecasts and scenario modelling."}
+        {tier === 'strategic' && "Board-level visibility with full partnership support."}
       </p>
     </div>
   );

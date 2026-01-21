@@ -338,7 +338,7 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
       scenarioInterests: p1.adminGuidance?.scenariosToBuild?.map((s: any) => s.type) || [],
       desiredFrequency: (p1.adminGuidance?.quickProfile?.desiredFrequency?.toLowerCase()?.includes('quarter') 
         ? 'quarterly' : 'monthly') as 'monthly' | 'quarterly',
-      recommendedTier: (p1.tierRecommendation?.tier || 'gold') as 'bronze' | 'silver' | 'gold' | 'platinum',
+      recommendedTier: (p1.tierRecommendation?.tier || 'foresight') as 'clarity' | 'foresight' | 'strategic',
       isPreRevenue, // Pass pre-revenue flag
     },
     financialContext: {
@@ -639,7 +639,7 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
       {/* KPI Preview - Show what metrics will be tracked */}
       {p2.recommendedApproach?.tier && (
         <KPIPreview 
-          tier={p2.recommendedApproach.tier as 'bronze' | 'silver' | 'gold' | 'platinum'}
+          tier={p2.recommendedApproach.tier as 'clarity' | 'foresight' | 'strategic'}
           recommendations={p1?.kpiRecommendations}
           onUpgrade={(tier) => {
             setShowFullComparison(true);
@@ -726,7 +726,7 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
         <div className="flex justify-center gap-4 flex-wrap">
           <button 
             className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-            onClick={() => onTierSelect?.(p2.recommendedApproach?.tier || 'silver')}
+            onClick={() => onTierSelect?.(p2.recommendedApproach?.tier || 'foresight')}
           >
             I'm interested - let's talk
           </button>

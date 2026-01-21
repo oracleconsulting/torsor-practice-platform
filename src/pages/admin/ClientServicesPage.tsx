@@ -6300,7 +6300,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                 .insert({
                                   client_id: clientId,
                                   practice_id: client?.practice_id,
-                                  tier: 'silver',
+                                  tier: 'foresight',
                                   frequency: 'monthly',
                                   status: 'active'
                                 })
@@ -7183,7 +7183,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             <button
                               onClick={async () => {
                                 // Get recommended tier from report
-                                const recommendedTier = maAssessmentReport?.pass2_data?.recommendedApproach?.tier || 'silver';
+                                const recommendedTier = maAssessmentReport?.pass2_data?.recommendedApproach?.tier || 'foresight';
                                 
                                 try {
                                   const { data: newEng, error } = await supabase
@@ -7193,7 +7193,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                       practice_id: client?.practice_id,
                                       tier: recommendedTier,
                                       frequency: 'monthly',
-                                      monthly_fee: recommendedTier === 'bronze' ? 750 : recommendedTier === 'silver' ? 1500 : recommendedTier === 'gold' ? 3000 : 5000,
+                                      monthly_fee: recommendedTier === 'clarity' ? 2500 : recommendedTier === 'foresight' ? 4000 : 6500,
                                       status: 'active',
                                       start_date: new Date().toISOString().split('T')[0]
                                     })
@@ -7846,7 +7846,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           engagement={client}
                           onTierSelect={async (tier) => {
                             console.log('[MA Report] Client selected tier:', tier);
-                            // Parse tier - might be "gold_monthly" or just "gold"
+                            // Parse tier - might be "foresight_monthly" or just "foresight"
                             const [tierName, frequency] = tier.includes('_') ? tier.split('_') : [tier, 'monthly'];
                             
                             try {
@@ -7864,7 +7864,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                   .update({ 
                                     tier: tierName,
                                     frequency: frequency as 'monthly' | 'quarterly',
-                                    monthly_fee: tierName === 'bronze' ? 750 : tierName === 'silver' ? 1500 : tierName === 'gold' ? 3000 : 5000
+                                    monthly_fee: tierName === 'clarity' ? 2500 : tierName === 'foresight' ? 4000 : 6500
                                   })
                                   .eq('id', existing.id);
                                 
@@ -7880,7 +7880,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                     practice_id: client?.practice_id,
                                     tier: tierName,
                                     frequency: frequency as 'monthly' | 'quarterly',
-                                    monthly_fee: tierName === 'bronze' ? 750 : tierName === 'silver' ? 1500 : tierName === 'gold' ? 3000 : 5000,
+                                    monthly_fee: tierName === 'clarity' ? 2500 : tierName === 'foresight' ? 4000 : 6500,
                                     status: 'active',
                                     start_date: new Date().toISOString().split('T')[0]
                                   })

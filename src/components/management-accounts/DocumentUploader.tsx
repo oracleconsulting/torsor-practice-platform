@@ -66,7 +66,7 @@ const DOCUMENT_TYPE_INFO: Record<MADocumentType, { label: string; accept: string
   board_pack: { 
     label: 'Board Pack', 
     accept: '.pdf,.pptx', 
-    description: 'Board pack (Platinum)' 
+    description: 'Board pack (Strategic)' 
   },
   client_report: { 
     label: 'Client Report', 
