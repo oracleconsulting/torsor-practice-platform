@@ -388,7 +388,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
           period_start: newPeriodForm.periodStart,
           period_end: newPeriodForm.periodEnd,
           period_label: label,
-          period_type: engagement.frequency === 'quarterly' ? 'quarterly' : 'monthly',
+          period_type: engagement.frequency === 'quarterly' ? 'quarter' : 'month',
           status: 'draft',
         })
         .select()
