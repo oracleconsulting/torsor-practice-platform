@@ -1,10 +1,18 @@
 -- ============================================
 -- BUSINESS INTELLIGENCE KPI DEFINITIONS
 -- 23 KPIs across 5 categories
+-- 
+-- NOTE: Run AFTER 20260122_business_intelligence_core.sql
 -- ============================================
 
--- Clear existing (if re-running)
-DELETE FROM bi_kpi_definitions WHERE true;
+-- Clear existing (if re-running) - wrapped in DO block to handle if table doesn't exist
+DO $$
+BEGIN
+  DELETE FROM bi_kpi_definitions WHERE true;
+EXCEPTION WHEN undefined_table THEN
+  -- Table doesn't exist yet, that's fine
+  NULL;
+END $$;
 
 -- CASH & WORKING CAPITAL (7 KPIs)
 INSERT INTO bi_kpi_definitions (

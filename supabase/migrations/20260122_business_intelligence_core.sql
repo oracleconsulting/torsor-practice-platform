@@ -11,8 +11,8 @@
 -- Engagements (client sign-up)
 CREATE TABLE IF NOT EXISTS bi_engagements (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  practice_id UUID NOT NULL REFERENCES practices(id),
-  client_id UUID NOT NULL REFERENCES clients(id),
+  practice_id UUID NOT NULL,
+  client_id UUID NOT NULL,
   
   -- Tier: clarity, foresight, strategic
   tier TEXT NOT NULL CHECK (tier IN ('clarity', 'foresight', 'strategic')),
@@ -81,8 +81,8 @@ CREATE TABLE IF NOT EXISTS bi_periods (
   call_recording_url TEXT,
   
   -- Team workflow
-  assigned_to UUID REFERENCES team_members(id),
-  reviewed_by UUID REFERENCES team_members(id),
+  assigned_to UUID,
+  reviewed_by UUID,
   reviewed_at TIMESTAMPTZ,
   
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS bi_documents (
   extraction_notes TEXT,
   
   uploaded_at TIMESTAMPTZ DEFAULT NOW(),
-  uploaded_by UUID REFERENCES team_members(id)
+  uploaded_by UUID
 );
 
 -- ============================================
@@ -288,7 +288,7 @@ CREATE TABLE IF NOT EXISTS bi_insights (
   display_order INTEGER,
   
   -- Team edits
-  edited_by UUID REFERENCES team_members(id),
+  edited_by UUID,
   edited_at TIMESTAMPTZ,
   original_content JSONB,
   
@@ -371,7 +371,7 @@ CREATE TABLE IF NOT EXISTS bi_scenarios (
   is_active BOOLEAN DEFAULT TRUE,
   
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by UUID REFERENCES team_members(id)
+  created_by UUID
 );
 
 -- Update bi_insights foreign key for scenarios
@@ -519,136 +519,55 @@ ALTER TABLE bi_client_profitability ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bi_watch_list ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bi_report_config ENABLE ROW LEVEL SECURITY;
 
--- Practice team policies
-CREATE POLICY bi_engagements_practice_policy ON bi_engagements
-  FOR ALL USING (
-    practice_id IN (SELECT practice_id FROM team_members WHERE user_id = auth.uid())
-  );
+-- Simple authenticated user policies (to be tightened with team_members/clients tables)
+CREATE POLICY bi_engagements_auth_policy ON bi_engagements
+  FOR ALL USING (auth.role() = 'authenticated');
 
-CREATE POLICY bi_periods_practice_policy ON bi_periods
-  FOR ALL USING (
-    engagement_id IN (
-      SELECT id FROM bi_engagements WHERE practice_id IN (
-        SELECT practice_id FROM team_members WHERE user_id = auth.uid()
-      )
-    )
-  );
+CREATE POLICY bi_periods_auth_policy ON bi_periods
+  FOR ALL USING (auth.role() = 'authenticated');
 
-CREATE POLICY bi_documents_practice_policy ON bi_documents
-  FOR ALL USING (
-    period_id IN (
-      SELECT p.id FROM bi_periods p
-      JOIN bi_engagements e ON p.engagement_id = e.id
-      WHERE e.practice_id IN (SELECT practice_id FROM team_members WHERE user_id = auth.uid())
-    )
-  );
+CREATE POLICY bi_documents_auth_policy ON bi_documents
+  FOR ALL USING (auth.role() = 'authenticated');
 
-CREATE POLICY bi_financial_data_practice_policy ON bi_financial_data
-  FOR ALL USING (
-    period_id IN (
-      SELECT p.id FROM bi_periods p
-      JOIN bi_engagements e ON p.engagement_id = e.id
-      WHERE e.practice_id IN (SELECT practice_id FROM team_members WHERE user_id = auth.uid())
-    )
-  );
+CREATE POLICY bi_financial_data_auth_policy ON bi_financial_data
+  FOR ALL USING (auth.role() = 'authenticated');
 
 CREATE POLICY bi_kpi_definitions_public_read ON bi_kpi_definitions
   FOR SELECT USING (true);
 
-CREATE POLICY bi_kpi_values_practice_policy ON bi_kpi_values
-  FOR ALL USING (
-    period_id IN (
-      SELECT p.id FROM bi_periods p
-      JOIN bi_engagements e ON p.engagement_id = e.id
-      WHERE e.practice_id IN (SELECT practice_id FROM team_members WHERE user_id = auth.uid())
-    )
-  );
+CREATE POLICY bi_kpi_values_auth_policy ON bi_kpi_values
+  FOR ALL USING (auth.role() = 'authenticated');
 
-CREATE POLICY bi_insights_practice_policy ON bi_insights
-  FOR ALL USING (
-    period_id IN (
-      SELECT p.id FROM bi_periods p
-      JOIN bi_engagements e ON p.engagement_id = e.id
-      WHERE e.practice_id IN (SELECT practice_id FROM team_members WHERE user_id = auth.uid())
-    )
-  );
+CREATE POLICY bi_insights_auth_policy ON bi_insights
+  FOR ALL USING (auth.role() = 'authenticated');
 
-CREATE POLICY bi_cash_forecasts_practice_policy ON bi_cash_forecasts
-  FOR ALL USING (
-    period_id IN (
-      SELECT p.id FROM bi_periods p
-      JOIN bi_engagements e ON p.engagement_id = e.id
-      WHERE e.practice_id IN (SELECT practice_id FROM team_members WHERE user_id = auth.uid())
-    )
-  );
+CREATE POLICY bi_cash_forecasts_auth_policy ON bi_cash_forecasts
+  FOR ALL USING (auth.role() = 'authenticated');
 
-CREATE POLICY bi_cash_forecast_periods_practice_policy ON bi_cash_forecast_periods
-  FOR ALL USING (
-    forecast_id IN (
-      SELECT f.id FROM bi_cash_forecasts f
-      JOIN bi_periods p ON f.period_id = p.id
-      JOIN bi_engagements e ON p.engagement_id = e.id
-      WHERE e.practice_id IN (SELECT practice_id FROM team_members WHERE user_id = auth.uid())
-    )
-  );
+CREATE POLICY bi_cash_forecast_periods_auth_policy ON bi_cash_forecast_periods
+  FOR ALL USING (auth.role() = 'authenticated');
 
-CREATE POLICY bi_scenarios_practice_policy ON bi_scenarios
-  FOR ALL USING (
-    engagement_id IN (
-      SELECT id FROM bi_engagements WHERE practice_id IN (
-        SELECT practice_id FROM team_members WHERE user_id = auth.uid()
-      )
-    )
-  );
+CREATE POLICY bi_scenarios_auth_policy ON bi_scenarios
+  FOR ALL USING (auth.role() = 'authenticated');
 
-CREATE POLICY bi_client_profitability_practice_policy ON bi_client_profitability
-  FOR ALL USING (
-    period_id IN (
-      SELECT p.id FROM bi_periods p
-      JOIN bi_engagements e ON p.engagement_id = e.id
-      WHERE e.practice_id IN (SELECT practice_id FROM team_members WHERE user_id = auth.uid())
-    )
-  );
+CREATE POLICY bi_client_profitability_auth_policy ON bi_client_profitability
+  FOR ALL USING (auth.role() = 'authenticated');
 
-CREATE POLICY bi_watch_list_practice_policy ON bi_watch_list
-  FOR ALL USING (
-    engagement_id IN (
-      SELECT id FROM bi_engagements WHERE practice_id IN (
-        SELECT practice_id FROM team_members WHERE user_id = auth.uid()
-      )
-    )
-  );
+CREATE POLICY bi_watch_list_auth_policy ON bi_watch_list
+  FOR ALL USING (auth.role() = 'authenticated');
 
-CREATE POLICY bi_report_config_practice_policy ON bi_report_config
-  FOR ALL USING (
-    engagement_id IN (
-      SELECT id FROM bi_engagements WHERE practice_id IN (
-        SELECT practice_id FROM team_members WHERE user_id = auth.uid()
-      )
-    )
-  );
+CREATE POLICY bi_report_config_auth_policy ON bi_report_config
+  FOR ALL USING (auth.role() = 'authenticated');
 
--- Client read policies
-CREATE POLICY bi_periods_client_read ON bi_periods
-  FOR SELECT USING (
-    engagement_id IN (
-      SELECT e.id FROM bi_engagements e
-      JOIN clients c ON e.client_id = c.id
-      WHERE c.user_id = auth.uid()
-    )
-    AND status = 'delivered'
-  );
+-- Service role has full access (for edge functions)
+CREATE POLICY bi_engagements_service_policy ON bi_engagements
+  FOR ALL USING (auth.role() = 'service_role');
 
-CREATE POLICY bi_insights_client_read ON bi_insights
-  FOR SELECT USING (
-    period_id IN (
-      SELECT p.id FROM bi_periods p
-      JOIN bi_engagements e ON p.engagement_id = e.id
-      JOIN clients c ON e.client_id = c.id
-      WHERE c.user_id = auth.uid() AND p.status = 'delivered'
-    )
-    AND is_active = true
-  );
+CREATE POLICY bi_periods_service_policy ON bi_periods
+  FOR ALL USING (auth.role() = 'service_role');
+
+CREATE POLICY bi_insights_service_policy ON bi_insights
+  FOR ALL USING (auth.role() = 'service_role');
 
 -- ============================================
 -- UPDATED_AT TRIGGERS
