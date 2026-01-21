@@ -116,9 +116,10 @@ serve(async (req) => {
       }
       
       console.log(`[Accounts Process] Extracted ${extractedText.length} characters of text`);
+      console.log(`[Accounts Process] Text preview: ${extractedText.slice(0, 500)}...`);
       
-      const singleYearData = await extractFinancialDataWithLLM(extractedText, upload.fiscal_year, openrouterKey);
-      extractedYears = [singleYearData];
+      // Extract all years from the document
+      extractedYears = await extractFinancialDataWithLLM(extractedText, upload.fiscal_year, openrouterKey);
     }
 
     console.log(`[Accounts Process] Extraction complete, found ${extractedYears.length} year(s) of data`);
@@ -620,28 +621,31 @@ async function extractFinancialDataWithLLM(
   documentText: string,
   hintYear: number | null,
   apiKey: string
-): Promise<ExtractedFinancialData> {
+): Promise<ExtractedFinancialData[]> {
   
   const currentYear = new Date().getFullYear();
-  const yearHint = hintYear ? `The user indicated this is for fiscal year ${hintYear}.` : '';
+  const yearHint = hintYear ? `The user indicated this may be for fiscal year ${hintYear}, but check for all years present.` : '';
   
   const prompt = `You are a financial data extraction specialist. Extract key financial metrics from these company accounts.
 
+IMPORTANT: This document may contain MULTIPLE YEARS of data (e.g., columns for YE 2024 and YE 2025, or comparative figures).
+You MUST extract ALL years present, not just the most recent.
+
 ${yearHint}
 
-EXTRACT THESE METRICS (use null if not found, numbers only - no currency symbols):
+For EACH YEAR found, extract these metrics (use null if not found, numbers only - no currency symbols):
 
 REQUIRED - P&L:
-- fiscal_year: The year these accounts cover (e.g., 2024)
+- fiscal_year: The year these accounts cover (e.g., 2024, 2025)
 - fiscal_year_end: End date if visible (e.g., "2024-03-31")
 - revenue: Total revenue/turnover
-- cost_of_sales: Direct costs / cost of sales
+- cost_of_sales: Direct costs / cost of sales (as positive number)
 - gross_profit: Revenue minus cost of sales
-- operating_expenses: Administrative/operating expenses
-- ebitda: Earnings before interest, tax, depreciation, amortisation (calculate if needed)
-- depreciation: Depreciation charge
+- operating_expenses: Total of all operating/admin costs (as positive number)
+- ebitda: Earnings before interest, tax, depreciation, amortisation (calculate: operating_profit + depreciation)
+- depreciation: Depreciation charge (as positive number)
 - amortisation: Amortisation charge
-- interest_paid: Interest expense
+- interest_paid: Interest expense (as positive number)
 - tax: Tax charge
 - net_profit: Profit after tax
 
@@ -657,35 +661,43 @@ BALANCE SHEET (if available):
 OTHER:
 - employee_count: Number of employees (often in notes)
 
-Also provide:
+Also provide for each year:
 - confidence: 0.0 to 1.0 based on how clearly you could extract the data
 - notes: Array of strings noting any issues, assumptions, or items that need verification
 
-RESPOND IN VALID JSON ONLY. Example:
+RESPOND IN VALID JSON ONLY - RETURN AN ARRAY with one object per year:
 {
-  "fiscal_year": 2024,
-  "fiscal_year_end": "2024-03-31",
-  "revenue": 750000,
-  "cost_of_sales": 450000,
-  "gross_profit": 300000,
-  "operating_expenses": 210000,
-  "ebitda": 90000,
-  "depreciation": 15000,
-  "amortisation": 5000,
-  "interest_paid": 8000,
-  "tax": 12000,
-  "net_profit": 50000,
-  "debtors": 85000,
-  "creditors": 42000,
-  "cash": 35000,
-  "current_assets": 150000,
-  "current_liabilities": 80000,
-  "fixed_assets": 120000,
-  "net_assets": 190000,
-  "employee_count": 8,
-  "confidence": 0.85,
-  "notes": ["Employee count estimated from wage costs", "EBITDA calculated from operating profit + D&A"]
+  "years": [
+    {
+      "fiscal_year": 2024,
+      "fiscal_year_end": "2024-12-31",
+      "revenue": 610000,
+      "cost_of_sales": 212000,
+      "gross_profit": 398000,
+      "operating_expenses": 402000,
+      "ebitda": 12000,
+      "depreciation": 16000,
+      "net_profit": -24000,
+      "confidence": 0.9,
+      "notes": ["Company made a loss this year"]
+    },
+    {
+      "fiscal_year": 2025,
+      "fiscal_year_end": "2025-12-31",
+      "revenue": 780000,
+      "cost_of_sales": 274000,
+      "gross_profit": 506000,
+      "operating_expenses": 509000,
+      "ebitda": 15000,
+      "depreciation": 18000,
+      "net_profit": -25500,
+      "confidence": 0.9,
+      "notes": ["Company made a loss this year"]
+    }
+  ]
 }
+
+NOTE: If data only exists for a single year, still return it in the "years" array format.
 
 DOCUMENT TEXT:
 ${documentText.slice(0, 15000)}`;
@@ -731,18 +743,44 @@ ${documentText.slice(0, 15000)}`;
     const jsonStr = jsonMatch[1] || content;
     const parsed = JSON.parse(jsonStr.trim());
     
-    // Ensure required fields
-    if (!parsed.fiscal_year) {
-      parsed.fiscal_year = hintYear || currentYear;
-      parsed.notes = parsed.notes || [];
-      parsed.notes.push('Fiscal year not found in document - using provided/current year');
+    // Handle both array format and single object format
+    let years: ExtractedFinancialData[] = [];
+    
+    if (parsed.years && Array.isArray(parsed.years)) {
+      // New multi-year format
+      years = parsed.years;
+    } else if (Array.isArray(parsed)) {
+      // Direct array
+      years = parsed;
+    } else {
+      // Single object (legacy format)
+      years = [parsed];
     }
     
-    if (parsed.confidence === undefined) {
-      parsed.confidence = 0.5;
+    // Validate and clean each year
+    for (const yearData of years) {
+      if (!yearData.fiscal_year) {
+        yearData.fiscal_year = hintYear || currentYear;
+        yearData.notes = yearData.notes || [];
+        yearData.notes.push('Fiscal year not found in document - using provided/current year');
+      }
+      
+      if (yearData.confidence === undefined) {
+        yearData.confidence = 0.5;
+      }
+      
+      // Ensure cost_of_sales and expenses are stored as positive numbers for calculations
+      if (yearData.cost_of_sales && yearData.cost_of_sales < 0) {
+        yearData.cost_of_sales = Math.abs(yearData.cost_of_sales);
+      }
+      if (yearData.operating_expenses && yearData.operating_expenses < 0) {
+        yearData.operating_expenses = Math.abs(yearData.operating_expenses);
+      }
     }
     
-    return parsed as ExtractedFinancialData;
+    console.log(`[LLM Parse] Extracted ${years.length} year(s): ${years.map(y => `FY${y.fiscal_year}`).join(', ')}`);
+    
+    return years as ExtractedFinancialData[];
     
   } catch (parseError) {
     console.error('[LLM Parse] Failed to parse response:', content);
