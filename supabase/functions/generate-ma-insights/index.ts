@@ -154,7 +154,23 @@ Deno.serve(async (req) => {
       throw new Error("Failed to parse insights from AI response");
     }
 
-    console.log(`[generate-ma-insights] Generated ${insights.length} insights`);
+    console.log(`[generate-ma-insights] AI generated ${insights.length} insights (before cap)`);
+
+    // ENFORCE STRICT CAP - quality over quantity
+    const maxInsights = getMaxInsightsByTier(tier);
+    if (insights.length > maxInsights) {
+      console.log(`[generate-ma-insights] Capping from ${insights.length} to ${maxInsights} insights`);
+      // Sort by priority (critical > high > medium > low) then take top N
+      const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+      insights.sort((a, b) => {
+        const aPriority = priorityOrder[a.priority] ?? 2;
+        const bPriority = priorityOrder[b.priority] ?? 2;
+        return aPriority - bPriority;
+      });
+      insights = insights.slice(0, maxInsights);
+    }
+
+    console.log(`[generate-ma-insights] Final insight count: ${insights.length}`);
 
     // Get engagement_id from period
     const { data: periodData } = await supabase
@@ -263,7 +279,16 @@ ${previousPeriod.financial_data ? formatFinancialData(previousPeriod.financial_d
 
 ## YOUR TASK
 
-Generate ${getInsightCountByTier(tier)} insights that demonstrate exceptional financial analysis. Each insight should:
+**CRITICAL INSTRUCTION: Generate ${getInsightCountByTier(tier)} insights. No more, no less.**
+
+Quality over quantity. Each insight must be:
+- DISTINCT (not repetitive or overlapping with other insights)
+- ESSENTIAL (the most important thing the client needs to know)
+- ACTIONABLE (specific recommendation they can implement)
+
+DO NOT generate more than ${getInsightCountByTier(tier).replace('EXACTLY ', '')} insights. If you think there are more issues, combine them or prioritize ruthlessly.
+
+Each insight should:
 
 1. **Lead with impact** - Start with the business implication, not the number
 2. **Show your working** - Include the specific calculations that support your conclusion
@@ -332,6 +357,12 @@ Return a JSON array of insights. Each insight object must have:
   "headline": "Cash position needs attention",
   "description": "Your cash position has decreased. You should monitor this closely."
 }
+
+## FINAL REMINDER
+- Return ${getInsightCountByTier(tier)} insights ONLY
+- Each insight must be UNIQUE - do not repeat the same finding in different words
+- Prioritize: 1-2 Critical, 2-3 High, rest Medium/Low
+- If multiple issues relate to the same root cause (e.g., cash), COMBINE them into one comprehensive insight
 
 Return ONLY the JSON array, no other text.`;
 }
@@ -438,11 +469,21 @@ function formatCalculatedMetrics(metrics: Record<string, any>): string {
 
 function getInsightCountByTier(tier: string): string {
   switch (tier) {
-    case 'bronze': return '3-4';
-    case 'silver': return '5-6';
-    case 'gold': return '7-8';
-    case 'platinum': return '10-12';
-    default: return '5';
+    case 'bronze': return 'EXACTLY 4';
+    case 'silver': return 'EXACTLY 5';
+    case 'gold': return 'EXACTLY 7';
+    case 'platinum': return 'EXACTLY 10';
+    default: return 'EXACTLY 5';
+  }
+}
+
+function getMaxInsightsByTier(tier: string): number {
+  switch (tier) {
+    case 'bronze': return 4;
+    case 'silver': return 5;
+    case 'gold': return 7;
+    case 'platinum': return 10;
+    default: return 5;
   }
 }
 
