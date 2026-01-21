@@ -545,11 +545,25 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
       }
 
       // First, get the service_line_id from the database
-      const { data: serviceLineData } = await supabase
+      // Handle business_intelligence -> management_accounts fallback during transition
+      let lookupCode = serviceLineCode;
+      let { data: serviceLineData } = await supabase
         .from('service_lines')
         .select('id')
-        .eq('code', serviceLineCode)
+        .eq('code', lookupCode)
         .single();
+
+      // Fallback: if business_intelligence not found, try management_accounts (legacy)
+      if (!serviceLineData && serviceLineCode === 'business_intelligence') {
+        console.log('Trying legacy code management_accounts...');
+        const { data: legacyData } = await supabase
+          .from('service_lines')
+          .select('id')
+          .eq('code', 'management_accounts')
+          .single();
+        serviceLineData = legacyData;
+        if (legacyData) lookupCode = 'management_accounts';
+      }
 
       if (!serviceLineData) {
         console.log('Service line not found in database:', serviceLineCode);
