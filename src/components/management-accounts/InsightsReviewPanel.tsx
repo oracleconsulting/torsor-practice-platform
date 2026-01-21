@@ -17,8 +17,7 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronUp,
-  Trash2,
-  RefreshCw
+  Trash2
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { InsightEditor } from './InsightEditor';
@@ -191,7 +190,7 @@ export function InsightsReviewPanel({
   const draftCount = insights.filter(i => i.status === 'draft').length;
   const approvedCount = insights.filter(i => i.status === 'approved').length;
 
-  const canContinue = draftCount === 0 || approvedCount > 0;
+  // canContinue logic moved to parent component for delivery gating
 
   return (
     <div className="space-y-6">

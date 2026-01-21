@@ -16,7 +16,6 @@ import {
   BarChart3,
   Lightbulb,
   HelpCircle,
-  MessageSquare,
   Lock
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';

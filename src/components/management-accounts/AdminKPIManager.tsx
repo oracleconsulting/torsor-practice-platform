@@ -76,13 +76,14 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string
 
 export function AdminKPIManager({
   engagementId,
-  periodId,
+  periodId: _periodId,
   tier,
   financialData,
   existingKpis,
   onSave,
   onContinue,
 }: AdminKPIManagerProps) {
+  // _periodId reserved for future period-specific KPI features
   const [selectedKpis, setSelectedKpis] = useState<string[]>([]);
   const [kpiValues, setKpiValues] = useState<Record<string, { value: string; target: string; commentary: string }>>({});
   const [saving, setSaving] = useState(false);
