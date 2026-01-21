@@ -79,6 +79,29 @@ const TIER_COLORS: Record<TierType, { bg: string; text: string; border: string }
   strategic: { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200' },
 };
 
+// Map legacy tier names to new tier names
+const LEGACY_TIER_MAP: Record<string, TierType> = {
+  'bronze': 'clarity',
+  'silver': 'foresight', 
+  'gold': 'strategic',
+  'platinum': 'strategic',
+  'clarity': 'clarity',
+  'foresight': 'foresight',
+  'strategic': 'strategic',
+};
+
+// Safe tier color getter that handles legacy tier names
+function getTierColors(tier: string) {
+  const mappedTier = LEGACY_TIER_MAP[tier] || 'clarity';
+  return TIER_COLORS[mappedTier];
+}
+
+// Safe tier display name getter
+function getTierDisplayName(tier: string) {
+  const mappedTier = LEGACY_TIER_MAP[tier] || 'clarity';
+  return mappedTier.charAt(0).toUpperCase() + mappedTier.slice(1);
+}
+
 const STATUS_CONFIG = {
   pending: { label: 'Pending', color: 'text-slate-500', bg: 'bg-slate-100' },
   active: { label: 'Active', color: 'text-green-600', bg: 'bg-green-100' },
@@ -655,8 +678,8 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${TIER_COLORS[eng.tier].bg} ${TIER_COLORS[eng.tier].text}`}>
-                          {eng.tier.charAt(0).toUpperCase() + eng.tier.slice(1)}
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTierColors(eng.tier).bg} ${getTierColors(eng.tier).text}`}>
+                          {getTierDisplayName(eng.tier)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -721,8 +744,8 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
                   <h1 className="text-xl font-bold text-slate-800">
                     {engagement.client?.client_company || engagement.client?.name}
                   </h1>
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${TIER_COLORS[engagement.tier].bg} ${TIER_COLORS[engagement.tier].text}`}>
-                    {engagement.tier.charAt(0).toUpperCase() + engagement.tier.slice(1)}
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTierColors(engagement.tier).bg} ${getTierColors(engagement.tier).text}`}>
+                    {getTierDisplayName(engagement.tier)}
                   </span>
                 </div>
                 <p className="text-sm text-slate-500">

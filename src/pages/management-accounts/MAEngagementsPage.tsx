@@ -40,6 +40,23 @@ const TIER_COLORS: Record<TierType, { bg: string; text: string; border: string }
   strategic: { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200' },
 };
 
+// Map legacy tier names to new tier names
+const LEGACY_TIER_MAP: Record<string, TierType> = {
+  'bronze': 'clarity',
+  'silver': 'foresight', 
+  'gold': 'strategic',
+  'platinum': 'strategic',
+  'clarity': 'clarity',
+  'foresight': 'foresight',
+  'strategic': 'strategic',
+};
+
+// Safe tier color getter
+function getTierColors(tier: string) {
+  const mappedTier = LEGACY_TIER_MAP[tier] || 'clarity';
+  return TIER_COLORS[mappedTier];
+}
+
 const STATUS_CONFIG = {
   pending: { label: 'Pending', color: 'text-slate-500', bg: 'bg-slate-100' },
   active: { label: 'Active', color: 'text-green-600', bg: 'bg-green-100' },
@@ -265,7 +282,7 @@ export function MAEngagementsPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredEngagements.map(eng => {
-                const tierColors = TIER_COLORS[eng.tier];
+                const tierColors = getTierColors(eng.tier);
                 const statusConfig = STATUS_CONFIG[eng.status];
                 
                 return (
@@ -344,7 +361,7 @@ export function MAEngagementsPage() {
         {(['clarity', 'foresight', 'strategic'] as TierType[]).map(tier => {
           const count = engagements.filter(e => e.tier === tier && e.status === 'active').length;
           const tierConfig = TIER_FEATURES[tier];
-          const tierColors = TIER_COLORS[tier];
+          const tierColors = getTierColors(tier);
           
           return (
             <div key={tier} className={`border rounded-xl p-4 ${tierColors.border} ${tierColors.bg}`}>
