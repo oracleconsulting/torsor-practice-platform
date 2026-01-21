@@ -32,6 +32,15 @@ interface ScenarioBuilderProps {
 // Local type for this component's supported scenarios
 type ScenarioType = 'hire' | 'pricing_change' | 'client_loss' | 'investment' | 'custom';
 
+// Map MAScenario types to local supported types
+const SUPPORTED_TYPES: ScenarioType[] = ['hire', 'pricing_change', 'client_loss', 'investment', 'custom'];
+function mapToSupportedType(type: string | undefined): ScenarioType {
+  if (type && SUPPORTED_TYPES.includes(type as ScenarioType)) {
+    return type as ScenarioType;
+  }
+  return 'custom'; // Fallback for unsupported types like client_win, debtor_collection, cost_reduction
+}
+
 interface HireInputs {
   role: string;
   salary: number;
@@ -86,7 +95,7 @@ export function ScenarioBuilder({
   existingScenario
 }: ScenarioBuilderProps) {
   // _tier reserved for future scenario limit enforcement
-  const [scenarioType, setScenarioType] = useState<ScenarioType>(existingScenario?.scenario_type || 'hire');
+  const [scenarioType, setScenarioType] = useState<ScenarioType>(mapToSupportedType(existingScenario?.scenario_type));
   const [name, setName] = useState(existingScenario?.name || '');
   const [running, setRunning] = useState(false);
   const [saving, setSaving] = useState(false);
