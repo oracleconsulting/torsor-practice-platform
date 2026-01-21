@@ -26,6 +26,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import {
   AdminKPIManager,
+  ClientReportPreview,
   DocumentUploader,
   FinancialDataEntry,
   InsightsReviewPanel,
@@ -94,7 +95,7 @@ const PERIOD_STATUS_CONFIG: Record<string, { label: string; color: string; bg: s
   superseded: { label: 'Superseded', color: 'text-slate-400', bg: 'bg-slate-50', icon: <Clock className="h-3 w-3" /> },
 };
 
-type WorkflowTab = 'upload' | 'data' | 'kpis' | 'insights' | 'tuesday' | 'deliver';
+type WorkflowTab = 'upload' | 'data' | 'kpis' | 'insights' | 'tuesday' | 'preview' | 'deliver';
 
 const WORKFLOW_STEPS: { tab: WorkflowTab; label: string; icon: React.ReactNode }[] = [
   { tab: 'upload', label: 'Upload Docs', icon: <Upload className="h-4 w-4" /> },
@@ -102,6 +103,7 @@ const WORKFLOW_STEPS: { tab: WorkflowTab; label: string; icon: React.ReactNode }
   { tab: 'kpis', label: 'KPIs', icon: <BarChart3 className="h-4 w-4" /> },
   { tab: 'insights', label: 'Insights', icon: <Lightbulb className="h-4 w-4" /> },
   { tab: 'tuesday', label: 'Tuesday Q', icon: <HelpCircle className="h-4 w-4" /> },
+  { tab: 'preview', label: 'Preview', icon: <Eye className="h-4 w-4" /> },
   { tab: 'deliver', label: 'Deliver', icon: <Send className="h-4 w-4" /> },
 ];
 
@@ -1105,10 +1107,10 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
                   </button>
                   
                   <button
-                    onClick={() => setWorkflowTab('deliver')}
+                    onClick={() => setWorkflowTab('preview')}
                     className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                   >
-                    Continue to Delivery →
+                    Continue to Preview →
                   </button>
                 </div>
               </div>
@@ -1134,6 +1136,46 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
                     What happens to cash flow if our biggest client delays payment?
                   </li>
                 </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Preview Tab */}
+          {workflowTab === 'preview' && (
+            <div className="space-y-6">
+              <ClientReportPreview
+                clientName={engagement.client?.name || 'Client'}
+                periodLabel={period.period_label || 'Current Period'}
+                tier={tier}
+                financialData={periodFinancialData}
+                kpis={kpis}
+                insights={insights}
+                tuesdayQuestion={tuesdayQuestion}
+                tuesdayAnswer={tuesdayAnswer}
+                onEditSection={(section) => {
+                  switch (section) {
+                    case 'financial':
+                      setWorkflowTab('data');
+                      break;
+                    case 'kpis':
+                      setWorkflowTab('kpis');
+                      break;
+                    case 'insights':
+                      setWorkflowTab('insights');
+                      break;
+                    case 'tuesday':
+                      setWorkflowTab('tuesday');
+                      break;
+                  }
+                }}
+              />
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setWorkflowTab('deliver')}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                >
+                  Continue to Delivery →
+                </button>
               </div>
             </div>
           )}
