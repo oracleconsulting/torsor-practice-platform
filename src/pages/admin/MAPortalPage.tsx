@@ -130,7 +130,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
   
   // Period detail state
   const [period, setPeriod] = useState<MAPeriod | null>(null);
-  const [periodDocuments, setPeriodDocuments] = useState<MADocument[]>([]);
+  const [_periodDocuments, setPeriodDocuments] = useState<MADocument[]>([]);
   const [periodFinancialData, setPeriodFinancialData] = useState<MAFinancialData | null>(null);
   const [insights, setInsights] = useState<MAInsight[]>([]);
   const [kpis, setKpis] = useState<MAKPIValue[]>([]);
@@ -376,11 +376,10 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
 
     setCreatingPeriod(true);
     try {
-      // Generate a label if not provided
-      const startDate = new Date(newPeriodForm.periodStart);
+      // Generate a label if not provided (use end date as periods are named by end month)
       const endDate = new Date(newPeriodForm.periodEnd);
       const label = newPeriodForm.periodLabel || 
-        `${startDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`;
+        `${endDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`;
 
       const { data: newPeriod, error } = await supabase
         .from('ma_periods')

@@ -263,6 +263,7 @@ export interface MAFinancialData {
   fte_count?: number;
   // Operating costs (for runway calculation)
   monthly_operating_costs?: number;
+  payroll_costs?: number;
   // Meta
   data_source?: 'xero_api' | 'qbo_api' | 'upload' | 'manual';
   confidence_level?: 'high' | 'medium' | 'low';

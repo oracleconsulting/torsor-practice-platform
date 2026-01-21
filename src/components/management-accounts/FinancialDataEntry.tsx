@@ -7,17 +7,13 @@ import {
   Calculator, 
   PoundSterling, 
   TrendingUp, 
-  TrendingDown,
   Building2,
-  CreditCard,
-  FileText,
   ChevronDown,
   ChevronUp,
   CheckCircle2
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { MAFinancialData, TrueCashCalculation } from '../../types/ma';
-import { calculateTrueCash, formatTrueCashForDisplay } from '../../services/ma/true-cash';
+import type { MAFinancialData, TrueCashCalculation } from '../../types/ma';
 
 interface FinancialDataEntryProps {
   periodId: string;
