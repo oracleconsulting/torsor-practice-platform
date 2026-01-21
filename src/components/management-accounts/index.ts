@@ -28,6 +28,7 @@ export { WatchListPanel } from './WatchListPanel';
 
 // Admin Workflow
 export { PeriodDeliveryChecklist } from './PeriodDeliveryChecklist';
+export { FinancialDataEntry } from './FinancialDataEntry';
 
 // Client Dashboard
 export { MAClientDashboard } from './MAClientDashboard';

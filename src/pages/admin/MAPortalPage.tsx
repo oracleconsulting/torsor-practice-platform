@@ -26,6 +26,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import {
   DocumentUploader,
+  FinancialDataEntry,
   InsightCard,
   InsightEditor,
   PeriodDeliveryChecklist,
@@ -958,18 +959,15 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
 
           {/* Data Tab */}
           {workflowTab === 'data' && (
-            <div className="bg-white rounded-xl border border-slate-200 p-6">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4">Financial Data Entry</h2>
-              <p className="text-slate-500 mb-4">
-                Financial data entry form coming soon. Data will be extracted from uploaded documents or entered manually.
-              </p>
-              <button
-                onClick={() => setWorkflowTab('kpis')}
-                className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-              >
-                Continue to KPIs →
-              </button>
-            </div>
+            <FinancialDataEntry
+              periodId={period.id}
+              engagementId={engagement.id}
+              existingData={periodFinancialData}
+              onSave={() => {
+                loadPeriodDetail(engagement.id, period.id);
+              }}
+              onContinue={() => setWorkflowTab('kpis')}
+            />
           )}
 
           {/* KPIs Tab */}
