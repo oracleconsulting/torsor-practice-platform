@@ -1,65 +1,39 @@
 -- ============================================================================
 -- RENAME MANAGEMENT ACCOUNTS TO BUSINESS INTELLIGENCE
 -- Comprehensive migration to update all references
+-- IMPORTANT: Child tables must be updated BEFORE parent table due to FK constraints
 -- ============================================================================
 
 -- ============================================================================
--- 1. UPDATE SERVICE_LINE_METADATA
+-- STEP 1: UPDATE ALL CHILD TABLES FIRST (before service_line_metadata)
 -- ============================================================================
 
--- Update the main service line entry
-UPDATE service_line_metadata 
-SET 
-  code = 'business_intelligence',
-  name = 'Business Intelligence',
-  core_function = 'Financial clarity with True Cash position, KPIs, AI insights, forecasts and scenario modelling'
-WHERE code = 'management_accounts';
-
--- ============================================================================
--- 2. UPDATE SERVICE_TIMING_RULES
--- ============================================================================
-
+-- 1a. UPDATE SERVICE_TIMING_RULES
 UPDATE service_timing_rules 
 SET service_code = 'business_intelligence' 
 WHERE service_code = 'management_accounts';
 
--- ============================================================================
--- 3. UPDATE SERVICE_ADVISORY_TRIGGERS
--- ============================================================================
-
+-- 1b. UPDATE SERVICE_ADVISORY_TRIGGERS
 UPDATE service_advisory_triggers 
 SET service_code = 'business_intelligence' 
 WHERE service_code = 'management_accounts';
 
--- ============================================================================
--- 4. UPDATE SERVICE_CONTRAINDICATIONS
--- ============================================================================
-
+-- 1c. UPDATE SERVICE_CONTRAINDICATIONS
 UPDATE service_contraindications 
 SET service_code = 'business_intelligence' 
 WHERE service_code = 'management_accounts';
 
--- ============================================================================
--- 5. UPDATE SERVICE_VALUE_CALCULATIONS
--- ============================================================================
-
+-- 1d. UPDATE SERVICE_VALUE_CALCULATIONS
 UPDATE service_value_calculations 
 SET service_code = 'business_intelligence' 
 WHERE service_code = 'management_accounts';
 
--- ============================================================================
--- 6. UPDATE SERVICE_NARRATIVE_TEMPLATES
--- ============================================================================
-
+-- 1e. UPDATE SERVICE_NARRATIVE_TEMPLATES
 UPDATE service_narrative_templates 
 SET service_code = 'business_intelligence' 
 WHERE service_code = 'management_accounts';
 
--- ============================================================================
--- 7. UPDATE ADVISORY_OVERSELLING_RULES
--- Update array columns that may contain 'management_accounts'
--- ============================================================================
-
+-- 1f. UPDATE ADVISORY_OVERSELLING_RULES (array columns)
 UPDATE advisory_overselling_rules 
 SET priority_services = array_replace(priority_services, 'management_accounts', 'business_intelligence')
 WHERE 'management_accounts' = ANY(priority_services);
@@ -69,17 +43,26 @@ SET excluded_services = array_replace(excluded_services, 'management_accounts', 
 WHERE 'management_accounts' = ANY(excluded_services);
 
 -- ============================================================================
--- 8. UPDATE SERVICE_LINE_ASSESSMENTS
+-- STEP 2: NOW UPDATE THE PARENT TABLE (service_line_metadata)
 -- ============================================================================
 
+UPDATE service_line_metadata 
+SET 
+  code = 'business_intelligence',
+  name = 'Business Intelligence',
+  core_function = 'Financial clarity with True Cash position, KPIs, AI insights, forecasts and scenario modelling'
+WHERE code = 'management_accounts';
+
+-- ============================================================================
+-- STEP 3: UPDATE OTHER TABLES (no FK to service_line_metadata)
+-- ============================================================================
+
+-- 3a. UPDATE SERVICE_LINE_ASSESSMENTS
 UPDATE service_line_assessments 
 SET service_line_code = 'business_intelligence' 
 WHERE service_line_code = 'management_accounts';
 
--- ============================================================================
--- 9. UPDATE CLIENT_SERVICE_LINES (if exists)
--- ============================================================================
-
+-- 3b. UPDATE CLIENT_SERVICE_LINES (if exists)
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'client_service_lines') THEN
@@ -87,10 +70,7 @@ BEGIN
   END IF;
 END $$;
 
--- ============================================================================
--- 10. UPDATE BI_ENGAGEMENTS (if exists)
--- ============================================================================
-
+-- 3c. UPDATE BI_ENGAGEMENTS (if exists)
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'bi_engagements') THEN
@@ -98,10 +78,7 @@ BEGIN
   END IF;
 END $$;
 
--- ============================================================================
--- 11. UPDATE MA_ENGAGEMENTS (if exists)
--- ============================================================================
-
+-- 3d. UPDATE MA_ENGAGEMENTS (if exists)
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ma_engagements') THEN
@@ -109,10 +86,7 @@ BEGIN
   END IF;
 END $$;
 
--- ============================================================================
--- 12. UPDATE CLIENT_CONTEXT JSONB DATA (if contains service line references)
--- ============================================================================
-
+-- 3e. UPDATE CLIENT_CONTEXT JSONB DATA (if contains service line references)
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'client_context') THEN
@@ -124,10 +98,7 @@ BEGIN
   END IF;
 END $$;
 
--- ============================================================================
--- 13. UPDATE ASSESSMENT_QUESTIONS
--- ============================================================================
-
+-- 3f. UPDATE ASSESSMENT_QUESTIONS
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'assessment_questions') THEN
@@ -135,10 +106,7 @@ BEGIN
   END IF;
 END $$;
 
--- ============================================================================
--- 14. UPDATE SERVICE_LINES TABLE (client-service associations)
--- ============================================================================
-
+-- 3g. UPDATE SERVICE_LINES TABLE (client-service associations)
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'service_lines') THEN
@@ -150,7 +118,7 @@ BEGIN
       WHERE code = ''management_accounts''
     ';
     
-    -- If no business_intelligence exists, insert one (handle case where management_accounts didn't exist)
+    -- If no business_intelligence exists, insert one
     EXECUTE '
       INSERT INTO service_lines (code, name, description, status)
       SELECT ''business_intelligence'', ''Business Intelligence'', 
@@ -161,10 +129,7 @@ BEGIN
   END IF;
 END $$;
 
--- ============================================================================
--- 15. UPDATE CLIENT_SERVICE_LINE_ASSIGNMENTS (if exists)
--- ============================================================================
-
+-- 3h. UPDATE CLIENT_SERVICE_LINE_ASSIGNMENTS (if exists)
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'client_service_line_assignments') THEN
@@ -172,10 +137,7 @@ BEGIN
   END IF;
 END $$;
 
--- ============================================================================
--- 16. UPDATE PRACTICE_SERVICE_LINES (if exists)
--- ============================================================================
-
+-- 3i. UPDATE PRACTICE_SERVICE_LINES (if exists)
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'practice_service_lines') THEN
@@ -218,4 +180,3 @@ UNION ALL
 SELECT 'Remaining MA references in service_line_assessments',
        COUNT(*)::text
 FROM service_line_assessments WHERE service_line_code = 'management_accounts';
-
