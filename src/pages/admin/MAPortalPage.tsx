@@ -173,12 +173,12 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
         console.error('[MA Portal] Raw query error:', rawError);
       }
       
-      // Now try with the join
+      // Now try with the join - use !client_id to specify which FK to use
       const { data: engData, error: engError } = await supabase
         .from('ma_engagements')
         .select(`
           *,
-          client:practice_members(name, email, client_company)
+          client:practice_members!client_id(name, email, client_company)
         `)
         .order('created_at', { ascending: false });
       
@@ -220,7 +220,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
       // Load engagement
       const { data: engData } = await supabase
         .from('ma_engagements')
-        .select(`*, client:practice_members(name, email, client_company)`)
+        .select(`*, client:practice_members!client_id(name, email, client_company)`)
         .eq('id', engId)
         .single();
 
@@ -260,7 +260,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
       // Load engagement
       const { data: engData } = await supabase
         .from('ma_engagements')
-        .select(`*, client:practice_members(name, email, client_company)`)
+        .select(`*, client:practice_members!client_id(name, email, client_company)`)
         .eq('id', engId)
         .single();
 
