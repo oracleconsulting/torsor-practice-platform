@@ -95,6 +95,23 @@ Deno.serve(async (req) => {
 
     console.log(`[generate-ma-insights] Generating insights for ${clientName}, tier: ${tier}`);
 
+    // FIRST: Delete existing AI-generated draft insights for this period
+    // This prevents duplicate insights from accumulating
+    const { data: deletedInsights, error: deleteError } = await supabase
+      .from('ma_insights')
+      .delete()
+      .eq('period_id', periodId)
+      .eq('is_auto_generated', true)
+      .eq('status', 'draft')
+      .select('id');
+
+    if (deleteError) {
+      console.error("[generate-ma-insights] Error deleting old drafts:", deleteError);
+      // Continue anyway - not critical
+    } else {
+      console.log(`[generate-ma-insights] Cleared ${deletedInsights?.length || 0} existing AI draft insights`);
+    }
+
     // Build the comprehensive prompt
     const prompt = buildInsightPrompt({
       clientName,
