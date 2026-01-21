@@ -327,9 +327,13 @@ export interface MAKPIValue {
   calculated_at: string;
 }
 
+export type InsightStatus = 'draft' | 'approved' | 'rejected' | 'edited';
+export type InsightPriority = 'critical' | 'high' | 'medium' | 'low';
+
 export interface MAInsight {
   id: string;
   period_id: string;
+  engagement_id?: string;
   insight_type: MAInsightType;
   category?: string;
   title: string;
@@ -343,7 +347,7 @@ export interface MAInsight {
   metric_value?: number;
   metric_comparison?: number;
   metric_unit?: 'currency' | 'percentage' | 'number';
-  min_tier: TierType;
+  min_tier?: TierType;
   show_to_client: boolean;
   client_acknowledged_at?: string;
   action_taken?: string;
@@ -351,6 +355,16 @@ export interface MAInsight {
   display_order?: number;
   created_at: string;
   created_by?: string;
+  // New review workflow fields
+  status?: InsightStatus;
+  priority?: InsightPriority;
+  implications?: string;
+  data_points?: string[];
+  is_auto_generated?: boolean;
+  original_content?: Record<string, unknown>;
+  approved_at?: string;
+  approved_by?: string;
+  edited_at?: string;
 }
 
 export interface MACashForecast {

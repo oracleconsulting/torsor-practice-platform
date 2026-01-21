@@ -28,8 +28,7 @@ import {
   AdminKPIManager,
   DocumentUploader,
   FinancialDataEntry,
-  InsightCard,
-  InsightEditor,
+  InsightsReviewPanel,
   PeriodDeliveryChecklist,
   TrueCashCard,
   WatchListPanel
@@ -135,8 +134,6 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
   const [insights, setInsights] = useState<MAInsight[]>([]);
   const [kpis, setKpis] = useState<MAKPIValue[]>([]);
   const [workflowTab, setWorkflowTab] = useState<WorkflowTab>('upload');
-  const [showInsightEditor, setShowInsightEditor] = useState(false);
-  const [editingInsight, setEditingInsight] = useState<MAInsight | null>(null);
   
   // New Period Modal state
   const [showNewPeriodModal, setShowNewPeriodModal] = useState(false);
@@ -1027,76 +1024,18 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
 
           {/* Insights Tab */}
           {workflowTab === 'insights' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-slate-800">Insights</h2>
-                <button 
-                  onClick={() => {
-                    setEditingInsight(null);
-                    setShowInsightEditor(true);
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Insight
-                </button>
-              </div>
-
-              {insights.length > 0 ? (
-                <div className="space-y-4">
-                  {insights.map(insight => (
-                    <div key={insight.id} className="relative">
-                      <InsightCard
-                        insight={insight}
-                        showRecommendation
-                      />
-                      <button
-                        onClick={() => {
-                          setEditingInsight(insight);
-                          setShowInsightEditor(true);
-                        }}
-                        className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
-                  <Lightbulb className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                  <p className="text-slate-500">No insights added yet</p>
-                </div>
-              )}
-
-              {showInsightEditor && (
-                <InsightEditor
-                  periodId={period.id}
-                  engagementTier={tier}
-                  insight={editingInsight ?? undefined}
-                  onSave={(newInsight) => {
-                    if (editingInsight) {
-                      setInsights(insights.map(i => i.id === newInsight.id ? newInsight : i));
-                    } else {
-                      setInsights([...insights, newInsight]);
-                    }
-                    setShowInsightEditor(false);
-                    setEditingInsight(null);
-                  }}
-                  onCancel={() => {
-                    setShowInsightEditor(false);
-                    setEditingInsight(null);
-                  }}
-                />
-              )}
-
-              <button
-                onClick={() => setWorkflowTab('tuesday')}
-                className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-              >
-                Continue to Tuesday Question →
-              </button>
-            </div>
+            <InsightsReviewPanel
+              periodId={period.id}
+              engagementId={engagement.id}
+              tier={tier}
+              clientName={engagement.client?.name || 'Client'}
+              financialData={periodFinancialData}
+              kpis={kpis}
+              tuesdayQuestion={tuesdayQuestion}
+              insights={insights}
+              onInsightsUpdate={setInsights}
+              onContinue={() => setWorkflowTab('tuesday')}
+            />
           )}
 
           {/* Tuesday Question Tab */}
@@ -1203,11 +1142,17 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
           {workflowTab === 'deliver' && (
             <PeriodDeliveryChecklist
               periodId={period.id}
+              engagementId={engagement.id}
               tier={tier}
               periodLabel={period.period_label || 'Current Period'}
+              financialData={periodFinancialData}
+              kpis={kpis}
+              insights={insights}
+              tuesdayQuestion={tuesdayQuestion}
               onComplete={() => {
-                // Refresh period data
+                // Refresh period data and show success
                 loadPeriodDetail(engagement.id, period.id);
+                alert('Report delivered successfully! The client can now view it.');
               }}
             />
           )}

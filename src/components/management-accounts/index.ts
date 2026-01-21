@@ -19,6 +19,7 @@ export { DocumentUploader } from './DocumentUploader';
 // Insights
 export { InsightCard } from './InsightCard';
 export { InsightEditor } from './InsightEditor';
+export { InsightsReviewPanel } from './InsightsReviewPanel';
 
 // Tuesday Question
 export { TuesdayQuestionDisplay } from './TuesdayQuestionDisplay';
