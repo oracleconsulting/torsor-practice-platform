@@ -122,32 +122,53 @@ export function AdminKPIManager({
     }
   }, [existingKpis]);
 
-  // Auto-calculate some KPIs from financial data
+  // Auto-calculate some KPIs from financial data (codes must match AVAILABLE_KPIS lowercase)
   useEffect(() => {
     if (financialData) {
       const autoCalc: Record<string, number> = {};
       
-      if (financialData.true_cash !== undefined) {
-        autoCalc['TRUE_CASH'] = financialData.true_cash;
+      // True Cash from true_cash calculation
+      if (financialData.true_cash !== undefined && financialData.true_cash !== null) {
+        autoCalc['true_cash'] = financialData.true_cash;
       }
-      if (financialData.true_cash_runway_months !== undefined) {
-        autoCalc['CASH_RUNWAY'] = financialData.true_cash_runway_months;
+      // Cash Runway from true_cash_runway_months
+      if (financialData.true_cash_runway_months !== undefined && financialData.true_cash_runway_months !== null) {
+        autoCalc['cash_runway'] = financialData.true_cash_runway_months;
       }
+      // Burn Rate from monthly operating costs
       if (financialData.monthly_operating_costs) {
-        autoCalc['BURN_RATE'] = financialData.monthly_operating_costs;
+        autoCalc['burn_rate'] = financialData.monthly_operating_costs;
       }
+      // Gross Margin %
       if (financialData.revenue && financialData.gross_profit) {
-        autoCalc['GROSS_MARGIN'] = Math.round((financialData.gross_profit / financialData.revenue) * 100);
+        autoCalc['gross_margin'] = Math.round((financialData.gross_profit / financialData.revenue) * 100 * 10) / 10;
       }
+      // Net Margin %
       if (financialData.revenue && financialData.net_profit) {
-        autoCalc['NET_MARGIN'] = Math.round((financialData.net_profit / financialData.revenue) * 100);
+        autoCalc['net_margin'] = Math.round((financialData.net_profit / financialData.revenue) * 100 * 10) / 10;
+      }
+      // Operating Margin %
+      if (financialData.revenue && financialData.operating_profit) {
+        autoCalc['operating_margin'] = Math.round((financialData.operating_profit / financialData.revenue) * 100 * 10) / 10;
+      }
+      // Monthly Revenue
+      if (financialData.revenue) {
+        autoCalc['monthly_revenue'] = financialData.revenue;
+      }
+      // Overhead % (if we have overheads and revenue)
+      if (financialData.revenue && financialData.overheads) {
+        autoCalc['overhead_pct'] = Math.round((financialData.overheads / financialData.revenue) * 100 * 10) / 10;
       }
       
-      // Update values for auto-calculated KPIs
+      console.log('[AdminKPIManager] Auto-calculated values:', autoCalc);
+      
+      // Update values for auto-calculated KPIs (overwrite if empty or 0)
       setKpiValues(prev => {
         const updated = { ...prev };
         Object.entries(autoCalc).forEach(([code, val]) => {
-          if (selectedKpis.includes(code) && !updated[code]?.value) {
+          const currentVal = updated[code]?.value;
+          const isEmpty = !currentVal || currentVal === '0' || currentVal === '';
+          if (selectedKpis.includes(code) && isEmpty) {
             updated[code] = {
               ...updated[code],
               value: val.toString(),
