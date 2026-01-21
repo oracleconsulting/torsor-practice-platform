@@ -1120,11 +1120,11 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                       <tr key={client.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-start gap-2">
-                            <div>
-                              <p className="font-medium text-gray-900">{client.name}</p>
-                              <p className="text-sm text-gray-500">{client.email}</p>
-                              {client.company && (
-                                <p className="text-sm text-gray-400">{client.company}</p>
+                          <div>
+                            <p className="font-medium text-gray-900">{client.name}</p>
+                            <p className="text-sm text-gray-500">{client.email}</p>
+                            {client.company && (
+                              <p className="text-sm text-gray-400">{client.company}</p>
                               )}
                             </div>
                             {client.is_test_client && (
@@ -1244,7 +1244,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           <ClientDetailModal 
             clientId={selectedClient} 
             serviceLineCode={selectedServiceLine}
-            onClose={() => setSelectedClient(null)}
+            onClose={() => setSelectedClient(null)} 
             onNavigate={onNavigate}
           />
         )}
@@ -7214,7 +7214,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                               Create Engagement
                             </button>
                           )}
-                          <button
+                        <button
                           onClick={async () => {
                             const newSharedStatus = !isMAReportShared;
                             
@@ -9645,9 +9645,9 @@ function BenchmarkingClientModal({
                           onReviewData={(data) => setReviewingFinancialData(data)}
                         />
                       ) : (
-                        <div className="text-center py-8 text-gray-500">
+                      <div className="text-center py-8 text-gray-500">
                           Loading...
-                        </div>
+                      </div>
                       )}
                     </div>
                   </div>

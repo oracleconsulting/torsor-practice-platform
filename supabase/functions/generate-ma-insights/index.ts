@@ -154,20 +154,17 @@ Deno.serve(async (req) => {
       throw new Error("Failed to parse insights from AI response");
     }
 
-    console.log(`[generate-ma-insights] AI generated ${insights.length} insights (before cap)`);
+    console.log(`[generate-ma-insights] Raw insights from AI: ${insights.length}`);
 
-    // ENFORCE STRICT CAP - quality over quantity
-    const maxInsights = getMaxInsightsByTier(tier);
+    // Deduplicate insights based on similarity
+    insights = deduplicateInsights(insights);
+    
+    // Enforce tier limits
+    const maxInsights = getExactInsightCount(tier);
     if (insights.length > maxInsights) {
-      console.log(`[generate-ma-insights] Capping from ${insights.length} to ${maxInsights} insights`);
-      // Sort by priority (critical > high > medium > low) then take top N
-      const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-      insights.sort((a, b) => {
-        const aPriority = priorityOrder[a.priority] ?? 2;
-        const bPriority = priorityOrder[b.priority] ?? 2;
-        return aPriority - bPriority;
-      });
-      insights = insights.slice(0, maxInsights);
+      console.log(`[generate-ma-insights] Trimming from ${insights.length} to ${maxInsights} insights`);
+      // Keep highest priority insights, ensuring category diversity
+      insights = enforceInsightLimits(insights, maxInsights);
     }
 
     console.log(`[generate-ma-insights] Final insight count: ${insights.length}`);
@@ -248,13 +245,30 @@ function buildInsightPrompt(data: {
 
   // Calculate key metrics
   const metrics = calculateMetrics(financialData, previousPeriod?.financial_data);
+  const exactCount = getExactInsightCount(tier);
 
-  return `You are an elite management accountant preparing monthly insights for a client. Your insights must be:
-- SPECIFIC with exact numbers (never "approximately" or "around")
-- ACTIONABLE with clear next steps
-- CONNECTED to business implications
-- PRIORITIZED by business impact
-- FORWARD-LOOKING with predictions and warnings
+  return `You are an elite management accountant preparing monthly insights for a client.
+
+## CRITICAL RULES - READ CAREFULLY
+
+**EXACT COUNT: Generate EXACTLY ${exactCount} insights. Not more, not less.**
+
+**ZERO DUPLICATION**: Each insight MUST cover a DIFFERENT topic. Do NOT:
+- Say the same thing in different words
+- Cover the same metric multiple times with different angles
+- Repeat findings about cash runway, debtors, margins, etc.
+- Create variations of the same insight
+
+**QUALITY OVER QUANTITY**: ${exactCount} excellent, diverse insights beat 15 repetitive ones.
+
+**ONE INSIGHT PER TOPIC**: You may only have ONE insight about each of:
+- Cash runway / true cash position
+- Debtor collection opportunity
+- Tax liabilities
+- Gross margin
+- Payroll costs
+- Creditor management
+- Revenue growth needs
 
 ## CLIENT CONTEXT
 **Client:** ${clientName}
@@ -279,90 +293,58 @@ ${previousPeriod.financial_data ? formatFinancialData(previousPeriod.financial_d
 
 ## YOUR TASK
 
-**CRITICAL INSTRUCTION: Generate ${getInsightCountByTier(tier)} insights. No more, no less.**
+Generate EXACTLY ${exactCount} UNIQUE insights covering DIFFERENT aspects of this business.
 
-Quality over quantity. Each insight must be:
-- DISTINCT (not repetitive or overlapping with other insights)
-- ESSENTIAL (the most important thing the client needs to know)
-- ACTIONABLE (specific recommendation they can implement)
+### REQUIRED DIVERSITY - Cover these ${exactCount} DIFFERENT topics:
+${generateTopicList(tier, !!tuesdayQuestion)}
 
-DO NOT generate more than ${getInsightCountByTier(tier).replace('EXACTLY ', '')} insights. If you think there are more issues, combine them or prioritize ruthlessly.
-
-Each insight should:
-
+### INSIGHT REQUIREMENTS:
 1. **Lead with impact** - Start with the business implication, not the number
-2. **Show your working** - Include the specific calculations that support your conclusion
-3. **Connect dots** - Show how this metric relates to other aspects of their business
-4. **Be prescriptive** - Don't just observe, recommend specific actions
-5. **Quantify the upside/downside** - What's the financial impact of action/inaction?
-
-### INSIGHT CATEGORIES TO COVER:
-1. **Cash & Liquidity** (MANDATORY) - True cash position, runway, upcoming pinch points
-2. **Profitability** - Margin analysis, overhead absorption, break-even implications
-3. **Working Capital** - Debtor/creditor management, cash conversion cycle
-4. **Revenue & Growth** - Momentum, concentration, sustainability
-5. **Strategic Alerts** - Risks, opportunities, decision support
+2. **Show your working** - Include the specific calculations
+3. **Be prescriptive** - Recommend specific actions
+4. **No duplication** - Each insight must be about a DIFFERENT aspect
 
 ### INSIGHT TYPES:
-- **action_required**: Urgent - needs immediate attention (e.g., cash crisis imminent)
-- **warning**: Concerning trend that needs monitoring (e.g., margin erosion)
-- **opportunity**: Positive finding with upside potential (e.g., pricing power)
-- **recommendation**: Specific advice for improvement (e.g., collection focus)
-- **observation**: Neutral finding of note (e.g., seasonal pattern)
+- **action_required**: Urgent - needs immediate attention
+- **warning**: Concerning trend that needs monitoring
+- **opportunity**: Positive finding with upside potential
+- **recommendation**: Specific advice for improvement
+- **observation**: Neutral finding of note
 
 ### PRIORITY LEVELS:
-- **critical**: Threatens business viability or represents major opportunity
+- **critical**: Threatens business viability
 - **high**: Significant financial impact, action needed this period
 - **medium**: Important but not urgent
-- **low**: Nice to know, minor optimization
+- **low**: Minor optimization
 
 ${tuesdayQuestion ? `
 ### MANDATORY: ANSWER THEIR TUESDAY QUESTION
-One of your insights MUST directly answer: "${tuesdayQuestion}"
-This should be one of your highest priority insights.
+One of your ${exactCount} insights MUST directly answer: "${tuesdayQuestion}"
 ` : ''}
 
 ## OUTPUT FORMAT
 
-Return a JSON array of insights. Each insight object must have:
-{
-  "insight_type": "action_required" | "warning" | "opportunity" | "recommendation" | "observation",
-  "category": "Cash & Liquidity" | "Profitability" | "Working Capital" | "Revenue & Growth" | "Strategic",
-  "headline": "Punchy, specific headline with key number (max 80 chars)",
-  "description": "Detailed analysis paragraph explaining the insight, showing your working, and connecting to business impact. Use specific numbers. 2-4 sentences.",
-  "data_points": ["£X revenue", "Y% margin", "Z days runway"], // 2-4 specific data points
-  "implications": "What this means for the business in plain English. One clear sentence.",
-  "recommended_action": "Specific action to take. Start with a verb. One sentence.", // Optional for observations
-  "priority": "critical" | "high" | "medium" | "low",
-  "show_to_client": true | false // false for sensitive internal notes
-}
+Return a JSON array of EXACTLY ${exactCount} insights:
+[
+  {
+    "insight_type": "action_required" | "warning" | "opportunity" | "recommendation" | "observation",
+    "category": "Cash & Liquidity" | "Profitability" | "Working Capital" | "Revenue & Growth" | "Strategic",
+    "headline": "Punchy headline with key number (max 80 chars)",
+    "description": "2-4 sentences with specific numbers and analysis.",
+    "data_points": ["£X value", "Y% metric"], // 2-4 specific data points
+    "implications": "One clear sentence on business impact.",
+    "recommended_action": "Action starting with a verb.",
+    "priority": "critical" | "high" | "medium" | "low",
+    "show_to_client": true
+  }
+]
 
-## EXAMPLES OF EXCELLENT INSIGHTS
-
-**GOOD - Specific and actionable:**
-{
-  "insight_type": "action_required",
-  "category": "Cash & Liquidity",
-  "headline": "True cash runway down to 4.2 months – below safety threshold",
-  "description": "Your bank shows £205,000 but after deducting £22,150 VAT due, £8,800 PAYE, and £15,000 corp tax provision, true cash is only £159,050. At your £38,000 monthly burn rate, this gives 4.2 months runway. The safe minimum for a business your size is 6 months.",
-  "data_points": ["£205,000 bank balance", "£45,950 liabilities", "£159,050 true cash", "4.2 months runway"],
-  "implications": "You have 8 weeks to either reduce burn or secure additional funding before hitting critical territory.",
-  "recommended_action": "Schedule a cash strategy session this week to model scenarios for extending runway to 6+ months.",
-  "priority": "critical",
-  "show_to_client": true
-}
-
-**BAD - Vague and passive:**
-{
-  "headline": "Cash position needs attention",
-  "description": "Your cash position has decreased. You should monitor this closely."
-}
-
-## FINAL REMINDER
-- Return ${getInsightCountByTier(tier)} insights ONLY
-- Each insight must be UNIQUE - do not repeat the same finding in different words
-- Prioritize: 1-2 Critical, 2-3 High, rest Medium/Low
-- If multiple issues relate to the same root cause (e.g., cash), COMBINE them into one comprehensive insight
+## BEFORE YOU RESPOND - CHECKLIST:
+✓ Exactly ${exactCount} insights?
+✓ Each insight covers a DIFFERENT topic?
+✓ No two insights about the same metric/finding?
+✓ Mix of categories (Cash, Profitability, Working Capital, Growth, Strategic)?
+${tuesdayQuestion ? '✓ One insight answers the Tuesday Question?' : ''}
 
 Return ONLY the JSON array, no other text.`;
 }
@@ -469,15 +451,15 @@ function formatCalculatedMetrics(metrics: Record<string, any>): string {
 
 function getInsightCountByTier(tier: string): string {
   switch (tier) {
-    case 'bronze': return 'EXACTLY 4';
-    case 'silver': return 'EXACTLY 5';
-    case 'gold': return 'EXACTLY 7';
-    case 'platinum': return 'EXACTLY 10';
-    default: return 'EXACTLY 5';
+    case 'bronze': return '3-4';
+    case 'silver': return '5-6';
+    case 'gold': return '7-8';
+    case 'platinum': return '10-12';
+    default: return '5';
   }
 }
 
-function getMaxInsightsByTier(tier: string): number {
+function getExactInsightCount(tier: string): number {
   switch (tier) {
     case 'bronze': return 4;
     case 'silver': return 5;
@@ -485,6 +467,163 @@ function getMaxInsightsByTier(tier: string): number {
     case 'platinum': return 10;
     default: return 5;
   }
+}
+
+function generateTopicList(tier: string, hasTuesdayQuestion: boolean): string {
+  const bronzeTopics = [
+    '1. Cash position / runway (combine all cash-related findings into ONE insight)',
+    '2. Key profitability metric (margin or break-even)',
+    '3. Most important working capital issue (debtors OR creditors, not both)',
+    '4. One strategic recommendation or opportunity',
+  ];
+
+  const silverTopics = [
+    '1. True cash position and runway (ONE comprehensive cash insight)',
+    '2. Profitability analysis (gross OR net margin)',
+    '3. Working capital efficiency (debtor collection opportunity)',
+    '4. Cost structure finding (payroll OR overhead)',
+    '5. Growth or strategic recommendation',
+  ];
+
+  const goldTopics = [
+    '1. True cash position and runway (ONE comprehensive insight)',
+    '2. Profitability and margin analysis',
+    '3. Debtor management opportunity',
+    '4. Tax or liability management',
+    '5. Cost structure or payroll insight',
+    '6. Revenue or growth strategy',
+    '7. Strategic recommendation or opportunity',
+  ];
+
+  const platinumTopics = [
+    '1. True cash position and runway',
+    '2. Profitability deep-dive',
+    '3. Debtor/receivables strategy',
+    '4. Tax planning opportunity',
+    '5. Cost optimization insight',
+    '6. Payroll/staffing analysis',
+    '7. Revenue growth strategy',
+    '8. Working capital efficiency',
+    '9. Strategic risk or opportunity',
+    '10. Forward-looking prediction',
+  ];
+
+  let topics: string[];
+  switch (tier) {
+    case 'bronze': topics = bronzeTopics; break;
+    case 'silver': topics = silverTopics; break;
+    case 'gold': topics = goldTopics; break;
+    case 'platinum': topics = platinumTopics; break;
+    default: topics = silverTopics;
+  }
+
+  if (hasTuesdayQuestion) {
+    // Replace last topic with Tuesday Question
+    topics[topics.length - 1] = `${topics.length}. Answer to their Tuesday Question`;
+  }
+
+  return topics.join('\n');
+}
+
+// Deduplicate insights that are too similar
+function deduplicateInsights(insights: GeneratedInsight[]): GeneratedInsight[] {
+  const seen = new Map<string, GeneratedInsight>();
+  const keywords: Map<string, Set<string>> = new Map();
+
+  // Define topic keywords for grouping
+  const topicPatterns: Record<string, RegExp[]> = {
+    'cash_runway': [/runway/i, /true cash/i, /cash crisis/i, /liquidity/i, /months? (of )?cash/i],
+    'debtors': [/debtor/i, /receivable/i, /collection/i, /owed to you/i, /£\d+.*debtors/i],
+    'creditors': [/creditor/i, /payable/i, /supplier/i, /payment term/i],
+    'tax': [/vat/i, /paye/i, /corporation tax/i, /tax liab/i, /hmrc/i],
+    'payroll': [/payroll/i, /staff cost/i, /salary/i, /wage/i, /headcount/i],
+    'margin': [/gross margin/i, /net margin/i, /profit margin/i, /pricing power/i],
+    'revenue': [/revenue growth/i, /revenue increase/i, /sales target/i],
+    'overhead': [/overhead/i, /fixed cost/i, /operating cost/i, /burn rate/i],
+  };
+
+  for (const insight of insights) {
+    const text = `${insight.headline} ${insight.description}`.toLowerCase();
+    
+    // Find which topic this insight belongs to
+    let matchedTopic: string | null = null;
+    for (const [topic, patterns] of Object.entries(topicPatterns)) {
+      for (const pattern of patterns) {
+        if (pattern.test(text)) {
+          matchedTopic = topic;
+          break;
+        }
+      }
+      if (matchedTopic) break;
+    }
+
+    // If we haven't seen this topic, add it
+    if (matchedTopic) {
+      if (!seen.has(matchedTopic)) {
+        seen.set(matchedTopic, insight);
+      } else {
+        // Keep the higher priority one
+        const existing = seen.get(matchedTopic)!;
+        const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+        if (priorityOrder[insight.priority] < priorityOrder[existing.priority]) {
+          seen.set(matchedTopic, insight);
+        }
+      }
+    } else {
+      // No topic match - check for headline similarity
+      const simpleKey = insight.headline.toLowerCase().replace(/[^a-z]/g, '').slice(0, 30);
+      if (!keywords.has(simpleKey)) {
+        keywords.set(simpleKey, new Set());
+        seen.set(`other_${seen.size}`, insight);
+      }
+    }
+  }
+
+  return Array.from(seen.values());
+}
+
+// Enforce maximum insight count while maintaining category diversity
+function enforceInsightLimits(insights: GeneratedInsight[], maxCount: number): GeneratedInsight[] {
+  if (insights.length <= maxCount) return insights;
+
+  const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+  
+  // Sort by priority (critical first)
+  const sorted = [...insights].sort((a, b) => 
+    priorityOrder[a.priority] - priorityOrder[b.priority]
+  );
+
+  // Ensure category diversity - take at most 2 from each category
+  const byCat: Record<string, GeneratedInsight[]> = {};
+  for (const insight of sorted) {
+    const cat = insight.category;
+    if (!byCat[cat]) byCat[cat] = [];
+    if (byCat[cat].length < 2) {
+      byCat[cat].push(insight);
+    }
+  }
+
+  // Flatten and take top maxCount
+  const diverse = Object.values(byCat).flat();
+  
+  // If we still have too many, sort by priority and take top
+  if (diverse.length > maxCount) {
+    diverse.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+    return diverse.slice(0, maxCount);
+  }
+
+  // If we need more, add remaining sorted insights
+  if (diverse.length < maxCount) {
+    const diverseIds = new Set(diverse.map(i => i.headline));
+    for (const insight of sorted) {
+      if (!diverseIds.has(insight.headline)) {
+        diverse.push(insight);
+        if (diverse.length >= maxCount) break;
+      }
+    }
+  }
+
+  return diverse.slice(0, maxCount);
 }
 
 // Map AI category names to database constraint values

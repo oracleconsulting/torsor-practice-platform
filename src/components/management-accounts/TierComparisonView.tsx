@@ -255,90 +255,90 @@ export function TierComparisonView({
         // ============================================
         // ESTABLISHED CLIENTS: Quantifiable ROI
         // ============================================
-        
-        // ALL TIERS: Clarity value (we always tell them what we see)
+      
+      // ALL TIERS: Clarity value (we always tell them what we see)
+      valueItems.push({
+        description: 'Know your True Cash vs bank balance fiction',
+        value: 3000,
+        tier: 'bronze'
+      });
+      
+      valueItems.push({
+        description: 'Your Tuesday Question answered every month',
+        value: 2500,
+        tier: 'bronze'
+      });
+      
+      valueItems.push({
+        description: 'Stop the 3am cash spreadsheets',
+        value: 3000,
+        tier: 'bronze'
+      });
+      
+      // SILVER+: Guidance value
+      if (['silver', 'gold', 'platinum'].includes(tierId)) {
         valueItems.push({
-          description: 'Know your True Cash vs bank balance fiction',
-          value: 3000,
-          tier: 'bronze'
+          description: "Know what to do (we tell you, not just show you)",
+          value: 5000,
+          tier: 'silver'
         });
         
-        valueItems.push({
-          description: 'Your Tuesday Question answered every month',
-          value: 2500,
-          tier: 'bronze'
-        });
-        
-        valueItems.push({
-          description: 'Stop the 3am cash spreadsheets',
-          value: 3000,
-          tier: 'bronze'
-        });
-        
-        // SILVER+: Guidance value
-        if (['silver', 'gold', 'platinum'].includes(tierId)) {
+        if (financialContext.cashCrisisHistory) {
           valueItems.push({
-            description: "Know what to do (we tell you, not just show you)",
-            value: 5000,
+            description: "Clear guidance when cash gets tight",
+            value: 8000,
             tier: 'silver'
           });
-          
-          if (financialContext.cashCrisisHistory) {
-            valueItems.push({
-              description: "Clear guidance when cash gets tight",
-              value: 8000,
-              tier: 'silver'
-            });
-          }
+        }
+      }
+      
+      // GOLD+: Foresight value
+      if (['gold', 'platinum'].includes(tierId)) {
+        if (financialContext.pendingDecisionValue) {
+          valueItems.push({
+            description: `Model ${clientData.upcomingDecisions[0] || 'your hire'} before committing`,
+            value: Math.round(financialContext.pendingDecisionValue * 0.15),
+            tier: 'gold'
+          });
         }
         
-        // GOLD+: Foresight value
-        if (['gold', 'platinum'].includes(tierId)) {
-          if (financialContext.pendingDecisionValue) {
-            valueItems.push({
-              description: `Model ${clientData.upcomingDecisions[0] || 'your hire'} before committing`,
-              value: Math.round(financialContext.pendingDecisionValue * 0.15),
-              tier: 'gold'
-            });
-          }
-          
-          if (financialContext.cashCrisisHistory) {
-            valueItems.push({
-              description: 'See cash collisions 6 weeks out (13-week forecast)',
-              value: 15000,
-              tier: 'gold'
-            });
-          }
-          
-          if (financialContext.unprofitableClientSuspected) {
-            valueItems.push({
-              description: 'Confirm which clients are actually profitable',
-              value: financialContext.estimatedMarginLeakage || 20000,
-              tier: 'gold'
-            });
-          }
-          
-          if (financialContext.recentMistakeCost) {
-            valueItems.push({
-              description: 'Avoid another missed opportunity (scenario modelling)',
-              value: Math.round(financialContext.recentMistakeCost * 0.5),
-              tier: 'gold'
-            });
-          }
+        if (financialContext.cashCrisisHistory) {
+          valueItems.push({
+            description: 'See cash collisions 6 weeks out (13-week forecast)',
+            value: 15000,
+            tier: 'gold'
+          });
         }
         
-        // PLATINUM: Board-level value
-        if (tierId === 'platinum') {
+        if (financialContext.unprofitableClientSuspected) {
           valueItems.push({
-            description: 'Weekly updates - no surprises ever',
-            value: 5000,
-            tier: 'platinum'
+            description: 'Confirm which clients are actually profitable',
+            value: financialContext.estimatedMarginLeakage || 20000,
+            tier: 'gold'
           });
+        }
+        
+        if (financialContext.recentMistakeCost) {
           valueItems.push({
-            description: 'Board-ready reports for stakeholders',
-            value: 8000,
-            tier: 'platinum'
+            description: 'Avoid another missed opportunity (scenario modelling)',
+            value: Math.round(financialContext.recentMistakeCost * 0.5),
+            tier: 'gold'
           });
+        }
+      }
+      
+      // PLATINUM: Board-level value
+      if (tierId === 'platinum') {
+        valueItems.push({
+          description: 'Weekly updates - no surprises ever',
+          value: 5000,
+          tier: 'platinum'
+        });
+        valueItems.push({
+          description: 'Board-ready reports for stakeholders',
+          value: 8000,
+          tier: 'platinum'
+        });
         }
       }
       
@@ -651,55 +651,55 @@ export function TierComparisonView({
               ) : (
                 // ESTABLISHED: Show quantified ROI
                 <>
-                  <div className="border-t border-blue-200 pt-5">
-                    <p className="font-medium text-blue-800 mb-3">
-                      Based on YOUR situation, {currentTier.name} would help you:
-                    </p>
-                    <div className="space-y-2">
-                      {currentValue.valueItems.map((item, i) => (
-                        <div key={i} className="flex items-start justify-between gap-4 text-sm">
-                          <div className="flex items-start gap-2">
-                            <Check className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
-                            <span className="text-slate-700">{item.description}</span>
-                          </div>
+              <div className="border-t border-blue-200 pt-5">
+                <p className="font-medium text-blue-800 mb-3">
+                  Based on YOUR situation, {currentTier.name} would help you:
+                </p>
+                <div className="space-y-2">
+                  {currentValue.valueItems.map((item, i) => (
+                    <div key={i} className="flex items-start justify-between gap-4 text-sm">
+                      <div className="flex items-start gap-2">
+                        <Check className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+                        <span className="text-slate-700">{item.description}</span>
+                      </div>
                           {item.value !== null && (
-                            <span className="text-blue-700 font-medium whitespace-nowrap">
-                              £{item.value.toLocaleString()}
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div className="bg-white rounded-lg p-4 space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Potential Annual Value</span>
-                      <span className="font-medium text-slate-800">£{currentValue.totalValue.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Annual Investment</span>
-                      <span className="font-medium text-slate-800">£{currentValue.annualCost.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
-                      <span className="font-semibold text-slate-800">Net Benefit</span>
-                      <span className={cn(
-                        "font-bold",
-                        currentValue.netBenefit >= 0 ? "text-green-600" : "text-slate-600"
-                      )}>
-                        {currentValue.netBenefit >= 0 ? '+' : ''}£{currentValue.netBenefit.toLocaleString()}
+                      <span className="text-blue-700 font-medium whitespace-nowrap">
+                        £{item.value.toLocaleString()}
                       </span>
+                          )}
                     </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-lg p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">Potential Annual Value</span>
+                  <span className="font-medium text-slate-800">£{currentValue.totalValue.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">Annual Investment</span>
+                  <span className="font-medium text-slate-800">£{currentValue.annualCost.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
+                  <span className="font-semibold text-slate-800">Net Benefit</span>
+                  <span className={cn(
+                    "font-bold",
+                    currentValue.netBenefit >= 0 ? "text-green-600" : "text-slate-600"
+                  )}>
+                    {currentValue.netBenefit >= 0 ? '+' : ''}£{currentValue.netBenefit.toLocaleString()}
+                  </span>
+                </div>
                   </div>
                 </>
               )}
               
               {/* Payback message - only for established businesses with calculated ROI */}
               {!isPreRevenue && currentValue.paybackMonths && currentValue.paybackMonths <= 12 && (
-                <p className="text-center text-sm text-green-600 font-medium pt-2">
-                  Pays for itself in {currentValue.paybackMonths} months
-                </p>
-              )}
+                  <p className="text-center text-sm text-green-600 font-medium pt-2">
+                    Pays for itself in {currentValue.paybackMonths} months
+                  </p>
+                )}
             </div>
           </div>
           

@@ -488,8 +488,8 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
                       week: 'Week 8',
                       event: 'Potential cash pinch point',
                       lowestPoint: financialData?.bankBalance ? Math.round(financialData.bankBalance * 0.2) : 18370
-                    }}
-                  />
+                  }}
+                />
                 </div>
               )}
               
