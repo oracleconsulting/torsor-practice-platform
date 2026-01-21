@@ -203,14 +203,8 @@ export function InsightsReviewPanel({
     }
   };
 
-  const clearAllAIDrafts = async () => {
-    const aiDrafts = insights.filter(i => i.is_auto_generated && i.status === 'draft');
-    if (aiDrafts.length === 0) {
-      alert('No AI-generated drafts to clear');
-      return;
-    }
-
-    if (!confirm(`Delete ${aiDrafts.length} AI-generated draft insights? This will keep approved insights and manual additions.`)) {
+  const resetAllInsights = async () => {
+    if (!confirm(`⚠️ DELETE ALL ${insights.length} INSIGHTS for this period?\n\nThis will remove:\n- ${approvedCount} approved insights\n- ${draftCount} pending drafts\n- All manual additions\n\nThis cannot be undone. Continue?`)) {
       return;
     }
 
@@ -218,17 +212,15 @@ export function InsightsReviewPanel({
       const { error } = await supabase
         .from('ma_insights')
         .delete()
-        .eq('period_id', periodId)
-        .eq('is_auto_generated', true)
-        .eq('status', 'draft');
+        .eq('period_id', periodId);
 
       if (error) throw error;
 
-      onInsightsUpdate(insights.filter(i => !(i.is_auto_generated && i.status === 'draft')));
-      console.log(`[InsightsReviewPanel] Cleared ${aiDrafts.length} AI drafts`);
+      onInsightsUpdate([]);
+      console.log(`[InsightsReviewPanel] Reset all ${insights.length} insights`);
     } catch (error: any) {
-      console.error('[InsightsReviewPanel] Error clearing drafts:', error);
-      alert('Failed to clear drafts: ' + error.message);
+      console.error('[InsightsReviewPanel] Error resetting:', error);
+      alert('Failed to reset: ' + error.message);
     }
   };
 
@@ -312,15 +304,15 @@ export function InsightsReviewPanel({
             </div>
             
             {/* Filter & Actions */}
-            <div className="flex items-center gap-4">
-              {draftCount > 5 && (
+            <div className="flex items-center gap-3">
+              {insights.length > 7 && (
                 <button
-                  onClick={clearAllAIDrafts}
+                  onClick={resetAllInsights}
                   className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 border border-red-200 rounded-lg flex items-center gap-1"
-                  title="Clear all AI-generated drafts to start fresh"
+                  title="Delete ALL insights and start fresh"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                  Clear AI Drafts ({insights.filter(i => i.is_auto_generated && i.status === 'draft').length})
+                  Reset All ({insights.length})
                 </button>
               )}
               <div className="flex items-center gap-2">
