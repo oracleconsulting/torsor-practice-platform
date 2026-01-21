@@ -58,7 +58,8 @@ interface EngagementWithClient {
   created_at: string;
   client?: {
     name: string;
-    company_name?: string;
+    email?: string;
+    client_company?: string; // practice_members uses client_company instead of company_name
   };
   currentPeriod?: MAPeriod;
 }
@@ -161,13 +162,18 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
   const loadEngagements = async () => {
     setLoading(true);
     try {
-      const { data: engData } = await supabase
+      const { data: engData, error: engError } = await supabase
         .from('ma_engagements')
         .select(`
           *,
-          client:clients(name, company_name)
+          client:practice_members(name, email, client_company)
         `)
         .order('created_at', { ascending: false });
+      
+      if (engError) {
+        console.error('[MA Portal] Error loading engagements:', engError);
+      }
+      console.log('[MA Portal] Loaded engagements:', engData?.length || 0);
 
       if (engData) {
         // Fetch current periods for each engagement
@@ -202,7 +208,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
       // Load engagement
       const { data: engData } = await supabase
         .from('ma_engagements')
-        .select(`*, client:clients(name, company_name)`)
+        .select(`*, client:practice_members(name, email, client_company)`)
         .eq('id', engId)
         .single();
 
@@ -242,7 +248,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
       // Load engagement
       const { data: engData } = await supabase
         .from('ma_engagements')
-        .select(`*, client:clients(name, company_name)`)
+        .select(`*, client:practice_members(name, email, client_company)`)
         .eq('id', engId)
         .single();
 
@@ -336,7 +342,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
   const filteredEngagements = engagements.filter(eng => {
     const matchesSearch = !searchQuery || 
       (eng.client?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-       eng.client?.company_name?.toLowerCase().includes(searchQuery.toLowerCase()));
+       eng.client?.client_company?.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesTier = filterTier === 'all' || eng.tier === filterTier;
     return matchesSearch && matchesTier;
   });
@@ -511,7 +517,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
                     >
                       <td className="px-4 py-3">
                         <div className="font-medium text-slate-800">
-                          {eng.client?.company_name || eng.client?.name || 'Unknown'}
+                          {eng.client?.client_company || eng.client?.name || 'Unknown'}
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -579,7 +585,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
               <div className="flex-1">
                 <div className="flex items-center gap-3">
                   <h1 className="text-xl font-bold text-slate-800">
-                    {engagement.client?.company_name || engagement.client?.name}
+                    {engagement.client?.client_company || engagement.client?.name}
                   </h1>
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${TIER_COLORS[engagement.tier].bg} ${TIER_COLORS[engagement.tier].text}`}>
                     {engagement.tier.charAt(0).toUpperCase() + engagement.tier.slice(1)}
@@ -714,7 +720,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
               </button>
               <div className="flex-1">
                 <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
-                  <span>{engagement.client?.company_name || engagement.client?.name}</span>
+                  <span>{engagement.client?.client_company || engagement.client?.name}</span>
                   <span>→</span>
                   <span>{period.period_label}</span>
                 </div>
