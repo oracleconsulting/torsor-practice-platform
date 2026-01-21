@@ -4,4 +4,6 @@ export { TrueCashWaterfall } from './TrueCashWaterfall';
 export { CashForecastSection } from './CashForecastSection';
 export { InsightVisualization } from './InsightVisualization';
 export { DashboardInsightCard } from './DashboardInsightCard';
+export { SectionVisibilityPanel } from './SectionVisibilityPanel';
+export { SectionWrapper } from './SectionWrapper';
 

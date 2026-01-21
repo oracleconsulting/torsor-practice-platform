@@ -34,6 +34,7 @@ import {
   TrueCashCard,
   WatchListPanel
 } from '../../components/management-accounts';
+import { MADashboard } from '../../components/management-accounts/dashboard';
 import { calculateTrueCash, formatTrueCashForDisplay } from '../../services/ma/true-cash';
 import type { 
   MAPeriod, 
@@ -136,6 +137,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
   const [insights, setInsights] = useState<MAInsight[]>([]);
   const [kpis, setKpis] = useState<MAKPIValue[]>([]);
   const [workflowTab, setWorkflowTab] = useState<WorkflowTab>('upload');
+  const [previewMode, setPreviewMode] = useState<'simple' | 'dashboard'>('simple');
   
   // New Period Modal state
   const [showNewPeriodModal, setShowNewPeriodModal] = useState(false);
@@ -1143,32 +1145,78 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
           {/* Preview Tab */}
           {workflowTab === 'preview' && (
             <div className="space-y-6">
-              <ClientReportPreview
-                clientName={engagement.client?.name || 'Client'}
-                periodLabel={period.period_label || 'Current Period'}
-                tier={tier}
-                financialData={periodFinancialData}
-                kpis={kpis}
-                insights={insights}
-                tuesdayQuestion={tuesdayQuestion}
-                tuesdayAnswer={tuesdayAnswer}
-                onEditSection={(section) => {
-                  switch (section) {
-                    case 'financial':
-                      setWorkflowTab('data');
-                      break;
-                    case 'kpis':
-                      setWorkflowTab('kpis');
-                      break;
-                    case 'insights':
-                      setWorkflowTab('insights');
-                      break;
-                    case 'tuesday':
-                      setWorkflowTab('tuesday');
-                      break;
-                  }
-                }}
-              />
+              {/* Preview Mode Toggle */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
+                  <button
+                    onClick={() => setPreviewMode('simple')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      previewMode === 'simple'
+                        ? 'bg-white text-slate-800 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-800'
+                    }`}
+                  >
+                    Simple Preview
+                  </button>
+                  <button
+                    onClick={() => setPreviewMode('dashboard')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      previewMode === 'dashboard'
+                        ? 'bg-white text-slate-800 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-800'
+                    }`}
+                  >
+                    Enhanced Dashboard
+                  </button>
+                </div>
+                <span className="text-sm text-slate-500">
+                  {previewMode === 'simple' 
+                    ? 'Basic report layout' 
+                    : 'Interactive dashboard with visualizations'}
+                </span>
+              </div>
+
+              {/* Simple Preview */}
+              {previewMode === 'simple' && (
+                <ClientReportPreview
+                  clientName={engagement.client?.name || 'Client'}
+                  periodLabel={period.period_label || 'Current Period'}
+                  tier={tier}
+                  financialData={periodFinancialData}
+                  kpis={kpis}
+                  insights={insights}
+                  tuesdayQuestion={tuesdayQuestion}
+                  tuesdayAnswer={tuesdayAnswer}
+                  onEditSection={(section) => {
+                    switch (section) {
+                      case 'financial':
+                        setWorkflowTab('data');
+                        break;
+                      case 'kpis':
+                        setWorkflowTab('kpis');
+                        break;
+                      case 'insights':
+                        setWorkflowTab('insights');
+                        break;
+                      case 'tuesday':
+                        setWorkflowTab('tuesday');
+                        break;
+                    }
+                  }}
+                />
+              )}
+
+              {/* Enhanced Dashboard Preview */}
+              {previewMode === 'dashboard' && (
+                <div className="bg-slate-100 rounded-xl overflow-hidden -mx-8 px-8 py-6">
+                  <MADashboard
+                    engagementId={engagement.id}
+                    periodId={period.id}
+                    isAdmin={true}
+                  />
+                </div>
+              )}
+
               <div className="flex justify-end">
                 <button
                   onClick={() => setWorkflowTab('deliver')}

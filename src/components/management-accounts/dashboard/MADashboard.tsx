@@ -10,13 +10,15 @@ import {
   Loader2,
   Building2,
   Calendar,
-  Crown
+  Crown,
+  LayoutDashboard
 } from 'lucide-react';
 import { useMADashboard } from '../../../hooks/useMADashboard';
 import { useEditMode } from '../../../hooks/useEditMode';
 import { TrueCashWaterfall } from './TrueCashWaterfall';
 import { CashForecastSection } from './CashForecastSection';
 import { DashboardInsightCard } from './DashboardInsightCard';
+import { SectionVisibilityPanel } from './SectionVisibilityPanel';
 import type { TierType } from '../../../types/ma';
 
 interface MADashboardProps {
@@ -50,7 +52,10 @@ export function MADashboard({ engagementId, periodId, isAdmin = false }: MADashb
   const { 
     editMode, 
     setEditMode,
+    sectionOrder,
     sectionsVisible,
+    toggleSectionVisibility,
+    reorderSection,
     hasChanges,
     saving,
     saveConfig 
@@ -58,6 +63,7 @@ export function MADashboard({ engagementId, periodId, isAdmin = false }: MADashb
 
   const [activeScenario, setActiveScenario] = useState<string | null>(null);
   const [expandedInsights, setExpandedInsights] = useState<Set<string>>(new Set());
+  const [showVisibilityPanel, setShowVisibilityPanel] = useState(false);
 
   if (loading) {
     return <DashboardSkeleton />;
@@ -127,9 +133,21 @@ export function MADashboard({ engagementId, periodId, isAdmin = false }: MADashb
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Visibility Panel */}
+      {showVisibilityPanel && (
+        <SectionVisibilityPanel
+          sections={sectionOrder}
+          visibility={sectionsVisible}
+          onToggle={toggleSectionVisibility}
+          onReorder={reorderSection}
+          onClose={() => setShowVisibilityPanel(false)}
+          tier={tier}
+        />
+      )}
+
       {/* Edit Toolbar - Fixed at top when editing */}
       {isAdmin && editMode && (
-        <div className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
+        <div className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm">
           <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Edit3 className="w-5 h-5 text-blue-600" />
@@ -141,6 +159,13 @@ export function MADashboard({ engagementId, periodId, isAdmin = false }: MADashb
               )}
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowVisibilityPanel(true)}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium flex items-center gap-2"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                Sections
+              </button>
               <button
                 onClick={() => setEditMode(false)}
                 className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium flex items-center gap-2"
