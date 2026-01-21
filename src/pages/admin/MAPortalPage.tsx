@@ -88,11 +88,10 @@ const STATUS_CONFIG = {
 const PERIOD_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   pending: { label: 'Pending', color: 'text-slate-500', bg: 'bg-slate-100', icon: <Clock className="h-3 w-3" /> },
   data_received: { label: 'Data Received', color: 'text-blue-600', bg: 'bg-blue-100', icon: <FileText className="h-3 w-3" /> },
-  in_progress: { label: 'In Progress', color: 'text-amber-600', bg: 'bg-amber-100', icon: <Edit className="h-3 w-3" /> },
+  processing: { label: 'Processing', color: 'text-amber-600', bg: 'bg-amber-100', icon: <Edit className="h-3 w-3" /> },
   review: { label: 'Ready for Review', color: 'text-purple-600', bg: 'bg-purple-100', icon: <Eye className="h-3 w-3" /> },
-  approved: { label: 'Approved', color: 'text-green-600', bg: 'bg-green-100', icon: <CheckCircle2 className="h-3 w-3" /> },
-  delivered: { label: 'Delivered', color: 'text-green-600', bg: 'bg-green-100', icon: <CheckCircle2 className="h-3 w-3" /> },
-  client_reviewed: { label: 'Client Viewed', color: 'text-green-700', bg: 'bg-green-200', icon: <Eye className="h-3 w-3" /> },
+  published: { label: 'Published', color: 'text-green-600', bg: 'bg-green-100', icon: <CheckCircle2 className="h-3 w-3" /> },
+  superseded: { label: 'Superseded', color: 'text-slate-400', bg: 'bg-slate-50', icon: <Clock className="h-3 w-3" /> },
 };
 
 type WorkflowTab = 'upload' | 'data' | 'kpis' | 'insights' | 'tuesday' | 'deliver';
@@ -389,7 +388,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
           period_end: newPeriodForm.periodEnd,
           period_label: label,
           period_type: engagement.frequency === 'quarterly' ? 'quarter' : 'month',
-          status: 'draft',
+          status: 'pending',
         })
         .select()
         .single();
