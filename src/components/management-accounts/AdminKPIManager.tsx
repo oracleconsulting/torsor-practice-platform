@@ -36,34 +36,39 @@ interface KPIDefinition {
 }
 
 // Core KPIs that admins can select from
+// KPI codes must exactly match ma_kpi_definitions.code in the database
 const AVAILABLE_KPIS: KPIDefinition[] = [
   // Cash & Working Capital
-  { code: 'TRUE_CASH', name: 'True Cash', category: 'Cash & Working Capital', description: 'Actual available cash after liabilities', unit: 'currency', higher_is_better: true, tier_availability: ['bronze', 'silver', 'gold', 'platinum'] },
-  { code: 'CASH_RUNWAY', name: 'Cash Runway', category: 'Cash & Working Capital', description: 'Months of runway at current burn rate', unit: 'months', higher_is_better: true, tier_availability: ['bronze', 'silver', 'gold', 'platinum'] },
-  { code: 'DEBTOR_DAYS', name: 'Debtor Days', category: 'Cash & Working Capital', description: 'Average days to collect receivables', unit: 'days', higher_is_better: false, tier_availability: ['silver', 'gold', 'platinum'] },
-  { code: 'CREDITOR_DAYS', name: 'Creditor Days', category: 'Cash & Working Capital', description: 'Average days to pay suppliers', unit: 'days', higher_is_better: true, tier_availability: ['silver', 'gold', 'platinum'] },
-  { code: 'CURRENT_RATIO', name: 'Current Ratio', category: 'Cash & Working Capital', description: 'Current assets / current liabilities', unit: 'ratio', higher_is_better: true, tier_availability: ['silver', 'gold', 'platinum'] },
+  { code: 'true_cash', name: 'True Cash', category: 'Cash & Working Capital', description: 'Actual available cash after liabilities', unit: 'currency', higher_is_better: true, tier_availability: ['bronze', 'silver', 'gold', 'platinum'] },
+  { code: 'debtor_days', name: 'Debtor Days', category: 'Cash & Working Capital', description: 'Average days to collect receivables', unit: 'days', higher_is_better: false, tier_availability: ['silver', 'gold', 'platinum'] },
+  { code: 'creditor_days', name: 'Creditor Days', category: 'Cash & Working Capital', description: 'Average days to pay suppliers', unit: 'days', higher_is_better: true, tier_availability: ['silver', 'gold', 'platinum'] },
+  { code: 'working_capital_ratio', name: 'Working Capital Ratio', category: 'Cash & Working Capital', description: 'Current assets / current liabilities', unit: 'ratio', higher_is_better: true, tier_availability: ['silver', 'gold', 'platinum'] },
+  { code: 'cash_conversion_cycle', name: 'Cash Conversion Cycle', category: 'Cash & Working Capital', description: 'Days between paying suppliers and collecting', unit: 'days', higher_is_better: false, tier_availability: ['gold', 'platinum'] },
   
   // Revenue & Growth
-  { code: 'MRR', name: 'Monthly Recurring Revenue', category: 'Revenue & Growth', description: 'Monthly recurring revenue (SaaS)', unit: 'currency', higher_is_better: true, tier_availability: ['bronze', 'silver', 'gold', 'platinum'] },
-  { code: 'ARR', name: 'Annual Recurring Revenue', category: 'Revenue & Growth', description: 'Annual recurring revenue (SaaS)', unit: 'currency', higher_is_better: true, tier_availability: ['bronze', 'silver', 'gold', 'platinum'] },
-  { code: 'REVENUE_GROWTH', name: 'Revenue Growth %', category: 'Revenue & Growth', description: 'Month-on-month revenue growth', unit: 'percentage', higher_is_better: true, tier_availability: ['silver', 'gold', 'platinum'] },
-  { code: 'AVG_CONTRACT_VALUE', name: 'Avg Contract Value', category: 'Revenue & Growth', description: 'Average value per customer', unit: 'currency', higher_is_better: true, tier_availability: ['gold', 'platinum'] },
+  { code: 'monthly_revenue', name: 'Monthly Revenue', category: 'Revenue & Growth', description: 'Total invoiced revenue for the period', unit: 'currency', higher_is_better: true, tier_availability: ['bronze', 'silver', 'gold', 'platinum'] },
+  { code: 'yoy_revenue_growth', name: 'YoY Revenue Growth %', category: 'Revenue & Growth', description: 'Year-on-year revenue growth', unit: 'percentage', higher_is_better: true, tier_availability: ['silver', 'gold', 'platinum'] },
+  { code: 'avg_project_value', name: 'Avg Project Value', category: 'Revenue & Growth', description: 'Average value per project', unit: 'currency', higher_is_better: true, tier_availability: ['gold', 'platinum'] },
+  { code: 'revenue_per_employee', name: 'Revenue per Employee', category: 'Revenue & Growth', description: 'Revenue divided by headcount', unit: 'currency', higher_is_better: true, tier_availability: ['gold', 'platinum'] },
+  { code: 'recurring_revenue_pct', name: 'Recurring Revenue %', category: 'Revenue & Growth', description: 'Recurring vs project revenue split', unit: 'percentage', higher_is_better: true, tier_availability: ['silver', 'gold', 'platinum'] },
   
   // Profitability
-  { code: 'GROSS_MARGIN', name: 'Gross Margin %', category: 'Profitability', description: 'Gross profit as % of revenue', unit: 'percentage', higher_is_better: true, tier_availability: ['bronze', 'silver', 'gold', 'platinum'] },
-  { code: 'NET_MARGIN', name: 'Net Margin %', category: 'Profitability', description: 'Net profit as % of revenue', unit: 'percentage', higher_is_better: true, tier_availability: ['silver', 'gold', 'platinum'] },
-  { code: 'OPERATING_MARGIN', name: 'Operating Margin %', category: 'Profitability', description: 'Operating profit as % of revenue', unit: 'percentage', higher_is_better: true, tier_availability: ['silver', 'gold', 'platinum'] },
-  { code: 'BURN_RATE', name: 'Monthly Burn Rate', category: 'Profitability', description: 'Net cash outflow per month', unit: 'currency', higher_is_better: false, tier_availability: ['bronze', 'silver', 'gold', 'platinum'] },
+  { code: 'gross_margin', name: 'Gross Margin %', category: 'Profitability', description: 'Gross profit as % of revenue', unit: 'percentage', higher_is_better: true, tier_availability: ['bronze', 'silver', 'gold', 'platinum'] },
+  { code: 'net_margin', name: 'Net Margin %', category: 'Profitability', description: 'Net profit as % of revenue', unit: 'percentage', higher_is_better: true, tier_availability: ['silver', 'gold', 'platinum'] },
+  { code: 'operating_margin', name: 'Operating Margin %', category: 'Profitability', description: 'Operating profit as % of revenue', unit: 'percentage', higher_is_better: true, tier_availability: ['silver', 'gold', 'platinum'] },
+  { code: 'overhead_pct', name: 'Overhead %', category: 'Profitability', description: 'Overhead as % of revenue', unit: 'percentage', higher_is_better: false, tier_availability: ['gold', 'platinum'] },
+  { code: 'revenue_per_salary', name: 'Revenue per £1 Salary', category: 'Profitability', description: 'Revenue efficiency vs salary spend', unit: 'ratio', higher_is_better: true, tier_availability: ['gold', 'platinum'] },
   
   // Efficiency
-  { code: 'REVENUE_PER_FTE', name: 'Revenue per FTE', category: 'Efficiency', description: 'Revenue divided by headcount', unit: 'currency', higher_is_better: true, tier_availability: ['gold', 'platinum'] },
-  { code: 'PROFIT_PER_FTE', name: 'Profit per FTE', category: 'Efficiency', description: 'Net profit divided by headcount', unit: 'currency', higher_is_better: true, tier_availability: ['gold', 'platinum'] },
+  { code: 'billable_utilisation', name: 'Billable Utilisation %', category: 'Efficiency', description: 'Percentage of time on billable work', unit: 'percentage', higher_is_better: true, tier_availability: ['silver', 'gold', 'platinum'] },
+  { code: 'effective_hourly_rate', name: 'Effective Hourly Rate', category: 'Efficiency', description: 'Actual rate achieved', unit: 'currency', higher_is_better: true, tier_availability: ['gold', 'platinum'] },
+  { code: 'project_margin', name: 'Project Margin %', category: 'Efficiency', description: 'Profitability by client/project', unit: 'percentage', higher_is_better: true, tier_availability: ['gold', 'platinum'] },
   
-  // Client Health (Service businesses)
-  { code: 'CLIENT_COUNT', name: 'Active Clients', category: 'Client Health', description: 'Number of active clients', unit: 'number', higher_is_better: true, tier_availability: ['bronze', 'silver', 'gold', 'platinum'] },
-  { code: 'CLIENT_CONCENTRATION', name: 'Top Client %', category: 'Client Health', description: 'Revenue from top client as %', unit: 'percentage', higher_is_better: false, tier_availability: ['gold', 'platinum'] },
-  { code: 'CHURN_RATE', name: 'Churn Rate %', category: 'Client Health', description: 'Percentage of clients lost', unit: 'percentage', higher_is_better: false, tier_availability: ['gold', 'platinum'] },
+  // Client Health
+  { code: 'client_concentration', name: 'Client Concentration %', category: 'Client Health', description: 'Revenue from top 3 clients', unit: 'percentage', higher_is_better: false, tier_availability: ['gold', 'platinum'] },
+  { code: 'client_retention', name: 'Client Retention %', category: 'Client Health', description: 'Clients retained year-on-year', unit: 'percentage', higher_is_better: true, tier_availability: ['gold', 'platinum'] },
+  { code: 'client_lifetime_value', name: 'Client Lifetime Value', category: 'Client Health', description: 'Expected total revenue per client', unit: 'currency', higher_is_better: true, tier_availability: ['platinum'] },
+  { code: 'new_client_revenue_pct', name: 'New Client Revenue %', category: 'Client Health', description: 'Revenue from new vs repeat clients', unit: 'percentage', higher_is_better: null, tier_availability: ['gold', 'platinum'] },
 ];
 
 const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string }> = {
@@ -222,7 +227,7 @@ export function AdminKPIManager({
         
         return {
           engagement_id: engagementId,
-          kpi_code: code.toLowerCase(), // Must match ma_kpi_definitions codes
+          kpi_code: code, // Must match ma_kpi_definitions.code exactly
           period_start: periodStartDate,
           period_end: periodEndDate,
           value: numValue,
