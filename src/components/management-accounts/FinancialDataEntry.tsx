@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { 
   Save, 
   Loader2, 
@@ -48,6 +48,44 @@ interface FormData {
   committed_payments: string;
   confirmed_receivables: string;
 }
+
+// Input field component defined OUTSIDE the main component to prevent re-creation
+interface InputFieldProps {
+  label: string;
+  fieldKey: keyof FormData;
+  value: string;
+  onChange: (field: keyof FormData, value: string) => void;
+  placeholder?: string;
+  prefix?: string;
+}
+
+const InputField = memo(function InputField({ 
+  label, 
+  fieldKey, 
+  value,
+  onChange,
+  placeholder = '0',
+  prefix = '£'
+}: InputFieldProps) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label>
+      <div className="relative">
+        {prefix && (
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">{prefix}</span>
+        )}
+        <input
+          type="text"
+          inputMode="decimal"
+          value={value}
+          onChange={(e) => onChange(fieldKey, e.target.value)}
+          placeholder={placeholder}
+          className={`w-full ${prefix ? 'pl-8' : 'pl-3'} pr-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+        />
+      </div>
+    </div>
+  );
+});
 
 const INITIAL_FORM: FormData = {
   revenue: '',
@@ -114,12 +152,12 @@ export function FinancialDataEntry({
     return isNaN(num) ? null : num;
   };
 
-  const handleInputChange = (field: keyof FormData, value: string) => {
+  const handleInputChange = useCallback((field: keyof FormData, value: string) => {
     // Allow only numbers, decimal points, and minus sign
     const cleaned = value.replace(/[^0-9.-]/g, '');
     setFormData(prev => ({ ...prev, [field]: cleaned }));
     setSaved(false);
-  };
+  }, []);
 
   // Calculate True Cash in real-time
   const trueCashCalculation = (): TrueCashCalculation | null => {
@@ -206,32 +244,15 @@ export function FinancialDataEntry({
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 0 }).format(value);
 
-  const InputField = ({ 
-    label, 
-    field, 
-    placeholder = '0',
-    prefix = '£'
-  }: { 
-    label: string; 
-    field: keyof FormData; 
-    placeholder?: string;
-    prefix?: string;
-  }) => (
-    <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label>
-      <div className="relative">
-        {prefix && (
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">{prefix}</span>
-        )}
-        <input
-          type="text"
-          value={formData[field]}
-          onChange={(e) => handleInputChange(field, e.target.value)}
-          placeholder={placeholder}
-          className={`w-full ${prefix ? 'pl-8' : 'pl-3'} pr-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-        />
-      </div>
-    </div>
+  // Helper to render InputField with current form data
+  const renderInput = (label: string, fieldKey: keyof FormData, prefix = '£') => (
+    <InputField 
+      label={label} 
+      fieldKey={fieldKey} 
+      value={formData[fieldKey]} 
+      onChange={handleInputChange}
+      prefix={prefix}
+    />
   );
 
   return (
@@ -305,12 +326,12 @@ export function FinancialDataEntry({
         {expandedSections.pnl && (
           <div className="px-6 pb-6 border-t border-slate-100">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-              <InputField label="Revenue" field="revenue" />
-              <InputField label="Cost of Sales" field="cost_of_sales" />
-              <InputField label="Gross Profit" field="gross_profit" />
-              <InputField label="Overheads" field="overheads" />
-              <InputField label="Operating Profit" field="operating_profit" />
-              <InputField label="Net Profit" field="net_profit" />
+              {renderInput("Revenue", "revenue")}
+              {renderInput("Cost of Sales", "cost_of_sales")}
+              {renderInput("Gross Profit", "gross_profit")}
+              {renderInput("Overheads", "overheads")}
+              {renderInput("Operating Profit", "operating_profit")}
+              {renderInput("Net Profit", "net_profit")}
             </div>
           </div>
         )}
@@ -338,15 +359,15 @@ export function FinancialDataEntry({
           <div className="px-6 pb-6 border-t border-slate-100">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
               <div className="md:col-span-2 lg:col-span-3">
-                <InputField label="Cash at Bank" field="cash_at_bank" />
+                {renderInput("Cash at Bank", "cash_at_bank")}
               </div>
-              <InputField label="VAT Liability" field="vat_liability" />
-              <InputField label="PAYE/NI Liability" field="paye_liability" />
-              <InputField label="Corporation Tax Provision" field="corporation_tax_liability" />
-              <InputField label="Trade Creditors" field="trade_creditors" />
-              <InputField label="Trade Debtors" field="trade_debtors" />
-              <InputField label="Committed Payments (7 days)" field="committed_payments" />
-              <InputField label="Confirmed Receivables (7 days)" field="confirmed_receivables" />
+              {renderInput("VAT Liability", "vat_liability")}
+              {renderInput("PAYE/NI Liability", "paye_liability")}
+              {renderInput("Corporation Tax Provision", "corporation_tax_liability")}
+              {renderInput("Trade Creditors", "trade_creditors")}
+              {renderInput("Trade Debtors", "trade_debtors")}
+              {renderInput("Committed Payments (7 days)", "committed_payments")}
+              {renderInput("Confirmed Receivables (7 days)", "confirmed_receivables")}
             </div>
           </div>
         )}
@@ -373,8 +394,8 @@ export function FinancialDataEntry({
         {expandedSections.operating && (
           <div className="px-6 pb-6 border-t border-slate-100">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              <InputField label="Monthly Operating Costs (Burn Rate)" field="monthly_operating_costs" />
-              <InputField label="Monthly Payroll Costs" field="payroll_costs" />
+              {renderInput("Monthly Operating Costs (Burn Rate)", "monthly_operating_costs")}
+              {renderInput("Monthly Payroll Costs", "payroll_costs")}
             </div>
           </div>
         )}
