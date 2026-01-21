@@ -146,19 +146,55 @@ export const AccountsUploadPanel: React.FC<AccountsUploadPanelProps> = ({
     }
   };
 
+  const [deleting, setDeleting] = useState(false);
+
   const deleteUpload = async (uploadId: string) => {
     if (!confirm('Delete this upload and its extracted data?')) return;
 
+    setDeleting(true);
     try {
-      const { error } = await supabase
-        .from('client_accounts_uploads')
-        .delete()
-        .eq('id', uploadId);
+      const { data, error } = await supabase.functions.invoke('delete-client-accounts', {
+        body: { 
+          clientId,
+          uploadId,
+          deleteAll: false
+        }
+      });
 
       if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Delete failed');
+      
       onUploadComplete();
     } catch (err) {
       console.error('Delete error:', err);
+      alert('Failed to delete upload: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const clearAllAccounts = async () => {
+    if (!confirm('Delete ALL uploaded accounts and extracted data for this client? This cannot be undone.')) return;
+
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-client-accounts', {
+        body: { 
+          clientId,
+          deleteAll: true
+        }
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Delete failed');
+      
+      alert(data.message || 'All accounts deleted successfully');
+      onUploadComplete();
+    } catch (err) {
+      console.error('Clear all error:', err);
+      alert('Failed to clear accounts: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -271,7 +307,21 @@ export const AccountsUploadPanel: React.FC<AccountsUploadPanelProps> = ({
       {/* Previous Uploads */}
       {existingUploads.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">Upload History</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-slate-800">Upload History</h3>
+            <button
+              onClick={clearAllAccounts}
+              disabled={deleting}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 border border-red-200 rounded-lg disabled:opacity-50"
+            >
+              {deleting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+              Clear All
+            </button>
+          </div>
           
           <div className="space-y-3">
             {existingUploads.map(upload => (
