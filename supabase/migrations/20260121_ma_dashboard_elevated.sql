@@ -99,6 +99,17 @@ CREATE TABLE IF NOT EXISTS ma_scenarios (
   created_by UUID REFERENCES auth.users(id)
 );
 
+-- Add columns if table already existed
+ALTER TABLE ma_scenarios ADD COLUMN IF NOT EXISTS short_label VARCHAR(50);
+ALTER TABLE ma_scenarios ADD COLUMN IF NOT EXISTS scenario_color VARCHAR(7) DEFAULT '#3b82f6';
+ALTER TABLE ma_scenarios ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;
+ALTER TABLE ma_scenarios ADD COLUMN IF NOT EXISTS impact_summary TEXT;
+ALTER TABLE ma_scenarios ADD COLUMN IF NOT EXISTS assumptions JSONB DEFAULT '{}';
+ALTER TABLE ma_scenarios ADD COLUMN IF NOT EXISTS forecast_data JSONB;
+ALTER TABLE ma_scenarios ADD COLUMN IF NOT EXISTS impact_on_cash DECIMAL(15,2);
+ALTER TABLE ma_scenarios ADD COLUMN IF NOT EXISTS impact_on_runway DECIMAL(10,2);
+ALTER TABLE ma_scenarios ADD COLUMN IF NOT EXISTS scenario_type VARCHAR(50) DEFAULT 'custom';
+
 -- Add foreign key for linked_scenario_id if table exists
 DO $$
 BEGIN
