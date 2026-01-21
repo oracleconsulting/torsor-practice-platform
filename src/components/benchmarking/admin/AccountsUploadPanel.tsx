@@ -378,7 +378,24 @@ export const AccountsUploadPanel: React.FC<AccountsUploadPanelProps> = ({
       {/* Extracted Financial Data */}
       {existingFinancialData.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">Extracted Financial Data</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-slate-800">Extracted Financial Data</h3>
+            {/* Show Clear All here if no uploads section visible */}
+            {existingUploads.length === 0 && (
+              <button
+                onClick={clearAllAccounts}
+                disabled={deleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 border border-red-200 rounded-lg disabled:opacity-50"
+              >
+                {deleting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                Clear All Data
+              </button>
+            )}
+          </div>
           
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
