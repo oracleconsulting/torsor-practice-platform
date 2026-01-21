@@ -7170,14 +7170,48 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
-                          {/* Go to MA Portal Button */}
-                          {maEngagementId && (
+                          {/* Create Engagement or Go to MA Portal Button */}
+                          {maEngagementId ? (
                             <button
                               onClick={() => onNavigate('ma-portal')}
                               className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors flex items-center gap-2"
                             >
                               <TrendingUp className="w-4 h-4" />
                               Go to MA Portal
+                            </button>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                // Get recommended tier from report
+                                const recommendedTier = maAssessmentReport?.pass2_data?.recommendedApproach?.tier || 'silver';
+                                
+                                try {
+                                  const { data: newEng, error } = await supabase
+                                    .from('ma_engagements')
+                                    .insert({
+                                      client_id: clientId,
+                                      practice_id: client?.practice_id,
+                                      tier: recommendedTier,
+                                      frequency: 'monthly',
+                                      monthly_fee: recommendedTier === 'bronze' ? 750 : recommendedTier === 'silver' ? 1500 : recommendedTier === 'gold' ? 3000 : 5000,
+                                      status: 'active',
+                                      start_date: new Date().toISOString().split('T')[0]
+                                    })
+                                    .select('id')
+                                    .single();
+                                  
+                                  if (error) throw error;
+                                  setMAEngagementId(newEng.id);
+                                  alert(`${recommendedTier.charAt(0).toUpperCase() + recommendedTier.slice(1)} engagement created! Click "Go to MA Portal" to start delivering.`);
+                                } catch (error: any) {
+                                  console.error('[MA] Error creating engagement:', error);
+                                  alert('Failed to create engagement: ' + error.message);
+                                }
+                              }}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Create Engagement
                             </button>
                           )}
                           <button
