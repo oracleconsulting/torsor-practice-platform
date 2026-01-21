@@ -146,6 +146,11 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
     periodLabel: '',
   });
   const [creatingPeriod, setCreatingPeriod] = useState(false);
+  
+  // Tuesday Question state
+  const [tuesdayQuestion, setTuesdayQuestion] = useState('');
+  const [tuesdayAnswer, setTuesdayAnswer] = useState('');
+  const [savingTuesday, setSavingTuesday] = useState(false);
 
   // ============================================================================
   // DATA LOADING
@@ -168,6 +173,14 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
       loadPeriodDetail(selectedEngagementId, selectedPeriodId);
     }
   }, [view, selectedEngagementId, selectedPeriodId]);
+
+  // Sync Tuesday Question state with period
+  useEffect(() => {
+    if (period) {
+      setTuesdayQuestion(period.tuesday_question || '');
+      setTuesdayAnswer(period.tuesday_answer || '');
+    }
+  }, [period]);
 
   const loadEngagements = async () => {
     setLoading(true);
@@ -420,6 +433,35 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
       periodLabel: '',
     });
     setShowNewPeriodModal(true);
+  };
+
+  // ============================================================================
+  // TUESDAY QUESTION
+  // ============================================================================
+
+  const saveTuesdayQuestion = async () => {
+    if (!period) return;
+    
+    setSavingTuesday(true);
+    try {
+      const { error } = await supabase
+        .from('ma_periods')
+        .update({
+          tuesday_question: tuesdayQuestion,
+          tuesday_answer: tuesdayAnswer,
+        })
+        .eq('id', period.id);
+
+      if (error) throw error;
+
+      // Update local period state
+      setPeriod(prev => prev ? { ...prev, tuesday_question: tuesdayQuestion, tuesday_answer: tuesdayAnswer } : null);
+    } catch (error: any) {
+      console.error('[MA Portal] Error saving Tuesday Question:', error);
+      alert('Failed to save: ' + error.message);
+    } finally {
+      setSavingTuesday(false);
+    }
   };
 
   // ============================================================================
@@ -1086,40 +1128,101 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
 
           {/* Tuesday Question Tab */}
           {workflowTab === 'tuesday' && (
-            <div className="bg-white rounded-xl border border-slate-200 p-6">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4">Tuesday Question</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    This Period's Tuesday Question
-                  </label>
-                  <input
-                    type="text"
-                    value={period.tuesday_question || ''}
-                    readOnly
-                    placeholder="e.g., What's our cash runway if we lose our biggest client?"
-                    className="w-full px-4 py-3 border border-slate-200 rounded-lg bg-slate-50"
-                  />
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl border border-slate-200 p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-800">Tuesday Question</h2>
+                    <p className="text-sm text-slate-500 mt-1">
+                      The one question the client needs answered this period
+                    </p>
+                  </div>
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <HelpCircle className="h-5 w-5 text-purple-600" />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Answer
-                  </label>
-                  <textarea
-                    value={period.tuesday_answer || ''}
-                    readOnly
-                    placeholder="The answer will be prepared based on the financial data..."
-                    rows={4}
-                    className="w-full px-4 py-3 border border-slate-200 rounded-lg bg-slate-50"
-                  />
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      The Question
+                    </label>
+                    <input
+                      type="text"
+                      value={tuesdayQuestion}
+                      onChange={(e) => setTuesdayQuestion(e.target.value)}
+                      placeholder="e.g., What's our cash runway if we lose our biggest client?"
+                      className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      Based on client's Tuesday Question from assessment: "{period.tuesday_question || 'Not specified'}"
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      The Answer
+                    </label>
+                    <textarea
+                      value={tuesdayAnswer}
+                      onChange={(e) => setTuesdayAnswer(e.target.value)}
+                      placeholder="Based on this period's financial data..."
+                      rows={6}
+                      className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100">
+                  <button
+                    onClick={saveTuesdayQuestion}
+                    disabled={savingTuesday}
+                    className="px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {savingTuesday ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-4 w-4" />
+                        Save Tuesday Q
+                      </>
+                    )}
+                  </button>
+                  
+                  <button
+                    onClick={() => setWorkflowTab('deliver')}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                  >
+                    Continue to Delivery →
+                  </button>
                 </div>
               </div>
-              <button
-                onClick={() => setWorkflowTab('deliver')}
-                className="w-full mt-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-              >
-                Continue to Delivery →
-              </button>
+
+              {/* Suggestions based on KPIs */}
+              <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
+                <h3 className="font-medium text-purple-800 mb-2">Question Suggestions</h3>
+                <ul className="space-y-2 text-sm text-purple-700">
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-400">•</span>
+                    What's our true cash position vs bank balance?
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-400">•</span>
+                    How many months runway do we have at current burn rate?
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-400">•</span>
+                    Can we afford to hire the new role we're planning?
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-400">•</span>
+                    What happens to cash flow if our biggest client delays payment?
+                  </li>
+                </ul>
+              </div>
             </div>
           )}
 
