@@ -29,7 +29,8 @@ interface ScenarioBuilderProps {
   existingScenario?: MAScenario;
 }
 
-type ScenarioType = 'hire' | 'pricing' | 'client_loss' | 'investment' | 'custom';
+// Local type for this component's supported scenarios
+type ScenarioType = 'hire' | 'pricing_change' | 'client_loss' | 'investment' | 'custom';
 
 interface HireInputs {
   role: string;
@@ -65,7 +66,7 @@ interface InvestmentInputs {
 
 const SCENARIO_TYPES: { type: ScenarioType; label: string; icon: React.ReactNode; description: string }[] = [
   { type: 'hire', label: 'New Hire', icon: <User className="h-5 w-5" />, description: 'Model hiring a new employee' },
-  { type: 'pricing', label: 'Pricing Change', icon: <DollarSign className="h-5 w-5" />, description: 'Model a price increase/decrease' },
+  { type: 'pricing_change', label: 'Pricing Change', icon: <DollarSign className="h-5 w-5" />, description: 'Model a price increase/decrease' },
   { type: 'client_loss', label: 'Client Loss', icon: <UserMinus className="h-5 w-5" />, description: 'What if you lost a client?' },
   { type: 'investment', label: 'Investment', icon: <Building className="h-5 w-5" />, description: 'Model capital investment' },
 ];
@@ -185,7 +186,7 @@ const formatCurrency = (value: number) =>
           summary = `This hire shows a loss of ${formatCurrency(Math.abs(firstYearContribution))} in year 1 at ${hireInputs.expectedUtilisation}% utilisation. Review charge rates or utilisation assumptions.`;
         }
 
-      } else if (scenarioType === 'pricing') {
+      } else if (scenarioType === 'pricing_change') {
         const direction = pricingInputs.changeType === 'increase' ? 1 : -1;
         const priceMultiplier = 1 + (direction * pricingInputs.percentageChange / 100);
         const newRevenue = pricingInputs.affectedRevenue * priceMultiplier;
@@ -274,7 +275,7 @@ const formatCurrency = (value: number) =>
     try {
       const inputs = 
         scenarioType === 'hire' ? hireInputs :
-        scenarioType === 'pricing' ? pricingInputs :
+        scenarioType === 'pricing_change' ? pricingInputs :
         scenarioType === 'client_loss' ? clientLossInputs :
         investmentInputs;
 
@@ -368,7 +369,7 @@ const formatCurrency = (value: number) =>
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={`e.g. ${scenarioType === 'hire' ? 'Senior Developer Hire' : scenarioType === 'pricing' ? '10% Price Increase' : scenarioType === 'client_loss' ? 'What if we lose Acme Corp?' : 'New Equipment Purchase'}`}
+            placeholder={`e.g. ${scenarioType === 'hire' ? 'Senior Developer Hire' : scenarioType === 'pricing_change' ? '10% Price Increase' : scenarioType === 'client_loss' ? 'What if we lose Acme Corp?' : 'New Equipment Purchase'}`}
             className="w-full border border-slate-300 rounded-lg p-2.5 text-sm"
           />
         </div>
@@ -377,7 +378,7 @@ const formatCurrency = (value: number) =>
         {scenarioType === 'hire' && (
           <HireForm inputs={hireInputs} setInputs={setHireInputs} />
         )}
-        {scenarioType === 'pricing' && (
+        {scenarioType === 'pricing_change' && (
           <PricingForm inputs={pricingInputs} setInputs={setPricingInputs} />
         )}
         {scenarioType === 'client_loss' && (

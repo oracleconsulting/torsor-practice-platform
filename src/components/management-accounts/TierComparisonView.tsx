@@ -14,7 +14,8 @@ import {
   Target,
   Star
 } from 'lucide-react';
-import { TIER_FEATURES, TierType, TURNOVER_BANDS, getPrice, getPriceRange } from '../../types/ma';
+import { TURNOVER_BANDS, getPrice } from '../../types/ma';
+import type { TierType } from '../../types/ma';
 
 interface TierComparisonProps {
   clientData: {

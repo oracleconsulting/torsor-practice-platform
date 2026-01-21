@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { Check, Target, TrendingUp, DollarSign, Users, Clock, Lock, ChevronUp, Sparkles } from 'lucide-react';
-import { getPriceRange, TierType } from '../../types/ma';
+import { getPriceRange } from '../../types/ma';
+import type { TierType } from '../../types/ma';
 
 interface KPIRecommendation {
   kpi_code: string;

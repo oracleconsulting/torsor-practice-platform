@@ -1,5 +1,6 @@
 import { Check, Star } from 'lucide-react';
-import { TIER_FEATURES, TierType, getPriceRange } from '../../types/ma';
+import { TIER_FEATURES, getPriceRange } from '../../types/ma';
+import type { TierType } from '../../types/ma';
 
 interface TierSelectorProps {
   recommendedTier: TierType;

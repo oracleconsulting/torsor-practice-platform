@@ -352,7 +352,7 @@ export function MAEngagementsPage() {
                 <span className={`font-semibold ${tierColors.text}`}>{tier.charAt(0).toUpperCase() + tier.slice(1)}</span>
                 <span className={`text-2xl font-bold ${tierColors.text}`}>{count}</span>
               </div>
-              <p className="text-xs text-slate-600 mt-1">{formatCurrency(tierConfig.price)}/month</p>
+              <p className="text-xs text-slate-600 mt-1">{tierConfig.priceRange[0].toLocaleString()} - £{tierConfig.priceRange[1].toLocaleString()}/mo</p>
             </div>
           );
         })}
