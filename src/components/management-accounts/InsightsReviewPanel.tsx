@@ -113,15 +113,29 @@ export function InsightsReviewPanel({
 
       console.log('[InsightsReviewPanel] Response data:', response.data);
 
-      if (response.data?.insights && response.data.insights.length > 0) {
-        console.log('[InsightsReviewPanel] Adding', response.data.insights.length, 'insights');
-        // Merge with existing insights
-        onInsightsUpdate([...insights, ...response.data.insights]);
-      } else if (response.data?.success === false) {
-        throw new Error(response.data.error || 'Unknown error from edge function');
+      if (response.data?.success) {
+        console.log('[InsightsReviewPanel] Generation complete, refetching all insights');
+        
+        // Refetch ALL insights from database to get correct state
+        // (old AI drafts were deleted by the edge function, new ones inserted)
+        const { data: freshInsights, error: fetchError } = await supabase
+          .from('ma_insights')
+          .select('*')
+          .eq('period_id', periodId)
+          .order('display_order', { ascending: true });
+        
+        if (fetchError) {
+          console.error('[InsightsReviewPanel] Error fetching insights:', fetchError);
+          throw new Error('Generated insights but failed to load them');
+        }
+        
+        console.log('[InsightsReviewPanel] Loaded', freshInsights?.length || 0, 'total insights');
+        onInsightsUpdate(freshInsights || []);
+      } else if (response.data?.error) {
+        throw new Error(response.data.error);
       } else {
-        console.warn('[InsightsReviewPanel] No insights in response');
-        alert('No insights were generated. Please check the edge function is deployed.');
+        console.warn('[InsightsReviewPanel] Unexpected response:', response.data);
+        alert('Unexpected response from AI. Please try again.');
       }
     } catch (error: any) {
       console.error('[InsightsReviewPanel] Error generating insights:', error);
@@ -186,6 +200,35 @@ export function InsightsReviewPanel({
     } catch (error: any) {
       console.error('[InsightsReviewPanel] Error deleting:', error);
       alert('Failed to delete: ' + error.message);
+    }
+  };
+
+  const clearAllAIDrafts = async () => {
+    const aiDrafts = insights.filter(i => i.is_auto_generated && i.status === 'draft');
+    if (aiDrafts.length === 0) {
+      alert('No AI-generated drafts to clear');
+      return;
+    }
+
+    if (!confirm(`Delete ${aiDrafts.length} AI-generated draft insights? This will keep approved insights and manual additions.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('ma_insights')
+        .delete()
+        .eq('period_id', periodId)
+        .eq('is_auto_generated', true)
+        .eq('status', 'draft');
+
+      if (error) throw error;
+
+      onInsightsUpdate(insights.filter(i => !(i.is_auto_generated && i.status === 'draft')));
+      console.log(`[InsightsReviewPanel] Cleared ${aiDrafts.length} AI drafts`);
+    } catch (error: any) {
+      console.error('[InsightsReviewPanel] Error clearing drafts:', error);
+      alert('Failed to clear drafts: ' + error.message);
     }
   };
 
@@ -268,19 +311,31 @@ export function InsightsReviewPanel({
               </div>
             </div>
             
-            {/* Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-500">Filter:</span>
-              <select 
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as InsightStatus | 'all')}
-                className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm"
-              >
-                <option value="all">All</option>
-                <option value="draft">Pending Review</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
+            {/* Filter & Actions */}
+            <div className="flex items-center gap-4">
+              {draftCount > 5 && (
+                <button
+                  onClick={clearAllAIDrafts}
+                  className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 border border-red-200 rounded-lg flex items-center gap-1"
+                  title="Clear all AI-generated drafts to start fresh"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Clear AI Drafts ({insights.filter(i => i.is_auto_generated && i.status === 'draft').length})
+                </button>
+              )}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-500">Filter:</span>
+                <select 
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as InsightStatus | 'all')}
+                  className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm"
+                >
+                  <option value="all">All</option>
+                  <option value="draft">Pending Review</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
