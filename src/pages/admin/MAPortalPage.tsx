@@ -162,6 +162,18 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
   const loadEngagements = async () => {
     setLoading(true);
     try {
+      // First, let's see ALL engagements without the join to debug
+      const { data: rawEngData, error: rawError } = await supabase
+        .from('ma_engagements')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      console.log('[MA Portal] Raw engagements (no join):', rawEngData?.length || 0, rawEngData);
+      if (rawError) {
+        console.error('[MA Portal] Raw query error:', rawError);
+      }
+      
+      // Now try with the join
       const { data: engData, error: engError } = await supabase
         .from('ma_engagements')
         .select(`
@@ -171,9 +183,9 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
         .order('created_at', { ascending: false });
       
       if (engError) {
-        console.error('[MA Portal] Error loading engagements:', engError);
+        console.error('[MA Portal] Error loading engagements with join:', engError);
       }
-      console.log('[MA Portal] Loaded engagements:', engData?.length || 0);
+      console.log('[MA Portal] Engagements with join:', engData?.length || 0, engData);
 
       if (engData) {
         // Fetch current periods for each engagement
