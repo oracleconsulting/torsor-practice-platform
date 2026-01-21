@@ -9,11 +9,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
-  CheckCircle2,
-  AlertCircle,
-  TrendingUp,
-  TrendingDown,
-  Minus
+  CheckCircle2
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { MAFinancialData, MAKPIValue, TierType } from '../../types/ma';
