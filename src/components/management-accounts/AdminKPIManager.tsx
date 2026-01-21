@@ -68,7 +68,7 @@ const AVAILABLE_KPIS: KPIDefinition[] = [
   { code: 'client_concentration', name: 'Client Concentration %', category: 'Client Health', description: 'Revenue from top 3 clients', unit: 'percentage', higher_is_better: false, tier_availability: ['gold', 'platinum'] },
   { code: 'client_retention', name: 'Client Retention %', category: 'Client Health', description: 'Clients retained year-on-year', unit: 'percentage', higher_is_better: true, tier_availability: ['gold', 'platinum'] },
   { code: 'client_lifetime_value', name: 'Client Lifetime Value', category: 'Client Health', description: 'Expected total revenue per client', unit: 'currency', higher_is_better: true, tier_availability: ['platinum'] },
-  { code: 'new_client_revenue_pct', name: 'New Client Revenue %', category: 'Client Health', description: 'Revenue from new vs repeat clients', unit: 'percentage', higher_is_better: null, tier_availability: ['gold', 'platinum'] },
+  { code: 'new_client_revenue_pct', name: 'New Client Revenue %', category: 'Client Health', description: 'Revenue from new vs repeat clients', unit: 'percentage', higher_is_better: true, tier_availability: ['gold', 'platinum'] },
 ];
 
 const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string }> = {
