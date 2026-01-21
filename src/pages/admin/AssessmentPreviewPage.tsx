@@ -87,7 +87,7 @@ const ASSESSMENT_GROUPS = [
     title: 'Service Line Onboarding',
     subtitle: 'Detailed assessments for each service',
     assessments: [
-      { code: 'management_accounts', name: 'Management Accounts', title: 'Financial Visibility Diagnostic', icon: LineChart, color: 'emerald' },
+      { code: 'management_accounts', name: 'Business Intelligence', title: 'Financial Visibility Diagnostic', icon: LineChart, color: 'emerald' },
       { code: 'systems_audit', name: 'Systems Audit', title: 'Operations Health Check - Stage 1: Discovery (19 questions)', icon: Settings, color: 'cyan', questionCount: 19 },
       { code: 'fractional_cfo', name: 'Fractional CFO', title: 'Financial Leadership Diagnostic', icon: TrendingUp, color: 'blue' },
       { code: 'fractional_coo', name: 'Fractional COO', title: 'Operational Leadership Diagnostic', icon: Briefcase, color: 'violet' },

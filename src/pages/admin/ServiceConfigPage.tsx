@@ -59,7 +59,7 @@ interface PhaseFit {
 
 const SERVICE_LINES = [
   { code: '365_method', name: 'Goal Alignment', icon: Target, color: 'indigo' },
-  { code: 'management_accounts', name: 'Management Accounts', icon: LineChart, color: 'emerald' },
+  { code: 'management_accounts', name: 'Business Intelligence', icon: LineChart, color: 'emerald' },
   { code: 'fractional_cfo', name: 'Fractional CFO', icon: TrendingUp, color: 'blue' },
   { code: 'fractional_coo', name: 'Fractional COO', icon: Briefcase, color: 'violet' },
   { code: 'systems_audit', name: 'Systems Audit', icon: Settings, color: 'amber' },

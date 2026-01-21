@@ -29,7 +29,7 @@ interface Question {
 const ASSESSMENT_CONFIG: Record<string, { name: string; icon: any; color: string; description: string }> = {
   destination_discovery: { name: 'Destination Discovery', icon: Compass, color: 'indigo', description: 'Understanding where clients want to go' },
   service_diagnostic: { name: 'Service Diagnostics', icon: Zap, color: 'amber', description: 'Mapping needs to services' },
-  management_accounts: { name: 'Management Accounts', icon: LineChart, color: 'emerald', description: 'Financial Visibility Diagnostic' },
+  management_accounts: { name: 'Business Intelligence', icon: LineChart, color: 'emerald', description: 'Financial Visibility Diagnostic' },
   systems_audit: { name: 'Systems Audit', icon: Settings, color: 'cyan', description: 'Operations Health Check' },
   fractional_cfo: { name: 'Fractional CFO', icon: TrendingUp, color: 'blue', description: 'Financial Leadership Diagnostic' },
   fractional_coo: { name: 'Fractional COO', icon: Briefcase, color: 'violet', description: 'Operational Leadership Diagnostic' },
