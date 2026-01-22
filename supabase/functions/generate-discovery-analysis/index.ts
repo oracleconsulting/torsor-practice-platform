@@ -1825,6 +1825,266 @@ function checkSystemsAuditAppropriateness(
 }
 
 // ============================================================================
+// SERVICE APPROPRIATENESS ENFORCEMENT (BINDING CONSTRAINTS)
+// ============================================================================
+
+interface ServiceAppropriatenessResults {
+  appropriate: {
+    code: string;
+    name: string;
+    reason: string;
+    isMandatory: boolean;
+    investment: number;
+  }[];
+  notAppropriate: {
+    code: string;
+    name: string;
+    reason: string;
+  }[];
+  mandatory: {
+    code: string;
+    name: string;
+    reason: string;
+  }[];
+}
+
+/**
+ * Evaluates ALL services against appropriateness checks BEFORE LLM call.
+ * Returns binding constraints that the LLM MUST respect.
+ */
+function evaluateAllServiceAppropriateness(
+  responses: Record<string, any>,
+  financials: ExtractedFinancials,
+  clientStage: ClientStageProfile,
+  payrollAnalysis: PayrollAnalysis | null
+): ServiceAppropriatenessResults {
+  
+  const results: ServiceAppropriatenessResults = {
+    appropriate: [],
+    notAppropriate: [],
+    mandatory: []
+  };
+  
+  // Service pricing
+  const SERVICE_INVESTMENTS: Record<string, number> = {
+    'fractional_cfo': 48000,
+    'fractional_coo': 45000,
+    'business_advisory': 4000,
+    'benchmarking': 3500,
+    'hidden_value_audit': 2500,
+    '365_method': 1500,
+    'management_accounts': 7800,
+    'systems_audit': 4000,
+  };
+  
+  // Run all checks
+  const checks = [
+    { 
+      code: 'fractional_cfo', 
+      name: 'Fractional CFO', 
+      check: checkFractionalCFOAppropriateness(responses, financials, clientStage) 
+    },
+    { 
+      code: 'fractional_coo', 
+      name: 'Fractional COO', 
+      check: checkFractionalCOOAppropriateness(responses, financials, clientStage) 
+    },
+    { 
+      code: 'business_advisory', 
+      name: 'Business Advisory & Exit Planning', 
+      check: checkBusinessAdvisoryAppropriateness(responses, financials) 
+    },
+    { 
+      code: 'benchmarking', 
+      name: 'Industry Benchmarking', 
+      check: checkBenchmarkingAppropriateness(responses, financials, payrollAnalysis) 
+    },
+    { 
+      code: 'hidden_value_audit', 
+      name: 'Hidden Value Audit', 
+      check: checkHiddenValueAuditAppropriateness(responses, financials, clientStage) 
+    },
+    { 
+      code: '365_method', 
+      name: 'Goal Alignment Programme', 
+      check: check365AlignmentAppropriateness(responses, clientStage) 
+    },
+    { 
+      code: 'management_accounts', 
+      name: 'Management Accounts', 
+      check: checkManagementAccountsAppropriateness(responses, financials) 
+    },
+    { 
+      code: 'systems_audit', 
+      name: 'Systems Audit', 
+      check: checkSystemsAuditAppropriateness(responses, clientStage) 
+    },
+  ];
+  
+  for (const { code, name, check } of checks) {
+    const investment = SERVICE_INVESTMENTS[code] || 0;
+    
+    if (check.isAppropriate) {
+      results.appropriate.push({ 
+        code, 
+        name, 
+        reason: check.reason, 
+        isMandatory: check.isMandatory || false, 
+        investment 
+      });
+      if (check.isMandatory) {
+        results.mandatory.push({ code, name, reason: check.reason });
+      }
+    } else {
+      results.notAppropriate.push({ code, name, reason: check.reason });
+    }
+  }
+  
+  console.log('[Appropriateness] Evaluation results:', {
+    appropriate: results.appropriate.map(s => s.code),
+    notAppropriate: results.notAppropriate.map(s => s.code),
+    mandatory: results.mandatory.map(s => s.code)
+  });
+  
+  return results;
+}
+
+/**
+ * Validates LLM recommendations against binding constraints.
+ * Returns errors if constraints are violated.
+ */
+function validateRecommendationsAgainstConstraints(
+  recommendations: any[],
+  appropriateness: ServiceAppropriatenessResults
+): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  const recommendedCodes = recommendations.map(r => r.code || r.serviceCode || '');
+  const notAllowedCodes = appropriateness.notAppropriate.map(s => s.code);
+  const mandatoryCodes = appropriateness.mandatory.map(s => s.code);
+  
+  // Check for blocked services being recommended
+  for (const code of recommendedCodes) {
+    if (notAllowedCodes.includes(code)) {
+      const service = appropriateness.notAppropriate.find(s => s.code === code);
+      errors.push(`BLOCKED SERVICE RECOMMENDED: ${service?.name} was recommended but is not appropriate. Reason: ${service?.reason}`);
+    }
+  }
+  
+  // Check for mandatory services being omitted
+  for (const code of mandatoryCodes) {
+    if (!recommendedCodes.includes(code)) {
+      const service = appropriateness.mandatory.find(s => s.code === code);
+      errors.push(`MANDATORY SERVICE OMITTED: ${service?.name} must be included. Reason: ${service?.reason}`);
+    }
+  }
+  
+  return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Auto-corrects LLM recommendations to enforce binding constraints.
+ * Removes blocked services and adds mandatory services if missing.
+ */
+function autoCorrectRecommendations(
+  recommendations: any[],
+  appropriateness: ServiceAppropriatenessResults,
+  fullRecommendationDetails: AppropriateRecommendation[]
+): any[] {
+  const notAllowedCodes = appropriateness.notAppropriate.map(s => s.code);
+  const mandatoryCodes = appropriateness.mandatory.map(s => s.code);
+  
+  // Remove blocked services
+  let corrected = recommendations.filter(r => {
+    const code = r.code || r.serviceCode || '';
+    return !notAllowedCodes.includes(code);
+  });
+  
+  // Add mandatory services if missing
+  const recommendedCodes = corrected.map(r => r.code || r.serviceCode || '');
+  for (const mandatory of appropriateness.mandatory) {
+    if (!recommendedCodes.includes(mandatory.code)) {
+      // Find the full recommendation details
+      const fullDetails = fullRecommendationDetails.find(r => r.code === mandatory.code);
+      if (fullDetails) {
+        corrected.unshift({
+          service: fullDetails.name,
+          code: fullDetails.code,
+          priority: 1,
+          investmentType: fullDetails.investment > 10000 ? 'Ongoing' : 'One-time',
+          estimatedInvestment: fullDetails.investment <= 10000 
+            ? `£${fullDetails.investment.toLocaleString()}` 
+            : `£${Math.round(fullDetails.investment / 12).toLocaleString()}/month`,
+          whyThisService: mandatory.reason,
+          whatYouGet: fullDetails.specificBenefit,
+          whyNow: 'This is mandatory for your exit timeline.',
+          autoAdded: true // Flag for debugging
+        });
+      }
+    }
+  }
+  
+  // Re-number priorities
+  corrected = corrected.map((r, i) => ({ ...r, priority: i + 1 }));
+  
+  console.log('[AutoCorrect] Fixed recommendations:', {
+    removed: recommendations.length - corrected.length + appropriateness.mandatory.length,
+    added: appropriateness.mandatory.filter(m => !recommendedCodes.includes(m.code)).length,
+    final: corrected.map(r => r.code || r.service)
+  });
+  
+  return corrected;
+}
+
+/**
+ * Builds the binding constraints section for the LLM prompt.
+ * Uses explicit MUST/MUST NOT language to enforce appropriateness.
+ */
+function buildBindingConstraintsPrompt(appropriateness: ServiceAppropriatenessResults): string {
+  return `
+## ⛔ BINDING SERVICE CONSTRAINTS (NON-NEGOTIABLE)
+
+The following services have been evaluated for appropriateness based on this client's specific situation.
+These constraints are **BINDING**. You **MUST NOT** override them.
+
+### ✅ SERVICES YOU MAY RECOMMEND (passed appropriateness check):
+${appropriateness.appropriate.length > 0 ? appropriateness.appropriate.map(s => `- **${s.name}** (${s.code}) - £${s.investment.toLocaleString()}
+  Reason: ${s.reason}${s.isMandatory ? '\n  ⚠️ **[MANDATORY - MUST INCLUDE IN RECOMMENDATIONS]**' : ''}`).join('\n\n') : 'None - this is unusual, review the client data.'}
+
+### 🚫 SERVICES YOU MUST NOT RECOMMEND (failed appropriateness check):
+${appropriateness.notAppropriate.length > 0 ? appropriateness.notAppropriate.map(s => `- **${s.name}** (${s.code})
+  Reason NOT appropriate: ${s.reason}`).join('\n\n') : 'All services are appropriate for this client.'}
+
+### ⚠️ MANDATORY SERVICES (must be included in recommendations):
+${appropriateness.mandatory.length > 0 ? appropriateness.mandatory.map(s => `- **${s.name}** (${s.code}) - **MUST BE RECOMMENDED**
+  Reason: ${s.reason}`).join('\n\n') : 'No mandatory services for this client profile.'}
+
+---
+
+⛔ **CRITICAL ENFORCEMENT RULES:**
+
+1. **You MUST NOT recommend any service in the "MUST NOT RECOMMEND" list above**
+   - If you include a blocked service, your output will be automatically corrected
+   - Example: If Fractional COO is blocked, DO NOT include it in recommendedInvestments
+
+2. **You MUST include all services in the "MANDATORY" list above**
+   - If you omit a mandatory service, your output will be automatically corrected
+   - Example: If Business Advisory is mandatory, it MUST appear in recommendedInvestments
+
+3. **Your recommendations MUST come from the "MAY RECOMMEND" list ONLY**
+   - Do not invent services or codes not listed above
+   - Do not recommend services that failed the appropriateness check
+
+4. **You MUST include a "notRecommended" section in your output**
+   - List ALL services from the "MUST NOT RECOMMEND" list with their reasons
+   - This shows credibility by explaining what we're NOT recommending
+
+---
+
+`;
+}
+
+// ============================================================================
 // MAIN RECOMMENDATION FUNCTION
 // ============================================================================
 
@@ -3534,6 +3794,26 @@ serve(async (req) => {
     });
 
     // ========================================================================
+    // BINDING SERVICE APPROPRIATENESS (ENFORCEMENT LAYER)
+    // ========================================================================
+    
+    const bindingAppropriateness = evaluateAllServiceAppropriateness(
+      preparedData.discovery.responses,
+      extractedFinancials,
+      clientJourneyStage,
+      payrollAnalysis
+    );
+    
+    console.log('[Discovery] BINDING appropriateness constraints:', {
+      mayRecommend: bindingAppropriateness.appropriate.map(s => s.code),
+      mustNotRecommend: bindingAppropriateness.notAppropriate.map(s => `${s.code}: ${s.reason}`),
+      mandatory: bindingAppropriateness.mandatory.map(s => s.code)
+    });
+    
+    // Build binding constraints for prompt
+    const bindingConstraintsPrompt = buildBindingConstraintsPrompt(bindingAppropriateness);
+
+    // ========================================================================
     // GROUNDED ROI CALCULATION
     // ========================================================================
     
@@ -3918,12 +4198,13 @@ Position Goal Alignment as: "You have a business plan. What you don't have is a 
 ${documentInsightsContext}
 ${financialGroundingContext}
 
-## APPROPRIATE RECOMMENDATIONS (ANTI-OVERSELLING ANALYSIS V2)
+${bindingConstraintsPrompt}
 
-The following recommendations have been pre-computed based on financial grounding and service appropriateness matrix.
-FOLLOW THESE RECOMMENDATIONS - do not add more services.
+## PRE-COMPUTED RECOMMENDATION DETAILS (Use these for your output)
 
-### RECOMMENDED (Max 4 for exit-focused clients):
+The following recommendation details have been computed. Use these exact values:
+
+### SERVICES TO RECOMMEND:
 ${appropriateRecommendations.recommended.map(r => `
 **${r.name}** (${r.code})
 - Investment: £${r.investment.toLocaleString()}
@@ -3935,10 +4216,10 @@ ${appropriateRecommendations.recommended.map(r => `
 - ROI: ${r.roiRatio}
 `).join('\n')}
 
-### NOT RECOMMENDED (Include these exclusions in your output):
-${appropriateRecommendations.notRecommended.filter(r => r.notRecommendedReason).map(r => `
-- **${r.name}**: ${r.notRecommendedReason}
-`).join('\n') || 'None explicitly excluded.'}
+### SERVICES NOT TO RECOMMEND (MUST include in "notRecommended" output section):
+${bindingAppropriateness.notAppropriate.map(s => `
+- **${s.name}** (${s.code}): ${s.reason}
+`).join('\n') || 'None - all services are appropriate.'}
 
 ### GROUNDED ROI WITH VALUATION IMPACT (Use these EXACT figures):
 - **Total Investment**: £${groundedROI.investmentTotal.toLocaleString()}
@@ -4508,6 +4789,48 @@ Return ONLY the JSON object with no additional text.`;
           riskOfNotActing: inv.riskOfNotActing || inv.risk || ''
         }));
         console.log('[Discovery] Normalised investments:', analysis.recommendedInvestments.length);
+        
+        // ======================================================================
+        // BINDING CONSTRAINT ENFORCEMENT - Validate and auto-correct recommendations
+        // ======================================================================
+        console.log('[Discovery] Validating recommendations against binding constraints...');
+        
+        const validation = validateRecommendationsAgainstConstraints(
+          analysis.recommendedInvestments,
+          bindingAppropriateness
+        );
+        
+        if (!validation.valid) {
+          console.warn('[Discovery] ⚠️ CONSTRAINT VIOLATIONS DETECTED:', validation.errors);
+          
+          // Auto-correct the recommendations
+          analysis.recommendedInvestments = autoCorrectRecommendations(
+            analysis.recommendedInvestments,
+            bindingAppropriateness,
+            appropriateRecommendations.recommended
+          );
+          
+          // Add warning to output for transparency
+          analysis.validationWarnings = validation.errors;
+          analysis.wasAutoCorrected = true;
+          
+          console.log('[Discovery] ✅ Recommendations auto-corrected:', 
+            analysis.recommendedInvestments.map((r: any) => r.code || r.service));
+        } else {
+          console.log('[Discovery] ✅ Recommendations passed constraint validation');
+          analysis.wasAutoCorrected = false;
+        }
+        
+        // Ensure notRecommended section exists and is complete
+        if (!analysis.notRecommended || analysis.notRecommended.length === 0) {
+          // Build notRecommended from binding constraints
+          analysis.notRecommended = bindingAppropriateness.notAppropriate.map(s => ({
+            service: s.name,
+            code: s.code,
+            reason: s.reason
+          }));
+          console.log('[Discovery] Added notRecommended section with', analysis.notRecommended.length, 'services');
+        }
       }
       
       // Normalize investment summary

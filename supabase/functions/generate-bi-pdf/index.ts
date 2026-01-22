@@ -348,9 +348,17 @@ async function fetchReportData(
     }
   }
 
-  // Fetch discovery data for client voice
+  // Fetch discovery data for client voice - check multiple sources
   let discoveryData = null;
-  if (engagement?.id) {
+  
+  // Source 1: engagement.discovery_data (JSONB field)
+  if (engagement?.discovery_data) {
+    discoveryData = engagement.discovery_data;
+    console.log('[fetchReportData] Found discovery_data in engagement');
+  }
+  
+  // Source 2: discovery_calls table (if no engagement.discovery_data)
+  if (!discoveryData && engagement?.id) {
     const { data: discovery } = await supabase
       .from('discovery_calls')
       .select('*')
@@ -358,8 +366,27 @@ async function fetchReportData(
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
-    discoveryData = discovery;
+    
+    if (discovery) {
+      discoveryData = discovery;
+      console.log('[fetchReportData] Found discovery_data in discovery_calls');
+    }
   }
+  
+  // Source 3: client.discovery_data (if stored on client)
+  if (!discoveryData && client?.discovery_data) {
+    discoveryData = client.discovery_data;
+    console.log('[fetchReportData] Found discovery_data in client');
+  }
+  
+  // Debug logging for Tuesday Question sources
+  console.log('[fetchReportData] Tuesday Question sources:', {
+    periodTuesdayQ: period?.tuesday_question,
+    periodTuesdayA: period?.tuesday_answer,
+    engagementTuesdayQ: engagement?.default_tuesday_question,
+    discoveryTuesdayQ: discoveryData?.tuesday_question,
+    discoveryTuesdayA: discoveryData?.tuesday_answer,
+  });
 
   return {
     period,
@@ -431,6 +458,43 @@ function getInsightPriority(insight: any): string {
 }
 
 // ============================================================================
+// CALCULATION HELPERS
+// ============================================================================
+
+/**
+ * Calculate Debtor Days: (Trade Debtors / Annual Revenue) × 365
+ * Assumes monthly revenue data, so multiplies by 12 for annual
+ */
+function calculateDebtorDays(financialData: any): number | null {
+  const tradeDebtors = financialData?.trade_debtors || 0;
+  const revenue = financialData?.revenue || 0;
+  
+  if (revenue <= 0 || tradeDebtors <= 0) return null;
+  
+  // Assuming monthly revenue data
+  const annualRevenue = revenue * 12;
+  const debtorDays = (tradeDebtors / annualRevenue) * 365;
+  
+  return Math.round(debtorDays);
+}
+
+/**
+ * Calculate Creditor Days: (Trade Creditors / Annual Cost of Sales) × 365
+ */
+function calculateCreditorDays(financialData: any): number | null {
+  const tradeCreditors = financialData?.trade_creditors || 0;
+  const costOfSales = financialData?.cost_of_sales || 0;
+  
+  if (costOfSales <= 0 || tradeCreditors <= 0) return null;
+  
+  // Assuming monthly cost data
+  const annualCOS = costOfSales * 12;
+  const creditorDays = (tradeCreditors / annualCOS) * 365;
+  
+  return Math.round(creditorDays);
+}
+
+// ============================================================================
 // HTML GENERATION
 // ============================================================================
 
@@ -447,6 +511,21 @@ function generateFilename(reportData: ReportData): string {
 
 function buildReportHTML(data: ReportData, options: ExportOptions): string {
   const { period, engagement, client, financialData, kpis, insights, comparisons, forecasts, scenarios, discoveryData } = data;
+  
+  // Debug logging for troubleshooting data flow
+  console.log('[buildReportHTML] Report Data Summary:', {
+    hasPeriod: !!period,
+    periodTuesdayQ: period?.tuesday_question,
+    periodTuesdayA: period?.tuesday_answer?.substring(0, 50),
+    hasDiscoveryData: !!discoveryData,
+    discoveryTuesdayQ: discoveryData?.tuesday_question,
+    discoveryClientVoice: discoveryData?.sleep_better || discoveryData?.worst_cash_moment,
+    insightCount: insights?.length || 0,
+    insightsWithQuotes: insights?.filter((i: any) => i.client_quote)?.length || 0,
+    financialDataKeys: Object.keys(financialData || {}),
+    hasDebtorDays: financialData?.debtor_days !== undefined,
+    calculatedDebtorDays: financialData ? calculateDebtorDays(financialData) : null
+  });
   
   const clientName = client?.company_name || client?.name || 'Client';
   const periodLabel = period?.period_label || 'Business Intelligence Report';
@@ -978,6 +1057,77 @@ function getReportStyles(): string {
       color: #1e3a8a;
     }
     
+    /* Client Voice Elements */
+    .client-voice-banner {
+      margin-bottom: 24px;
+      padding: 16px 20px;
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      border-radius: 12px;
+      border-left: 4px solid #3b82f6;
+    }
+    
+    .client-voice-label {
+      font-size: 9pt;
+      color: #1e40af;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    
+    .client-voice-quote {
+      font-size: 10pt;
+      font-style: italic;
+      color: #1e293b;
+      line-height: 1.5;
+    }
+    
+    .insight-quote {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      border-left: 3px solid #3b82f6;
+      border-radius: 0 8px 8px 0;
+      margin: 10px 0;
+      font-style: italic;
+      color: #1e3a8a;
+      font-size: 9pt;
+    }
+    
+    .quote-icon {
+      font-size: 12pt;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    
+    .quote-text {
+      flex: 1;
+      line-height: 1.5;
+    }
+    
+    .insight-recommendation {
+      padding: 10px 14px;
+      background: #f0fdf4;
+      border-radius: 6px;
+      font-size: 9pt;
+      margin-top: 10px;
+      border-left: 3px solid #10b981;
+    }
+    
+    .insight-recommendation strong {
+      color: #166534;
+    }
+    
+    .insight-scenario-link {
+      padding: 8px 14px;
+      background: #faf5ff;
+      border-radius: 6px;
+      font-size: 9pt;
+      margin-top: 8px;
+      color: #7c3aed;
+      border-left: 3px solid #a78bfa;
+    }
+    
     /* =========================
        WATCH LIST
        ========================= */
@@ -1269,9 +1419,21 @@ function buildExecutiveSummary(financialData: any, insights: any[], kpis: any[],
   const runwayStatus = runway < 2 ? 'danger' : runway < 3 ? 'warning' : 'highlight';
   const profitStatus = netProfit < 0 ? 'danger' : netProfit === 0 ? 'warning' : '';
   
-  // Tuesday Question
-  const tuesdayQuestion = period?.tuesday_question || discoveryData?.tuesday_question;
-  const tuesdayAnswer = period?.tuesday_answer || discoveryData?.tuesday_answer;
+  // Tuesday Question - check multiple sources
+  const tuesdayQuestion = period?.tuesday_question 
+    || discoveryData?.tuesday_question 
+    || period?.engagement?.default_tuesday_question
+    || discoveryData?.key_question;
+  
+  const tuesdayAnswer = period?.tuesday_answer 
+    || discoveryData?.tuesday_answer 
+    || discoveryData?.key_answer;
+  
+  // Debug logging
+  console.log('[buildExecutiveSummary] Tuesday Question:', { 
+    question: tuesdayQuestion, 
+    answer: tuesdayAnswer?.substring(0, 50) 
+  });
   
   return `
     <div class="page">
@@ -1712,34 +1874,72 @@ function generateDefaultDecisions(trueCash: number, burnRate: number, revenue: n
 
 function getScenarioVerdict(scenario: any, trueCash: number, burnRate: number): any {
   const currentRunway = burnRate > 0 ? trueCash / burnRate : 0;
-  const impact = scenario.projected_cash_impact || scenario.cash_impact || 0;
-  const newCash = trueCash + impact;
+  const cashImpact = scenario.projected_cash_impact || scenario.cash_impact || 0;
+  const runwayImpact = scenario.projected_runway_impact || scenario.runway_impact || 0;
+  const newCash = trueCash + cashImpact;
   const newRunway = burnRate > 0 ? newCash / burnRate : currentRunway;
   
   let verdict = {
     class: 'acceptable',
-    badge: '✓ ACCEPTABLE',
+    badge: '✓ VIABLE',
     newRunway,
     recommendation: 'Proceed with normal caution.'
   };
   
-  if (newRunway < 2) {
-    verdict = {
-      class: 'high-risk',
-      badge: '⚠️ HIGH RISK',
-      newRunway,
-      recommendation: `Would reduce runway to ${newRunway.toFixed(1)} months. Not recommended until cash position improves.`
-    };
-  } else if (newRunway < 3) {
-    verdict = {
-      class: 'moderate-risk',
-      badge: '🟡 CAUTION',
-      newRunway,
-      recommendation: 'Proceed with close cash monitoring. Review weekly.'
-    };
+  // POSITIVE scenarios (benefits like price increase, new client)
+  if (cashImpact > 0) {
+    if (runwayImpact >= 1 || (newRunway - currentRunway) >= 1) {
+      verdict = {
+        class: 'acceptable',
+        badge: '✅ RECOMMENDED',
+        newRunway,
+        recommendation: `This adds ${(newRunway - currentRunway).toFixed(1)} months to your runway. Proceed with confidence.`
+      };
+    } else {
+      verdict = {
+        class: 'acceptable',
+        badge: '✓ BENEFICIAL',
+        newRunway,
+        recommendation: `Positive impact on cash position with minimal downside.`
+      };
+    }
+    return verdict;
   }
   
-  return verdict;
+  // NEGATIVE scenarios (costs like hires, investments)
+  if (cashImpact < 0) {
+    if (newRunway < 2) {
+      verdict = {
+        class: 'high-risk',
+        badge: '⚠️ HIGH RISK',
+        newRunway,
+        recommendation: `Would reduce runway to ${newRunway.toFixed(1)} months. Wait until True Cash exceeds ${formatCurrency(Math.abs(cashImpact) + burnRate * 3)}.`
+      };
+    } else if (newRunway < 3) {
+      verdict = {
+        class: 'moderate-risk',
+        badge: '🟡 CAUTION',
+        newRunway,
+        recommendation: `Runway would drop to ${newRunway.toFixed(1)} months. Proceed with close cash monitoring.`
+      };
+    } else {
+      verdict = {
+        class: 'acceptable',
+        badge: '✓ VIABLE',
+        newRunway,
+        recommendation: `Affordable with ${newRunway.toFixed(1)} months runway remaining.`
+      };
+    }
+    return verdict;
+  }
+  
+  // NEUTRAL scenarios
+  return {
+    class: 'acceptable',
+    badge: '⚖️ REVIEW',
+    newRunway,
+    recommendation: 'Evaluate based on strategic priorities.'
+  };
 }
 
 function buildPLPage(financialData: any, comparisons: any): string {
@@ -1927,7 +2127,18 @@ function buildBalanceSheetPage(financialData: any): string {
   const currentRatio = totalCurrentLiabilities > 0 ? totalCurrentAssets / totalCurrentLiabilities : 0;
   const quickRatio = totalCurrentLiabilities > 0 ? (cashAtBank + tradeDebtors) / totalCurrentLiabilities : 0;
   
+  // Calculate debtor/creditor days if not provided
+  const debtorDays = financialData.debtor_days ?? calculateDebtorDays(financialData);
+  const creditorDays = financialData.creditor_days ?? calculateCreditorDays(financialData);
+  
   const ratioStatus = (val: number, target: number) => val >= target ? 'positive' : val >= target * 0.8 ? 'warning' : 'negative';
+  const daysStatus = (val: number | null, target: number, isLowerBetter: boolean = true) => {
+    if (val === null) return '';
+    if (isLowerBetter) {
+      return val <= target ? 'positive' : val <= target * 1.2 ? 'warning' : 'negative';
+    }
+    return val >= target ? 'positive' : val >= target * 0.8 ? 'warning' : 'negative';
+  };
   
   return `
     <div class="page">
@@ -2014,7 +2225,7 @@ function buildBalanceSheetPage(financialData: any): string {
         </div>
       </div>
       
-      <div class="metric-grid metric-grid-3" style="margin-top: 24px;">
+      <div class="metric-grid" style="margin-top: 24px;">
         <div class="metric-card">
           <div class="metric-label">Current Ratio</div>
           <div class="metric-value ${ratioStatus(currentRatio, 1.5)}">${currentRatio.toFixed(2)}:1</div>
@@ -2025,10 +2236,15 @@ function buildBalanceSheetPage(financialData: any): string {
           <div class="metric-value ${ratioStatus(quickRatio, 1.0)}">${quickRatio.toFixed(2)}:1</div>
           <div class="metric-change">Target: 1.0:1+</div>
         </div>
-        <div class="metric-card">
+        <div class="metric-card ${debtorDays !== null && debtorDays > 45 ? 'warning' : ''}">
           <div class="metric-label">Debtor Days</div>
-          <div class="metric-value">${financialData.debtor_days?.toFixed(0) || '-'}</div>
+          <div class="metric-value ${daysStatus(debtorDays, 45)}">${debtorDays !== null ? debtorDays : '-'}</div>
           <div class="metric-change">Target: &lt;45 days</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Creditor Days</div>
+          <div class="metric-value">${creditorDays !== null ? creditorDays : '-'}</div>
+          <div class="metric-change">Target: 30-45 days</div>
         </div>
       </div>
       
@@ -2172,17 +2388,27 @@ function buildInsightsPage(insights: any[], discoveryData: any): string {
     return (priorityOrder[aPriority] ?? 3) - (priorityOrder[bPriority] ?? 3);
   });
   
-  // Client voice quote from discovery
-  const clientVoice = discoveryData?.sleep_better || discoveryData?.worst_cash_moment || discoveryData?.blindspot_story;
+  // Client voice quotes from discovery for various contexts
+  const clientQuotes = {
+    sleepBetter: discoveryData?.sleep_better,
+    worstCashMoment: discoveryData?.worst_cash_moment,
+    expensiveBlindspot: discoveryData?.expensive_blindspot || discoveryData?.blindspot_story,
+    transformation: discoveryData?.transformation,
+    fears: discoveryData?.fears,
+    keyQuestion: discoveryData?.tuesday_question || discoveryData?.key_question
+  };
+  
+  // Select the most impactful quote for the header
+  const heroQuote = clientQuotes.sleepBetter || clientQuotes.worstCashMoment || clientQuotes.expensiveBlindspot;
   
   return `
     <div class="page">
       <h2 class="section-title">Insights & Recommendations</h2>
       
-      ${clientVoice ? `
-        <div style="margin-bottom: 24px; padding: 16px 20px; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-radius: 12px; border-left: 4px solid #3b82f6;">
-          <div style="font-size: 9pt; color: #1e40af; margin-bottom: 8px; font-weight: 600;">💬 Your Words, Our Focus</div>
-          <div style="font-size: 10pt; font-style: italic; color: #1e293b;">"${clientVoice}"</div>
+      ${heroQuote ? `
+        <div class="client-voice-banner">
+          <div class="client-voice-label">💬 Your Words, Our Focus</div>
+          <div class="client-voice-quote">"${heroQuote}"</div>
         </div>
       ` : ''}
       
@@ -2191,6 +2417,12 @@ function buildInsightsPage(insights: any[], discoveryData: any): string {
         const description = getInsightDescription(insight);
         const priority = getInsightPriority(insight);
         const recommendation = insight.recommendation || insight.recommended_action;
+        
+        // Check for client quote attached to this insight
+        const insightQuote = insight.client_quote || insight.emotional_anchor;
+        
+        // Check for scenario teaser
+        const scenarioTeaser = insight.scenario_teaser || insight.scenario_link;
         
         const cardClass = priority === 'critical' ? 'critical' 
           : priority === 'high' || priority === 'warning' ? 'warning' 
@@ -2209,10 +2441,25 @@ function buildInsightsPage(insights: any[], discoveryData: any): string {
               <div class="insight-headline">${title}</div>
               <span class="rag-indicator ${badgeClass}">${priority.toUpperCase()}</span>
             </div>
+            
+            ${insightQuote ? `
+              <div class="insight-quote">
+                <span class="quote-icon">💬</span>
+                <span class="quote-text">"${insightQuote}"</span>
+              </div>
+            ` : ''}
+            
             <div class="insight-description">${description}</div>
+            
             ${recommendation ? `
-              <div class="insight-action">
-                <strong>Recommended Action:</strong> ${recommendation}
+              <div class="insight-recommendation">
+                <strong>Action:</strong> ${recommendation}
+              </div>
+            ` : ''}
+            
+            ${scenarioTeaser ? `
+              <div class="insight-scenario-link">
+                📊 ${scenarioTeaser}
               </div>
             ` : ''}
           </div>
@@ -2308,9 +2555,11 @@ function generateWatchList(financialData: any): any[] {
   const runway = financialData.true_cash_runway_months || financialData.runway_months || 0;
   const burnRate = financialData.monthly_burn_rate || financialData.monthly_operating_costs || 0;
   const grossMargin = financialData.revenue > 0 ? ((financialData.gross_profit || 0) / financialData.revenue * 100) : 0;
-  const debtorDays = financialData.debtor_days || 0;
   
-  return [
+  // Use provided debtor days or calculate from trade_debtors / revenue
+  const debtorDays = financialData.debtor_days ?? calculateDebtorDays(financialData) ?? 0;
+  
+  const items = [
     {
       metric: 'True Cash below £30,000',
       currentValue: formatCurrency(trueCash),
@@ -2331,22 +2580,29 @@ function generateWatchList(financialData: any): any[] {
       threshold: '50%',
       status: grossMargin < 50 ? 'red' : grossMargin < 55 ? 'amber' : 'green',
       action: grossMargin < 50 ? 'Review pricing and direct costs' : null
-    },
-    {
+    }
+  ];
+  
+  // Only add debtor days if we have valid data
+  if (debtorDays > 0) {
+    items.push({
       metric: 'Debtor Days above 45',
       currentValue: `${Math.round(debtorDays)} days`,
       threshold: '45 days',
       status: debtorDays > 45 ? 'red' : debtorDays > 35 ? 'amber' : 'green',
       action: debtorDays > 45 ? 'Chase overdue invoices aggressively' : null
-    },
-    {
-      metric: `Monthly Burn above ${formatCurrency(55000)}`,
-      currentValue: formatCurrency(burnRate),
-      threshold: formatCurrency(55000),
-      status: burnRate > 55000 ? 'red' : burnRate > 50000 ? 'amber' : 'green',
-      action: burnRate > 55000 ? 'Cost reduction review needed' : null
-    }
-  ];
+    });
+  }
+  
+  items.push({
+    metric: `Monthly Burn above ${formatCurrency(55000)}`,
+    currentValue: formatCurrency(burnRate),
+    threshold: formatCurrency(55000),
+    status: burnRate > 55000 ? 'red' : burnRate > 50000 ? 'amber' : 'green',
+    action: burnRate > 55000 ? 'Cost reduction review needed' : null
+  });
+  
+  return items;
 }
 
 function buildBackCover(engagement: any, tier: string): string {
