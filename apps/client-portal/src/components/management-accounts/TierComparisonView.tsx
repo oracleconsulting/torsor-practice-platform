@@ -161,87 +161,76 @@ export function TierComparisonView({
       // Value items based on client's situation
       const valueItems: Array<{ description: string; value: number; tier: TierKey }> = [];
       
-      // ALL TIERS: Clarity value
+      // CLARITY: Base visibility value
       valueItems.push({
         description: 'Know your True Cash vs bank balance fiction',
         value: 3000,
-        tier: 'bronze'
+        tier: 'clarity'
       });
       valueItems.push({
         description: 'Your Tuesday Question answered every month',
         value: 2500,
-        tier: 'bronze'
+        tier: 'clarity'
       });
       valueItems.push({
         description: 'Stop the 3am cash spreadsheets',
         value: 3000,
-        tier: 'bronze'
+        tier: 'clarity'
       });
       
-      // SILVER+: Guidance value
-      if (['silver', 'gold', 'platinum'].includes(tierId)) {
+      // FORESIGHT+: Forward-looking value
+      if (['foresight', 'strategic'].includes(tierId)) {
         valueItems.push({
-          description: "Know what to do (we tell you, not just show you)",
+          description: "Know what's coming (13-week cash forecast)",
           value: 5000,
-          tier: 'silver'
+          tier: 'foresight'
         });
         if (financialContext.cashCrisisHistory) {
           valueItems.push({
-            description: "Clear guidance when cash gets tight",
+            description: "See cash collisions 6 weeks out",
             value: 8000,
-            tier: 'silver'
+            tier: 'foresight'
           });
         }
-      }
-      
-      // GOLD+: Foresight value
-      if (['gold', 'platinum'].includes(tierId)) {
         if (financialContext.pendingDecisionValue) {
           valueItems.push({
             description: `Model ${clientData.upcomingDecisions[0] || 'your hire'} before committing`,
             value: Math.round(financialContext.pendingDecisionValue * 0.15),
-            tier: 'gold'
+            tier: 'foresight'
           });
         }
-        if (financialContext.cashCrisisHistory) {
-          valueItems.push({
-            description: 'See cash collisions 6 weeks out (13-week forecast)',
-            value: 15000,
-            tier: 'gold'
-          });
-        }
+      }
+      
+      // STRATEGIC: Full partnership value
+      if (tierId === 'strategic') {
         if (financialContext.unprofitableClientSuspected) {
           valueItems.push({
             description: 'Confirm which clients are actually profitable',
             value: financialContext.estimatedMarginLeakage || 20000,
-            tier: 'gold'
+            tier: 'strategic'
           });
         }
         if (financialContext.recentMistakeCost) {
           valueItems.push({
-            description: 'Avoid another missed opportunity (scenario modelling)',
+            description: 'Avoid another missed opportunity (unlimited scenarios)',
             value: Math.round(financialContext.recentMistakeCost * 0.5),
-            tier: 'gold'
+            tier: 'strategic'
           });
         }
-      }
-      
-      // PLATINUM: Board-level value
-      if (tierId === 'platinum') {
         valueItems.push({
           description: 'Weekly updates - no surprises ever',
           value: 5000,
-          tier: 'platinum'
+          tier: 'strategic'
         });
         valueItems.push({
           description: 'Board-ready reports for stakeholders',
           value: 8000,
-          tier: 'platinum'
+          tier: 'strategic'
         });
       }
       
       // Filter to items available at this tier
-      const tierOrder: TierKey[] = ['bronze', 'silver', 'gold', 'platinum'];
+      const tierOrder: TierKey[] = ['clarity', 'foresight', 'strategic'];
       const tierIndex = tierOrder.indexOf(tierId);
       const availableItems = valueItems.filter(item => 
         tierOrder.indexOf(item.tier) <= tierIndex
@@ -263,7 +252,8 @@ export function TierComparisonView({
     };
   }, [clientData, financialContext, isMonthly]);
   
-  const availableTiers = Object.entries(tiers).filter(([id]) => isMonthly || id !== 'platinum') as [TierKey, typeof tiers[TierKey]][];
+  // All 3 tiers available regardless of billing frequency
+  const availableTiers = Object.entries(tiers) as [TierKey, typeof tiers[TierKey]][];
   const currentTier = tiers[selectedTier];
   const currentValue = calculateValue(selectedTier);
   

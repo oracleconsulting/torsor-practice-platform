@@ -1631,9 +1631,22 @@ function checkFractionalCOOAppropriateness(
                           (responses.dd_hard_truth || '').toLowerCase().includes('staff') ||
                           (responses.dd_avoided_conversation || '').toLowerCase().includes('redundan');
   
+  // Check for one-time restructuring need (redundancies) vs ongoing operational need
+  const avoidedConversation = (responses.dd_avoided_conversation || '').toLowerCase();
+  const hardTruth = (responses.dd_hard_truth || '').toLowerCase();
+  const isOneTimeRestructuring = avoidedConversation.includes('redundan') ||
+                                  avoidedConversation.includes('staff') ||
+                                  avoidedConversation.includes('payroll') ||
+                                  avoidedConversation.includes('let go') ||
+                                  avoidedConversation.includes('fire') ||
+                                  hardTruth.includes('overstaffed') ||
+                                  hardTruth.includes('too many') ||
+                                  hardTruth.includes('payroll');
+  
   console.log('[COO Check] Analysis:', { 
     hasOperationalChaos, highFirefighting, excessiveHours,
-    businessRunsFine, reasonableHours, hasGoodWorkLifeBalance, exitFocused, staffIssuesOnly 
+    businessRunsFine, reasonableHours, hasGoodWorkLifeBalance, exitFocused, staffIssuesOnly,
+    isOneTimeRestructuring, avoidedConversation: avoidedConversation.substring(0, 50)
   });
   
   // STRICT GATING: Check NOT appropriate conditions FIRST
@@ -1672,8 +1685,27 @@ function checkFractionalCOOAppropriateness(
     };
   }
   
-  // APPROPRIATE only when truly chaotic
-  if (hasOperationalChaos && excessiveHours && highFirefighting) {
+  // ONE-TIME RESTRUCTURING CHECK - This is critical!
+  // If the main issue is redundancies/payroll restructuring, COO is NOT appropriate
+  // Redundancies are a one-time exercise, not ongoing operational leadership
+  if (isOneTimeRestructuring) {
+    return { 
+      isAppropriate: false, 
+      reason: 'Redundancy/restructuring is a one-time exercise. Does not justify ongoing £45k/year COO. Consider HR consultant or one-time advisory instead.' 
+    };
+  }
+  
+  // EXIT-FOCUSED CHECK - Extra strict for exit clients
+  // Exit-focused clients need exit planning, not ongoing operational overhead
+  if (exitFocused) {
+    return { 
+      isAppropriate: false, 
+      reason: 'Exit-focused client needs exit planning and value maximization, not ongoing £45k/year operational overhead that reduces sale value.' 
+    };
+  }
+  
+  // APPROPRIATE only when truly chaotic AND not a one-time problem
+  if (hasOperationalChaos && excessiveHours && highFirefighting && !isOneTimeRestructuring) {
     return { 
       isAppropriate: true, 
       reason: 'Operational chaos with 50+ hours and high firefighting indicates sustained operational leadership gap' 
