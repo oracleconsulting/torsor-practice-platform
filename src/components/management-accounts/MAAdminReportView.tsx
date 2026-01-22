@@ -17,6 +17,22 @@ import {
   Save
 } from 'lucide-react';
 
+// Map legacy tier names to new tier names for display
+const TIER_DISPLAY_MAP: Record<string, string> = {
+  'bronze': 'CLARITY',
+  'silver': 'FORESIGHT',
+  'gold': 'FORESIGHT',
+  'platinum': 'STRATEGIC',
+  'clarity': 'CLARITY',
+  'foresight': 'FORESIGHT',
+  'strategic': 'STRATEGIC',
+};
+
+function mapTierLabel(tier: string): string {
+  const normalized = tier?.toLowerCase() || 'foresight';
+  return TIER_DISPLAY_MAP[normalized] || 'FORESIGHT';
+}
+
 // Types
 interface MAPass1Data {
   adminGuidance: {
@@ -264,7 +280,7 @@ export function MAAdminReportView({
           <span className={`text-lg px-4 py-2 border-2 rounded-lg font-semibold ${
             tierColors[admin.quickProfile?.recommendedTier] || tierColors.foresight
           }`}>
-            Recommend {(admin.quickProfile?.recommendedTier || 'FORESIGHT').toUpperCase()}
+            Recommend {mapTierLabel(admin.quickProfile?.recommendedTier || 'foresight')}
           </span>
         </div>
       </div>
@@ -682,10 +698,11 @@ export function MAAdminReportView({
                       <span className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${
                         tierBgColors[admin.quickProfile?.recommendedTier] || tierBgColors.foresight
                       }`}>
-                        {(admin.quickProfile?.recommendedTier || 'FORESIGHT').toUpperCase()}
+                        {mapTierLabel(admin.quickProfile?.recommendedTier || 'foresight')}
                       </span>
                     </div>
                     <p className="text-sm text-purple-900">{(p1.tierRecommendation?.rationale || '').substring(0, 200)}...</p>
+                    {/* Note: Tier label mapped from legacy names */}
                   </div>
                   
                   {admin.objectionHandling && admin.objectionHandling.length > 0 && (
@@ -842,7 +859,7 @@ export function MAAdminReportView({
               {p1.tierRecommendation && (
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
                   <h3 className="font-semibold text-gray-900 mb-3">
-                    Tier Recommendation: {(p1.tierRecommendation.tier || 'FORESIGHT').toUpperCase()}
+                    Tier Recommendation: {mapTierLabel(p1.tierRecommendation.tier || 'foresight')}
                   </h3>
                   <p className="text-sm mb-4">{p1.tierRecommendation.rationale}</p>
                   {p1.tierRecommendation.keyDrivers && p1.tierRecommendation.keyDrivers.length > 0 && (
@@ -1014,7 +1031,7 @@ export function MAAdminReportView({
                       </div>
                       <div className="flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-green-500" />
-                        Tier interest: {tierDiscussed.toUpperCase()}
+                        Tier interest: {mapTierLabel(tierDiscussed)}
                       </div>
                       <div className="flex items-center gap-2">
                         {clientObjections ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Circle className="h-4 w-4 text-slate-300" />}

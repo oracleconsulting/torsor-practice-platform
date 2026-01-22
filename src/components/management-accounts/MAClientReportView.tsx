@@ -19,6 +19,22 @@ interface MAClientReportViewProps {
   showTierComparison?: boolean; // Default true - show the full tier comparison
 }
 
+// Map legacy tier names to new tier names for display
+const TIER_DISPLAY_MAP: Record<string, { code: string; label: string }> = {
+  'bronze': { code: 'clarity', label: 'CLARITY' },
+  'silver': { code: 'foresight', label: 'FORESIGHT' },
+  'gold': { code: 'foresight', label: 'FORESIGHT' },
+  'platinum': { code: 'strategic', label: 'STRATEGIC' },
+  'clarity': { code: 'clarity', label: 'CLARITY' },
+  'foresight': { code: 'foresight', label: 'FORESIGHT' },
+  'strategic': { code: 'strategic', label: 'STRATEGIC' },
+};
+
+function mapTierForDisplay(tier: string): { code: string; label: string } {
+  const normalized = tier?.toLowerCase() || 'foresight';
+  return TIER_DISPLAY_MAP[normalized] || { code: 'foresight', label: 'FORESIGHT' };
+}
+
 export function MAClientReportView({ report, onTierSelect, showTierComparison = true }: MAClientReportViewProps) {
   const [showFullComparison, setShowFullComparison] = useState(false);
   const p1 = report.pass1_data;
@@ -623,7 +639,7 @@ export function MAClientReportView({ report, onTierSelect, showTierComparison = 
               <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="px-3 py-1 bg-blue-600 text-white text-sm font-semibold rounded">
-                    {p2.recommendedApproach.tier.toUpperCase()}
+                    {mapTierForDisplay(p2.recommendedApproach.tier).label}
                   </span>
                   <span className="text-slate-600">Recommended for you</span>
                 </div>
