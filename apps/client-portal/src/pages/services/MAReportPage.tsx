@@ -210,7 +210,61 @@ export default function MAReportPage() {
     }
 
     try {
-      // FIRST: Check for two-pass assessment report (new system)
+      // FIRST: Check for DELIVERED BI/MA period - if exists, redirect to dashboard
+      // This page shows the assessment/sales pitch; the dashboard shows delivered reports
+      let hasDeliveredPeriod = false;
+      
+      // Check for MA engagement with delivered period
+      const { data: maEngagement } = await supabase
+        .from('ma_engagements')
+        .select('id')
+        .eq('client_id', clientSession.clientId)
+        .eq('status', 'active')
+        .maybeSingle();
+      
+      if (maEngagement) {
+        const { data: maPeriod } = await supabase
+          .from('ma_periods')
+          .select('id')
+          .eq('engagement_id', maEngagement.id)
+          .eq('status', 'delivered')
+          .limit(1)
+          .maybeSingle();
+        
+        if (maPeriod) hasDeliveredPeriod = true;
+      }
+      
+      // Also check BI engagement (renamed service)
+      if (!hasDeliveredPeriod) {
+        const { data: biEngagement } = await supabase
+          .from('bi_engagements')
+          .select('id')
+          .eq('client_id', clientSession.clientId)
+          .eq('status', 'active')
+          .maybeSingle();
+        
+        if (biEngagement) {
+          const { data: biPeriod } = await supabase
+            .from('bi_periods')
+            .select('id')
+            .eq('engagement_id', biEngagement.id)
+            .eq('status', 'delivered')
+            .limit(1)
+            .maybeSingle();
+          
+          if (biPeriod) hasDeliveredPeriod = true;
+        }
+      }
+      
+      // If there's a delivered period, redirect to the dashboard (actual report)
+      if (hasDeliveredPeriod) {
+        console.log('[MA Report] Delivered period found - redirecting to dashboard');
+        navigate('/service/management_accounts/dashboard', { replace: true });
+        return;
+      }
+      
+      // No delivered period - show the assessment/sales pitch page
+      // Check for two-pass assessment report (new system)
       const { data: assessmentReport } = await supabase
         .from('ma_assessment_reports')
         .select('*')
