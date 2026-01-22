@@ -73,6 +73,10 @@ function App() {
             <Route path="/service/management_accounts/report" element={<MAReportPage />} />
             <Route path="/service/management_accounts/dashboard" element={<MADashboardPage />} />
             <Route path="/service/management_accounts/presentation" element={<MAPresentationPage />} />
+            {/* Business Intelligence aliases (renamed from management_accounts) */}
+            <Route path="/service/business_intelligence/report" element={<MAReportPage />} />
+            <Route path="/service/business_intelligence/dashboard" element={<MADashboardPage />} />
+            <Route path="/service/business_intelligence/presentation" element={<MAPresentationPage />} />
             <Route path="/service/systems_audit/inventory" element={<SystemInventoryPage />} />
             <Route path="/service/systems_audit/process-deep-dives" element={<ProcessDeepDivesPage />} />
             

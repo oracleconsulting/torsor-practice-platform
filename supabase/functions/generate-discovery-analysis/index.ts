@@ -1564,40 +1564,118 @@ function checkFractionalCOOAppropriateness(
   financials: ExtractedFinancials,
   clientStage: ClientStageProfile
 ): ServiceAppropriateness {
-  // APPROPRIATE when: Operational chaos, founder fighting fires daily, 60+ hours, sustained need
-  const operationalChaos = (responses.sd_founder_dependency || '').includes('Chaos') ||
-                           (responses.sd_founder_dependency || '').includes('Significant problems');
-  const highFirefighting = (responses.dd_time_allocation || '').includes('90%') ||
-                           (responses.dd_time_allocation || '').includes('70%');
-  const excessiveHours = (responses.dd_weekly_hours || '').includes('60+') ||
-                         (responses.dd_weekly_hours || '').includes('50-60');
+  // Get response values with lowercase for matching
+  const founderDependency = (responses.sd_founder_dependency || '').toLowerCase();
+  const timeAllocation = (responses.dd_time_allocation || '').toLowerCase();
+  const weeklyHours = (responses.dd_weekly_hours || '').toLowerCase();
+  const workLifeBalance = (responses.dd_work_life_balance || '').toLowerCase();
   
-  // NOT APPROPRIATE when: Business runs fine, reasonable hours, one-time restructuring, strategic issue
-  const businessRunsFine = (responses.sd_founder_dependency || '').includes('run fine') ||
-                           (responses.sd_founder_dependency || '').includes('Minor issues');
-  const reasonableHours = (responses.dd_weekly_hours || '').includes('Under 30') ||
-                          (responses.dd_weekly_hours || '').includes('30-40');
+  console.log('[COO Check] Inputs:', { founderDependency, timeAllocation, weeklyHours, workLifeBalance });
+  
+  // APPROPRIATE ONLY when ALL of these are true:
+  // 1. Operational chaos (not just staff issues)
+  // 2. 50+ hours per week
+  // 3. Most time is firefighting operations (not strategic thinking or staff issues)
+  // 4. Need is ONGOING (not one-time restructuring)
+  
+  const hasOperationalChaos = founderDependency.includes('chaos') ||
+                              founderDependency.includes('significant problems') ||
+                              founderDependency.includes('completely dependent');
+  const highFirefighting = timeAllocation.includes('90%') ||
+                           timeAllocation.includes('70%') ||
+                           timeAllocation.includes('mostly firefighting');
+  const excessiveHours = weeklyHours.includes('60') ||
+                         weeklyHours.includes('50-60') ||
+                         weeklyHours.includes('50+');
+  
+  // NOT APPROPRIATE when ANY of these are true:
+  // - Business runs fine/ticks along without founder
+  // - Reasonable hours (<40)
+  // - Good work/life balance
+  // - Exit-focused (needs exit planning, not ongoing COO)
+  // - Staff issues only (HR problem, not operational)
+  // - One-time restructuring (redundancies, not ongoing need)
+  
+  const businessRunsFine = founderDependency.includes('tick') ||
+                           founderDependency.includes('run fine') ||
+                           founderDependency.includes('runs fine') ||
+                           founderDependency.includes('minor issues') ||
+                           founderDependency.includes('runs smoothly') ||
+                           founderDependency.includes('well') ||
+                           founderDependency.includes('minimal');
+  
+  const reasonableHours = weeklyHours.includes('under 30') ||
+                          weeklyHours.includes('30-40') ||
+                          weeklyHours.includes('less than 30') ||
+                          weeklyHours.includes('<30') ||
+                          weeklyHours.includes('30');
+  
+  const hasGoodWorkLifeBalance = workLifeBalance.includes('good') ||
+                                  workLifeBalance.includes('healthy') ||
+                                  workLifeBalance.includes('balanced') ||
+                                  workLifeBalance.includes('yes');
+  
   const exitFocused = clientStage.journey === 'established-exit-focused';
   
-  if (operationalChaos && excessiveHours) {
-    return { isAppropriate: true, reason: 'Operational chaos with 50+ hours indicates sustained operational leadership gap' };
-  }
-  if (highFirefighting && excessiveHours) {
-    return { isAppropriate: true, reason: 'High firefighting (70%+) consuming 50+ hours requires operational leadership' };
-  }
+  // Check for staff issues only (not operational chaos)
+  const staffIssuesOnly = founderDependency.includes('staff') ||
+                          (responses.dd_hard_truth || '').toLowerCase().includes('staff') ||
+                          (responses.dd_avoided_conversation || '').toLowerCase().includes('redundan');
   
-  // NOT appropriate checks
-  if (businessRunsFine) {
-    return { isAppropriate: false, reason: 'Business runs fine without founder. One-time restructuring does not justify ongoing COO.' };
-  }
+  console.log('[COO Check] Analysis:', { 
+    hasOperationalChaos, highFirefighting, excessiveHours,
+    businessRunsFine, reasonableHours, hasGoodWorkLifeBalance, exitFocused, staffIssuesOnly 
+  });
+  
+  // STRICT GATING: Check NOT appropriate conditions FIRST
   if (reasonableHours) {
-    return { isAppropriate: false, reason: `Owner works reasonable hours (${responses.dd_weekly_hours}). COO not justified.` };
-  }
-  if (exitFocused && !operationalChaos) {
-    return { isAppropriate: false, reason: 'Exit-focused client with stable operations needs exit planning, not ongoing COO.' };
+    return { 
+      isAppropriate: false, 
+      reason: `Owner works reasonable hours (${responses.dd_weekly_hours || 'under 40'}). Fractional COO at £45k/year not justified.` 
+    };
   }
   
-  return { isAppropriate: false, reason: 'No sustained operational leadership gap identified.' };
+  if (businessRunsFine) {
+    return { 
+      isAppropriate: false, 
+      reason: 'Business runs fine without founder. One-time restructuring does not justify ongoing £45k/year COO.' 
+    };
+  }
+  
+  if (hasGoodWorkLifeBalance && !hasOperationalChaos) {
+    return { 
+      isAppropriate: false, 
+      reason: 'Good work/life balance indicates operations are manageable. COO not justified.' 
+    };
+  }
+  
+  if (exitFocused && !hasOperationalChaos) {
+    return { 
+      isAppropriate: false, 
+      reason: 'Exit-focused client with stable operations needs exit planning, not ongoing £45k/year COO.' 
+    };
+  }
+  
+  if (staffIssuesOnly && !hasOperationalChaos) {
+    return { 
+      isAppropriate: false, 
+      reason: 'Staff/HR issues do not justify ongoing COO. Consider one-time HR support or redundancy planning instead.' 
+    };
+  }
+  
+  // APPROPRIATE only when truly chaotic
+  if (hasOperationalChaos && excessiveHours && highFirefighting) {
+    return { 
+      isAppropriate: true, 
+      reason: 'Operational chaos with 50+ hours and high firefighting indicates sustained operational leadership gap' 
+    };
+  }
+  
+  // Default: NOT appropriate
+  return { 
+    isAppropriate: false, 
+    reason: 'No sustained operational leadership gap identified. One-time interventions may be more appropriate than ongoing COO.' 
+  };
 }
 
 function checkBusinessAdvisoryAppropriateness(
@@ -4833,6 +4911,61 @@ Return ONLY the JSON object with no additional text.`;
         }
       }
       
+      // ======================================================================
+      // VALIDATE & CORRECT TRANSFORMATION JOURNEY PHASES
+      // ======================================================================
+      if (analysis.transformationJourney?.phases && Array.isArray(analysis.transformationJourney.phases)) {
+        const blockedCodes = bindingAppropriateness.notAppropriate.map(s => s.code.toLowerCase());
+        const blockedNames = bindingAppropriateness.notAppropriate.map(s => s.name.toLowerCase());
+        
+        console.log('[Discovery] Validating transformation journey phases...');
+        console.log('[Discovery] Blocked service codes:', blockedCodes);
+        
+        // Check each phase for blocked services
+        const originalPhaseCount = analysis.transformationJourney.phases.length;
+        analysis.transformationJourney.phases = analysis.transformationJourney.phases.filter((phase: any) => {
+          const enabledByCode = (phase.enabledByCode || '').toLowerCase();
+          const enabledBy = (phase.enabledBy || '').toLowerCase();
+          
+          // Check if this phase references a blocked service
+          const isBlocked = blockedCodes.some(code => enabledByCode.includes(code)) ||
+                           blockedNames.some(name => enabledBy.includes(name));
+          
+          if (isBlocked) {
+            console.warn(`[Discovery] ⚠️ REMOVING PHASE: "${phase.title}" - enabled by blocked service: ${phase.enabledBy}`);
+            return false;
+          }
+          return true;
+        });
+        
+        if (analysis.transformationJourney.phases.length !== originalPhaseCount) {
+          console.log(`[Discovery] Removed ${originalPhaseCount - analysis.transformationJourney.phases.length} phases with blocked services`);
+          analysis.transformationJourneyWasCorrected = true;
+          
+          // Re-number the phases
+          analysis.transformationJourney.phases = analysis.transformationJourney.phases.map((phase: any, index: number) => ({
+            ...phase,
+            phase: index + 1
+          }));
+        }
+        
+        // Recalculate total investment from remaining phases
+        let totalInvestment = 0;
+        analysis.transformationJourney.phases.forEach((phase: any) => {
+          const investment = phase.investment || '';
+          const match = investment.match(/£([\d,]+)/);
+          if (match) {
+            const amount = parseInt(match[1].replace(/,/g, ''), 10);
+            totalInvestment += amount;
+          }
+        });
+        
+        if (totalInvestment > 0) {
+          analysis.transformationJourney.totalInvestment = `£${totalInvestment.toLocaleString()}`;
+          console.log(`[Discovery] Updated total investment: £${totalInvestment.toLocaleString()}`);
+        }
+      }
+      
       // Normalize investment summary
       if (analysis.investmentSummary) {
         analysis.investmentSummary = {
@@ -4852,6 +4985,14 @@ Return ONLY the JSON object with no additional text.`;
                           analysis.investmentSummary.calculation || '',
           comparisonToInaction: analysis.investmentSummary.comparisonToInaction || ''
         };
+        
+        // If we corrected the transformation journey, update the investment summary
+        if (analysis.transformationJourneyWasCorrected && analysis.transformationJourney?.totalInvestment) {
+          analysis.investmentSummary.totalFirstYearInvestment = analysis.transformationJourney.totalInvestment;
+          analysis.investmentSummary.wasAutoCorrected = true;
+          console.log('[Discovery] Investment summary corrected to:', analysis.transformationJourney.totalInvestment);
+        }
+        
         console.log('[Discovery] Investment summary:', JSON.stringify(analysis.investmentSummary, null, 2));
       }
       

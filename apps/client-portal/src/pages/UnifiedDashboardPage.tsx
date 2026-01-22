@@ -50,6 +50,7 @@ const SERVICE_ICONS: Record<string, any> = {
   '365_alignment': Target,
   'fractional_cfo': TrendingUp,
   'management_accounts': FileText,
+  'business_intelligence': FileText,  // Alias for renamed service
   'systems_audit': BarChart3,
   'hidden_value_audit': Award,
   'team_training': Users,
@@ -63,10 +64,14 @@ const SERVICE_COLORS: Record<string, { bg: string; text: string; border: string 
   '365_alignment': { bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-200' },
   'fractional_cfo': { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' },
   'management_accounts': { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200' },
+  'business_intelligence': { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200' },  // Alias
   'systems_audit': { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200' },
   'hidden_value_audit': { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200' },
   'benchmarking': { bg: 'bg-teal-50', text: 'text-teal-600', border: 'border-teal-200' },
 };
+
+// Helper to check if a service code is BI/MA
+const isBIService = (code: string) => code === 'management_accounts' || code === 'business_intelligence';
 
 export default function UnifiedDashboardPage() {
   const { clientSession } = useAuth();
@@ -77,8 +82,10 @@ export default function UnifiedDashboardPage() {
   const [discoveryStatus, setDiscoveryStatus] = useState<DiscoveryStatus | null>(null);
   const [maInsightShared, setMAInsightShared] = useState(false);
   const [maAssessmentCompleted, setMAAssessmentCompleted] = useState(false);
+  const [biPeriodDelivered, setBIPeriodDelivered] = useState(false);  // New: track delivered BI periods
   const maInsightSharedRef = useRef(false);
   const maAssessmentCompletedRef = useRef(false);
+  const biPeriodDeliveredRef = useRef(false);  // New: ref for immediate access
   const [systemsAuditStage, setSystemsAuditStage] = useState<{
     stage1Complete: boolean;
     stage2Complete: boolean;
@@ -136,17 +143,64 @@ export default function UnifiedDashboardPage() {
       console.log('📋 Service enrollments:', enrollments);
 
       // Check for shared MA insights EARLY (before building service list)
-      // First check v2 insights from ma_monthly_insights
+      // Also check for delivered BI periods (new system)
       let hasSharedMAInsight = false;
+      let hasBIDeliveredPeriod = false;
+      
       if (clientSession?.clientId) {
-        // Check for engagement and v2 insight
-        const { data: engagement } = await supabase
+        // Check for MA engagement and v2 insight
+        const { data: maEngagement } = await supabase
           .from('ma_engagements')
           .select('id')
           .eq('client_id', clientSession.clientId)
           .maybeSingle();
         
+        // Also check for BI engagement (renamed service)
+        const { data: biEngagement } = await supabase
+          .from('bi_engagements')
+          .select('id')
+          .eq('client_id', clientSession.clientId)
+          .maybeSingle();
+        
+        const engagement = maEngagement || biEngagement;
+        console.log('📊 BI/MA Engagement check:', { maEngagement, biEngagement, clientId: clientSession.clientId });
+        
         if (engagement) {
+          // Check for DELIVERED periods (new BI/MA delivery system)
+          // Check ma_periods first
+          const { data: maPeriod } = await supabase
+            .from('ma_periods')
+            .select('id, status, period_label, delivered_at')
+            .eq('engagement_id', engagement.id)
+            .eq('status', 'delivered')
+            .order('period_end', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          // Also check bi_periods
+          const { data: biPeriod } = await supabase
+            .from('bi_periods')
+            .select('id, status, period_label, delivered_at')
+            .eq('engagement_id', engagement.id)
+            .eq('status', 'delivered')
+            .order('period_end', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          const deliveredPeriod = maPeriod || biPeriod;
+          if (deliveredPeriod) {
+            hasBIDeliveredPeriod = true;
+            console.log('✅ Found delivered BI/MA period:', {
+              id: deliveredPeriod.id,
+              label: deliveredPeriod.period_label,
+              deliveredAt: deliveredPeriod.delivered_at,
+              source: maPeriod ? 'ma_periods' : 'bi_periods'
+            });
+          } else {
+            console.log('📋 No delivered BI/MA periods found');
+          }
+          
+          // Check for v2 insights
           const { data: monthlyInsight } = await supabase
             .from('ma_monthly_insights')
             .select('*')
@@ -208,7 +262,12 @@ export default function UnifiedDashboardPage() {
       }
       maInsightSharedRef.current = hasSharedMAInsight;
       setMAInsightShared(hasSharedMAInsight);
-      console.log('📊 MA Insight shared status set to:', hasSharedMAInsight);
+      biPeriodDeliveredRef.current = hasBIDeliveredPeriod;
+      setBIPeriodDelivered(hasBIDeliveredPeriod);
+      console.log('📊 MA/BI status:', { 
+        insightShared: hasSharedMAInsight, 
+        periodDelivered: hasBIDeliveredPeriod 
+      });
 
       // Check MA assessment completion status
       let maAssessmentDone = false;
@@ -217,7 +276,9 @@ export default function UnifiedDashboardPage() {
           .from('service_line_assessments')
           .select('completed_at')
           .eq('client_id', clientSession.clientId)
-          .eq('service_line_code', 'management_accounts')
+          .in('service_line_code', ['management_accounts', 'business_intelligence'])
+          .order('completed_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
         
         if (maAssessment?.completed_at) {
@@ -571,9 +632,12 @@ export default function UnifiedDashboardPage() {
       }
       return '/discovery';
     }
-    if (code === 'management_accounts') {
+    if (isBIService(code)) {
+      // Check if there's a delivered period - route to dashboard
+      if (biPeriodDeliveredRef.current || biPeriodDelivered) {
+        return '/service/management_accounts/dashboard';
+      }
       // Check if there's a shared insight - route to report page
-      // Use ref for immediate access, fallback to state
       if (maInsightSharedRef.current || maInsightShared) {
         return '/service/management_accounts/report';
       }
@@ -625,29 +689,29 @@ export default function UnifiedDashboardPage() {
       }
     }
     
-    // Special handling for management accounts
-    if (code === 'management_accounts') {
-      // Use ref for immediate access, fallback to state
-      if (maInsightSharedRef.current || maInsightShared) {
+    // Special handling for management accounts / business intelligence
+    if (isBIService(code)) {
+      // Check for delivered period (new BI system) OR shared insight
+      if (biPeriodDeliveredRef.current || biPeriodDelivered || maInsightSharedRef.current || maInsightShared) {
         return {
-          label: 'Ready to View',
+          label: 'Report Ready',
           color: 'emerald',
           icon: CheckCircle,
         };
       }
-      // Check if assessment is completed but insights not shared yet
+      // Check if assessment is completed but report not delivered yet
       if (maAssessmentCompletedRef.current || maAssessmentCompleted) {
         return {
-          label: 'Completed - Awaiting Review',
+          label: 'Pending',
           color: 'amber',
           icon: Clock,
         };
       }
-      // Default for MA - show assessment status
+      // Default for BI/MA - show assessment status
       return {
-        label: 'Start Assessment',
-        color: 'cyan',
-        icon: Play,
+        label: 'Pending',
+        color: 'gray',
+        icon: Clock,
       };
     }
     
