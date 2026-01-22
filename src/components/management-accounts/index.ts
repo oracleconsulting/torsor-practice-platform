@@ -46,6 +46,11 @@ export { PLAnalysis } from './PLAnalysis';
 export { BudgetEntry } from './BudgetEntry';
 export { PDFExportButton } from './PDFExportButton';
 
+// Balance Sheet & YTD (Phase 2 Enhancements)
+export { BalanceSheetSummary } from './BalanceSheetSummary';
+export { YTDComparison } from './YTDComparison';
+export { BudgetManager } from './BudgetManager';
+
 // Preview Components (for proposals/reports)
 export { TrueCashPreview } from './previews/TrueCashPreview';
 export { ForecastPreview } from './previews/ForecastPreview';

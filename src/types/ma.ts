@@ -371,6 +371,9 @@ export interface MAFinancialData {
   // Operating costs (for runway calculation)
   monthly_operating_costs?: number;
   payroll_costs?: number;
+  // Extended data (JSONB columns from Phase 1 enhancements)
+  balance_sheet_data?: Record<string, unknown>;
+  pl_breakdown?: Record<string, unknown>;
   // Meta
   data_source?: 'xero_api' | 'qbo_api' | 'upload' | 'manual';
   confidence_level?: 'high' | 'medium' | 'low';

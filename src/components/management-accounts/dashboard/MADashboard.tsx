@@ -11,15 +11,26 @@ import {
   Building2,
   Calendar,
   Crown,
-  LayoutDashboard
+  LayoutDashboard,
+  BarChart3,
+  Scale,
+  TrendingUp
 } from 'lucide-react';
 import { useMADashboard } from '../../../hooks/useMADashboard';
 import { useEditMode } from '../../../hooks/useEditMode';
+import { usePLComparison } from '../../../hooks/usePLComparison';
 import { TrueCashWaterfall } from './TrueCashWaterfall';
 import { CashForecastSection } from './CashForecastSection';
 import { DashboardInsightCard } from './DashboardInsightCard';
 import { SectionVisibilityPanel } from './SectionVisibilityPanel';
+import { PLAnalysis } from '../PLAnalysis';
+import { BalanceSheetSummary } from '../BalanceSheetSummary';
+import { YTDComparison } from '../YTDComparison';
+import { PDFExportButton } from '../PDFExportButton';
 import type { TierType } from '../../../types/ma';
+
+// Dashboard tabs
+type DashboardTab = 'overview' | 'pl_analysis' | 'balance_sheet' | 'ytd';
 
 interface MADashboardProps {
   engagementId: string;
@@ -80,6 +91,13 @@ export function MADashboard({ engagementId, periodId, isAdmin = false }: MADashb
   const [activeScenario, setActiveScenario] = useState<string | null>(null);
   const [expandedInsights, setExpandedInsights] = useState<Set<string>>(new Set());
   const [showVisibilityPanel, setShowVisibilityPanel] = useState(false);
+  const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
+  
+  // Fetch P&L comparison data
+  const { 
+    comparison: plComparison, 
+    loading: comparisonLoading 
+  } = usePLComparison(periodId);
 
   if (loading) {
     return <DashboardSkeleton />;
@@ -204,14 +222,14 @@ export function MADashboard({ engagementId, periodId, isAdmin = false }: MADashb
 
       <div className="max-w-6xl mx-auto p-6">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2 text-slate-500 text-sm mb-2">
                 <Calendar className="w-4 h-4" />
                 {period.period_label || 'Current Period'}
               </div>
-              <h1 className="text-2xl font-bold text-slate-900 mb-1">Management Report</h1>
+              <h1 className="text-2xl font-bold text-slate-900 mb-1">Business Intelligence Report</h1>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 text-slate-600">
                   <Building2 className="w-4 h-4" />
@@ -224,87 +242,238 @@ export function MADashboard({ engagementId, periodId, isAdmin = false }: MADashb
               </div>
             </div>
             
-            {isAdmin && !editMode && (
-              <button
-                onClick={() => setEditMode(true)}
-                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 text-sm font-medium flex items-center gap-2"
-              >
-                <Edit3 className="w-4 h-4" />
-                Edit Report
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              <PDFExportButton 
+                periodId={periodId}
+                periodLabel={period.period_label || 'Report'}
+                engagementId={engagementId}
+                showOptions={true}
+              />
+              
+              {isAdmin && !editMode && (
+                <button
+                  onClick={() => setEditMode(true)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 text-sm font-medium flex items-center gap-2"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  Edit Report
+                </button>
+              )}
+            </div>
           </div>
         </div>
-
-        {/* Tuesday Question Banner */}
-        {sectionsVisible.tuesday_question && period.tuesday_question && (
-          <TuesdayQuestionBanner
-            question={period.tuesday_question}
-            answerShort={period.tuesday_answer_short}
-            answerDetail={period.tuesday_answer_detail}
-            editMode={editMode}
-          />
-        )}
-
-        {/* Main Content Grid */}
-        <div className="space-y-6 mt-6">
-          {/* True Cash Section */}
-          {sectionsVisible.true_cash && trueCashData && (
-            <TrueCashWaterfall
-              bankBalance={trueCashData.bankBalance}
-              trueCash={trueCashData.trueCash}
-              breakdown={trueCashData.breakdown}
-              runwayMonths={trueCashData.runwayMonths}
-              monthlyBurn={trueCashData.monthlyBurn}
-              editMode={editMode}
-            />
-          )}
-
-          {/* Cash Forecast (Gold/Platinum only) */}
-          {sectionsVisible.cash_forecast && tierConfig.showForecast && (
-            <CashForecastSection
-              forecastData={forecastData}
-              scenarios={scenarios}
-              activeScenario={activeScenario}
-              onScenarioChange={setActiveScenario}
-              monthlyBurn={financialData?.monthly_operating_costs || 0}
-              currentCash={financialData?.true_cash || 0}
-              editMode={editMode}
-            />
-          )}
-
-          {/* Insights Section */}
-          {sectionsVisible.insights && insights.length > 0 && (
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-800">Insights & Recommendations</h3>
-                  <p className="text-sm text-slate-500">{insights.length} insights this period</p>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                {insights.map(insight => (
-                  <DashboardInsightCard
-                    key={insight.id}
-                    insight={insight}
-                    isExpanded={expandedInsights.has(insight.id)}
-                    onToggle={() => toggleInsightExpanded(insight.id)}
-                    onScenarioClick={setActiveScenario}
-                    editMode={editMode}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* KPIs Section */}
-          {sectionsVisible.kpis && kpis.length > 0 && (
-            <KPIGrid kpis={kpis} editMode={editMode} />
-          )}
+        
+        {/* Tab Navigation */}
+        <div className="mb-6 border-b border-slate-200">
+          <nav className="flex gap-1 -mb-px">
+            <TabButton 
+              active={activeTab === 'overview'} 
+              onClick={() => setActiveTab('overview')}
+              icon={<LayoutDashboard className="w-4 h-4" />}
+            >
+              Overview
+            </TabButton>
+            <TabButton 
+              active={activeTab === 'pl_analysis'} 
+              onClick={() => setActiveTab('pl_analysis')}
+              icon={<BarChart3 className="w-4 h-4" />}
+              badge={plComparison?.metadata.hasBudget ? 'Budget' : undefined}
+            >
+              P&L Analysis
+            </TabButton>
+            <TabButton 
+              active={activeTab === 'ytd'} 
+              onClick={() => setActiveTab('ytd')}
+              icon={<TrendingUp className="w-4 h-4" />}
+            >
+              Year to Date
+            </TabButton>
+            <TabButton 
+              active={activeTab === 'balance_sheet'} 
+              onClick={() => setActiveTab('balance_sheet')}
+              icon={<Scale className="w-4 h-4" />}
+            >
+              Balance Sheet
+            </TabButton>
+          </nav>
         </div>
+
+        {/* Tab Content */}
+        {activeTab === 'overview' && (
+          <>
+            {/* Tuesday Question Banner */}
+            {sectionsVisible.tuesday_question && period.tuesday_question && (
+              <TuesdayQuestionBanner
+                question={period.tuesday_question}
+                answerShort={period.tuesday_answer_short}
+                answerDetail={period.tuesday_answer_detail}
+                editMode={editMode}
+              />
+            )}
+
+            {/* Main Content Grid */}
+            <div className="space-y-6 mt-6">
+              {/* True Cash Section */}
+              {sectionsVisible.true_cash && trueCashData && (
+                <TrueCashWaterfall
+                  bankBalance={trueCashData.bankBalance}
+                  trueCash={trueCashData.trueCash}
+                  breakdown={trueCashData.breakdown}
+                  runwayMonths={trueCashData.runwayMonths}
+                  monthlyBurn={trueCashData.monthlyBurn}
+                  editMode={editMode}
+                />
+              )}
+
+              {/* Cash Forecast (Gold/Platinum only) */}
+              {sectionsVisible.cash_forecast && tierConfig.showForecast && (
+                <CashForecastSection
+                  forecastData={forecastData}
+                  scenarios={scenarios}
+                  activeScenario={activeScenario}
+                  onScenarioChange={setActiveScenario}
+                  monthlyBurn={financialData?.monthly_operating_costs || 0}
+                  currentCash={financialData?.true_cash || 0}
+                  editMode={editMode}
+                />
+              )}
+
+              {/* Insights Section */}
+              {sectionsVisible.insights && insights.length > 0 && (
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-800">Insights & Recommendations</h3>
+                      <p className="text-sm text-slate-500">{insights.length} insights this period</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {insights.map(insight => (
+                      <DashboardInsightCard
+                        key={insight.id}
+                        insight={insight}
+                        isExpanded={expandedInsights.has(insight.id)}
+                        onToggle={() => toggleInsightExpanded(insight.id)}
+                        onScenarioClick={setActiveScenario}
+                        editMode={editMode}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* KPIs Section */}
+              {sectionsVisible.kpis && kpis.length > 0 && (
+                <KPIGrid kpis={kpis} editMode={editMode} />
+              )}
+            </div>
+          </>
+        )}
+        
+        {/* P&L Analysis Tab */}
+        {activeTab === 'pl_analysis' && (
+          <div className="space-y-6">
+            {comparisonLoading ? (
+              <div className="bg-white rounded-xl border border-slate-200 p-12 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              </div>
+            ) : plComparison ? (
+              <PLAnalysis 
+                comparison={plComparison.period}
+                periodLabel={plComparison.metadata.periodLabel}
+                priorMonthLabel={plComparison.metadata.priorMonthLabel}
+                priorYearLabel={plComparison.metadata.priorYearLabel}
+                hasBudget={plComparison.metadata.hasBudget}
+                showBudget={true}
+                showPriorMonth={true}
+                showPriorYear={false}
+              />
+            ) : (
+              <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+                <BarChart3 className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-500">No comparison data available</p>
+                <p className="text-sm text-slate-400 mt-1">Upload financial data to see P&L analysis</p>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Year to Date Tab */}
+        {activeTab === 'ytd' && (
+          <div className="space-y-6">
+            {comparisonLoading ? (
+              <div className="bg-white rounded-xl border border-slate-200 p-12 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              </div>
+            ) : plComparison ? (
+              <YTDComparison 
+                ytd={plComparison.ytd}
+                periodLabel={plComparison.metadata.periodLabel}
+                showBudget={plComparison.metadata.hasBudget}
+                showPriorYear={true}
+              />
+            ) : (
+              <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+                <TrendingUp className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-500">No YTD data available</p>
+                <p className="text-sm text-slate-400 mt-1">Complete more periods to see YTD analysis</p>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Balance Sheet Tab */}
+        {activeTab === 'balance_sheet' && (
+          <div className="space-y-6">
+            <BalanceSheetSummary 
+              data={financialData?.balance_sheet_data as any || null}
+              periodLabel={period.period_label}
+              showDetails={true}
+            />
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+// ============================================
+// TAB BUTTON COMPONENT
+// ============================================
+
+function TabButton({ 
+  active, 
+  onClick, 
+  children, 
+  icon,
+  badge
+}: { 
+  active: boolean; 
+  onClick: () => void; 
+  children: React.ReactNode;
+  icon?: React.ReactNode;
+  badge?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`
+        flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors
+        ${active 
+          ? 'border-blue-600 text-blue-600' 
+          : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+        }
+      `}
+    >
+      {icon}
+      {children}
+      {badge && (
+        <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-700">
+          {badge}
+        </span>
+      )}
+    </button>
   );
 }
 
