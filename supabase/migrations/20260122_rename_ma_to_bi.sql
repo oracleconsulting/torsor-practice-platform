@@ -104,13 +104,7 @@ BEGIN
   END IF;
 END $$;
 
--- 4f. UPDATE ASSESSMENT_QUESTIONS
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'assessment_questions') THEN
-    EXECUTE 'UPDATE assessment_questions SET assessment_type = ''business_intelligence'' WHERE assessment_type = ''management_accounts''';
-  END IF;
-END $$;
+-- 4f. ASSESSMENT_QUESTIONS - no assessment_type column, skip
 
 -- 4g. UPDATE SERVICE_LINES TABLE
 DO $$
