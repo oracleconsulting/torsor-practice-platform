@@ -117,11 +117,12 @@ interface ServiceScore {
 const SERVICES = [
   { code: '365_method', name: 'Goal Alignment Programme' },
   { code: 'management_accounts', name: 'Management Accounts' },
-  { code: 'benchmarking', name: 'Benchmarking' },
+  { code: 'benchmarking', name: 'Industry Benchmarking' },
   { code: 'systems_audit', name: 'Systems Audit' },
   { code: 'fractional_cfo', name: 'Fractional CFO' },
   { code: 'fractional_coo', name: 'Fractional COO' },
-  { code: 'business_advisory', name: 'Business Advisory' },
+  { code: 'business_advisory', name: 'Business Advisory & Exit Planning' },
+  { code: 'hidden_value_audit', name: 'Hidden Value Audit' },
   { code: 'automation', name: 'Automation' },
 ];
 
@@ -1485,19 +1486,347 @@ function detectClientStage(
 }
 
 // ============================================================================
-// APPROPRIATE SERVICE RECOMMENDATIONS (ANTI-OVERSELLING)
+// APPROPRIATE SERVICE RECOMMENDATIONS (ANTI-OVERSELLING) - V2
+// With Exit-Focused Logic, ROI Requirements, and Service Appropriateness Matrix
 // ============================================================================
 
 interface AppropriateRecommendation {
   code: string;
   name: string;
   score: number;
-  confidence: number;
+  confidence: 'high' | 'medium' | 'low';
   reasoning: string;
   specificBenefit: string;
   investmentContext: string;
+  // V2: Mandatory ROI fields
+  investment: number;
+  valueCreated: number | null;
+  valueCalculation: string;
+  roiRatio: string;
   notRecommendedReason?: string;
 }
+
+interface ServiceAppropriateness {
+  isAppropriate: boolean;
+  reason: string;
+  isMandatory?: boolean;
+}
+
+// ============================================================================
+// SERVICE APPROPRIATENESS CHECKS
+// ============================================================================
+
+function checkFractionalCFOAppropriateness(
+  responses: Record<string, any>,
+  financials: ExtractedFinancials,
+  clientStage: ClientStageProfile
+): ServiceAppropriateness {
+  // APPROPRIATE when: Raising capital, rapid scaling, financial crisis, no financial infrastructure
+  const raisingCapital = (responses.sd_exit_timeline || '').includes('investment-ready') ||
+                         (responses.sd_raising_capital || '').toLowerCase().includes('yes');
+  const rapidGrowth = financials.turnoverGrowth && financials.turnoverGrowth > 30;
+  const financialCrisis = (responses.sd_financial_confidence || '').includes('Crisis') ||
+                          (responses.dd_sleep_thieves || '').includes('Cash flow');
+  const noFinancialInfrastructure = (responses.sd_financial_confidence || '').includes('No visibility');
+  
+  // NOT APPROPRIATE when: Stable, profitable, has accountant, no scaling, exit planning
+  const stableAndProfitable = financials.operatingProfit && financials.operatingProfit > 0 &&
+                               (!financials.turnoverGrowth || financials.turnoverGrowth < 20);
+  const exitFocused = clientStage.journey === 'established-exit-focused';
+  const hasAccountant = financials.hasAccounts && financials.source === 'statutory_accounts';
+  
+  if (raisingCapital) {
+    return { isAppropriate: true, reason: 'Raising capital requires investor-ready financial infrastructure' };
+  }
+  if (rapidGrowth) {
+    return { isAppropriate: true, reason: `Rapid growth (${financials.turnoverGrowth}%) requires financial infrastructure to scale` };
+  }
+  if (financialCrisis) {
+    return { isAppropriate: true, reason: 'Financial crisis/cash flow issues require hands-on financial leadership' };
+  }
+  if (noFinancialInfrastructure) {
+    return { isAppropriate: true, reason: 'No financial visibility requires building financial infrastructure' };
+  }
+  
+  // NOT appropriate checks
+  if (exitFocused) {
+    return { isAppropriate: false, reason: 'Exit-focused client needs Business Advisory, not ongoing CFO. Different journey.' };
+  }
+  if (stableAndProfitable && hasAccountant) {
+    return { isAppropriate: false, reason: 'Stable, profitable business with accountant support does not need Fractional CFO.' };
+  }
+  
+  return { isAppropriate: false, reason: 'No clear trigger for Fractional CFO (no scaling, no fundraising, no crisis).' };
+}
+
+function checkFractionalCOOAppropriateness(
+  responses: Record<string, any>,
+  financials: ExtractedFinancials,
+  clientStage: ClientStageProfile
+): ServiceAppropriateness {
+  // APPROPRIATE when: Operational chaos, founder fighting fires daily, 60+ hours, sustained need
+  const operationalChaos = (responses.sd_founder_dependency || '').includes('Chaos') ||
+                           (responses.sd_founder_dependency || '').includes('Significant problems');
+  const highFirefighting = (responses.dd_time_allocation || '').includes('90%') ||
+                           (responses.dd_time_allocation || '').includes('70%');
+  const excessiveHours = (responses.dd_weekly_hours || '').includes('60+') ||
+                         (responses.dd_weekly_hours || '').includes('50-60');
+  
+  // NOT APPROPRIATE when: Business runs fine, reasonable hours, one-time restructuring, strategic issue
+  const businessRunsFine = (responses.sd_founder_dependency || '').includes('run fine') ||
+                           (responses.sd_founder_dependency || '').includes('Minor issues');
+  const reasonableHours = (responses.dd_weekly_hours || '').includes('Under 30') ||
+                          (responses.dd_weekly_hours || '').includes('30-40');
+  const exitFocused = clientStage.journey === 'established-exit-focused';
+  
+  if (operationalChaos && excessiveHours) {
+    return { isAppropriate: true, reason: 'Operational chaos with 50+ hours indicates sustained operational leadership gap' };
+  }
+  if (highFirefighting && excessiveHours) {
+    return { isAppropriate: true, reason: 'High firefighting (70%+) consuming 50+ hours requires operational leadership' };
+  }
+  
+  // NOT appropriate checks
+  if (businessRunsFine) {
+    return { isAppropriate: false, reason: 'Business runs fine without founder. One-time restructuring does not justify ongoing COO.' };
+  }
+  if (reasonableHours) {
+    return { isAppropriate: false, reason: `Owner works reasonable hours (${responses.dd_weekly_hours}). COO not justified.` };
+  }
+  if (exitFocused && !operationalChaos) {
+    return { isAppropriate: false, reason: 'Exit-focused client with stable operations needs exit planning, not ongoing COO.' };
+  }
+  
+  return { isAppropriate: false, reason: 'No sustained operational leadership gap identified.' };
+}
+
+function checkBusinessAdvisoryAppropriateness(
+  responses: Record<string, any>,
+  financials: ExtractedFinancials
+): ServiceAppropriateness {
+  // ALWAYS APPROPRIATE when exit within 5 years
+  const exitTimeline = responses.sd_exit_timeline || '';
+  const hasExitTimeline = exitTimeline.includes('1-3 years') ||
+                          exitTimeline.includes('3-5 years') ||
+                          exitTimeline.includes('Already exploring') ||
+                          exitTimeline.includes('actively preparing');
+  
+  const hasValueToProtect = (financials.ebitda && financials.ebitda > 100000) ||
+                            (financials.netAssets && financials.netAssets > 200000);
+  
+  if (hasExitTimeline) {
+    return { 
+      isAppropriate: true, 
+      isMandatory: true,
+      reason: `Exit timeline (${exitTimeline}) detected. Business Advisory is MANDATORY for exit planning.` 
+    };
+  }
+  
+  if (hasValueToProtect) {
+    return { isAppropriate: true, reason: 'Significant value to protect warrants valuation and exit planning consideration.' };
+  }
+  
+  return { isAppropriate: false, reason: 'No exit timeline stated and no significant value to protect.' };
+}
+
+function checkBenchmarkingAppropriateness(
+  responses: Record<string, any>,
+  financials: ExtractedFinancials,
+  payrollAnalysis: PayrollAnalysis | null
+): ServiceAppropriateness {
+  // MANDATORY when: Exit within 5 years + any financial metric outside norms
+  const exitTimeline = responses.sd_exit_timeline || '';
+  const exitWithin5Years = exitTimeline.includes('1-3 years') ||
+                           exitTimeline.includes('3-5 years') ||
+                           exitTimeline.includes('Already exploring') ||
+                           exitTimeline.includes('actively preparing');
+  
+  const metricsOutsideNorms = payrollAnalysis && 
+    (payrollAnalysis.assessment === 'elevated' || payrollAnalysis.assessment === 'concerning');
+  
+  const wantsBenchmark = (responses.sd_benchmark_awareness || '').includes("No - I'd love to know");
+  
+  if (exitWithin5Years && metricsOutsideNorms) {
+    return { 
+      isAppropriate: true, 
+      isMandatory: true,
+      reason: `Exit within 5 years AND payroll ${payrollAnalysis!.assessment} (${payrollAnalysis!.excessPercentage}% above benchmark). Buyers will benchmark - you should too.` 
+    };
+  }
+  
+  if (exitWithin5Years) {
+    return { 
+      isAppropriate: true, 
+      isMandatory: true,
+      reason: 'Exit within 5 years. Benchmarking provides competitive positioning buyers will use.' 
+    };
+  }
+  
+  if (metricsOutsideNorms) {
+    return { 
+      isAppropriate: true, 
+      reason: `Financial metrics outside industry norms (payroll ${payrollAnalysis!.assessment}). Benchmarking validates restructuring decisions.` 
+    };
+  }
+  
+  if (wantsBenchmark) {
+    return { isAppropriate: true, reason: 'Client expressed interest in understanding industry positioning.' };
+  }
+  
+  return { isAppropriate: false, reason: 'No exit timeline and metrics appear within normal range.' };
+}
+
+function checkHiddenValueAuditAppropriateness(
+  responses: Record<string, any>,
+  financials: ExtractedFinancials,
+  clientStage: ClientStageProfile
+): ServiceAppropriateness {
+  // MANDATORY when: Exit within 5 years + any risk factor
+  const exitTimeline = responses.sd_exit_timeline || '';
+  const exitWithin5Years = exitTimeline.includes('1-3 years') ||
+                           exitTimeline.includes('3-5 years') ||
+                           exitTimeline.includes('Already exploring') ||
+                           exitTimeline.includes('actively preparing');
+  
+  // Risk factors
+  const founderDependency = (responses.sd_founder_dependency || '').includes('Chaos') ||
+                            (responses.sd_founder_dependency || '').includes('Significant') ||
+                            (responses.sd_business_overview || '').toLowerCase().includes('i am the');
+  const keyPersonRisk = (responses.dd_hard_truth || '').toLowerCase().includes('key person') ||
+                        (responses.sd_business_overview || '').toLowerCase().includes('just me');
+  const customerConcentration = (responses.sd_revenue_concentration || '').includes('one client') ||
+                                (responses.sd_revenue_concentration || '').includes('top 3');
+  const brandTiedToFounder = (responses.sd_business_overview || '').toLowerCase().includes('my name') ||
+                             (responses.sd_business_overview || '').toLowerCase().includes('personal brand');
+  
+  const hasRiskFactors = founderDependency || keyPersonRisk || customerConcentration || brandTiedToFounder;
+  
+  if (exitWithin5Years && hasRiskFactors) {
+    const risks = [];
+    if (founderDependency) risks.push('founder dependency');
+    if (keyPersonRisk) risks.push('key person risk');
+    if (customerConcentration) risks.push('customer concentration');
+    if (brandTiedToFounder) risks.push('brand tied to founder');
+    
+    return { 
+      isAppropriate: true, 
+      isMandatory: true,
+      reason: `Exit within 5 years with risk factors (${risks.join(', ')}). These destroy multiples - must be identified and addressed.` 
+    };
+  }
+  
+  if (exitWithin5Years) {
+    return { 
+      isAppropriate: true, 
+      reason: 'Exit within 5 years. Hidden Value Audit identifies factors suppressing your multiple.' 
+    };
+  }
+  
+  if (hasRiskFactors && clientStage.journey !== 'pre-revenue-building') {
+    return { isAppropriate: true, reason: 'Risk factors identified that may be suppressing business value.' };
+  }
+  
+  return { isAppropriate: false, reason: 'No exit timeline and no significant risk factors identified.' };
+}
+
+function check365AlignmentAppropriateness(
+  responses: Record<string, any>,
+  clientStage: ClientStageProfile
+): ServiceAppropriateness {
+  // APPROPRIATE when: Avoiding decisions, identity transition, accountability gap
+  const avoidingDecisions = (responses.dd_avoided_conversation || '').toLowerCase().includes('redundan') ||
+                            (responses.dd_avoided_conversation || '').toLowerCase().includes('staff') ||
+                            (responses.dd_avoided_conversation || '').toLowerCase().includes('difficult');
+  const identityTransition = (responses.dd_five_year_vision || '').toLowerCase().includes('investor') ||
+                             (responses.dd_five_year_vision || '').toLowerCase().includes('chairman') ||
+                             (responses.dd_five_year_vision || '').toLowerCase().includes('portfolio');
+  const accountabilityGap = (responses.dd_hard_truth || '').toLowerCase().includes('carrying') ||
+                            (responses.dd_hard_truth || '').toLowerCase().includes('alone');
+  
+  // NOT APPROPRIATE when: Operational chaos (needs COO) or financial crisis (needs CFO)
+  const operationalChaos = (responses.sd_founder_dependency || '').includes('Chaos');
+  const financialCrisis = (responses.dd_sleep_thieves || '').includes('Cash flow');
+  
+  if (operationalChaos) {
+    return { isAppropriate: false, reason: 'Operational chaos needs COO, not Goal Alignment. Fix operations first.' };
+  }
+  
+  if (financialCrisis) {
+    return { isAppropriate: false, reason: 'Financial crisis needs CFO intervention, not Goal Alignment.' };
+  }
+  
+  if (avoidingDecisions) {
+    return { isAppropriate: true, reason: 'Avoiding known-necessary decisions requires structured accountability, not just advice.' };
+  }
+  
+  if (identityTransition) {
+    return { isAppropriate: true, reason: 'Transition from operator to investor/chairman requires structured identity shift support.' };
+  }
+  
+  if (accountabilityGap) {
+    return { isAppropriate: true, reason: 'Carrying strategic decisions alone. Goal Alignment provides accountability partner.' };
+  }
+  
+  return { isAppropriate: false, reason: 'No clear accountability gap or decision avoidance identified.' };
+}
+
+function checkManagementAccountsAppropriateness(
+  responses: Record<string, any>,
+  financials: ExtractedFinancials
+): ServiceAppropriateness {
+  // APPROPRIATE when: No financial visibility
+  const noVisibility = (responses.sd_financial_confidence || '').includes('Uncertain') ||
+                       (responses.sd_financial_confidence || '').includes('Not confident') ||
+                       (responses.sd_numbers_action_frequency || '').includes('Rarely') ||
+                       (responses.sd_numbers_action_frequency || '').includes('Never');
+  
+  // NOT APPROPRIATE when: Already has accountant providing regular reporting
+  const hasReporting = financials.hasAccounts && financials.source === 'statutory_accounts';
+  
+  if (hasReporting && !noVisibility) {
+    return { isAppropriate: false, reason: 'Already has accountant providing regular financial reporting. Would be duplicate.' };
+  }
+  
+  if (noVisibility) {
+    return { isAppropriate: true, reason: 'No current financial visibility. Decision-making needs data foundation.' };
+  }
+  
+  return { isAppropriate: false, reason: 'Financial visibility appears adequate.' };
+}
+
+function checkSystemsAuditAppropriateness(
+  responses: Record<string, any>,
+  clientStage: ClientStageProfile
+): ServiceAppropriateness {
+  // APPROPRIATE when: Operational inefficiency causing measurable cost
+  const manualProcesses = (responses.sd_business_overview || '').toLowerCase().includes('manual') ||
+                          (responses.dd_operational_friction || '').toLowerCase().includes('manual');
+  const scalingBlocked = (responses.sd_growth_blocker || '').includes('systems') ||
+                         (responses.sd_growth_blocker || '').includes('capacity');
+  
+  // NOT APPROPRIATE when: Business runs smoothly, owner not in operations
+  const businessRunsFine = (responses.sd_founder_dependency || '').includes('run fine') ||
+                           (responses.sd_founder_dependency || '').includes('Minor issues');
+  const lowHours = (responses.dd_weekly_hours || '').includes('Under 30');
+  
+  if (businessRunsFine || lowHours) {
+    return { isAppropriate: false, reason: 'Business runs smoothly. No systems problem to solve.' };
+  }
+  
+  if (manualProcesses) {
+    return { isAppropriate: true, reason: 'Manual processes identified that may be consuming time/cost.' };
+  }
+  
+  if (scalingBlocked) {
+    return { isAppropriate: true, reason: 'Scaling blocked by systems limitations.' };
+  }
+  
+  return { isAppropriate: false, reason: 'No clear systems inefficiency identified.' };
+}
+
+// ============================================================================
+// MAIN RECOMMENDATION FUNCTION
+// ============================================================================
 
 function generateAppropriateRecommendations(
   responses: Record<string, any>,
@@ -1509,232 +1838,389 @@ function generateAppropriateRecommendations(
   const recommendations: AppropriateRecommendation[] = [];
   const notRecommended: AppropriateRecommendation[] = [];
   
-  // ========== BENCHMARKING ==========
-  // Recommend when: Client suspects inefficiency, approaching exit, or payroll elevated
-  const needsBenchmarking = 
-    payrollAnalysis?.assessment === 'elevated' ||
-    payrollAnalysis?.assessment === 'concerning' ||
-    (responses.sd_benchmark_awareness || '').includes("No - I'd love to know") ||
-    clientStage.journey === 'established-exit-focused';
+  // Detect if exit-focused (within 5 years)
+  const exitTimeline = responses.sd_exit_timeline || '';
+  const exitWithin5Years = exitTimeline.includes('1-3 years') ||
+                           exitTimeline.includes('3-5 years') ||
+                           exitTimeline.includes('Already exploring') ||
+                           exitTimeline.includes('actively preparing');
   
-  if (needsBenchmarking && !clientStage.inappropriateServices.includes('benchmarking')) {
-    const payrollContext = payrollAnalysis 
-      ? `Your payroll is ${payrollAnalysis.calculation}. Benchmarking will confirm whether this represents £${Math.abs(payrollAnalysis.annualExcess).toLocaleString()}/year in excess costs or is appropriate for your operation.`
-      : 'Benchmarking will show exactly where your costs sit against industry peers.';
-    
-    recommendations.push({
-      code: 'benchmarking',
-      name: 'Benchmarking Services',
-      score: 85,
-      confidence: 90,
-      reasoning: 'You need objective data before making restructuring decisions',
-      specificBenefit: payrollContext,
-      investmentContext: financials.turnover 
-        ? `£3,500 is ${((3500 / financials.turnover) * 100).toFixed(2)}% of turnover`
-        : '£3,500 one-time investment'
-    });
-  }
+  // Calculate valuation context for ROI calculations
+  const currentEbitda = financials.ebitda || 0;
+  const currentMultiple = 3.0; // Conservative for founder-dependent
+  const improvedMultiple = 4.0; // With risks addressed
+  const payrollSavings = payrollAnalysis && payrollAnalysis.annualExcess > 0 
+    ? Math.round(payrollAnalysis.annualExcess * 0.5) // Conservative 50% capture
+    : 0;
+  const improvedEbitda = currentEbitda + payrollSavings;
+  const currentValuation = currentEbitda * currentMultiple;
+  const potentialValuation = improvedEbitda * improvedMultiple;
+  const valuationUplift = potentialValuation - currentValuation;
   
-  // ========== GOAL ALIGNMENT ==========
-  // Recommend when: Transformation needed, exit planning, avoiding difficult decisions
-  const avoidingConversations = 
-    (responses.dd_avoided_conversation || '').toLowerCase().includes('redundan') ||
-    (responses.dd_avoided_conversation || '').toLowerCase().includes('staff') ||
-    (responses.dd_avoided_conversation || '').toLowerCase().includes('team') ||
-    (responses.dd_hard_truth || '').toLowerCase().includes('overstaff');
-  
-  const needsTransformationSupport =
-    clientStage.journey === 'established-exit-focused' ||
-    avoidingConversations ||
-    (responses.dd_success_definition || '').includes('legacy') ||
-    (responses.dd_success_definition || '').includes('sell for a life-changing');
-  
-  if (needsTransformationSupport) {
-    const transformationContext = avoidingConversations
-      ? 'You mentioned avoiding difficult conversations about staffing. The Goal Alignment programme provides structured accountability to address these decisions.'
-      : clientStage.journey === 'established-exit-focused'
-        ? 'Exit is a personal transformation as much as a business transaction. Goal Alignment helps you navigate the journey with clear milestones.'
-        : 'This programme connects your personal destination to business decisions.';
-    
-    recommendations.push({
-      code: '365_method',
-      name: 'Goal Alignment Programme',
-      score: 80,
-      confidence: 85,
-      reasoning: 'You need structured support for the transition ahead',
-      specificBenefit: transformationContext,
-      investmentContext: '£1,500 (Lite) to £4,500 (Growth) based on support level needed'
-    });
-  }
-  
-  // ========== BUSINESS ADVISORY ==========
-  // Recommend when: Exit timeline 1-3 years AND has meaningful value to protect
-  const hasValueToProtect = 
-    (financials.ebitda && financials.ebitda > 200000) ||
-    (financials.netAssets && financials.netAssets > 500000);
-  
-  const needsExitPlanning =
-    ((responses.sd_exit_timeline || '').includes('1-3 years') || 
-     (responses.sd_exit_timeline || '').includes('Already exploring')) &&
-    hasValueToProtect;
-  
-  if (needsExitPlanning && !clientStage.inappropriateServices.includes('business_advisory')) {
-    const valuationContext = financials.ebitda
-      ? `With EBITDA of ~£${Math.round(financials.ebitda / 1000)}k, your business could command £${Math.round((financials.ebitda * 3) / 1000)}k-£${Math.round((financials.ebitda * 5) / 1000)}k. Advisory ensures you don't leave value on the table.`
-      : 'Professional valuation and exit planning maximises your sale price.';
-    
+  // ========== BUSINESS ADVISORY (Check first for exit-focused) ==========
+  const advisoryCheck = checkBusinessAdvisoryAppropriateness(responses, financials);
+  if (advisoryCheck.isAppropriate) {
+    const investment = 4000;
     recommendations.push({
       code: 'business_advisory',
       name: 'Business Advisory & Exit Planning',
-      score: 75,
-      confidence: 80,
-      reasoning: 'You have a 1-3 year exit horizon with significant value at stake',
-      specificBenefit: valuationContext,
-      investmentContext: '£1,000 (Valuation only) to £4,000 (Full package)'
+      score: advisoryCheck.isMandatory ? 95 : 75,
+      confidence: 'high',
+      reasoning: advisoryCheck.reason,
+      specificBenefit: financials.ebitda 
+        ? `Valuation clarity for £${Math.round(currentValuation / 1000)}k-£${Math.round(potentialValuation / 1000)}k business. Exit roadmap and buyer-readiness assessment.`
+        : 'Valuation clarity, exit roadmap, and buyer-readiness assessment.',
+      investmentContext: financials.turnover 
+        ? `£${investment.toLocaleString()} is ${((investment / financials.turnover) * 100).toFixed(2)}% of turnover`
+        : `£${investment.toLocaleString()} one-time investment`,
+      investment,
+      valueCreated: exitWithin5Years ? valuationUplift : null,
+      valueCalculation: exitWithin5Years && financials.ebitda
+        ? `Foundation for valuation improvement from £${Math.round(currentValuation / 1000)}k to £${Math.round(potentialValuation / 1000)}k`
+        : 'Foundational - enables all other value capture',
+      roiRatio: exitWithin5Years && valuationUplift > 0 
+        ? `Foundational for ${Math.round(valuationUplift / investment)}:1 total programme ROI` 
+        : 'Foundational'
+    });
+  } else if (exitWithin5Years) {
+    // Business Advisory should be flagged as missing if exit is planned
+    notRecommended.push({
+      code: 'business_advisory',
+      name: 'Business Advisory & Exit Planning',
+      score: 0,
+      confidence: 'high',
+      reasoning: 'Should be recommended for exit-focused client',
+      specificBenefit: '',
+      investmentContext: '',
+      investment: 4000,
+      valueCreated: null,
+      valueCalculation: '',
+      roiRatio: '',
+      notRecommendedReason: 'ERROR: Exit within 5 years but Business Advisory not triggered. Review logic.'
+    });
+  }
+  
+  // ========== BENCHMARKING ==========
+  const benchmarkingCheck = checkBenchmarkingAppropriateness(responses, financials, payrollAnalysis);
+  if (benchmarkingCheck.isAppropriate) {
+    const investment = 3500;
+    const benchmarkValueCreated = payrollAnalysis && payrollSavings > 0 && exitWithin5Years
+      ? Math.round(payrollSavings * 3.5) // Savings × exit multiple
+      : payrollSavings;
+    
+    recommendations.push({
+      code: 'benchmarking',
+      name: 'Industry Benchmarking',
+      score: benchmarkingCheck.isMandatory ? 90 : 80,
+      confidence: payrollAnalysis ? 'high' : 'medium',
+      reasoning: benchmarkingCheck.reason,
+      specificBenefit: payrollAnalysis 
+        ? `Validates £${payrollAnalysis.annualExcess.toLocaleString()}/year payroll excess (${payrollAnalysis.calculation}). Provides buyer-ready competitive positioning.`
+        : 'Identifies where you sit vs industry peers. Buyers will benchmark - you should too.',
+      investmentContext: financials.turnover 
+        ? `£${investment.toLocaleString()} is ${((investment / financials.turnover) * 100).toFixed(2)}% of turnover`
+        : `£${investment.toLocaleString()} one-time investment`,
+      investment,
+      valueCreated: benchmarkValueCreated > 0 ? benchmarkValueCreated : null,
+      valueCalculation: payrollAnalysis && payrollSavings > 0
+        ? `Identifies £${payrollAnalysis.annualExcess.toLocaleString()} payroll excess. 50% capture = £${payrollSavings.toLocaleString()}/year. At ${exitWithin5Years ? '3.5x exit multiple' : 'annual'} = £${benchmarkValueCreated.toLocaleString()}.`
+        : 'Identifies gaps vs peers - quantification requires engagement',
+      roiRatio: benchmarkValueCreated > 0 ? `${Math.round(benchmarkValueCreated / investment)}:1` : 'TBC on engagement'
+    });
+  } else {
+    notRecommended.push({
+      code: 'benchmarking',
+      name: 'Industry Benchmarking',
+      score: 0,
+      confidence: 'high',
+      reasoning: benchmarkingCheck.reason,
+      specificBenefit: '',
+      investmentContext: '',
+      investment: 3500,
+      valueCreated: null,
+      valueCalculation: '',
+      roiRatio: '',
+      notRecommendedReason: benchmarkingCheck.reason
+    });
+  }
+  
+  // ========== HIDDEN VALUE AUDIT ==========
+  const hiddenValueCheck = checkHiddenValueAuditAppropriateness(responses, financials, clientStage);
+  if (hiddenValueCheck.isAppropriate) {
+    const investment = 2500;
+    // Multiple improvement from 3x to 4x on improved EBITDA
+    const multipleImpact = exitWithin5Years && improvedEbitda > 0
+      ? improvedEbitda * (improvedMultiple - currentMultiple)
+      : 0;
+    
+    recommendations.push({
+      code: 'hidden_value_audit',
+      name: 'Hidden Value Audit',
+      score: hiddenValueCheck.isMandatory ? 85 : 70,
+      confidence: exitWithin5Years ? 'high' : 'medium',
+      reasoning: hiddenValueCheck.reason,
+      specificBenefit: exitWithin5Years && financials.ebitda
+        ? `Identifies factors killing your multiple. Moving from ${currentMultiple}x to ${improvedMultiple}x on £${Math.round(improvedEbitda / 1000)}k EBITDA = £${Math.round(multipleImpact / 1000)}k additional value.`
+        : 'Identifies risks that suppress business value (founder dependency, key person risk, concentration).',
+      investmentContext: financials.turnover 
+        ? `£${investment.toLocaleString()} is ${((investment / financials.turnover) * 100).toFixed(2)}% of turnover`
+        : `£${investment.toLocaleString()} one-time investment`,
+      investment,
+      valueCreated: multipleImpact > 0 ? multipleImpact : null,
+      valueCalculation: exitWithin5Years && multipleImpact > 0
+        ? `Multiple improvement ${currentMultiple}x → ${improvedMultiple}x on £${Math.round(improvedEbitda / 1000)}k EBITDA = £${Math.round(multipleImpact / 1000)}k`
+        : 'Quantifies value destruction from identified risks',
+      roiRatio: multipleImpact > 0 ? `${Math.round(multipleImpact / investment)}:1` : 'TBC on engagement'
+    });
+  }
+  
+  // ========== 365 ALIGNMENT ==========
+  const alignmentCheck = check365AlignmentAppropriateness(responses, clientStage);
+  if (alignmentCheck.isAppropriate) {
+    const investment = 1500;
+    recommendations.push({
+      code: '365_method',
+      name: 'Goal Alignment Programme',
+      score: 65,
+      confidence: 'medium',
+      reasoning: alignmentCheck.reason,
+      specificBenefit: 'Structured accountability for decisions you know need making. Not advice - accountability.',
+      investmentContext: financials.turnover 
+        ? `£${investment.toLocaleString()} is ${((investment / financials.turnover) * 100).toFixed(2)}% of turnover`
+        : `£${investment.toLocaleString()} (Lite tier)`,
+      investment,
+      valueCreated: null,
+      valueCalculation: 'Enables execution of identified value opportunities. Multiplier on other recommendations.',
+      roiRatio: 'Multiplier on other ROI'
     });
   }
   
   // ========== MANAGEMENT ACCOUNTS ==========
-  // Recommend when: Financial uncertainty, NOT when they already have good visibility
-  const hasFinancialUncertainty =
-    (responses.sd_financial_confidence || '').includes('Uncertain') ||
-    (responses.sd_financial_confidence || '').includes('Not confident') ||
-    (responses.sd_numbers_action_frequency || '').includes('Rarely') ||
-    (responses.sd_numbers_action_frequency || '').includes('Never');
-  
-  // DON'T recommend if they have uploaded clean accounts and seem confident
-  const alreadyHasVisibility = 
-    financials.hasAccounts && 
-    financials.source === 'statutory_accounts' &&
-    !hasFinancialUncertainty;
-  
-  if (hasFinancialUncertainty && !alreadyHasVisibility) {
+  const maCheck = checkManagementAccountsAppropriateness(responses, financials);
+  if (maCheck.isAppropriate) {
+    const investment = 7800; // Annual
     recommendations.push({
       code: 'management_accounts',
       name: 'Management Accounts',
-      score: 70,
-      confidence: 75,
-      reasoning: 'You indicated uncertainty in your financial confidence',
-      specificBenefit: 'Monthly visibility into what is actually happening, not year-end surprises',
-      investmentContext: '£650/month - pays for itself in better decisions'
+      score: 60,
+      confidence: 'medium',
+      reasoning: maCheck.reason,
+      specificBenefit: 'Monthly visibility into actual performance. Foundation for all other decisions.',
+      investmentContext: `£650/month (£${investment.toLocaleString()}/year)`,
+      investment,
+      valueCreated: null,
+      valueCalculation: 'Foundational - enables data-driven decisions',
+      roiRatio: 'Foundational'
     });
-  } else if (alreadyHasVisibility) {
+  } else {
     notRecommended.push({
       code: 'management_accounts',
       name: 'Management Accounts',
-      score: 20,
-      confidence: 80,
-      reasoning: 'Your existing financial reporting appears adequate',
+      score: 0,
+      confidence: 'high',
+      reasoning: maCheck.reason,
       specificBenefit: '',
       investmentContext: '',
-      notRecommendedReason: 'You have good financial visibility already. This would be overkill.'
+      investment: 7800,
+      valueCreated: null,
+      valueCalculation: '',
+      roiRatio: '',
+      notRecommendedReason: maCheck.reason
     });
   }
   
   // ========== SYSTEMS AUDIT ==========
-  // Recommend when: High firefighting, founder dependency, chaos
-  // DON'T recommend when: Business already runs without founder
-  const hasFounderDependency =
-    (responses.sd_founder_dependency || '').includes('Chaos') ||
-    (responses.sd_founder_dependency || '').includes('Significant problems');
-  
-  const highFirefighting =
-    (responses.dd_time_allocation || '').includes('90%') ||
-    (responses.dd_time_allocation || '').includes('70%');
-  
-  const businessRunsWithoutFounder =
-    (responses.sd_founder_dependency || '').includes('run fine') ||
-    (responses.sd_founder_dependency || '').includes('Minor issues') ||
-    (responses.dd_weekly_hours || '').includes('Under 30');
-  
-  if ((hasFounderDependency || highFirefighting) && !businessRunsWithoutFounder && 
-      !clientStage.inappropriateServices.includes('systems_audit')) {
+  const systemsCheck = checkSystemsAuditAppropriateness(responses, clientStage);
+  if (systemsCheck.isAppropriate) {
+    const investment = 4000;
     recommendations.push({
       code: 'systems_audit',
       name: 'Systems Audit',
-      score: 65,
-      confidence: 70,
-      reasoning: 'Your business is too dependent on you',
-      specificBenefit: 'Map what is keeping you trapped and build the path to freedom',
-      investmentContext: '£4,000 one-time investment'
+      score: 55,
+      confidence: 'medium',
+      reasoning: systemsCheck.reason,
+      specificBenefit: 'Map inefficiencies and build automation roadmap.',
+      investmentContext: `£${investment.toLocaleString()} one-time investment`,
+      investment,
+      valueCreated: null,
+      valueCalculation: 'Identifies time/cost savings - quantification requires engagement',
+      roiRatio: 'TBC on engagement'
     });
-  } else if (businessRunsWithoutFounder || clientStage.inappropriateServices.includes('systems_audit')) {
+  } else {
     notRecommended.push({
       code: 'systems_audit',
       name: 'Systems Audit',
-      score: 15,
-      confidence: 85,
-      reasoning: 'Your business already runs without you',
+      score: 0,
+      confidence: 'high',
+      reasoning: systemsCheck.reason,
       specificBenefit: '',
       investmentContext: '',
-      notRecommendedReason: businessRunsWithoutFounder 
-        ? 'You work under 30 hours and the business runs fine. You do not need systems work.'
-        : 'This service is not appropriate for your current journey stage.'
+      investment: 4000,
+      valueCreated: null,
+      valueCalculation: '',
+      roiRatio: '',
+      notRecommendedReason: systemsCheck.reason
     });
   }
   
-  // ========== FRACTIONAL CFO/COO ==========
-  // DON'T recommend when: Exit-focused (they're leaving, not scaling)
-  if (clientStage.journey === 'established-exit-focused') {
+  // ========== FRACTIONAL CFO ==========
+  const cfoCheck = checkFractionalCFOAppropriateness(responses, financials, clientStage);
+  if (cfoCheck.isAppropriate) {
+    const investment = 48000; // Annual
+    recommendations.push({
+      code: 'fractional_cfo',
+      name: 'Fractional CFO',
+      score: 70,
+      confidence: 'high',
+      reasoning: cfoCheck.reason,
+      specificBenefit: 'Financial leadership for scaling or crisis management.',
+      investmentContext: `£4,000/month (£${investment.toLocaleString()}/year)`,
+      investment,
+      valueCreated: null,
+      valueCalculation: 'Value depends on specific situation (fundraise success, turnaround, etc.)',
+      roiRatio: 'Situation-dependent'
+    });
+  } else {
     notRecommended.push({
       code: 'fractional_cfo',
       name: 'Fractional CFO',
-      score: 10,
-      confidence: 90,
-      reasoning: 'You are exiting, not scaling',
+      score: 0,
+      confidence: 'high',
+      reasoning: cfoCheck.reason,
       specificBenefit: '',
       investmentContext: '',
-      notRecommendedReason: 'Fractional CFO is for businesses building for growth. You are preparing for exit. Different journey.'
-    });
-    
-    notRecommended.push({
-      code: 'fractional_coo',
-      name: 'Fractional COO',
-      score: 10,
-      confidence: 90,
-      reasoning: 'You are exiting, not scaling',
-      specificBenefit: '',
-      investmentContext: '',
-      notRecommendedReason: 'Fractional COO is for businesses building operational capacity. You are preparing for exit.'
+      investment: 48000,
+      valueCreated: null,
+      valueCalculation: '',
+      roiRatio: '',
+      notRecommendedReason: cfoCheck.reason
     });
   }
   
-  // Sort by score and return top 2-3 recommendations
+  // ========== FRACTIONAL COO ==========
+  const cooCheck = checkFractionalCOOAppropriateness(responses, financials, clientStage);
+  if (cooCheck.isAppropriate) {
+    const investment = 45000; // Annual
+    recommendations.push({
+      code: 'fractional_coo',
+      name: 'Fractional COO',
+      score: 70,
+      confidence: 'high',
+      reasoning: cooCheck.reason,
+      specificBenefit: 'Operational leadership for scaling or crisis.',
+      investmentContext: `£3,750/month (£${investment.toLocaleString()}/year)`,
+      investment,
+      valueCreated: null,
+      valueCalculation: 'Value depends on operational improvements achieved',
+      roiRatio: 'Situation-dependent'
+    });
+  } else {
+    notRecommended.push({
+      code: 'fractional_coo',
+      name: 'Fractional COO',
+      score: 0,
+      confidence: 'high',
+      reasoning: cooCheck.reason,
+      specificBenefit: '',
+      investmentContext: '',
+      investment: 45000,
+      valueCreated: null,
+      valueCalculation: '',
+      roiRatio: '',
+      notRecommendedReason: cooCheck.reason
+    });
+  }
+  
+  // ========== SANITY CHECKS ==========
+  let sortedRecs = [...recommendations].sort((a, b) => b.score - a.score);
+  
+  // Calculate totals for sanity check
+  const totalInvestment = sortedRecs.reduce((sum, r) => sum + r.investment, 0);
+  const totalValueCreated = sortedRecs.reduce((sum, r) => sum + (r.valueCreated || 0), 0);
+  
+  // Sanity check: Investment as % of turnover
+  if (financials.turnover && totalInvestment / financials.turnover > 0.03) {
+    console.log(`[Recommendations] WARNING: Total investment ${((totalInvestment / financials.turnover) * 100).toFixed(1)}% of turnover exceeds 3% threshold`);
+    // Trim lower-priority recommendations
+    while (sortedRecs.length > 3 && totalInvestment / financials.turnover > 0.02) {
+      const removed = sortedRecs.pop();
+      if (removed) {
+        notRecommended.push({
+          ...removed,
+          notRecommendedReason: `Removed due to investment cap: total would exceed 2% of turnover`
+        });
+      }
+    }
+  }
+  
+  // Sanity check: Investment as % of EBITDA
+  if (financials.ebitda && totalInvestment / financials.ebitda > 0.15) {
+    console.log(`[Recommendations] WARNING: Total investment ${((totalInvestment / financials.ebitda) * 100).toFixed(1)}% of EBITDA exceeds 15% threshold`);
+  }
+  
+  // Sanity check: Minimum ROI threshold (only for non-foundational services)
+  const filteredByROI = sortedRecs.filter(r => {
+    if (r.valueCreated && r.valueCreated > 0) {
+      const roi = r.valueCreated / r.investment;
+      if (roi < 5) {
+        console.log(`[Recommendations] WARNING: ${r.name} has ROI ${roi.toFixed(1)}:1, below 5:1 threshold`);
+        return false; // Remove if ROI too low
+      }
+    }
+    return true;
+  });
+  
+  // Return maximum 4 recommendations (for exit-focused clients)
   return {
-    recommended: recommendations.sort((a, b) => b.score - a.score).slice(0, 3),
+    recommended: filteredByROI.slice(0, 4),
     notRecommended
   };
 }
 
 // ============================================================================
-// GROUNDED ROI CALCULATION
+// GROUNDED ROI CALCULATION (V2 - With Exit-Focused Valuation Impact)
 // ============================================================================
 
 interface GroundedROI {
   investmentTotal: number;
   investmentBreakdown: string;
   investmentAsPercentOfTurnover?: string;
-  investmentAsPercentOfProfit?: string;
+  investmentAsPercentOfEbitda?: string;
   
-  // Quantified benefits (only include if calculable)
-  payrollEfficiencyGain?: {
-    amount: number;
+  // V2: Valuation-focused for exit clients
+  valuationContext?: {
+    currentEbitda: number;
+    currentMultiple: number;
+    currentValuation: number;
+    payrollSavings: number;
+    improvedEbitda: number;
+    improvedMultiple: number;
+    potentialValuation: number;
+    valuationUplift: number;
     calculation: string;
-    confidence: 'high' | 'medium' | 'low';
   };
   
-  valuationUplift?: {
-    currentEstimate: number;
-    potentialEstimate: number;
-    uplift: number;
+  // Individual service ROI
+  serviceROIs: Array<{
+    service: string;
+    investment: number;
+    valueCreated: number | null;
     calculation: string;
-    confidence: 'high' | 'medium' | 'low';
+    roiRatio: string;
+    confidence: string;
+  }>;
+  
+  // Totals
+  totalValueCreated: number;
+  totalROI: string;
+  
+  // Sanity check results
+  sanityChecks: {
+    investmentVsTurnover: { value: number; status: 'ok' | 'warning' | 'red_flag' };
+    investmentVsEbitda: { value: number; status: 'ok' | 'warning' | 'red_flag' };
+    minimumROI: { value: number; status: 'ok' | 'warning' | 'red_flag' };
   };
   
-  // Qualitative benefits (don't quantify what can't be quantified)
-  qualitativeBenefits: string[];
-  
-  paybackPeriod?: string;
   roiSummary: string;
 }
 
@@ -1745,104 +2231,125 @@ function calculateGroundedROI(
   clientStage: ClientStageProfile
 ): GroundedROI {
   
-  // Calculate total investment
-  const pricing: Record<string, number> = {
-    'benchmarking': 3500,
-    '365_method': 3000, // Average of Lite and Growth
-    'business_advisory': 2500, // Average
-    'management_accounts': 7800, // Annual (£650 × 12)
-    'systems_audit': 4000,
-    'fractional_cfo': 48000, // Annual (£4000 × 12)
-    'fractional_coo': 45000, // Annual (£3750 × 12)
-  };
-  
-  const recommendedCodes = recommendations.map(r => r.code);
-  const investmentTotal = recommendedCodes.reduce((sum, code) => sum + (pricing[code] || 0), 0);
-  
+  // Calculate investment from actual recommendations
+  const investmentTotal = recommendations.reduce((sum, r) => sum + r.investment, 0);
   const investmentBreakdown = recommendations
-    .map(r => `${r.name}: £${(pricing[r.code] || 0).toLocaleString()}`)
+    .map(r => `${r.name}: £${r.investment.toLocaleString()}`)
     .join(' + ');
   
-  const result: GroundedROI = {
-    investmentTotal,
-    investmentBreakdown,
-    qualitativeBenefits: [],
-    roiSummary: ''
+  // Detect exit-focused
+  const isExitFocused = clientStage.journey === 'established-exit-focused';
+  
+  // Build valuation context for exit-focused clients
+  let valuationContext: GroundedROI['valuationContext'] | undefined;
+  
+  if (isExitFocused && financials.ebitda) {
+    const currentEbitda = financials.ebitda;
+    const currentMultiple = 3.0; // Conservative for founder-dependent
+    const payrollSavings = payrollAnalysis && payrollAnalysis.annualExcess > 0 
+      ? Math.round(payrollAnalysis.annualExcess * 0.5) 
+      : 0;
+    const improvedEbitda = currentEbitda + payrollSavings;
+    const improvedMultiple = 4.0; // With risks addressed
+    
+    const currentValuation = currentEbitda * currentMultiple;
+    const potentialValuation = improvedEbitda * improvedMultiple;
+    const valuationUplift = potentialValuation - currentValuation;
+    
+    valuationContext = {
+      currentEbitda,
+      currentMultiple,
+      currentValuation: Math.round(currentValuation),
+      payrollSavings,
+      improvedEbitda,
+      improvedMultiple,
+      potentialValuation: Math.round(potentialValuation),
+      valuationUplift: Math.round(valuationUplift),
+      calculation: `Current: £${Math.round(currentEbitda / 1000)}k EBITDA × ${currentMultiple}x = £${Math.round(currentValuation / 1000)}k. ` +
+        `Potential: £${Math.round(improvedEbitda / 1000)}k EBITDA × ${improvedMultiple}x = £${Math.round(potentialValuation / 1000)}k. ` +
+        `Uplift: £${Math.round(valuationUplift / 1000)}k.`
+    };
+  }
+  
+  // Build service ROIs
+  const serviceROIs = recommendations.map(r => ({
+    service: r.name,
+    investment: r.investment,
+    valueCreated: r.valueCreated,
+    calculation: r.valueCalculation,
+    roiRatio: r.roiRatio,
+    confidence: r.confidence
+  }));
+  
+  // Calculate totals
+  const totalValueCreated = recommendations.reduce((sum, r) => sum + (r.valueCreated || 0), 0);
+  const totalROI = totalValueCreated > 0 
+    ? `${Math.round(totalValueCreated / investmentTotal)}:1`
+    : valuationContext 
+      ? `${Math.round(valuationContext.valuationUplift / investmentTotal)}:1 (valuation impact)`
+      : 'TBC on engagement';
+  
+  // Sanity checks
+  const investmentVsTurnoverPct = financials.turnover 
+    ? (investmentTotal / financials.turnover) * 100 
+    : 0;
+  const investmentVsEbitdaPct = financials.ebitda 
+    ? (investmentTotal / financials.ebitda) * 100 
+    : 0;
+  const effectiveROI = totalValueCreated > 0 
+    ? totalValueCreated / investmentTotal 
+    : valuationContext 
+      ? valuationContext.valuationUplift / investmentTotal 
+      : 0;
+  
+  const sanityChecks: GroundedROI['sanityChecks'] = {
+    investmentVsTurnover: {
+      value: investmentVsTurnoverPct,
+      status: investmentVsTurnoverPct > 3 ? 'red_flag' : investmentVsTurnoverPct > 2 ? 'warning' : 'ok'
+    },
+    investmentVsEbitda: {
+      value: investmentVsEbitdaPct,
+      status: investmentVsEbitdaPct > 15 ? 'red_flag' : investmentVsEbitdaPct > 10 ? 'warning' : 'ok'
+    },
+    minimumROI: {
+      value: effectiveROI,
+      status: effectiveROI > 0 && effectiveROI < 5 ? 'red_flag' : effectiveROI < 10 ? 'warning' : 'ok'
+    }
   };
   
-  // Investment as % of turnover
-  if (financials.turnover) {
-    result.investmentAsPercentOfTurnover = 
-      `${((investmentTotal / financials.turnover) * 100).toFixed(2)}% of turnover`;
-  }
+  // Build ROI summary
+  let roiSummary: string;
   
-  // Investment as % of profit
-  if (financials.operatingProfit) {
-    result.investmentAsPercentOfProfit = 
-      `${((investmentTotal / financials.operatingProfit) * 100).toFixed(1)}% of operating profit`;
-  }
-  
-  // Payroll efficiency gain (only if benchmarking recommended AND we have data)
-  if (recommendedCodes.includes('benchmarking') && payrollAnalysis && payrollAnalysis.annualExcess > 0) {
-    // Conservative: assume 50% of excess is actually recoverable
-    const recoverableAmount = Math.round(payrollAnalysis.annualExcess * 0.5);
-    result.payrollEfficiencyGain = {
-      amount: recoverableAmount,
-      calculation: `Current staff costs: ${payrollAnalysis.calculation}. If restructured to ${payrollAnalysis.benchmark.typical}% (industry typical), potential saving of £${payrollAnalysis.annualExcess.toLocaleString()}/year. Conservative estimate (50% recovery): £${recoverableAmount.toLocaleString()}/year.`,
-      confidence: 'medium'
-    };
-  }
-  
-  // Valuation uplift (only if exit-focused AND we have EBITDA)
-  if (clientStage.journey === 'established-exit-focused' && financials.ebitda) {
-    const currentMultiple = 3.5; // Conservative for SME
-    const improvedMultiple = 4.0; // Small improvement from professional preparation
-    
-    const currentValuation = financials.ebitda * currentMultiple;
-    
-    // If payroll savings flow to EBITDA
-    const improvedEbitda = financials.ebitda + (result.payrollEfficiencyGain?.amount || 0);
-    const potentialWithSavings = improvedEbitda * improvedMultiple;
-    
-    result.valuationUplift = {
-      currentEstimate: Math.round(currentValuation),
-      potentialEstimate: Math.round(potentialWithSavings),
-      uplift: Math.round(potentialWithSavings - currentValuation),
-      calculation: `Current EBITDA £${Math.round(financials.ebitda / 1000)}k × 3.5× = £${Math.round(currentValuation / 1000)}k. With efficiency gains and professional preparation: £${Math.round(improvedEbitda / 1000)}k × 4.0× = £${Math.round(potentialWithSavings / 1000)}k.`,
-      confidence: 'low' // Valuations are inherently uncertain
-    };
-  }
-  
-  // Qualitative benefits (honest about what cannot be quantified)
-  if (recommendedCodes.includes('365_method')) {
-    result.qualitativeBenefits.push('Structured accountability for difficult decisions');
-    result.qualitativeBenefits.push('Clear exit roadmap with milestones');
-  }
-  
-  if (recommendedCodes.includes('benchmarking')) {
-    result.qualitativeBenefits.push('Objective data to validate restructuring decisions');
-    result.qualitativeBenefits.push('Industry context for buyer due diligence');
-  }
-  
-  // Payback period (only if we have quantified savings)
-  if (result.payrollEfficiencyGain) {
-    const monthlyGain = result.payrollEfficiencyGain.amount / 12;
-    const monthsToPayback = Math.ceil(investmentTotal / monthlyGain);
-    result.paybackPeriod = monthsToPayback <= 12 
-      ? `${monthsToPayback} months from efficiency savings`
-      : 'Within first year of efficiency gains';
-  }
-  
-  // ROI Summary
-  if (result.valuationUplift) {
-    result.roiSummary = `Investment of £${investmentTotal.toLocaleString()} (${result.investmentAsPercentOfTurnover || 'N/A'}) could contribute to £${Math.round(result.valuationUplift.uplift / 1000)}k in additional exit value through improved EBITDA and professional preparation.`;
-  } else if (result.payrollEfficiencyGain) {
-    result.roiSummary = `Investment of £${investmentTotal.toLocaleString()} targets £${result.payrollEfficiencyGain.amount.toLocaleString()}/year in efficiency gains. ${result.paybackPeriod || ''}`;
+  if (valuationContext) {
+    roiSummary = `Investment of £${investmentTotal.toLocaleString()} ` +
+      `(${investmentVsTurnoverPct.toFixed(2)}% of turnover, ${investmentVsEbitdaPct.toFixed(1)}% of EBITDA) ` +
+      `targets £${Math.round(valuationContext.valuationUplift / 1000)}k valuation improvement ` +
+      `(£${Math.round(valuationContext.currentValuation / 1000)}k → £${Math.round(valuationContext.potentialValuation / 1000)}k). ` +
+      `ROI: ${totalROI}.`;
+  } else if (totalValueCreated > 0) {
+    roiSummary = `Investment of £${investmentTotal.toLocaleString()} ` +
+      `targets £${totalValueCreated.toLocaleString()} in identified value. ROI: ${totalROI}.`;
   } else {
-    result.roiSummary = `Investment of £${investmentTotal.toLocaleString()} for strategic clarity and decision support. Qualitative benefits: ${result.qualitativeBenefits.slice(0, 2).join(', ')}.`;
+    roiSummary = `Investment of £${investmentTotal.toLocaleString()} for strategic clarity. ` +
+      `Value quantification requires engagement.`;
   }
   
-  return result;
+  return {
+    investmentTotal,
+    investmentBreakdown,
+    investmentAsPercentOfTurnover: financials.turnover 
+      ? `${investmentVsTurnoverPct.toFixed(2)}% of turnover` 
+      : undefined,
+    investmentAsPercentOfEbitda: financials.ebitda 
+      ? `${investmentVsEbitdaPct.toFixed(1)}% of EBITDA` 
+      : undefined,
+    valuationContext,
+    serviceROIs,
+    totalValueCreated,
+    totalROI,
+    sanityChecks,
+    roiSummary
+  };
 }
 
 // Helper to build financial grounding context for LLM prompt
@@ -2613,25 +3120,114 @@ NEVER claim "valuation impact" without:
 
 ### ANTI-OVERSELLING RULES
 1. **MATCH SERVICES TO JOURNEY** - Exit-focused clients don't need scaling services
-2. **MAXIMUM 3 RECOMMENDATIONS** - More than 3 is overselling
+2. **MAXIMUM 4 RECOMMENDATIONS** - More than 4 is overselling
 3. **JUSTIFY EXCLUSIONS** - Explain why other services are NOT appropriate
 4. **INVESTMENT IN CONTEXT** - Always show % of turnover or profit
 
-### EXAMPLE OF GROUNDED OUTPUT
-For a client with £2.3m turnover, £400k EBITDA, 36% payroll:
+### SERVICE APPROPRIATENESS MATRIX (CHECK BEFORE RECOMMENDING)
+
+**Fractional COO (£3,000-£10,000/month) - ONLY recommend if:**
+- Founder working 50+ hours AND most time is operational firefighting
+- Operational chaos is blocking business performance
+- Need is ONGOING (12+ months), not one-time project
+- DO NOT recommend for: one-time restructuring, stable operations, strategic issues
+
+**Fractional CFO (£3,500-£12,000/month) - ONLY recommend if:**
+- Raising capital, rapid scaling, or financial crisis
+- No adequate financial infrastructure exists
+- DO NOT recommend for: stable profitable businesses with accountant support
+
+**Business Advisory (£4,000-£9,000) - RECOMMEND when:**
+- Any exit timeline mentioned (MANDATORY if <5 years)
+- Valuation questions or succession planning needed
+
+**Benchmarking (£3,500) - MANDATORY when:**
+- Exit within 5 years (buyers will benchmark, client should too)
+- Any financial metric outside normal range for their industry
+
+**Hidden Value Audit (£2,500-£4,000) - STRONGLY RECOMMENDED when:**
+- Exit within 5 years
+- Founder dependency, key person risk, or customer concentration detected
+
+**365 Alignment (£1,500-£4,500) - RECOMMEND when:**
+- Avoiding known-necessary decisions (not just busy)
+- Transition in founder identity/role
+- DO NOT recommend for: operational chaos (needs COO) or financial crisis (needs CFO)
+
+**Management Accounts (£650/month) - ONLY recommend if:**
+- No current financial visibility
+- DO NOT recommend if: accountant already provides regular reporting
+
+**Systems Audit (£4,000) - ONLY recommend if:**
+- Manual processes causing measurable cost/time waste
+- DO NOT recommend if: business runs smoothly, owner works <40 hours
+
+### EXIT-FOCUSED LOGIC (WHEN EXIT <5 YEARS)
+
+For any client with exit timeline within 5 years, the PRIMARY FRAME is VALUATION IMPACT:
+
+1. Calculate current indicative valuation: EBITDA × industry multiple (typically 3-4x for SME)
+2. Identify factors suppressing the multiple (founder dependency, concentration, etc.)
+3. Identify factors suppressing EBITDA (excess costs, margin issues)
+4. Calculate potential valuation with issues addressed
+5. Frame ALL recommendations in terms of valuation impact
+
+**Primary recommendations for exit-focused clients:**
+1. Business Advisory & Exit Planning (valuation + roadmap) - MANDATORY
+2. Industry Benchmarking (competitive positioning for buyers) - MANDATORY if metrics outside norms
+3. Hidden Value Audit (risk identification + multiple impact) - STRONGLY RECOMMENDED
+
+Secondary recommendations only if specific operational gaps exist.
+
+### ROI REQUIREMENTS (MANDATORY)
+
+Every service recommendation MUST include:
+- Investment amount
+- Value created (with calculation showing working)
+- ROI ratio
+- Confidence level (high/medium/low)
+
+**"ROI: Unknown" or "ROI: Measured at exit" without numbers is NOT acceptable.**
+
+If you cannot calculate a credible ROI with the available data, either:
+1. State what additional data would be needed, OR
+2. Do not recommend the service
+
+### SANITY CHECKS
+
+| Metric | Reasonable Range | Red Flag |
+|--------|------------------|----------|
+| Investment as % of turnover | 0.2% - 2% | >3% without exceptional justification |
+| Investment as % of EBITDA | 1% - 10% | >15% needs strong ROI case |
+| Investment vs opportunity | 1:10 minimum ROI | <1:5 ROI is hard to justify |
+| Phase 1 vs total | 30-50% in Phase 1 | >70% in Phase 1 suggests overselling |
+
+### EXAMPLE OF GROUNDED OUTPUT (EXIT-FOCUSED CLIENT)
+
+For a client with £2.3m turnover, £406k EBITDA, 36.5% payroll, exit in 1-3 years:
+
+**Valuation Context:**
+- Current: £406k EBITDA × 3.0x (founder-dependent, overstaffed) = £1.22m
+- Potential: £554k EBITDA × 4.0x (risks addressed, right-sized) = £2.22m
+- Value opportunity: £1.0m
 
 RECOMMENDED:
-1. Benchmarking (£3,500) - Your payroll at 36% vs industry 28% suggests £184k/year excess. Benchmarking validates this before restructuring decisions.
-2. Goal Alignment (£1,500) - You mentioned avoiding conversations about redundancy. Structured accountability to address this.
+| Service | Investment | Value Created | ROI |
+|---------|------------|---------------|-----|
+| Business Advisory | £4,000 | Foundation for £1m+ improvement | Foundational |
+| Benchmarking | £3,500 | Validates £148k excess → £74k/year → £259k at 3.5x | 74:1 |
+| Hidden Value Audit | £2,500 | Multiple improvement 3x→4x = £554k | 222:1 |
+| **Total** | **£10,000** | **£1.0m+ potential** | **100:1** |
 
 NOT RECOMMENDED:
-- Management Accounts: You have clean statutory accounts and adequate visibility
-- Systems Audit: Business runs fine without you (under 30 hours/week)
-- Fractional CFO/COO: You are preparing for exit, not scaling
+- Fractional COO (£45k/year): Business runs fine. Owner works <30 hours. One-time restructuring doesn't justify ongoing COO.
+- Management Accounts: Already has accountant providing reporting.
+- Systems Audit: Operations are smooth.
 
-Total investment: £5,000 (0.22% of turnover)
-Potential efficiency gain: £90k-£180k/year (50-100% of excess payroll)
-Payback: 2-4 months
+Investment sanity check:
+- £10,000 / £2.28m turnover = 0.44% ✅
+- £10,000 / £406k EBITDA = 2.5% ✅
+- ROI = 100:1 ✅
 
 LANGUAGE RULES (non-negotiable):
 
@@ -2868,6 +3464,101 @@ serve(async (req) => {
     
     const financialProjections = documentInsights.financialProjections;
     const documentInsightsContext = buildDocumentInsightsContext(documentInsights);
+
+    // ========================================================================
+    // FINANCIAL GROUNDING - Extract actual figures from uploaded accounts
+    // ========================================================================
+    
+    console.log('[Discovery] Extracting financials from accounts...');
+    const extractedFinancials = await extractFinancialsFromAccounts(
+      preparedData.documents || [],
+      openrouterKey
+    );
+    
+    console.log('[Discovery] Extracted financials:', {
+      hasAccounts: extractedFinancials.hasAccounts,
+      turnover: extractedFinancials.turnover,
+      staffCosts: extractedFinancials.totalStaffCosts,
+      staffCostsPct: extractedFinancials.staffCostsPercentOfRevenue,
+      ebitda: extractedFinancials.ebitda
+    });
+
+    // ========================================================================
+    // PAYROLL EFFICIENCY ANALYSIS
+    // ========================================================================
+    
+    // Detect industry from business overview
+    const businessOverview = (preparedData.discovery.responses.sd_business_overview || 
+                              preparedData.client?.description || '').toLowerCase();
+    
+    const payrollAnalysis = analysePayrollEfficiency(extractedFinancials, businessOverview);
+    
+    if (payrollAnalysis) {
+      console.log('[Discovery] Payroll analysis:', {
+        calculation: payrollAnalysis.calculation,
+        assessment: payrollAnalysis.assessment,
+        excessPercentage: payrollAnalysis.excessPercentage,
+        annualExcess: payrollAnalysis.annualExcess
+      });
+    }
+
+    // ========================================================================
+    // CLIENT JOURNEY STAGE DETECTION
+    // ========================================================================
+    
+    const clientJourneyStage = detectClientStage(
+      preparedData.discovery.responses,
+      extractedFinancials
+    );
+    
+    console.log('[Discovery] Client journey stage:', {
+      journey: clientJourneyStage.journey,
+      focusAreas: clientJourneyStage.focusAreas,
+      inappropriateServices: clientJourneyStage.inappropriateServices
+    });
+
+    // ========================================================================
+    // APPROPRIATE SERVICE RECOMMENDATIONS (ANTI-OVERSELLING)
+    // ========================================================================
+    
+    const appropriateRecommendations = generateAppropriateRecommendations(
+      preparedData.discovery.responses,
+      extractedFinancials,
+      clientJourneyStage,
+      payrollAnalysis
+    );
+    
+    console.log('[Discovery] Appropriate recommendations:', {
+      recommended: appropriateRecommendations.recommended.map(r => r.code),
+      notRecommended: appropriateRecommendations.notRecommended.map(r => r.code)
+    });
+
+    // ========================================================================
+    // GROUNDED ROI CALCULATION
+    // ========================================================================
+    
+    const groundedROI = calculateGroundedROI(
+      appropriateRecommendations.recommended,
+      extractedFinancials,
+      payrollAnalysis,
+      clientJourneyStage
+    );
+    
+    console.log('[Discovery] Grounded ROI:', {
+      investmentTotal: groundedROI.investmentTotal,
+      investmentAsPercentOfTurnover: groundedROI.investmentAsPercentOfTurnover,
+      investmentAsPercentOfEbitda: groundedROI.investmentAsPercentOfEbitda,
+      valuationUplift: groundedROI.valuationContext?.valuationUplift,
+      totalROI: groundedROI.totalROI,
+      sanityChecks: groundedROI.sanityChecks
+    });
+
+    // Build financial grounding context for LLM
+    const financialGroundingContext = buildFinancialGroundingContext(
+      extractedFinancials,
+      payrollAnalysis,
+      clientJourneyStage
+    );
 
     // ========================================================================
     // BUSINESS STAGE DETECTION - For realistic timeframe calibration
@@ -3225,6 +3916,67 @@ Position Goal Alignment as: "You have a business plan. What you don't have is a 
 ` : 'No specific transformation triggers detected.'}
 
 ${documentInsightsContext}
+${financialGroundingContext}
+
+## APPROPRIATE RECOMMENDATIONS (ANTI-OVERSELLING ANALYSIS V2)
+
+The following recommendations have been pre-computed based on financial grounding and service appropriateness matrix.
+FOLLOW THESE RECOMMENDATIONS - do not add more services.
+
+### RECOMMENDED (Max 4 for exit-focused clients):
+${appropriateRecommendations.recommended.map(r => `
+**${r.name}** (${r.code})
+- Investment: £${r.investment.toLocaleString()}
+- Score: ${r.score}/100, Confidence: ${r.confidence}
+- Reasoning: ${r.reasoning}
+- Specific Benefit: ${r.specificBenefit}
+- Value Created: ${r.valueCreated ? `£${r.valueCreated.toLocaleString()}` : 'See calculation'}
+- Calculation: ${r.valueCalculation}
+- ROI: ${r.roiRatio}
+`).join('\n')}
+
+### NOT RECOMMENDED (Include these exclusions in your output):
+${appropriateRecommendations.notRecommended.filter(r => r.notRecommendedReason).map(r => `
+- **${r.name}**: ${r.notRecommendedReason}
+`).join('\n') || 'None explicitly excluded.'}
+
+### GROUNDED ROI WITH VALUATION IMPACT (Use these EXACT figures):
+- **Total Investment**: £${groundedROI.investmentTotal.toLocaleString()}
+- **Investment Breakdown**: ${groundedROI.investmentBreakdown}
+${groundedROI.investmentAsPercentOfTurnover ? `- **As % of Turnover**: ${groundedROI.investmentAsPercentOfTurnover}` : ''}
+${groundedROI.investmentAsPercentOfEbitda ? `- **As % of EBITDA**: ${groundedROI.investmentAsPercentOfEbitda}` : ''}
+${groundedROI.valuationContext ? `
+### VALUATION CONTEXT (EXIT-FOCUSED):
+- Current EBITDA: £${Math.round(groundedROI.valuationContext.currentEbitda / 1000)}k
+- Current Multiple: ${groundedROI.valuationContext.currentMultiple}x (founder-dependent)
+- Current Valuation: £${Math.round(groundedROI.valuationContext.currentValuation / 1000)}k
+- Payroll Savings: £${groundedROI.valuationContext.payrollSavings.toLocaleString()}/year
+- Improved EBITDA: £${Math.round(groundedROI.valuationContext.improvedEbitda / 1000)}k
+- Improved Multiple: ${groundedROI.valuationContext.improvedMultiple}x (risks addressed)
+- Potential Valuation: £${Math.round(groundedROI.valuationContext.potentialValuation / 1000)}k
+- **Valuation Uplift: £${Math.round(groundedROI.valuationContext.valuationUplift / 1000)}k**
+- Calculation: ${groundedROI.valuationContext.calculation}
+` : ''}
+
+### SERVICE-BY-SERVICE ROI:
+${groundedROI.serviceROIs.map(s => `| ${s.service} | £${s.investment.toLocaleString()} | ${s.valueCreated ? `£${s.valueCreated.toLocaleString()}` : 'TBC'} | ${s.roiRatio} | ${s.confidence} |`).join('\n')}
+
+### TOTALS:
+- Total Value Created: ${groundedROI.totalValueCreated > 0 ? `£${groundedROI.totalValueCreated.toLocaleString()}` : groundedROI.valuationContext ? `£${Math.round(groundedROI.valuationContext.valuationUplift / 1000)}k (valuation impact)` : 'TBC on engagement'}
+- Total ROI: ${groundedROI.totalROI}
+
+### SANITY CHECKS:
+- Investment vs Turnover: ${groundedROI.sanityChecks.investmentVsTurnover.value.toFixed(2)}% [${groundedROI.sanityChecks.investmentVsTurnover.status.toUpperCase()}]
+- Investment vs EBITDA: ${groundedROI.sanityChecks.investmentVsEbitda.value.toFixed(1)}% [${groundedROI.sanityChecks.investmentVsEbitda.status.toUpperCase()}]
+- Minimum ROI: ${groundedROI.sanityChecks.minimumROI.value.toFixed(0)}:1 [${groundedROI.sanityChecks.minimumROI.status.toUpperCase()}]
+
+**ROI Summary**: ${groundedROI.roiSummary}
+
+⚠️ CRITICAL: 
+1. Use these EXACT figures in your output
+2. Do not add services beyond those recommended
+3. Include the NOT RECOMMENDED section in your output with the exact reasons given
+4. Show your calculations using the numbers above
 
 ## PRE-COMPUTED SERVICE SCORES (use as guidance)
 These scores are computed from explicit question triggers. The AI should generally agree,
@@ -3414,15 +4166,94 @@ Return ONLY a valid JSON object (no markdown, no explanation, just the JSON):
       "keyOutcomes": ["Outcome 1", "Outcome 2", "Outcome 3"]
     }
   ],
+  "financialContext": {
+    "hasAccounts": true, // Did we have actual financial documents?
+    "source": "statutory_accounts", // or "management_accounts" or "projection"
+    "keyMetrics": {
+      "turnover": 2277603, // Use exact figures if available
+      "operatingProfit": 377321,
+      "operatingMarginPct": 16.6,
+      "ebitda": 406000,
+      "totalStaffCosts": 831000,
+      "staffCostsPct": 36.5,
+      "netAssets": 1478592,
+      "employeeCount": 21
+    },
+    "payrollAnalysis": {
+      "calculation": "Staff costs £831k ÷ Turnover £2.28m = 36.5%", // SHOW YOUR WORKING
+      "industryBenchmark": "28-30% for distribution/wholesale",
+      "assessment": "elevated", // efficient/typical/elevated/concerning
+      "potentialExcess": 54000, // Only if elevated/concerning
+      "excessCalculation": "£2.28m × (36.5% - 30%) = £148k gross, conservative £54k recoverable"
+    }
+  },
+  "clientStage": {
+    "journey": "established-exit-focused", // or pre-revenue-building, early-stage-growing, established-scaling, established-optimising, lifestyle-maintaining
+    "focusAreas": ["Exit preparation", "Valuation optimisation", "Efficiency gains"],
+    "inappropriateServices": ["systems_audit", "automation", "fractional_coo"], // Services NOT to recommend
+    "journeyFraming": "Your destination is a successful exit. The question is: what will maximise your value and ensure your team is taken care of?"
+  },
+  "notRecommended": [
+    {
+      "service": "Management Accounts",
+      "reason": "Already has accountant providing regular financial reporting"
+    },
+    {
+      "service": "Systems Audit", 
+      "reason": "Business runs smoothly. Owner works <30 hours. No systems problem to solve."
+    },
+    {
+      "service": "Fractional COO",
+      "reason": "Business runs fine. One-time restructuring doesn't justify ongoing £45k/year COO."
+    }
+  ],
   "investmentSummary": {
-    "totalFirstYearInvestment": "£X,XXX", // MUST match transformationJourney.totalInvestment
-    "investmentBreakdown": "Management Accounts £X,XXX (£XXX×12) + Systems Audit £X,XXX + Goal Alignment Lite £X,XXX", // Show your working
-    "investmentAsPercentOfRevenue": "X.X% of Year 1 revenue", // ALWAYS include if Year 1 revenue available
-    "projectedFirstYearReturn": "£X,XXX - be CONSERVATIVE, this must be defensible",
-    "paybackPeriod": "X-X months", // Calculate precisely (see payback calculation rules)
-    "netBenefitYear1": "£X,XXX",
-    "roiCalculation": "Show your working - only count real, measurable savings",
-    "comparisonToInaction": "Clear comparison"
+    "totalFirstYearInvestment": "£10,000", // Sum of all recommended services
+    "investmentBreakdown": "Business Advisory £4,000 + Benchmarking £3,500 + Hidden Value Audit £2,500",
+    "investmentAsPercentOfTurnover": "0.44%", // MUST be <3%
+    "investmentAsPercentOfEbitda": "2.5%", // MUST be <15%
+    "valuationContext": {
+      "currentEbitda": 406000,
+      "currentMultiple": 3.0,
+      "currentValuation": 1218000,
+      "payrollSavings": 74000,
+      "improvedEbitda": 480000,
+      "improvedMultiple": 4.0,
+      "potentialValuation": 1920000,
+      "valuationUplift": 702000,
+      "calculation": "Current £406k × 3.0x = £1.22m. With payroll savings and risks addressed: £480k × 4.0x = £1.92m. Uplift: £702k."
+    },
+    "serviceROIs": [
+      {
+        "service": "Business Advisory",
+        "investment": 4000,
+        "valueCreated": "Foundational",
+        "calculation": "Foundation for £702k valuation improvement",
+        "roi": "Foundational"
+      },
+      {
+        "service": "Benchmarking",
+        "investment": 3500,
+        "valueCreated": 259000,
+        "calculation": "Validates £148k excess → 50% = £74k/year → at 3.5x = £259k",
+        "roi": "74:1"
+      },
+      {
+        "service": "Hidden Value Audit",
+        "investment": 2500,
+        "valueCreated": 554000,
+        "calculation": "Multiple improvement 3x→4x on £554k EBITDA",
+        "roi": "222:1"
+      }
+    ],
+    "totalValueCreated": "£702,000 valuation uplift",
+    "totalROI": "70:1",
+    "sanityChecks": {
+      "investmentVsTurnover": "0.44% [OK - under 3%]",
+      "investmentVsEbitda": "2.5% [OK - under 15%]",
+      "minimumROI": "70:1 [OK - above 10:1]"
+    },
+    "roiSummary": "Investment of £10,000 (0.44% of turnover) targets £702k valuation improvement (£1.22m → £1.92m). ROI: 70:1."
   },
   "recommendedNextSteps": [
     { "step": 1, "action": "Schedule discovery call", "timing": "This week", "owner": "Oracle team" }
