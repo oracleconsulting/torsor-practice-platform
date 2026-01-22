@@ -202,12 +202,12 @@ export function DocumentUploader({
         >
           {allowedTypes.map(type => (
             <option key={type} value={type}>
-              {DOCUMENT_TYPE_INFO[type].label}
+              {DOCUMENT_TYPE_INFO[type]?.label || type}
             </option>
           ))}
         </select>
         <p className="text-xs text-slate-500 mt-1">
-          {DOCUMENT_TYPE_INFO[selectedType].description}
+          {DOCUMENT_TYPE_INFO[selectedType]?.description || 'Select a document type'}
         </p>
       </div>
 

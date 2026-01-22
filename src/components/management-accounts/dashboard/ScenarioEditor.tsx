@@ -114,7 +114,7 @@ export function ScenarioEditor({
   const [color, setColor] = useState(scenario?.scenario_color || '#3b82f6');
   const [isFeatured, setIsFeatured] = useState(scenario?.is_featured ?? true);
   const [assumptions, setAssumptions] = useState<Record<string, any>>(
-    scenario?.assumptions || SCENARIO_TEMPLATES[scenarioType].defaultAssumptions
+    scenario?.assumptions || (SCENARIO_TEMPLATES[scenarioType] || SCENARIO_TEMPLATES.custom).defaultAssumptions
   );
 
   // Calculated impacts
@@ -127,8 +127,9 @@ export function ScenarioEditor({
   // Update assumptions when scenario type changes
   useEffect(() => {
     if (!scenario) {
-      setAssumptions(SCENARIO_TEMPLATES[scenarioType].defaultAssumptions);
-      setName(SCENARIO_TEMPLATES[scenarioType].label);
+      const template = SCENARIO_TEMPLATES[scenarioType] || SCENARIO_TEMPLATES.custom;
+      setAssumptions(template.defaultAssumptions);
+      setName(template.label);
     }
   }, [scenarioType, scenario]);
 
