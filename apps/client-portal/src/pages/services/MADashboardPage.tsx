@@ -152,18 +152,20 @@ export default function MADashboardPage() {
     }
 
     try {
-      console.log('[MADashboard] Loading for client:', clientSession.clientId);
+      console.log('[MADashboard] Loading for client:', clientSession.clientId, 'email:', clientSession.email);
+      
+      // Helper to find practice_members by email for fallback lookup
+      let pmByEmail: { id: string }[] = [];
       
       // 1. Get engagement - check BOTH ma_engagements and bi_engagements
       let engagementData = null;
       let engagementSource = '';
       
-      // Try ma_engagements first
+      // Try ma_engagements first (direct client_id match, no status filter)
       const { data: maEngagement } = await supabase
         .from('ma_engagements')
         .select('*')
         .eq('client_id', clientSession.clientId)
-        .eq('status', 'active')
         .maybeSingle();
       
       if (maEngagement) {
@@ -175,12 +177,54 @@ export default function MADashboardPage() {
           .from('bi_engagements')
           .select('*')
           .eq('client_id', clientSession.clientId)
-          .eq('status', 'active')
           .maybeSingle();
         
         if (biEngagement) {
           engagementData = biEngagement;
           engagementSource = 'bi_engagements';
+        }
+      }
+      
+      // Email fallback if no direct match
+      if (!engagementData && clientSession.email) {
+        console.log('[MADashboard] No direct engagement found, trying email lookup...');
+        
+        const { data: pmData } = await supabase
+          .from('practice_members')
+          .select('id')
+          .eq('email', clientSession.email);
+        
+        pmByEmail = pmData || [];
+        console.log('[MADashboard] Practice members with this email:', pmByEmail.length);
+        
+        for (const pm of pmByEmail) {
+          // Check ma_engagements
+          const { data: maEng } = await supabase
+            .from('ma_engagements')
+            .select('*')
+            .eq('client_id', pm.id)
+            .maybeSingle();
+          
+          if (maEng) {
+            console.log('[MADashboard] Found MA engagement via email, pm.id:', pm.id);
+            engagementData = maEng;
+            engagementSource = 'ma_engagements (via email)';
+            break;
+          }
+          
+          // Check bi_engagements
+          const { data: biEng } = await supabase
+            .from('bi_engagements')
+            .select('*')
+            .eq('client_id', pm.id)
+            .maybeSingle();
+          
+          if (biEng) {
+            console.log('[MADashboard] Found BI engagement via email, pm.id:', pm.id);
+            engagementData = biEng;
+            engagementSource = 'bi_engagements (via email)';
+            break;
+          }
         }
       }
       

@@ -3916,21 +3916,31 @@ serve(async (req) => {
     // BINDING SERVICE APPROPRIATENESS (ENFORCEMENT LAYER)
     // ========================================================================
     
-    const bindingAppropriateness = evaluateAllServiceAppropriateness(
-      preparedData.discovery.responses,
-      extractedFinancials,
-      clientJourneyStage,
-      payrollAnalysis
-    );
+    let bindingAppropriateness: ServiceAppropriatenessResults;
+    let bindingConstraintsPrompt: string;
     
-    console.log('[Discovery] BINDING appropriateness constraints:', {
-      mayRecommend: bindingAppropriateness.appropriate.map(s => s.code),
-      mustNotRecommend: bindingAppropriateness.notAppropriate.map(s => `${s.code}: ${s.reason}`),
-      mandatory: bindingAppropriateness.mandatory.map(s => s.code)
-    });
-    
-    // Build binding constraints for prompt
-    const bindingConstraintsPrompt = buildBindingConstraintsPrompt(bindingAppropriateness);
+    try {
+      bindingAppropriateness = evaluateAllServiceAppropriateness(
+        preparedData.discovery.responses,
+        extractedFinancials,
+        clientJourneyStage,
+        payrollAnalysis
+      );
+      
+      console.log('[Discovery] BINDING appropriateness constraints:', {
+        mayRecommend: bindingAppropriateness.appropriate.map(s => s.code),
+        mustNotRecommend: bindingAppropriateness.notAppropriate.map(s => `${s.code}: ${s.reason}`),
+        mandatory: bindingAppropriateness.mandatory.map(s => s.code)
+      });
+      
+      // Build binding constraints for prompt
+      bindingConstraintsPrompt = buildBindingConstraintsPrompt(bindingAppropriateness);
+    } catch (appropriatenessError: any) {
+      console.error('[Discovery] Error in service appropriateness evaluation:', appropriatenessError?.message || appropriatenessError);
+      // Fallback to empty constraints if evaluation fails
+      bindingAppropriateness = { appropriate: [], notAppropriate: [], mandatory: [] };
+      bindingConstraintsPrompt = '## SERVICE CONSTRAINTS\n\nNo constraints computed - evaluation failed.';
+    }
 
     // ========================================================================
     // GROUNDED ROI CALCULATION
@@ -4840,8 +4850,10 @@ Return ONLY the JSON object with no additional text.`;
 
     console.log('[Discovery] Raw LLM response length:', analysisText.length);
     console.log('[Discovery] First 500 chars:', analysisText.substring(0, 500));
+    console.log('[Discovery] Last 200 chars:', analysisText.substring(analysisText.length - 200));
 
     // Parse JSON from response with robust extraction
+    console.log('[Discovery] Starting JSON parsing...');
     let analysis;
     try {
       let jsonString = analysisText;
@@ -4936,7 +4948,7 @@ Return ONLY the JSON object with no additional text.`;
           console.log('[Discovery] ✅ Recommendations auto-corrected:', 
             analysis.recommendedInvestments.map((r: any) => r.code || r.service));
         } else {
-          console.log('[Discovery] ✅ Recommendations passed constraint validation');
+          console.log('[Discovery] ✓ All recommendations valid, no corrections needed');
           analysis.wasAutoCorrected = false;
         }
         
@@ -4955,56 +4967,61 @@ Return ONLY the JSON object with no additional text.`;
       // ======================================================================
       // VALIDATE & CORRECT TRANSFORMATION JOURNEY PHASES
       // ======================================================================
-      if (analysis.transformationJourney?.phases && Array.isArray(analysis.transformationJourney.phases)) {
-        const blockedCodes = bindingAppropriateness.notAppropriate.map(s => s.code.toLowerCase());
-        const blockedNames = bindingAppropriateness.notAppropriate.map(s => s.name.toLowerCase());
-        
-        console.log('[Discovery] Validating transformation journey phases...');
-        console.log('[Discovery] Blocked service codes:', blockedCodes);
-        
-        // Check each phase for blocked services
-        const originalPhaseCount = analysis.transformationJourney.phases.length;
-        analysis.transformationJourney.phases = analysis.transformationJourney.phases.filter((phase: any) => {
-          const enabledByCode = (phase.enabledByCode || '').toLowerCase();
-          const enabledBy = (phase.enabledBy || '').toLowerCase();
+      try {
+        if (analysis.transformationJourney?.phases && Array.isArray(analysis.transformationJourney.phases) && bindingAppropriateness.notAppropriate.length > 0) {
+          const blockedCodes = bindingAppropriateness.notAppropriate.map(s => s.code.toLowerCase());
+          const blockedNames = bindingAppropriateness.notAppropriate.map(s => s.name.toLowerCase());
           
-          // Check if this phase references a blocked service
-          const isBlocked = blockedCodes.some(code => enabledByCode.includes(code)) ||
-                           blockedNames.some(name => enabledBy.includes(name));
+          console.log('[Discovery] Validating transformation journey phases...');
+          console.log('[Discovery] Blocked service codes:', blockedCodes);
           
-          if (isBlocked) {
-            console.warn(`[Discovery] ⚠️ REMOVING PHASE: "${phase.title}" - enabled by blocked service: ${phase.enabledBy}`);
-            return false;
+          // Check each phase for blocked services
+          const originalPhaseCount = analysis.transformationJourney.phases.length;
+          analysis.transformationJourney.phases = analysis.transformationJourney.phases.filter((phase: any) => {
+            const enabledByCode = (phase.enabledByCode || '').toLowerCase();
+            const enabledBy = (phase.enabledBy || '').toLowerCase();
+            
+            // Check if this phase references a blocked service
+            const isBlocked = blockedCodes.some(code => enabledByCode.includes(code)) ||
+                             blockedNames.some(name => enabledBy.includes(name));
+            
+            if (isBlocked) {
+              console.warn(`[Discovery] ⚠️ REMOVING PHASE: "${phase.title}" - enabled by blocked service: ${phase.enabledBy}`);
+              return false;
+            }
+            return true;
+          });
+          
+          if (analysis.transformationJourney.phases.length !== originalPhaseCount) {
+            console.log(`[Discovery] Removed ${originalPhaseCount - analysis.transformationJourney.phases.length} phases with blocked services`);
+            analysis.transformationJourneyWasCorrected = true;
+            
+            // Re-number the phases
+            analysis.transformationJourney.phases = analysis.transformationJourney.phases.map((phase: any, index: number) => ({
+              ...phase,
+              phase: index + 1
+            }));
           }
-          return true;
-        });
-        
-        if (analysis.transformationJourney.phases.length !== originalPhaseCount) {
-          console.log(`[Discovery] Removed ${originalPhaseCount - analysis.transformationJourney.phases.length} phases with blocked services`);
-          analysis.transformationJourneyWasCorrected = true;
           
-          // Re-number the phases
-          analysis.transformationJourney.phases = analysis.transformationJourney.phases.map((phase: any, index: number) => ({
-            ...phase,
-            phase: index + 1
-          }));
-        }
-        
-        // Recalculate total investment from remaining phases
-        let totalInvestment = 0;
-        analysis.transformationJourney.phases.forEach((phase: any) => {
-          const investment = phase.investment || '';
-          const match = investment.match(/£([\d,]+)/);
-          if (match) {
-            const amount = parseInt(match[1].replace(/,/g, ''), 10);
-            totalInvestment += amount;
+          // Recalculate total investment from remaining phases
+          let totalInvestment = 0;
+          analysis.transformationJourney.phases.forEach((phase: any) => {
+            const investment = phase.investment || '';
+            const match = investment.match(/£([\d,]+)/);
+            if (match) {
+              const amount = parseInt(match[1].replace(/,/g, ''), 10);
+              totalInvestment += amount;
+            }
+          });
+          
+          if (totalInvestment > 0) {
+            analysis.transformationJourney.totalInvestment = `£${totalInvestment.toLocaleString()}`;
+            console.log(`[Discovery] Updated total investment: £${totalInvestment.toLocaleString()}`);
           }
-        });
-        
-        if (totalInvestment > 0) {
-          analysis.transformationJourney.totalInvestment = `£${totalInvestment.toLocaleString()}`;
-          console.log(`[Discovery] Updated total investment: £${totalInvestment.toLocaleString()}`);
         }
+      } catch (journeyValidationError: any) {
+        console.error('[Discovery] Error validating transformation journey:', journeyValidationError?.message || journeyValidationError);
+        // Continue without validation - don't crash the whole function
       }
       
       // Normalize investment summary
@@ -5087,6 +5104,9 @@ Return ONLY the JSON object with no additional text.`;
       created_at: new Date().toISOString()
     };
 
+    console.log('[Discovery] Post-processing complete, preparing to save report...');
+    console.log('[Discovery] Report data size:', JSON.stringify(report).length, 'chars');
+    
     // Check if a report already exists for this client/discovery combination
     const { data: existingReport } = await supabase
       .from('client_reports')

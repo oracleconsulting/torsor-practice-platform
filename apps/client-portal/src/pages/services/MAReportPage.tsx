@@ -215,14 +215,53 @@ export default function MAReportPage() {
       let hasDeliveredPeriod = false;
       let debugInfo: any = { clientId: clientSession.clientId };
       
-      console.log('[MA Report] Checking for delivered periods for client:', clientSession.clientId);
+      console.log('[MA Report] Checking for delivered periods for client:', clientSession.clientId, 'email:', clientSession.email);
       
-      // Check for MA engagement with delivered period (don't filter by status - any engagement)
-      const { data: maEngagement, error: maEngErr } = await supabase
+      // Check for MA engagement with delivered period - try by client_id first
+      let maEngagement: { id: string; status: string } | null = null;
+      let maEngErr: any = null;
+      
+      // Method 1: Direct client_id match
+      const { data: maEngDirect, error: maEngErrDirect } = await supabase
         .from('ma_engagements')
         .select('id, status')
         .eq('client_id', clientSession.clientId)
         .maybeSingle();
+      
+      debugInfo.maEngDirect = maEngDirect;
+      debugInfo.maEngErrDirect = maEngErrDirect;
+      
+      if (maEngDirect) {
+        maEngagement = maEngDirect;
+      } else if (clientSession.email) {
+        // Method 2: If no direct match, try finding engagement via email
+        // First find practice_member with this email
+        console.log('[MA Report] No direct engagement found, trying email lookup...');
+        const { data: pmByEmail } = await supabase
+          .from('practice_members')
+          .select('id')
+          .eq('email', clientSession.email);
+        
+        debugInfo.pmByEmail = pmByEmail;
+        
+        if (pmByEmail && pmByEmail.length > 0) {
+          // Check each practice_member ID for an engagement
+          for (const pm of pmByEmail) {
+            const { data: engByPm } = await supabase
+              .from('ma_engagements')
+              .select('id, status')
+              .eq('client_id', pm.id)
+              .maybeSingle();
+            
+            if (engByPm) {
+              console.log('[MA Report] Found engagement via email lookup, pm.id:', pm.id);
+              maEngagement = engByPm;
+              debugInfo.foundViaEmail = { pmId: pm.id, engagement: engByPm };
+              break;
+            }
+          }
+        }
+      }
       
       debugInfo.maEngagement = maEngagement;
       debugInfo.maEngErr = maEngErr;
@@ -247,14 +286,39 @@ export default function MAReportPage() {
       
       // Also check BI engagement (renamed service)
       if (!hasDeliveredPeriod) {
-        const { data: biEngagement, error: biEngErr } = await supabase
+        let biEngagement: { id: string; status: string } | null = null;
+        
+        // Method 1: Direct client_id match for bi_engagements
+        const { data: biEngDirect, error: biEngErr } = await supabase
           .from('bi_engagements')
           .select('id, status')
           .eq('client_id', clientSession.clientId)
           .maybeSingle();
         
-        debugInfo.biEngagement = biEngagement;
+        debugInfo.biEngDirect = biEngDirect;
         debugInfo.biEngErr = biEngErr;
+        
+        if (biEngDirect) {
+          biEngagement = biEngDirect;
+        } else if (clientSession.email && debugInfo.pmByEmail) {
+          // Method 2: Try finding bi_engagement via email (using already-fetched practice_members)
+          for (const pm of debugInfo.pmByEmail) {
+            const { data: engByPm } = await supabase
+              .from('bi_engagements')
+              .select('id, status')
+              .eq('client_id', pm.id)
+              .maybeSingle();
+            
+            if (engByPm) {
+              console.log('[MA Report] Found BI engagement via email lookup, pm.id:', pm.id);
+              biEngagement = engByPm;
+              debugInfo.biFoundViaEmail = { pmId: pm.id, engagement: engByPm };
+              break;
+            }
+          }
+        }
+        
+        debugInfo.biEngagement = biEngagement;
         
         if (biEngagement) {
           const { data: biPeriod, error: biPeriodErr } = await supabase
