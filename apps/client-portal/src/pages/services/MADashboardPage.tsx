@@ -147,22 +147,53 @@ export default function MADashboardPage() {
     }
 
     try {
-      // 1. Get engagement
-      const { data: engagementData } = await supabase
+      console.log('[MADashboard] Loading for client:', clientSession.clientId);
+      
+      // 1. Get engagement - check BOTH ma_engagements and bi_engagements
+      let engagementData = null;
+      let engagementSource = '';
+      
+      // Try ma_engagements first
+      const { data: maEngagement } = await supabase
         .from('ma_engagements')
         .select('*')
         .eq('client_id', clientSession.clientId)
         .eq('status', 'active')
         .maybeSingle();
+      
+      if (maEngagement) {
+        engagementData = maEngagement;
+        engagementSource = 'ma_engagements';
+      } else {
+        // Try bi_engagements (renamed service)
+        const { data: biEngagement } = await supabase
+          .from('bi_engagements')
+          .select('*')
+          .eq('client_id', clientSession.clientId)
+          .eq('status', 'active')
+          .maybeSingle();
+        
+        if (biEngagement) {
+          engagementData = biEngagement;
+          engagementSource = 'bi_engagements';
+        }
+      }
+      
+      console.log('[MADashboard] Engagement found:', { engagementData, source: engagementSource });
 
       if (!engagementData) {
+        console.log('[MADashboard] No active engagement found');
         setLoading(false);
         return;
       }
       setEngagement(engagementData);
 
-      // 2. Get latest delivered period
-      const { data: periodData } = await supabase
+      // 2. Get latest delivered period - check BOTH ma_periods and bi_periods
+      let periodData = null;
+      let periodSource = '';
+      
+      // Try ma_periods first
+      const { data: maPeriod } = await supabase
         .from('ma_periods')
         .select('*')
         .eq('engagement_id', engagementData.id)
@@ -170,40 +201,79 @@ export default function MADashboardPage() {
         .order('period_end', { ascending: false })
         .limit(1)
         .maybeSingle();
+      
+      if (maPeriod) {
+        periodData = maPeriod;
+        periodSource = 'ma_periods';
+      } else {
+        // Try bi_periods (renamed service)
+        const { data: biPeriod } = await supabase
+          .from('bi_periods')
+          .select('*')
+          .eq('engagement_id', engagementData.id)
+          .eq('status', 'delivered')
+          .order('period_end', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (biPeriod) {
+          periodData = biPeriod;
+          periodSource = 'bi_periods';
+        }
+      }
+      
+      console.log('[MADashboard] Period found:', { periodData, source: periodSource });
 
       if (!periodData) {
+        console.log('[MADashboard] No delivered period found');
         setLoading(false);
         return;
       }
       setPeriod(periodData);
 
-      // 3. Fetch all data in parallel
+      // 3. Fetch all data in parallel - check both MA and BI tables
+      const useBI = periodSource === 'bi_periods';
+      const financialTable = useBI ? 'bi_financial_data' : 'ma_financial_data';
+      const insightsTable = useBI ? 'bi_insights' : 'ma_insights';
+      const kpisTable = useBI ? 'bi_kpi_values' : 'ma_kpi_values';
+      const kpiDefTable = useBI ? 'bi_kpi_definitions' : 'ma_kpi_definitions';
+      const scenariosTable = useBI ? 'bi_scenarios' : 'ma_scenarios';
+      
+      console.log('[MADashboard] Fetching data from:', { financialTable, insightsTable, kpisTable, scenariosTable });
+      
       const [financialRes, insightsRes, kpisRes, scenariosRes] = await Promise.all([
         supabase
-          .from('ma_financial_data')
+          .from(financialTable)
           .select('*')
           .eq('period_id', periodData.id)
           .maybeSingle(),
         supabase
-          .from('ma_insights')
+          .from(insightsTable)
           .select('*')
           .eq('period_id', periodData.id)
           .eq('status', 'approved')
           .eq('show_to_client', true)
           .order('display_order', { ascending: true }),
         supabase
-          .from('ma_kpi_values')
+          .from(kpisTable)
           .select(`
             *,
-            kpi_definition:ma_kpi_definitions(*)
+            kpi_definition:${kpiDefTable}(*)
           `)
           .eq('period_id', periodData.id),
         supabase
-          .from('ma_scenarios')
+          .from(scenariosTable)
           .select('*')
           .eq('engagement_id', engagementData.id)
           .eq('is_featured', true)
       ]);
+
+      console.log('[MADashboard] Data loaded:', {
+        financial: !!financialRes.data,
+        insights: insightsRes.data?.length || 0,
+        kpis: kpisRes.data?.length || 0,
+        scenarios: scenariosRes.data?.length || 0
+      });
 
       if (financialRes.data) setFinancialData(financialRes.data);
       if (insightsRes.data) setInsights(insightsRes.data);
