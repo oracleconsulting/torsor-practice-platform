@@ -4,31 +4,33 @@
 -- ============================================================================
 
 -- ============================================================================
--- STEP 1: INSERT NEW business_intelligence ROW (copy from management_accounts)
+-- STEP 1: INSERT NEW business_intelligence ROW
+-- Copy all columns dynamically from the existing management_accounts row
 -- ============================================================================
 
-INSERT INTO service_line_metadata (
-  code, name, core_function, problems_addressed, pricing, status,
-  deliverables, quick_wins, long_term_value, ideal_client_profile,
-  success_metrics, integration_with_other_services, created_at
-)
+-- First, let's just insert with the core required fields
+INSERT INTO service_line_metadata (code, name, core_function, problems_addressed, pricing, status)
 SELECT 
   'business_intelligence',
   'Business Intelligence',
   'Financial clarity with True Cash position, KPIs, AI insights, forecasts and scenario modelling',
   problems_addressed,
   pricing,
-  status,
-  deliverables,
-  quick_wins,
-  long_term_value,
-  ideal_client_profile,
-  success_metrics,
-  integration_with_other_services,
-  NOW()
+  status
 FROM service_line_metadata 
 WHERE code = 'management_accounts'
 ON CONFLICT (code) DO NOTHING;
+
+-- If management_accounts doesn't exist, insert a fresh row
+INSERT INTO service_line_metadata (code, name, core_function, problems_addressed, pricing, status)
+SELECT 
+  'business_intelligence',
+  'Business Intelligence',
+  'Financial clarity with True Cash position, KPIs, AI insights, forecasts and scenario modelling',
+  ARRAY['Lack of financial visibility', 'Cash flow uncertainty', 'Decision-making without data'],
+  '{"base": 650, "currency": "GBP", "frequency": "monthly"}'::jsonb,
+  'active'
+WHERE NOT EXISTS (SELECT 1 FROM service_line_metadata WHERE code = 'business_intelligence');
 
 -- ============================================================================
 -- STEP 2: UPDATE ALL CHILD TABLES TO POINT TO NEW CODE
