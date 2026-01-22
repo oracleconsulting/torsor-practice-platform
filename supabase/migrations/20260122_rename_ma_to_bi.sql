@@ -106,24 +106,50 @@ END $$;
 
 -- 4f. ASSESSMENT_QUESTIONS - no assessment_type column, skip
 
--- 4g. UPDATE SERVICE_LINES TABLE
+-- 4g. UPDATE SERVICE_LINES TABLE (with FK-safe pattern: insert → update children → delete)
 DO $$
+DECLARE
+  old_id UUID;
+  new_id UUID;
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'service_lines') THEN
-    EXECUTE '
-      UPDATE service_lines 
-      SET code = ''business_intelligence'', 
-          name = ''Business Intelligence''
-      WHERE code = ''management_accounts''
-    ';
+    -- Get the old management_accounts ID
+    SELECT id INTO old_id FROM service_lines WHERE code = 'management_accounts';
     
-    EXECUTE '
+    IF old_id IS NOT NULL THEN
+      -- Insert new business_intelligence row
       INSERT INTO service_lines (code, name, description, status)
-      SELECT ''business_intelligence'', ''Business Intelligence'', 
-             ''Financial clarity with True Cash position, KPIs, AI insights, forecasts and scenario modelling'',
-             ''active''
-      WHERE NOT EXISTS (SELECT 1 FROM service_lines WHERE code = ''business_intelligence'')
-    ';
+      VALUES ('business_intelligence', 'Business Intelligence', 
+              'Financial clarity with True Cash position, KPIs, AI insights, forecasts and scenario modelling',
+              'active')
+      ON CONFLICT (code) DO NOTHING
+      RETURNING id INTO new_id;
+      
+      -- Get the new ID if insert was skipped due to conflict
+      IF new_id IS NULL THEN
+        SELECT id INTO new_id FROM service_lines WHERE code = 'business_intelligence';
+      END IF;
+      
+      -- Update service_scoring_weights to point to new code
+      IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'service_scoring_weights') THEN
+        UPDATE service_scoring_weights SET service_code = 'business_intelligence' WHERE service_code = 'management_accounts';
+      END IF;
+      
+      -- Update client_service_lines FK to point to new ID
+      IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'client_service_lines') AND new_id IS NOT NULL THEN
+        UPDATE client_service_lines SET service_line_id = new_id WHERE service_line_id = old_id;
+      END IF;
+      
+      -- Delete old management_accounts row
+      DELETE FROM service_lines WHERE code = 'management_accounts';
+    ELSE
+      -- No management_accounts exists, just ensure business_intelligence exists
+      INSERT INTO service_lines (code, name, description, status)
+      SELECT 'business_intelligence', 'Business Intelligence', 
+             'Financial clarity with True Cash position, KPIs, AI insights, forecasts and scenario modelling',
+             'active'
+      WHERE NOT EXISTS (SELECT 1 FROM service_lines WHERE code = 'business_intelligence');
+    END IF;
   END IF;
 END $$;
 
