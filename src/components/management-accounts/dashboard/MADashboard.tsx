@@ -33,6 +33,23 @@ const TIER_CONFIG: Record<TierType, { label: string; color: string; showForecast
   strategic: { label: 'Strategic', color: 'bg-purple-600', showForecast: true, showProfitability: true },
 };
 
+// Map legacy tier names to new structure
+const LEGACY_TIER_MAP: Record<string, TierType> = {
+  bronze: 'clarity',
+  silver: 'foresight',
+  gold: 'foresight',
+  platinum: 'strategic',
+  clarity: 'clarity',
+  foresight: 'foresight',
+  strategic: 'strategic',
+};
+
+function getTierConfig(tier: string | undefined | null) {
+  if (!tier) return TIER_CONFIG.clarity;
+  const mappedTier = LEGACY_TIER_MAP[tier.toLowerCase()] || 'clarity';
+  return TIER_CONFIG[mappedTier];
+}
+
 export function MADashboard({ engagementId, periodId, isAdmin = false }: MADashboardProps) {
   const { 
     engagement, 
@@ -96,8 +113,8 @@ export function MADashboard({ engagementId, periodId, isAdmin = false }: MADashb
     );
   }
 
-  const tier = (engagement.tier || 'clarity') as TierType;
-  const tierConfig = TIER_CONFIG[tier];
+  const tier = engagement.tier || 'clarity';
+  const tierConfig = getTierConfig(tier);
 
   // Toggle insight expansion
   const toggleInsightExpanded = (insightId: string) => {

@@ -63,7 +63,7 @@ export function SectionVisibilityPanel({
 
   const isSectionAvailable = (sectionId: SectionId) => {
     const config = SECTION_CONFIG[sectionId];
-    if (!config.minTier) return true;
+    if (!config || !config.minTier) return true;
     const minTierLevel = TIER_LEVELS[config.minTier as keyof typeof TIER_LEVELS];
     return tierLevel >= minTierLevel;
   };

@@ -80,12 +80,17 @@ const SCENARIO_TYPES: { type: ScenarioType; label: string; icon: React.ReactNode
   { type: 'investment', label: 'Investment', icon: <Building className="h-5 w-5" />, description: 'Model capital investment' },
 ];
 
-const RECOMMENDATION_STYLES = {
+const RECOMMENDATION_STYLES: Record<string, { bg: string; border: string; text: string; icon: typeof CheckCircle }> = {
   proceed: { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', icon: CheckCircle },
   caution: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', icon: AlertTriangle },
   dont_proceed: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', icon: XCircle },
   needs_more_info: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', icon: HelpCircle },
 };
+
+function getRecommendationStyle(rec: string | null | undefined) {
+  if (!rec) return RECOMMENDATION_STYLES.needs_more_info;
+  return RECOMMENDATION_STYLES[rec] || RECOMMENDATION_STYLES.needs_more_info;
+}
 
 export function ScenarioBuilder({
   engagementId,
@@ -411,14 +416,14 @@ const formatCurrency = (value: number) =>
         {results && recommendation && (
           <div className="space-y-4">
             {/* Recommendation Banner */}
-            <div className={`p-4 rounded-lg border ${RECOMMENDATION_STYLES[recommendation].bg} ${RECOMMENDATION_STYLES[recommendation].border}`}>
+            <div className={`p-4 rounded-lg border ${getRecommendationStyle(recommendation).bg} ${getRecommendationStyle(recommendation).border}`}>
               <div className="flex items-start gap-3">
                 {(() => {
-                  const Icon = RECOMMENDATION_STYLES[recommendation].icon;
-                  return <Icon className={`h-5 w-5 flex-shrink-0 ${RECOMMENDATION_STYLES[recommendation].text}`} />;
+                  const Icon = getRecommendationStyle(recommendation).icon;
+                  return <Icon className={`h-5 w-5 flex-shrink-0 ${getRecommendationStyle(recommendation).text}`} />;
                 })()}
                 <div>
-                  <p className={`font-semibold ${RECOMMENDATION_STYLES[recommendation].text}`}>
+                  <p className={`font-semibold ${getRecommendationStyle(recommendation).text}`}>
                     {recommendation === 'proceed' ? 'Recommended to Proceed' :
                      recommendation === 'caution' ? 'Proceed with Caution' :
                      recommendation === 'dont_proceed' ? 'Not Recommended' :
