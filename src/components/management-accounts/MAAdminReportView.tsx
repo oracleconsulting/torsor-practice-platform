@@ -240,15 +240,27 @@ export function MAAdminReportView({
   const totalGaps = admin.gapsToFill?.length || 0;
 
   const tierColors: Record<string, string> = {
+    // New tier names
     clarity: 'border-blue-400 text-blue-400',
     foresight: 'border-indigo-400 text-indigo-400',
-    strategic: 'border-purple-400 text-purple-400'
+    strategic: 'border-purple-400 text-purple-400',
+    // Legacy tier names (map to new colors)
+    bronze: 'border-blue-400 text-blue-400',
+    silver: 'border-indigo-400 text-indigo-400',
+    gold: 'border-indigo-400 text-indigo-400',
+    platinum: 'border-purple-400 text-purple-400'
   };
 
   const tierBgColors: Record<string, string> = {
+    // New tier names
     clarity: 'bg-blue-600',
     foresight: 'bg-indigo-600',
-    strategic: 'bg-purple-600'
+    strategic: 'bg-purple-600',
+    // Legacy tier names (map to new colors)
+    bronze: 'bg-blue-600',
+    silver: 'bg-indigo-600',
+    gold: 'bg-indigo-600',
+    platinum: 'bg-purple-600'
   };
 
   return (
