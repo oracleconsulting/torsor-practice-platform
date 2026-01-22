@@ -102,12 +102,17 @@ function getTierDisplayName(tier: string) {
   return mappedTier.charAt(0).toUpperCase() + mappedTier.slice(1);
 }
 
-const STATUS_CONFIG = {
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: 'Pending', color: 'text-slate-500', bg: 'bg-slate-100' },
   active: { label: 'Active', color: 'text-green-600', bg: 'bg-green-100' },
   paused: { label: 'Paused', color: 'text-amber-600', bg: 'bg-amber-100' },
   cancelled: { label: 'Cancelled', color: 'text-red-600', bg: 'bg-red-100' },
 };
+
+// Safe accessor for status config with fallback
+function getStatusConfig(status: string) {
+  return STATUS_CONFIG[status] || STATUS_CONFIG.pending;
+}
 
 const PERIOD_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   pending: { label: 'Pending', color: 'text-slate-500', bg: 'bg-slate-100', icon: <Clock className="h-3 w-3" /> },
@@ -683,8 +688,8 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_CONFIG[eng.status].bg} ${STATUS_CONFIG[eng.status].color}`}>
-                          {STATUS_CONFIG[eng.status].label}
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusConfig(eng.status).bg} ${getStatusConfig(eng.status).color}`}>
+                          {getStatusConfig(eng.status).label}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600">
