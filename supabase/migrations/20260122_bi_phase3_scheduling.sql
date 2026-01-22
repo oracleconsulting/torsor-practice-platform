@@ -164,14 +164,23 @@ CREATE TABLE IF NOT EXISTS bi_client_profitability (
     ) STORED,
     
     -- Analysis
-    status TEXT CHECK (status IN ('top_performer', 'average', 'needs_attention', 'at_risk')),
-    trend TEXT CHECK (trend IN ('up', 'down', 'flat')),
+    status TEXT,
+    trend TEXT,
     
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
     
     UNIQUE(period_id, client_ref)
 );
+
+-- Add CHECK constraints separately (PostgreSQL issue with inline CHECK after GENERATED columns)
+ALTER TABLE bi_client_profitability 
+    ADD CONSTRAINT bi_client_profitability_status_check 
+    CHECK (status IS NULL OR status IN ('top_performer', 'average', 'needs_attention', 'at_risk'));
+
+ALTER TABLE bi_client_profitability 
+    ADD CONSTRAINT bi_client_profitability_trend_check 
+    CHECK (trend IS NULL OR trend IN ('up', 'down', 'flat'));
 
 -- ============================================================================
 -- CASH FLOW CATEGORIES
