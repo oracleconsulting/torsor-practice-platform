@@ -7,12 +7,10 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { 
   Calendar, 
-  Upload, 
   Plus, 
   Check, 
   AlertCircle, 
   FileText,
-  Trash2,
   ChevronDown,
   ChevronUp,
   Clock,
