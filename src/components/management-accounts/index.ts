@@ -51,6 +51,12 @@ export { BalanceSheetSummary } from './BalanceSheetSummary';
 export { YTDComparison } from './YTDComparison';
 export { BudgetManager } from './BudgetManager';
 
+// Charts & Scheduling (Phase 3 Enhancements)
+export { KPITrendChart, KPITrendCompact } from './KPITrendChart';
+export { CashFlowWaterfall, CashFlowWaterfallSimple } from './CashFlowWaterfall';
+export { ClientProfitabilityChart } from './ClientProfitabilityChart';
+export { ReportScheduler } from './ReportScheduler';
+
 // Preview Components (for proposals/reports)
 export { TrueCashPreview } from './previews/TrueCashPreview';
 export { ForecastPreview } from './previews/ForecastPreview';
