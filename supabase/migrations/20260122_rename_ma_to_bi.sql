@@ -117,11 +117,9 @@ BEGIN
     SELECT id INTO old_id FROM service_lines WHERE code = 'management_accounts';
     
     IF old_id IS NOT NULL THEN
-      -- Insert new business_intelligence row
-      INSERT INTO service_lines (code, name, description, status)
-      VALUES ('business_intelligence', 'Business Intelligence', 
-              'Financial clarity with True Cash position, KPIs, AI insights, forecasts and scenario modelling',
-              'active')
+      -- Insert new business_intelligence row (only code and name columns)
+      INSERT INTO service_lines (code, name)
+      VALUES ('business_intelligence', 'Business Intelligence')
       ON CONFLICT (code) DO NOTHING
       RETURNING id INTO new_id;
       
@@ -144,10 +142,8 @@ BEGIN
       DELETE FROM service_lines WHERE code = 'management_accounts';
     ELSE
       -- No management_accounts exists, just ensure business_intelligence exists
-      INSERT INTO service_lines (code, name, description, status)
-      SELECT 'business_intelligence', 'Business Intelligence', 
-             'Financial clarity with True Cash position, KPIs, AI insights, forecasts and scenario modelling',
-             'active'
+      INSERT INTO service_lines (code, name)
+      SELECT 'business_intelligence', 'Business Intelligence'
       WHERE NOT EXISTS (SELECT 1 FROM service_lines WHERE code = 'business_intelligence');
     END IF;
   END IF;
