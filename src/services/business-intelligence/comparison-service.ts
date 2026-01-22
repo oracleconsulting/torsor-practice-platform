@@ -136,17 +136,10 @@ export class BIComparisonService {
    * Calculate all comparisons for a period
    */
   static async calculateComparisons(periodId: string): Promise<FullComparisonData> {
-    // Get current period with engagement and financial data
+    // Get current period - use simple query without nested joins
     const { data: period, error: periodError } = await supabase
       .from('bi_periods')
-      .select(`
-        *,
-        engagement:bi_engagements(
-          id,
-          tier,
-          client:clients(id, name, company_name)
-        )
-      `)
+      .select('*')
       .eq('id', periodId)
       .single();
     
@@ -154,6 +147,16 @@ export class BIComparisonService {
       console.warn('[BIComparisonService] Period not found or error:', periodError);
       throw new Error('Period not found');
     }
+    
+    // Get engagement separately
+    const { data: engagement } = await supabase
+      .from('bi_engagements')
+      .select('id, tier, client_id')
+      .eq('id', period.engagement_id)
+      .single();
+    
+    // Attach engagement to period for compatibility
+    (period as any).engagement = engagement;
     
     // Get financial data for this period
     const { data: financialData, error: finError } = await supabase

@@ -174,16 +174,10 @@ async function fetchReportData(
   periodId: string, 
   options: ExportOptions
 ): Promise<ReportData> {
-  // Fetch period with engagement and client
+  // Fetch period (simple query without nested joins)
   const { data: period } = await supabase
     .from('bi_periods')
-    .select(`
-      *,
-      engagement:bi_engagements(
-        *,
-        client:clients(*)
-      )
-    `)
+    .select('*')
     .eq('id', periodId)
     .single();
 
@@ -197,6 +191,28 @@ async function fetchReportData(
       insights: [] 
     };
   }
+  
+  // Fetch engagement separately
+  const { data: engagement } = await supabase
+    .from('bi_engagements')
+    .select('*')
+    .eq('id', period.engagement_id)
+    .single();
+  
+  // Fetch client separately if engagement exists
+  let client = null;
+  if (engagement?.client_id) {
+    const { data: clientData } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('id', engagement.client_id)
+      .single();
+    client = clientData;
+  }
+  
+  // Attach for compatibility
+  period.engagement = engagement;
+  if (engagement) engagement.client = client;
 
   // Fetch financial data
   const { data: financialData } = await supabase
@@ -259,8 +275,8 @@ async function fetchReportData(
 
   return {
     period,
-    engagement: period.engagement,
-    client: period.engagement.client,
+    engagement: engagement || period.engagement,
+    client: client || engagement?.client,
     financialData,
     kpis: kpis || [],
     insights: insights || [],
