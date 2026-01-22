@@ -174,14 +174,24 @@ async function fetchReportData(
   periodId: string, 
   options: ExportOptions
 ): Promise<ReportData> {
-  // Fetch period (simple query without nested joins)
-  const { data: period } = await supabase
+  // Try bi_periods first, fallback to ma_periods
+  let { data: period } = await supabase
     .from('bi_periods')
     .select('*')
     .eq('id', periodId)
     .single();
 
   if (!period) {
+    const { data: maPeriod } = await supabase
+      .from('ma_periods')
+      .select('*')
+      .eq('id', periodId)
+      .single();
+    period = maPeriod;
+  }
+
+  if (!period) {
+    console.log('[generate-bi-pdf] Period not found in bi_periods or ma_periods');
     return { 
       period: null, 
       engagement: null, 
@@ -192,12 +202,21 @@ async function fetchReportData(
     };
   }
   
-  // Fetch engagement separately
-  const { data: engagement } = await supabase
+  // Fetch engagement - try both tables
+  let { data: engagement } = await supabase
     .from('bi_engagements')
     .select('*')
     .eq('id', period.engagement_id)
     .single();
+  
+  if (!engagement) {
+    const { data: maEng } = await supabase
+      .from('ma_engagements')
+      .select('*')
+      .eq('id', period.engagement_id)
+      .single();
+    engagement = maEng;
+  }
   
   // Fetch client separately if engagement exists
   let client = null;
@@ -214,30 +233,57 @@ async function fetchReportData(
   period.engagement = engagement;
   if (engagement) engagement.client = client;
 
-  // Fetch financial data
-  const { data: financialData } = await supabase
+  // Fetch financial data - try both tables
+  let { data: financialData } = await supabase
     .from('bi_financial_data')
     .select('*')
     .eq('period_id', periodId)
     .single();
+  
+  if (!financialData) {
+    const { data: maFinData } = await supabase
+      .from('ma_financial_data')
+      .select('*')
+      .eq('period_id', periodId)
+      .single();
+    financialData = maFinData;
+  }
 
-  // Fetch KPIs with definitions
-  const { data: kpis } = await supabase
+  // Fetch KPIs - try bi_kpi_values first, then ma_kpi_values
+  let { data: kpis } = await supabase
     .from('bi_kpi_values')
     .select(`
       *,
       definition:bi_kpi_definitions(*)
     `)
     .eq('period_id', periodId);
+  
+  if (!kpis || kpis.length === 0) {
+    const { data: maKpis } = await supabase
+      .from('ma_kpi_values')
+      .select('*')
+      .eq('period_id', periodId);
+    kpis = maKpis;
+  }
 
-  // Fetch insights
-  const { data: insights } = await supabase
+  // Fetch insights - try bi_insights first, then ma_insights
+  let { data: insights } = await supabase
     .from('bi_insights')
     .select('*')
     .eq('period_id', periodId)
     .eq('show_to_client', true)
     .eq('status', 'approved')
     .order('priority', { ascending: true });
+  
+  if (!insights || insights.length === 0) {
+    const { data: maInsights } = await supabase
+      .from('ma_insights')
+      .select('*')
+      .eq('period_id', periodId)
+      .eq('show_to_client', true)
+      .order('priority', { ascending: true });
+    insights = maInsights;
+  }
 
   // Fetch comparisons if requested
   let comparisons = null;

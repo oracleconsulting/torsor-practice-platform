@@ -136,34 +136,70 @@ export class BIComparisonService {
    * Calculate all comparisons for a period
    */
   static async calculateComparisons(periodId: string): Promise<FullComparisonData> {
-    // Get current period - use simple query without nested joins
-    const { data: period, error: periodError } = await supabase
+    // Try bi_periods first, then fallback to ma_periods
+    let { data: period, error: periodError } = await supabase
       .from('bi_periods')
       .select('*')
       .eq('id', periodId)
       .single();
     
+    // Fallback to ma_periods if not found in bi_periods
     if (periodError || !period) {
-      console.warn('[BIComparisonService] Period not found or error:', periodError);
-      throw new Error('Period not found');
+      const maResult = await supabase
+        .from('ma_periods')
+        .select('*')
+        .eq('id', periodId)
+        .single();
+      
+      period = maResult.data;
+      periodError = maResult.error;
     }
     
-    // Get engagement separately
-    const { data: engagement } = await supabase
+    if (periodError || !period) {
+      console.warn('[BIComparisonService] Period not found in bi_periods or ma_periods:', periodError);
+      // Return empty comparison instead of throwing
+      return this.emptyComparisonData('Period');
+    }
+    
+    // Get engagement separately - try both tables
+    let engagement = null;
+    const { data: biEng } = await supabase
       .from('bi_engagements')
       .select('id, tier, client_id')
       .eq('id', period.engagement_id)
       .single();
     
+    if (biEng) {
+      engagement = biEng;
+    } else {
+      const { data: maEng } = await supabase
+        .from('ma_engagements')
+        .select('id, tier, client_id')
+        .eq('id', period.engagement_id)
+        .single();
+      engagement = maEng;
+    }
+    
     // Attach engagement to period for compatibility
     (period as any).engagement = engagement;
     
-    // Get financial data for this period
-    const { data: financialData, error: finError } = await supabase
+    // Get financial data for this period - try both tables
+    let { data: financialData, error: finError } = await supabase
       .from('bi_financial_data')
       .select('*')
       .eq('period_id', periodId)
       .single();
+    
+    // Fallback to ma_financial_data
+    if (!financialData || finError) {
+      const maFinResult = await supabase
+        .from('ma_financial_data')
+        .select('*')
+        .eq('period_id', periodId)
+        .single();
+      financialData = maFinResult.data;
+      finError = maFinResult.error;
+    }
     
     if (!financialData || finError) {
       // Return empty comparison structure if no financial data
