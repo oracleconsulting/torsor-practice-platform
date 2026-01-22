@@ -134,34 +134,27 @@ CREATE TABLE IF NOT EXISTS bi_kpi_alerts (
 -- CLIENT PROFITABILITY DATA
 -- ============================================================================
 -- Stores client-level profitability data for analysis
-CREATE TABLE IF NOT EXISTS bi_client_profitability (
+-- Drop and recreate to ensure clean state (no data loss - this is a new table)
+DROP TABLE IF EXISTS bi_client_profitability CASCADE;
+
+CREATE TABLE bi_client_profitability (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     period_id UUID NOT NULL REFERENCES bi_periods(id) ON DELETE CASCADE,
     
     -- Client identification
-    client_ref TEXT NOT NULL, -- External client reference
+    client_ref TEXT NOT NULL,
     client_name TEXT NOT NULL,
     segment TEXT,
     
     -- Financial data
     revenue NUMERIC NOT NULL DEFAULT 0,
     direct_costs NUMERIC NOT NULL DEFAULT 0,
-    gross_profit NUMERIC GENERATED ALWAYS AS (revenue - direct_costs) STORED,
-    gross_margin_pct NUMERIC GENERATED ALWAYS AS (
-        CASE WHEN revenue > 0 THEN ((revenue - direct_costs) / revenue) * 100 ELSE 0 END
-    ) STORED,
     
     -- Allocated costs (optional)
     allocated_overheads NUMERIC,
-    net_contribution NUMERIC GENERATED ALWAYS AS (
-        revenue - direct_costs - COALESCE(allocated_overheads, 0)
-    ) STORED,
     
     -- Metrics
     hours_worked NUMERIC,
-    effective_rate NUMERIC GENERATED ALWAYS AS (
-        CASE WHEN hours_worked > 0 THEN revenue / hours_worked ELSE NULL END
-    ) STORED,
     
     -- Analysis
     status TEXT,
@@ -170,17 +163,33 @@ CREATE TABLE IF NOT EXISTS bi_client_profitability (
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
     
-    UNIQUE(period_id, client_ref)
+    UNIQUE(period_id, client_ref),
+    
+    -- Constraints
+    CONSTRAINT bi_client_profitability_status_check 
+        CHECK (status IS NULL OR status IN ('top_performer', 'average', 'needs_attention', 'at_risk')),
+    CONSTRAINT bi_client_profitability_trend_check 
+        CHECK (trend IS NULL OR trend IN ('up', 'down', 'flat'))
 );
 
--- Add CHECK constraints separately (PostgreSQL issue with inline CHECK after GENERATED columns)
+-- Add computed columns separately
 ALTER TABLE bi_client_profitability 
-    ADD CONSTRAINT bi_client_profitability_status_check 
-    CHECK (status IS NULL OR status IN ('top_performer', 'average', 'needs_attention', 'at_risk'));
+    ADD COLUMN IF NOT EXISTS gross_profit NUMERIC GENERATED ALWAYS AS (revenue - direct_costs) STORED;
 
 ALTER TABLE bi_client_profitability 
-    ADD CONSTRAINT bi_client_profitability_trend_check 
-    CHECK (trend IS NULL OR trend IN ('up', 'down', 'flat'));
+    ADD COLUMN IF NOT EXISTS gross_margin_pct NUMERIC GENERATED ALWAYS AS (
+        CASE WHEN revenue > 0 THEN ((revenue - direct_costs) / revenue) * 100 ELSE 0 END
+    ) STORED;
+
+ALTER TABLE bi_client_profitability 
+    ADD COLUMN IF NOT EXISTS net_contribution NUMERIC GENERATED ALWAYS AS (
+        revenue - direct_costs - COALESCE(allocated_overheads, 0)
+    ) STORED;
+
+ALTER TABLE bi_client_profitability 
+    ADD COLUMN IF NOT EXISTS effective_rate NUMERIC GENERATED ALWAYS AS (
+        CASE WHEN hours_worked > 0 THEN revenue / hours_worked ELSE NULL END
+    ) STORED;
 
 -- ============================================================================
 -- CASH FLOW CATEGORIES
