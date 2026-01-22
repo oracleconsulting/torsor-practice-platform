@@ -57,12 +57,16 @@ function getTierColors(tier: string) {
   return TIER_COLORS[mappedTier];
 }
 
-const STATUS_CONFIG = {
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: 'Pending', color: 'text-slate-500', bg: 'bg-slate-100' },
   active: { label: 'Active', color: 'text-green-600', bg: 'bg-green-100' },
   paused: { label: 'Paused', color: 'text-amber-600', bg: 'bg-amber-100' },
   cancelled: { label: 'Cancelled', color: 'text-red-600', bg: 'bg-red-100' },
 };
+
+function getStatusConfig(status: string) {
+  return STATUS_CONFIG[status] || STATUS_CONFIG.pending;
+}
 
 export function MAEngagementsPage() {
   const navigate = useNavigate();
@@ -283,7 +287,7 @@ export function MAEngagementsPage() {
             <tbody className="divide-y divide-slate-100">
               {filteredEngagements.map(eng => {
                 const tierColors = getTierColors(eng.tier);
-                const statusConfig = STATUS_CONFIG[eng.status];
+                const statusConfig = getStatusConfig(eng.status);
                 
                 return (
                   <tr 

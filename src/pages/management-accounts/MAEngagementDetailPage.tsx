@@ -35,6 +35,10 @@ const PERIOD_STATUS_CONFIG: Record<string, { label: string; color: string; bg: s
   client_reviewed: { label: 'Client Viewed', color: 'text-green-700', bg: 'bg-green-200', icon: <Eye className="h-3 w-3" /> },
 };
 
+function getPeriodStatusConfig(status: string) {
+  return PERIOD_STATUS_CONFIG[status] || PERIOD_STATUS_CONFIG.pending;
+}
+
 export function MAEngagementDetailPage() {
   const { engagementId } = useParams();
   const navigate = useNavigate();
@@ -347,7 +351,7 @@ export function MAEngagementDetailPage() {
           ) : (
             <div className="space-y-3">
               {periods.map(period => {
-                const statusConfig = PERIOD_STATUS_CONFIG[period.status];
+                const statusConfig = getPeriodStatusConfig(period.status);
                 const isOverdue = period.due_date && new Date(period.due_date) < new Date() && 
                   !['delivered', 'client_reviewed'].includes(period.status);
 
