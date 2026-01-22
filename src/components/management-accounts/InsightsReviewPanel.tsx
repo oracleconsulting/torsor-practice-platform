@@ -338,8 +338,8 @@ export function InsightsReviewPanel({
         <div className="space-y-4">
           {filteredInsights.map(insight => {
             const typeConfig = INSIGHT_TYPE_CONFIG[insight.insight_type] || INSIGHT_TYPE_CONFIG.observation;
-            const priorityConfig = PRIORITY_CONFIG[insight.priority || 'medium'];
-            const statusConfig = STATUS_CONFIG[insight.status || 'draft'];
+            const priorityConfig = PRIORITY_CONFIG[insight.priority as InsightPriority] || PRIORITY_CONFIG.medium;
+            const statusConfig = STATUS_CONFIG[insight.status as InsightStatus] || STATUS_CONFIG.draft;
             const isExpanded = expandedInsights.has(insight.id);
 
             return (
