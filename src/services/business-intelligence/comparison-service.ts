@@ -84,6 +84,55 @@ interface FinancialData {
 export class BIComparisonService {
   
   /**
+   * Generate empty comparison structure when data is unavailable
+   */
+  private static emptyComparisonData(periodLabel: string): FullComparisonData {
+    const emptyLine = (): FinancialComparison => ({
+      actual: 0,
+      budget: null,
+      priorMonth: null,
+      priorYear: null,
+      variances: { vsBudget: null, vsPriorMonth: null, vsPriorYear: null }
+    });
+    
+    const emptyYTD = (): YTDComparison => ({
+      actual: 0,
+      budget: null,
+      priorYear: null,
+      variances: { vsBudget: null, vsPriorYear: null }
+    });
+    
+    return {
+      period: {
+        revenue: emptyLine(),
+        costOfSales: emptyLine(),
+        grossProfit: emptyLine(),
+        grossMarginPct: emptyLine(),
+        overheads: emptyLine(),
+        operatingProfit: emptyLine(),
+        operatingMarginPct: emptyLine(),
+        netProfit: emptyLine(),
+        netMarginPct: emptyLine()
+      },
+      ytd: {
+        revenue: emptyYTD(),
+        costOfSales: emptyYTD(),
+        grossProfit: emptyYTD(),
+        overheads: emptyYTD(),
+        operatingProfit: emptyYTD(),
+        netProfit: emptyYTD()
+      },
+      metadata: {
+        periodLabel,
+        priorMonthLabel: null,
+        priorYearLabel: null,
+        hasBudget: false,
+        calculatedAt: new Date().toISOString()
+      }
+    };
+  }
+  
+  /**
    * Calculate all comparisons for a period
    */
   static async calculateComparisons(periodId: string): Promise<FullComparisonData> {
@@ -102,18 +151,21 @@ export class BIComparisonService {
       .single();
     
     if (periodError || !period) {
+      console.warn('[BIComparisonService] Period not found or error:', periodError);
       throw new Error('Period not found');
     }
     
     // Get financial data for this period
-    const { data: financialData } = await supabase
+    const { data: financialData, error: finError } = await supabase
       .from('bi_financial_data')
       .select('*')
       .eq('period_id', periodId)
       .single();
     
-    if (!financialData) {
-      throw new Error('Financial data not found for period');
+    if (!financialData || finError) {
+      // Return empty comparison structure if no financial data
+      console.warn('[BIComparisonService] No financial data for period:', periodId);
+      return this.emptyComparisonData(period.period_label || 'Current Period');
     }
     
     const engagementId = period.engagement_id;

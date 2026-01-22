@@ -118,8 +118,6 @@ export function PDFExportButton({
         // Open PDF in new tab
         window.open(data.url, '_blank');
         setStatus('success');
-        
-        // Reset to idle after showing success
         setTimeout(() => setStatus('idle'), 3000);
       } else if (data?.downloadUrl) {
         // Trigger download
@@ -129,11 +127,30 @@ export function PDFExportButton({
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
         setStatus('success');
         setTimeout(() => setStatus('idle'), 3000);
+      } else if (data?.html) {
+        // Client-side HTML to PDF conversion
+        // Open HTML in new window for printing as PDF
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(data.html);
+          printWindow.document.close();
+          
+          // Wait for content to load then trigger print
+          printWindow.onload = () => {
+            setTimeout(() => {
+              printWindow.print();
+            }, 500);
+          };
+          
+          setStatus('success');
+          setTimeout(() => setStatus('idle'), 3000);
+        } else {
+          throw new Error('Failed to open print window - check popup blocker');
+        }
       } else {
-        throw new Error('No download URL returned');
+        throw new Error('No report data returned');
       }
     } catch (error) {
       console.error('PDF generation failed:', error);

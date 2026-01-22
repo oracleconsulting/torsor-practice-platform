@@ -92,7 +92,7 @@ export function scoreServicesFromDiscovery(
   const exitTimeline = getField(responses, 'sd_exit_timeline', 'exit_timeline') || '';
   
   // ═══════════════════════════════════════════════════════════════
-  // 365 ALIGNMENT SCORING
+  // GOAL ALIGNMENT SCORING
   // ═══════════════════════════════════════════════════════════════
   
   // Success definition triggers

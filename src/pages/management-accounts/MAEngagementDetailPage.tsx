@@ -20,7 +20,8 @@ import {
 import { supabase } from '../../lib/supabase';
 import { 
   WatchListPanel, 
-  TrueCashCard 
+  TrueCashCard,
+  HistoricalDataUploader
 } from '../../components/management-accounts';
 import { formatTrueCashForDisplay, calculateTrueCash } from '../../services/ma/true-cash';
 import type { MAEngagement, MAPeriod, MAFinancialData } from '../../types/ma';
@@ -49,6 +50,7 @@ export function MAEngagementDetailPage() {
   const [activeTab, setActiveTab] = useState<'periods' | 'kpis' | 'watchlist'>('periods');
   const [_showNewPeriodModal, setShowNewPeriodModal] = useState(false);
   // Note: Modal UI to be implemented - state tracks when period creation form is open
+  const [showHistoricalUploader, setShowHistoricalUploader] = useState(false);
 
   useEffect(() => {
     if (engagementId) {
@@ -330,8 +332,29 @@ export function MAEngagementDetailPage() {
       {/* Tab Content */}
       {activeTab === 'periods' && (
         <div className="space-y-4">
+          {/* Historical Data Uploader */}
+          {showHistoricalUploader && engagement && (
+            <HistoricalDataUploader
+              engagementId={engagement.id}
+              onComplete={() => {
+                setShowHistoricalUploader(false);
+                loadEngagement(); // Refresh periods
+              }}
+              onClose={() => setShowHistoricalUploader(false)}
+            />
+          )}
+          
           {/* Create Period Button */}
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            {!showHistoricalUploader && (
+              <button
+                onClick={() => setShowHistoricalUploader(true)}
+                className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium"
+              >
+                <Clock className="h-4 w-4" />
+                Add Historical Data
+              </button>
+            )}
             <button
               onClick={createNewPeriod}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"

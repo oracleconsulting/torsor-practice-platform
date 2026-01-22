@@ -13,7 +13,7 @@ import { supabase } from '../lib/supabase';
 export interface KPIDataPoint {
   period_id: string;
   period_label: string;
-  period_end_date: string;
+  period_end: string;
   value: number;
   target?: number;
   rag_status?: 'red' | 'amber' | 'green';
@@ -95,9 +95,9 @@ export function useKPITrends(
       // 1. Get recent periods for this engagement
       const { data: periods, error: periodsError } = await supabase
         .from('bi_periods')
-        .select('id, period_label, period_end_date')
+        .select('id, period_label, period_end')
         .eq('engagement_id', engagementId)
-        .order('period_end_date', { ascending: false })
+        .order('period_end', { ascending: false })
         .limit(periodsBack);
       
       if (periodsError) throw periodsError;
@@ -154,7 +154,7 @@ export function useKPITrends(
         kpiGroups.get(kv.kpi_code)!.push({
           period_id: kv.period_id,
           period_label: period.period_label,
-          period_end_date: period.period_end_date,
+          period_end: period.period_end,
           value: kv.value,
           target: kv.target_value,
           rag_status: kv.rag_status
@@ -167,7 +167,7 @@ export function useKPITrends(
       for (const [kpiCode, dataPoints] of kpiGroups) {
         // Sort by date ascending for trend display
         const sortedPoints = dataPoints.sort((a, b) => 
-          new Date(a.period_end_date).getTime() - new Date(b.period_end_date).getTime()
+          new Date(a.period_end).getTime() - new Date(b.period_end).getTime()
         );
         
         const def = kpiDefMap.get(kpiCode);

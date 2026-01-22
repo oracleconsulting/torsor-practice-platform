@@ -207,7 +207,7 @@ export const ADVISORY_SERVICES: ServiceLine[] = [
     deliveryTime: '2-6 weeks',
     requiredSkills: [
       {
-        skillName: '365 Alignment Facilitation',
+        skillName: 'Goal Alignment Facilitation',
         minimumLevel: 4,
         idealLevel: 5,
         criticalToDelivery: true,

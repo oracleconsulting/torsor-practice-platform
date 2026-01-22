@@ -192,7 +192,7 @@ function scoreServicesFromDiscovery(
   const exitTimeline = getField(responses, 'sd_exit_timeline', 'exit_timeline') || '';
   
   // ═══════════════════════════════════════════════════════════════
-  // 365 ALIGNMENT SCORING
+  // GOAL ALIGNMENT SCORING
   // ═══════════════════════════════════════════════════════════════
   
   if (['Creating a business that runs profitably without me',
@@ -605,7 +605,7 @@ function assessAffordability(
 }
 
 // ============================================================================
-// 365 LIFESTYLE TRANSFORMATION DETECTION
+// GOAL ALIGNMENT TRANSFORMATION DETECTION
 // ============================================================================
 
 interface TransformationSignals {
@@ -1225,7 +1225,7 @@ BAD (too long):
 That's 383 characters - trim it.
 
 BAD PATTERNS:
-- Leading with services ("£13,300 gets you management accounts, a systems audit, and 365 programme")
+- Leading with services ("£13,300 gets you management accounts, a systems audit, and Goal Alignment programme")
 - Leading with features ("Financial visibility, operational clarity, transition roadmap")
 - Over-explaining ("It doesn't mean you're not capable. It means you're operating without infrastructure." - just say the second part)
 - Listing vision details ("taking your boys to school, managing a portfolio, building something" - pick ONE)
@@ -1574,7 +1574,7 @@ NEVER show a partial figure like "£9,150" without explaining what it includes.
 EXAMPLE CALCULATION (show your working):
 - Management Accounts: £650/month × 12 months = £7,800
 - Systems Audit: £4,000 (one-time)
-- 365 Programme: £1,500 (one-time)
+- Goal Alignment Programme: £1,500 (one-time)
 - **Phase 1 Total: £13,300**
 
 Use £13,300 consistently:
@@ -1664,12 +1664,12 @@ Or with 40% capture rate:
 
 Use the calculation, don't guess. Show your working in the ROI calculation field.
 
-365 ALIGNMENT PROGRAMME:
+GOAL ALIGNMENT PROGRAMME:
 This is NOT just for people without plans. It's for founders undergoing TRANSFORMATION:
 - OPERATOR to INVESTOR transition
 - FOUNDER to CHAIRMAN transition
 - BURNOUT to BALANCE transition
-If transformation signals are detected, recommend 365 even if they have a business plan.
+If transformation signals are detected, recommend Goal Alignment even if they have a business plan.
 
 LANGUAGE RULES (non-negotiable):
 
@@ -1792,12 +1792,12 @@ serve(async (req) => {
     console.log('[Discovery] Affordability:', affordability);
 
     // ========================================================================
-    // DETECT 365 TRANSFORMATION TRIGGERS
+    // DETECT GOAL ALIGNMENT TRANSFORMATION TRIGGERS
     // ========================================================================
     
     const transformationSignals = detect365Triggers(preparedData.discovery.responses);
     
-    console.log('[Discovery] 365 Triggers:', transformationSignals);
+    console.log('[Discovery] Goal Alignment Triggers:', transformationSignals);
 
     // ========================================================================
     // PRE-COMPUTE SERVICE SCORES
@@ -2204,17 +2204,17 @@ TIMING RULES:
 SERVICE TIMING:
 - Monthly services (Management Accounts): Start in Phase 1, continue through all phases
 - One-time services (Systems Audit): Placed in the phase where they deliver impact
-- Long-running programmes (365): Can span phases but should show the START phase
+- Long-running programmes (Goal Alignment): Can span phases but should show the START phase
 
 BAD EXAMPLE:
 - Phase 1: Month 1-3, Management Accounts
 - Phase 2: Month 2-4, Systems Audit  ← WRONG: overlaps
-- Phase 3: Month 1-12, 365 Programme ← WRONG: spans everything
+- Phase 3: Month 1-12, Goal Alignment Programme ← WRONG: spans everything
 
 GOOD EXAMPLE:
 - Phase 1: Month 1-3, "Investor-Ready Numbers" (Management Accounts £650/month)
 - Phase 2: Month 3-6, "Operational Clarity" (Systems Audit £4,000)
-- Phase 3: Month 6-12, "The Transition" (365 Programme £1,500)
+- Phase 3: Month 6-12, "The Transition" (Goal Alignment Programme £1,500)
 
 The TRANSFORMATION is the narrative arc. Services enable each phase but don't define the timing.
 
@@ -2241,7 +2241,7 @@ EARLY-REVENUE CLIENT - PHASE YOUR RECOMMENDATIONS:
 
 Phase 1 - Essential (Start Now, max £36,000/year):
 - Management Accounts and Systems Audit
-- 365 if transformation needed
+- Goal Alignment if transformation needed
 - Focus on efficiency gains that pay for themselves
 
 Phase 2 - Growth Support (3-6 months):
@@ -2252,14 +2252,14 @@ Phase 3 - Full Support (12+ months):
 - Full fractional suite when revenue supports
 ` : ''}
 
-## 365 ALIGNMENT DETECTION
+## GOAL ALIGNMENT DETECTION
 ${transformationSignals.reasons.length > 0 ? `
-🎯 365 TRANSFORMATION TRIGGERS DETECTED:
+🎯 GOAL ALIGNMENT TRANSFORMATION TRIGGERS DETECTED:
 ${transformationSignals.reasons.map(r => `- ${r}`).join('\n')}
 
-Even if they have a business plan, recommend 365 because they need structured support for their PERSONAL transformation, not just business strategy.
+Even if they have a business plan, recommend Goal Alignment because they need structured support for their PERSONAL transformation, not just business strategy.
 
-Position 365 as: "You have a business plan. What you don't have is a structured path to becoming the person in your 5-year vision. The 365 programme bridges that gap."
+Position Goal Alignment as: "You have a business plan. What you don't have is a structured path to becoming the person in your 5-year vision. The Goal Alignment programme bridges that gap."
 ` : 'No specific transformation triggers detected.'}
 
 ${documentInsightsContext}
@@ -2404,7 +2404,7 @@ Return ONLY a valid JSON object (no markdown, no explanation, just the JSON):
     "destinationContext": "This is what the next 5 years builds." or "This is what £13,300 and 12 months builds." (based on stage),
     "journeyLabel": "THE FOUNDATIONS (12 months)" or "YOUR JOURNEY" (based on stage),
     "totalInvestment": "£X,XXX", // MUST match sum of all phase services (Phase 1 = First Year for most clients)
-    "investmentBreakdown": "£X,XXX management accounts + £X,XXX systems audit + £X,XXX 365 programme", // Show your working
+    "investmentBreakdown": "£X,XXX management accounts + £X,XXX systems audit + £X,XXX Goal Alignment programme", // Show your working
     "totalTimeframe": "12 months to operational foundations; 3-5 years to full destination" or "12-18 months to fundamental change" (based on stage),
     "phases": [
       {
@@ -2454,7 +2454,7 @@ Return ONLY a valid JSON object (no markdown, no explanation, just the JSON):
   ],
   "investmentSummary": {
     "totalFirstYearInvestment": "£X,XXX", // MUST match transformationJourney.totalInvestment
-    "investmentBreakdown": "Management Accounts £X,XXX (£XXX×12) + Systems Audit £X,XXX + 365 Lite £X,XXX", // Show your working
+    "investmentBreakdown": "Management Accounts £X,XXX (£XXX×12) + Systems Audit £X,XXX + Goal Alignment Lite £X,XXX", // Show your working
     "investmentAsPercentOfRevenue": "X.X% of Year 1 revenue", // ALWAYS include if Year 1 revenue available
     "projectedFirstYearReturn": "£X,XXX - be CONSERVATIVE, this must be defensible",
     "paybackPeriod": "X-X months", // Calculate precisely (see payback calculation rules)
@@ -2579,7 +2579,7 @@ For EARLY-STAGE / HIGH-GROWTH clients (e.g., pre-revenue startup with 5-year pro
       "youWillHave": "A structured path from operator to investor. The school drop-offs you described. Progress toward the portfolio life.",
       "whatChanges": "You become optional to daily operations.",
       "enabledBy": "Goal Alignment Programme",
-      "enabledByCode": "365_lite",
+      "enabledByCode": "goal_alignment_lite",
       "investment": "£1,500"
     }
   ]

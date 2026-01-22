@@ -56,6 +56,7 @@ export { KPITrendChart, KPITrendCompact } from './KPITrendChart';
 export { CashFlowWaterfall, CashFlowWaterfallSimple } from './CashFlowWaterfall';
 export { ClientProfitabilityChart } from './ClientProfitabilityChart';
 export { ReportScheduler } from './ReportScheduler';
+export { HistoricalDataUploader } from './HistoricalDataUploader';
 
 // Alerts (Phase 4 Enhancements)
 export { AlertsPanel } from './AlertsPanel';

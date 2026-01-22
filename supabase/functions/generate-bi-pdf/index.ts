@@ -99,54 +99,59 @@ Deno.serve(async (req) => {
     // Generate a filename
     const filename = generateFilename(reportData);
 
-    // Store the HTML as a temporary file for client-side conversion
-    // This is a simplified approach - in production use a proper PDF service
-    const tempPath = `temp-reports/${reportData.engagement.id}/${filename}.html`;
+    // Try to store the HTML, but handle gracefully if bucket doesn't exist
+    const tempPath = `temp-reports/${reportData.engagement?.id || 'unknown'}/${filename}.html`;
+    let storageUrl = null;
     
-    const { error: uploadError } = await supabase.storage
-      .from('bi-reports')
-      .upload(tempPath, html, {
-        contentType: 'text/html',
-        upsert: true
-      });
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('bi-reports')
+        .upload(tempPath, html, {
+          contentType: 'text/html',
+          upsert: true
+        });
 
-    if (uploadError) {
-      console.error('[generate-bi-pdf] Failed to upload HTML:', uploadError);
-      
-      // If storage fails, return HTML directly for client-side handling
-      return new Response(
-        JSON.stringify({ 
-          html,
-          filename: `${filename}.pdf`,
-          message: 'HTML generated - use client-side PDF conversion'
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage
+          .from('bi-reports')
+          .getPublicUrl(tempPath);
+        storageUrl = urlData.publicUrl;
+      } else {
+        console.warn('[generate-bi-pdf] Storage upload failed (bucket may not exist):', uploadError.message);
+      }
+    } catch (storageErr) {
+      console.warn('[generate-bi-pdf] Storage error (bucket may not exist):', storageErr);
     }
 
-    // Get the public URL
-    const { data: urlData } = supabase.storage
-      .from('bi-reports')
-      .getPublicUrl(tempPath);
-
-    // Record the generated report
-    await supabase.from('bi_generated_reports').insert({
-      period_id: periodId,
-      engagement_id: reportData.engagement.id,
-      report_type: exportOptions.reportType,
-      filename: `${filename}.pdf`,
-      storage_path: tempPath,
-      options: exportOptions,
-      status: 'generated'
-    });
+    // Try to record the generated report, but don't fail if table doesn't exist
+    try {
+      if (reportData.engagement?.id) {
+        await supabase.from('bi_generated_reports').insert({
+          period_id: periodId,
+          engagement_id: reportData.engagement.id,
+          report_type: exportOptions.reportType,
+          filename: `${filename}.pdf`,
+          storage_path: storageUrl ? tempPath : null,
+          options: exportOptions,
+          status: 'generated'
+        });
+      }
+    } catch (recordErr) {
+      console.warn('[generate-bi-pdf] Failed to record report:', recordErr);
+    }
 
     console.log(`[generate-bi-pdf] Report generated: ${filename}`);
 
+    // Always return the HTML so client can render it
     return new Response(
       JSON.stringify({ 
-        url: urlData.publicUrl,
+        success: true,
+        html,
         filename: `${filename}.pdf`,
-        htmlUrl: urlData.publicUrl // Client can fetch HTML and convert to PDF
+        url: storageUrl,
+        message: storageUrl 
+          ? 'Report generated successfully' 
+          : 'HTML generated - use client-side PDF conversion'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

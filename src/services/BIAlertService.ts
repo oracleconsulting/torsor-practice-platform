@@ -203,7 +203,7 @@ export const BIAlertService = {
     // Get previous period KPIs for trend analysis
     const { data: period } = await supabase
       .from('bi_periods')
-      .select('engagement_id, period_end_date')
+      .select('engagement_id, period_end')
       .eq('id', periodId)
       .single();
     
@@ -213,8 +213,8 @@ export const BIAlertService = {
         .from('bi_periods')
         .select('id')
         .eq('engagement_id', period.engagement_id)
-        .lt('period_end_date', period.period_end_date)
-        .order('period_end_date', { ascending: false })
+        .lt('period_end', period.period_end)
+        .order('period_end', { ascending: false })
         .limit(1)
         .single();
       
