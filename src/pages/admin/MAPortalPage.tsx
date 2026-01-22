@@ -90,14 +90,16 @@ const LEGACY_TIER_MAP: Record<string, TierType> = {
   'strategic': 'strategic',
 };
 
-// Safe tier color getter that handles legacy tier names
-function getTierColors(tier: string) {
+// Safe tier color getter that handles legacy tier names (v2 - fixes undefined access)
+function getTierColors(tier: string | undefined | null) {
+  if (!tier) return TIER_COLORS.clarity;
   const mappedTier = LEGACY_TIER_MAP[tier] || 'clarity';
   return TIER_COLORS[mappedTier];
 }
 
-// Safe tier display name getter
-function getTierDisplayName(tier: string) {
+// Safe tier display name getter (v2 - handles null/undefined)
+function getTierDisplayName(tier: string | undefined | null) {
+  if (!tier) return 'Clarity';
   const mappedTier = LEGACY_TIER_MAP[tier] || 'clarity';
   return mappedTier.charAt(0).toUpperCase() + mappedTier.slice(1);
 }
@@ -109,8 +111,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   cancelled: { label: 'Cancelled', color: 'text-red-600', bg: 'bg-red-100' },
 };
 
-// Safe accessor for status config with fallback
-function getStatusConfig(status: string) {
+// Safe accessor for status config with fallback (v2 - handles null/undefined)
+function getStatusConfig(status: string | undefined | null) {
+  if (!status) return STATUS_CONFIG.pending;
   return STATUS_CONFIG[status] || STATUS_CONFIG.pending;
 }
 
