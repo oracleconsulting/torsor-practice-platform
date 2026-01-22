@@ -122,18 +122,67 @@ export function PeriodDeliveryChecklist({
 
     setDelivering(true);
     try {
-      // Update period status
-      await supabase
+      console.log('[PeriodDeliveryChecklist] Delivering period:', periodId);
+      
+      // Update period status in ma_periods
+      const { data: maResult, error: maError } = await supabase
         .from('ma_periods')
         .update({ 
           status: 'delivered',
           delivered_at: new Date().toISOString()
         })
-        .eq('id', periodId);
+        .eq('id', periodId)
+        .select();
 
-      onComplete?.();
+      console.log('[PeriodDeliveryChecklist] MA update result:', { data: maResult, error: maError });
+      
+      // Also try bi_periods in case this is in the new tables
+      const { data: biResult, error: biError } = await supabase
+        .from('bi_periods')
+        .update({ 
+          status: 'delivered'
+        })
+        .eq('id', periodId)
+        .select();
+      
+      console.log('[PeriodDeliveryChecklist] BI update result:', { data: biResult, error: biError });
+      
+      if (maError && biError) {
+        console.error('[PeriodDeliveryChecklist] Both updates failed:', { maError, biError });
+        alert(`Failed to deliver: ${maError?.message || biError?.message}`);
+        return;
+      }
+      
+      // Verify the update worked
+      const { data: verifyMA } = await supabase
+        .from('ma_periods')
+        .select('id, status')
+        .eq('id', periodId)
+        .maybeSingle();
+      
+      const { data: verifyBI } = await supabase
+        .from('bi_periods')
+        .select('id, status')
+        .eq('id', periodId)
+        .maybeSingle();
+      
+      console.log('[PeriodDeliveryChecklist] Verification:', { 
+        ma: verifyMA, 
+        bi: verifyBI,
+        targetStatus: 'delivered'
+      });
+      
+      if (verifyMA?.status === 'delivered' || verifyBI?.status === 'delivered') {
+        console.log('[PeriodDeliveryChecklist] ✅ Delivery confirmed!');
+        onComplete?.();
+      } else {
+        console.error('[PeriodDeliveryChecklist] ❌ Status not updated!');
+        alert('Delivery may not have persisted. Please check the period status.');
+      }
+      
     } catch (error) {
-      console.error('Error delivering period:', error);
+      console.error('[PeriodDeliveryChecklist] Error delivering period:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setDelivering(false);
     }
