@@ -98,11 +98,16 @@ interface MAScenario {
   impact_on_runway?: number;
 }
 
-const TIER_BADGES = {
-  bronze: { label: 'Bronze', color: 'bg-amber-600', textColor: 'text-amber-600', bgLight: 'bg-amber-50' },
-  silver: { label: 'Silver', color: 'bg-slate-400', textColor: 'text-slate-600', bgLight: 'bg-slate-50' },
-  gold: { label: 'Gold', color: 'bg-yellow-500', textColor: 'text-yellow-600', bgLight: 'bg-yellow-50' },
-  platinum: { label: 'Platinum', color: 'bg-slate-700', textColor: 'text-slate-700', bgLight: 'bg-slate-100' },
+// NEW 3-TIER SYSTEM: Clarity → Foresight → Strategic
+const TIER_BADGES: Record<string, { label: string; color: string; textColor: string; bgLight: string }> = {
+  clarity: { label: 'Clarity', color: 'bg-sky-500', textColor: 'text-sky-600', bgLight: 'bg-sky-50' },
+  foresight: { label: 'Foresight', color: 'bg-violet-500', textColor: 'text-violet-600', bgLight: 'bg-violet-50' },
+  strategic: { label: 'Strategic', color: 'bg-emerald-500', textColor: 'text-emerald-600', bgLight: 'bg-emerald-50' },
+  // Legacy tier mapping for backwards compatibility
+  bronze: { label: 'Clarity', color: 'bg-sky-500', textColor: 'text-sky-600', bgLight: 'bg-sky-50' },
+  silver: { label: 'Foresight', color: 'bg-violet-500', textColor: 'text-violet-600', bgLight: 'bg-violet-50' },
+  gold: { label: 'Strategic', color: 'bg-emerald-500', textColor: 'text-emerald-600', bgLight: 'bg-emerald-50' },
+  platinum: { label: 'Strategic', color: 'bg-emerald-500', textColor: 'text-emerald-600', bgLight: 'bg-emerald-50' },
 };
 
 const PRIORITY_STYLES = {
@@ -470,7 +475,7 @@ export default function MADashboardPage() {
           </div>
         )}
 
-        {/* Cash Forecast (Gold/Platinum only) */}
+        {/* Cash Forecast (Foresight/Strategic tiers) */}
         {showForecasting && financialData && (
           <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">

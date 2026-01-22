@@ -36,84 +36,76 @@ interface TierComparisonProps {
   onTierSelect?: (tier: string) => void;
 }
 
-// Tier definitions - reframed as depth of support
+// NEW 3-TIER SYSTEM: Clarity → Foresight → Strategic
 const tiers = {
-  bronze: {
-    name: 'Bronze',
+  clarity: {
+    name: 'Clarity',
     monthlyPrice: 750,
     quarterlyPrice: 2000,
-    tagline: "You see what's happening",
-    description: "Clear visibility of your financial reality. We show you what's actually happening. You decide what to do about it.",
+    tagline: "See your true financial position",
+    description: "Clear visibility of your financial reality. We show you True Cash, not bank balance fiction. Know exactly where you stand.",
     perfectFor: "Businesses that want clarity but have the confidence to act independently.",
     features: [
-      'True Cash Position calculated',
+      'True Cash Position (not bank balance fiction)',
       'Your Tuesday Question answered',
       'Monthly P&L & Balance Sheet',
-      '3 key insights flagged',
-      'Watch list (3 metrics)',
+      '3-5 key insights flagged',
+      'Interactive dashboard + PDF summary',
+      'Watch list (key metrics)',
     ],
-    support: 'Self-serve',
+    support: 'Self-serve with email support',
     callTime: null,
     responseTime: '48 hours',
   },
-  silver: {
-    name: 'Silver',
+  foresight: {
+    name: 'Foresight',
     monthlyPrice: 1500,
     quarterlyPrice: 4000,
-    tagline: "You know what to do",
-    description: "We tell you what we'd do. When we spot a cash collision, we don't just flag it — we tell you how to handle it.",
-    perfectFor: "Businesses that want a trusted advisor, not just a report.",
+    tagline: "Know what's coming",
+    description: "See 13 weeks into your future. We model decisions before you make them - hire, invest, or hold? You'll know before you commit.",
+    perfectFor: "Businesses making decisions that need forward visibility.",
     features: [
-      'Everything in Bronze, plus:',
-      'Action recommendations with each insight',
-      'Decision support guidance',
+      'Everything in Clarity, plus:',
+      '13-week rolling cash forecast',
+      'Decision scenario modelling',
       '6-month trend analysis',
-      'Watch list (5 metrics)',
+      'Action recommendations with each insight',
+      'KPI tracking with targets',
       '30-minute monthly review call',
     ],
     support: '30-min monthly call',
     callTime: '30 mins',
-    responseTime: '48 hours',
+    responseTime: '24 hours',
   },
-  gold: {
-    name: 'Gold',
+  strategic: {
+    name: 'Strategic',
     monthlyPrice: 3000,
     quarterlyPrice: 7500,
-    tagline: "You see ahead",
-    description: "We model your decisions before you make them. Want to hire? We'll show you exactly when you break even and what risks exist.",
-    perfectFor: "Businesses making significant decisions needing scenario analysis.",
+    tagline: "Partner-level financial intelligence",
+    description: "Full strategic partnership. Unlimited scenario modelling, industry benchmarking, and board-ready reporting. We're your virtual FD.",
+    perfectFor: "Businesses with stakeholders who need professional reporting and strategic guidance.",
     features: [
-      'Everything in Silver, plus:',
-      '13-week rolling cash forecast',
-      '3 pre-built scenario models',
-      'Client profitability analysis',
-      'Industry benchmarks on 8 KPIs',
+      'Everything in Foresight, plus:',
+      'Unlimited scenario models',
+      'Industry benchmarking (12 KPIs)',
+      'Client/project profitability analysis',
+      'Board-pack documentation',
+      'Weekly flash reports',
       '45-minute monthly strategy call',
+      'Same-day response',
     ],
     support: '45-min monthly call',
     callTime: '45 mins',
-    responseTime: '24 hours',
-  },
-  platinum: {
-    name: 'Platinum',
-    monthlyPrice: 5000,
-    quarterlyPrice: null,
-    tagline: "Board-ready visibility",
-    description: "Full visibility with weekly updates, benchmarking, and board-pack documentation. Partner-level access.",
-    perfectFor: "Businesses with stakeholders who need professional reporting.",
-    features: [
-      'Everything in Gold, plus:',
-      'Weekly flash reports',
-      'Unlimited scenario models',
-      'Custom KPI dashboard',
-      'Industry benchmarking',
-      'Fortnightly partner calls',
-      'Board-pack documentation',
-    ],
-    support: 'Fortnightly calls',
-    callTime: 'Fortnightly',
     responseTime: 'Same day',
   }
+};
+
+// Legacy tier mapping (old 4-tier to new 3-tier)
+const LEGACY_TIER_MAP: Record<string, string> = {
+  bronze: 'clarity',
+  silver: 'foresight',
+  gold: 'strategic',
+  platinum: 'strategic',
 };
 
 type TierKey = keyof typeof tiers;
@@ -122,13 +114,20 @@ function cn(...classes: (string | boolean | undefined)[]) {
   return classes.filter(Boolean).join(' ');
 }
 
-// Helper to normalize tier value
+// Helper to normalize tier value (handles legacy tiers)
 function normalizeTier(tier: string | undefined | null): TierKey {
-  if (!tier) return 'gold'; // Default to gold
-  const normalized = tier.toLowerCase() as TierKey;
-  // Ensure it's a valid tier key
-  if (normalized in tiers) return normalized;
-  return 'gold'; // Fallback to gold
+  if (!tier) return 'foresight'; // Default to foresight (middle tier)
+  const lowerTier = tier.toLowerCase();
+  
+  // Check for legacy tier names
+  if (lowerTier in LEGACY_TIER_MAP) {
+    return LEGACY_TIER_MAP[lowerTier] as TierKey;
+  }
+  
+  // Check if it's already a new tier
+  if (lowerTier in tiers) return lowerTier as TierKey;
+  
+  return 'foresight'; // Fallback to foresight
 }
 
 export function TierComparisonView({ 

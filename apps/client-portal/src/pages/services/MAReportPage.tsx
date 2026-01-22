@@ -213,55 +213,78 @@ export default function MAReportPage() {
       // FIRST: Check for DELIVERED BI/MA period - if exists, redirect to dashboard
       // This page shows the assessment/sales pitch; the dashboard shows delivered reports
       let hasDeliveredPeriod = false;
+      let debugInfo: any = { clientId: clientSession.clientId };
       
-      // Check for MA engagement with delivered period
-      const { data: maEngagement } = await supabase
+      console.log('[MA Report] Checking for delivered periods for client:', clientSession.clientId);
+      
+      // Check for MA engagement with delivered period (don't filter by status - any engagement)
+      const { data: maEngagement, error: maEngErr } = await supabase
         .from('ma_engagements')
-        .select('id')
+        .select('id, status')
         .eq('client_id', clientSession.clientId)
-        .eq('status', 'active')
         .maybeSingle();
       
+      debugInfo.maEngagement = maEngagement;
+      debugInfo.maEngErr = maEngErr;
+      
       if (maEngagement) {
-        const { data: maPeriod } = await supabase
+        const { data: maPeriod, error: maPeriodErr } = await supabase
           .from('ma_periods')
-          .select('id')
+          .select('id, status, period_label')
           .eq('engagement_id', maEngagement.id)
           .eq('status', 'delivered')
           .limit(1)
           .maybeSingle();
         
-        if (maPeriod) hasDeliveredPeriod = true;
+        debugInfo.maPeriod = maPeriod;
+        debugInfo.maPeriodErr = maPeriodErr;
+        
+        if (maPeriod) {
+          hasDeliveredPeriod = true;
+          console.log('[MA Report] Found delivered ma_period:', maPeriod);
+        }
       }
       
       // Also check BI engagement (renamed service)
       if (!hasDeliveredPeriod) {
-        const { data: biEngagement } = await supabase
+        const { data: biEngagement, error: biEngErr } = await supabase
           .from('bi_engagements')
-          .select('id')
+          .select('id, status')
           .eq('client_id', clientSession.clientId)
-          .eq('status', 'active')
           .maybeSingle();
         
+        debugInfo.biEngagement = biEngagement;
+        debugInfo.biEngErr = biEngErr;
+        
         if (biEngagement) {
-          const { data: biPeriod } = await supabase
+          const { data: biPeriod, error: biPeriodErr } = await supabase
             .from('bi_periods')
-            .select('id')
+            .select('id, status, period_label')
             .eq('engagement_id', biEngagement.id)
             .eq('status', 'delivered')
             .limit(1)
             .maybeSingle();
           
-          if (biPeriod) hasDeliveredPeriod = true;
+          debugInfo.biPeriod = biPeriod;
+          debugInfo.biPeriodErr = biPeriodErr;
+          
+          if (biPeriod) {
+            hasDeliveredPeriod = true;
+            console.log('[MA Report] Found delivered bi_period:', biPeriod);
+          }
         }
       }
       
+      console.log('[MA Report] Delivered period check result:', { hasDeliveredPeriod, ...debugInfo });
+      
       // If there's a delivered period, redirect to the dashboard (actual report)
       if (hasDeliveredPeriod) {
-        console.log('[MA Report] Delivered period found - redirecting to dashboard');
+        console.log('[MA Report] ✅ Redirecting to dashboard');
         navigate('/service/management_accounts/dashboard', { replace: true });
         return;
       }
+      
+      console.log('[MA Report] No delivered period found - showing assessment page');
       
       // No delivered period - show the assessment/sales pitch page
       // Check for two-pass assessment report (new system)

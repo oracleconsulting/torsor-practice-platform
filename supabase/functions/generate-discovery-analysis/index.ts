@@ -647,7 +647,7 @@ function detect365Triggers(responses: Record<string, any>): TransformationSignal
   }
   
   // Burnout with high readiness
-  const weeklyHours = responses.dd_weekly_hours || responses.dd_owner_hours || '';
+  const weeklyHours = responses.dd_owner_hours || responses.dd_weekly_hours || '';
   const burnoutWithReadiness = 
     ['60-70 hours', '70+ hours'].includes(weeklyHours) &&
     responses.dd_change_readiness === "Completely ready - I'll do whatever it takes";
@@ -1401,10 +1401,10 @@ function detectClientStage(
 ): ClientStageProfile {
   
   const exitTimeline = responses.sd_exit_timeline || responses.dd_exit_mindset || '';
-  const weeklyHours = responses.dd_weekly_hours || responses.dd_owner_hours || '';
+  const weeklyHours = responses.dd_owner_hours || responses.dd_weekly_hours || '';
   const founderDep = responses.sd_founder_dependency || '';
   const successDef = responses.dd_success_definition || '';
-  const firefighting = responses.dd_time_allocation || '';
+  const firefighting = responses.dd_time_breakdown || responses.dd_time_allocation || '';
   
   const hasRevenue = financials.turnover && financials.turnover > 100000;
   const isProfitable = financials.profitAfterTax && financials.profitAfterTax > 0;
@@ -1565,10 +1565,11 @@ function checkFractionalCOOAppropriateness(
   clientStage: ClientStageProfile
 ): ServiceAppropriateness {
   // Get response values with lowercase for matching
+  // NOTE: Correct field names from discovery assessment schema
   const founderDependency = (responses.sd_founder_dependency || '').toLowerCase();
-  const timeAllocation = (responses.dd_time_allocation || '').toLowerCase();
-  const weeklyHours = (responses.dd_weekly_hours || '').toLowerCase();
-  const workLifeBalance = (responses.dd_work_life_balance || '').toLowerCase();
+  const timeAllocation = (responses.dd_time_breakdown || responses.dd_time_allocation || '').toLowerCase();
+  const weeklyHours = (responses.dd_owner_hours || responses.dd_weekly_hours || '').toLowerCase();
+  const workLifeBalance = (responses.dd_external_view || responses.dd_work_life_balance || '').toLowerCase();
   
   console.log('[COO Check] Inputs:', { founderDependency, timeAllocation, weeklyHours, workLifeBalance });
   
@@ -1596,19 +1597,27 @@ function checkFractionalCOOAppropriateness(
   // - Staff issues only (HR problem, not operational)
   // - One-time restructuring (redundancies, not ongoing need)
   
+  // Match actual assessment option text for founder dependency:
+  // "It would run fine - I'm optional to daily operations"
+  // "Minor issues - but the team would cope"
   const businessRunsFine = founderDependency.includes('tick') ||
                            founderDependency.includes('run fine') ||
                            founderDependency.includes('runs fine') ||
+                           founderDependency.includes('optional') ||
                            founderDependency.includes('minor issues') ||
+                           founderDependency.includes('team would cope') ||
                            founderDependency.includes('runs smoothly') ||
                            founderDependency.includes('well') ||
                            founderDependency.includes('minimal');
   
+  // Match actual assessment options:
+  // "Under 30 hours", "30-40 hours", "40-50 hours"
+  // Reasonable is Under 30 or 30-40 (under 40 total)
   const reasonableHours = weeklyHours.includes('under 30') ||
                           weeklyHours.includes('30-40') ||
                           weeklyHours.includes('less than 30') ||
                           weeklyHours.includes('<30') ||
-                          weeklyHours.includes('30');
+                          (weeklyHours.includes('30') && !weeklyHours.includes('50') && !weeklyHours.includes('60') && !weeklyHours.includes('70'));
   
   const hasGoodWorkLifeBalance = workLifeBalance.includes('good') ||
                                   workLifeBalance.includes('healthy') ||
@@ -1631,7 +1640,7 @@ function checkFractionalCOOAppropriateness(
   if (reasonableHours) {
     return { 
       isAppropriate: false, 
-      reason: `Owner works reasonable hours (${responses.dd_weekly_hours || 'under 40'}). Fractional COO at £45k/year not justified.` 
+      reason: `Owner works reasonable hours (${responses.dd_owner_hours || responses.dd_weekly_hours || 'under 40'}). Fractional COO at £45k/year not justified.` 
     };
   }
   
@@ -1885,7 +1894,7 @@ function checkSystemsAuditAppropriateness(
   // NOT APPROPRIATE when: Business runs smoothly, owner not in operations
   const businessRunsFine = (responses.sd_founder_dependency || '').includes('run fine') ||
                            (responses.sd_founder_dependency || '').includes('Minor issues');
-  const lowHours = (responses.dd_weekly_hours || '').includes('Under 30');
+  const lowHours = (responses.dd_owner_hours || responses.dd_weekly_hours || '').includes('Under 30');
   
   if (businessRunsFine || lowHours) {
     return { isAppropriate: false, reason: 'Business runs smoothly. No systems problem to solve.' };

@@ -50,58 +50,63 @@ interface TierDefinition {
   features: Record<string, any>;
 }
 
+// NEW 3-TIER SYSTEM: Clarity → Foresight → Strategic
 const TIER_FEATURES: Record<string, { name: string; tagline: string; features: string[] }> = {
-  bronze: {
-    name: 'Bronze',
-    tagline: 'Essentials',
+  clarity: {
+    name: 'Clarity',
+    tagline: 'See Your Reality',
     features: [
+      'True Cash Position (not bank balance fiction)',
+      'Your Tuesday Question answered',
       'Monthly P&L & Balance Sheet',
-      'True Cash calculation',
-      'Your Tuesday Answer',
-      '3 Key insights per month',
-      'Watch list (3 items)'
+      '3-5 Key insights per month',
+      'Interactive dashboard + PDF summary',
+      'Watch list (key metrics)'
     ]
   },
-  silver: {
-    name: 'Silver',
-    tagline: 'Full Picture',
+  foresight: {
+    name: 'Foresight',
+    tagline: 'Know What\'s Coming',
     features: [
-      'Everything in Bronze +',
-      '6-month rolling trends',
-      '5 Key insights per month',
-      'Optimization recommendations',
-      'Decision support'
+      'Everything in Clarity +',
+      '13-week rolling cash forecast',
+      'Decision scenario modelling',
+      '6-month trend analysis',
+      'Action recommendations',
+      '30-minute monthly review call'
     ]
   },
-  gold: {
-    name: 'Gold',
-    tagline: 'Decision-Ready',
+  strategic: {
+    name: 'Strategic',
+    tagline: 'Partner-Level Intelligence',
     features: [
-      'Everything in Silver +',
-      '13-week cash forecast',
-      'Interactive scenario dashboard',
-      'Monthly strategy call',
-      '3 Pre-built scenarios'
-    ]
-  },
-  platinum: {
-    name: 'Platinum',
-    tagline: 'Board-Level',
-    features: [
-      'Everything in Gold +',
-      'Weekly flash updates',
-      'Fortnightly calls',
-      'Unlimited scenarios',
-      'Custom KPIs & benchmarking'
+      'Everything in Foresight +',
+      'Unlimited scenario models',
+      'Industry benchmarking (12 KPIs)',
+      'Board-pack documentation',
+      'Weekly flash reports',
+      '45-minute monthly strategy call'
     ]
   }
 };
 
+// Legacy tier mapping for backwards compatibility
+const LEGACY_TIER_MAP: Record<string, string> = {
+  bronze: 'clarity',
+  silver: 'foresight', 
+  gold: 'strategic',
+  platinum: 'strategic',
+};
+
 const TIER_PRICES: Record<string, number> = {
+  clarity: 750,
+  foresight: 1500,
+  strategic: 3000,
+  // Legacy mappings
   bronze: 750,
   silver: 1500,
   gold: 3000,
-  platinum: 5000
+  platinum: 3000
 };
 
 export default function MAPresentationPage() {
