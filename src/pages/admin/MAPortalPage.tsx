@@ -21,7 +21,9 @@ import {
   Send,
   Calculator,
   X,
-  Loader2
+  Loader2,
+  ChevronDown,
+  Sparkles
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import {
@@ -159,6 +161,8 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
   const [periods, setPeriods] = useState<MAPeriod[]>([]);
   const [latestFinancials, setLatestFinancials] = useState<MAFinancialData | null>(null);
   const [engagementTab, setEngagementTab] = useState<'periods' | 'kpis' | 'watchlist'>('periods');
+  const [showTierDropdown, setShowTierDropdown] = useState(false);
+  const [changingTier, setChangingTier] = useState(false);
   
   // Period detail state
   const [period, setPeriod] = useState<MAPeriod | null>(null);
@@ -499,6 +503,44 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
   // HELPERS
   // ============================================================================
 
+  // Change engagement tier
+  const changeTier = async (newTier: TierType) => {
+    if (!engagement || changingTier) return;
+    
+    setChangingTier(true);
+    try {
+      // Try bi_engagements first, then ma_engagements
+      let result = await supabase
+        .from('bi_engagements')
+        .update({ tier: newTier })
+        .eq('id', engagement.id);
+      
+      if (result.error) {
+        result = await supabase
+          .from('ma_engagements')
+          .update({ tier: newTier })
+          .eq('id', engagement.id);
+      }
+      
+      if (result.error) throw result.error;
+      
+      // Update local state
+      setEngagement({ ...engagement, tier: newTier });
+      
+      // Also update in the engagements list
+      setEngagements(prev => prev.map(e => 
+        e.id === engagement.id ? { ...e, tier: newTier } : e
+      ));
+      
+      setShowTierDropdown(false);
+    } catch (err) {
+      console.error('Failed to change tier:', err);
+      alert('Failed to change tier. Please try again.');
+    } finally {
+      setChangingTier(false);
+    }
+  };
+
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 0 }).format(value);
 
@@ -752,9 +794,76 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
                   <h1 className="text-xl font-bold text-slate-800">
                     {engagement.client?.client_company || engagement.client?.name}
                   </h1>
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTierColors(engagement.tier).bg} ${getTierColors(engagement.tier).text}`}>
-                    {getTierDisplayName(engagement.tier)}
-                  </span>
+                  
+                  {/* Tier Selector Dropdown */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowTierDropdown(!showTierDropdown)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${getTierColors(engagement.tier).bg} ${getTierColors(engagement.tier).text} hover:opacity-80 transition-opacity cursor-pointer`}
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      {getTierDisplayName(engagement.tier)}
+                      <ChevronDown className={`w-3 h-3 transition-transform ${showTierDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+                    
+                    {showTierDropdown && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-10" 
+                          onClick={() => setShowTierDropdown(false)} 
+                        />
+                        <div className="absolute left-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-slate-200 z-20 overflow-hidden">
+                          <div className="p-2 border-b border-slate-100 bg-slate-50">
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-2">
+                              Change Service Tier
+                            </p>
+                          </div>
+                          <div className="p-1">
+                            {(['clarity', 'foresight', 'strategic'] as const).map((tier) => {
+                              const isCurrentTier = (LEGACY_TIER_MAP[engagement.tier] || engagement.tier) === tier;
+                              return (
+                                <button
+                                  key={tier}
+                                  onClick={() => !isCurrentTier && changeTier(tier)}
+                                  disabled={changingTier || isCurrentTier}
+                                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                                    isCurrentTier 
+                                      ? 'bg-blue-50 cursor-default' 
+                                      : 'hover:bg-slate-50 cursor-pointer'
+                                  }`}
+                                >
+                                  <span className={`w-2.5 h-2.5 rounded-full ${
+                                    tier === 'clarity' ? 'bg-blue-500' :
+                                    tier === 'foresight' ? 'bg-indigo-500' :
+                                    'bg-purple-500'
+                                  }`} />
+                                  <div className="flex-1">
+                                    <p className={`text-sm font-medium ${isCurrentTier ? 'text-blue-700' : 'text-slate-700'}`}>
+                                      {tier.charAt(0).toUpperCase() + tier.slice(1)}
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                      {tier === 'clarity' && 'Essential financial clarity'}
+                                      {tier === 'foresight' && 'Forecasting & scenarios'}
+                                      {tier === 'strategic' && 'Full advisory support'}
+                                    </p>
+                                  </div>
+                                  {isCurrentTier && (
+                                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {changingTier && (
+                            <div className="p-2 border-t border-slate-100 bg-slate-50 flex items-center justify-center gap-2">
+                              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                              <span className="text-xs text-slate-600">Updating...</span>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <p className="text-sm text-slate-500">
                   {engagement.frequency} • {formatCurrency(engagement.monthly_fee || 0)}/month
