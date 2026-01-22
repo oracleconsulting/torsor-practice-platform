@@ -224,14 +224,36 @@ async function fetchReportData(
   }
   
   // Fetch client separately if engagement exists
+  // Try clients table first, then practice_members (ma_engagements uses practice_members)
   let client = null;
   if (engagement?.client_id) {
+    // Try clients table
     const { data: clientData } = await supabase
       .from('clients')
       .select('*')
       .eq('id', engagement.client_id)
       .single();
-    client = clientData;
+    
+    if (clientData) {
+      client = clientData;
+    } else {
+      // Fallback to practice_members table (for ma_engagements)
+      const { data: memberData } = await supabase
+        .from('practice_members')
+        .select('id, name, email, client_company')
+        .eq('id', engagement.client_id)
+        .single();
+      
+      if (memberData) {
+        // Map to expected client shape
+        client = {
+          id: memberData.id,
+          name: memberData.name,
+          company_name: memberData.client_company,
+          email: memberData.email
+        };
+      }
+    }
   }
   
   // Attach for compatibility
@@ -678,6 +700,29 @@ function buildCoverPage(clientName: string, periodLabel: string, tier: string): 
   `;
 }
 
+// Helper to get insight title (handles both bi_insights and ma_insights schemas)
+function getInsightTitle(insight: any): string {
+  return insight.title || insight.headline || 
+    (insight.summary || insight.description || 'Key Finding').split('.')[0].substring(0, 60);
+}
+
+// Helper to get insight description (handles both bi_insights and ma_insights schemas)
+function getInsightDescription(insight: any): string {
+  return insight.description || insight.summary || insight.detail || '';
+}
+
+// Helper to get insight priority (handles both schemas)
+function getInsightPriority(insight: any): string {
+  // bi_insights uses 'priority', ma_insights uses 'recommendation_priority' or infers from insight_type
+  if (insight.priority) return insight.priority;
+  if (insight.recommendation_priority) return insight.recommendation_priority;
+  // Infer from insight_type
+  if (insight.insight_type === 'action_required') return 'critical';
+  if (insight.insight_type === 'warning') return 'high';
+  if (insight.insight_type === 'opportunity') return 'medium';
+  return 'medium';
+}
+
 function buildExecutiveSummary(financialData: any, insights: any[], kpis: any[]): string {
   if (!financialData) return '';
   
@@ -690,7 +735,12 @@ function buildExecutiveSummary(financialData: any, insights: any[], kpis: any[])
   const revenue = financialData.revenue || 0;
   const netMargin = revenue > 0 ? (netProfit / revenue * 100).toFixed(1) : '0.0';
   
-  const criticalInsights = insights.filter(i => i.priority === 'critical' || i.priority === 'high').slice(0, 3);
+  // Filter for high-priority insights using the helper
+  const criticalInsights = insights.filter(i => {
+    const priority = getInsightPriority(i);
+    return priority === 'critical' || priority === 'high' || priority === 'warning';
+  }).slice(0, 3);
+  
   const redKpis = kpis.filter(k => k.rag_status === 'red').length;
   const amberKpis = kpis.filter(k => k.rag_status === 'amber').length;
   
@@ -718,12 +768,15 @@ function buildExecutiveSummary(financialData: any, insights: any[], kpis: any[])
       
       ${criticalInsights.length > 0 ? `
         <h3 class="section-subtitle">Key Findings This Period</h3>
-        ${criticalInsights.map(insight => `
+        ${criticalInsights.map(insight => {
+          const title = getInsightTitle(insight);
+          const desc = getInsightDescription(insight);
+          return `
           <div class="insight-card ${insight.insight_type === 'warning' ? 'warning' : insight.insight_type === 'opportunity' ? 'opportunity' : ''}">
-            <div class="insight-headline">${insight.headline}</div>
-            <div class="insight-description">${insight.description.substring(0, 200)}${insight.description.length > 200 ? '...' : ''}</div>
+            <div class="insight-headline">${title}</div>
+            <div class="insight-description">${desc.substring(0, 200)}${desc.length > 200 ? '...' : ''}</div>
           </div>
-        `).join('')}
+        `}).join('')}
       ` : ''}
       
       <div class="page-footer">
@@ -941,31 +994,55 @@ function buildKPIPage(kpis: any[]): string {
 }
 
 function buildInsightsPage(insights: any[]): string {
-  const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-  const sortedInsights = [...insights].sort((a, b) => 
-    (priorityOrder[a.priority] || 3) - (priorityOrder[b.priority] || 3)
-  );
+  const priorityOrder: Record<string, number> = { critical: 0, high: 1, warning: 1, medium: 2, low: 3, opportunity: 2, positive: 3 };
+  const sortedInsights = [...insights].sort((a, b) => {
+    const aPriority = getInsightPriority(a);
+    const bPriority = getInsightPriority(b);
+    return (priorityOrder[aPriority] ?? 3) - (priorityOrder[bPriority] ?? 3);
+  });
   
   return `
     <div class="page">
       <h2 class="section-title">Insights & Recommendations</h2>
       
-      ${sortedInsights.map(insight => `
-        <div class="insight-card ${insight.insight_type === 'warning' ? 'warning' : insight.insight_type === 'opportunity' ? 'opportunity' : insight.insight_type === 'action_required' ? 'action' : ''}">
+      ${sortedInsights.map(insight => {
+        const title = getInsightTitle(insight);
+        const description = getInsightDescription(insight);
+        const priority = getInsightPriority(insight);
+        const recommendation = insight.recommendation || insight.recommended_action;
+        
+        // Determine card style based on insight type or priority
+        const cardClass = insight.insight_type === 'warning' || priority === 'critical' || priority === 'high' 
+          ? 'warning' 
+          : insight.insight_type === 'opportunity' || priority === 'opportunity'
+            ? 'opportunity' 
+            : insight.insight_type === 'action_required' 
+              ? 'action' 
+              : '';
+        
+        // Determine priority badge color
+        const badgeClass = priority === 'critical' || priority === 'high' || priority === 'warning'
+          ? 'rag-red' 
+          : priority === 'medium' 
+            ? 'rag-amber' 
+            : 'rag-green';
+        
+        return `
+        <div class="insight-card ${cardClass}">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-            <div class="insight-headline">${insight.headline}</div>
-            <span class="rag-indicator ${insight.priority === 'critical' || insight.priority === 'high' ? 'rag-red' : insight.priority === 'medium' ? 'rag-amber' : 'rag-green'}" style="flex-shrink: 0;">
-              ${(insight.priority || 'medium').toUpperCase()}
+            <div class="insight-headline">${title}</div>
+            <span class="rag-indicator ${badgeClass}" style="flex-shrink: 0;">
+              ${priority.toUpperCase()}
             </span>
           </div>
-          <div class="insight-description">${insight.description}</div>
-          ${insight.recommended_action ? `
+          <div class="insight-description">${description}</div>
+          ${recommendation ? `
             <div class="insight-action">
-              <strong>Recommended Action:</strong> ${insight.recommended_action}
+              <strong>Recommended Action:</strong> ${recommendation}
             </div>
           ` : ''}
         </div>
-      `).join('')}
+      `}).join('')}
       
       <div class="page-footer">
         <span>Business Intelligence Report</span>

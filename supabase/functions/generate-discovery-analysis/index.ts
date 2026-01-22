@@ -1034,6 +1034,910 @@ function buildDocumentInsightsContext(insights: DocumentInsights): string {
 }
 
 // ============================================================================
+// FINANCIAL DATA EXTRACTION FROM UPLOADED ACCOUNTS
+// ============================================================================
+
+interface ExtractedFinancials {
+  hasAccounts: boolean;
+  source: 'statutory_accounts' | 'management_accounts' | 'projection' | 'unknown';
+  yearEnd?: string;
+  
+  // P&L Data
+  turnover?: number;
+  turnoverPriorYear?: number;
+  turnoverGrowth?: number;
+  grossProfit?: number;
+  grossMarginPct?: number;
+  operatingProfit?: number;
+  operatingMarginPct?: number;
+  profitBeforeTax?: number;
+  profitAfterTax?: number;
+  
+  // Staff Costs (critical for payroll analysis)
+  totalStaffCosts?: number;
+  directorsSalaries?: number;
+  staffWages?: number;
+  employerNI?: number;
+  pensionCosts?: number;
+  staffCostsPercentOfRevenue?: number;
+  
+  // Balance Sheet
+  netAssets?: number;
+  cash?: number;
+  debtors?: number;
+  creditors?: number;
+  fixedAssets?: number;
+  freeholdProperty?: number;
+  
+  // Calculated Metrics
+  ebitda?: number;
+  revenuePerEmployee?: number;
+  employeeCount?: number;
+  depreciation?: number;
+  
+  // Comparison Data
+  priorYearData?: Partial<ExtractedFinancials>;
+}
+
+async function extractFinancialsFromAccounts(
+  documents: any[],
+  openrouterKey: string
+): Promise<ExtractedFinancials> {
+  
+  const emptyResult: ExtractedFinancials = { hasAccounts: false, source: 'unknown' };
+  
+  if (!documents || documents.length === 0) {
+    console.log('[FinancialExtract] No documents to process');
+    return emptyResult;
+  }
+  
+  // Filter for financial documents
+  const financialDocs = documents.filter(doc => {
+    const name = (doc.fileName || '').toLowerCase();
+    const content = (doc.content || doc.text || '').toLowerCase();
+    return name.includes('account') || 
+           name.includes('financial') ||
+           name.includes('statement') ||
+           content.includes('profit and loss') ||
+           content.includes('balance sheet') ||
+           content.includes('turnover') ||
+           content.includes('total assets') ||
+           content.includes('directors\' report');
+  });
+  
+  if (financialDocs.length === 0) {
+    console.log('[FinancialExtract] No financial documents found');
+    return emptyResult;
+  }
+  
+  const documentContent = financialDocs.map((doc, i) => {
+    const content = doc.content || doc.text || '';
+    return `\n--- DOCUMENT ${i + 1}: ${doc.fileName || 'Unnamed'} ---\n${content}\n`;
+  }).join('\n');
+  
+  console.log('[FinancialExtract] Processing financial documents, content length:', documentContent.length);
+  
+  const extractionPrompt = `You are a UK accountant extracting financial data from company accounts.
+
+Analyse the following document(s) and extract ALL financial figures you can find.
+
+<documents>
+${documentContent}
+</documents>
+
+Return a JSON object with this EXACT structure. Use null for any data not found (not 0, not empty string):
+
+{
+  "hasAccounts": true,
+  "source": "statutory_accounts" | "management_accounts" | "projection",
+  "yearEnd": "YYYY-MM-DD or null",
+  
+  "turnover": <number in £>,
+  "turnoverPriorYear": <number in £>,
+  "grossProfit": <number in £>,
+  "grossMarginPct": <decimal 0-100>,
+  "operatingProfit": <number in £>,
+  "operatingMarginPct": <decimal 0-100>,
+  "profitBeforeTax": <number in £>,
+  "profitAfterTax": <number in £>,
+  
+  "totalStaffCosts": <number - sum of ALL employment costs>,
+  "directorsSalaries": <number>,
+  "staffWages": <number - non-director wages including COS wages>,
+  "employerNI": <number>,
+  "pensionCosts": <number>,
+  
+  "netAssets": <number>,
+  "cash": <number>,
+  "fixedAssets": <number>,
+  "freeholdProperty": <number if property owned>,
+  
+  "employeeCount": <number>,
+  "depreciation": <number if available>
+}
+
+CRITICAL EXTRACTION RULES:
+1. Staff costs should include ALL payroll: directors, staff, COS wages, NI, pension
+2. Look in BOTH the main P&L AND the detailed schedules/notes
+3. If there are two columns (current year / prior year), extract BOTH
+4. Convert all figures to raw numbers (2,277,603 not "£2.28m")
+5. Calculate percentages as decimals (56.8 not "56.8%")
+6. If you can calculate EBITDA (operating profit + depreciation), include it
+7. Return ONLY valid JSON, no markdown, no explanation`;
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openrouterKey}`,
+        'HTTP-Referer': 'https://torsor.co.uk',
+        'X-Title': 'Torsor Financial Extraction',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'anthropic/claude-sonnet-4',
+        max_tokens: 4000,
+        temperature: 0.1,
+        messages: [{ role: 'user', content: extractionPrompt }]
+      }),
+    });
+    
+    if (!response.ok) {
+      console.error('[FinancialExtract] API error:', response.status);
+      return emptyResult;
+    }
+    
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    
+    // Parse JSON with robust extraction
+    let jsonString = content.trim();
+    const codeBlockMatch = jsonString.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+    if (codeBlockMatch) {
+      jsonString = codeBlockMatch[1].trim();
+    }
+    
+    if (!jsonString.startsWith('{')) {
+      const jsonStart = jsonString.indexOf('{');
+      if (jsonStart !== -1) {
+        jsonString = jsonString.substring(jsonStart);
+      }
+    }
+    
+    // Find matching closing brace
+    let braceCount = 0;
+    let jsonEnd = -1;
+    for (let i = 0; i < jsonString.length; i++) {
+      if (jsonString[i] === '{') braceCount++;
+      if (jsonString[i] === '}') braceCount--;
+      if (braceCount === 0) { jsonEnd = i; break; }
+    }
+    if (jsonEnd !== -1) {
+      jsonString = jsonString.substring(0, jsonEnd + 1);
+    }
+    
+    const extracted = JSON.parse(jsonString);
+    
+    // Calculate derived metrics
+    if (extracted.turnover && extracted.totalStaffCosts) {
+      extracted.staffCostsPercentOfRevenue = 
+        Math.round((extracted.totalStaffCosts / extracted.turnover) * 1000) / 10;
+    }
+    
+    if (extracted.turnover && extracted.employeeCount) {
+      extracted.revenuePerEmployee = 
+        Math.round(extracted.turnover / extracted.employeeCount);
+    }
+    
+    if (extracted.operatingProfit && extracted.depreciation) {
+      extracted.ebitda = extracted.operatingProfit + extracted.depreciation;
+    } else if (extracted.operatingProfit) {
+      // Estimate depreciation at 5-10% of fixed assets if not provided
+      const estDepreciation = (extracted.fixedAssets || 0) * 0.07;
+      extracted.ebitda = extracted.operatingProfit + estDepreciation;
+    }
+    
+    if (extracted.turnover && extracted.turnoverPriorYear) {
+      extracted.turnoverGrowth = 
+        Math.round(((extracted.turnover / extracted.turnoverPriorYear) - 1) * 1000) / 10;
+    }
+    
+    console.log('[FinancialExtract] Successfully extracted:', {
+      turnover: extracted.turnover,
+      staffCosts: extracted.totalStaffCosts,
+      staffCostsPct: extracted.staffCostsPercentOfRevenue,
+      ebitda: extracted.ebitda,
+      netAssets: extracted.netAssets
+    });
+    
+    return extracted;
+    
+  } catch (error) {
+    console.error('[FinancialExtract] Error:', error);
+    return emptyResult;
+  }
+}
+
+// ============================================================================
+// INDUSTRY PAYROLL BENCHMARKS (UK SME)
+// ============================================================================
+
+const PAYROLL_BENCHMARKS: Record<string, { 
+  typical: number; 
+  good: number; 
+  concern: number;
+  notes: string;
+}> = {
+  // Distribution & Wholesale
+  'distribution': { typical: 25, good: 20, concern: 35, notes: 'Labour-light, logistics-focused' },
+  'wholesale': { typical: 22, good: 18, concern: 30, notes: 'Low touch, volume-based' },
+  'key_cutting_locksmith': { typical: 30, good: 25, concern: 40, notes: 'Skilled labour required' },
+  
+  // Professional Services
+  'consulting': { typical: 55, good: 45, concern: 70, notes: 'People ARE the product' },
+  'accounting': { typical: 50, good: 40, concern: 65, notes: 'High skill, billable hours' },
+  'legal': { typical: 55, good: 45, concern: 70, notes: 'Partner-heavy model' },
+  
+  // Technology
+  'saas': { typical: 45, good: 35, concern: 60, notes: 'Engineering-heavy' },
+  'it_services': { typical: 50, good: 40, concern: 65, notes: 'Consultants + support' },
+  
+  // Trades & Construction
+  'construction': { typical: 35, good: 28, concern: 45, notes: 'Project-based labour' },
+  'trades': { typical: 40, good: 32, concern: 50, notes: 'Skilled labour dependent' },
+  
+  // Retail & Hospitality
+  'retail': { typical: 20, good: 15, concern: 30, notes: 'Volume-based, min wage' },
+  'hospitality': { typical: 35, good: 28, concern: 45, notes: 'Service-heavy' },
+  
+  // Manufacturing
+  'manufacturing': { typical: 30, good: 25, concern: 40, notes: 'Automation dependent' },
+  
+  // Default
+  'general_business': { typical: 30, good: 25, concern: 40, notes: 'UK SME average' }
+};
+
+function getPayrollBenchmark(industry: string): typeof PAYROLL_BENCHMARKS['general_business'] {
+  // Try exact match
+  if (PAYROLL_BENCHMARKS[industry]) {
+    return PAYROLL_BENCHMARKS[industry];
+  }
+  
+  // Try partial match
+  const lowerIndustry = (industry || '').toLowerCase();
+  for (const [key, value] of Object.entries(PAYROLL_BENCHMARKS)) {
+    if (lowerIndustry.includes(key) || key.includes(lowerIndustry)) {
+      return value;
+    }
+  }
+  
+  // Additional keyword matches
+  if (lowerIndustry.includes('key') || lowerIndustry.includes('lock') || lowerIndustry.includes('security')) {
+    return PAYROLL_BENCHMARKS['key_cutting_locksmith'];
+  }
+  if (lowerIndustry.includes('distrib') || lowerIndustry.includes('supply')) {
+    return PAYROLL_BENCHMARKS['distribution'];
+  }
+  if (lowerIndustry.includes('tech') || lowerIndustry.includes('software')) {
+    return PAYROLL_BENCHMARKS['saas'];
+  }
+  if (lowerIndustry.includes('consult') || lowerIndustry.includes('service')) {
+    return PAYROLL_BENCHMARKS['consulting'];
+  }
+  
+  return PAYROLL_BENCHMARKS['general_business'];
+}
+
+interface PayrollAnalysis {
+  isOverstaffed: boolean;
+  excessPercentage: number;
+  annualExcess: number;
+  benchmark: typeof PAYROLL_BENCHMARKS['general_business'];
+  assessment: 'efficient' | 'typical' | 'elevated' | 'concerning';
+  calculation: string;
+}
+
+function analysePayrollEfficiency(
+  financials: ExtractedFinancials,
+  industry: string
+): PayrollAnalysis | null {
+  
+  if (!financials.turnover || !financials.totalStaffCosts) {
+    return null;
+  }
+  
+  const actualPct = financials.staffCostsPercentOfRevenue || 
+    (financials.totalStaffCosts / financials.turnover) * 100;
+  
+  const benchmark = getPayrollBenchmark(industry);
+  const excessPct = actualPct - benchmark.typical;
+  const annualExcess = (excessPct / 100) * financials.turnover;
+  
+  let assessment: PayrollAnalysis['assessment'];
+  if (actualPct <= benchmark.good) {
+    assessment = 'efficient';
+  } else if (actualPct <= benchmark.typical) {
+    assessment = 'typical';
+  } else if (actualPct <= benchmark.concern) {
+    assessment = 'elevated';
+  } else {
+    assessment = 'concerning';
+  }
+  
+  return {
+    isOverstaffed: actualPct > benchmark.concern,
+    excessPercentage: Math.round(excessPct * 10) / 10,
+    annualExcess: Math.round(annualExcess),
+    benchmark,
+    assessment,
+    calculation: `Staff costs £${financials.totalStaffCosts.toLocaleString()} ÷ Turnover £${financials.turnover.toLocaleString()} = ${actualPct.toFixed(1)}% (industry typical: ${benchmark.typical}%)`
+  };
+}
+
+// ============================================================================
+// CLIENT STAGE & JOURNEY DETECTION
+// ============================================================================
+
+type ClientJourney = 
+  | 'pre-revenue-building'      // No revenue yet, building product
+  | 'early-stage-growing'       // < £500k, scaling up
+  | 'established-scaling'       // £500k-£2m, growth focused
+  | 'established-optimising'    // £1m+, efficiency focused
+  | 'established-exit-focused'  // Profitable, planning exit
+  | 'lifestyle-maintaining';    // Profitable, happy as-is
+
+interface ClientStageProfile {
+  journey: ClientJourney;
+  focusAreas: string[];
+  inappropriateServices: string[];
+  keyMetrics: string[];
+  journeyFraming: string;
+}
+
+function detectClientStage(
+  responses: Record<string, any>,
+  financials: ExtractedFinancials
+): ClientStageProfile {
+  
+  const exitTimeline = responses.sd_exit_timeline || responses.dd_exit_mindset || '';
+  const weeklyHours = responses.dd_weekly_hours || responses.dd_owner_hours || '';
+  const founderDep = responses.sd_founder_dependency || '';
+  const successDef = responses.dd_success_definition || '';
+  const firefighting = responses.dd_time_allocation || '';
+  
+  const hasRevenue = financials.turnover && financials.turnover > 100000;
+  const isProfitable = financials.profitAfterTax && financials.profitAfterTax > 0;
+  const hasAssets = financials.netAssets && financials.netAssets > 500000;
+  const isHighMargin = financials.operatingMarginPct && financials.operatingMarginPct > 10;
+  
+  const wantsExit = exitTimeline.includes('1-3 years') || 
+                    exitTimeline.includes('Already exploring') ||
+                    exitTimeline.includes('actively preparing');
+  const businessRunsWithoutFounder = founderDep.includes('run fine') || 
+                                      founderDep.includes('Minor issues') ||
+                                      weeklyHours.includes('Under 30');
+  const highFirefighting = firefighting.includes('90%') || firefighting.includes('70%');
+  const wantsLifestyle = successDef.includes('control over my time');
+  
+  // EXIT-FOCUSED: Profitable, approaching exit, business runs without them
+  if (hasRevenue && isProfitable && wantsExit && businessRunsWithoutFounder) {
+    return {
+      journey: 'established-exit-focused',
+      focusAreas: ['Exit preparation', 'Valuation optimisation', 'Efficiency gains', 'Succession'],
+      inappropriateServices: ['systems_audit', 'automation', 'fractional_coo'],
+      keyMetrics: ['EBITDA', 'Valuation multiple', 'Staff costs %', 'Asset backing'],
+      journeyFraming: 'Your destination is a successful exit. The question is: what will maximise your value and ensure your team is taken care of?'
+    };
+  }
+  
+  // LIFESTYLE: Profitable, not scaling, wants time freedom
+  if (hasRevenue && isProfitable && businessRunsWithoutFounder && wantsLifestyle && !wantsExit) {
+    return {
+      journey: 'lifestyle-maintaining',
+      focusAreas: ['Maintain profitability', 'Protect time', 'Reduce stress'],
+      inappropriateServices: ['fractional_cfo', 'fractional_coo', 'systems_audit'],
+      keyMetrics: ['Profit margin', 'Hours worked', 'Cash position'],
+      journeyFraming: 'You have built something that works. The goal is to keep it working without it consuming your life.'
+    };
+  }
+  
+  // OPTIMISING: Established, profitable, but inefficiencies or chaos
+  if (hasRevenue && isProfitable && (highFirefighting || !businessRunsWithoutFounder)) {
+    return {
+      journey: 'established-optimising',
+      focusAreas: ['Reduce founder dependency', 'Improve efficiency', 'Build systems'],
+      inappropriateServices: [],
+      keyMetrics: ['Hours in firefighting', 'Founder hours', 'Staff productivity'],
+      journeyFraming: 'You have a profitable business trapped in operational chaos. The destination is a business that runs without you.'
+    };
+  }
+  
+  // SCALING: Revenue, some profit, growth focused
+  if (hasRevenue && financials.turnover && financials.turnover < 2000000) {
+    return {
+      journey: 'established-scaling',
+      focusAreas: ['Growth', 'Team building', 'Systems', 'Cash management'],
+      inappropriateServices: ['business_advisory'], // Not thinking about exit yet
+      keyMetrics: ['Revenue growth', 'Gross margin', 'Cash runway'],
+      journeyFraming: 'You are building something. The destination is scale without chaos.'
+    };
+  }
+  
+  // EARLY STAGE: Low/no revenue
+  if (!hasRevenue || (financials.turnover && financials.turnover < 500000)) {
+    return {
+      journey: 'early-stage-growing',
+      focusAreas: ['Product-market fit', 'First customers', 'Cash management'],
+      inappropriateServices: ['business_advisory', 'benchmarking'],
+      keyMetrics: ['Revenue', 'Burn rate', 'Customer count'],
+      journeyFraming: 'You are in the building phase. The destination is sustainable revenue.'
+    };
+  }
+  
+  // PRE-REVENUE
+  return {
+    journey: 'pre-revenue-building',
+    focusAreas: ['Launch', 'First revenue', 'Product'],
+    inappropriateServices: ['business_advisory', 'benchmarking', 'fractional_coo'],
+    keyMetrics: ['Time to launch', 'Runway', 'Milestones'],
+    journeyFraming: 'You are pre-revenue. The destination is your first paying customers.'
+  };
+}
+
+// ============================================================================
+// APPROPRIATE SERVICE RECOMMENDATIONS (ANTI-OVERSELLING)
+// ============================================================================
+
+interface AppropriateRecommendation {
+  code: string;
+  name: string;
+  score: number;
+  confidence: number;
+  reasoning: string;
+  specificBenefit: string;
+  investmentContext: string;
+  notRecommendedReason?: string;
+}
+
+function generateAppropriateRecommendations(
+  responses: Record<string, any>,
+  financials: ExtractedFinancials,
+  clientStage: ClientStageProfile,
+  payrollAnalysis: PayrollAnalysis | null
+): { recommended: AppropriateRecommendation[]; notRecommended: AppropriateRecommendation[] } {
+  
+  const recommendations: AppropriateRecommendation[] = [];
+  const notRecommended: AppropriateRecommendation[] = [];
+  
+  // ========== BENCHMARKING ==========
+  // Recommend when: Client suspects inefficiency, approaching exit, or payroll elevated
+  const needsBenchmarking = 
+    payrollAnalysis?.assessment === 'elevated' ||
+    payrollAnalysis?.assessment === 'concerning' ||
+    (responses.sd_benchmark_awareness || '').includes("No - I'd love to know") ||
+    clientStage.journey === 'established-exit-focused';
+  
+  if (needsBenchmarking && !clientStage.inappropriateServices.includes('benchmarking')) {
+    const payrollContext = payrollAnalysis 
+      ? `Your payroll is ${payrollAnalysis.calculation}. Benchmarking will confirm whether this represents £${Math.abs(payrollAnalysis.annualExcess).toLocaleString()}/year in excess costs or is appropriate for your operation.`
+      : 'Benchmarking will show exactly where your costs sit against industry peers.';
+    
+    recommendations.push({
+      code: 'benchmarking',
+      name: 'Benchmarking Services',
+      score: 85,
+      confidence: 90,
+      reasoning: 'You need objective data before making restructuring decisions',
+      specificBenefit: payrollContext,
+      investmentContext: financials.turnover 
+        ? `£3,500 is ${((3500 / financials.turnover) * 100).toFixed(2)}% of turnover`
+        : '£3,500 one-time investment'
+    });
+  }
+  
+  // ========== GOAL ALIGNMENT ==========
+  // Recommend when: Transformation needed, exit planning, avoiding difficult decisions
+  const avoidingConversations = 
+    (responses.dd_avoided_conversation || '').toLowerCase().includes('redundan') ||
+    (responses.dd_avoided_conversation || '').toLowerCase().includes('staff') ||
+    (responses.dd_avoided_conversation || '').toLowerCase().includes('team') ||
+    (responses.dd_hard_truth || '').toLowerCase().includes('overstaff');
+  
+  const needsTransformationSupport =
+    clientStage.journey === 'established-exit-focused' ||
+    avoidingConversations ||
+    (responses.dd_success_definition || '').includes('legacy') ||
+    (responses.dd_success_definition || '').includes('sell for a life-changing');
+  
+  if (needsTransformationSupport) {
+    const transformationContext = avoidingConversations
+      ? 'You mentioned avoiding difficult conversations about staffing. The Goal Alignment programme provides structured accountability to address these decisions.'
+      : clientStage.journey === 'established-exit-focused'
+        ? 'Exit is a personal transformation as much as a business transaction. Goal Alignment helps you navigate the journey with clear milestones.'
+        : 'This programme connects your personal destination to business decisions.';
+    
+    recommendations.push({
+      code: '365_method',
+      name: 'Goal Alignment Programme',
+      score: 80,
+      confidence: 85,
+      reasoning: 'You need structured support for the transition ahead',
+      specificBenefit: transformationContext,
+      investmentContext: '£1,500 (Lite) to £4,500 (Growth) based on support level needed'
+    });
+  }
+  
+  // ========== BUSINESS ADVISORY ==========
+  // Recommend when: Exit timeline 1-3 years AND has meaningful value to protect
+  const hasValueToProtect = 
+    (financials.ebitda && financials.ebitda > 200000) ||
+    (financials.netAssets && financials.netAssets > 500000);
+  
+  const needsExitPlanning =
+    ((responses.sd_exit_timeline || '').includes('1-3 years') || 
+     (responses.sd_exit_timeline || '').includes('Already exploring')) &&
+    hasValueToProtect;
+  
+  if (needsExitPlanning && !clientStage.inappropriateServices.includes('business_advisory')) {
+    const valuationContext = financials.ebitda
+      ? `With EBITDA of ~£${Math.round(financials.ebitda / 1000)}k, your business could command £${Math.round((financials.ebitda * 3) / 1000)}k-£${Math.round((financials.ebitda * 5) / 1000)}k. Advisory ensures you don't leave value on the table.`
+      : 'Professional valuation and exit planning maximises your sale price.';
+    
+    recommendations.push({
+      code: 'business_advisory',
+      name: 'Business Advisory & Exit Planning',
+      score: 75,
+      confidence: 80,
+      reasoning: 'You have a 1-3 year exit horizon with significant value at stake',
+      specificBenefit: valuationContext,
+      investmentContext: '£1,000 (Valuation only) to £4,000 (Full package)'
+    });
+  }
+  
+  // ========== MANAGEMENT ACCOUNTS ==========
+  // Recommend when: Financial uncertainty, NOT when they already have good visibility
+  const hasFinancialUncertainty =
+    (responses.sd_financial_confidence || '').includes('Uncertain') ||
+    (responses.sd_financial_confidence || '').includes('Not confident') ||
+    (responses.sd_numbers_action_frequency || '').includes('Rarely') ||
+    (responses.sd_numbers_action_frequency || '').includes('Never');
+  
+  // DON'T recommend if they have uploaded clean accounts and seem confident
+  const alreadyHasVisibility = 
+    financials.hasAccounts && 
+    financials.source === 'statutory_accounts' &&
+    !hasFinancialUncertainty;
+  
+  if (hasFinancialUncertainty && !alreadyHasVisibility) {
+    recommendations.push({
+      code: 'management_accounts',
+      name: 'Management Accounts',
+      score: 70,
+      confidence: 75,
+      reasoning: 'You indicated uncertainty in your financial confidence',
+      specificBenefit: 'Monthly visibility into what is actually happening, not year-end surprises',
+      investmentContext: '£650/month - pays for itself in better decisions'
+    });
+  } else if (alreadyHasVisibility) {
+    notRecommended.push({
+      code: 'management_accounts',
+      name: 'Management Accounts',
+      score: 20,
+      confidence: 80,
+      reasoning: 'Your existing financial reporting appears adequate',
+      specificBenefit: '',
+      investmentContext: '',
+      notRecommendedReason: 'You have good financial visibility already. This would be overkill.'
+    });
+  }
+  
+  // ========== SYSTEMS AUDIT ==========
+  // Recommend when: High firefighting, founder dependency, chaos
+  // DON'T recommend when: Business already runs without founder
+  const hasFounderDependency =
+    (responses.sd_founder_dependency || '').includes('Chaos') ||
+    (responses.sd_founder_dependency || '').includes('Significant problems');
+  
+  const highFirefighting =
+    (responses.dd_time_allocation || '').includes('90%') ||
+    (responses.dd_time_allocation || '').includes('70%');
+  
+  const businessRunsWithoutFounder =
+    (responses.sd_founder_dependency || '').includes('run fine') ||
+    (responses.sd_founder_dependency || '').includes('Minor issues') ||
+    (responses.dd_weekly_hours || '').includes('Under 30');
+  
+  if ((hasFounderDependency || highFirefighting) && !businessRunsWithoutFounder && 
+      !clientStage.inappropriateServices.includes('systems_audit')) {
+    recommendations.push({
+      code: 'systems_audit',
+      name: 'Systems Audit',
+      score: 65,
+      confidence: 70,
+      reasoning: 'Your business is too dependent on you',
+      specificBenefit: 'Map what is keeping you trapped and build the path to freedom',
+      investmentContext: '£4,000 one-time investment'
+    });
+  } else if (businessRunsWithoutFounder || clientStage.inappropriateServices.includes('systems_audit')) {
+    notRecommended.push({
+      code: 'systems_audit',
+      name: 'Systems Audit',
+      score: 15,
+      confidence: 85,
+      reasoning: 'Your business already runs without you',
+      specificBenefit: '',
+      investmentContext: '',
+      notRecommendedReason: businessRunsWithoutFounder 
+        ? 'You work under 30 hours and the business runs fine. You do not need systems work.'
+        : 'This service is not appropriate for your current journey stage.'
+    });
+  }
+  
+  // ========== FRACTIONAL CFO/COO ==========
+  // DON'T recommend when: Exit-focused (they're leaving, not scaling)
+  if (clientStage.journey === 'established-exit-focused') {
+    notRecommended.push({
+      code: 'fractional_cfo',
+      name: 'Fractional CFO',
+      score: 10,
+      confidence: 90,
+      reasoning: 'You are exiting, not scaling',
+      specificBenefit: '',
+      investmentContext: '',
+      notRecommendedReason: 'Fractional CFO is for businesses building for growth. You are preparing for exit. Different journey.'
+    });
+    
+    notRecommended.push({
+      code: 'fractional_coo',
+      name: 'Fractional COO',
+      score: 10,
+      confidence: 90,
+      reasoning: 'You are exiting, not scaling',
+      specificBenefit: '',
+      investmentContext: '',
+      notRecommendedReason: 'Fractional COO is for businesses building operational capacity. You are preparing for exit.'
+    });
+  }
+  
+  // Sort by score and return top 2-3 recommendations
+  return {
+    recommended: recommendations.sort((a, b) => b.score - a.score).slice(0, 3),
+    notRecommended
+  };
+}
+
+// ============================================================================
+// GROUNDED ROI CALCULATION
+// ============================================================================
+
+interface GroundedROI {
+  investmentTotal: number;
+  investmentBreakdown: string;
+  investmentAsPercentOfTurnover?: string;
+  investmentAsPercentOfProfit?: string;
+  
+  // Quantified benefits (only include if calculable)
+  payrollEfficiencyGain?: {
+    amount: number;
+    calculation: string;
+    confidence: 'high' | 'medium' | 'low';
+  };
+  
+  valuationUplift?: {
+    currentEstimate: number;
+    potentialEstimate: number;
+    uplift: number;
+    calculation: string;
+    confidence: 'high' | 'medium' | 'low';
+  };
+  
+  // Qualitative benefits (don't quantify what can't be quantified)
+  qualitativeBenefits: string[];
+  
+  paybackPeriod?: string;
+  roiSummary: string;
+}
+
+function calculateGroundedROI(
+  recommendations: AppropriateRecommendation[],
+  financials: ExtractedFinancials,
+  payrollAnalysis: PayrollAnalysis | null,
+  clientStage: ClientStageProfile
+): GroundedROI {
+  
+  // Calculate total investment
+  const pricing: Record<string, number> = {
+    'benchmarking': 3500,
+    '365_method': 3000, // Average of Lite and Growth
+    'business_advisory': 2500, // Average
+    'management_accounts': 7800, // Annual (£650 × 12)
+    'systems_audit': 4000,
+    'fractional_cfo': 48000, // Annual (£4000 × 12)
+    'fractional_coo': 45000, // Annual (£3750 × 12)
+  };
+  
+  const recommendedCodes = recommendations.map(r => r.code);
+  const investmentTotal = recommendedCodes.reduce((sum, code) => sum + (pricing[code] || 0), 0);
+  
+  const investmentBreakdown = recommendations
+    .map(r => `${r.name}: £${(pricing[r.code] || 0).toLocaleString()}`)
+    .join(' + ');
+  
+  const result: GroundedROI = {
+    investmentTotal,
+    investmentBreakdown,
+    qualitativeBenefits: [],
+    roiSummary: ''
+  };
+  
+  // Investment as % of turnover
+  if (financials.turnover) {
+    result.investmentAsPercentOfTurnover = 
+      `${((investmentTotal / financials.turnover) * 100).toFixed(2)}% of turnover`;
+  }
+  
+  // Investment as % of profit
+  if (financials.operatingProfit) {
+    result.investmentAsPercentOfProfit = 
+      `${((investmentTotal / financials.operatingProfit) * 100).toFixed(1)}% of operating profit`;
+  }
+  
+  // Payroll efficiency gain (only if benchmarking recommended AND we have data)
+  if (recommendedCodes.includes('benchmarking') && payrollAnalysis && payrollAnalysis.annualExcess > 0) {
+    // Conservative: assume 50% of excess is actually recoverable
+    const recoverableAmount = Math.round(payrollAnalysis.annualExcess * 0.5);
+    result.payrollEfficiencyGain = {
+      amount: recoverableAmount,
+      calculation: `Current staff costs: ${payrollAnalysis.calculation}. If restructured to ${payrollAnalysis.benchmark.typical}% (industry typical), potential saving of £${payrollAnalysis.annualExcess.toLocaleString()}/year. Conservative estimate (50% recovery): £${recoverableAmount.toLocaleString()}/year.`,
+      confidence: 'medium'
+    };
+  }
+  
+  // Valuation uplift (only if exit-focused AND we have EBITDA)
+  if (clientStage.journey === 'established-exit-focused' && financials.ebitda) {
+    const currentMultiple = 3.5; // Conservative for SME
+    const improvedMultiple = 4.0; // Small improvement from professional preparation
+    
+    const currentValuation = financials.ebitda * currentMultiple;
+    
+    // If payroll savings flow to EBITDA
+    const improvedEbitda = financials.ebitda + (result.payrollEfficiencyGain?.amount || 0);
+    const potentialWithSavings = improvedEbitda * improvedMultiple;
+    
+    result.valuationUplift = {
+      currentEstimate: Math.round(currentValuation),
+      potentialEstimate: Math.round(potentialWithSavings),
+      uplift: Math.round(potentialWithSavings - currentValuation),
+      calculation: `Current EBITDA £${Math.round(financials.ebitda / 1000)}k × 3.5× = £${Math.round(currentValuation / 1000)}k. With efficiency gains and professional preparation: £${Math.round(improvedEbitda / 1000)}k × 4.0× = £${Math.round(potentialWithSavings / 1000)}k.`,
+      confidence: 'low' // Valuations are inherently uncertain
+    };
+  }
+  
+  // Qualitative benefits (honest about what cannot be quantified)
+  if (recommendedCodes.includes('365_method')) {
+    result.qualitativeBenefits.push('Structured accountability for difficult decisions');
+    result.qualitativeBenefits.push('Clear exit roadmap with milestones');
+  }
+  
+  if (recommendedCodes.includes('benchmarking')) {
+    result.qualitativeBenefits.push('Objective data to validate restructuring decisions');
+    result.qualitativeBenefits.push('Industry context for buyer due diligence');
+  }
+  
+  // Payback period (only if we have quantified savings)
+  if (result.payrollEfficiencyGain) {
+    const monthlyGain = result.payrollEfficiencyGain.amount / 12;
+    const monthsToPayback = Math.ceil(investmentTotal / monthlyGain);
+    result.paybackPeriod = monthsToPayback <= 12 
+      ? `${monthsToPayback} months from efficiency savings`
+      : 'Within first year of efficiency gains';
+  }
+  
+  // ROI Summary
+  if (result.valuationUplift) {
+    result.roiSummary = `Investment of £${investmentTotal.toLocaleString()} (${result.investmentAsPercentOfTurnover || 'N/A'}) could contribute to £${Math.round(result.valuationUplift.uplift / 1000)}k in additional exit value through improved EBITDA and professional preparation.`;
+  } else if (result.payrollEfficiencyGain) {
+    result.roiSummary = `Investment of £${investmentTotal.toLocaleString()} targets £${result.payrollEfficiencyGain.amount.toLocaleString()}/year in efficiency gains. ${result.paybackPeriod || ''}`;
+  } else {
+    result.roiSummary = `Investment of £${investmentTotal.toLocaleString()} for strategic clarity and decision support. Qualitative benefits: ${result.qualitativeBenefits.slice(0, 2).join(', ')}.`;
+  }
+  
+  return result;
+}
+
+// Helper to build financial grounding context for LLM prompt
+function buildFinancialGroundingContext(
+  financials: ExtractedFinancials,
+  payrollAnalysis: PayrollAnalysis | null,
+  clientStage: ClientStageProfile
+): string {
+  if (!financials.hasAccounts) {
+    return '';
+  }
+  
+  let context = '\n\n## EXTRACTED FINANCIAL DATA (USE THESE EXACT FIGURES)\n\n';
+  
+  context += '### Key Metrics\n';
+  if (financials.turnover) {
+    context += `- Turnover: £${financials.turnover.toLocaleString()}`;
+    if (financials.turnoverPriorYear) {
+      context += ` (prior year: £${financials.turnoverPriorYear.toLocaleString()})`;
+    }
+    if (financials.turnoverGrowth) {
+      context += ` [${financials.turnoverGrowth > 0 ? '+' : ''}${financials.turnoverGrowth}% growth]`;
+    }
+    context += '\n';
+  }
+  if (financials.operatingProfit) {
+    context += `- Operating Profit: £${financials.operatingProfit.toLocaleString()}`;
+    if (financials.operatingMarginPct) {
+      context += ` (${financials.operatingMarginPct.toFixed(1)}% margin)`;
+    }
+    context += '\n';
+  }
+  if (financials.ebitda) {
+    context += `- EBITDA: ~£${Math.round(financials.ebitda / 1000)}k\n`;
+  }
+  if (financials.netAssets) {
+    context += `- Net Assets: £${financials.netAssets.toLocaleString()}\n`;
+  }
+  if (financials.employeeCount) {
+    context += `- Employees: ${financials.employeeCount}\n`;
+  }
+  
+  // Staff costs breakdown
+  if (financials.totalStaffCosts) {
+    context += '\n### Staff Costs Analysis\n';
+    context += `- Total Staff Costs: £${financials.totalStaffCosts.toLocaleString()}\n`;
+    if (financials.directorsSalaries) {
+      context += `  - Directors: £${financials.directorsSalaries.toLocaleString()}\n`;
+    }
+    if (financials.staffWages) {
+      context += `  - Staff Wages: £${financials.staffWages.toLocaleString()}\n`;
+    }
+    if (financials.employerNI) {
+      context += `  - Employer NI: £${financials.employerNI.toLocaleString()}\n`;
+    }
+    if (financials.pensionCosts) {
+      context += `  - Pension: £${financials.pensionCosts.toLocaleString()}\n`;
+    }
+    if (financials.staffCostsPercentOfRevenue) {
+      context += `- Staff Costs as % of Revenue: ${financials.staffCostsPercentOfRevenue.toFixed(1)}%\n`;
+    }
+  }
+  
+  // Payroll analysis
+  if (payrollAnalysis) {
+    context += '\n### PAYROLL EFFICIENCY ANALYSIS\n';
+    context += `CALCULATION: ${payrollAnalysis.calculation}\n`;
+    context += `INDUSTRY BENCHMARK: ${payrollAnalysis.benchmark.typical}% typical, ${payrollAnalysis.benchmark.good}% good, ${payrollAnalysis.benchmark.concern}% concerning\n`;
+    context += `ASSESSMENT: ${payrollAnalysis.assessment.toUpperCase()}\n`;
+    if (payrollAnalysis.excessPercentage > 0) {
+      context += `EXCESS: ${payrollAnalysis.excessPercentage}% above typical = £${payrollAnalysis.annualExcess.toLocaleString()}/year potential efficiency gain\n`;
+    }
+  }
+  
+  // Client stage
+  context += '\n### CLIENT JOURNEY STAGE\n';
+  context += `Journey: ${clientStage.journey}\n`;
+  context += `Focus Areas: ${clientStage.focusAreas.join(', ')}\n`;
+  context += `Framing: ${clientStage.journeyFraming}\n`;
+  if (clientStage.inappropriateServices.length > 0) {
+    context += `DO NOT RECOMMEND: ${clientStage.inappropriateServices.join(', ')}\n`;
+  }
+  
+  context += '\n### CRITICAL INSTRUCTIONS\n';
+  context += '1. USE THESE EXACT FIGURES in your analysis - do not round or estimate\n';
+  context += '2. SHOW YOUR CALCULATIONS - every claim must have visible working\n';
+  context += '3. DO NOT RECOMMEND services on the "inappropriateServices" list\n';
+  context += '4. MAXIMUM 3 RECOMMENDATIONS - quality over quantity\n';
+  context += '5. For payroll claims, reference the calculation and benchmark above\n';
+  context += '6. For valuation claims, use EBITDA × multiple with ranges shown\n';
+  
+  return context;
+}
+
+// ============================================================================
 // GAP SCORE CALIBRATION
 // ============================================================================
 
@@ -1670,6 +2574,64 @@ This is NOT just for people without plans. It's for founders undergoing TRANSFOR
 - FOUNDER to CHAIRMAN transition
 - BURNOUT to BALANCE transition
 If transformation signals are detected, recommend Goal Alignment even if they have a business plan.
+
+## FINANCIAL GROUNDING (CRITICAL - READ CAREFULLY)
+
+When financial data is provided (accounts, statements), you MUST:
+
+1. **USE EXACT FIGURES** - do not estimate when data exists
+2. **SHOW CALCULATIONS** - every claim must have visible working
+3. **BENCHMARK APPROPRIATELY** - compare to industry standards, not arbitrary figures
+4. **BE CONSERVATIVE** - understate rather than overstate potential gains
+
+### PAYROLL ANALYSIS FORMAT (when payroll data is available)
+"Staff costs: £[X] (including directors £Y, wages £Z, NI £A, pension £B)
+Turnover: £[X]
+Payroll as % of revenue: X%
+Industry benchmark: Y-Z%
+Assessment: [efficient/typical/elevated/concerning]
+Potential efficiency gain: £[X]/year (calculation: ...)"
+
+NEVER claim "excess payroll" without:
+- Actual staff cost figure
+- Actual turnover figure  
+- Industry benchmark for comparison
+- Specific calculation of excess
+
+### VALUATION ANALYSIS FORMAT (when exit is discussed)
+"Current EBITDA: £[X] (operating profit £Y + depreciation £Z)
+Industry multiple range: X-Y×
+Current implied valuation: £[X]-£[Y]
+Asset backing: £[X] net assets
+Key value drivers: [list]
+Key value detractors: [list]"
+
+NEVER claim "valuation impact" without:
+- EBITDA figure
+- Multiple range with reasoning
+- Specific uplift calculation
+
+### ANTI-OVERSELLING RULES
+1. **MATCH SERVICES TO JOURNEY** - Exit-focused clients don't need scaling services
+2. **MAXIMUM 3 RECOMMENDATIONS** - More than 3 is overselling
+3. **JUSTIFY EXCLUSIONS** - Explain why other services are NOT appropriate
+4. **INVESTMENT IN CONTEXT** - Always show % of turnover or profit
+
+### EXAMPLE OF GROUNDED OUTPUT
+For a client with £2.3m turnover, £400k EBITDA, 36% payroll:
+
+RECOMMENDED:
+1. Benchmarking (£3,500) - Your payroll at 36% vs industry 28% suggests £184k/year excess. Benchmarking validates this before restructuring decisions.
+2. Goal Alignment (£1,500) - You mentioned avoiding conversations about redundancy. Structured accountability to address this.
+
+NOT RECOMMENDED:
+- Management Accounts: You have clean statutory accounts and adequate visibility
+- Systems Audit: Business runs fine without you (under 30 hours/week)
+- Fractional CFO/COO: You are preparing for exit, not scaling
+
+Total investment: £5,000 (0.22% of turnover)
+Potential efficiency gain: £90k-£180k/year (50-100% of excess payroll)
+Payback: 2-4 months
 
 LANGUAGE RULES (non-negotiable):
 

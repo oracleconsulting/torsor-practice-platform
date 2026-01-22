@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, Calendar, ChevronRight, Sparkles, Target, TrendingUp, Heart, Clock, Shield } from 'lucide-react';
+import { ArrowLeft, Calendar, ChevronRight, Sparkles, Target, TrendingUp, Heart, Clock, Shield, FileDown, Loader2 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { TransformationJourney } from '../../components/discovery/TransformationJourney';
+import { DiscoveryMetricCard, MetricGrid, ROISummaryCard } from '../../components/discovery/DiscoveryMetricCard';
+import { CostOfInactionCard } from '../../components/discovery/DiscoveryInsightCard';
 
 // ============================================================================
 // CLIENT-FRIENDLY DISCOVERY REPORT
@@ -83,10 +85,46 @@ export default function DiscoveryReportPage() {
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState<DiscoveryReport | null>(null);
   const [showCallToAction, setShowCallToAction] = useState(false);
+  const [exportingPDF, setExportingPDF] = useState(false);
 
   useEffect(() => {
     loadReport();
   }, [clientSession]);
+
+  // PDF Export Handler
+  const handleExportPDF = async () => {
+    if (!clientSession?.clientId || !report) return;
+    
+    setExportingPDF(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-discovery-pdf', {
+        body: {
+          clientId: clientSession.clientId,
+          reportId: report.id,
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.html) {
+        // Open HTML in new window for printing
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(data.html);
+          printWindow.document.close();
+          // Auto-trigger print dialog after a short delay
+          setTimeout(() => {
+            printWindow.print();
+          }, 500);
+        }
+      }
+    } catch (err) {
+      console.error('PDF export failed:', err);
+      alert('Failed to generate PDF. Please try again.');
+    } finally {
+      setExportingPDF(false);
+    }
+  };
 
   const loadReport = async () => {
     if (!clientSession?.clientId) {
@@ -273,8 +311,26 @@ export default function DiscoveryReportPage() {
           <div className="flex items-center gap-3">
             <Logo variant="dark" size="sm" />
             <div className="w-2 h-2 rounded-full bg-green-500"></div>
-            <span className="text-sm text-slate-300">Your Discovery Insights</span>
+            <span className="text-sm text-slate-300 hidden sm:inline">Your Discovery Insights</span>
           </div>
+          {/* PDF Export Button */}
+          <button
+            onClick={handleExportPDF}
+            disabled={exportingPDF}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            {exportingPDF ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="hidden sm:inline">Generating...</span>
+              </>
+            ) : (
+              <>
+                <FileDown className="w-4 h-4" />
+                <span className="hidden sm:inline">Export PDF</span>
+              </>
+            )}
+          </button>
         </div>
       </header>
 
@@ -433,16 +489,14 @@ export default function DiscoveryReportPage() {
             })}
           </div>
 
-          {/* Cost of waiting - gentle but clear */}
+          {/* Cost of waiting - using enhanced component */}
           {gaps.costOfInaction && (
-            <div className="mt-6 bg-gradient-to-r from-red-50 to-orange-50 border border-red-100 rounded-xl p-5">
-              <p className="text-sm text-red-700 font-medium mb-1">The cost of waiting another year</p>
-              <p className="text-2xl font-bold text-red-800 mb-2">
-                {gaps.costOfInaction.annualFinancialCost || gaps.costOfInaction.annual || "Significant"}
-              </p>
-              <p className="text-sm text-red-700">
-                {gaps.costOfInaction.personalCost || "Time you won't get back, stress that compounds"}
-              </p>
+            <div className="mt-6">
+              <CostOfInactionCard 
+                annualCost={gaps.costOfInaction.annualFinancialCost || gaps.costOfInaction.annual || "Significant"}
+                description={gaps.costOfInaction.description}
+                personalCost={gaps.costOfInaction.personalCost || "Time you won't get back, stress that compounds"}
+              />
             </div>
           )}
         </section>
@@ -603,6 +657,67 @@ export default function DiscoveryReportPage() {
             </div>
           )}
         </section>
+        )}
+
+        {/* Enhanced Investment Summary with Metrics */}
+        {investmentSummary.totalFirstYearInvestment && (
+          <section className="space-y-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Investment Summary</h2>
+                <p className="text-sm text-gray-500">Your return on investment at a glance</p>
+              </div>
+            </div>
+            
+            {/* ROI Summary Card */}
+            <ROISummaryCard
+              totalInvestment={investmentSummary.totalFirstYearInvestment}
+              projectedReturn={investmentSummary.projectedFirstYearReturn || '—'}
+              paybackPeriod={investmentSummary.paybackPeriod || '—'}
+              investmentAsPercent={investmentSummary.investmentAsPercentOfRevenue}
+            />
+            
+            {/* Detailed Metrics Grid */}
+            <MetricGrid columns={3}>
+              <DiscoveryMetricCard
+                label="Total Investment"
+                value={investmentSummary.totalFirstYearInvestment}
+                context="First year commitment"
+                type="investment"
+                status="neutral"
+                highlight
+              />
+              <DiscoveryMetricCard
+                label="Projected Return"
+                value={investmentSummary.projectedFirstYearReturn || '—'}
+                context="First year benefit"
+                type="return"
+                status="positive"
+              />
+              <DiscoveryMetricCard
+                label="Payback Period"
+                value={investmentSummary.paybackPeriod || '—'}
+                context="Time to break even"
+                type="payback"
+                status={investmentSummary.paybackPeriod?.includes('month') ? 'positive' : 'neutral'}
+              />
+            </MetricGrid>
+            
+            {/* ROI Calculation Detail */}
+            {investmentSummary.roiCalculation && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5">
+                <div className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-2">
+                  How We Calculated This
+                </div>
+                <p className="text-sm text-emerald-800 leading-relaxed">
+                  {investmentSummary.roiCalculation}
+                </p>
+              </div>
+            )}
+          </section>
         )}
 
         {/* Closing Message - Encouraging */}
