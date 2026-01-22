@@ -12,3 +12,14 @@ export {
 
 export type { KPICalculationResult } from './kpi-calculator';
 
+export { 
+  BIComparisonService 
+} from './comparison-service';
+
+export type { 
+  PLComparison, 
+  FinancialComparison, 
+  VarianceResult, 
+  YTDComparison,
+  FullComparisonData 
+} from './comparison-service';

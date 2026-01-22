@@ -41,6 +41,11 @@ export { CashForecastChart } from './CashForecastChart';
 export { ScenarioBuilder } from './ScenarioBuilder';
 export { ClientProfitabilityTable } from './ClientProfitabilityTable';
 
+// P&L Analysis & Budget (Phase 1 Enhancements)
+export { PLAnalysis } from './PLAnalysis';
+export { BudgetEntry } from './BudgetEntry';
+export { PDFExportButton } from './PDFExportButton';
+
 // Preview Components (for proposals/reports)
 export { TrueCashPreview } from './previews/TrueCashPreview';
 export { ForecastPreview } from './previews/ForecastPreview';
