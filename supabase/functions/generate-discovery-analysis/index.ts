@@ -5171,6 +5171,143 @@ Return ONLY the JSON object with no additional text.`;
       })
       .eq('id', preparedData.discovery.id);
 
+    // ======================================================================
+    // ALSO UPDATE discovery_reports TABLE (for the admin portal UI)
+    // ======================================================================
+    // The admin portal prefers discovery_reports over client_reports
+    // We need to update this table too for the report to display correctly
+    try {
+      console.log('[Discovery] Updating discovery_reports table...');
+      
+      // Find the engagement for this client
+      const { data: engagement } = await supabase
+        .from('discovery_engagements')
+        .select('id')
+        .eq('client_id', preparedData.client.id)
+        .maybeSingle();
+      
+      if (engagement?.id) {
+        // Build the page structure for destination-focused report
+        const page1_destination = {
+          tuesdayTest: preparedData.discovery?.responses?.dd_perfect_tuesday || 
+                       preparedData.discovery?.responses?.dd_tuesday_test || '',
+          clarityScore: clarityScore,
+          clarityNarrative: analysis.executiveSummary?.clarityNarrative || 
+                           analysis.destinationAnalysis?.clarityNarrative || '',
+          visionNarrative: analysis.destinationAnalysis?.visionNarrative || 
+                          analysis.executiveSummary?.whatWeHeard || ''
+        };
+        
+        const page2_gaps = {
+          headline: analysis.gapAnalysis?.headline || "The Gap Between Here and There",
+          introduction: analysis.gapAnalysis?.introduction || '',
+          primaryGaps: analysis.gapAnalysis?.primaryGaps || [],
+          conversationsAvoiding: analysis.gapAnalysis?.conversationsAvoiding || [],
+          costOfInaction: analysis.gapAnalysis?.costOfInaction || {}
+        };
+        
+        const page3_journey = {
+          phases: analysis.transformationJourney?.phases || [],
+          totalInvestment: analysis.transformationJourney?.totalInvestment || '',
+          totalTimeframe: analysis.transformationJourney?.totalTimeframe || '',
+          destination: analysis.transformationJourney?.destination || '',
+          journeyLabel: analysis.transformationJourney?.journeyLabel || 'YOUR JOURNEY',
+          destinationLabel: analysis.transformationJourney?.destinationLabel || '',
+          destinationContext: analysis.transformationJourney?.destinationContext || ''
+        };
+        
+        const page4_numbers = {
+          investmentSummary: analysis.investmentSummary || {},
+          costOfStaying: analysis.gapAnalysis?.costOfInaction || {},
+          returnProjection: analysis.investmentSummary?.projectedFirstYearReturn || '',
+          paybackPeriod: analysis.investmentSummary?.paybackPeriod || ''
+        };
+        
+        const page5_next_steps = {
+          thisWeek: analysis.nextSteps?.thisWeek || analysis.closingMessage?.thisWeek || '',
+          yourFirstStep: analysis.nextSteps?.yourFirstStep || analysis.closingMessage?.yourFirstStep || '',
+          closingMessage: analysis.closingMessage?.personalMessage || analysis.closingMessage?.message || '',
+          callToAction: analysis.nextSteps?.callToAction || analysis.closingMessage?.callToAction || 'Book a Conversation'
+        };
+        
+        // Build the complete destination_report object
+        const destination_report = {
+          page1_destination,
+          page2_gaps,
+          page3_journey,
+          page4_numbers,
+          page5_next_steps,
+          // Also include the full analysis for fallback
+          analysis: analysis,
+          // Include recommended investments at top level for easy access
+          recommendedInvestments: analysis.recommendedInvestments || [],
+          notRecommended: analysis.notRecommended || [],
+          // Metadata
+          generatedAt: new Date().toISOString(),
+          wasAutoCorrected: analysis.wasAutoCorrected || false
+        };
+        
+        // Check if a discovery_report exists for this engagement
+        const { data: existingDiscoveryReport } = await supabase
+          .from('discovery_reports')
+          .select('id')
+          .eq('engagement_id', engagement.id)
+          .maybeSingle();
+        
+        if (existingDiscoveryReport?.id) {
+          // Update existing
+          const { error: updateError } = await supabase
+            .from('discovery_reports')
+            .update({
+              destination_report: destination_report,
+              page1_destination: page1_destination,
+              page2_gaps: page2_gaps,
+              page3_journey: page3_journey,
+              page4_numbers: page4_numbers,
+              page5_next_steps: page5_next_steps,
+              status: 'generated',
+              generated_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', existingDiscoveryReport.id);
+          
+          if (updateError) {
+            console.error('[Discovery] Error updating discovery_reports:', updateError);
+          } else {
+            console.log('[Discovery] ✅ Updated discovery_reports:', existingDiscoveryReport.id);
+          }
+        } else {
+          // Insert new
+          const { data: newReport, error: insertError } = await supabase
+            .from('discovery_reports')
+            .insert({
+              engagement_id: engagement.id,
+              destination_report: destination_report,
+              page1_destination: page1_destination,
+              page2_gaps: page2_gaps,
+              page3_journey: page3_journey,
+              page4_numbers: page4_numbers,
+              page5_next_steps: page5_next_steps,
+              status: 'generated',
+              generated_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+          
+          if (insertError) {
+            console.error('[Discovery] Error inserting discovery_reports:', insertError);
+          } else {
+            console.log('[Discovery] ✅ Created discovery_reports:', newReport?.id);
+          }
+        }
+      } else {
+        console.log('[Discovery] No discovery_engagement found for client, skipping discovery_reports update');
+      }
+    } catch (discoveryReportsError: any) {
+      // Non-fatal - client_reports is the primary storage
+      console.error('[Discovery] Error updating discovery_reports (non-fatal):', discoveryReportsError?.message);
+    }
+
     const totalTime = Date.now() - startTime;
     console.log(`Analysis complete in ${totalTime}ms (LLM: ${llmTime}ms)`);
 
