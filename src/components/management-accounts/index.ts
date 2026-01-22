@@ -57,6 +57,9 @@ export { CashFlowWaterfall, CashFlowWaterfallSimple } from './CashFlowWaterfall'
 export { ClientProfitabilityChart } from './ClientProfitabilityChart';
 export { ReportScheduler } from './ReportScheduler';
 
+// Alerts (Phase 4 Enhancements)
+export { AlertsPanel } from './AlertsPanel';
+
 // Preview Components (for proposals/reports)
 export { TrueCashPreview } from './previews/TrueCashPreview';
 export { ForecastPreview } from './previews/ForecastPreview';

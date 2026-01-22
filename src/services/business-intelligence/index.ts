@@ -23,3 +23,12 @@ export type {
   YTDComparison,
   FullComparisonData 
 } from './comparison-service';
+
+export { 
+  BIAlertService 
+} from '../BIAlertService';
+
+export type { 
+  AlertThreshold, 
+  DetectedAlert 
+} from '../BIAlertService';

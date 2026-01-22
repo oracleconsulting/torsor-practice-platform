@@ -14,11 +14,16 @@ import {
   LayoutDashboard,
   BarChart3,
   Scale,
-  TrendingUp
+  TrendingUp,
+  Activity,
+  Wallet,
+  Bell
 } from 'lucide-react';
 import { useMADashboard } from '../../../hooks/useMADashboard';
 import { useEditMode } from '../../../hooks/useEditMode';
 import { usePLComparison } from '../../../hooks/usePLComparison';
+import { useKPITrends } from '../../../hooks/useKPITrends';
+import { useAlerts } from '../../../hooks/useAlerts';
 import { TrueCashWaterfall } from './TrueCashWaterfall';
 import { CashForecastSection } from './CashForecastSection';
 import { DashboardInsightCard } from './DashboardInsightCard';
@@ -27,10 +32,13 @@ import { PLAnalysis } from '../PLAnalysis';
 import { BalanceSheetSummary } from '../BalanceSheetSummary';
 import { YTDComparison } from '../YTDComparison';
 import { PDFExportButton } from '../PDFExportButton';
+import { KPITrendChart } from '../KPITrendChart';
+import { CashFlowWaterfall } from '../CashFlowWaterfall';
+import { AlertsPanel } from '../AlertsPanel';
 import type { TierType } from '../../../types/ma';
 
 // Dashboard tabs
-type DashboardTab = 'overview' | 'pl_analysis' | 'balance_sheet' | 'ytd';
+type DashboardTab = 'overview' | 'pl_analysis' | 'balance_sheet' | 'ytd' | 'kpi_trends' | 'cash_flow' | 'alerts';
 
 interface MADashboardProps {
   engagementId: string;
@@ -98,6 +106,21 @@ export function MADashboard({ engagementId, periodId, isAdmin = false }: MADashb
     comparison: plComparison, 
     loading: comparisonLoading 
   } = usePLComparison(periodId);
+  
+  // Fetch KPI trends data
+  const {
+    trends: kpiTrends,
+    loading: trendsLoading
+  } = useKPITrends(engagementId);
+  
+  // Fetch alerts
+  const {
+    alerts,
+    unacknowledgedCount,
+    loading: alertsLoading,
+    acknowledgeAlert,
+    acknowledgeAll
+  } = useAlerts(engagementId);
 
   if (loading) {
     return <DashboardSkeleton />;
@@ -295,6 +318,28 @@ export function MADashboard({ engagementId, periodId, isAdmin = false }: MADashb
             >
               Balance Sheet
             </TabButton>
+            <TabButton 
+              active={activeTab === 'kpi_trends'} 
+              onClick={() => setActiveTab('kpi_trends')}
+              icon={<Activity className="w-4 h-4" />}
+            >
+              KPI Trends
+            </TabButton>
+            <TabButton 
+              active={activeTab === 'cash_flow'} 
+              onClick={() => setActiveTab('cash_flow')}
+              icon={<Wallet className="w-4 h-4" />}
+            >
+              Cash Flow
+            </TabButton>
+            <TabButton 
+              active={activeTab === 'alerts'} 
+              onClick={() => setActiveTab('alerts')}
+              icon={<Bell className="w-4 h-4" />}
+              badge={unacknowledgedCount > 0 ? `${unacknowledgedCount}` : undefined}
+            >
+              Alerts
+            </TabButton>
           </nav>
         </div>
 
@@ -433,9 +478,152 @@ export function MADashboard({ engagementId, periodId, isAdmin = false }: MADashb
             />
           </div>
         )}
+        
+        {/* KPI Trends Tab */}
+        {activeTab === 'kpi_trends' && (
+          <div className="space-y-6">
+            {trendsLoading ? (
+              <div className="bg-white rounded-xl border border-slate-200 p-12 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              </div>
+            ) : kpiTrends.length > 0 ? (
+              <KPITrendChart 
+                trends={kpiTrends}
+                showTargets={true}
+                maxDisplay={12}
+              />
+            ) : (
+              <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+                <Activity className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-500">No KPI trend data available</p>
+                <p className="text-sm text-slate-400 mt-1">Complete more periods to see trends</p>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Cash Flow Tab */}
+        {activeTab === 'cash_flow' && (
+          <div className="space-y-6">
+            {financialData ? (
+              <CashFlowWaterfall 
+                items={generateCashFlowItems(financialData)}
+                periodLabel={period.period_label}
+                showDetails={true}
+              />
+            ) : (
+              <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+                <Wallet className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-500">No cash flow data available</p>
+                <p className="text-sm text-slate-400 mt-1">Upload financial data to see cash flow analysis</p>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Alerts Tab */}
+        {activeTab === 'alerts' && (
+          <div className="space-y-6">
+            {alertsLoading ? (
+              <div className="bg-white rounded-xl border border-slate-200 p-12 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              </div>
+            ) : (
+              <AlertsPanel 
+                alerts={alerts}
+                unacknowledgedCount={unacknowledgedCount}
+                onAcknowledge={acknowledgeAlert}
+                onAcknowledgeAll={acknowledgeAll}
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
+}
+
+// ============================================
+// HELPER: Generate cash flow items from financial data
+// ============================================
+
+function generateCashFlowItems(financialData: any): any[] {
+  const items = [];
+  
+  // Opening balance (True Cash)
+  const openingCash = financialData.cash_at_bank || 0;
+  items.push({
+    id: 'opening',
+    label: 'Opening Cash',
+    amount: openingCash,
+    type: 'start'
+  });
+  
+  // Operating inflows
+  if (financialData.revenue && financialData.revenue > 0) {
+    items.push({
+      id: 'revenue',
+      label: 'Revenue Received',
+      amount: financialData.revenue * 0.85, // Assume 85% collected
+      type: 'inflow',
+      category: 'operating'
+    });
+  }
+  
+  // Operating outflows
+  if (financialData.cost_of_sales) {
+    items.push({
+      id: 'cos',
+      label: 'Cost of Sales',
+      amount: -Math.abs(financialData.cost_of_sales),
+      type: 'outflow',
+      category: 'operating'
+    });
+  }
+  
+  if (financialData.overheads) {
+    items.push({
+      id: 'overheads',
+      label: 'Operating Expenses',
+      amount: -Math.abs(financialData.overheads),
+      type: 'outflow',
+      category: 'operating',
+      subItems: [
+        { label: 'Payroll', amount: -(financialData.payroll_costs || financialData.overheads * 0.5) },
+        { label: 'Other Overheads', amount: -(financialData.overheads - (financialData.payroll_costs || financialData.overheads * 0.5)) }
+      ]
+    });
+  }
+  
+  // Tax payments
+  const taxPayments = (financialData.vat_liability || 0) + 
+                      (financialData.paye_liability || 0) + 
+                      (financialData.corporation_tax_liability || 0);
+  if (taxPayments > 0) {
+    items.push({
+      id: 'tax',
+      label: 'Tax Payments Due',
+      amount: -taxPayments,
+      type: 'outflow',
+      category: 'operating',
+      subItems: [
+        { label: 'VAT', amount: -(financialData.vat_liability || 0) },
+        { label: 'PAYE/NI', amount: -(financialData.paye_liability || 0) },
+        { label: 'Corporation Tax', amount: -(financialData.corporation_tax_liability || 0) }
+      ]
+    });
+  }
+  
+  // Closing balance
+  const closingCash = financialData.true_cash || openingCash;
+  items.push({
+    id: 'closing',
+    label: 'True Cash Position',
+    amount: closingCash,
+    type: 'end'
+  });
+  
+  return items;
 }
 
 // ============================================
