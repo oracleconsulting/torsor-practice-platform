@@ -13,7 +13,9 @@ import {
   Settings, 
   Download, 
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Send,
+  CheckCircle2
 } from 'lucide-react';
 
 import { TuesdayQuestionBanner } from './TuesdayQuestionBanner';
@@ -64,6 +66,7 @@ export function BIDashboard({
   const [editMode, setEditMode] = useState(false);
   const [activeScenario, setActiveScenario] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
+  const [delivering, setDelivering] = useState(false);
   
   // Get tier from engagement
   const tier: BITier = engagement?.tier || 'clarity';
@@ -160,6 +163,30 @@ export function BIDashboard({
       setError(err instanceof Error ? err.message : 'Failed to load dashboard');
     } finally {
       setLoading(false);
+    }
+  }
+  
+  // Deliver report to client
+  async function deliverToClient() {
+    if (!period) return;
+    
+    setDelivering(true);
+    try {
+      const { error } = await supabase
+        .from('bi_periods')
+        .update({ status: 'delivered' })
+        .eq('id', periodId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setPeriod({ ...period, status: 'delivered' });
+      
+    } catch (err) {
+      console.error('[BIDashboard] Delivery error:', err);
+      setError('Failed to deliver report');
+    } finally {
+      setDelivering(false);
     }
   }
   
@@ -343,7 +370,9 @@ export function BIDashboard({
       {isTeamView && period && (
         <div className="flex justify-between items-center py-4 border-t text-sm">
           <div className="flex items-center gap-4 text-gray-500">
-            <span>Status: <strong className="text-gray-700">{formatStatus(period.status)}</strong></span>
+            <span>Status: <strong className={`${
+              period.status === 'delivered' ? 'text-green-600' : 'text-gray-700'
+            }`}>{formatStatus(period.status)}</strong></span>
             {period.reviewed_by && (
               <span>Reviewed: <strong className="text-gray-700">{new Date(period.reviewed_at!).toLocaleDateString()}</strong></span>
             )}
@@ -356,6 +385,35 @@ export function BIDashboard({
               >
                 Begin Review
               </button>
+            )}
+            
+            {/* Deliver to Client Button - shows when there are insights and not yet delivered */}
+            {period.status !== 'delivered' && insights.length > 0 && (
+              <button 
+                onClick={deliverToClient}
+                disabled={delivering}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {delivering ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Delivering...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    Deliver to Client
+                  </>
+                )}
+              </button>
+            )}
+            
+            {/* Delivered confirmation */}
+            {period.status === 'delivered' && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium">
+                <CheckCircle2 className="w-4 h-4" />
+                Delivered to Client
+              </div>
             )}
           </div>
         </div>
