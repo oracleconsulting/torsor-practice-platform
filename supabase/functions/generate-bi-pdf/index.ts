@@ -112,10 +112,16 @@ Deno.serve(async (req) => {
         });
 
       if (!uploadError) {
-        const { data: urlData } = supabase.storage
+        // Use signed URL for private bucket (valid for 1 hour)
+        const { data: signedData, error: signedError } = await supabase.storage
           .from('bi-reports')
-          .getPublicUrl(tempPath);
-        storageUrl = urlData.publicUrl;
+          .createSignedUrl(tempPath, 3600); // 1 hour expiry
+        
+        if (signedData && !signedError) {
+          storageUrl = signedData.signedUrl;
+        } else {
+          console.warn('[generate-bi-pdf] Failed to create signed URL:', signedError);
+        }
       } else {
         console.warn('[generate-bi-pdf] Storage upload failed (bucket may not exist):', uploadError.message);
       }
