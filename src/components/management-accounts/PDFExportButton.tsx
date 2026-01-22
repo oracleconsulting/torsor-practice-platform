@@ -114,41 +114,27 @@ export function PDFExportButton({
       
       if (error) throw error;
       
-      if (data?.url) {
-        // Open PDF in new tab
-        window.open(data.url, '_blank');
-        setStatus('success');
-        setTimeout(() => setStatus('idle'), 3000);
-      } else if (data?.downloadUrl) {
-        // Trigger download
-        const link = document.createElement('a');
-        link.href = data.downloadUrl;
-        link.download = data.filename || `BI-Report-${periodLabel.replace(/\s/g, '-')}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setStatus('success');
-        setTimeout(() => setStatus('idle'), 3000);
-      } else if (data?.html) {
-        // Client-side HTML to PDF conversion
-        // Open HTML in new window for printing as PDF
+      // Always prefer HTML for proper rendering
+      if (data?.html) {
+        // Open HTML in new window for viewing and printing as PDF
         const printWindow = window.open('', '_blank');
         if (printWindow) {
           printWindow.document.write(data.html);
           printWindow.document.close();
           
-          // Wait for content to load then trigger print
-          printWindow.onload = () => {
-            setTimeout(() => {
-              printWindow.print();
-            }, 500);
-          };
+          // Set title for the window
+          printWindow.document.title = data.filename || `BI-Report-${periodLabel}`;
           
           setStatus('success');
           setTimeout(() => setStatus('idle'), 3000);
         } else {
-          throw new Error('Failed to open print window - check popup blocker');
+          throw new Error('Failed to open window - check popup blocker');
         }
+      } else if (data?.url || data?.downloadUrl) {
+        // Fallback to URL if HTML not available
+        window.open(data.url || data.downloadUrl, '_blank');
+        setStatus('success');
+        setTimeout(() => setStatus('idle'), 3000);
       } else {
         throw new Error('No report data returned');
       }

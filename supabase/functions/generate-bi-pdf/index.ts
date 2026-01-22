@@ -148,16 +148,15 @@ Deno.serve(async (req) => {
 
     console.log(`[generate-bi-pdf] Report generated: ${filename}`);
 
-    // Always return the HTML so client can render it
+    // Always return the HTML so client can render it properly
+    // The storageUrl is for reference/backup but HTML is primary
     return new Response(
       JSON.stringify({ 
         success: true,
-        html,
+        html, // Client should use this to render in new window
         filename: `${filename}.pdf`,
-        url: storageUrl,
-        message: storageUrl 
-          ? 'Report generated successfully' 
-          : 'HTML generated - use client-side PDF conversion'
+        storageUrl, // Backup URL for downloading raw HTML if needed
+        message: 'Report generated - open in browser and print to PDF'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
