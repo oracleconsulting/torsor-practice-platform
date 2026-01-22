@@ -85,13 +85,9 @@ UPDATE service_line_assessments
 SET service_line_code = 'business_intelligence' 
 WHERE service_line_code = 'management_accounts';
 
--- 4b. UPDATE CLIENT_SERVICE_LINES (if exists)
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'client_service_lines') THEN
-    EXECUTE 'UPDATE client_service_lines SET service_line_code = ''business_intelligence'' WHERE service_line_code = ''management_accounts''';
-  END IF;
-END $$;
+-- 4b. UPDATE CLIENT_SERVICE_LINES (if exists) - uses service_line_id which is a UUID FK
+-- This table links to service_lines by ID, so we need to update via the service_lines table instead
+-- (handled in step 4g below)
 
 -- 4c. UPDATE BI_ENGAGEMENTS (if exists)
 DO $$
