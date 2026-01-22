@@ -137,7 +137,7 @@ export function KPIPreview({ tier, recommendations: _recommendations, onUpgrade 
       {/* Tier selector tabs */}
       <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
         {tierOrder.map((t, i) => {
-          const info = TIER_INFO[t];
+          const info = TIER_INFO[t] || TIER_INFO.clarity;
           const isLocked = i > currentTierIndex;
           const isSelected = t === selectedTier;
           
@@ -267,7 +267,7 @@ export function KPIPreview({ tier, recommendations: _recommendations, onUpgrade 
       </button>
 
       {/* Upgrade prompt - only show if not at strategic and viewing recommended tier */}
-      {tier !== 'strategic' && selectedTier === tier && additionalKpisInNextTier.length > 0 && (
+      {tier !== 'strategic' && selectedTier === tier && nextTier && additionalKpisInNextTier.length > 0 && TIER_INFO[nextTier] && (
         <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
           <div className="flex items-start gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
@@ -275,7 +275,7 @@ export function KPIPreview({ tier, recommendations: _recommendations, onUpgrade 
             </div>
             <div className="flex-1">
               <p className="font-medium text-slate-800">
-                Unlock {additionalKpisInNextTier.length} more KPIs with {TIER_INFO[nextTier].name}
+                Unlock {additionalKpisInNextTier.length} more KPIs with {TIER_INFO[nextTier]?.name}
               </p>
               <p className="text-sm text-slate-600 mt-1">
                 Including {ALL_KPIS.find(k => k.kpi_code === additionalKpisInNextTier[0])?.name}
@@ -286,7 +286,7 @@ export function KPIPreview({ tier, recommendations: _recommendations, onUpgrade 
                   onClick={() => onUpgrade(nextTier)}
                   className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                 >
-                  Learn about {TIER_INFO[nextTier].name}
+                  Learn about {TIER_INFO[nextTier]?.name}
                 </button>
               )}
             </div>
