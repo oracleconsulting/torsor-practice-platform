@@ -89,21 +89,8 @@ WHERE service_line_code = 'management_accounts';
 -- This table links to service_lines by ID, so we need to update via the service_lines table instead
 -- (handled in step 4g below)
 
--- 4c. UPDATE BI_ENGAGEMENTS (if exists)
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'bi_engagements') THEN
-    EXECUTE 'UPDATE bi_engagements SET service_code = ''business_intelligence'' WHERE service_code = ''management_accounts''';
-  END IF;
-END $$;
-
--- 4d. UPDATE MA_ENGAGEMENTS (if exists)
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ma_engagements') THEN
-    EXECUTE 'UPDATE ma_engagements SET service_code = ''business_intelligence'' WHERE service_code = ''management_accounts''';
-  END IF;
-END $$;
+-- 4c. BI_ENGAGEMENTS - no service_code column, skip
+-- 4d. MA_ENGAGEMENTS - no service_code column, skip
 
 -- 4e. UPDATE CLIENT_CONTEXT JSONB DATA
 DO $$
