@@ -26,6 +26,16 @@ import {
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
+// New BI Dashboard Components
+import {
+  TuesdayQuestionBanner,
+  MetricsSummaryBar,
+  CashForecastChart,
+  ScenarioExplorer,
+  WatchList,
+  PLSummaryCard
+} from '../../components/bi-dashboard';
+
 // ============================================================================
 // CLIENT MA DASHBOARD - ELEVATED VISUAL EXPERIENCE
 // ============================================================================
@@ -125,6 +135,87 @@ const formatCurrency = (value: number): string => {
     return `£${(value / 1000).toFixed(0)}k`;
   }
   return `£${value.toLocaleString()}`;
+};
+
+// Generate 13-week forecast data from current cash and burn rate
+const generateForecastData = (trueCash: number, monthlyBurn: number) => {
+  const weeklyBurn = monthlyBurn / 4.33;
+  const data = [];
+  let runningCash = trueCash;
+  
+  const today = new Date();
+  for (let i = 0; i < 13; i++) {
+    const weekDate = new Date(today);
+    weekDate.setDate(today.getDate() + (i * 7));
+    
+    data.push({
+      week: i + 1,
+      date: weekDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+      projected: Math.round(runningCash)
+    });
+    
+    runningCash -= weeklyBurn;
+  }
+  
+  return data;
+};
+
+// Generate watch list items from financial data and KPIs
+const generateWatchList = (financialData: MAFinancialData | null, kpis: MAKPIValue[]) => {
+  const items: Array<{
+    id: string;
+    metric: string;
+    current: number;
+    threshold: number;
+    unit: string;
+    direction: 'above' | 'below';
+    status: 'ok' | 'warning' | 'critical';
+    action?: string;
+  }> = [];
+  
+  if (financialData) {
+    // True Cash threshold
+    items.push({
+      id: 'true-cash',
+      metric: 'True Cash',
+      current: financialData.true_cash,
+      threshold: 30000,
+      unit: '£',
+      direction: 'below',
+      status: financialData.true_cash < 30000 ? 'critical' : financialData.true_cash < 50000 ? 'warning' : 'ok',
+      action: financialData.true_cash < 30000 ? 'Review all non-essential spending immediately' : undefined
+    });
+    
+    // Runway threshold
+    const runway = financialData.true_cash_runway_months || 0;
+    items.push({
+      id: 'runway',
+      metric: 'Cash Runway',
+      current: runway,
+      threshold: 2,
+      unit: 'months',
+      direction: 'below',
+      status: runway < 2 ? 'critical' : runway < 3 ? 'warning' : 'ok',
+      action: runway < 2 ? 'Accelerate collections, delay non-critical payments' : undefined
+    });
+    
+    // Gross margin threshold
+    const grossMargin = financialData.revenue > 0 
+      ? (financialData.gross_profit / financialData.revenue * 100) 
+      : 0;
+    items.push({
+      id: 'gross-margin',
+      metric: 'Gross Margin',
+      current: grossMargin,
+      threshold: 50,
+      unit: '%',
+      direction: 'below',
+      status: grossMargin < 50 ? 'critical' : grossMargin < 55 ? 'warning' : 'ok',
+      action: grossMargin < 50 ? 'Review pricing and direct costs' : undefined
+    });
+  }
+  
+  return items;
 };
 
 export default function MADashboardPage() {
@@ -418,25 +509,48 @@ export default function MADashboardPage() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+      <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
 
-        {/* Tuesday Question Section */}
-        {period.tuesday_question && (
-          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl overflow-hidden shadow-xl text-white">
-            <div className="px-6 py-4 border-b border-white/10 flex items-center gap-3">
-              <HelpCircle className="w-5 h-5" />
-              <h2 className="text-lg font-semibold">Your Question This Month</h2>
-            </div>
-            <div className="p-6">
-              <p className="text-xl font-medium mb-4 italic">"{period.tuesday_question}"</p>
-              {period.tuesday_answer && (
-                <div className="bg-white/10 rounded-xl p-4 border-l-4 border-white/50">
-                  <p className="text-blue-100 text-sm mb-1">Our Analysis:</p>
-                  <p className="text-lg leading-relaxed">{period.tuesday_answer}</p>
-                </div>
-              )}
-            </div>
-          </div>
+        {/* Tuesday Question Hero Banner */}
+        <TuesdayQuestionBanner
+          question={period.tuesday_question || null}
+          answer={period.tuesday_answer || null}
+          linkedScenarioId={scenarios[0]?.id || null}
+          onRunScenario={(id) => setActiveScenario(id)}
+        />
+        
+        {/* Key Metrics Summary Bar */}
+        {financialData && (
+          <MetricsSummaryBar metrics={[
+            {
+              label: 'True Cash',
+              value: formatCurrency(financialData.true_cash),
+              subtext: `${(financialData.true_cash_runway_months || 0).toFixed(1)} months runway`,
+              status: (financialData.true_cash_runway_months || 0) < 2 ? 'critical' : 
+                      (financialData.true_cash_runway_months || 0) < 3 ? 'warning' : 'good'
+            },
+            {
+              label: 'Net Profit',
+              value: formatCurrency(financialData.net_profit || 0),
+              subtext: financialData.revenue ? `${((financialData.net_profit || 0) / financialData.revenue * 100).toFixed(1)}% margin` : undefined,
+              status: (financialData.net_profit || 0) < 0 ? 'critical' : 'good'
+            },
+            {
+              label: 'Revenue',
+              value: formatCurrency(financialData.revenue || 0),
+              subtext: financialData.gross_profit && financialData.revenue 
+                ? `${(financialData.gross_profit / financialData.revenue * 100).toFixed(1)}% gross margin`
+                : undefined
+            },
+            {
+              label: 'KPI Health',
+              value: `${kpis.filter(k => k.rag_status === 'green').length}/${kpis.length}`,
+              subtext: kpis.filter(k => k.rag_status === 'red').length > 0 
+                ? `${kpis.filter(k => k.rag_status === 'red').length} need attention`
+                : 'All healthy',
+              status: kpis.filter(k => k.rag_status === 'red').length > 0 ? 'warning' : 'good'
+            }
+          ]} />
         )}
 
         {/* True Cash Waterfall */}
@@ -519,159 +633,224 @@ export default function MADashboardPage() {
           </div>
         )}
 
-        {/* Cash Forecast (Foresight/Strategic tiers) */}
-        {showForecasting && financialData && (
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <TrendingUp className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Cash Forecast</h2>
-                  <p className="text-sm text-slate-500">13-week projection</p>
-                </div>
-              </div>
-              {scenarios.length > 0 && (
-                <div className="flex items-center gap-2">
-                  {scenarios.map(s => (
-                    <button
-                      key={s.id}
-                      onClick={() => setActiveScenario(activeScenario === s.id ? null : s.id)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                        activeScenario === s.id
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
-                    >
-                      {s.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            <div className="p-6">
-              {/* Simplified forecast visualization */}
-              <div className="h-48 bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl flex items-center justify-center mb-4">
-                <div className="text-center">
-                  <BarChart3 className="w-12 h-12 text-slate-400 mx-auto mb-2" />
-                  <p className="text-slate-500">Interactive forecast chart</p>
-                  <p className="text-sm text-slate-400">Coming soon in enhanced view</p>
-                </div>
-              </div>
-              
-              {/* Scenario Impact Cards */}
-              {activeScenario && scenarios.find(s => s.id === activeScenario) && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                  <div className="flex items-start justify-between">
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - 2/3 width */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* True Cash Waterfall - kept existing */}
+            {financialData && (
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-emerald-100 rounded-lg">
+                      <DollarSign className="w-5 h-5 text-emerald-600" />
+                    </div>
                     <div>
-                      <h4 className="font-semibold text-blue-900">
-                        {scenarios.find(s => s.id === activeScenario)?.name}
-                      </h4>
-                      <p className="text-sm text-blue-700 mt-1">
-                        {scenarios.find(s => s.id === activeScenario)?.impact_summary}
+                      <h2 className="text-lg font-semibold text-slate-900">True Cash Position</h2>
+                      <p className="text-sm text-slate-500">What you can actually spend</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-slate-500">Runway</p>
+                    <p className={`text-lg font-bold ${
+                      (financialData.true_cash_runway_months || 0) < 2 ? 'text-red-600' :
+                      (financialData.true_cash_runway_months || 0) < 4 ? 'text-amber-600' :
+                      'text-emerald-600'
+                    }`}>
+                      {(financialData.true_cash_runway_months || 0).toFixed(1)} months
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="p-6">
+                  {/* Waterfall Chart */}
+                  <div className="flex items-end justify-between gap-2 h-48 mb-6">
+                    {waterfallItems.map((item, index) => {
+                      const maxValue = Math.max(...waterfallItems.map(i => Math.abs(i.value)));
+                      const height = maxValue > 0 ? Math.abs(item.value) / maxValue * 100 : 0;
+                      const isNegative = item.value < 0;
+                      
+                      return (
+                        <div key={index} className="flex-1 flex flex-col items-center">
+                          <div className="w-full h-40 flex flex-col justify-end relative">
+                            <div
+                              className={`w-full rounded-t-lg transition-all ${
+                                item.type === 'start' ? 'bg-slate-600' :
+                                item.type === 'total' ? (item.value >= 0 ? 'bg-emerald-500' : 'bg-red-500') :
+                                isNegative ? 'bg-red-400' : 'bg-emerald-400'
+                              }`}
+                              style={{ height: `${height}%` }}
+                            />
+                            <div className={`absolute -top-6 w-full text-center text-sm font-semibold ${
+                              item.type === 'total' ? (item.value >= 0 ? 'text-emerald-600' : 'text-red-600') :
+                              isNegative ? 'text-red-600' : 'text-slate-700'
+                            }`}>
+                              {formatCurrency(item.value)}
+                            </div>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-2 text-center">{item.label}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Summary Stats */}
+                  <div className="grid grid-cols-3 gap-4 pt-4 border-t border-slate-200">
+                    <div className="text-center">
+                      <p className="text-sm text-slate-500">Bank Shows</p>
+                      <p className="text-xl font-bold text-slate-700">{formatCurrency(financialData.cash_at_bank)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-slate-500">Obligations</p>
+                      <p className="text-xl font-bold text-red-600">
+                        {formatCurrency(-((financialData.vat_liability || 0) + (financialData.paye_liability || 0) + (financialData.corporation_tax_liability || 0)))}
                       </p>
                     </div>
-                    <div className="text-right">
-                      {scenarios.find(s => s.id === activeScenario)?.impact_on_cash && (
-                        <p className={`text-lg font-bold ${
-                          (scenarios.find(s => s.id === activeScenario)?.impact_on_cash || 0) >= 0 
-                            ? 'text-emerald-600' : 'text-red-600'
-                        }`}>
-                          {formatCurrency(scenarios.find(s => s.id === activeScenario)?.impact_on_cash || 0)}
-                        </p>
-                      )}
-                      {scenarios.find(s => s.id === activeScenario)?.impact_on_runway && (
-                        <p className="text-sm text-blue-600">
-                          {(scenarios.find(s => s.id === activeScenario)?.impact_on_runway || 0) >= 0 ? '+' : ''}
-                          {scenarios.find(s => s.id === activeScenario)?.impact_on_runway} months runway
-                        </p>
-                      )}
+                    <div className="text-center">
+                      <p className="text-sm text-slate-500">Spendable</p>
+                      <p className={`text-xl font-bold ${financialData.true_cash >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {formatCurrency(financialData.true_cash)}
+                      </p>
                     </div>
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Key Insights */}
-        {insights.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Lightbulb className="w-5 h-5 text-purple-600" />
               </div>
-              <h2 className="text-lg font-semibold text-slate-900">Key Insights</h2>
-            </div>
+            )}
             
-            <div className="space-y-3">
-              {insights.map((insight) => {
-                const style = PRIORITY_STYLES[insight.priority] || PRIORITY_STYLES.medium;
-                const isExpanded = expandedInsights.has(insight.id);
-                
-                return (
-                  <div
-                    key={insight.id}
-                    className={`${style.bg} border ${style.border} rounded-xl overflow-hidden`}
-                  >
-                    <button
-                      onClick={() => toggleInsight(insight.id)}
-                      className="w-full px-5 py-4 flex items-start justify-between text-left"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${style.badge}`}>
-                            {insight.priority.toUpperCase()}
-                          </span>
-                          <span className="text-sm text-slate-500">{insight.category}</span>
-                        </div>
-                        <h3 className="font-semibold text-slate-900">{insight.title}</h3>
-                        <p className="text-sm text-slate-600 mt-1 line-clamp-2">{insight.description}</p>
-                      </div>
-                      {isExpanded ? (
-                        <ChevronUp className="w-5 h-5 text-slate-400 flex-shrink-0 ml-4" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-slate-400 flex-shrink-0 ml-4" />
-                      )}
-                    </button>
-                    
-                    {isExpanded && (
-                      <div className="px-5 pb-5 space-y-4 border-t border-slate-200/50 pt-4">
-                        {insight.implications && (
-                          <div>
-                            <p className="text-sm font-medium text-slate-700 mb-1">Implications</p>
-                            <p className="text-slate-600">{insight.implications}</p>
-                          </div>
-                        )}
-                        {insight.data_points && insight.data_points.length > 0 && (
-                          <div>
-                            <p className="text-sm font-medium text-slate-700 mb-2">Supporting Data</p>
-                            <ul className="space-y-1">
-                              {insight.data_points.map((dp, i) => (
-                                <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
-                                  <span className="text-blue-500 mt-1">•</span>
-                                  {dp}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {insight.recommendation && (
-                          <div className="bg-white/50 rounded-lg p-4 border border-slate-200">
-                            <p className="text-sm font-medium text-slate-700 mb-1">Recommendation</p>
-                            <p className="text-slate-800">{insight.recommendation}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
+            {/* Cash Forecast Chart (Foresight/Strategic tiers) */}
+            {showForecasting && financialData && (
+              <CashForecastChart
+                data={generateForecastData(financialData.true_cash, financialData.monthly_operating_costs || 0)}
+                scenarios={scenarios.map(s => ({
+                  id: s.id,
+                  name: s.name,
+                  impact: s.impact_on_cash || 0,
+                  type: (s.impact_on_cash || 0) > 0 ? 'positive' as const : (s.impact_on_cash || 0) < 0 ? 'negative' as const : 'neutral' as const
+                }))}
+                monthlyBurn={financialData.monthly_operating_costs || 0}
+                trueCash={financialData.true_cash}
+              />
+            )}
+
+            {/* Key Insights */}
+            {insights.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-sm border p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <Lightbulb className="w-5 h-5 text-purple-600" />
                   </div>
-                );
-              })}
-            </div>
+                  <h2 className="text-lg font-semibold text-slate-900">Key Insights</h2>
+                </div>
+                
+                <div className="space-y-3">
+                  {insights.map((insight) => {
+                    const style = PRIORITY_STYLES[insight.priority] || PRIORITY_STYLES.medium;
+                    const isExpanded = expandedInsights.has(insight.id);
+                    
+                    return (
+                      <div
+                        key={insight.id}
+                        className={`${style.bg} border ${style.border} rounded-xl overflow-hidden`}
+                      >
+                        <button
+                          onClick={() => toggleInsight(insight.id)}
+                          className="w-full px-5 py-4 flex items-start justify-between text-left"
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`px-2 py-0.5 rounded text-xs font-semibold ${style.badge}`}>
+                                {insight.priority.toUpperCase()}
+                              </span>
+                              <span className="text-sm text-slate-500">{insight.category}</span>
+                            </div>
+                            <h3 className="font-semibold text-slate-900">{insight.title}</h3>
+                            <p className="text-sm text-slate-600 mt-1 line-clamp-2">{insight.description}</p>
+                          </div>
+                          {isExpanded ? (
+                            <ChevronUp className="w-5 h-5 text-slate-400 flex-shrink-0 ml-4" />
+                          ) : (
+                            <ChevronDown className="w-5 h-5 text-slate-400 flex-shrink-0 ml-4" />
+                          )}
+                        </button>
+                        
+                        {isExpanded && (
+                          <div className="px-5 pb-5 space-y-4 border-t border-slate-200/50 pt-4">
+                            {insight.implications && (
+                              <div>
+                                <p className="text-sm font-medium text-slate-700 mb-1">Implications</p>
+                                <p className="text-slate-600">{insight.implications}</p>
+                              </div>
+                            )}
+                            {insight.data_points && insight.data_points.length > 0 && (
+                              <div>
+                                <p className="text-sm font-medium text-slate-700 mb-2">Supporting Data</p>
+                                <ul className="space-y-1">
+                                  {insight.data_points.map((dp, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
+                                      <span className="text-blue-500 mt-1">•</span>
+                                      {dp}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {insight.recommendation && (
+                              <div className="bg-white/50 rounded-lg p-4 border border-slate-200">
+                                <p className="text-sm font-medium text-slate-700 mb-1">Recommendation</p>
+                                <p className="text-slate-800">{insight.recommendation}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
-        )}
+          
+          {/* Right Column - 1/3 width */}
+          <div className="space-y-6">
+            {/* Scenario Explorer (Foresight/Strategic tiers) */}
+            {showForecasting && (
+              <ScenarioExplorer
+                scenarios={scenarios.map(s => ({
+                  id: s.id,
+                  type: 'custom' as const,
+                  name: s.name,
+                  description: s.description || '',
+                  cashImpact: s.impact_on_cash || 0,
+                  runwayImpact: s.impact_on_runway || 0,
+                  newRunway: (financialData?.true_cash_runway_months || 0) + (s.impact_on_runway || 0),
+                  verdict: (s.impact_on_runway || 0) >= 0 ? 'viable' as const : 
+                           (s.impact_on_runway || 0) > -1 ? 'caution' as const : 'high_risk' as const,
+                  recommendation: s.impact_summary || 'Review this scenario with your advisor.'
+                }))}
+                currentTrueCash={financialData?.true_cash || 0}
+                currentRunway={financialData?.true_cash_runway_months || 0}
+                monthlyBurn={financialData?.monthly_operating_costs || 0}
+                onSelectScenario={setActiveScenario}
+              />
+            )}
+            
+            {/* Watch List */}
+            <WatchList items={generateWatchList(financialData, kpis)} />
+            
+            {/* P&L Summary */}
+            {financialData && (
+              <PLSummaryCard
+                revenue={financialData.revenue || 0}
+                grossProfit={financialData.gross_profit || 0}
+                operatingProfit={(financialData.gross_profit || 0) - (financialData.monthly_operating_costs || 0)}
+                netProfit={financialData.net_profit || 0}
+                grossMargin={financialData.revenue > 0 ? (financialData.gross_profit / financialData.revenue * 100) : 0}
+                operatingMargin={financialData.revenue > 0 ? ((financialData.gross_profit - (financialData.monthly_operating_costs || 0)) / financialData.revenue * 100) : 0}
+                netMargin={financialData.revenue > 0 ? (financialData.net_profit / financialData.revenue * 100) : 0}
+              />
+            )}
+          </div>
+        </div>
 
         {/* KPIs Grid */}
         {kpis.length > 0 && (
