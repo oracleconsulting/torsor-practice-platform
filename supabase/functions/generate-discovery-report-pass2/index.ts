@@ -72,18 +72,19 @@ const DEFAULT_SERVICE_DETAILS: Record<string, ServiceDetail> = {
   },
   'business_advisory': {
     name: 'Business Advisory & Exit Planning',
-    price: '£4,000',
+    price: '£2,000', // BLOCKED - currently in development, but priced for future
     priceType: 'one-time',
     outcome: "You'll Know What It's Worth"
   },
   'benchmarking': {
     name: 'Benchmarking & Hidden Value Analysis',
-    price: '£3,500',
+    price: '£2,000', // Combined exit diagnostic: competitive positioning + value suppressors
     priceType: 'one-time',
     outcome: "You'll Know Where You Stand"
   }
-  // NOTE: hidden_value is NOT a separate service - it's included in benchmarking
-  // The two assessments (benchmarking + hidden value) are delivered as ONE service line
+  // NOTE: Benchmarking & Hidden Value Analysis is ONE COMBINED service at £2,000
+  // This includes both industry benchmarking AND hidden value audit
+  // DO NOT list these as separate line items
 };
 
 // Outcome mappings (destination-focused language)
@@ -745,9 +746,9 @@ THE CORRECT ORDER IS:
 PHASE 1 (Month 1-3): BENCHMARKING & HIDDEN VALUE ANALYSIS - ALWAYS FIRST
    - "You'll Know Where You Stand Today"
    - What's the business worth RIGHT NOW before we do ANYTHING else?
-   - Where are the hidden value detractors?
+   - Where are the hidden value detractors (founder dependency, customer concentration, etc.)?
    - What's the gap between current value and their exit goal?
-   - Price: £3,500 one-time
+   - Price: £2,000 one-time (this is ONE combined service, not separate)
 
 PHASE 2 (Month 3-12+): GOAL ALIGNMENT - The 3-Year Exit Plan
    - "You'll Have Someone In Your Corner"  
@@ -760,8 +761,10 @@ PHASE 2 (Month 3-12+): GOAL ALIGNMENT - The 3-Year Exit Plan
 ⛔ WRONG: Recommending "Business Advisory & Exit Planning" - this service is paused
 ⛔ WRONG: Showing Goal Alignment as monthly pricing - it's ANNUAL
 ⛔ WRONG: Putting anything before Benchmarking
+⛔ WRONG: Listing "Industry Benchmarking" and "Hidden Value Audit" as SEPARATE services
+⛔ WRONG: Using old pricing (£3,500 for benchmarking, £2,500 for hidden value)
 
-✅ RIGHT: Benchmarking FIRST to establish the baseline (£3,500)
+✅ RIGHT: Benchmarking & Hidden Value is ONE service at £2,000
 ✅ RIGHT: Goal Alignment SECOND for ongoing support (£4,500-£9,000/year)
 ✅ RIGHT: Only 2 phases for exit clients, not 3
 

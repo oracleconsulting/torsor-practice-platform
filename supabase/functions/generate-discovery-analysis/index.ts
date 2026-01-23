@@ -1336,6 +1336,12 @@ interface PayrollAnalysis {
   benchmark: typeof PAYROLL_BENCHMARKS['general_business'];
   assessment: 'efficient' | 'typical' | 'elevated' | 'concerning';
   calculation: string;
+  // V2: Added validation and source data
+  staffCosts: number;
+  turnover: number;
+  staffCostsPct: number;
+  isValidated: boolean;
+  validationErrors: string[];
 }
 
 function analysePayrollEfficiency(
@@ -1343,16 +1349,87 @@ function analysePayrollEfficiency(
   industry: string
 ): PayrollAnalysis | null {
   
-  if (!financials.turnover || !financials.totalStaffCosts) {
+  const validationErrors: string[] = [];
+  
+  // ========================================================================
+  // STEP 1: Validate we have required data
+  // ========================================================================
+  
+  if (!financials.turnover || financials.turnover <= 0) {
+    console.warn('[Payroll] No valid turnover figure');
     return null;
   }
   
-  const actualPct = financials.staffCostsPercentOfRevenue || 
-    (financials.totalStaffCosts / financials.turnover) * 100;
+  if (!financials.totalStaffCosts || financials.totalStaffCosts <= 0) {
+    console.warn('[Payroll] No valid staff costs figure');
+    return null;
+  }
+  
+  const turnover = financials.turnover;
+  const staffCosts = financials.totalStaffCosts;
+  
+  // ========================================================================
+  // STEP 2: ALWAYS calculate percentage from source (ignore stored percentage)
+  // ========================================================================
+  
+  const calculatedPct = (staffCosts / turnover) * 100;
+  
+  // Sanity check: percentage should be between 5% and 80%
+  if (calculatedPct < 5 || calculatedPct > 80) {
+    validationErrors.push(`Calculated staff costs % (${calculatedPct.toFixed(1)}%) outside reasonable range (5-80%)`);
+  }
+  
+  // If financials already has a staffCostsPct, check if it matches
+  if (financials.staffCostsPercentOfRevenue) {
+    const storedPct = financials.staffCostsPercentOfRevenue;
+    const difference = Math.abs(storedPct - calculatedPct);
+    if (difference > 1) {
+      validationErrors.push(`Stored percentage (${storedPct.toFixed(1)}%) differs from calculated (${calculatedPct.toFixed(1)}%) by ${difference.toFixed(1)}%. Using CALCULATED value.`);
+      console.warn('[Payroll] ⚠️ PERCENTAGE MISMATCH:', {
+        stored: storedPct.toFixed(1) + '%',
+        calculated: calculatedPct.toFixed(1) + '%',
+        difference: difference.toFixed(1) + '%',
+        usingCalculated: true
+      });
+    }
+  }
+  
+  // ALWAYS use calculated percentage to ensure accuracy
+  const actualPct = calculatedPct;
+  
+  console.log('[Payroll] Validated calculation:', {
+    staffCosts: `£${staffCosts.toLocaleString()}`,
+    turnover: `£${turnover.toLocaleString()}`,
+    calculated: `${actualPct.toFixed(1)}%`,
+    formula: `${staffCosts} / ${turnover} * 100 = ${actualPct.toFixed(1)}%`
+  });
+  
+  // ========================================================================
+  // STEP 3: Get benchmark and calculate excess
+  // ========================================================================
   
   const benchmark = getPayrollBenchmark(industry);
   const excessPct = actualPct - benchmark.typical;
-  const annualExcess = (excessPct / 100) * financials.turnover;
+  const annualExcess = Math.round((excessPct / 100) * turnover);
+  
+  // Validate excess makes sense
+  if (annualExcess < 0) {
+    // Below benchmark is fine, just cap at 0
+    console.log('[Payroll] Staff costs below benchmark - no excess');
+  } else if (annualExcess > staffCosts) {
+    validationErrors.push(`Calculated excess (£${annualExcess.toLocaleString()}) exceeds total staff costs (£${staffCosts.toLocaleString()})`);
+  }
+  
+  console.log('[Payroll] Excess calculation:', {
+    actualPct: `${actualPct.toFixed(1)}%`,
+    benchmarkTypical: `${benchmark.typical}%`,
+    excessPct: `${excessPct.toFixed(1)}%`,
+    excessAmount: `£${Math.max(0, annualExcess).toLocaleString()}`
+  });
+  
+  // ========================================================================
+  // STEP 4: Determine assessment
+  // ========================================================================
   
   let assessment: PayrollAnalysis['assessment'];
   if (actualPct <= benchmark.good) {
@@ -1365,13 +1442,33 @@ function analysePayrollEfficiency(
     assessment = 'concerning';
   }
   
+  // ========================================================================
+  // STEP 5: Build detailed calculation string
+  // ========================================================================
+  
+  const calculation = `Staff costs £${staffCosts.toLocaleString()} ÷ Turnover £${turnover.toLocaleString()} = ${actualPct.toFixed(1)}%. Industry benchmark for ${industry}: ${benchmark.good}-${benchmark.typical}% (typical), ${benchmark.concern}% (concern). Current ${actualPct.toFixed(1)}% is ${actualPct > benchmark.typical ? (actualPct - benchmark.typical).toFixed(1) + '% above' : 'within'} benchmark. Excess: £${Math.max(0, annualExcess).toLocaleString()}/year.`;
+  
+  const isValidated = validationErrors.length === 0;
+  
+  if (!isValidated) {
+    console.error('[Payroll] ⚠️ VALIDATION ERRORS:', validationErrors);
+  } else {
+    console.log('[Payroll] ✅ All figures validated and consistent');
+  }
+  
   return {
     isOverstaffed: actualPct > benchmark.concern,
     excessPercentage: Math.round(excessPct * 10) / 10,
-    annualExcess: Math.round(annualExcess),
+    annualExcess: Math.max(0, Math.round(annualExcess)), // Never negative
     benchmark,
     assessment,
-    calculation: `Staff costs £${financials.totalStaffCosts.toLocaleString()} ÷ Turnover £${financials.turnover.toLocaleString()} = ${actualPct.toFixed(1)}% (industry typical: ${benchmark.typical}%)`
+    calculation,
+    // V2 fields
+    staffCosts,
+    turnover,
+    staffCostsPct: actualPct,
+    isValidated,
+    validationErrors
   };
 }
 
@@ -4005,12 +4102,23 @@ serve(async (req) => {
     const payrollAnalysis = analysePayrollEfficiency(extractedFinancials, businessOverview);
     
     if (payrollAnalysis) {
-      console.log('[Discovery] Payroll analysis:', {
-        calculation: payrollAnalysis.calculation,
+      console.log('[Discovery] Payroll analysis (VALIDATED):', {
+        staffCosts: `£${payrollAnalysis.staffCosts.toLocaleString()}`,
+        turnover: `£${payrollAnalysis.turnover.toLocaleString()}`,
+        staffCostsPct: `${payrollAnalysis.staffCostsPct.toFixed(1)}%`,
+        benchmark: `${payrollAnalysis.benchmark.good}-${payrollAnalysis.benchmark.typical}% (typical), ${payrollAnalysis.benchmark.concern}% (concern)`,
+        excessPct: `${payrollAnalysis.excessPercentage.toFixed(1)}%`,
+        excessAmount: `£${payrollAnalysis.annualExcess.toLocaleString()}`,
         assessment: payrollAnalysis.assessment,
-        excessPercentage: payrollAnalysis.excessPercentage,
-        annualExcess: payrollAnalysis.annualExcess
+        isValidated: payrollAnalysis.isValidated,
+        validationErrors: payrollAnalysis.validationErrors
       });
+      
+      // Sanity check: Log warning if excess seems unreasonably high
+      if (payrollAnalysis.annualExcess > payrollAnalysis.staffCosts * 0.5) {
+        console.warn('[Discovery] ⚠️ WARNING: Calculated excess (£' + payrollAnalysis.annualExcess.toLocaleString() + 
+          ') is more than 50% of staff costs. This seems high - please verify.');
+      }
     }
 
     // ========================================================================
@@ -5385,6 +5493,118 @@ Return ONLY the JSON object with no additional text.`;
       analysis = cleanAllStrings(analysis);
       console.log('[Discovery] Text cleanup complete');
       
+      // ======================================================================
+      // POST-PROCESSING VALIDATION - Fix incorrect figures & service listings
+      // ======================================================================
+      
+      // VALIDATE PAYROLL FIGURES IN OUTPUT
+      if (payrollAnalysis) {
+        const outputText = JSON.stringify(analysis);
+        
+        // Check for obviously wrong payroll figures
+        // The £414k figure from the bug should be ~£193k (at 36.5% vs 28% benchmark)
+        const wrongExcessPatterns = [
+          /£?414[,.]?\d*k?/gi,  // Wrong excess amount
+          /43\.?[12]%/gi,       // Wrong percentage
+        ];
+        
+        for (const pattern of wrongExcessPatterns) {
+          if (pattern.test(outputText)) {
+            console.error(`[Validation] ⚠️ Found potentially incorrect payroll figure matching ${pattern}`);
+            console.error(`[Validation] Correct values: ${payrollAnalysis.staffCostsPct.toFixed(1)}% excess, £${payrollAnalysis.annualExcess.toLocaleString()}`);
+          }
+        }
+        
+        // Log the correct values for debugging
+        console.log('[Validation] CORRECT payroll figures to use:', {
+          staffCostsPct: `${payrollAnalysis.staffCostsPct.toFixed(1)}%`,
+          benchmarkMid: `${payrollAnalysis.benchmark.typical}%`,
+          excessPct: `${payrollAnalysis.excessPercentage.toFixed(1)}%`,
+          excessAmount: `£${payrollAnalysis.annualExcess.toLocaleString()}`
+        });
+      }
+      
+      // VALIDATE SERVICE LISTINGS - Combine separate services if found
+      if (analysis.transformationJourney?.phases) {
+        for (const phase of analysis.transformationJourney.phases) {
+          const serviceName = (phase.enabledBy || phase.service || '').toLowerCase();
+          
+          // Check if phase mentions "benchmarking" OR "hidden value" separately
+          if (serviceName.includes('benchmarking') && !serviceName.includes('hidden value')) {
+            console.log('[Validation] Correcting separate Benchmarking to combined service');
+            if (typeof phase.enabledBy === 'string') {
+              phase.enabledBy = 'Benchmarking & Hidden Value Analysis (£2,000)';
+            } else if (phase.enabledBy?.service) {
+              phase.enabledBy.service = 'Benchmarking & Hidden Value Analysis';
+              phase.enabledBy.price = 2000;
+            }
+          }
+          
+          // Check for separate Hidden Value Audit
+          if (serviceName.includes('hidden value') && !serviceName.includes('benchmarking')) {
+            console.warn('[Validation] Found separate Hidden Value Audit - this should be combined with Benchmarking');
+            // Mark for removal or merge
+            phase._shouldMerge = true;
+          }
+          
+          // Fix wrong pricing
+          const priceMatch = (phase.investment || phase.enabledBy || '').toString().match(/£([\d,]+)/);
+          if (priceMatch) {
+            const price = parseInt(priceMatch[1].replace(/,/g, ''));
+            if (serviceName.includes('benchmark') && price > 2500) {
+              console.log(`[Validation] Correcting Benchmarking price from £${price} to £2,000`);
+              if (typeof phase.enabledBy === 'string') {
+                phase.enabledBy = phase.enabledBy.replace(/£[\d,]+/, '£2,000');
+              } else if (phase.enabledBy?.price) {
+                phase.enabledBy.price = 2000;
+              }
+              if (phase.investment) {
+                phase.investment = phase.investment.replace(/£[\d,]+/, '£2,000');
+              }
+            }
+          }
+        }
+        
+        // Remove phases that were marked for merge (Hidden Value as separate)
+        analysis.transformationJourney.phases = analysis.transformationJourney.phases.filter(
+          (phase: any) => !phase._shouldMerge
+        );
+      }
+      
+      // VALIDATE RECOMMENDED INVESTMENTS
+      if (analysis.recommendedInvestments) {
+        // Remove separate "Hidden Value Audit" if present
+        const hadSeparateHVA = analysis.recommendedInvestments.some(
+          (s: any) => (s.service || s.name || '').toLowerCase().includes('hidden value') && 
+                      !(s.service || s.name || '').toLowerCase().includes('benchmarking')
+        );
+        
+        if (hadSeparateHVA) {
+          console.log('[Validation] Removing separate Hidden Value Audit - should be combined with Benchmarking');
+          analysis.recommendedInvestments = analysis.recommendedInvestments.filter(
+            (s: any) => !(s.service || s.name || '').toLowerCase().includes('hidden value') ||
+                        (s.service || s.name || '').toLowerCase().includes('benchmarking')
+          );
+        }
+        
+        // Fix Benchmarking pricing
+        for (const service of analysis.recommendedInvestments) {
+          const name = (service.service || service.name || '').toLowerCase();
+          if (name.includes('benchmark')) {
+            const priceStr = (service.investment || service.price || '').toString();
+            const priceMatch = priceStr.match(/£?([\d,]+)/);
+            if (priceMatch) {
+              const price = parseInt(priceMatch[1].replace(/,/g, ''));
+              if (price > 2500) {
+                console.log(`[Validation] Correcting recommended service ${service.service || service.name} price from £${price} to £2,000`);
+                service.investment = '£2,000';
+                service.price = 2000;
+              }
+            }
+          }
+        }
+      }
+      
     } catch (e: any) {
       console.error('[Discovery] JSON parse error:', e.message);
       console.error('[Discovery] Failed to parse text (first 1000 chars):', analysisText.substring(0, 1000));
@@ -5480,7 +5700,7 @@ Return ONLY the JSON object with no additional text.`;
 
       savedReport = insertedReport;
       saveError = insertError;
-      
+
     if (saveError) {
         console.error('[Discovery] Error inserting report:', saveError);
       }
