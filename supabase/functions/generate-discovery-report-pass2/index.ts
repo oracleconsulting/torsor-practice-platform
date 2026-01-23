@@ -315,6 +315,125 @@ serve(async (req) => {
     const SERVICE_DETAILS = await fetchServiceDetails(supabase, engagement.practice_id);
     console.log('Loaded service details for', Object.keys(SERVICE_DETAILS).length, 'services');
 
+    // ========================================================================
+    // FETCH VALIDATED FINANCIAL DATA
+    // This ensures the LLM uses correct payroll figures, not hallucinated ones
+    // ========================================================================
+    const clientId = engagement.client_id;
+    
+    // Try to get financial context from client_financial_context table
+    const { data: financialContext } = await supabase
+      .from('client_financial_context')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('period_end_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    // Try to get from client_reports (generate-discovery-analysis output)
+    const { data: analysisReport } = await supabase
+      .from('client_reports')
+      .select('report_data')
+      .eq('client_id', clientId)
+      .eq('report_type', 'discovery_analysis')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    // Extract validated payroll data
+    let validatedPayroll: {
+      turnover: number | null;
+      staffCosts: number | null;
+      staffCostsPct: number | null;
+      benchmarkPct: number | null;
+      excessPct: number | null;
+      excessAmount: number | null;
+      calculation: string | null;
+    } = {
+      turnover: null,
+      staffCosts: null,
+      staffCostsPct: null,
+      benchmarkPct: null,
+      excessPct: null,
+      excessAmount: null,
+      calculation: null
+    };
+    
+    // Priority 1: Use generate-discovery-analysis output (most validated)
+    if (analysisReport?.report_data?.analysis?.financialContext?.payrollAnalysis) {
+      const pa = analysisReport.report_data.analysis.financialContext.payrollAnalysis;
+      validatedPayroll = {
+        turnover: pa.turnover || null,
+        staffCosts: pa.staffCosts || null,
+        staffCostsPct: pa.staffCostsPct || null,
+        benchmarkPct: pa.benchmark?.typical || 28,
+        excessPct: pa.excessPercentage || null,
+        excessAmount: pa.annualExcess || null,
+        calculation: pa.calculation || null
+      };
+      console.log('[Pass 2] Using validated payroll from generate-discovery-analysis:', validatedPayroll);
+    }
+    // Priority 2: Use client_financial_context
+    else if (financialContext) {
+      const turnover = financialContext.turnover || financialContext.revenue;
+      const staffCosts = financialContext.staff_costs || financialContext.total_staff_costs;
+      if (turnover && staffCosts) {
+        const staffCostsPct = (staffCosts / turnover) * 100;
+        const benchmarkPct = 28; // Default benchmark for most industries
+        const excessPct = Math.max(0, staffCostsPct - benchmarkPct);
+        const excessAmount = Math.round((excessPct / 100) * turnover);
+        
+        validatedPayroll = {
+          turnover,
+          staffCosts,
+          staffCostsPct,
+          benchmarkPct,
+          excessPct,
+          excessAmount,
+          calculation: `£${staffCosts.toLocaleString()} ÷ £${turnover.toLocaleString()} = ${staffCostsPct.toFixed(1)}%. Excess: ${excessPct.toFixed(1)}% = £${excessAmount.toLocaleString()}`
+        };
+        console.log('[Pass 2] Calculated payroll from client_financial_context:', validatedPayroll);
+      }
+    }
+    
+    // Build financial context section for prompt
+    let financialDataSection = '';
+    if (validatedPayroll.turnover && validatedPayroll.staffCosts) {
+      financialDataSection = `
+
+============================================================================
+🔢 VALIDATED FINANCIAL DATA - USE THESE EXACT FIGURES
+============================================================================
+You MUST use these figures when discussing payroll/staff costs. DO NOT make up different numbers.
+
+TURNOVER: £${validatedPayroll.turnover.toLocaleString()}
+STAFF COSTS: £${validatedPayroll.staffCosts.toLocaleString()}
+STAFF COSTS AS % OF TURNOVER: ${validatedPayroll.staffCostsPct?.toFixed(1)}%
+INDUSTRY BENCHMARK: ${validatedPayroll.benchmarkPct}%
+EXCESS PERCENTAGE: ${validatedPayroll.excessPct?.toFixed(1)}%
+EXCESS AMOUNT: £${validatedPayroll.excessAmount?.toLocaleString() || 'Unknown'}
+
+CALCULATION: ${validatedPayroll.calculation || 'See above'}
+
+⚠️ IMPORTANT: 
+- When mentioning payroll excess, use £${validatedPayroll.excessAmount?.toLocaleString() || 'Unknown'} - NOT any other figure
+- When mentioning staff costs %, use ${validatedPayroll.staffCostsPct?.toFixed(1)}% - NOT any other figure
+- When formatting large numbers, use "k" suffix ONCE (e.g., "£193k" NOT "£193kk")
+`;
+    } else {
+      financialDataSection = `
+
+============================================================================
+🔢 FINANCIAL DATA STATUS
+============================================================================
+No validated financial data available. When discussing financial figures:
+- DO NOT make up specific amounts
+- Use phrases like "Unknown precisely" or "To be confirmed from accounts"
+- DO NOT guess at payroll percentages or excess amounts
+`;
+      console.log('[Pass 2] ⚠️ No validated financial data available - LLM should not invent figures');
+    }
+
     // Fetch Pass 1 results
     const { data: report, error: reportError } = await supabase
       .from('discovery_reports')
@@ -615,7 +734,7 @@ WRITING STYLE:
 6. Empathy before solutions - name their pain before offering hope
 7. Personal anchors - reference spouse names, kids' ages, specific details
 8. Services as footnotes - headline the OUTCOME, service is just how
-
+${financialDataSection}
 ============================================================================
 DATA COMPLETENESS STATUS
 ============================================================================
@@ -975,6 +1094,65 @@ Before returning, verify:
       console.error('JSON parse error:', parseError);
       console.error('Response text (first 2000 chars):', responseText.substring(0, 2000));
       throw new Error(`Failed to parse LLM response: ${parseError.message}`);
+    }
+
+    // ========================================================================
+    // POST-PROCESSING: Fix common LLM output issues
+    // ========================================================================
+    
+    // Fix "kk" typos throughout the narratives
+    const cleanupText = (obj: any): any => {
+      if (!obj) return obj;
+      if (typeof obj === 'string') {
+        return obj
+          .replace(/£(\d+(?:,\d{3})*)kk/g, '£$1k')  // Fix £414kk -> £414k
+          .replace(/(\d+(?:,\d{3})*)kk/g, '$1k')    // Fix 414kk -> 414k
+          .replace(/££/g, '£')                       // Fix double £
+          .replace(/(\d+)%%/g, '$1%');               // Fix double %
+      }
+      if (Array.isArray(obj)) {
+        return obj.map(item => cleanupText(item));
+      }
+      if (typeof obj === 'object') {
+        const cleaned: any = {};
+        for (const key of Object.keys(obj)) {
+          cleaned[key] = cleanupText(obj[key]);
+        }
+        return cleaned;
+      }
+      return obj;
+    };
+    
+    // Apply cleanup to all narratives
+    narratives = cleanupText(narratives);
+    console.log('[Pass 2] Applied text cleanup to fix kk typos');
+    
+    // If we have validated payroll data, check for wrong figures and log warnings
+    if (validatedPayroll.excessAmount && validatedPayroll.excessAmount > 0) {
+      const correctExcessK = Math.round(validatedPayroll.excessAmount / 1000);
+      const narrativesStr = JSON.stringify(narratives);
+      
+      // Check for figures that are significantly different from validated amount
+      const wrongFigurePatterns = [
+        /£(\d{3,})k.*(?:excess|payroll)/gi,
+        /(?:excess|payroll).*£(\d{3,})k/gi
+      ];
+      
+      for (const pattern of wrongFigurePatterns) {
+        const matches = narrativesStr.match(pattern);
+        if (matches) {
+          for (const match of matches) {
+            const figureMatch = match.match(/£(\d{3,})k/i);
+            if (figureMatch) {
+              const foundK = parseInt(figureMatch[1], 10);
+              const difference = Math.abs(foundK - correctExcessK);
+              if (difference > 50) { // More than £50k difference
+                console.warn(`[Pass 2] ⚠️ POSSIBLE WRONG PAYROLL FIGURE: Found £${foundK}k but validated excess is £${correctExcessK}k (difference: £${difference}k)`);
+              }
+            }
+          }
+        }
+      }
     }
 
     // Log what pages have content
