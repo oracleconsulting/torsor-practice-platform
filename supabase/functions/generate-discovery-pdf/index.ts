@@ -167,6 +167,66 @@ async function fetchReportData(
       const page4 = discoveryReport.page4_numbers || destReport.page4_numbers || {};
       const page5 = discoveryReport.page5_next_steps || destReport.page5_next_steps || {};
       
+      // ========================================================================
+      // CALCULATE investment total from phases (don't trust stored values!)
+      // ========================================================================
+      const phases = page3.phases || [];
+      const calculatedServices: Array<{service: string; investment: string; price: number}> = [];
+      let calculatedTotal = 0;
+      
+      for (const phase of phases) {
+        if (phase.enabledBy && phase.price) {
+          // Parse the price from strings like "£2,000" or "£4,500/year"
+          const priceMatch = String(phase.price).match(/[\d,]+/);
+          const price = priceMatch ? parseInt(priceMatch[0].replace(/,/g, ''), 10) : 0;
+          
+          calculatedServices.push({
+            service: phase.enabledBy,
+            investment: phase.price,
+            price: price
+          });
+          calculatedTotal += price;
+        }
+      }
+      
+      // Also check page4.investment array if phases don't have services
+      if (calculatedTotal === 0 && page4.investment) {
+        for (const inv of page4.investment) {
+          if (inv.amount) {
+            const priceMatch = String(inv.amount).match(/[\d,]+/);
+            const price = priceMatch ? parseInt(priceMatch[0].replace(/,/g, ''), 10) : 0;
+            calculatedTotal += price;
+          }
+        }
+      }
+      
+      // Log any discrepancy between stored and calculated
+      const storedTotal = page4.investmentSummary?.totalFirstYear || 
+                          page3.totalInvestment || 
+                          destReport.investmentSummary?.totalFirstYear || '';
+      const storedTotalNum = storedTotal ? parseInt(String(storedTotal).replace(/[^\d]/g, ''), 10) : 0;
+      
+      if (calculatedTotal > 0 && storedTotalNum > 0 && calculatedTotal !== storedTotalNum) {
+        console.warn('[PDF] ⚠️ INVESTMENT MISMATCH DETECTED:', {
+          storedTotal: `£${storedTotalNum.toLocaleString()}`,
+          calculatedTotal: `£${calculatedTotal.toLocaleString()}`,
+          services: calculatedServices.map(s => `${s.service}: £${s.price.toLocaleString()}`),
+          USING: 'Calculated (not stored)'
+        });
+      }
+      
+      // Format the calculated total
+      const totalInvestmentDisplay = calculatedTotal > 0 
+        ? `£${calculatedTotal.toLocaleString()}`
+        : storedTotal || '';
+      
+      console.log('[PDF] Investment calculation:', {
+        calculatedTotal: `£${calculatedTotal.toLocaleString()}`,
+        storedTotal: storedTotal || 'N/A',
+        services: calculatedServices.map(s => `${s.service}: £${s.price.toLocaleString()}`),
+        using: calculatedTotal > 0 ? 'CALCULATED' : 'STORED'
+      });
+
       // Build analysis object matching the expected format
       analysis = {
         executiveSummary: {
@@ -176,9 +236,8 @@ async function fetchReportData(
           destinationVision: page1.tuesdayTest || '',
         },
         investmentSummary: {
-          totalFirstYearInvestment: page4.investmentSummary?.totalFirstYear || 
-                                     page3.totalInvestment ||
-                                     destReport.investmentSummary?.totalFirstYear || '',
+          // USE CALCULATED TOTAL, not stored!
+          totalFirstYearInvestment: totalInvestmentDisplay,
           projectedFirstYearReturn: page4.returnProjection || 
                                     page4.investmentSummary?.projectedReturn || '',
           paybackPeriod: page4.paybackPeriod || 
@@ -195,7 +254,7 @@ async function fetchReportData(
           destinationLabel: page3.destinationLabel || 'Your Destination',
           destinationContext: page3.destinationContext || '',
           totalTimeframe: page3.totalTimeframe || '',
-          phases: (page3.phases || []).map((phase: any) => ({
+          phases: phases.map((phase: any) => ({
             timeframe: phase.timeframe || '',
             title: phase.headline || phase.title || '',
             whatChanges: Array.isArray(phase.whatChanges) 
@@ -206,13 +265,20 @@ async function fetchReportData(
             enabledBy: phase.enabledBy || '',
             investment: phase.price || '',
           })),
-          totalInvestment: page3.totalInvestment || page4.investmentSummary?.totalFirstYear || '',
+          // USE CALCULATED TOTAL, not stored!
+          totalInvestment: totalInvestmentDisplay,
         },
-        recommendedInvestments: (page3.phases || []).filter((p: any) => p.enabledBy).map((phase: any) => ({
-          service: phase.enabledBy || '',
-          investment: phase.price || '',
-          rationale: phase.feelsLike || '',
-        })),
+        recommendedInvestments: calculatedServices.length > 0 
+          ? calculatedServices.map(s => ({
+              service: s.service,
+              investment: s.investment,
+              rationale: '',
+            }))
+          : (page3.phases || []).filter((p: any) => p.enabledBy).map((phase: any) => ({
+              service: phase.enabledBy || '',
+              investment: phase.price || '',
+              rationale: phase.feelsLike || '',
+            })),
         gapAnalysis: {
           headline: page2.headline || '',
           introduction: page2.introduction || '',
@@ -1006,12 +1072,43 @@ function buildInvestmentBreakdown(analysis: any): string {
     return '';
   }
   
-  // Calculate total
-  const parseAmount = (str: string) => {
+  // ========================================================================
+  // CALCULATE total from investments (don't trust stored summary values!)
+  // ========================================================================
+  const parseAmount = (str: string): number => {
     if (!str) return 0;
-    const match = str.replace(/[^0-9.]/g, '');
-    return parseFloat(match) || 0;
+    const match = String(str).match(/[\d,]+/);
+    return match ? parseInt(match[0].replace(/,/g, ''), 10) : 0;
   };
+  
+  const calculatedTotal = investments.reduce((sum: number, inv: any) => {
+    const price = parseAmount(inv.investment || inv.price || '');
+    return sum + price;
+  }, 0);
+  
+  // Use calculated total, fall back to stored if calculation fails
+  const storedTotal = summary.totalFirstYearInvestment || '';
+  const storedTotalNum = parseAmount(storedTotal);
+  
+  // Warn if there's a discrepancy
+  if (calculatedTotal > 0 && storedTotalNum > 0 && calculatedTotal !== storedTotalNum) {
+    console.warn('[PDF Investment Table] ⚠️ MISMATCH:', {
+      calculated: `£${calculatedTotal.toLocaleString()}`,
+      stored: storedTotal,
+      investments: investments.map((i: any) => `${i.service}: ${i.investment || i.price}`)
+    });
+  }
+  
+  const displayTotal = calculatedTotal > 0 
+    ? `£${calculatedTotal.toLocaleString()}`
+    : storedTotal || '—';
+  
+  console.log('[PDF Investment Table] Using:', {
+    displayTotal,
+    calculatedTotal: `£${calculatedTotal.toLocaleString()}`,
+    storedTotal: storedTotal || 'N/A',
+    investmentCount: investments.length
+  });
   
   return `
     <div class="page">
@@ -1044,7 +1141,7 @@ function buildInvestmentBreakdown(analysis: any): string {
           `).join('')}
           <tr class="total-row">
             <td colspan="2"><strong>Total First Year Investment</strong></td>
-            <td class="text-right">${summary.totalFirstYearInvestment || '—'}</td>
+            <td class="text-right">${displayTotal}</td>
           </tr>
         </tbody>
       </table>
