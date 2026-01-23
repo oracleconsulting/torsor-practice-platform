@@ -1720,32 +1720,19 @@ function checkFractionalCOOAppropriateness(
 }
 
 function checkBusinessAdvisoryAppropriateness(
-  responses: Record<string, any>,
-  financials: ExtractedFinancials
+  _responses: Record<string, any>,
+  _financials: ExtractedFinancials
 ): ServiceAppropriateness {
-  // ALWAYS APPROPRIATE when exit within 5 years
-  const exitTimeline = responses.sd_exit_timeline || '';
-  const hasExitTimeline = exitTimeline.includes('1-3 years') ||
-                          exitTimeline.includes('3-5 years') ||
-                          exitTimeline.includes('Already exploring') ||
-                          exitTimeline.includes('actively preparing');
+  // BUSINESS ADVISORY & EXIT PLANNING
+  // BLOCKED: Currently in development per user request
+  // Per user: "business advisory hasn't been built out yet... so i think for now 
+  // we should remove it from being usable until we have some definition"
+  // When ready: Enable for exit-focused clients who need structured fix roadmap
   
-  const hasValueToProtect = (financials.ebitda && financials.ebitda > 100000) ||
-                            (financials.netAssets && financials.netAssets > 200000);
-  
-  if (hasExitTimeline) {
-    return { 
-      isAppropriate: true, 
-      isMandatory: true,
-      reason: `Exit timeline (${exitTimeline}) detected. Business Advisory is MANDATORY for exit planning.` 
-    };
-  }
-  
-  if (hasValueToProtect) {
-    return { isAppropriate: true, reason: 'Significant value to protect warrants valuation and exit planning consideration.' };
-  }
-  
-  return { isAppropriate: false, reason: 'No exit timeline stated and no significant value to protect.' };
+  return { 
+    isAppropriate: false, 
+    reason: 'Business Advisory & Exit Planning is currently in development. Use Benchmarking for diagnostics and Goal Alignment for ongoing support.' 
+  };
 }
 
 function checkBenchmarkingAppropriateness(
@@ -1753,7 +1740,10 @@ function checkBenchmarkingAppropriateness(
   financials: ExtractedFinancials,
   payrollAnalysis: PayrollAnalysis | null
 ): ServiceAppropriateness {
-  // MANDATORY when: Exit within 5 years + any financial metric outside norms
+  // BENCHMARKING & HIDDEN VALUE ANALYSIS (Combined Service)
+  // This is the FIRST step for exit-focused clients: "Where do you stand today?"
+  // Includes: Industry benchmarking + Hidden value/detractor analysis
+  
   const exitTimeline = responses.sd_exit_timeline || '';
   const exitWithin5Years = exitTimeline.includes('1-3 years') ||
                            exitTimeline.includes('3-5 years') ||
@@ -1763,28 +1753,34 @@ function checkBenchmarkingAppropriateness(
   const metricsOutsideNorms = payrollAnalysis && 
     (payrollAnalysis.assessment === 'elevated' || payrollAnalysis.assessment === 'concerning');
   
+  // Hidden value factors that suppress multiples
+  const founderDependency = (responses.sd_founder_dependency || '').includes('Chaos') ||
+                            (responses.sd_founder_dependency || '').includes('Significant');
+  const keyPersonRisk = (responses.dd_hard_truth || '').toLowerCase().includes('key person') ||
+                        (responses.sd_business_overview || '').toLowerCase().includes('just me');
+  const customerConcentration = (responses.sd_revenue_concentration || '').includes('one client') ||
+                                (responses.sd_revenue_concentration || '').includes('top 3');
+  
+  const hasValueDetractors = founderDependency || keyPersonRisk || customerConcentration || metricsOutsideNorms;
+  
   const wantsBenchmark = (responses.sd_benchmark_awareness || '').includes("No - I'd love to know");
   
-  if (exitWithin5Years && metricsOutsideNorms) {
-    return { 
-      isAppropriate: true, 
-      isMandatory: true,
-      reason: `Exit within 5 years AND payroll ${payrollAnalysis!.assessment} (${payrollAnalysis!.excessPercentage}% above benchmark). Buyers will benchmark - you should too.` 
-    };
-  }
-  
   if (exitWithin5Years) {
+    // MANDATORY for all exit-focused clients - this is STEP 1
+    const detractorNote = hasValueDetractors 
+      ? ' Value detractors identified that buyers will penalise.'
+      : '';
     return { 
       isAppropriate: true, 
       isMandatory: true,
-      reason: 'Exit within 5 years. Benchmarking provides competitive positioning buyers will use.' 
+      reason: `Exit within 5 years. FIRST STEP: Know where you stand today - competitive position AND what's suppressing your value.${detractorNote}` 
     };
   }
   
-  if (metricsOutsideNorms) {
+  if (hasValueDetractors) {
     return { 
       isAppropriate: true, 
-      reason: `Financial metrics outside industry norms (payroll ${payrollAnalysis!.assessment}). Benchmarking validates restructuring decisions.` 
+      reason: 'Value detractors identified. Benchmarking + Hidden Value analysis reveals what\'s suppressing your multiple.' 
     };
   }
   
@@ -1792,7 +1788,7 @@ function checkBenchmarkingAppropriateness(
     return { isAppropriate: true, reason: 'Client expressed interest in understanding industry positioning.' };
   }
   
-  return { isAppropriate: false, reason: 'No exit timeline and metrics appear within normal range.' };
+  return { isAppropriate: false, reason: 'No exit timeline, no value detractors, and metrics appear within normal range.' };
 }
 
 function checkHiddenValueAuditAppropriateness(
@@ -1852,7 +1848,11 @@ function check365AlignmentAppropriateness(
   responses: Record<string, any>,
   clientStage: ClientStageProfile
 ): ServiceAppropriateness {
-  // APPROPRIATE when: Avoiding decisions, identity transition, accountability gap
+  // GOAL ALIGNMENT PROGRAMME - "You'll Have Someone In Your Corner"
+  // This is STAGE 2 (ALIGN): Long-term destination + accountability to execute
+  // For exit clients: Supports 3-year exit plan execution
+  // Recommended tier for exit clients: Growth (£4,500/year) or Partner (£9,000/year)
+  
   const avoidingDecisions = (responses.dd_avoided_conversation || '').toLowerCase().includes('redundan') ||
                             (responses.dd_avoided_conversation || '').toLowerCase().includes('staff') ||
                             (responses.dd_avoided_conversation || '').toLowerCase().includes('difficult');
@@ -1861,6 +1861,10 @@ function check365AlignmentAppropriateness(
                              (responses.dd_five_year_vision || '').toLowerCase().includes('portfolio');
   const accountabilityGap = (responses.dd_hard_truth || '').toLowerCase().includes('carrying') ||
                             (responses.dd_hard_truth || '').toLowerCase().includes('alone');
+  const exitPlanInHead = (responses.sd_exit_timeline || '').toLowerCase().includes('plan') &&
+                          (responses.dd_external_perspective || '').includes('figure it out');
+  
+  const exitFocused = clientStage.journey === 'established-exit-focused';
   
   // NOT APPROPRIATE when: Operational chaos (needs COO) or financial crisis (needs CFO)
   const operationalChaos = (responses.sd_founder_dependency || '').includes('Chaos');
@@ -1872,6 +1876,28 @@ function check365AlignmentAppropriateness(
   
   if (financialCrisis) {
     return { isAppropriate: false, reason: 'Financial crisis needs CFO intervention, not Goal Alignment.' };
+  }
+  
+  // For exit-focused clients with decision avoidance or carrying alone pattern
+  if (exitFocused && (avoidingDecisions || accountabilityGap || exitPlanInHead)) {
+    const triggers = [];
+    if (avoidingDecisions) triggers.push('decisions you\'re avoiding');
+    if (accountabilityGap) triggers.push('carrying the exit plan alone');
+    if (exitPlanInHead) triggers.push('exit plan still in your head');
+    
+    return { 
+      isAppropriate: true, 
+      isMandatory: true, // Mandatory for exit-focused clients with these patterns
+      reason: `Exit-focused with ${triggers.join(', ')}. Goal Alignment (Growth/Partner tier) ensures someone holds you accountable to execute the 3-year exit plan.` 
+    };
+  }
+  
+  // For exit-focused clients generally
+  if (exitFocused) {
+    return { 
+      isAppropriate: true, 
+      reason: 'Exit timeline requires ongoing accountability to execute the plan. Goal Alignment (Growth tier £4,500/year) provides that support.' 
+    };
   }
   
   if (avoidingDecisions) {
@@ -1954,6 +1980,7 @@ interface ServiceAppropriatenessResults {
     reason: string;
     isMandatory: boolean;
     investment: number;
+    stage: 'diagnose' | 'align' | 'triggered';
   }[];
   notAppropriate: {
     code: string;
@@ -1984,63 +2011,78 @@ function evaluateAllServiceAppropriateness(
     mandatory: []
   };
   
-  // Service pricing
+  // Service pricing - UPDATED: Business Advisory + Hidden Value combined at £2,000
+  // Benchmarking includes Hidden Value assessment as part of the package
   const SERVICE_INVESTMENTS: Record<string, number> = {
     'fractional_cfo': 48000,
     'fractional_coo': 45000,
-    'business_advisory': 4000,
-    'benchmarking': 3500,
-    'hidden_value_audit': 2500,
-    '365_method': 1500,
+    'business_advisory': 2000, // Combined: Business Advisory + Hidden Value Audit
+    'benchmarking': 2000,      // Includes competitive positioning + hidden value factors
+    '365_method': 4500,        // Annual fee (Growth tier default for exit clients)
     'management_accounts': 7800,
     'systems_audit': 4000,
   };
   
+  // Service stages for exit-focused journey
+  const SERVICE_STAGES: Record<string, 'diagnose' | 'align' | 'triggered'> = {
+    'benchmarking': 'diagnose',
+    'business_advisory': 'diagnose',
+    '365_method': 'align',
+    'management_accounts': 'triggered',
+    'systems_audit': 'triggered',
+    'fractional_cfo': 'triggered',
+    'fractional_coo': 'triggered',
+  };
+  
   // Run all checks
+  // NOTE: Hidden Value Audit is now combined with Benchmarking as "Benchmarking & Hidden Value Analysis"
+  // Business Advisory is for exit planning roadmap
   const checks = [
     { 
-      code: 'fractional_cfo', 
-      name: 'Fractional CFO', 
-      check: checkFractionalCFOAppropriateness(responses, financials, clientStage) 
-    },
-    { 
-      code: 'fractional_coo', 
-      name: 'Fractional COO', 
-      check: checkFractionalCOOAppropriateness(responses, financials, clientStage) 
+      code: 'benchmarking', 
+      name: 'Benchmarking & Hidden Value Analysis', 
+      check: checkBenchmarkingAppropriateness(responses, financials, payrollAnalysis),
+      stage: SERVICE_STAGES['benchmarking']
     },
     { 
       code: 'business_advisory', 
       name: 'Business Advisory & Exit Planning', 
-      check: checkBusinessAdvisoryAppropriateness(responses, financials) 
-    },
-    { 
-      code: 'benchmarking', 
-      name: 'Industry Benchmarking', 
-      check: checkBenchmarkingAppropriateness(responses, financials, payrollAnalysis) 
-    },
-    { 
-      code: 'hidden_value_audit', 
-      name: 'Hidden Value Audit', 
-      check: checkHiddenValueAuditAppropriateness(responses, financials, clientStage) 
+      check: checkBusinessAdvisoryAppropriateness(responses, financials),
+      stage: SERVICE_STAGES['business_advisory']
     },
     { 
       code: '365_method', 
       name: 'Goal Alignment Programme', 
-      check: check365AlignmentAppropriateness(responses, clientStage) 
+      check: check365AlignmentAppropriateness(responses, clientStage),
+      stage: SERVICE_STAGES['365_method']
     },
     { 
       code: 'management_accounts', 
       name: 'Management Accounts', 
-      check: checkManagementAccountsAppropriateness(responses, financials) 
+      check: checkManagementAccountsAppropriateness(responses, financials),
+      stage: SERVICE_STAGES['management_accounts']
     },
     { 
       code: 'systems_audit', 
       name: 'Systems Audit', 
-      check: checkSystemsAuditAppropriateness(responses, clientStage) 
+      check: checkSystemsAuditAppropriateness(responses, clientStage),
+      stage: SERVICE_STAGES['systems_audit']
+    },
+    { 
+      code: 'fractional_cfo', 
+      name: 'Fractional CFO', 
+      check: checkFractionalCFOAppropriateness(responses, financials, clientStage),
+      stage: SERVICE_STAGES['fractional_cfo']
+    },
+    { 
+      code: 'fractional_coo', 
+      name: 'Fractional COO', 
+      check: checkFractionalCOOAppropriateness(responses, financials, clientStage),
+      stage: SERVICE_STAGES['fractional_coo']
     },
   ];
   
-  for (const { code, name, check } of checks) {
+  for (const { code, name, check, stage } of checks) {
     const investment = SERVICE_INVESTMENTS[code] || 0;
     
     if (check.isAppropriate) {
@@ -2049,7 +2091,8 @@ function evaluateAllServiceAppropriateness(
         name, 
         reason: check.reason, 
         isMandatory: check.isMandatory || false, 
-        investment 
+        investment,
+        stage: stage || 'triggered'
       });
       if (check.isMandatory) {
         results.mandatory.push({ code, name, reason: check.reason });
@@ -2158,45 +2201,67 @@ function autoCorrectRecommendations(
 /**
  * Builds the binding constraints section for the LLM prompt.
  * Uses explicit MUST/MUST NOT language to enforce appropriateness.
+ * Now includes STAGE information for exit-focused journey flow.
  */
 function buildBindingConstraintsPrompt(appropriateness: ServiceAppropriatenessResults): string {
+  // Group services by stage
+  const diagnoseServices = appropriateness.appropriate.filter(s => s.stage === 'diagnose');
+  const alignServices = appropriateness.appropriate.filter(s => s.stage === 'align');
+  const triggeredServices = appropriateness.appropriate.filter(s => s.stage === 'triggered');
+  
   return `
 ## ⛔ BINDING SERVICE CONSTRAINTS (NON-NEGOTIABLE)
 
 The following services have been evaluated for appropriateness based on this client's specific situation.
 These constraints are **BINDING**. You **MUST NOT** override them.
 
-### ✅ SERVICES YOU MAY RECOMMEND (passed appropriateness check):
-${appropriateness.appropriate.length > 0 ? appropriateness.appropriate.map(s => `- **${s.name}** (${s.code}) - £${s.investment.toLocaleString()}
-  Reason: ${s.reason}${s.isMandatory ? '\n  ⚠️ **[MANDATORY - MUST INCLUDE IN RECOMMENDATIONS]**' : ''}`).join('\n\n') : 'None - this is unusual, review the client data.'}
+### EXIT-FOCUSED CLIENT JOURNEY: Diagnose → Align → Triggered
 
-### 🚫 SERVICES YOU MUST NOT RECOMMEND (failed appropriateness check):
+${diagnoseServices.length > 0 ? `
+**STAGE 1 - DIAGNOSE (Where do you stand today?)**
+${diagnoseServices.map(s => `- **${s.name}** (${s.code}) - £${s.investment.toLocaleString()}
+  → ${s.reason}${s.isMandatory ? '\n  ⚠️ **[MANDATORY - MUST INCLUDE]**' : ''}`).join('\n\n')}
+` : ''}
+
+${alignServices.length > 0 ? `
+**STAGE 2 - ALIGN (Someone in your corner)**
+${alignServices.map(s => `- **${s.name}** (${s.code}) - £${s.investment.toLocaleString()}/year
+  → ${s.reason}${s.isMandatory ? '\n  ⚠️ **[MANDATORY - MUST INCLUDE]**' : ''}`).join('\n\n')}
+` : ''}
+
+${triggeredServices.length > 0 ? `
+**TRIGGERED ONLY IF NEEDED:**
+${triggeredServices.map(s => `- **${s.name}** (${s.code}) - £${s.investment.toLocaleString()}
+  → ${s.reason}`).join('\n\n')}
+` : ''}
+
+### 🚫 SERVICES YOU MUST NOT RECOMMEND:
 ${appropriateness.notAppropriate.length > 0 ? appropriateness.notAppropriate.map(s => `- **${s.name}** (${s.code})
-  Reason NOT appropriate: ${s.reason}`).join('\n\n') : 'All services are appropriate for this client.'}
-
-### ⚠️ MANDATORY SERVICES (must be included in recommendations):
-${appropriateness.mandatory.length > 0 ? appropriateness.mandatory.map(s => `- **${s.name}** (${s.code}) - **MUST BE RECOMMENDED**
-  Reason: ${s.reason}`).join('\n\n') : 'No mandatory services for this client profile.'}
+  ❌ ${s.reason}`).join('\n\n') : 'All services are appropriate for this client.'}
 
 ---
 
 ⛔ **CRITICAL ENFORCEMENT RULES:**
 
-1. **You MUST NOT recommend any service in the "MUST NOT RECOMMEND" list above**
-   - If you include a blocked service, your output will be automatically corrected
-   - Example: If Fractional COO is blocked, DO NOT include it in recommendedInvestments
+1. **STAGE ORDER MATTERS for exit-focused clients:**
+   - Stage 1 (DIAGNOSE) must come FIRST in the journey: Benchmarking & Hidden Value Analysis
+   - Stage 2 (ALIGN) comes AFTER diagnosis: Goal Alignment Programme
+   - Triggered services only if specific conditions met
 
-2. **You MUST include all services in the "MANDATORY" list above**
-   - If you omit a mandatory service, your output will be automatically corrected
-   - Example: If Business Advisory is mandatory, it MUST appear in recommendedInvestments
+2. **You MUST include all MANDATORY services**
+   - These will be auto-added if you omit them
 
-3. **Your recommendations MUST come from the "MAY RECOMMEND" list ONLY**
-   - Do not invent services or codes not listed above
-   - Do not recommend services that failed the appropriateness check
+3. **You MUST NOT recommend any service in the "MUST NOT RECOMMEND" list**
+   - Business Advisory is BLOCKED (currently in development)
+   - Fractional COO/CFO only if explicit triggers met
 
 4. **You MUST include a "notRecommended" section in your output**
-   - List ALL services from the "MUST NOT RECOMMEND" list with their reasons
-   - This shows credibility by explaining what we're NOT recommending
+   - List ALL blocked services with their reasons
+   - This builds credibility by explaining what we're NOT selling
+
+5. **Pricing:**
+   - Benchmarking & Hidden Value Analysis: £2,000 (one-time)
+   - Goal Alignment Programme: £4,500/year (Growth tier for exit clients)
 
 ---
 
