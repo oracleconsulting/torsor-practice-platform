@@ -437,7 +437,7 @@ serve(async (req) => {
     // Build recommended services with pricing, filtering out blocked services
     const blockedServices = shouldBlockCOO ? ['fractional_coo', 'combined_advisory'] : [];
     
-    const recommendedServices = [...primaryRecs, ...secondaryRecs]
+    let recommendedServices = [...primaryRecs, ...secondaryRecs]
       .filter(r => r.recommended)
       .filter(r => !blockedServices.includes(r.code)) // Filter out blocked services
       .map(r => ({
@@ -446,6 +446,52 @@ serve(async (req) => {
         score: r.score,
         triggers: r.triggers
       }));
+    
+    // ========================================================================
+    // FOR EXIT-FOCUSED CLIENTS: Force correct service ordering
+    // ========================================================================
+    if (isExitFocused) {
+      console.log(`[Pass 2] 🎯 EXIT CLIENT: Forcing Benchmarking FIRST ordering`);
+      
+      // Build the correct exit-focused service order
+      const exitOrderedServices = [];
+      
+      // PHASE 1: Benchmarking & Hidden Value MUST be first
+      const benchmarking = {
+        code: 'benchmarking',
+        ...SERVICE_DETAILS['benchmarking'],
+        score: 95,
+        triggers: ['exit_focused', 'value_baseline'],
+        exitPhase: 1,
+        exitRationale: 'Establish baseline value before anything else'
+      };
+      exitOrderedServices.push(benchmarking);
+      
+      // PHASE 2: Business Advisory for restructuring (if needed)
+      const businessAdvisory = recommendedServices.find(s => s.code === 'business_advisory');
+      if (businessAdvisory) {
+        exitOrderedServices.push({
+          ...businessAdvisory,
+          exitPhase: 2,
+          exitRationale: 'Address value gap identified by benchmarking'
+        });
+      }
+      
+      // PHASE 3: Goal Alignment for ongoing exit support
+      const goalAlignment = {
+        code: '365_method',
+        ...SERVICE_DETAILS['365_method'],
+        score: 90,
+        triggers: ['exit_focused', 'accountability'],
+        exitPhase: 3,
+        exitRationale: '3-year exit plan with ongoing accountability'
+      };
+      exitOrderedServices.push(goalAlignment);
+      
+      // Use the forced ordering
+      recommendedServices = exitOrderedServices;
+      console.log(`[Pass 2] EXIT SERVICE ORDER: ${recommendedServices.map(s => `${s.exitPhase}. ${s.code}`).join(', ')}`);
+    }
     
     console.log(`[Pass 2] Recommended services after filtering:`, recommendedServices.map(s => s.code));
 
@@ -665,27 +711,31 @@ The client's issues can be addressed through the OTHER services listed above.
 
 ${isExitFocused ? `
 ============================================================================
-🎯 EXIT-FOCUSED CLIENT - MANDATORY SERVICE ORDERING
+🎯🎯🎯 EXIT-FOCUSED CLIENT - YOU MUST USE THIS EXACT ORDER 🎯🎯🎯
 ============================================================================
-This client is planning to EXIT/SELL their business. You MUST follow this exact order:
+This client wants to EXIT/SELL. The services have been PRE-ORDERED for you.
+DO NOT REORDER THEM. Use them in the exact order provided below.
 
-PHASE 1 (Month 1-3): "You'll Know Where You Stand"
-   - Service: Benchmarking & Hidden Value Analysis (£3,500 one-time)
-   - This establishes their baseline value BEFORE anything else
-   - They can't plan an exit without knowing what they're worth TODAY
+THE SERVICES ABOVE ARE ALREADY IN THE CORRECT ORDER. JUST USE THEM AS-IS:
 
-PHASE 2 (Month 3-6): Address the value gap (if any)
-   - Based on what benchmarking reveals, recommend specific improvements
-   - This might include Business Advisory support for restructuring
-   - Only recommend this IF the benchmarking shows a value gap
+PHASE 1 (Month 1-3): "${SERVICE_DETAILS['benchmarking'].outcome}"
+   Service: ${SERVICE_DETAILS['benchmarking'].name} (${SERVICE_DETAILS['benchmarking'].price})
+   Why first: They need to know their value TODAY before planning anything
 
-PHASE 3 (Month 6-12+): "You'll Have Someone In Your Corner"
-   - Service: Goal Alignment Programme (£1,500-£2,500/month - mid to top tier)
-   - NOT the basic tier - this is a 3-year exit plan
-   - Focus on life after exit, not just the business
+PHASE 2 (Month 3-6): "Closing the Value Gap" 
+   Service: Business Advisory (if needed based on Phase 1 findings)
+   Why: Only recommend IF benchmarking reveals a gap to close
 
-DO NOT PUT "Business Advisory & Exit Planning" AS PHASE 1.
-The client needs to know their value FIRST before planning anything.
+PHASE 3 (Month 6-12): "${SERVICE_DETAILS['365_method'].outcome}"
+   Service: ${SERVICE_DETAILS['365_method'].name} (${SERVICE_DETAILS['365_method'].price}/year - recommend mid-to-top tier)
+   Why: 3-year exit plan with ongoing accountability
+
+I REPEAT: The RECOMMENDED SERVICES list above is ALREADY in the correct order.
+Phase 1 = First service listed (Benchmarking)
+Phase 2 = Second service listed (Business Advisory) 
+Phase 3 = Third service listed (Goal Alignment)
+
+DO NOT put Business Advisory first. That is WRONG for exit clients.
 ` : ''}
 
 ============================================================================
