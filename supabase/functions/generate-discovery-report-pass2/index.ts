@@ -319,15 +319,81 @@ serve(async (req) => {
     console.log(`[Pass 2] Data completeness: ${dataCompleteness.score}% (${dataCompleteness.status})`);
     console.log(`[Pass 2] Missing critical: ${dataCompleteness.missingCritical.join(', ') || 'None'}`);
 
-    // Build recommended services with pricing
+    // ========================================================================
+    // COO APPROPRIATENESS CHECK - Block COO when not appropriate
+    // ========================================================================
+    const discoveryResponses = engagement.discovery?.responses || {};
+    
+    // Check conditions that make COO NOT appropriate
+    const founderDependency = (discoveryResponses.sd_founder_dependency || '').toLowerCase();
+    const ownerHours = (discoveryResponses.dd_owner_hours || discoveryResponses.dd_weekly_hours || '').toLowerCase();
+    const externalView = (discoveryResponses.dd_external_view || discoveryResponses.dd_work_life_balance || '').toLowerCase();
+    const avoidedConversation = (discoveryResponses.dd_avoided_conversation || '').toLowerCase();
+    const hardTruth = (discoveryResponses.dd_hard_truth || '').toLowerCase();
+    
+    // Business runs fine without founder - doesn't need ongoing COO
+    const businessRunsFine = founderDependency.includes('run fine') || 
+                             founderDependency.includes('tick') ||
+                             founderDependency.includes('optional') ||
+                             founderDependency.includes('minor issues') ||
+                             founderDependency.includes('team would cope') ||
+                             founderDependency.includes('runs smoothly');
+    
+    // Owner works reasonable hours - doesn't need COO
+    const reasonableHours = ownerHours.includes('under 30') || 
+                            ownerHours.includes('30-40') ||
+                            ownerHours.includes('less than') ||
+                            ownerHours.includes('<30') ||
+                            ownerHours.includes('<40');
+    
+    // Good work/life balance - doesn't need COO
+    const hasGoodWorkLifeBalance = externalView.includes('well') ||
+                                   externalView.includes('good') ||
+                                   externalView.includes('healthy') ||
+                                   externalView.includes('balance');
+    
+    // One-time restructuring need (redundancies) - needs HR consultant, not ongoing COO
+    const isOneTimeRestructuring = avoidedConversation.includes('redundan') ||
+                                   avoidedConversation.includes('let go') ||
+                                   avoidedConversation.includes('fire') ||
+                                   hardTruth.includes('overstaffed') ||
+                                   hardTruth.includes('too many') ||
+                                   hardTruth.includes('payroll');
+    
+    // Exit-focused client - adding £45k/year COO costs reduces sale value
+    const isExitFocused = (discoveryResponses.dd_five_year_vision || '').toLowerCase().includes('exit') ||
+                          (discoveryResponses.dd_five_year_vision || '').toLowerCase().includes('sell') ||
+                          (discoveryResponses.dd_five_year_vision || '').toLowerCase().includes('sold');
+    
+    const shouldBlockCOO = businessRunsFine || reasonableHours || hasGoodWorkLifeBalance || isOneTimeRestructuring || (isExitFocused && businessRunsFine);
+    
+    let cooBlockReason = '';
+    if (shouldBlockCOO) {
+      if (businessRunsFine) cooBlockReason = 'Business runs fine without founder - no ongoing COO needed';
+      else if (reasonableHours) cooBlockReason = 'Owner works reasonable hours - no COO needed';
+      else if (hasGoodWorkLifeBalance) cooBlockReason = 'Good work/life balance indicates operations are manageable';
+      else if (isOneTimeRestructuring) cooBlockReason = 'Redundancy/restructuring is one-time - use HR consultant, not ongoing COO';
+      else if (isExitFocused) cooBlockReason = 'Exit-focused client with stable operations - COO costs reduce sale value';
+      
+      console.log(`[Pass 2] 🚫 BLOCKING COO: ${cooBlockReason}`);
+    } else {
+      console.log(`[Pass 2] ✓ COO may be appropriate`);
+    }
+
+    // Build recommended services with pricing, filtering out blocked services
+    const blockedServices = shouldBlockCOO ? ['fractional_coo', 'combined_advisory'] : [];
+    
     const recommendedServices = [...primaryRecs, ...secondaryRecs]
       .filter(r => r.recommended)
+      .filter(r => !blockedServices.includes(r.code)) // Filter out blocked services
       .map(r => ({
         code: r.code,
         ...SERVICE_DETAILS[r.code],
         score: r.score,
         triggers: r.triggers
       }));
+    
+    console.log(`[Pass 2] Recommended services after filtering:`, recommendedServices.map(s => s.code));
 
     // Build context from notes
     const contextSection = contextNotes?.length 
@@ -471,6 +537,22 @@ Change Readiness: ${report.change_readiness || 'Unknown'}
 RECOMMENDED SERVICES (write these as FOOTNOTES only, not headlines)
 ============================================================================
 ${JSON.stringify(recommendedServices, null, 2)}
+
+${shouldBlockCOO ? `
+============================================================================
+⚠️ CRITICAL: BLOCKED SERVICES - DO NOT RECOMMEND THESE
+============================================================================
+The following services have been determined to be NOT APPROPRIATE for this client:
+- Fractional COO Services (£3,750/month)
+- Combined CFO/COO Advisory
+
+REASON: ${cooBlockReason}
+
+DO NOT include these services in any phase of the journey. 
+DO NOT mention COO as an enabler.
+If the client needs help with redundancies/restructuring, suggest a one-time HR consultant or business advisory support instead.
+The client's issues can be addressed through the OTHER services listed above.
+` : ''}
 
 ============================================================================
 YOUR TASK - Generate a 5-page Destination-Focused Report

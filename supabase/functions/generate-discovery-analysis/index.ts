@@ -3689,6 +3689,41 @@ serve(async (req) => {
 
     console.log(`Generating analysis for: ${preparedData.client.name}`);
 
+    // ========================================================================
+    // FETCH PRACTICE LEARNING LIBRARY
+    // ========================================================================
+    
+    let practiceLearnings: any[] = [];
+    try {
+      const practiceId = preparedData.client?.practice_id || preparedData.practiceId;
+      const clientStage = preparedData.patternAnalysis?.clientStage?.journey || null;
+      const industry = preparedData.client?.industry || null;
+      
+      if (practiceId) {
+        console.log('[Discovery] Fetching practice learnings for:', { practiceId, clientStage, industry });
+        
+        const { data: learningsData, error: learningsError } = await supabase
+          .rpc('get_relevant_learnings', {
+            p_practice_id: practiceId,
+            p_client_stage: clientStage,
+            p_industry: industry,
+            p_services: null,
+            p_limit: 20
+          });
+        
+        if (learningsError) {
+          console.error('[Discovery] Error fetching learnings:', learningsError);
+        } else if (learningsData && learningsData.length > 0) {
+          practiceLearnings = learningsData;
+          console.log('[Discovery] Loaded practice learnings:', learningsData.length, 'rules');
+        } else {
+          console.log('[Discovery] No practice learnings found (this is normal for new practices)');
+        }
+      }
+    } catch (learningError) {
+      console.error('[Discovery] Learning library fetch failed (non-fatal):', learningError);
+    }
+
     // Debug: Log what documents we received
     if (preparedData.documents && preparedData.documents.length > 0) {
       console.log('[Discovery] Documents received:', preparedData.documents.map((d: any) => ({
@@ -4172,6 +4207,33 @@ USE THIS CONTEXT TO:
 - Frame context note facts as external knowledge: "Given your..." not "You said..."
 ` : '';
 
+    // Build practice learning library section
+    const learningLibrarySection = practiceLearnings.length > 0 ? `
+## PRACTICE LEARNING LIBRARY (CRITICAL - FOLLOW THESE RULES!)
+
+The following rules have been learned from previous analyses and corrections by this practice's advisors.
+These represent the practice's accumulated wisdom and preferred style. ALWAYS follow these rules.
+
+${practiceLearnings.map((learning: any, idx: number) => `
+### Rule ${idx + 1}: ${learning.title}
+Type: ${learning.learning_type}
+**Rule:** ${learning.learning_rule}
+${learning.learning_rationale ? `**Rationale:** ${learning.learning_rationale}` : ''}
+${learning.before_example ? `
+**❌ Before (don't do this):** ${learning.before_example.substring(0, 200)}...` : ''}
+${learning.after_example ? `
+**✅ After (do this instead):** ${learning.after_example.substring(0, 200)}...` : ''}
+Confidence: ${Math.round((learning.confidence_score || 1) * 100)}% | Validated ${learning.times_validated || 0} times
+`).join('\n')}
+
+⚠️ LEARNING LIBRARY RULES:
+- These rules are MANDATORY - they represent what this practice's advisors want
+- If a rule says "never recommend X", do NOT recommend X
+- If a rule says "always phrase Y as Z", phrase Y as Z
+- These rules take precedence over general guidelines when they conflict
+- Ignore rules if they would contradict specific client facts from context notes
+` : '';
+
     // Build business stage context
     const stageContext = `
 ## BUSINESS STAGE ASSESSMENT
@@ -4238,6 +4300,7 @@ ${patternContext}
 ${financialContext}
 ${documentsContext}
 ${contextNotesSection}
+${learningLibrarySection}
 ${stageContext}
 
 ## AFFORDABILITY ASSESSMENT
@@ -5206,8 +5269,33 @@ Return ONLY the JSON object with no additional text.`;
           costOfInaction: analysis.gapAnalysis?.costOfInaction || {}
         };
         
+        // Normalize phases to match the structure expected by the UI
+        // UI expects: whatChanges as array, headline, feelsLike, outcome, enabledBy, price
+        const normalizedPhases = (analysis.transformationJourney?.phases || []).map((phase: any) => {
+          // Ensure whatChanges is always an array
+          let whatChanges = phase.whatChanges || phase.changes || [];
+          if (typeof whatChanges === 'string') {
+            // Split string by newlines or bullet points
+            whatChanges = whatChanges.split(/[\n•\-]/).map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+          }
+          if (!Array.isArray(whatChanges)) {
+            whatChanges = [String(whatChanges)];
+          }
+          
+          return {
+            timeframe: phase.timeframe || phase.period || `Month ${phase.phase || 1}`,
+            headline: phase.title || phase.headline || phase.name || 'Transformation Phase',
+            whatChanges: whatChanges,
+            feelsLike: phase.feelsLike || phase.emotionalImpact || phase.youWillFeel || '',
+            outcome: phase.outcome || phase.youWillHave || phase.result || '',
+            enabledBy: phase.enabledBy || phase.service || '',
+            enabledByCode: phase.enabledByCode || phase.code || '',
+            price: phase.investment || phase.price || phase.cost || ''
+          };
+        });
+        
         const page3_journey = {
-          phases: analysis.transformationJourney?.phases || [],
+          phases: normalizedPhases,
           totalInvestment: analysis.transformationJourney?.totalInvestment || '',
           totalTimeframe: analysis.transformationJourney?.totalTimeframe || '',
           destination: analysis.transformationJourney?.destination || '',
@@ -5306,6 +5394,54 @@ Return ONLY the JSON object with no additional text.`;
     } catch (discoveryReportsError: any) {
       // Non-fatal - client_reports is the primary storage
       console.error('[Discovery] Error updating discovery_reports (non-fatal):', discoveryReportsError?.message);
+    }
+
+    // ========================================================================
+    // LOG LEARNING LIBRARY APPLICATION
+    // ========================================================================
+    
+    if (practiceLearnings.length > 0 && savedReport?.id) {
+      try {
+        // Get engagement_id if available
+        const { data: engData } = await supabase
+          .from('discovery_engagements')
+          .select('id')
+          .eq('client_id', preparedData.client.id)
+          .maybeSingle();
+        
+        if (engData?.id) {
+          // Log which learnings were applied
+          const learningLogs = practiceLearnings.map((learning: any) => ({
+            learning_id: learning.id,
+            engagement_id: engData.id,
+            report_id: savedReport.id,
+            applied_at: new Date().toISOString()
+          }));
+          
+          const { error: logError } = await supabase
+            .from('learning_application_log')
+            .insert(learningLogs);
+          
+          if (logError) {
+            console.error('[Discovery] Error logging learning application:', logError);
+          } else {
+            console.log(`[Discovery] Logged ${learningLogs.length} learning applications`);
+            
+            // Update times_applied counter on each learning
+            for (const learning of practiceLearnings) {
+              await supabase
+                .from('practice_learning_library')
+                .update({ 
+                  times_applied: (learning.times_applied || 0) + 1,
+                  last_applied_at: new Date().toISOString()
+                })
+                .eq('id', learning.id);
+            }
+          }
+        }
+      } catch (learningLogError) {
+        console.error('[Discovery] Learning log failed (non-fatal):', learningLogError);
+      }
     }
 
     const totalTime = Date.now() - startTime;

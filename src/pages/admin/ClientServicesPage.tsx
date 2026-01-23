@@ -5,7 +5,12 @@ import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { supabase } from '../../lib/supabase';
 import { RPGCC_LOGO_LIGHT, RPGCC_LOGO_DARK, RPGCC_COLORS } from '../../constants/brandAssets';
-import { TransformationJourney } from '../../components/discovery';
+import { 
+  TransformationJourney,
+  SectionCommentBox,
+  LearningReviewPanel,
+  useAnalysisComments
+} from '../../components/discovery';
 import { 
   Users, 
   CheckCircle,

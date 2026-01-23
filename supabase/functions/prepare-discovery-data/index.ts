@@ -367,6 +367,81 @@ async function loadClientDocuments(
   }
   
   // ========================================================================
+  // Method 1B: Get documents from discovery_uploaded_documents (Discovery flow)
+  // ========================================================================
+  
+  // First, get the engagement_id for this client
+  const { data: engagement, error: engError } = await supabase
+    .from('discovery_engagements')
+    .select('id')
+    .eq('client_id', clientId)
+    .maybeSingle();
+  
+  if (engError) {
+    console.log('[PrepareData] Error fetching discovery engagement:', engError.message);
+  }
+  
+  if (engagement?.id) {
+    console.log('[PrepareData] Found discovery engagement:', engagement.id);
+    
+    const { data: discoveryDocs, error: discError } = await supabase
+      .from('discovery_uploaded_documents')
+      .select('id, filename, file_path, document_type, extracted_text')
+      .eq('engagement_id', engagement.id)
+      .order('uploaded_at', { ascending: false });
+    
+    if (discError) {
+      console.error('[PrepareData] Error loading discovery_uploaded_documents:', discError);
+    }
+    
+    if (discoveryDocs && discoveryDocs.length > 0) {
+      console.log(`[PrepareData] Found ${discoveryDocs.length} documents in discovery_uploaded_documents`);
+      
+      for (const doc of discoveryDocs) {
+        // First try extracted_text if available
+        if (doc.extracted_text && doc.extracted_text.length > 10) {
+          documents.push({
+            fileName: doc.filename,
+            content: doc.extracted_text.substring(0, 30000),
+            source: 'discovery_extracted'
+          });
+          console.log('[PrepareData] ✓ Using extracted text for:', doc.filename, 'length:', doc.extracted_text.length);
+        }
+        // Otherwise download from storage
+        else if (doc.file_path) {
+          try {
+            const { data: fileBlob, error: dlError } = await supabase.storage
+              .from('discovery-documents')
+              .download(doc.file_path);
+            
+            if (dlError || !fileBlob) {
+              console.error('[PrepareData] Download error for discovery doc:', dlError?.message);
+              continue;
+            }
+            
+            const content = await extractTextFromBlob(fileBlob, doc.filename);
+            
+            if (content && content.length > 10) {
+              documents.push({
+                fileName: doc.filename,
+                content: content.substring(0, 30000),
+                source: 'discovery_storage'
+              });
+              console.log('[PrepareData] ✓ Loaded from discovery storage:', doc.filename, 'length:', content.length);
+            }
+          } catch (err) {
+            console.error('[PrepareData] Error downloading discovery doc', doc.file_path, err);
+          }
+        }
+      }
+    } else {
+      console.log('[PrepareData] No documents in discovery_uploaded_documents');
+    }
+  } else {
+    console.log('[PrepareData] No discovery engagement found for client');
+  }
+  
+  // ========================================================================
   // Method 2: Try listing storage folders directly (fallback if client_context empty)
   // ========================================================================
   

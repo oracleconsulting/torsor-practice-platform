@@ -3,6 +3,7 @@
 // ============================================================================
 // Admin view for managing Discovery Assessment and generating reports
 // Mirrors the Systems Audit modal structure with two-pass generation
+// Now includes: Analysis Comment System for learning library integration
 // ============================================================================
 
 import { useState, useEffect } from 'react';
@@ -29,8 +30,15 @@ import {
   BarChart3,
   Briefcase,
   Award,
-  Trash2
+  Trash2,
+  BookOpen
 } from 'lucide-react';
+import { 
+  SectionCommentBox, 
+  LearningReviewPanel, 
+  useAnalysisComments,
+  type AnalysisComment 
+} from './AnalysisCommentSystem';
 
 interface DiscoveryAdminModalProps {
   clientId: string;
@@ -63,7 +71,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   
-  const [activeTab, setActiveTab] = useState<'responses' | 'context' | 'report'>('responses');
+  const [activeTab, setActiveTab] = useState<'responses' | 'context' | 'report' | 'learning'>('responses');
   const [loading, setLoading] = useState(true);
   const [engagement, setEngagement] = useState<any>(null);
   const [discovery, setDiscovery] = useState<any>(null);
@@ -90,6 +98,13 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
   
   // Document upload
   const [uploading, setUploading] = useState(false);
+  
+  // Analysis comments (for learning system)
+  const { 
+    comments: analysisComments, 
+    loading: commentsLoading, 
+    refetch: refetchComments 
+  } = useAnalysisComments(engagement?.id, report?.id);
 
   useEffect(() => {
     if (currentMember?.practice_id) {
@@ -758,6 +773,19 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                 <span className="font-semibold">{page1.destinationClarityScore}/10</span>
               </div>
             )}
+            
+            {/* Feedback Box */}
+            {engagement?.id && currentMember?.practice_id && (
+              <SectionCommentBox
+                engagementId={engagement.id}
+                reportId={report?.id}
+                practiceId={currentMember.practice_id}
+                sectionType="page1_destination"
+                originalContent={page1}
+                existingComments={analysisComments}
+                onCommentAdded={refetchComments}
+              />
+            )}
           </section>
         )}
 
@@ -794,9 +822,37 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                   <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-400">
                     <strong>Shift:</strong> {gap.shiftRequired}
                   </p>
+                  
+                  {/* Feedback Box for individual gap */}
+                  {engagement?.id && currentMember?.practice_id && (
+                    <SectionCommentBox
+                      engagementId={engagement.id}
+                      reportId={report?.id}
+                      practiceId={currentMember.practice_id}
+                      sectionType="page2_gap_item"
+                      sectionIndex={idx}
+                      sectionIdentifier={gap.title}
+                      originalContent={gap}
+                      existingComments={analysisComments}
+                      onCommentAdded={refetchComments}
+                    />
+                  )}
                 </div>
               ))}
             </div>
+            
+            {/* Overall Page 2 Feedback Box */}
+            {engagement?.id && currentMember?.practice_id && (
+              <SectionCommentBox
+                engagementId={engagement.id}
+                reportId={report?.id}
+                practiceId={currentMember.practice_id}
+                sectionType="page2_gaps"
+                originalContent={page2}
+                existingComments={analysisComments}
+                onCommentAdded={refetchComments}
+              />
+            )}
           </section>
         )}
 
@@ -846,9 +902,37 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                   <p className="mt-2 text-xs text-gray-400">
                     Enabled by: {phase.enabledBy} ({phase.price})
                   </p>
+                  
+                  {/* Feedback Box for individual phase */}
+                  {engagement?.id && currentMember?.practice_id && (
+                    <SectionCommentBox
+                      engagementId={engagement.id}
+                      reportId={report?.id}
+                      practiceId={currentMember.practice_id}
+                      sectionType="page3_phase"
+                      sectionIndex={idx}
+                      sectionIdentifier={phase.timeframe}
+                      originalContent={phase}
+                      existingComments={analysisComments}
+                      onCommentAdded={refetchComments}
+                    />
+                  )}
                 </div>
               ))}
             </div>
+            
+            {/* Overall Page 3 Feedback Box */}
+            {engagement?.id && currentMember?.practice_id && (
+              <SectionCommentBox
+                engagementId={engagement.id}
+                reportId={report?.id}
+                practiceId={currentMember.practice_id}
+                sectionType="page3_journey"
+                originalContent={page3}
+                existingComments={analysisComments}
+                onCommentAdded={refetchComments}
+              />
+            )}
           </section>
         )}
 
@@ -930,7 +1014,33 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                     But the real return? {page4.realReturn}
                   </p>
                 )}
+                
+                {/* Feedback Box for returns */}
+                {engagement?.id && currentMember?.practice_id && (
+                  <SectionCommentBox
+                    engagementId={engagement.id}
+                    reportId={report?.id}
+                    practiceId={currentMember.practice_id}
+                    sectionType="page4_returns"
+                    originalContent={page4.returns}
+                    existingComments={analysisComments}
+                    onCommentAdded={refetchComments}
+                  />
+                )}
               </div>
+            )}
+            
+            {/* Overall Page 4 Feedback Box */}
+            {engagement?.id && currentMember?.practice_id && (
+              <SectionCommentBox
+                engagementId={engagement.id}
+                reportId={report?.id}
+                practiceId={currentMember.practice_id}
+                sectionType="page4_investment"
+                originalContent={page4}
+                existingComments={analysisComments}
+                onCommentAdded={refetchComments}
+              />
             )}
           </section>
         )}
@@ -968,6 +1078,19 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                     {page5.firstStep.simpleCta}
                   </p>
                 )}
+                
+                {/* Feedback Box for first step recommendation */}
+                {engagement?.id && currentMember?.practice_id && (
+                  <SectionCommentBox
+                    engagementId={engagement.id}
+                    reportId={report?.id}
+                    practiceId={currentMember.practice_id}
+                    sectionType="page5_first_step"
+                    originalContent={page5.firstStep}
+                    existingComments={analysisComments}
+                    onCommentAdded={refetchComments}
+                  />
+                )}
               </div>
             )}
             
@@ -978,6 +1101,19 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                   <p className="mt-2 text-amber-400 font-semibold">{page5.closingLine}</p>
                 )}
               </div>
+            )}
+            
+            {/* Overall Page 5 Feedback Box */}
+            {engagement?.id && currentMember?.practice_id && (
+              <SectionCommentBox
+                engagementId={engagement.id}
+                reportId={report?.id}
+                practiceId={currentMember.practice_id}
+                sectionType="page5_next_steps"
+                originalContent={page5}
+                existingComments={analysisComments}
+                onCommentAdded={refetchComments}
+              />
             )}
           </section>
         )}
@@ -1050,6 +1186,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
               { id: 'responses', label: 'Responses', icon: FileText },
               { id: 'context', label: 'Context & Docs', icon: MessageSquare },
               { id: 'report', label: 'Report', icon: Sparkles },
+              { id: 'learning', label: 'Learning', icon: BookOpen, badge: analysisComments.filter(c => c.status === 'pending').length },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1062,6 +1199,11 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
               >
                 <tab.icon className="h-4 w-4" />
                 {tab.label}
+                {tab.badge && tab.badge > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full">
+                    {tab.badge}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -1520,6 +1662,33 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                     {renderClientReport()}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Learning Tab */}
+            {activeTab === 'learning' && currentMember?.practice_id && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">Practice Learning Library</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Review feedback and build your practice's wisdom for better future analyses
+                    </p>
+                  </div>
+                  <button
+                    onClick={refetchComments}
+                    className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center gap-2"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh
+                  </button>
+                </div>
+                
+                <LearningReviewPanel 
+                  practiceId={currentMember.practice_id}
+                  engagementId={engagement?.id}
+                  onRefresh={refetchComments}
+                />
               </div>
             )}
           </div>
