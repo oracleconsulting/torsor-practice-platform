@@ -98,8 +98,40 @@ const SERVICE_OUTCOMES: Record<string, string> = {
 };
 
 // Fetch service details from database, falling back to defaults
-async function fetchServiceDetails(supabase: any): Promise<Record<string, ServiceDetail>> {
+async function fetchServiceDetails(supabase: any, practiceId?: string): Promise<Record<string, ServiceDetail>> {
   try {
+    // First try the new service_pricing table if we have a practice ID
+    if (practiceId) {
+      const { data: pricingData, error: pricingError } = await supabase
+        .rpc('get_service_pricing', { p_practice_id: practiceId });
+      
+      if (!pricingError && pricingData && Object.keys(pricingData).length > 0) {
+        console.log('Using service pricing from database for practice:', practiceId);
+        
+        const serviceDetails: Record<string, ServiceDetail> = {};
+        
+        for (const [code, service] of Object.entries(pricingData as Record<string, any>)) {
+          const primaryTier = service.tiers?.[0];
+          if (primaryTier) {
+            const priceType = primaryTier.frequency === 'monthly' ? 'monthly' 
+              : primaryTier.frequency === 'annual' ? 'annual' 
+              : 'one-time';
+            
+            serviceDetails[code] = {
+              name: service.name,
+              price: `£${primaryTier.price.toLocaleString()}`,
+              priceType,
+              outcome: SERVICE_OUTCOMES[code] || DEFAULT_SERVICE_DETAILS[code]?.outcome || 'Business Transformation'
+            };
+          }
+        }
+        
+        // Merge with defaults for any missing services
+        return { ...DEFAULT_SERVICE_DETAILS, ...serviceDetails };
+      }
+    }
+    
+    // Fallback to service_line_metadata table
     const { data, error } = await supabase
       .from('service_line_metadata')
       .select('code, display_name, name, pricing')
@@ -241,10 +273,6 @@ serve(async (req) => {
     }
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch service pricing from database (single source of truth)
-    const SERVICE_DETAILS = await fetchServiceDetails(supabase);
-    console.log('Loaded service details for', Object.keys(SERVICE_DETAILS).length, 'services');
-
     const startTime = Date.now();
 
     // Update status
@@ -278,6 +306,11 @@ serve(async (req) => {
     if (engError || !engagement) {
       throw new Error('Engagement not found');
     }
+
+    // Fetch service pricing from database (single source of truth)
+    // Pass practice_id to use practice-specific pricing if available
+    const SERVICE_DETAILS = await fetchServiceDetails(supabase, engagement.practice_id);
+    console.log('Loaded service details for', Object.keys(SERVICE_DETAILS).length, 'services');
 
     // Fetch Pass 1 results
     const { data: report, error: reportError } = await supabase

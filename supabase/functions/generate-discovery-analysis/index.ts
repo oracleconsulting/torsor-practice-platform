@@ -3724,6 +3724,38 @@ serve(async (req) => {
       console.error('[Discovery] Learning library fetch failed (non-fatal):', learningError);
     }
 
+    // ========================================================================
+    // FETCH SERVICE PRICING FROM DATABASE
+    // ========================================================================
+    
+    let servicePricing: any = null;
+    try {
+      const practiceId = preparedData.client?.practice_id || preparedData.practiceId;
+      
+      if (practiceId) {
+        console.log('[Discovery] Fetching service pricing for practice:', practiceId);
+        
+        const { data: pricingData, error: pricingError } = await supabase
+          .rpc('get_service_pricing', {
+            p_practice_id: practiceId
+          });
+        
+        if (pricingError) {
+          console.error('[Discovery] Error fetching pricing:', pricingError);
+        } else if (pricingData && Object.keys(pricingData).length > 0) {
+          servicePricing = pricingData;
+          console.log('[Discovery] Loaded service pricing from database:', Object.keys(pricingData).length, 'services');
+        } else {
+          console.log('[Discovery] No custom pricing found, using defaults');
+        }
+      }
+    } catch (pricingError) {
+      console.error('[Discovery] Pricing fetch failed (using defaults):', pricingError);
+    }
+    
+    // Use database pricing if available, otherwise fall back to hardcoded defaults
+    const activeServicePricing = servicePricing || SERVICE_LINES;
+
     // Debug: Log what documents we received
     if (preparedData.documents && preparedData.documents.length > 0) {
       console.log('[Discovery] Documents received:', preparedData.documents.map((d: any) => ({
@@ -4541,7 +4573,7 @@ For Ben Stocken example:
 A score of 6/10 with 2 critical gaps undersells the urgency.
 
 ## AVAILABLE SERVICES
-${JSON.stringify(SERVICE_LINES, null, 2)}
+${JSON.stringify(activeServicePricing, null, 2)}
 
 ## OUTPUT FORMAT - CRITICAL: USE EXACT FIELD NAMES
 
