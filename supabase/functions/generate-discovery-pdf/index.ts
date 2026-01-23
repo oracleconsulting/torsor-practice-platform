@@ -110,31 +110,173 @@ async function fetchReportData(
   clientId: string,
   reportId?: string
 ): Promise<ReportData> {
-  // Fetch client
-  const { data: client } = await supabase
-    .from('clients')
+  // Fetch client - try practice_members first, then clients for backwards compatibility
+  let client;
+  const { data: memberData } = await supabase
+    .from('practice_members')
     .select('*, practice:practices(*)')
     .eq('id', clientId)
     .single();
-
-  // Fetch discovery report
-  let reportQuery = supabase
-    .from('client_reports')
-    .select('*')
-    .eq('client_id', clientId)
-    .eq('report_type', 'discovery_analysis')
-    .order('created_at', { ascending: false });
-
-  if (reportId) {
-    reportQuery = reportQuery.eq('id', reportId);
+  
+  if (memberData) {
+    client = memberData;
+  } else {
+    const { data: clientData } = await supabase
+      .from('clients')
+      .select('*, practice:practices(*)')
+      .eq('id', clientId)
+      .single();
+    client = clientData;
   }
 
-  const { data: report } = await reportQuery.limit(1).single();
+  // ========================================================================
+  // PRIMARY SOURCE: discovery_reports table (new destination-focused format)
+  // This is the same source the portal uses
+  // ========================================================================
+  
+  let report = null;
+  let analysis: any = {};
+  let dataSource = 'none';
+  
+  // First, try to get from discovery_reports via discovery_engagements
+  const { data: engagement } = await supabase
+    .from('discovery_engagements')
+    .select('id')
+    .eq('client_id', clientId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  
+  if (engagement?.id) {
+    const { data: discoveryReport } = await supabase
+      .from('discovery_reports')
+      .select('*')
+      .eq('engagement_id', engagement.id)
+      .maybeSingle();
+    
+    if (discoveryReport?.destination_report) {
+      console.log('[PDF] Using discovery_reports (new format) as data source');
+      dataSource = 'discovery_reports';
+      report = discoveryReport;
+      
+      // Convert discovery_reports format to analysis format
+      const destReport = discoveryReport.destination_report || {};
+      const page1 = discoveryReport.page1_destination || destReport.page1_destination || {};
+      const page2 = discoveryReport.page2_gaps || destReport.page2_gaps || {};
+      const page3 = discoveryReport.page3_journey || destReport.page3_journey || {};
+      const page4 = discoveryReport.page4_numbers || destReport.page4_numbers || {};
+      const page5 = discoveryReport.page5_next_steps || destReport.page5_next_steps || {};
+      
+      // Build analysis object matching the expected format
+      analysis = {
+        executiveSummary: {
+          headline: destReport.executiveSummary?.headline || page1.visionNarrative || '',
+          criticalInsight: destReport.executiveSummary?.criticalInsight || page2.headline || '',
+          currentReality: page2.introduction || '',
+          destinationVision: page1.tuesdayTest || '',
+        },
+        investmentSummary: {
+          totalFirstYearInvestment: page4.investmentSummary?.totalFirstYear || 
+                                     page3.totalInvestment ||
+                                     destReport.investmentSummary?.totalFirstYear || '',
+          projectedFirstYearReturn: page4.returnProjection || 
+                                    page4.investmentSummary?.projectedReturn || '',
+          paybackPeriod: page4.paybackPeriod || 
+                         page4.investmentSummary?.paybackPeriod || '',
+          roiMultiple: page4.roiRatio || 
+                       page4.investmentSummary?.roiRatio || '',
+          investmentBreakdown: page4.investmentSummary?.breakdown || '',
+          roiCalculation: page4.paybackCalculation || 
+                          page4.investmentSummary?.roiCalculation || '',
+        },
+        transformationJourney: {
+          journeyLabel: page3.journeyLabel || 'Your Journey',
+          destination: page1.tuesdayTest || '',
+          destinationLabel: page3.destinationLabel || 'Your Destination',
+          destinationContext: page3.destinationContext || '',
+          totalTimeframe: page3.totalTimeframe || '',
+          phases: (page3.phases || []).map((phase: any) => ({
+            timeframe: phase.timeframe || '',
+            title: phase.headline || phase.title || '',
+            whatChanges: Array.isArray(phase.whatChanges) 
+              ? phase.whatChanges.join('. ') 
+              : phase.whatChanges || '',
+            youWillHave: phase.outcome || '',
+            feelsLike: phase.feelsLike || '',
+            enabledBy: phase.enabledBy || '',
+            investment: phase.price || '',
+          })),
+          totalInvestment: page3.totalInvestment || page4.investmentSummary?.totalFirstYear || '',
+        },
+        recommendedInvestments: (page3.phases || []).filter((p: any) => p.enabledBy).map((phase: any) => ({
+          service: phase.enabledBy || '',
+          investment: phase.price || '',
+          rationale: phase.feelsLike || '',
+        })),
+        gapAnalysis: {
+          headline: page2.headline || '',
+          introduction: page2.introduction || '',
+          primaryGaps: page2.primaryGaps || [],
+          costOfInaction: page2.costOfInaction || page4.costOfStaying || {},
+        },
+        closingMessage: page5.personalMessage || page5.closingMessage || {
+          personalNote: page5.thisWeek || '',
+          callToAction: page5.firstStep || '',
+        },
+        _dataSource: dataSource,
+        _reportId: discoveryReport.id,
+      };
+      
+      console.log('[PDF] Converted discovery_reports data:', {
+        totalInvestment: analysis.investmentSummary.totalFirstYearInvestment,
+        phases: analysis.transformationJourney.phases?.length,
+        services: analysis.recommendedInvestments?.length,
+      });
+    }
+  }
+  
+  // ========================================================================
+  // FALLBACK: client_reports table (legacy format)
+  // Only used if discovery_reports not available
+  // ========================================================================
+  
+  if (!report) {
+    console.log('[PDF] discovery_reports not found, falling back to client_reports (legacy)');
+    
+    let reportQuery = supabase
+      .from('client_reports')
+      .select('*')
+      .eq('client_id', clientId)
+      .eq('report_type', 'discovery_analysis')
+      .order('created_at', { ascending: false });
+
+    if (reportId) {
+      reportQuery = reportQuery.eq('id', reportId);
+    }
+
+    const { data: legacyReport } = await reportQuery.limit(1).single();
+    
+    if (legacyReport) {
+      console.log('[PDF] Using client_reports (legacy format) as data source');
+      dataSource = 'client_reports';
+      report = legacyReport;
+      analysis = legacyReport.report_data?.analysis || {};
+      analysis._dataSource = dataSource;
+      analysis._reportId = legacyReport.id;
+    }
+  }
+  
+  // Log final data source for debugging
+  console.log('[PDF] Final data source:', dataSource, {
+    reportId: report?.id,
+    hasAnalysis: !!analysis.executiveSummary || !!analysis.transformationJourney,
+    totalInvestment: analysis.investmentSummary?.totalFirstYearInvestment || 'N/A',
+  });
 
   return {
     client,
     report,
-    analysis: report?.report_data?.analysis || {},
+    analysis,
     practice: client?.practice || {}
   };
 }
@@ -148,6 +290,18 @@ function buildReportHTML(data: ReportData): string {
   const clientName = client?.name || 'Client';
   const companyName = client?.client_company || clientName;
   const practiceName = practice?.name || 'Your Accounting Practice';
+  
+  // Log what data we're using to build the PDF
+  console.log('[PDF BUILD] Building HTML with data:', {
+    dataSource: analysis._dataSource || 'unknown',
+    reportId: analysis._reportId || 'N/A',
+    totalInvestment: analysis.investmentSummary?.totalFirstYearInvestment || 
+                     analysis.transformationJourney?.totalInvestment || 'N/A',
+    projectedReturn: analysis.investmentSummary?.projectedFirstYearReturn || 'N/A',
+    paybackPeriod: analysis.investmentSummary?.paybackPeriod || 'N/A',
+    phasesCount: analysis.transformationJourney?.phases?.length || 0,
+    servicesCount: analysis.recommendedInvestments?.length || 0,
+  });
 
   return `
     <!DOCTYPE html>
@@ -160,6 +314,7 @@ function buildReportHTML(data: ReportData): string {
       <style>
         ${getReportStyles()}
       </style>
+      <!-- PDF Data Source: ${analysis._dataSource || 'unknown'} | Report ID: ${analysis._reportId || 'N/A'} | Generated: ${new Date().toISOString()} -->
     </head>
     <body>
       ${buildCoverPage(clientName, companyName, practiceName)}
