@@ -401,11 +401,25 @@ serve(async (req) => {
                                    hardTruth.includes('payroll');
     
     // Exit-focused client - adding £45k/year COO costs reduces sale value
-    const isExitFocused = (discoveryResponses.dd_five_year_vision || '').toLowerCase().includes('exit') ||
-                          (discoveryResponses.dd_five_year_vision || '').toLowerCase().includes('sell') ||
-                          (discoveryResponses.dd_five_year_vision || '').toLowerCase().includes('sold');
+    const tuesdayVision = (emotionalAnchors.tuesdayTest || emotionalAnchors.tuesdayVision || '').toLowerCase();
+    const fiveYearVision = (discoveryResponses.dd_five_year_vision || '').toLowerCase();
+    
+    const isExitFocused = fiveYearVision.includes('exit') ||
+                          fiveYearVision.includes('sell') ||
+                          fiveYearVision.includes('sold') ||
+                          tuesdayVision.includes('sold') ||
+                          tuesdayVision.includes('sell') ||
+                          tuesdayVision.includes('exit') ||
+                          tuesdayVision.includes('moved on') ||
+                          tuesdayVision.includes('move on');
     
     const shouldBlockCOO = businessRunsFine || reasonableHours || hasGoodWorkLifeBalance || isOneTimeRestructuring || (isExitFocused && businessRunsFine);
+    
+    // For exit-focused clients, we enforce a specific service ordering
+    console.log(`[Pass 2] Exit-focused client detection: ${isExitFocused}`);
+    if (isExitFocused) {
+      console.log(`[Pass 2] 🎯 EXIT CLIENT DETECTED - Enforcing: Benchmarking FIRST, then improvements, then Goal Alignment`);
+    }
     
     let cooBlockReason = '';
     if (shouldBlockCOO) {
@@ -649,25 +663,65 @@ If the client needs help with redundancies/restructuring, suggest a one-time HR 
 The client's issues can be addressed through the OTHER services listed above.
 ` : ''}
 
+${isExitFocused ? `
 ============================================================================
-ADVISOR THINKING PATTERNS - How We Actually Recommend Services
+🎯 EXIT-FOCUSED CLIENT - MANDATORY SERVICE ORDERING
+============================================================================
+This client is planning to EXIT/SELL their business. You MUST follow this exact order:
+
+PHASE 1 (Month 1-3): "You'll Know Where You Stand"
+   - Service: Benchmarking & Hidden Value Analysis (£3,500 one-time)
+   - This establishes their baseline value BEFORE anything else
+   - They can't plan an exit without knowing what they're worth TODAY
+
+PHASE 2 (Month 3-6): Address the value gap (if any)
+   - Based on what benchmarking reveals, recommend specific improvements
+   - This might include Business Advisory support for restructuring
+   - Only recommend this IF the benchmarking shows a value gap
+
+PHASE 3 (Month 6-12+): "You'll Have Someone In Your Corner"
+   - Service: Goal Alignment Programme (£1,500-£2,500/month - mid to top tier)
+   - NOT the basic tier - this is a 3-year exit plan
+   - Focus on life after exit, not just the business
+
+DO NOT PUT "Business Advisory & Exit Planning" AS PHASE 1.
+The client needs to know their value FIRST before planning anything.
+` : ''}
+
+============================================================================
+🚨 CRITICAL: ADVISOR THINKING PATTERNS - MUST FOLLOW THIS ORDER
 ============================================================================
 
-FOR EXIT-FOCUSED CLIENTS (like someone saying "sell the business for a good sum"):
-1. FIRST: Benchmarking & Hidden Value Analysis - establish where they are TODAY
-   - What's the business worth RIGHT NOW?
+FOR EXIT-FOCUSED CLIENTS (someone saying "exit", "sell", "sold", "move on"):
+
+THE CORRECT ORDER IS:
+
+PHASE 1 (Month 1-3): BENCHMARKING & HIDDEN VALUE ANALYSIS - ALWAYS FIRST
+   - "You'll Know Where You Stand Today"
+   - What's the business worth RIGHT NOW before we do ANYTHING else?
    - Where are the hidden value detractors?
    - What's the gap between current value and their exit goal?
+   - This is ONE combined service: Benchmarking & Hidden Value Analysis (£3,500)
+   - DO NOT split these into separate phases
 
-2. IF VALUE GAP EXISTS: Then discuss what we can do to increase that value
-   - This opens conversations about improvements, not selling services
+PHASE 2 (Month 3-6): BASED ON THE GAP
+   - IF the value is below expectations: Discuss what we can do to increase it
+   - This might be Business Advisory support with HR/restructuring
+   - Or operational improvements identified by the benchmarking
 
-3. THEN: Goal Alignment (mid-to-top tier) for the 3-year plan
+PHASE 3 (Month 6-12+): GOAL ALIGNMENT - The 3-Year Exit Plan
+   - "You'll Have Someone In Your Corner"  
    - Get under the hood of what life outside work looks like
-   - Create a plan that makes exit not just achievable but exceeds expectations
+   - Create a plan that makes exit exceed all expectations
+   - USE MID-TO-TOP TIER Goal Alignment (£1,500-£2,500/month) NOT the basic tier
 
-NEVER lead with Business Advisory & Exit Planning for an exit client - that comes 
-AFTER we've established the baseline value through benchmarking.
+⛔ WRONG: Leading with "Business Advisory & Exit Planning" for exit clients
+⛔ WRONG: Putting Benchmarking after other services
+⛔ WRONG: Splitting Benchmarking and Hidden Value into separate phases
+
+✅ RIGHT: Benchmarking FIRST to establish the baseline
+✅ RIGHT: Then discuss improvements based on the gap
+✅ RIGHT: Goal Alignment as ongoing support, not the first recommendation
 
 ============================================================================
 YOUR TASK - Generate a 5-page Destination-Focused Report
