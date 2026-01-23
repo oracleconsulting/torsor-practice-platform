@@ -4477,8 +4477,46 @@ ${groundedROI.serviceROIs.map(s => `| ${s.service} | £${s.investment.toLocaleSt
 
 **ROI Summary**: ${groundedROI.roiSummary}
 
+## ⚠️ MANDATORY: PROJECTED RETURN & PAYBACK (USE THESE EXACT VALUES)
+
+These values have been pre-calculated. Use them EXACTLY in the investmentSummary output.
+
+${payrollAnalysis && payrollAnalysis.annualExcess > 0 ? `
+**ANNUAL SAVINGS (from payroll efficiency)**:
+- Payroll excess identified: £${payrollAnalysis.annualExcess.toLocaleString()}/year
+- Conservative recovery (50%): £${Math.round(payrollAnalysis.annualExcess * 0.5).toLocaleString()}/year
+- Optimistic recovery (75%): £${Math.round(payrollAnalysis.annualExcess * 0.75).toLocaleString()}/year
+- Use in output: "£${Math.round(payrollAnalysis.annualExcess * 0.5 / 1000)}k-${Math.round(payrollAnalysis.annualExcess * 0.75 / 1000)}k/year"
+` : ''}
+
+${groundedROI.valuationContext ? `
+**VALUATION IMPACT (exit-focused)**:
+- Current valuation: £${Math.round(groundedROI.valuationContext.currentValuation / 1000)}k
+- Potential valuation: £${Math.round(groundedROI.valuationContext.potentialValuation / 1000)}k
+- Uplift: £${Math.round(groundedROI.valuationContext.valuationUplift / 1000)}k
+` : ''}
+
+**PROJECTED RETURN** (COPY THIS EXACTLY):
+\`projectedReturn\`: "${payrollAnalysis && payrollAnalysis.annualExcess > 0 && groundedROI.valuationContext 
+  ? `£${Math.round((payrollAnalysis.annualExcess * 0.5 + groundedROI.valuationContext.valuationUplift * 0.5) / 1000)}k-${Math.round((payrollAnalysis.annualExcess * 0.75 + groundedROI.valuationContext.valuationUplift) / 1000)}k`
+  : payrollAnalysis && payrollAnalysis.annualExcess > 0
+    ? `£${Math.round(payrollAnalysis.annualExcess * 0.5 / 1000)}k-${Math.round(payrollAnalysis.annualExcess * 0.75 / 1000)}k/year`
+    : groundedROI.valuationContext
+      ? `£${Math.round(groundedROI.valuationContext.valuationUplift * 0.5 / 1000)}k-${Math.round(groundedROI.valuationContext.valuationUplift / 1000)}k`
+      : 'Valuation clarity + exit readiness'}"
+
+**PAYBACK PERIOD** (COPY THIS EXACTLY):
+\`paybackPeriod\`: "${payrollAnalysis && payrollAnalysis.annualExcess > 0 
+  ? `${Math.ceil((groundedROI.investmentTotal / (payrollAnalysis.annualExcess * 0.5)) * 12)} months`
+  : groundedROI.valuationContext 
+    ? 'At exit'
+    : 'Strategic investment'}"
+
+**ROI RATIO** (COPY THIS EXACTLY):
+\`roiRatio\`: "${groundedROI.totalROI}"
+
 ⚠️ CRITICAL: 
-1. Use these EXACT figures in your output
+1. Use these EXACT figures in your output - do NOT leave projectedReturn, paybackPeriod, or roiRatio blank
 2. Do not add services beyond those recommended
 3. Include the NOT RECOMMENDED section in your output with the exact reasons given
 4. Show your calculations using the numbers above
@@ -4717,6 +4755,14 @@ Return ONLY a valid JSON object (no markdown, no explanation, just the JSON):
     "investmentBreakdown": "Business Advisory £4,000 + Benchmarking £3,500 + Hidden Value Audit £2,500",
     "investmentAsPercentOfTurnover": "0.44%", // MUST be <3%
     "investmentAsPercentOfEbitda": "2.5%", // MUST be <15%
+    
+    // ⚠️ MANDATORY ROI FIELDS - MUST BE POPULATED:
+    "projectedReturn": "£250k-475k", // Use groundedROI calculation - NEVER leave blank
+    "projectedReturnBreakdown": "£54-74k/year savings + £200-400k valuation uplift",
+    "paybackPeriod": "2-3 months", // Use groundedROI calculation - NEVER leave blank  
+    "paybackCalculation": "£10,000 ÷ £54k/year = 2.2 months",
+    "roiRatio": "70:1", // Use groundedROI.totalROI
+    
     "valuationContext": {
       "currentEbitda": 406000,
       "currentMultiple": 3.0,
@@ -5136,8 +5182,88 @@ Return ONLY the JSON object with no additional text.`;
                            analysis.investmentSummary.netBenefit || '',
           roiCalculation: analysis.investmentSummary.roiCalculation || 
                           analysis.investmentSummary.calculation || '',
-          comparisonToInaction: analysis.investmentSummary.comparisonToInaction || ''
+          comparisonToInaction: analysis.investmentSummary.comparisonToInaction || '',
+          roiRatio: analysis.investmentSummary.roiRatio || ''
         };
+        
+        // ======================================================================
+        // AUTO-POPULATE ROI FIELDS FROM GROUNDED CALCULATIONS
+        // ======================================================================
+        // If LLM didn't include these, use our pre-calculated values
+        // Note: groundedROI.valuationContext existing indicates exit-focused client
+        
+        // Auto-populate projectedReturn if empty
+        if (!analysis.investmentSummary.projectedFirstYearReturn || 
+            analysis.investmentSummary.projectedFirstYearReturn === '' ||
+            analysis.investmentSummary.projectedFirstYearReturn === 'Unknown') {
+          
+          if (payrollAnalysis && payrollAnalysis.annualExcess > 0 && groundedROI.valuationContext) {
+            // Exit client with payroll savings AND valuation uplift
+            const lowReturn = Math.round((payrollAnalysis.annualExcess * 0.5 + groundedROI.valuationContext.valuationUplift * 0.5) / 1000);
+            const highReturn = Math.round((payrollAnalysis.annualExcess * 0.75 + groundedROI.valuationContext.valuationUplift) / 1000);
+            analysis.investmentSummary.projectedFirstYearReturn = `£${lowReturn}k-${highReturn}k`;
+            analysis.investmentSummary.projectedReturnBreakdown = 
+              `£${Math.round(payrollAnalysis.annualExcess * 0.5 / 1000)}k-${Math.round(payrollAnalysis.annualExcess * 0.75 / 1000)}k/year savings + £${Math.round(groundedROI.valuationContext.valuationUplift / 1000)}k valuation uplift`;
+            console.log('[ROI Auto-Fill] Populated projectedReturn from payroll + valuation:', analysis.investmentSummary.projectedFirstYearReturn);
+          } else if (payrollAnalysis && payrollAnalysis.annualExcess > 0) {
+            // Just payroll savings
+            const lowReturn = Math.round(payrollAnalysis.annualExcess * 0.5 / 1000);
+            const highReturn = Math.round(payrollAnalysis.annualExcess * 0.75 / 1000);
+            analysis.investmentSummary.projectedFirstYearReturn = `£${lowReturn}k-${highReturn}k/year`;
+            analysis.investmentSummary.projectedReturnBreakdown = 'Operational efficiency gains from payroll restructuring';
+            console.log('[ROI Auto-Fill] Populated projectedReturn from payroll:', analysis.investmentSummary.projectedFirstYearReturn);
+          } else if (groundedROI.valuationContext) {
+            // Just valuation uplift
+            const lowReturn = Math.round(groundedROI.valuationContext.valuationUplift * 0.5 / 1000);
+            const highReturn = Math.round(groundedROI.valuationContext.valuationUplift / 1000);
+            analysis.investmentSummary.projectedFirstYearReturn = `£${lowReturn}k-${highReturn}k`;
+            analysis.investmentSummary.projectedReturnBreakdown = 'Valuation improvement at exit';
+            console.log('[ROI Auto-Fill] Populated projectedReturn from valuation:', analysis.investmentSummary.projectedFirstYearReturn);
+          } else {
+            analysis.investmentSummary.projectedFirstYearReturn = 'Valuation clarity + exit readiness';
+            analysis.investmentSummary.projectedReturnBreakdown = 'Strategic value in informed decision-making';
+            console.log('[ROI Auto-Fill] Used strategic fallback for projectedReturn');
+          }
+          analysis.investmentSummary.projectedReturnWasAutoFilled = true;
+        }
+        
+        // Auto-populate paybackPeriod if empty
+        if (!analysis.investmentSummary.paybackPeriod || 
+            analysis.investmentSummary.paybackPeriod === '' ||
+            analysis.investmentSummary.paybackPeriod === 'Unknown') {
+          
+          if (payrollAnalysis && payrollAnalysis.annualExcess > 0) {
+            const annualSavings = payrollAnalysis.annualExcess * 0.5;
+            const monthsToPayback = (groundedROI.investmentTotal / annualSavings) * 12;
+            if (monthsToPayback <= 12) {
+              analysis.investmentSummary.paybackPeriod = `${Math.ceil(monthsToPayback)} months`;
+            } else {
+              analysis.investmentSummary.paybackPeriod = `${(monthsToPayback / 12).toFixed(1)} years`;
+            }
+            analysis.investmentSummary.paybackCalculation = 
+              `£${groundedROI.investmentTotal.toLocaleString()} ÷ £${Math.round(annualSavings).toLocaleString()}/year = ${monthsToPayback.toFixed(1)} months`;
+            console.log('[ROI Auto-Fill] Populated paybackPeriod from payroll savings:', analysis.investmentSummary.paybackPeriod);
+          } else if (groundedROI.valuationContext) {
+            analysis.investmentSummary.paybackPeriod = 'At exit';
+            analysis.investmentSummary.paybackCalculation = 
+              `£${groundedROI.investmentTotal.toLocaleString()} investment against £${Math.round(groundedROI.valuationContext.valuationUplift / 1000)}k valuation uplift = ${Math.round(groundedROI.valuationContext.valuationUplift / groundedROI.investmentTotal)}:1 at exit`;
+            console.log('[ROI Auto-Fill] Populated paybackPeriod as "At exit" for exit client');
+          } else {
+            analysis.investmentSummary.paybackPeriod = 'Strategic investment';
+            analysis.investmentSummary.paybackCalculation = 'Primary return is strategic clarity and exit readiness';
+            console.log('[ROI Auto-Fill] Used strategic fallback for paybackPeriod');
+          }
+          analysis.investmentSummary.paybackWasAutoFilled = true;
+        }
+        
+        // Auto-populate roiRatio if empty
+        if (!analysis.investmentSummary.roiRatio || 
+            analysis.investmentSummary.roiRatio === '' ||
+            analysis.investmentSummary.roiRatio === 'Unknown') {
+          analysis.investmentSummary.roiRatio = groundedROI.totalROI;
+          analysis.investmentSummary.roiWasAutoFilled = true;
+          console.log('[ROI Auto-Fill] Populated roiRatio from groundedROI:', analysis.investmentSummary.roiRatio);
+        }
         
         // If we corrected the transformation journey, update the investment summary
         if (analysis.transformationJourneyWasCorrected && analysis.transformationJourney?.totalInvestment) {
@@ -5147,6 +5273,44 @@ Return ONLY the JSON object with no additional text.`;
         }
         
         console.log('[Discovery] Investment summary:', JSON.stringify(analysis.investmentSummary, null, 2));
+      } else {
+        // If investmentSummary doesn't exist at all, create it from groundedROI
+        console.log('[ROI Auto-Fill] Creating investmentSummary from groundedROI as none provided by LLM');
+        
+        analysis.investmentSummary = {
+          totalFirstYearInvestment: `£${groundedROI.investmentTotal.toLocaleString()}`,
+          investmentBreakdown: groundedROI.investmentBreakdown,
+          investmentAsPercentOfRevenue: groundedROI.investmentAsPercentOfTurnover || '',
+          roiRatio: groundedROI.totalROI,
+          wasFullyAutoGenerated: true
+        };
+        
+        // Add projectedReturn
+        if (payrollAnalysis && payrollAnalysis.annualExcess > 0 && groundedROI.valuationContext) {
+          const lowReturn = Math.round((payrollAnalysis.annualExcess * 0.5 + groundedROI.valuationContext.valuationUplift * 0.5) / 1000);
+          const highReturn = Math.round((payrollAnalysis.annualExcess * 0.75 + groundedROI.valuationContext.valuationUplift) / 1000);
+          analysis.investmentSummary.projectedFirstYearReturn = `£${lowReturn}k-${highReturn}k`;
+        } else if (groundedROI.valuationContext) {
+          const lowReturn = Math.round(groundedROI.valuationContext.valuationUplift * 0.5 / 1000);
+          const highReturn = Math.round(groundedROI.valuationContext.valuationUplift / 1000);
+          analysis.investmentSummary.projectedFirstYearReturn = `£${lowReturn}k-${highReturn}k`;
+        } else {
+          analysis.investmentSummary.projectedFirstYearReturn = 'Strategic investment';
+        }
+        
+        // Add paybackPeriod
+        if (payrollAnalysis && payrollAnalysis.annualExcess > 0) {
+          const monthsToPayback = (groundedROI.investmentTotal / (payrollAnalysis.annualExcess * 0.5)) * 12;
+          analysis.investmentSummary.paybackPeriod = monthsToPayback <= 12 
+            ? `${Math.ceil(monthsToPayback)} months` 
+            : `${(monthsToPayback / 12).toFixed(1)} years`;
+        } else if (groundedROI.valuationContext) {
+          analysis.investmentSummary.paybackPeriod = 'At exit';
+        } else {
+          analysis.investmentSummary.paybackPeriod = 'Strategic investment';
+        }
+        
+        console.log('[ROI Auto-Fill] Created full investmentSummary:', JSON.stringify(analysis.investmentSummary, null, 2));
       }
       
       // ======================================================================
@@ -5340,7 +5504,10 @@ Return ONLY the JSON object with no additional text.`;
           investmentSummary: analysis.investmentSummary || {},
           costOfStaying: analysis.gapAnalysis?.costOfInaction || {},
           returnProjection: analysis.investmentSummary?.projectedFirstYearReturn || '',
-          paybackPeriod: analysis.investmentSummary?.paybackPeriod || ''
+          returnBreakdown: analysis.investmentSummary?.projectedReturnBreakdown || '',
+          paybackPeriod: analysis.investmentSummary?.paybackPeriod || '',
+          paybackCalculation: analysis.investmentSummary?.paybackCalculation || '',
+          roiRatio: analysis.investmentSummary?.roiRatio || ''
         };
         
         const page5_next_steps = {
