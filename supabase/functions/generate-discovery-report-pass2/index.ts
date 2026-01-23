@@ -77,10 +77,16 @@ const DEFAULT_SERVICE_DETAILS: Record<string, ServiceDetail> = {
     outcome: "You'll Know What It's Worth"
   },
   'benchmarking': {
-    name: 'Benchmarking Services',
+    name: 'Benchmarking & Hidden Value Analysis',
     price: '£3,500',
     priceType: 'one-time',
     outcome: "You'll Know Where You Stand"
+  },
+  'hidden_value': {
+    name: 'Hidden Value Audit',
+    price: '£2,500',
+    priceType: 'one-time',
+    outcome: "You'll Know Your True Value"
   }
 };
 
@@ -95,6 +101,7 @@ const SERVICE_OUTCOMES: Record<string, string> = {
   'combined_advisory': "Complete Business Transformation",
   'business_advisory': "You'll Know What It's Worth",
   'benchmarking': "You'll Know Where You Stand",
+  'hidden_value': "You'll Know Your True Value",
 };
 
 // Fetch service details from database, falling back to defaults
@@ -438,6 +445,60 @@ serve(async (req) => {
       ? `\n\nRELEVANT DOCUMENTS:\n${documents.map(d => `- ${d.filename} (${d.document_type}): ${d.ai_summary || d.description || 'No summary'}`).join('\n')}`
       : '';
 
+    // ========================================================================
+    // FETCH ADVISOR FEEDBACK COMMENTS - These override default recommendations
+    // ========================================================================
+    const { data: feedbackComments } = await supabase
+      .from('discovery_analysis_comments')
+      .select('*')
+      .eq('engagement_id', engagementId)
+      .in('status', ['pending', 'approved'])
+      .order('created_at', { ascending: true });
+
+    console.log(`[Pass 2] Found ${feedbackComments?.length || 0} feedback comments to apply`);
+
+    // Build feedback section for the prompt
+    let feedbackSection = '';
+    if (feedbackComments && feedbackComments.length > 0) {
+      feedbackSection = `
+
+============================================================================
+🚨 MANDATORY ADVISOR FEEDBACK - MUST BE APPLIED
+============================================================================
+The following feedback has been provided by the advisor and MUST be incorporated
+into this regeneration. These override any default recommendations or patterns.
+
+`;
+      for (const comment of feedbackComments) {
+        feedbackSection += `
+---
+SECTION: ${comment.section_type}
+TYPE: ${comment.comment_type} (${comment.comment_type === 'correction' ? 'MUST FIX' : comment.comment_type === 'suggestion' ? 'SHOULD INCORPORATE' : 'FOR LEARNING'})
+FEEDBACK: ${comment.comment_text}
+${comment.suggested_learning ? `LEARNING TO APPLY: ${comment.suggested_learning}` : ''}
+---
+`;
+      }
+
+      feedbackSection += `
+IMPORTANT: When generating pages 1-5, you MUST:
+1. Address EVERY correction marked "MUST FIX"
+2. Incorporate EVERY suggestion marked "SHOULD INCORPORATE"
+3. Apply the learnings to guide service recommendations and narrative tone
+4. If feedback mentions specific services should be prioritized (e.g., "benchmarking first"), 
+   you MUST reorder the journey phases to reflect this guidance
+5. If feedback says a service should NOT be recommended, remove it from the journey
+`;
+    }
+
+    // Log what feedback will be applied
+    if (feedbackComments && feedbackComments.length > 0) {
+      console.log('[Pass 2] Applying feedback:');
+      feedbackComments.forEach(f => {
+        console.log(`  - [${f.section_type}] ${f.comment_type}: ${f.comment_text.substring(0, 50)}...`);
+      });
+    }
+
     // ============================================================================
     // THE MASTER PROMPT - Destination-Focused Discovery Report
     // ============================================================================
@@ -555,6 +616,7 @@ ANYTHING ELSE THEY SHARED:
 "${emotionalAnchors.finalInsight || 'Not provided'}"
 ${contextSection}
 ${docSection}
+${feedbackSection}
 
 ============================================================================
 DETECTED PATTERNS
@@ -586,6 +648,26 @@ DO NOT mention COO as an enabler.
 If the client needs help with redundancies/restructuring, suggest a one-time HR consultant or business advisory support instead.
 The client's issues can be addressed through the OTHER services listed above.
 ` : ''}
+
+============================================================================
+ADVISOR THINKING PATTERNS - How We Actually Recommend Services
+============================================================================
+
+FOR EXIT-FOCUSED CLIENTS (like someone saying "sell the business for a good sum"):
+1. FIRST: Benchmarking & Hidden Value Analysis - establish where they are TODAY
+   - What's the business worth RIGHT NOW?
+   - Where are the hidden value detractors?
+   - What's the gap between current value and their exit goal?
+
+2. IF VALUE GAP EXISTS: Then discuss what we can do to increase that value
+   - This opens conversations about improvements, not selling services
+
+3. THEN: Goal Alignment (mid-to-top tier) for the 3-year plan
+   - Get under the hood of what life outside work looks like
+   - Create a plan that makes exit not just achievable but exceeds expectations
+
+NEVER lead with Business Advisory & Exit Planning for an exit client - that comes 
+AFTER we've established the baseline value through benchmarking.
 
 ============================================================================
 YOUR TASK - Generate a 5-page Destination-Focused Report
