@@ -952,7 +952,7 @@ Before returning, verify:
         model: 'anthropic/claude-sonnet-4-20250514',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.3,
-        max_tokens: 8000
+        max_tokens: 12000  // Increased to ensure all 5 pages get full content
       })
     });
 
@@ -978,8 +978,25 @@ Before returning, verify:
       }
     } catch (parseError) {
       console.error('JSON parse error:', parseError);
-      console.error('Response text:', responseText);
+      console.error('Response text (first 2000 chars):', responseText.substring(0, 2000));
       throw new Error(`Failed to parse LLM response: ${parseError.message}`);
+    }
+
+    // Log what pages have content
+    const pageStatus = {
+      page1: !!narratives.page1_destination?.visionVerbatim,
+      page2: !!narratives.page2_gaps?.gaps?.length,
+      page3: !!narratives.page3_journey?.phases?.length,
+      page4: !!narratives.page4_numbers?.investment?.length,
+      page5: !!narratives.page5_nextSteps?.thisWeek
+    };
+    console.log(`[Pass 2] Page content status:`, pageStatus);
+    
+    // Warn if any pages are empty
+    const emptyPages = Object.entries(pageStatus).filter(([_, hasContent]) => !hasContent).map(([page]) => page);
+    if (emptyPages.length > 0) {
+      console.warn(`[Pass 2] ⚠️ Pages with missing content: ${emptyPages.join(', ')}`);
+      console.log(`[Pass 2] Response length: ${responseText.length} chars`);
     }
 
     const processingTime = Date.now() - startTime;
