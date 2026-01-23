@@ -36,8 +36,7 @@ import {
 import { 
   SectionCommentBox, 
   LearningReviewPanel, 
-  useAnalysisComments,
-  type AnalysisComment 
+  useAnalysisComments 
 } from './AnalysisCommentSystem';
 
 interface DiscoveryAdminModalProps {
@@ -102,7 +101,6 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
   // Analysis comments (for learning system)
   const { 
     comments: analysisComments, 
-    loading: commentsLoading, 
     refetch: refetchComments 
   } = useAnalysisComments(engagement?.id, report?.id);
 

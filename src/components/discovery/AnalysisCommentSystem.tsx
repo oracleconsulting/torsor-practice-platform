@@ -14,7 +14,6 @@ import {
   X,
   Check,
   AlertTriangle,
-  Edit2,
   Trash2,
   Save,
   Lightbulb,
