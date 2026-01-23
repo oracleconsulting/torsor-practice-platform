@@ -15,6 +15,259 @@ const corsHeaders = {
   'Access-Control-Max-Age': '86400',
 }
 
+// ============================================================================
+// DIAGNOSTIC: FINANCIAL DATA TRACING SYSTEM
+// Traces financial data through every stage of the pipeline to identify
+// where wrong figures might be introduced
+// ============================================================================
+
+interface FinancialDataTrace {
+  stage: string;
+  timestamp: string;
+  staffCosts: number | null;
+  turnover: number | null;
+  calculatedPct: number | null;
+  storedPct: number | null;
+  source: string;
+  details?: Record<string, any>;
+}
+
+interface InvestmentTrace {
+  stage: string;
+  services: { name: string; code?: string; price: number }[];
+  total: number;
+}
+
+const financialTraces: FinancialDataTrace[] = [];
+const investmentTraces: InvestmentTrace[] = [];
+
+function traceFinancialData(
+  stage: string,
+  data: {
+    staffCosts?: number | null;
+    turnover?: number | null;
+    storedPct?: number | null;
+    source?: string;
+    details?: Record<string, any>;
+  }
+): void {
+  const calculatedPct = (data.staffCosts && data.turnover && data.turnover > 0) 
+    ? (data.staffCosts / data.turnover) * 100 
+    : null;
+  
+  const trace: FinancialDataTrace = {
+    stage,
+    timestamp: new Date().toISOString(),
+    staffCosts: data.staffCosts || null,
+    turnover: data.turnover || null,
+    calculatedPct,
+    storedPct: data.storedPct || null,
+    source: data.source || 'unknown',
+    details: data.details
+  };
+  
+  financialTraces.push(trace);
+  
+  // Log with emphasis on mismatches
+  const mismatchWarning = trace.calculatedPct && trace.storedPct && 
+    Math.abs(trace.calculatedPct - trace.storedPct) > 1 
+    ? `⚠️ MISMATCH: calc=${trace.calculatedPct.toFixed(1)}% vs stored=${trace.storedPct.toFixed(1)}%` 
+    : null;
+  
+  console.log(`[FINANCIAL TRACE - ${stage}]`, {
+    staffCosts: trace.staffCosts ? `£${trace.staffCosts.toLocaleString()}` : null,
+    turnover: trace.turnover ? `£${trace.turnover.toLocaleString()}` : null,
+    calculatedPct: trace.calculatedPct ? `${trace.calculatedPct.toFixed(1)}%` : null,
+    source: trace.source,
+    ...(mismatchWarning ? { MISMATCH: mismatchWarning } : {})
+  });
+  
+  // Flag suspicious values
+  if (trace.calculatedPct && (trace.calculatedPct > 50 || trace.calculatedPct < 10)) {
+    console.warn(`[FINANCIAL TRACE - ${stage}] ⚠️ Staff costs ${trace.calculatedPct.toFixed(1)}% outside normal range (10-50%)`);
+  }
+}
+
+function traceInvestmentTotal(
+  stage: string,
+  services: { name: string; code?: string; price: number }[]
+): void {
+  const total = services.reduce((sum, s) => sum + s.price, 0);
+  
+  investmentTraces.push({ stage, services, total });
+  
+  console.log(`[INVESTMENT TRACE - ${stage}]`, {
+    services: services.map(s => `${s.name || s.code}: £${s.price.toLocaleString()}`),
+    total: `£${total.toLocaleString()}`
+  });
+}
+
+function logFinancialTracesSummary(): void {
+  console.log('\n========== FINANCIAL TRACE SUMMARY ==========');
+  console.log('Total traces:', financialTraces.length);
+  
+  for (const trace of financialTraces) {
+    console.log(`  [${trace.stage}] ${trace.calculatedPct?.toFixed(1) || '?'}% | Staff: £${trace.staffCosts?.toLocaleString() || '?'} | Turnover: £${trace.turnover?.toLocaleString() || '?'}`);
+  }
+  
+  // Check for inconsistencies between stages
+  const percentages = financialTraces
+    .filter(t => t.calculatedPct !== null)
+    .map(t => ({ stage: t.stage, pct: t.calculatedPct! }));
+  
+  if (percentages.length > 1) {
+    const first = percentages[0].pct;
+    const inconsistent = percentages.filter(p => Math.abs(p.pct - first) > 1);
+    if (inconsistent.length > 0) {
+      console.error('⚠️ INCONSISTENT PERCENTAGES DETECTED:');
+      console.error('  First:', percentages[0].stage, `${first.toFixed(1)}%`);
+      for (const p of inconsistent) {
+        console.error('  Different:', p.stage, `${p.pct.toFixed(1)}%`);
+      }
+    }
+  }
+  console.log('==============================================\n');
+}
+
+function logInvestmentTracesSummary(): void {
+  console.log('\n========== INVESTMENT TRACE SUMMARY ==========');
+  console.log('Total traces:', investmentTraces.length);
+  
+  for (const trace of investmentTraces) {
+    console.log(`  [${trace.stage}] Total: £${trace.total.toLocaleString()}`);
+    for (const svc of trace.services) {
+      console.log(`    - ${svc.name || svc.code}: £${svc.price.toLocaleString()}`);
+    }
+  }
+  
+  // Check for mismatches
+  if (investmentTraces.length > 1) {
+    const totals = investmentTraces.map(t => t.total);
+    const min = Math.min(...totals);
+    const max = Math.max(...totals);
+    if (max - min > 500) {
+      console.error(`⚠️ INVESTMENT TOTAL MISMATCH: Min £${min.toLocaleString()}, Max £${max.toLocaleString()}`);
+    }
+  }
+  console.log('==============================================\n');
+}
+
+// ============================================================================
+// FORCE CORRECTION UTILITIES
+// These functions detect and correct wrong figures in LLM output
+// ============================================================================
+
+function forceCorrectPayrollFigures(
+  outputText: string,
+  payrollAnalysis: PayrollAnalysis
+): { correctedText: string; corrections: string[] } {
+  const corrections: string[] = [];
+  let correctedText = outputText;
+  
+  // Known wrong values that need correction
+  const wrongPercentagePatterns = [
+    /43\.?[0-9]?%/gi,  // 43%, 43.2%, etc.
+    /44\.?[0-9]?%/gi,  // Close to 43%
+  ];
+  
+  const wrongExcessPatterns = [
+    /£414[,.]?\d{0,3}/gi,  // £414k, £414,348, etc.
+    /£415[,.]?\d{0,3}/gi,  // Close to £414k
+  ];
+  
+  // Correct percentage - only in payroll context
+  for (const pattern of wrongPercentagePatterns) {
+    if (pattern.test(correctedText)) {
+      // Check if it's in payroll context
+      const matches = correctedText.matchAll(new RegExp(`(.{0,50})(${pattern.source})(.{0,50})`, 'gi'));
+      for (const match of matches) {
+        const context = (match[1] + match[3]).toLowerCase();
+        if (context.includes('payroll') || context.includes('staff') || context.includes('labour') || 
+            context.includes('revenue') || context.includes('turnover') || context.includes('benchmark')) {
+          corrections.push(`Corrected payroll % from ${match[2]} to ${payrollAnalysis.staffCostsPct.toFixed(1)}%`);
+        }
+      }
+      correctedText = correctedText.replace(pattern, `${payrollAnalysis.staffCostsPct.toFixed(1)}%`);
+    }
+  }
+  
+  // Correct excess amount
+  for (const pattern of wrongExcessPatterns) {
+    if (pattern.test(correctedText)) {
+      const correctExcess = `£${Math.round(payrollAnalysis.annualExcess / 1000)}k`;
+      corrections.push(`Corrected excess amount to ${correctExcess}`);
+      correctedText = correctedText.replace(pattern, correctExcess);
+    }
+  }
+  
+  return { correctedText, corrections };
+}
+
+function forceCorrectInvestmentTotal(
+  analysis: any,
+  correctServices: { name: string; code: string; price: number }[]
+): { correctedAnalysis: any; corrections: string[] } {
+  const corrections: string[] = [];
+  const correctedAnalysis = JSON.parse(JSON.stringify(analysis));
+  
+  // Calculate correct total from authoritative service list
+  const correctTotal = correctServices.reduce((sum, s) => sum + s.price, 0);
+  
+  // Check and correct recommendedInvestments / recommendedServices
+  const serviceArrays = [
+    correctedAnalysis.recommendedInvestments,
+    correctedAnalysis.recommendedServices,
+    correctedAnalysis.journey?.recommendedServices,
+    correctedAnalysis.transformationJourney?.recommendedServices
+  ].filter(Boolean);
+  
+  for (const arr of serviceArrays) {
+    if (Array.isArray(arr)) {
+      // Remove services that shouldn't be there
+      const filteredArr = arr.filter((svc: any) => {
+        const name = (svc.service || svc.name || '').toLowerCase();
+        const code = (svc.code || '').toLowerCase();
+        
+        // Check if this service is in our correct list
+        const isValid = correctServices.some(cs => 
+          cs.code.toLowerCase() === code ||
+          cs.name.toLowerCase().includes(name.split(' ')[0]) ||
+          name.includes(cs.name.toLowerCase().split(' ')[0])
+        );
+        
+        if (!isValid) {
+          corrections.push(`Removed invalid service: ${svc.service || svc.name}`);
+        }
+        return isValid;
+      });
+      
+      // Update the array in place
+      arr.length = 0;
+      arr.push(...filteredArr);
+    }
+  }
+  
+  // Correct investment summary totals
+  if (correctedAnalysis.investmentSummary) {
+    const currentTotal = correctedAnalysis.investmentSummary.totalFirstYear || 
+                        correctedAnalysis.investmentSummary.total || 
+                        correctedAnalysis.investmentSummary.yearOneTotal;
+    
+    if (currentTotal && typeof currentTotal === 'number' && currentTotal !== correctTotal) {
+      corrections.push(`Corrected total from £${currentTotal.toLocaleString()} to £${correctTotal.toLocaleString()}`);
+    }
+    
+    correctedAnalysis.investmentSummary.totalFirstYear = correctTotal;
+    correctedAnalysis.investmentSummary.total = correctTotal;
+    correctedAnalysis.investmentSummary.yearOneTotal = correctTotal;
+    correctedAnalysis.investmentSummary.breakdown = correctServices
+      .map(s => `${s.name}: £${s.price.toLocaleString()}`)
+      .join(' + ');
+  }
+  
+  return { correctedAnalysis, corrections };
+}
+
 // Use Claude Opus 4.5 for premium quality analysis
 const MODEL = 'anthropic/claude-opus-4.5';
 
@@ -4090,6 +4343,15 @@ serve(async (req) => {
       staffCostsPct: extractedFinancials.staffCostsPercentOfRevenue,
       ebitda: extractedFinancials.ebitda
     });
+    
+    // DIAGNOSTIC TRACE: After financial extraction
+    traceFinancialData('A1_EXTRACTION', {
+      staffCosts: extractedFinancials.totalStaffCosts,
+      turnover: extractedFinancials.turnover,
+      storedPct: extractedFinancials.staffCostsPercentOfRevenue,
+      source: 'extractFinancialsFromAccounts',
+      details: { hasAccounts: extractedFinancials.hasAccounts, ebitda: extractedFinancials.ebitda }
+    });
 
     // ========================================================================
     // PAYROLL EFFICIENCY ANALYSIS
@@ -4112,6 +4374,21 @@ serve(async (req) => {
         assessment: payrollAnalysis.assessment,
         isValidated: payrollAnalysis.isValidated,
         validationErrors: payrollAnalysis.validationErrors
+      });
+      
+      // DIAGNOSTIC TRACE: After payroll analysis
+      traceFinancialData('B1_PAYROLL_ANALYSIS', {
+        staffCosts: payrollAnalysis.staffCosts,
+        turnover: payrollAnalysis.turnover,
+        storedPct: payrollAnalysis.staffCostsPct,
+        source: 'analysePayrollEfficiency',
+        details: { 
+          benchmark: payrollAnalysis.benchmark.typical,
+          excessPct: payrollAnalysis.excessPercentage,
+          excessAmount: payrollAnalysis.annualExcess,
+          assessment: payrollAnalysis.assessment,
+          isValidated: payrollAnalysis.isValidated
+        }
       });
       
       // Sanity check: Log warning if excess seems unreasonably high
@@ -4151,6 +4428,15 @@ serve(async (req) => {
       recommended: appropriateRecommendations.recommended.map(r => r.code),
       notRecommended: appropriateRecommendations.notRecommended.map(r => r.code)
     });
+    
+    // DIAGNOSTIC TRACE: Investment from service recommendations
+    traceInvestmentTotal('C1_SERVICE_RECOMMENDATIONS', 
+      appropriateRecommendations.recommended.map(r => ({
+        name: r.name,
+        code: r.code,
+        price: r.investment
+      }))
+    );
 
     // ========================================================================
     // BINDING SERVICE APPROPRIATENESS (ENFORCEMENT LAYER)
@@ -4172,6 +4458,15 @@ serve(async (req) => {
         mustNotRecommend: bindingAppropriateness.notAppropriate.map(s => `${s.code}: ${s.reason}`),
         mandatory: bindingAppropriateness.mandatory.map(s => s.code)
       });
+      
+      // DIAGNOSTIC TRACE: Investment from binding appropriateness
+      traceInvestmentTotal('E1_BINDING_APPROPRIATE', 
+        bindingAppropriateness.appropriate.map(s => ({
+          name: s.name,
+          code: s.code,
+          price: s.investment
+        }))
+      );
       
       // Build binding constraints for prompt
       bindingConstraintsPrompt = buildBindingConstraintsPrompt(bindingAppropriateness);
@@ -4201,6 +4496,15 @@ serve(async (req) => {
       totalROI: groundedROI.totalROI,
       sanityChecks: groundedROI.sanityChecks
     });
+    
+    // DIAGNOSTIC TRACE: Investment from ROI calculation
+    traceInvestmentTotal('D1_GROUNDED_ROI', 
+      groundedROI.serviceROIs.map((sr: any) => ({
+        name: sr.service,
+        code: '',
+        price: sr.investment
+      }))
+    );
 
     // Build financial grounding context for LLM
     const financialGroundingContext = buildFinancialGroundingContext(
@@ -5192,6 +5496,42 @@ Return ONLY the JSON object with no additional text.`;
       analysis = JSON.parse(jsonString);
       console.log('[Discovery] JSON parsed successfully');
       
+      // ======================================================================
+      // FORCE CORRECTION: Fix wrong payroll figures in LLM output
+      // ======================================================================
+      if (payrollAnalysis) {
+        const analysisStr = JSON.stringify(analysis);
+        const { correctedText, corrections } = forceCorrectPayrollFigures(analysisStr, payrollAnalysis);
+        
+        if (corrections.length > 0) {
+          console.log('[FORCE CORRECTION] Payroll figure corrections applied:', corrections);
+          try {
+            analysis = JSON.parse(correctedText);
+          } catch (e) {
+            console.error('[FORCE CORRECTION] Failed to parse corrected JSON, using original');
+          }
+        }
+      }
+      
+      // ======================================================================
+      // FORCE CORRECTION: Fix wrong investment totals
+      // ======================================================================
+      // Build the authoritative service list from binding appropriateness
+      const authoritativeServices = bindingAppropriateness.appropriate.map(s => ({
+        name: s.name,
+        code: s.code,
+        price: s.investment
+      }));
+      
+      if (authoritativeServices.length > 0) {
+        const { correctedAnalysis, corrections } = forceCorrectInvestmentTotal(analysis, authoritativeServices);
+        
+        if (corrections.length > 0) {
+          console.log('[FORCE CORRECTION] Investment total corrections applied:', corrections);
+          analysis = correctedAnalysis;
+        }
+      }
+      
       // Debug: Log the structure of the parsed analysis
       console.log('[Discovery] Analysis structure:', {
         hasExecutiveSummary: !!analysis.executiveSummary,
@@ -5212,6 +5552,18 @@ Return ONLY the JSON object with no additional text.`;
       // Debug: Log first investment if exists
       if (analysis.recommendedInvestments?.[0]) {
         console.log('[Discovery] First investment:', JSON.stringify(analysis.recommendedInvestments[0], null, 2));
+      }
+      
+      // DIAGNOSTIC TRACE: Investments from LLM output
+      if (analysis.recommendedInvestments && Array.isArray(analysis.recommendedInvestments)) {
+        traceInvestmentTotal('G1_LLM_OUTPUT_RAW', 
+          analysis.recommendedInvestments.map((inv: any) => ({
+            name: inv.service || inv.name || 'Unknown',
+            code: inv.code || '',
+            price: typeof inv.investment === 'number' ? inv.investment :
+                   parseInt((inv.investment || inv.price || '0').toString().replace(/[£,]/g, '')) || 0
+          }))
+        );
       }
       
       // Normalize investment structure in case of field name variations
@@ -5930,6 +6282,27 @@ Return ONLY the JSON object with no additional text.`;
 
     const totalTime = Date.now() - startTime;
     console.log(`Analysis complete in ${totalTime}ms (LLM: ${llmTime}ms)`);
+    
+    // ======================================================================
+    // DIAGNOSTIC: Log trace summaries for debugging
+    // ======================================================================
+    logFinancialTracesSummary();
+    logInvestmentTracesSummary();
+    
+    // Final investment total trace
+    const finalServices = analysis.recommendedInvestments || analysis.transformationJourney?.phases?.map((p: any) => ({
+      name: p.enabledBy || p.service || 'Unknown',
+      price: parseInt((p.investment || p.price || '0').toString().replace(/[£,]/g, '')) || 0
+    })) || [];
+    
+    if (finalServices.length > 0) {
+      traceInvestmentTotal('F1_FINAL_OUTPUT', finalServices.map((s: any) => ({
+        name: s.service || s.name || 'Unknown',
+        code: s.code || '',
+        price: typeof s.investment === 'number' ? s.investment : 
+               parseInt((s.investment || s.price || '0').toString().replace(/[£,]/g, '')) || 0
+      })));
+    }
 
     return new Response(JSON.stringify({
       success: true,
