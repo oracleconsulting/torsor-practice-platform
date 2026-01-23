@@ -42,8 +42,8 @@ const DEFAULT_SERVICE_DETAILS: Record<string, ServiceDetail> = {
   },
   '365_method': {
     name: 'Goal Alignment Programme',
-    price: '£1,500',
-    priceType: 'monthly',
+    price: '£1,500-£9,000',
+    priceType: 'annual',
     outcome: "You'll Have Someone In Your Corner"
   },
   'automation': {
@@ -435,7 +435,12 @@ serve(async (req) => {
     }
 
     // Build recommended services with pricing, filtering out blocked services
-    const blockedServices = shouldBlockCOO ? ['fractional_coo', 'combined_advisory'] : [];
+    // Business Advisory is ALWAYS blocked until the service line is properly defined
+    const blockedServices = [
+      'business_advisory',  // Paused until service line is defined
+      ...(shouldBlockCOO ? ['fractional_coo', 'combined_advisory'] : [])
+    ];
+    console.log(`[Pass 2] Blocked services: ${blockedServices.join(', ')}`);
     
     let recommendedServices = [...primaryRecs, ...secondaryRecs]
       .filter(r => r.recommended)
@@ -451,7 +456,7 @@ serve(async (req) => {
     // FOR EXIT-FOCUSED CLIENTS: Force correct service ordering
     // ========================================================================
     if (isExitFocused) {
-      console.log(`[Pass 2] 🎯 EXIT CLIENT: Forcing Benchmarking FIRST ordering`);
+      console.log(`[Pass 2] 🎯 EXIT CLIENT: Forcing Benchmarking FIRST, then Goal Alignment`);
       
       // Build the correct exit-focused service order
       const exitOrderedServices = [];
@@ -467,26 +472,20 @@ serve(async (req) => {
       };
       exitOrderedServices.push(benchmarking);
       
-      // PHASE 2: Business Advisory for restructuring (if needed)
-      const businessAdvisory = recommendedServices.find(s => s.code === 'business_advisory');
-      if (businessAdvisory) {
-        exitOrderedServices.push({
-          ...businessAdvisory,
-          exitPhase: 2,
-          exitRationale: 'Address value gap identified by benchmarking'
-        });
-      }
-      
-      // PHASE 3: Goal Alignment for ongoing exit support
+      // PHASE 2: Goal Alignment for ongoing exit support (comes BEFORE business advisory)
       const goalAlignment = {
         code: '365_method',
         ...SERVICE_DETAILS['365_method'],
         score: 90,
         triggers: ['exit_focused', 'accountability'],
-        exitPhase: 3,
-        exitRationale: '3-year exit plan with ongoing accountability'
+        exitPhase: 2,
+        exitRationale: '3-year exit plan with ongoing accountability - mid to top tier'
       };
       exitOrderedServices.push(goalAlignment);
+      
+      // NOTE: Business Advisory is currently EXCLUDED from recommendations
+      // It will be added back once the service line is properly defined
+      // For now, any advisory work fits within Goal Alignment or as ad-hoc support
       
       // Use the forced ordering
       recommendedServices = exitOrderedServices;
@@ -722,20 +721,20 @@ PHASE 1 (Month 1-3): "${SERVICE_DETAILS['benchmarking'].outcome}"
    Service: ${SERVICE_DETAILS['benchmarking'].name} (${SERVICE_DETAILS['benchmarking'].price})
    Why first: They need to know their value TODAY before planning anything
 
-PHASE 2 (Month 3-6): "Closing the Value Gap" 
-   Service: Business Advisory (if needed based on Phase 1 findings)
-   Why: Only recommend IF benchmarking reveals a gap to close
+PHASE 2 (Month 3-12+): "${SERVICE_DETAILS['365_method'].outcome}"
+   Service: ${SERVICE_DETAILS['365_method'].name} (${SERVICE_DETAILS['365_method'].price}/year - recommend Growth or Partner tier)
+   Why: 3-year exit plan with ongoing accountability, quarterly reviews, strategic support
+   NOTE: This is an ANNUAL fee, not monthly. Lite=£1,500/yr, Growth=£4,500/yr, Partner=£9,000/yr
 
-PHASE 3 (Month 6-12): "${SERVICE_DETAILS['365_method'].outcome}"
-   Service: ${SERVICE_DETAILS['365_method'].name} (${SERVICE_DETAILS['365_method'].price}/year - recommend mid-to-top tier)
-   Why: 3-year exit plan with ongoing accountability
+⚠️ IMPORTANT: Business Advisory is NOT available for recommendation right now.
+   If the client needs advisory support for restructuring, HR, or exit planning,
+   that work is included within the Goal Alignment Programme (Growth or Partner tier).
 
 I REPEAT: The RECOMMENDED SERVICES list above is ALREADY in the correct order.
 Phase 1 = First service listed (Benchmarking)
-Phase 2 = Second service listed (Business Advisory) 
-Phase 3 = Third service listed (Goal Alignment)
+Phase 2 = Second service listed (Goal Alignment)
 
-DO NOT put Business Advisory first. That is WRONG for exit clients.
+There are only 2 phases for exit clients. DO NOT add Business Advisory.
 ` : ''}
 
 ============================================================================
@@ -751,27 +750,23 @@ PHASE 1 (Month 1-3): BENCHMARKING & HIDDEN VALUE ANALYSIS - ALWAYS FIRST
    - What's the business worth RIGHT NOW before we do ANYTHING else?
    - Where are the hidden value detractors?
    - What's the gap between current value and their exit goal?
-   - This is ONE combined service: Benchmarking & Hidden Value Analysis (£3,500)
-   - DO NOT split these into separate phases
+   - Price: £3,500 one-time
 
-PHASE 2 (Month 3-6): BASED ON THE GAP
-   - IF the value is below expectations: Discuss what we can do to increase it
-   - This might be Business Advisory support with HR/restructuring
-   - Or operational improvements identified by the benchmarking
-
-PHASE 3 (Month 6-12+): GOAL ALIGNMENT - The 3-Year Exit Plan
+PHASE 2 (Month 3-12+): GOAL ALIGNMENT - The 3-Year Exit Plan
    - "You'll Have Someone In Your Corner"  
    - Get under the hood of what life outside work looks like
    - Create a plan that makes exit exceed all expectations
-   - USE MID-TO-TOP TIER Goal Alignment (£1,500-£2,500/month) NOT the basic tier
+   - USE GROWTH OR PARTNER TIER (£4,500/year or £9,000/year)
+   - NOTE: This is an ANNUAL fee, not monthly!
+   - Tier pricing: Lite £1,500/yr, Growth £4,500/yr, Partner £9,000/yr
 
-⛔ WRONG: Leading with "Business Advisory & Exit Planning" for exit clients
-⛔ WRONG: Putting Benchmarking after other services
-⛔ WRONG: Splitting Benchmarking and Hidden Value into separate phases
+⛔ WRONG: Recommending "Business Advisory & Exit Planning" - this service is paused
+⛔ WRONG: Showing Goal Alignment as monthly pricing - it's ANNUAL
+⛔ WRONG: Putting anything before Benchmarking
 
-✅ RIGHT: Benchmarking FIRST to establish the baseline
-✅ RIGHT: Then discuss improvements based on the gap
-✅ RIGHT: Goal Alignment as ongoing support, not the first recommendation
+✅ RIGHT: Benchmarking FIRST to establish the baseline (£3,500)
+✅ RIGHT: Goal Alignment SECOND for ongoing support (£4,500-£9,000/year)
+✅ RIGHT: Only 2 phases for exit clients, not 3
 
 ============================================================================
 YOUR TASK - Generate a 5-page Destination-Focused Report
