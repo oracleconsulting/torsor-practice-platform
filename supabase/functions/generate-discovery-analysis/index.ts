@@ -1307,6 +1307,9 @@ interface ExtractedFinancials {
   profitBeforeTax?: number;
   profitAfterTax?: number;
   
+  // Cost of Sales (separate from Staff Costs!)
+  costOfSales?: number;
+  
   // Staff Costs (critical for payroll analysis)
   totalStaffCosts?: number;
   directorsSalaries?: number;
@@ -1314,6 +1317,18 @@ interface ExtractedFinancials {
   employerNI?: number;
   pensionCosts?: number;
   staffCostsPercentOfRevenue?: number;
+  
+  // Staff costs breakdown for validation
+  staffCostsBreakdown?: {
+    cosWages?: number;
+    directorsSalaries?: number;
+    adminStaffSalaries?: number;
+    employerNI?: number;
+    pensionCosts?: number;
+    otherStaffCosts?: number;
+  };
+  staffCostsCorrected?: boolean;
+  staffCostsUnreliable?: boolean;
   
   // Balance Sheet
   netAssets?: number;
@@ -1379,7 +1394,40 @@ Analyse the following document(s) and extract ALL financial figures you can find
 ${documentContent}
 </documents>
 
-Return a JSON object with this EXACT structure. Use null for any data not found (not 0, not empty string):
+============================================================================
+⚠️ CRITICAL: STAFF COSTS vs COST OF SALES - DO NOT CONFUSE THESE
+============================================================================
+
+"Cost of Sales" is NOT the same as "Staff Costs"!
+
+COST OF SALES typically includes:
+- Raw materials, stock purchased
+- Direct production costs
+- Carriage/freight
+- SOME wages may appear here (production wages)
+
+TOTAL STAFF COSTS must include ALL employment costs from EVERYWHERE:
+- Directors' salaries/remuneration (often in Admin or Notes)
+- Staff/employee salaries and wages (from Admin section)
+- Production/COS wages (from Cost of Sales section if any)
+- Employer National Insurance contributions
+- Pension costs/contributions
+- Staff welfare, training, other staff costs
+
+EXAMPLE: If you see:
+  Cost of Sales section: "Wages" = £301,119
+  Admin section: "Directors salaries" = £180,028
+  Admin section: "Staff salaries" = £264,156
+  Admin section: "Employer NI" = £68,450
+  Admin section: "Pension" = £17,251
+  Admin section: "Staff welfare" = £7,108
+  
+THEN totalStaffCosts = £301,119 + £180,028 + £264,156 + £68,450 + £17,251 + £7,108 = £838,112
+NOT just the Cost of Sales figure!
+
+============================================================================
+
+Return a JSON object with this EXACT structure. Use null for any data not found:
 
 {
   "hasAccounts": true,
@@ -1388,6 +1436,7 @@ Return a JSON object with this EXACT structure. Use null for any data not found 
   
   "turnover": <number in £>,
   "turnoverPriorYear": <number in £>,
+  "costOfSales": <number - the Cost of Sales LINE TOTAL, NOT staff costs>,
   "grossProfit": <number in £>,
   "grossMarginPct": <decimal 0-100>,
   "operatingProfit": <number in £>,
@@ -1395,7 +1444,15 @@ Return a JSON object with this EXACT structure. Use null for any data not found 
   "profitBeforeTax": <number in £>,
   "profitAfterTax": <number in £>,
   
-  "totalStaffCosts": <number - sum of ALL employment costs>,
+  "totalStaffCosts": <number - SUM of ALL payroll items from ALL sections>,
+  "staffCostsBreakdown": {
+    "cosWages": <wages from Cost of Sales section, or 0 if none>,
+    "directorsSalaries": <directors salaries/remuneration>,
+    "adminStaffSalaries": <staff salaries from Admin section>,
+    "employerNI": <employer NI contributions>,
+    "pensionCosts": <pension contributions>,
+    "otherStaffCosts": <welfare, training, etc>
+  },
   "directorsSalaries": <number>,
   "staffWages": <number - non-director wages including COS wages>,
   "employerNI": <number>,
@@ -1411,12 +1468,12 @@ Return a JSON object with this EXACT structure. Use null for any data not found 
 }
 
 CRITICAL EXTRACTION RULES:
-1. Staff costs should include ALL payroll: directors, staff, COS wages, NI, pension
-2. Look in BOTH the main P&L AND the detailed schedules/notes
-3. If there are two columns (current year / prior year), extract BOTH
-4. Convert all figures to raw numbers (2,277,603 not "£2.28m")
-5. Calculate percentages as decimals (56.8 not "56.8%")
-6. If you can calculate EBITDA (operating profit + depreciation), include it
+1. totalStaffCosts MUST be the SUM of all payroll line items from BOTH COS and Admin sections
+2. totalStaffCosts should typically be 25-50% of turnover (if > 50%, double-check!)
+3. DO NOT put costOfSales as totalStaffCosts - these are DIFFERENT things
+4. Look in the detailed P&L schedules/notes, not just the summary
+5. Convert all figures to raw numbers (2,277,603 not "£2.28m")
+6. If totalStaffCosts differs from sum of staffCostsBreakdown, USE THE SUM
 7. Return ONLY valid JSON, no markdown, no explanation`;
 
   try {
@@ -1496,10 +1553,71 @@ CRITICAL EXTRACTION RULES:
         Math.round(((extracted.turnover / extracted.turnoverPriorYear) - 1) * 1000) / 10;
     }
     
+    // ========================================================================
+    // VALIDATION: Check for common extraction errors
+    // ========================================================================
+    
+    // Validate staff costs - check if Cost of Sales was accidentally used
+    if (extracted.totalStaffCosts && extracted.turnover) {
+      const staffPct = (extracted.totalStaffCosts / extracted.turnover) * 100;
+      
+      // If staff costs > 45% of turnover, verify against breakdown
+      if (staffPct > 45) {
+        console.warn(`[FinancialExtract] ⚠️ Staff costs ${staffPct.toFixed(1)}% of turnover seems high - validating...`);
+        
+        // If we have a breakdown, recalculate from components
+        if (extracted.staffCostsBreakdown) {
+          const breakdown = extracted.staffCostsBreakdown;
+          const recalculated = 
+            (breakdown.cosWages || 0) +
+            (breakdown.directorsSalaries || 0) +
+            (breakdown.adminStaffSalaries || 0) +
+            (breakdown.employerNI || 0) +
+            (breakdown.pensionCosts || 0) +
+            (breakdown.otherStaffCosts || 0);
+          
+          if (recalculated > 0) {
+            const recalcPct = (recalculated / extracted.turnover) * 100;
+            console.log(`[FinancialExtract] Breakdown sum: £${recalculated.toLocaleString()} (${recalcPct.toFixed(1)}%)`);
+            console.log(`[FinancialExtract] LLM extracted: £${extracted.totalStaffCosts.toLocaleString()} (${staffPct.toFixed(1)}%)`);
+            
+            // If breakdown is significantly different and more reasonable, use it
+            if (Math.abs(recalculated - extracted.totalStaffCosts) > 50000 && recalcPct < staffPct) {
+              console.warn(`[FinancialExtract] ⚠️ CORRECTING: Using breakdown sum (£${recalculated.toLocaleString()}) instead of LLM value`);
+              extracted.totalStaffCosts = recalculated;
+              extracted.staffCostsPercentOfRevenue = Math.round(recalcPct * 10) / 10;
+              extracted.staffCostsCorrected = true;
+            }
+          }
+        }
+        
+        // Check if costOfSales was mistakenly used as totalStaffCosts
+        if (extracted.costOfSales && 
+            Math.abs(extracted.costOfSales - extracted.totalStaffCosts) < 10000) {
+          console.error(`[FinancialExtract] ⚠️⚠️ CRITICAL: Cost of Sales (£${extracted.costOfSales.toLocaleString()}) appears to have been used as Staff Costs!`);
+          // Mark as unreliable
+          extracted.staffCostsUnreliable = true;
+        }
+      }
+      
+      // Log validation result
+      const finalPct = extracted.staffCostsPercentOfRevenue || 
+                       (extracted.totalStaffCosts / extracted.turnover) * 100;
+      if (finalPct >= 25 && finalPct <= 50) {
+        console.log(`[FinancialExtract] ✅ Staff costs ${finalPct.toFixed(1)}% - within normal range`);
+      } else if (finalPct < 25) {
+        console.log(`[FinancialExtract] ℹ️ Staff costs ${finalPct.toFixed(1)}% - below typical (possible automation-heavy business)`);
+      } else {
+        console.warn(`[FinancialExtract] ⚠️ Staff costs ${finalPct.toFixed(1)}% - above typical (verify extraction)`);
+      }
+    }
+    
     console.log('[FinancialExtract] Successfully extracted:', {
       turnover: extracted.turnover,
+      costOfSales: extracted.costOfSales,
       staffCosts: extracted.totalStaffCosts,
       staffCostsPct: extracted.staffCostsPercentOfRevenue,
+      staffCostsCorrected: extracted.staffCostsCorrected || false,
       ebitda: extracted.ebitda,
       netAssets: extracted.netAssets
     });
