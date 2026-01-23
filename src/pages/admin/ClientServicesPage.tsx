@@ -5,7 +5,11 @@ import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { supabase } from '../../lib/supabase';
 import { RPGCC_LOGO_LIGHT, RPGCC_LOGO_DARK, RPGCC_COLORS } from '../../constants/brandAssets';
-import { TransformationJourney } from '../../components/discovery';
+import { 
+  TransformationJourney,
+  SectionCommentBox,
+  useAnalysisComments
+} from '../../components/discovery';
 import { 
   Users, 
   CheckCircle,
@@ -1904,6 +1908,12 @@ function DiscoveryClientModal({
     is_future_event: false,
     importance: 'medium' as string
   });
+
+  // Analysis comments (for learning system feedback boxes)
+  const { 
+    comments: analysisComments, 
+    refetch: refetchComments 
+  } = useAnalysisComments(discoveryEngagement?.id, destinationReport?.id);
 
   useEffect(() => {
     fetchClientDetail();
@@ -4190,6 +4200,19 @@ function DiscoveryClientModal({
                                     {page1.clarityExplanation && (
                                       <p className="mt-2 text-sm text-gray-500">{page1.clarityExplanation}</p>
                                     )}
+                                    
+                                    {/* Feedback Box for Page 1 */}
+                                    {discoveryEngagement?.id && currentMember?.practice_id && (
+                                      <SectionCommentBox
+                                        engagementId={discoveryEngagement.id}
+                                        reportId={destinationReport?.id}
+                                        practiceId={currentMember.practice_id}
+                                        sectionType="page1_destination"
+                                        originalContent={page1}
+                                        existingComments={analysisComments}
+                                        onCommentAdded={refetchComments}
+                                      />
+                                    )}
                                   </div>
                                 </section>
                               )}
@@ -4242,6 +4265,19 @@ function DiscoveryClientModal({
                                         </div>
                                       </div>
                                     ))}
+                                    
+                                    {/* Feedback Box for Page 2 */}
+                                    {discoveryEngagement?.id && currentMember?.practice_id && (
+                                      <SectionCommentBox
+                                        engagementId={discoveryEngagement.id}
+                                        reportId={destinationReport?.id}
+                                        practiceId={currentMember.practice_id}
+                                        sectionType="page2_gaps"
+                                        originalContent={page2}
+                                        existingComments={analysisComments}
+                                        onCommentAdded={refetchComments}
+                                      />
+                                    )}
                                   </div>
                                 </section>
                               )}
@@ -4314,6 +4350,19 @@ function DiscoveryClientModal({
                                         </div>
                                       </div>
                                     ))}
+                                    
+                                    {/* Feedback Box for Page 3 */}
+                                    {discoveryEngagement?.id && currentMember?.practice_id && (
+                                      <SectionCommentBox
+                                        engagementId={discoveryEngagement.id}
+                                        reportId={destinationReport?.id}
+                                        practiceId={currentMember.practice_id}
+                                        sectionType="page3_journey"
+                                        originalContent={page3}
+                                        existingComments={analysisComments}
+                                        onCommentAdded={refetchComments}
+                                      />
+                                    )}
                                   </div>
                                 </section>
                               )}
@@ -4415,6 +4464,19 @@ function DiscoveryClientModal({
                                         )}
                                       </div>
                                     )}
+                                    
+                                    {/* Feedback Box for Page 4 */}
+                                    {discoveryEngagement?.id && currentMember?.practice_id && (
+                                      <SectionCommentBox
+                                        engagementId={discoveryEngagement.id}
+                                        reportId={destinationReport?.id}
+                                        practiceId={currentMember.practice_id}
+                                        sectionType="page4_investment"
+                                        originalContent={page4}
+                                        existingComments={analysisComments}
+                                        onCommentAdded={refetchComments}
+                                      />
+                                    )}
                                   </div>
                                 </section>
                               )}
@@ -4475,6 +4537,19 @@ function DiscoveryClientModal({
                                           <p className="mt-4 text-amber-400 font-medium">{page5.closingLine}</p>
                                         )}
                                       </div>
+                                    )}
+                                    
+                                    {/* Feedback Box for Page 5 */}
+                                    {discoveryEngagement?.id && currentMember?.practice_id && (
+                                      <SectionCommentBox
+                                        engagementId={discoveryEngagement.id}
+                                        reportId={destinationReport?.id}
+                                        practiceId={currentMember.practice_id}
+                                        sectionType="page5_next_steps"
+                                        originalContent={page5}
+                                        existingComments={analysisComments}
+                                        onCommentAdded={refetchComments}
+                                      />
                                     )}
                                   </div>
                                 </section>

@@ -49,6 +49,7 @@ interface ServicePricing {
   pricing_model: 'tiered' | 'fixed' | 'hourly' | 'custom';
   display_order: number;
   is_active: boolean;
+  exclude_from_recommendations: boolean;
   tiers: ServicePricingTier[];
 }
 
@@ -204,11 +205,15 @@ export function ServicePricingManager() {
             pricing_model: service.pricing_model,
             display_order: service.display_order,
             is_active: service.is_active,
+            exclude_from_recommendations: service.exclude_from_recommendations || false,
             updated_at: new Date().toISOString()
           })
           .eq('id', service.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Update error details:', error);
+          throw error;
+        }
       } else {
         // Insert new
         const { error } = await supabase
@@ -222,10 +227,14 @@ export function ServicePricingManager() {
             pricing_model: service.pricing_model,
             display_order: service.display_order,
             is_active: service.is_active,
+            exclude_from_recommendations: service.exclude_from_recommendations || false,
             created_by: user?.id
           });
 
-        if (error) throw error;
+        if (error) {
+          console.error('Insert error details:', error);
+          throw error;
+        }
       }
 
       setSuccess('Service saved successfully');
@@ -390,10 +399,11 @@ export function ServicePricingManager() {
                 service_code: '',
                 service_name: '',
                 description: '',
-                category: 'advisory' as any,
+                category: 'strategic' as any,
                 pricing_model: 'tiered',
                 display_order: services.length * 10 + 10,
                 is_active: true,
+                exclude_from_recommendations: false,
                 tiers: []
               });
             }}
@@ -484,6 +494,11 @@ export function ServicePricingManager() {
                 {!service.is_active && (
                   <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
                     Inactive
+                  </span>
+                )}
+                {service.exclude_from_recommendations && (
+                  <span className="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded">
+                    Paused
                   </span>
                 )}
                 <button
@@ -636,6 +651,11 @@ function ServiceForm({
 }) {
   const [form, setForm] = useState(service);
 
+  // Reset form when service changes (important for editing different services)
+  useEffect(() => {
+    setForm(service);
+  }, [service.id, service.service_code]);
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
       <h3 className="text-lg font-semibold mb-4">
@@ -694,7 +714,7 @@ function ServiceForm({
             className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
           />
         </div>
-        <div className="col-span-2 flex items-center gap-4">
+        <div className="col-span-2 flex items-center gap-6">
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -703,6 +723,17 @@ function ServiceForm({
               className="rounded"
             />
             <span className="text-sm">Active</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={form.exclude_from_recommendations || false}
+              onChange={(e) => setForm({ ...form, exclude_from_recommendations: e.target.checked })}
+              className="rounded border-amber-300"
+            />
+            <span className="text-sm text-amber-700 dark:text-amber-400">
+              Exclude from AI recommendations
+            </span>
           </label>
         </div>
       </div>
@@ -743,6 +774,11 @@ function TierForm({
   saving: boolean;
 }) {
   const [form, setForm] = useState(tier);
+
+  // Reset form when tier changes
+  useEffect(() => {
+    setForm(tier);
+  }, [tier.id, tier.tier_code]);
 
   return (
     <div className="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 mb-4">
