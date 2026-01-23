@@ -37,6 +37,78 @@ interface ReportData {
 }
 
 // ============================================================================
+// TEXT CLEANUP UTILITIES
+// ============================================================================
+
+/**
+ * Fix common text issues in PDF output:
+ * - "kk" typo (e.g., "£414kk" → "£414k")
+ * - Double currency symbols
+ * - Malformed percentages
+ */
+function cleanupPDFText(text: string): string {
+  if (!text || typeof text !== 'string') return text;
+  
+  return text
+    // Fix "kk" typo - £414kk → £414k
+    .replace(/£(\d+(?:,\d{3})*)kk/g, '£$1k')
+    .replace(/(\d+(?:,\d{3})*)kk/g, '$1k')
+    // Fix double currency symbols - ££ → £
+    .replace(/££/g, '£')
+    // Fix spaces in currency - £ 414 → £414
+    .replace(/£\s+(\d)/g, '£$1')
+    // Fix malformed percentages - 43.2%% → 43.2%
+    .replace(/(\d+\.?\d*)%%/g, '$1%');
+}
+
+/**
+ * Recursively clean all string values in an object
+ */
+function cleanupObjectText(obj: any): any {
+  if (!obj) return obj;
+  
+  if (typeof obj === 'string') {
+    return cleanupPDFText(obj);
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => cleanupObjectText(item));
+  }
+  
+  if (typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const key of Object.keys(obj)) {
+      cleaned[key] = cleanupObjectText(obj[key]);
+    }
+    return cleaned;
+  }
+  
+  return obj;
+}
+
+/**
+ * Apply all text cleanups to final HTML output
+ */
+function cleanupFinalHTML(html: string): string {
+  let cleaned = html;
+  
+  // Fix "kk" typos throughout
+  cleaned = cleaned.replace(/£(\d+(?:,\d{3})*)kk/g, '£$1k');
+  cleaned = cleaned.replace(/(\d+(?:,\d{3})*)kk/g, '$1k');
+  
+  // Fix double currency
+  cleaned = cleaned.replace(/££/g, '£');
+  
+  // Log any remaining issues for debugging
+  const remainingKK = cleaned.match(/\d+kk/g);
+  if (remainingKK) {
+    console.warn('[PDF Cleanup] Still found "kk" patterns:', remainingKK);
+  }
+  
+  return cleaned;
+}
+
+// ============================================================================
 // MAIN HANDLER
 // ============================================================================
 
@@ -352,7 +424,14 @@ async function fetchReportData(
 // ============================================================================
 
 function buildReportHTML(data: ReportData): string {
-  const { client, analysis, practice } = data;
+  const { client, practice } = data;
+  
+  // ========================================================================
+  // CLEAN ALL TEXT DATA BEFORE BUILDING HTML
+  // This fixes "kk" typos and other formatting issues from LLM output
+  // ========================================================================
+  const analysis = cleanupObjectText(data.analysis);
+  
   const clientName = client?.name || 'Client';
   const companyName = client?.client_company || clientName;
   const practiceName = practice?.name || 'Your Accounting Practice';
@@ -369,7 +448,8 @@ function buildReportHTML(data: ReportData): string {
     servicesCount: analysis.recommendedInvestments?.length || 0,
   });
 
-  return `
+  // Build the HTML
+  const rawHTML = `
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -392,6 +472,21 @@ function buildReportHTML(data: ReportData): string {
     </body>
     </html>
   `;
+  
+  // ========================================================================
+  // FINAL CLEANUP - catch any remaining formatting issues
+  // ========================================================================
+  const cleanedHTML = cleanupFinalHTML(rawHTML);
+  
+  // Validate no "kk" typos remain
+  if (cleanedHTML.includes('kk')) {
+    const matches = cleanedHTML.match(/\d+kk/g);
+    if (matches) {
+      console.error('[PDF] ⚠️ "kk" typos still present after cleanup:', matches);
+    }
+  }
+  
+  return cleanedHTML;
 }
 
 // ============================================================================
