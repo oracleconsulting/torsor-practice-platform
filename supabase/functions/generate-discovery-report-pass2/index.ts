@@ -81,13 +81,9 @@ const DEFAULT_SERVICE_DETAILS: Record<string, ServiceDetail> = {
     price: '£3,500',
     priceType: 'one-time',
     outcome: "You'll Know Where You Stand"
-  },
-  'hidden_value': {
-    name: 'Hidden Value Audit',
-    price: '£2,500',
-    priceType: 'one-time',
-    outcome: "You'll Know Your True Value"
   }
+  // NOTE: hidden_value is NOT a separate service - it's included in benchmarking
+  // The two assessments (benchmarking + hidden value) are delivered as ONE service line
 };
 
 // Outcome mappings (destination-focused language)
@@ -100,8 +96,7 @@ const SERVICE_OUTCOMES: Record<string, string> = {
   'fractional_coo': "Someone Else Carries The Load",
   'combined_advisory': "Complete Business Transformation",
   'business_advisory': "You'll Know What It's Worth",
-  'benchmarking': "You'll Know Where You Stand",
-  'hidden_value': "You'll Know Your True Value",
+  'benchmarking': "You'll Know Where You Stand",  // Includes Hidden Value Analysis
 };
 
 // Fetch service details from database, falling back to defaults
@@ -436,8 +431,10 @@ serve(async (req) => {
 
     // Build recommended services with pricing, filtering out blocked services
     // Business Advisory is ALWAYS blocked until the service line is properly defined
+    // Hidden Value is NOT a separate service - it's included in Benchmarking
     const blockedServices = [
       'business_advisory',  // Paused until service line is defined
+      'hidden_value',       // Not separate - included in benchmarking
       ...(shouldBlockCOO ? ['fractional_coo', 'combined_advisory'] : [])
     ];
     console.log(`[Pass 2] Blocked services: ${blockedServices.join(', ')}`);
