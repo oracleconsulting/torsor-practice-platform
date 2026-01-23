@@ -3,6 +3,7 @@ import type { Page } from '../../types/navigation';
 // SERVICE CONFIGURATION PAGE
 // ============================================================================
 // Define workflow phases with activities, match to skills, find best fit people
+// Plus: Configure service pricing and tiers
 // ============================================================================
 
 import { useState, useEffect } from 'react';
@@ -10,10 +11,11 @@ import { Navigation } from '../../components/Navigation';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { supabase } from '../../lib/supabase';
+import { ServicePricingManager } from '../../components/admin/ServicePricingManager';
 import { 
   ArrowLeft, Plus, ChevronRight, ChevronDown,
   Target, TrendingUp, Settings, LineChart, Briefcase,
-  BarChart3, Shield, Trash2, Users, Check, X
+  BarChart3, Shield, Trash2, Users, Check, X, DollarSign
 } from 'lucide-react';
 
 
@@ -70,6 +72,9 @@ const SERVICE_LINES = [
 export function ServiceConfigPage({ currentPage, onNavigate }: ServiceConfigPageProps) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  
+  // Top-level tabs: 'workflow' or 'pricing'
+  const [activeTab, setActiveTab] = useState<'workflow' | 'pricing'>('workflow');
   
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -251,7 +256,7 @@ export function ServiceConfigPage({ currentPage, onNavigate }: ServiceConfigPage
 
   const serviceInfo = SERVICE_LINES.find(s => s.code === selectedService);
 
-  // Service selection view
+  // Service selection view (when no specific service selected for workflow)
   if (!selectedService) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -266,38 +271,69 @@ export function ServiceConfigPage({ currentPage, onNavigate }: ServiceConfigPage
             <span>Back to Delivery Teams</span>
           </button>
 
-          <div className="mb-8">
+          <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-900">Service Configuration</h1>
             <p className="text-gray-600 mt-1">
-              Define workflow phases, activities, and find best-fit team members
+              Configure workflows, pricing, and team assignments for your services
             </p>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            {SERVICE_LINES.map((service) => {
-              const Icon = service.icon;
-              return (
-                <button
-                  key={service.code}
-                  onClick={() => setSelectedService(service.code)}
-                  className="bg-white rounded-xl border border-gray-200 p-6 text-left hover:border-gray-300 hover:shadow-md transition-all group"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className={`p-3 rounded-xl bg-${service.color}-100`}>
-                      <Icon className={`w-6 h-6 text-${service.color}-600`} />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600">
-                        {service.name}
-                      </h3>
-                      <p className="text-sm text-gray-500 mt-1">Configure workflow</p>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-gray-400" />
-                  </div>
-                </button>
-              );
-            })}
+          {/* Tab Navigation */}
+          <div className="flex gap-1 mb-8 border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab('workflow')}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'workflow'
+                  ? 'border-indigo-600 text-indigo-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              Workflow Configuration
+            </button>
+            <button
+              onClick={() => setActiveTab('pricing')}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'pricing'
+                  ? 'border-indigo-600 text-indigo-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+              }`}
+            >
+              <DollarSign className="w-4 h-4" />
+              Pricing & Tiers
+            </button>
           </div>
+
+          {/* Tab Content */}
+          {activeTab === 'workflow' ? (
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              {SERVICE_LINES.map((service) => {
+                const Icon = service.icon;
+                return (
+                  <button
+                    key={service.code}
+                    onClick={() => setSelectedService(service.code)}
+                    className="bg-white rounded-xl border border-gray-200 p-6 text-left hover:border-gray-300 hover:shadow-md transition-all group"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className={`p-3 rounded-xl bg-${service.color}-100`}>
+                        <Icon className={`w-6 h-6 text-${service.color}-600`} />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600">
+                          {service.name}
+                        </h3>
+                        <p className="text-sm text-gray-500 mt-1">Configure workflow</p>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-gray-400" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <ServicePricingManager />
+          )}
         </main>
       </div>
     );

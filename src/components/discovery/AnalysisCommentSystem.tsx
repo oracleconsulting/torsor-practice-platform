@@ -246,25 +246,25 @@ export function SectionCommentBox({
   const hasPendingComments = sectionComments.some(c => c.status === 'pending');
 
   return (
-    <div className="mt-2">
-      {/* Toggle Button */}
+    <div className="mt-4 pt-3 border-t border-dashed border-gray-200 dark:border-gray-700">
+      {/* Toggle Button - More visible */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className={`flex items-center gap-2 text-xs transition-colors ${
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${
           hasComments 
             ? hasPendingComments 
-              ? 'text-amber-600 hover:text-amber-700' 
-              : 'text-blue-600 hover:text-blue-700'
-            : 'text-gray-400 hover:text-gray-600'
+              ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300' 
+              : 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
         }`}
       >
-        <MessageSquare className="h-3.5 w-3.5" />
+        <MessageSquare className="h-4 w-4" />
         {hasComments ? (
-          <span>{sectionComments.length} comment{sectionComments.length !== 1 ? 's' : ''}</span>
+          <span className="font-medium">{sectionComments.length} feedback item{sectionComments.length !== 1 ? 's' : ''}</span>
         ) : (
-          <span>Add feedback</span>
+          <span>Add Feedback</span>
         )}
-        {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
       </button>
 
       {/* Expanded Content */}

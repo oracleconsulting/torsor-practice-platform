@@ -3806,7 +3806,7 @@ serve(async (req) => {
     // ========================================================================
     // PRE-COMPUTE SERVICE SCORES
     // ========================================================================
-
+    
     const serviceScores = scoreServicesFromDiscovery(preparedData.discovery.responses);
     console.log('[Discovery] Service scores:', serviceScores.filter(s => s.score > 0));
 
@@ -3894,18 +3894,18 @@ serve(async (req) => {
       // Fall back to extracting ourselves (backward compatibility)
       console.log('[Discovery] Extracting document insights (Stage 1 had none)...');
       documentInsights = await extractDocumentInsights(
-        preparedData.documents || [],
-        openrouterKey
-      );
-      
-      const financialProjections = documentInsights.financialProjections;
-      console.log('[Discovery] Document insights extracted:', {
-        hasProjections: financialProjections.hasProjections,
-        growthMultiple: financialProjections.growthMultiple,
-        businessStage: documentInsights.businessContext.stage,
-        year1: financialProjections.currentRevenue,
-        year5: financialProjections.year5Revenue
-      });
+      preparedData.documents || [],
+      openrouterKey
+    );
+    
+    const financialProjections = documentInsights.financialProjections;
+    console.log('[Discovery] Document insights extracted:', {
+      hasProjections: financialProjections.hasProjections,
+      growthMultiple: financialProjections.growthMultiple,
+      businessStage: documentInsights.businessContext.stage,
+      year1: financialProjections.currentRevenue,
+      year5: financialProjections.year5Revenue
+    });
     }
     
     const financialProjections = documentInsights.financialProjections;
@@ -5244,15 +5244,15 @@ Return ONLY the JSON object with no additional text.`;
       // Insert new report
       console.log('[Discovery] Creating new report');
       const { data: insertedReport, error: insertError } = await supabase
-        .from('client_reports')
-        .insert(report)
-        .select()
-        .single();
-      
+      .from('client_reports')
+      .insert(report)
+      .select()
+      .single();
+
       savedReport = insertedReport;
       saveError = insertError;
       
-      if (saveError) {
+    if (saveError) {
         console.error('[Discovery] Error inserting report:', saveError);
       }
     }

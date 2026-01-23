@@ -14,7 +14,6 @@ import {
   Trash2,
   Save,
   Edit2,
-  X,
   ChevronDown,
   ChevronUp,
   Loader2,
