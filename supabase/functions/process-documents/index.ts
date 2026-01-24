@@ -513,15 +513,131 @@ function uint8ArrayToBase64(uint8Array: Uint8Array): string {
 }
 
 async function extractTextWithOCR(buffer: ArrayBuffer): Promise<string> {
-  const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
-  if (!openRouterKey) {
-    throw new Error('OPENROUTER_API_KEY not configured for OCR');
-  }
-  
   console.log(`[ProcessDocs] Attempting OCR for scanned PDF (${Math.round(buffer.byteLength / 1024)}KB)`);
   
-  // SEQUENTIAL PAGE PROCESSING to avoid memory limits
-  // Process one page at a time: extract image → OCR → release memory → next page
+  // Try Google Cloud Vision first (best for full document OCR)
+  const gcpKey = Deno.env.get('GOOGLE_CLOUD_API_KEY');
+  if (gcpKey) {
+    try {
+      const text = await ocrWithGoogleVision(buffer, gcpKey);
+      if (text && text.length > 100) {
+        return text;
+      }
+    } catch (gcpErr: any) {
+      console.error('[ProcessDocs] Google Vision OCR failed:', gcpErr?.message);
+    }
+  }
+  
+  // Fallback to Claude Vision with page-by-page processing
+  const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
+  if (!openRouterKey) {
+    throw new Error('No OCR API keys configured (GOOGLE_CLOUD_API_KEY or OPENROUTER_API_KEY)');
+  }
+  
+  return await ocrWithClaudeVision(buffer, openRouterKey);
+}
+
+// Google Cloud Vision API - handles full PDFs natively, best for documents
+async function ocrWithGoogleVision(buffer: ArrayBuffer, apiKey: string): Promise<string> {
+  console.log('[ProcessDocs] Using Google Cloud Vision for document OCR...');
+  
+  const uint8Array = new Uint8Array(buffer);
+  const base64Pdf = uint8ArrayToBase64(uint8Array);
+  
+  // Google Vision Document Text Detection - handles full PDFs up to 2000 pages
+  const response = await fetch(
+    `https://vision.googleapis.com/v1/files:asyncBatchAnnotate?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requests: [{
+          inputConfig: {
+            content: base64Pdf,
+            mimeType: 'application/pdf'
+          },
+          features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
+          outputConfig: {
+            gcsDestination: {
+              uri: 'gs://temp-ocr-output/' // Requires GCS bucket setup
+            }
+          }
+        }]
+      })
+    }
+  );
+  
+  if (!response.ok) {
+    // Try simpler sync API for smaller documents
+    return await ocrWithGoogleVisionSync(buffer, apiKey);
+  }
+  
+  const data = await response.json();
+  console.log('[ProcessDocs] Google Vision async response:', JSON.stringify(data).substring(0, 500));
+  
+  // For async, we'd need to poll for results - use sync for now
+  return await ocrWithGoogleVisionSync(buffer, apiKey);
+}
+
+// Synchronous Google Vision for smaller documents (processes as images)
+async function ocrWithGoogleVisionSync(buffer: ArrayBuffer, apiKey: string): Promise<string> {
+  console.log('[ProcessDocs] Using Google Vision sync API...');
+  
+  const uint8Array = new Uint8Array(buffer);
+  const allText: string[] = [];
+  
+  try {
+    const unpdf = await import('https://esm.sh/unpdf@0.12.1?bundle');
+    const pdf = await unpdf.getDocumentProxy(uint8Array);
+    
+    console.log(`[ProcessDocs] Processing ${pdf.numPages} pages with Google Vision...`);
+    
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      try {
+        const pageImage = await extractSinglePageImage(pdf, pageNum);
+        if (!pageImage) continue;
+        
+        // Google Vision has 20MB limit per image (much larger than Claude's 5MB)
+        const response = await fetch(
+          `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requests: [{
+                image: { content: pageImage.base64 },
+                features: [{ type: 'DOCUMENT_TEXT_DETECTION', maxResults: 50 }]
+              }]
+            })
+          }
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          const text = data.responses?.[0]?.fullTextAnnotation?.text || 
+                       data.responses?.[0]?.textAnnotations?.[0]?.description || '';
+          if (text) {
+            allText.push(`--- PAGE ${pageNum} ---\n${text}`);
+            console.log(`[ProcessDocs] Page ${pageNum}: ${text.length} chars`);
+          }
+        }
+      } catch (pageErr: any) {
+        console.error(`[ProcessDocs] Page ${pageNum} error:`, pageErr?.message);
+      }
+    }
+    
+    pdf.destroy();
+  } catch (err: any) {
+    throw new Error(`Google Vision OCR failed: ${err?.message}`);
+  }
+  
+  return allText.join('\n\n');
+}
+
+// Claude Vision fallback - page by page with size limits
+async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise<string> {
+  console.log('[ProcessDocs] Using Claude Vision for OCR (fallback)...');
+  
   const uint8Array = new Uint8Array(buffer);
   const allExtractedText: string[] = [];
   
@@ -530,13 +646,12 @@ async function extractTextWithOCR(buffer: ArrayBuffer): Promise<string> {
     const pdf = await unpdf.getDocumentProxy(uint8Array);
     const totalPages = pdf.numPages;
     
-    console.log(`[ProcessDocs] PDF has ${totalPages} pages, processing sequentially...`);
+    console.log(`[ProcessDocs] PDF has ${totalPages} pages, processing with Claude Vision...`);
     
     for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
       try {
         console.log(`[ProcessDocs] Processing page ${pageNum}/${totalPages}...`);
         
-        // Extract single page image
         const pageImage = await extractSinglePageImage(pdf, pageNum);
         
         if (!pageImage) {
@@ -544,23 +659,27 @@ async function extractTextWithOCR(buffer: ArrayBuffer): Promise<string> {
           continue;
         }
         
-        // OCR this single page
-        const pageText = await ocrSingleImage(pageImage, pageNum, totalPages, openRouterKey);
+        // Check image size - Claude has 5MB limit
+        const imageSizeBytes = (pageImage.base64.length * 3) / 4; // Approximate decoded size
+        if (imageSizeBytes > 4.5 * 1024 * 1024) {
+          console.log(`[ProcessDocs] Page ${pageNum} image too large (${Math.round(imageSizeBytes / 1024 / 1024)}MB), skipping`);
+          allExtractedText.push(`--- PAGE ${pageNum} ---\n[Image too large for OCR - ${Math.round(imageSizeBytes / 1024 / 1024)}MB]`);
+          continue;
+        }
+        
+        const pageText = await ocrSingleImage(pageImage, pageNum, totalPages, apiKey);
         
         if (pageText && pageText.length > 10) {
           allExtractedText.push(`--- PAGE ${pageNum} ---\n${pageText}`);
           console.log(`[ProcessDocs] Page ${pageNum}: extracted ${pageText.length} chars`);
         }
         
-        // Memory is released as pageImage goes out of scope
-        
       } catch (pageErr: any) {
         console.error(`[ProcessDocs] Error on page ${pageNum}:`, pageErr?.message || pageErr);
-        // Continue to next page
+        allExtractedText.push(`--- PAGE ${pageNum} ---\n[OCR Error: ${pageErr?.message?.substring(0, 100)}]`);
       }
     }
     
-    // Cleanup
     pdf.destroy();
     
   } catch (err: any) {
@@ -575,7 +694,7 @@ async function extractTextWithOCR(buffer: ArrayBuffer): Promise<string> {
   const fullText = allExtractedText.join('\n\n');
   console.log(`[ProcessDocs] OCR complete: ${fullText.length} chars from ${allExtractedText.length} pages`);
   
-  return fullText.substring(0, 100000); // Allow more text since we're processing all pages
+  return fullText.substring(0, 100000);
 }
 
 // Extract a single page's image from the PDF
