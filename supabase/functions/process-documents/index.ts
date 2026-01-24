@@ -313,26 +313,71 @@ function sanitizeForLLM(rawText: string): { sanitizedText: string; extractedMetr
 // TEXT EXTRACTION (simplified for common formats)
 // ============================================================================
 
-async function extractTextFromUrl(fileUrl: string, fileType: string): Promise<string> {
+// Extract text from a file using Supabase Storage authenticated download
+// This is needed because client-documents bucket is PRIVATE (not public)
+async function extractTextFromStorage(
+  supabase: any, 
+  fileUrl: string, 
+  fileType: string
+): Promise<string> {
   try {
-    // Fetch the file
-    const response = await fetch(fileUrl);
-    if (!response.ok) throw new Error(`Failed to fetch file: ${response.status}`);
+    console.log(`[ProcessDocs] Extracting from: ${fileUrl}`);
     
-    const contentType = response.headers.get('content-type') || fileType;
+    // Parse the URL to get bucket and path
+    // URL format: https://xxx.supabase.co/storage/v1/object/public/{bucket}/{path}
+    let bucket = 'client-documents';
+    let storagePath = '';
     
-    // Handle text-based files directly
-    if (contentType.includes('text') || 
-        fileType.endsWith('.txt') || 
-        fileType.endsWith('.md') ||
-        fileType.endsWith('.csv')) {
-      return await response.text();
+    if (fileUrl.includes('/storage/v1/object/public/')) {
+      const parts = fileUrl.split('/storage/v1/object/public/');
+      if (parts[1]) {
+        const pathParts = parts[1].split('/');
+        bucket = pathParts[0];
+        storagePath = pathParts.slice(1).join('/');
+      }
+    } else if (fileUrl.includes('/storage/v1/object/')) {
+      // Handle non-public URL format
+      const parts = fileUrl.split('/storage/v1/object/');
+      if (parts[1]) {
+        const pathParts = parts[1].split('/');
+        bucket = pathParts[0];
+        storagePath = pathParts.slice(1).join('/');
+      }
     }
     
-    // For PDF files - use unpdf for proper text extraction
-    if (contentType.includes('pdf') || fileType.endsWith('.pdf')) {
+    console.log(`[ProcessDocs] Bucket: ${bucket}, Path: ${storagePath}`);
+    
+    // Download the file using authenticated Supabase Storage API
+    const { data: fileBlob, error: downloadError } = await supabase.storage
+      .from(bucket)
+      .download(storagePath);
+    
+    if (downloadError || !fileBlob) {
+      console.error('[ProcessDocs] Storage download error:', downloadError);
+      throw new Error(`Failed to download file: ${downloadError?.message || 'No data'}`);
+    }
+    
+    console.log(`[ProcessDocs] Downloaded file: ${fileBlob.size} bytes`);
+    
+    // Convert blob to array buffer
+    const buffer = await fileBlob.arrayBuffer();
+    
+    // Handle based on file type
+    const lowerType = fileType.toLowerCase();
+    
+    // Text-based files
+    if (lowerType.includes('text') || 
+        lowerType.endsWith('.txt') || 
+        lowerType.endsWith('.md') ||
+        lowerType.endsWith('.csv')) {
+      const text = await fileBlob.text();
+      console.log(`[ProcessDocs] Text file extracted: ${text.length} chars`);
+      return text;
+    }
+    
+    // PDF files - use unpdf for proper text extraction
+    if (lowerType.includes('pdf') || lowerType.endsWith('.pdf')) {
       console.log('[ProcessDocs] Extracting text from PDF...');
-      const buffer = await response.arrayBuffer();
       const text = await extractTextFromPDF(buffer);
       if (text && text.length > 50) {
         console.log(`[ProcessDocs] Successfully extracted ${text.length} chars from PDF`);
@@ -342,15 +387,14 @@ async function extractTextFromUrl(fileUrl: string, fileType: string): Promise<st
       return `[PDF Document: Could not extract text - ${fileType}]`;
     }
     
-    // For Office documents
-    if (fileType.includes('.doc') || fileType.includes('.xls') || fileType.includes('.ppt')) {
+    // Office documents
+    if (lowerType.includes('.doc') || lowerType.includes('.xls') || lowerType.includes('.ppt')) {
       return `[Office Document: ${fileType} - Content extraction pending]`;
     }
     
     // Fallback: try to read as text
     try {
-      const text = await response.text();
-      // Check if it looks like readable text
+      const text = await fileBlob.text();
       if (text && text.length > 0 && !/[\x00-\x08\x0E-\x1F]/.test(text.substring(0, 1000))) {
         return text;
       }
@@ -360,7 +404,7 @@ async function extractTextFromUrl(fileUrl: string, fileType: string): Promise<st
     
     return `[Binary file: ${fileType}]`;
   } catch (error) {
-    console.error('Error extracting text:', error);
+    console.error('[ProcessDocs] Error extracting text:', error);
     return `[Error extracting content from ${fileType}]`;
   }
 }
@@ -622,8 +666,9 @@ serve(async (req) => {
       try {
         console.log(`Processing: ${doc.fileName}`);
         
-        // 1. Extract text from document
-        const rawText = await extractTextFromUrl(doc.fileUrl, doc.fileType);
+        // 1. Extract text from document using authenticated Supabase Storage download
+        // (NOT public URL fetch - client-documents bucket is PRIVATE)
+        const rawText = await extractTextFromStorage(supabase, doc.fileUrl, doc.fileType);
         console.log(`Extracted ${rawText.length} chars from ${doc.fileName}`);
         
         // 2. Detect data source type (accounts vs transcript)
