@@ -222,3 +222,4 @@ COMMENT ON COLUMN service_line_metadata.manual_content IS 'Markdown/rich text co
 COMMENT ON COLUMN service_line_metadata.manual_file_path IS 'Path to PDF manual in service-manuals storage bucket';
 
 
+

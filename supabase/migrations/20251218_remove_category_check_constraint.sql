@@ -21,3 +21,4 @@ END $$;
 
 COMMENT ON COLUMN client_tasks.category IS 'Task category - flexible text field, no restrictions';
 
+

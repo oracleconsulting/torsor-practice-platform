@@ -34,3 +34,4 @@ BEGIN
   RAISE NOTICE 'MA Periods status constraint updated to include delivered';
 END $$;
 
+

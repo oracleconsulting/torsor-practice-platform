@@ -84,3 +84,4 @@ WHERE dd.client_id = pm.id
   AND pm.member_type = 'client';
 
 
+

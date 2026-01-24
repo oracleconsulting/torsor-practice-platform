@@ -117,3 +117,4 @@ GRANT EXECUTE ON FUNCTION unassign_client_owner(UUID) TO authenticated;
 -- (This leverages existing practice-level RLS)
 
 
+

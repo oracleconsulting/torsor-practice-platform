@@ -645,3 +645,4 @@ export const BANNED_PHRASES = [
 
 export const MAX_INSIGHTS = 7;
 
+

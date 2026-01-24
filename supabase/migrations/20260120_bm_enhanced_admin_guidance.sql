@@ -15,3 +15,4 @@ COMMENT ON COLUMN bm_reports.admin_opening_statement IS 'Opening statement scrip
 COMMENT ON COLUMN bm_reports.admin_data_collection_script IS 'JSON array of scripts for collecting specific missing metrics from clients';
 COMMENT ON COLUMN bm_reports.admin_closing_script IS 'Closing script for practitioner to wrap up the conversation and confirm next steps';
 
+

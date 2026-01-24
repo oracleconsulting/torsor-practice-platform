@@ -411,3 +411,4 @@ COMMENT ON TABLE service_pricing_tiers IS 'Individual pricing tiers for each ser
 COMMENT ON FUNCTION get_service_pricing(UUID) IS 'Returns all active service pricing for a practice in the format expected by edge functions.';
 COMMENT ON FUNCTION seed_default_service_pricing(UUID, UUID) IS 'Seeds default Oracle Consulting pricing for a new practice.';
 
+

@@ -51,3 +51,4 @@ SELECT 'audit_advisory_insights DELETE policy' as policy,
        ) THEN 'Created' ELSE 'Failed' END as status;
 
 
+

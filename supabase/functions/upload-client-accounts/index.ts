@@ -162,3 +162,4 @@ function getMimeType(fileType: string): string {
   return mimeTypes[fileType] || 'application/octet-stream';
 }
 
+

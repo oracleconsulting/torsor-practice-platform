@@ -33,3 +33,4 @@ COMMENT ON COLUMN discovery_reports.personal_anchors IS 'Personal details used (
 COMMENT ON COLUMN discovery_reports.urgency_level IS 'high/medium/low based on detected patterns';
 
 
+

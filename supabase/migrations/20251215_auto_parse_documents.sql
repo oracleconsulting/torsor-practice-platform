@@ -244,3 +244,4 @@ COMMENT ON TABLE document_parse_queue IS 'Queue for documents awaiting PDF parsi
 COMMENT ON VIEW v_document_parsing_status IS 'View showing document parsing status and extracted financial data';
 
 
+

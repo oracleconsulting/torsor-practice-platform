@@ -8,3 +8,4 @@ ADD COLUMN IF NOT EXISTS benchmark_sources_detail JSONB;
 
 COMMENT ON COLUMN bm_reports.benchmark_sources_detail IS 'Rich source data including per-metric attribution, confidence scores, and market context from Perplexity search';
 
+

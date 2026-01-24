@@ -58,3 +58,4 @@ export function MetricsSummaryBar({ metrics }: MetricsSummaryBarProps) {
 
 export default MetricsSummaryBar;
 
+

@@ -390,14 +390,55 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
             </h2>
           </div>
 
-          {/* Cost of Staying */}
+          {/* Cost of Staying - Uses calculated financialInsights when available */}
           <div className="bg-rose-50 rounded-xl p-6 mb-6 border border-rose-100">
             <h3 className="text-lg font-medium text-rose-800 mb-4 flex items-center gap-2">
               <AlertTriangle className="h-5 w-5" />
               What Staying Here Costs
             </h3>
             
-            {page4.costOfStaying && (
+            {/* CALCULATED PAYROLL DATA - Priority source */}
+            {page4.financialInsights?.payroll && (
+              <div className="space-y-4 mb-4">
+                <div className="bg-white/60 rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-rose-800 font-medium">Labour inefficiency</span>
+                    <span className="font-bold text-rose-700 text-lg">
+                      £{Math.round(page4.financialInsights.payroll.recoverableLow / 1000)}k-£{Math.round(page4.financialInsights.payroll.recoverableHigh / 1000)}k/year
+                    </span>
+                  </div>
+                  <div className="text-sm text-rose-600 space-y-1">
+                    <p>Staff costs £{Math.round(page4.financialInsights.payroll.staffCosts / 1000)}k ({page4.financialInsights.payroll.actualPct?.toFixed(1)}% of turnover)</p>
+                    <p>Industry benchmark: {page4.financialInsights.payroll.benchmarkPct}%</p>
+                    <p className="text-rose-700 font-medium">
+                      {(page4.financialInsights.payroll.actualPct - page4.financialInsights.payroll.benchmarkPct).toFixed(1)}% above benchmark = £{Math.round(page4.financialInsights.payroll.grossExcess / 1000)}k gross excess
+                    </p>
+                    <p className="text-xs text-rose-500 mt-2 italic">
+                      Conservative recovery (35-50% of gross excess through restructuring)
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Valuation impact if available */}
+                {page4.financialInsights?.valuation && (
+                  <div className="bg-white/60 rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-rose-800 font-medium">Exit value at risk</span>
+                      <span className="font-bold text-rose-700 text-lg">
+                        £{Math.round(page4.financialInsights.valuation.uplift / 1000)}k potential uplift
+                      </span>
+                    </div>
+                    <div className="text-sm text-rose-600 space-y-1">
+                      <p>Current: £{Math.round(page4.financialInsights.valuation.currentValuation / 1000)}k (£{Math.round(page4.financialInsights.valuation.currentEbitda / 1000)}k × {page4.financialInsights.valuation.currentMultiple}x)</p>
+                      <p>Potential: £{Math.round(page4.financialInsights.valuation.improvedValuation / 1000)}k (with improvements)</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* FALLBACK: LLM-generated narrative if no calculated data */}
+            {!page4.financialInsights?.payroll && page4.costOfStaying && (
               <div className="space-y-2 mb-4">
                 {page4.costOfStaying.labourInefficiency && (
                   <div className="flex justify-between text-rose-700">
@@ -423,15 +464,23 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
                     <span className="font-medium">{page4.costOfStaying.businessValueImpact}</span>
                   </div>
                 )}
+                {/* LLM narrative fields */}
+                {page4.costOfStaying.annualFinancialCost && (
+                  <div className="flex justify-between text-rose-700">
+                    <span>Annual cost</span>
+                    <span className="font-medium">{page4.costOfStaying.annualFinancialCost}</span>
+                  </div>
+                )}
               </div>
             )}
             
-            {page4.personalCost && (
+            {/* Personal cost - from LLM narrative */}
+            {(page4.personalCost || page4.costOfStaying?.personalCost) && (
               <div className="mt-4 pt-4 border-t border-rose-200">
                 <p className="text-sm font-medium text-rose-600 uppercase tracking-wide mb-1">
                   Personal cost:
                 </p>
-                <p className="text-rose-800">{page4.personalCost}</p>
+                <p className="text-rose-800">{page4.personalCost || page4.costOfStaying?.personalCost}</p>
               </div>
             )}
           </div>

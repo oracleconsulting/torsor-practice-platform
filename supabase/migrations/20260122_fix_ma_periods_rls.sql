@@ -42,3 +42,4 @@ BEGIN
   RAISE NOTICE 'MA Periods RLS policies updated for authenticated users';
 END $$;
 
+

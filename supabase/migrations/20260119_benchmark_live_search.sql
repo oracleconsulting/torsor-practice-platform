@@ -212,3 +212,4 @@ COMMENT ON TABLE benchmark_metric_sources IS 'Links benchmark data points to the
 COMMENT ON FUNCTION check_benchmark_freshness IS 'Check if an industry needs benchmark data refresh based on age threshold';
 COMMENT ON FUNCTION get_recent_search_for_industry IS 'Get the most recent successful benchmark search for an industry';
 
+

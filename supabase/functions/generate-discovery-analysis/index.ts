@@ -6815,9 +6815,46 @@ Uplift potential: £${Math.round(uplift / 1000)}k`,
           console.log('[Discovery] Built valuation financial insights:', financialInsights.valuation.summary);
         }
         
+        // ========================================================================
+        // BUILD COST OF STAYING - Merge calculated data with LLM narrative
+        // ========================================================================
+        const llmCostOfInaction = analysis.gapAnalysis?.costOfInaction || {};
+        
+        // Build costOfStaying with CALCULATED values (takes priority)
+        const costOfStaying: any = {
+          // LLM narrative fields (fallback)
+          ...llmCostOfInaction,
+        };
+        
+        // Override with CALCULATED labour inefficiency if available
+        if (financialInsights.payroll) {
+          const payroll = financialInsights.payroll;
+          costOfStaying.labourInefficiency = `£${Math.round(payroll.recoverableLow / 1000)}k-£${Math.round(payroll.recoverableHigh / 1000)}k/year recoverable`;
+          costOfStaying.labourInefficiencyDetail = payroll.calculationBreakdown;
+          costOfStaying.staffCosts = payroll.staffCosts;
+          costOfStaying.staffCostsPct = payroll.actualPct;
+          costOfStaying.benchmarkPct = payroll.benchmarkPct;
+          costOfStaying.grossExcess = payroll.grossExcess;
+          costOfStaying.recoverableLow = payroll.recoverableLow;
+          costOfStaying.recoverableHigh = payroll.recoverableHigh;
+          console.log('[Discovery] costOfStaying - using CALCULATED labour inefficiency:', costOfStaying.labourInefficiency);
+        }
+        
+        // Add valuation impact if available
+        if (financialInsights.valuation) {
+          const val = financialInsights.valuation;
+          costOfStaying.businessValueImpact = `£${Math.round(val.uplift / 1000)}k potential uplift at exit`;
+          costOfStaying.currentValuation = val.currentValuation;
+          costOfStaying.improvedValuation = val.improvedValuation;
+          costOfStaying.valuationUplift = val.uplift;
+          console.log('[Discovery] costOfStaying - using CALCULATED valuation impact:', costOfStaying.businessValueImpact);
+        }
+        
         const page4_numbers = {
           investmentSummary: analysis.investmentSummary || {},
-          costOfStaying: analysis.gapAnalysis?.costOfInaction || {},
+          costOfStaying: costOfStaying,
+          personalCost: llmCostOfInaction.personalCost || '',
+          compoundingEffect: llmCostOfInaction.compoundingEffect || '',
           returnProjection: analysis.investmentSummary?.projectedFirstYearReturn || '',
           returnBreakdown: analysis.investmentSummary?.projectedReturnBreakdown || '',
           paybackPeriod: analysis.investmentSummary?.paybackPeriod || '',
