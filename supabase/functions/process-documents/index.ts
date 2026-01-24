@@ -659,12 +659,12 @@ async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise
           continue;
         }
         
-        // Check image size - Claude has 5MB limit
+        // Check image size - Qwen supports ~10MB, Claude has 5MB limit
+        // Try all images but note very large ones
         const imageSizeBytes = (pageImage.base64.length * 3) / 4; // Approximate decoded size
-        if (imageSizeBytes > 4.5 * 1024 * 1024) {
-          console.log(`[ProcessDocs] Page ${pageNum} image too large (${Math.round(imageSizeBytes / 1024 / 1024)}MB), skipping`);
-          allExtractedText.push(`--- PAGE ${pageNum} ---\n[Image too large for OCR - ${Math.round(imageSizeBytes / 1024 / 1024)}MB]`);
-          continue;
+        const imageSizeMB = imageSizeBytes / 1024 / 1024;
+        if (imageSizeMB > 15) {
+          console.log(`[ProcessDocs] Page ${pageNum} image very large (${Math.round(imageSizeMB)}MB), may fail`);
         }
         
         const pageText = await ocrSingleImage(pageImage, pageNum, totalPages, apiKey);
@@ -736,53 +736,75 @@ async function extractSinglePageImage(pdf: any, pageNum: number): Promise<{base6
   return null;
 }
 
-// OCR a single image using Claude Vision
+// OCR a single image - try Qwen2.5-VL first (best OCR), then Mistral, then Claude
 async function ocrSingleImage(
   image: {base64: string, mimeType: string}, 
   pageNum: number, 
   totalPages: number,
   apiKey: string
 ): Promise<string> {
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://torsor.co.uk',
-      'X-Title': 'Torsor Document OCR'
-    },
-    body: JSON.stringify({
-      model: 'anthropic/claude-3.5-sonnet',
-      max_tokens: 4000,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: `Extract ALL text from this page (page ${pageNum} of ${totalPages}) of a UK company accounts document.
+  // OCR models to try in order of preference (Qwen2.5-VL is best for document OCR)
+  const ocrModels = [
+    'qwen/qwen2.5-vl-72b-instruct',     // Best OCR accuracy, larger image support
+    'qwen/qwen2.5-vl-32b-instruct',     // Fallback Qwen
+    'mistralai/mistral-small-3.1-24b-instruct', // Good multilingual OCR
+    'anthropic/claude-3.5-sonnet'        // Final fallback
+  ];
+  
+  const ocrPrompt = `Extract ALL text from this page (page ${pageNum} of ${totalPages}) of a UK company accounts document.
 Extract exactly as written: all text, numbers, tables, headers, notes.
-Format tables with | separators. Output ONLY the text, no commentary.`
-            },
+Format tables with | separators. Preserve structure.
+Output ONLY the extracted text, no commentary.`;
+
+  for (const model of ocrModels) {
+    try {
+      console.log(`[ProcessDocs] Trying OCR with ${model}...`);
+      
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://torsor.co.uk',
+          'X-Title': 'Torsor Document OCR'
+        },
+        body: JSON.stringify({
+          model: model,
+          max_tokens: 4000,
+          messages: [
             {
-              type: 'image_url',
-              image_url: {
-                url: `data:${image.mimeType};base64,${image.base64}`
-              }
+              role: 'user',
+              content: [
+                { type: 'text', text: ocrPrompt },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:${image.mimeType};base64,${image.base64}`
+                  }
+                }
+              ]
             }
           ]
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const text = data.choices?.[0]?.message?.content || '';
+        if (text.length > 50) {
+          console.log(`[ProcessDocs] ✓ OCR success with ${model}: ${text.length} chars`);
+          return text;
         }
-      ]
-    })
-  });
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OCR API error: ${response.status} - ${errorText.substring(0, 200)}`);
+      } else {
+        const errorText = await response.text();
+        console.log(`[ProcessDocs] ${model} failed: ${errorText.substring(0, 100)}`);
+      }
+    } catch (modelErr: any) {
+      console.log(`[ProcessDocs] ${model} error: ${modelErr?.message?.substring(0, 100)}`);
+    }
   }
   
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content || '';
+  throw new Error('All OCR models failed');
 }
 
 
