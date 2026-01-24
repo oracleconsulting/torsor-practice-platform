@@ -31,8 +31,16 @@ import {
   Briefcase,
   Award,
   Trash2,
-  BookOpen
+  BookOpen,
+  Quote,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle2,
+  DollarSign,
+  Phone,
+  Eye
 } from 'lucide-react';
+import { EnabledByLink } from '../ServiceDetailPopup';
 import { 
   SectionCommentBox, 
   LearningReviewPanel, 
@@ -1140,6 +1148,484 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
     );
   };
 
+  // ============================================================================
+  // CLIENT PREVIEW - Exact match to client portal styling
+  // ============================================================================
+  const [expandedPhase, setExpandedPhase] = useState<number>(0);
+  
+  // Map service names to codes for the popup
+  const getServiceCode = (name: string, code?: string) => {
+    if (code) return code;
+    const nameLower = name.toLowerCase();
+    if (nameLower.includes('365') || nameLower.includes('goal alignment')) return '365_method';
+    if (nameLower.includes('systems audit')) return 'systems_audit';
+    if (nameLower.includes('management account')) return 'management_accounts';
+    if (nameLower.includes('fractional cfo')) return 'fractional_cfo';
+    if (nameLower.includes('hidden value')) return 'hidden_value_audit';
+    if (nameLower.includes('benchmark')) return 'benchmarking';
+    if (nameLower.includes('automation')) return 'automation';
+    if (nameLower.includes('exit')) return 'exit_planning';
+    return 'discovery';
+  };
+  
+  // Normalize service names
+  const getDisplayName = (name: string) => {
+    if (name.toLowerCase().includes('365 alignment') || name.toLowerCase().includes('365 method')) {
+      return 'Goal Alignment Programme';
+    }
+    return name;
+  };
+  
+  const renderClientPreview = () => {
+    const dest = report?.destination_report;
+    const page1 = dest?.page1_destination || report?.page1_destination;
+    const page2 = dest?.page2_gaps || report?.page2_gaps;
+    const page3 = dest?.page3_journey || report?.page3_journey;
+    const page4 = dest?.page4_numbers || report?.page4_numbers;
+    const page5 = dest?.page5_nextSteps || dest?.page5_next_steps || report?.page5_next_steps;
+
+    if (!page1 && !report?.headline) {
+      return (
+        <div className="text-center py-12 text-gray-500">
+          <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <p>Report narrative not yet generated</p>
+          <p className="text-sm">Run analysis to generate the destination-focused report</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="px-4 py-8 bg-gradient-to-br from-slate-50 via-white to-blue-50 rounded-xl">
+        {/* ================================================================ */}
+        {/* PAGE 1: YOUR VISION - Client Portal Style */}
+        {/* ================================================================ */}
+        {page1 && (
+          <section className="mb-16">
+            <div className="mb-8">
+              <p className="text-sm font-medium text-amber-600 uppercase tracking-widest mb-2">
+                Your Vision
+              </p>
+              <h1 className="text-3xl font-serif font-light text-slate-800 leading-tight">
+                {page1.headerLine || "The Tuesday You're Building Towards"}
+              </h1>
+            </div>
+            
+            <div className="bg-gradient-to-br from-slate-50 to-stone-50 rounded-xl p-8 border border-slate-100">
+              <Quote className="h-8 w-8 text-amber-500 mb-4 opacity-60" />
+              <blockquote className="text-lg text-slate-700 leading-relaxed italic whitespace-pre-wrap">
+                {page1.visionVerbatim}
+              </blockquote>
+            </div>
+            
+            {page1.destinationClarityScore && (
+              <div className="mt-6 flex items-center gap-4">
+                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-amber-400 to-emerald-500 rounded-full transition-all duration-1000"
+                    style={{ width: `${(page1.destinationClarityScore / 10) * 100}%` }}
+                  />
+                </div>
+                <div className="text-sm text-slate-600">
+                  <span className="font-semibold text-emerald-600">{page1.destinationClarityScore}/10</span>
+                  <span className="text-slate-400 ml-2">Destination Clarity</span>
+                </div>
+              </div>
+            )}
+            {page1.clarityExplanation && (
+              <p className="mt-2 text-sm text-slate-500">{page1.clarityExplanation}</p>
+            )}
+          </section>
+        )}
+
+        {/* ================================================================ */}
+        {/* PAGE 2: THE REALITY - What's In The Way */}
+        {/* ================================================================ */}
+        {page2 && (
+          <section className="mb-16">
+            <div className="mb-8">
+              <p className="text-sm font-medium text-rose-600 uppercase tracking-widest mb-2">
+                The Reality
+              </p>
+              <h2 className="text-2xl font-serif font-light text-slate-800">
+                {page2.headerLine || "The Gap Between Here and There"}
+              </h2>
+              {page2.openingLine && (
+                <p className="mt-4 text-lg text-rose-600 font-light italic">
+                  {page2.openingLine}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-6">
+              {page2.gaps?.map((gap: any, index: number) => (
+                <div 
+                  key={index}
+                  className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm"
+                >
+                  <div className="p-6">
+                    <div className="flex items-start gap-3 mb-4">
+                      <AlertTriangle className="h-5 w-5 text-rose-500 flex-shrink-0 mt-0.5" />
+                      <h3 className="text-lg font-medium text-slate-800">{gap.title}</h3>
+                    </div>
+                    
+                    {/* The Pattern */}
+                    <div className="bg-slate-50 rounded-lg p-4 mb-4 border-l-4 border-slate-300">
+                      <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-2">
+                        The pattern:
+                      </p>
+                      <p className="text-slate-700 italic">"{gap.pattern}"</p>
+                    </div>
+                    
+                    {/* What This Costs */}
+                    {gap.costs && gap.costs.length > 0 && (
+                      <div className="mb-4">
+                        <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-2">
+                          What this costs you:
+                        </p>
+                        <ul className="space-y-1">
+                          {gap.costs.map((cost: string, costIdx: number) => (
+                            <li key={costIdx} className="flex items-start gap-2 text-slate-600">
+                              <span className="text-rose-400 mt-1">•</span>
+                              {cost}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {/* The Shift Required */}
+                    <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-100">
+                      <p className="text-sm font-medium text-emerald-700 uppercase tracking-wide mb-1">
+                        The shift required:
+                      </p>
+                      <p className="text-emerald-800">{gap.shiftRequired}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ================================================================ */}
+        {/* PAGE 3: THE JOURNEY - With Clickable Service Links */}
+        {/* ================================================================ */}
+        {page3 && (
+          <section className="mb-16">
+            <div className="mb-8">
+              <p className="text-sm font-medium text-blue-600 uppercase tracking-widest mb-2">
+                The Path Forward
+              </p>
+              <h2 className="text-2xl font-serif font-light text-slate-800">
+                {page3.headerLine || "From Here to the 4pm Pickup"}
+              </h2>
+            </div>
+
+            {/* Timeline Visual */}
+            <div className="mb-8 py-6 px-4 bg-slate-50 rounded-xl">
+              <div className="flex items-center justify-between relative">
+                <div className="absolute top-2 left-4 right-4 h-0.5 bg-slate-200" />
+                {['Now', 'Month 3', 'Month 6', 'Month 12'].map((label, idx) => (
+                  <div key={label} className="flex flex-col items-center relative z-10">
+                    <div className={`w-4 h-4 rounded-full border-2 ${
+                      idx === 3 ? 'bg-emerald-500 border-emerald-500' : 'bg-white border-gray-300'
+                    }`} />
+                    <span className="text-xs text-gray-500 mt-1 whitespace-nowrap">{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Journey Phases - Collapsible */}
+            <div className="space-y-4">
+              {page3.phases?.map((phase: any, index: number) => (
+                <div 
+                  key={index}
+                  className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm"
+                >
+                  {/* Phase Header - Clickable */}
+                  <button
+                    onClick={() => setExpandedPhase(expandedPhase === index ? -1 : index)}
+                    className="w-full p-6 text-left hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full mb-2">
+                          {phase.timeframe}
+                        </span>
+                        <h3 className="text-xl font-medium text-slate-800">
+                          {phase.headline}
+                        </h3>
+                      </div>
+                      {expandedPhase === index ? (
+                        <ChevronUp className="h-5 w-5 text-slate-400" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-slate-400" />
+                      )}
+                    </div>
+                  </button>
+                  
+                  {/* Expanded Content */}
+                  {expandedPhase === index && (
+                    <div className="px-6 pb-6 border-t border-slate-100">
+                      {/* What Changes */}
+                      {phase.whatChanges && (
+                        <div className="mt-4">
+                          <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-2">
+                            What changes:
+                          </p>
+                          <ul className="space-y-1">
+                            {(Array.isArray(phase.whatChanges) ? phase.whatChanges : [phase.whatChanges]).map((change: string, changeIdx: number) => (
+                              <li key={changeIdx} className="flex items-start gap-2 text-slate-700">
+                                <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                                {change}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {/* What This Feels Like */}
+                      {phase.feelsLike && (
+                        <div className="mt-4 bg-amber-50 rounded-lg p-4 border border-amber-100">
+                          <p className="text-sm font-medium text-amber-700 uppercase tracking-wide mb-1">
+                            What this feels like:
+                          </p>
+                          <p className="text-amber-900 italic">{phase.feelsLike}</p>
+                        </div>
+                      )}
+                      
+                      {/* The Outcome */}
+                      {phase.outcome && (
+                        <div className="mt-4">
+                          <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-1">
+                            The outcome:
+                          </p>
+                          <p className="text-slate-700 font-medium">{phase.outcome}</p>
+                        </div>
+                      )}
+                      
+                      {/* Enabled By - CLICKABLE SERVICE LINK */}
+                      {phase.enabledBy && (
+                        <div className="mt-4 pt-4 border-t border-slate-100">
+                          <EnabledByLink
+                            serviceCode={getServiceCode(phase.enabledBy, phase.enabledByCode)}
+                            serviceName={getDisplayName(phase.enabledBy)}
+                            price={phase.price || phase.investment}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ================================================================ */}
+        {/* PAGE 4: THE INVESTMENT */}
+        {/* ================================================================ */}
+        {page4 && (
+          <section className="mb-16">
+            <div className="mb-8">
+              <p className="text-sm font-medium text-slate-500 uppercase tracking-widest mb-2">
+                The Investment
+              </p>
+              <h2 className="text-2xl font-serif font-light text-slate-800">
+                {page4.headerLine || "The Investment in Your Tuesday"}
+              </h2>
+            </div>
+
+            {/* Cost of Staying */}
+            {page4.costOfStaying && (
+              <div className="bg-rose-50 rounded-xl p-6 mb-6 border border-rose-100">
+                <h3 className="text-lg font-medium text-rose-800 mb-4 flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  What Staying Here Costs
+                </h3>
+                
+                <div className="space-y-2 mb-4">
+                  {page4.costOfStaying.labourInefficiency && (
+                    <div className="flex justify-between text-rose-700">
+                      <span>Labour inefficiency</span>
+                      <span className="font-medium">{page4.costOfStaying.labourInefficiency}</span>
+                    </div>
+                  )}
+                  {page4.costOfStaying.marginLeakage && (
+                    <div className="flex justify-between text-rose-700">
+                      <span>Margin leakage</span>
+                      <span className="font-medium">{page4.costOfStaying.marginLeakage}</span>
+                    </div>
+                  )}
+                </div>
+                
+                {page4.personalCost && (
+                  <div className="mt-4 pt-4 border-t border-rose-200">
+                    <p className="text-sm font-medium text-rose-600 uppercase tracking-wide mb-1">
+                      Personal cost:
+                    </p>
+                    <p className="text-rose-800">{page4.personalCost}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Investment Table */}
+            {page4.investment && page4.investment.length > 0 && (
+              <div className="bg-white rounded-xl p-6 mb-6 border border-slate-200">
+                <h3 className="text-lg font-medium text-slate-800 mb-4 flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-slate-600" />
+                  What Moving Forward Costs
+                </h3>
+                
+                <div className="divide-y divide-slate-100">
+                  {page4.investment.map((inv: any, idx: number) => (
+                    <div key={idx} className="flex justify-between py-3">
+                      <div>
+                        <span className="text-slate-700">{inv.phase}</span>
+                        {inv.whatYouGet && (
+                          <span className="text-slate-400 ml-2">— {inv.whatYouGet}</span>
+                        )}
+                      </div>
+                      <span className="font-semibold text-slate-800">{inv.amount}</span>
+                    </div>
+                  ))}
+                  
+                  {page4.totalYear1 && (
+                    <div className="flex justify-between py-3 bg-emerald-50 -mx-6 px-6 mt-2 rounded-b-lg">
+                      <span className="font-medium text-emerald-800">
+                        Total Year 1
+                      </span>
+                      <span className="font-bold text-emerald-800">{page4.totalYear1}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Returns */}
+            {page4.returns && (
+              <div className="bg-emerald-50 rounded-xl p-6 border border-emerald-100">
+                <h3 className="text-lg font-medium text-emerald-800 mb-4 flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  The Return
+                </h3>
+                
+                <div className="grid md:grid-cols-2 gap-4 mb-4">
+                  {/* Conservative */}
+                  <div className="bg-white rounded-lg p-4">
+                    <p className="text-sm font-medium text-slate-500 mb-2">Conservative</p>
+                    <p className="font-bold text-emerald-700">{page4.returns.conservative?.total}</p>
+                  </div>
+                  
+                  {/* Realistic */}
+                  <div className="bg-white rounded-lg p-4">
+                    <p className="text-sm font-medium text-emerald-600 mb-2">Realistic</p>
+                    <p className="font-bold text-emerald-700">{page4.returns.realistic?.total}</p>
+                  </div>
+                </div>
+                
+                {page4.paybackPeriod && (
+                  <p className="text-emerald-700 font-medium">
+                    Payback period: {page4.paybackPeriod}
+                  </p>
+                )}
+                
+                {page4.realReturn && (
+                  <div className="mt-4 pt-4 border-t border-emerald-200">
+                    <p className="text-emerald-800 italic">
+                      But the real return? {page4.realReturn}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ================================================================ */}
+        {/* PAGE 5: NEXT STEPS */}
+        {/* ================================================================ */}
+        {page5 && (
+          <section className="mb-8">
+            <div className="mb-8">
+              <p className="text-sm font-medium text-emerald-600 uppercase tracking-widest mb-2">
+                Next Steps
+              </p>
+              <h2 className="text-2xl font-serif font-light text-slate-800">
+                {page5.headerLine || "Starting The Journey"}
+              </h2>
+            </div>
+
+            {/* This Week */}
+            {page5.thisWeek && (
+              <div className="bg-white rounded-xl p-6 mb-6 border border-slate-200">
+                <h3 className="text-lg font-medium text-slate-800 mb-2 flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-slate-600" />
+                  This Week
+                </h3>
+                <p className="text-xl text-slate-700 font-medium mb-2">
+                  {page5.thisWeek.action || page5.thisWeek}
+                </p>
+                {page5.thisWeek.tone && (
+                  <p className="text-slate-500">{page5.thisWeek.tone}</p>
+                )}
+              </div>
+            )}
+
+            {/* First Step */}
+            {page5.firstStep && (
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 mb-6 border border-amber-200">
+                <h3 className="text-lg font-medium text-amber-800 mb-2 flex items-center gap-2">
+                  <Target className="h-5 w-5" />
+                  Your First Step
+                </h3>
+                <p className="text-xl text-amber-900 font-medium mb-2">
+                  {page5.firstStep.recommendation}
+                </p>
+                <p className="text-amber-800 mb-4">
+                  {page5.firstStep.why}
+                </p>
+                
+                {page5.firstStep.simpleCta && (
+                  <p className="text-lg font-semibold text-amber-900">
+                    {page5.firstStep.simpleCta}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* The Ask - CTA */}
+            {(page5.theAsk || page5.closingMessage) && (
+              <div className="bg-slate-800 rounded-xl p-8 text-center">
+                <p className="text-slate-300 text-lg mb-6">
+                  {page5.theAsk || page5.closingMessage}
+                </p>
+                
+                <button className="bg-amber-500 hover:bg-amber-400 text-slate-900 px-8 py-4 rounded-lg font-semibold text-lg transition-colors inline-flex items-center gap-3 mb-4 cursor-default">
+                  <Phone className="h-5 w-5" />
+                  Book a Conversation
+                </button>
+                
+                {page5.closingLine && (
+                  <p className="text-amber-400 font-medium text-lg">
+                    {page5.closingLine}
+                  </p>
+                )}
+                {page5.callToAction && (
+                  <p className="text-amber-400 font-medium text-lg">
+                    {page5.callToAction}
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -1655,9 +2141,21 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                     </div>
                   </div>
                 ) : (
-                  /* Client View */
+                  /* Client View - EXACT PREVIEW */
                   <div className="max-w-3xl mx-auto">
-                    {renderClientReport()}
+                    {/* Preview Mode Banner */}
+                    <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800 flex items-center gap-3">
+                      <Eye className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                      <div>
+                        <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
+                          Client Preview Mode
+                        </p>
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                          This is exactly what the client sees in their portal. Click service links to see details.
+                        </p>
+                      </div>
+                    </div>
+                    {renderClientPreview()}
                   </div>
                 )}
               </div>
