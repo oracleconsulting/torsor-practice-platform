@@ -1217,64 +1217,169 @@ Before returning, verify:
       console.log('[Pass 2] 🔧 Enforcing Pass 1 service prices...');
       
       // Fix page3_journey.phases prices
+      // NOTE: page3.phases items have { enabledBy: "Service Name", price: "£X", ... }
       if (narratives.page3_journey?.phases) {
-        for (const phase of narratives.page3_journey.phases) {
-          const enabledBy = (phase.enabledBy || '').toLowerCase();
+        console.log('[Pass 2] Fixing page3_journey.phases prices...');
+        
+        for (let i = 0; i < narratives.page3_journey.phases.length; i++) {
+          const phase = narratives.page3_journey.phases[i];
+          // Combine enabledBy and headline to search for service keywords
+          const searchText = `${phase.enabledBy || ''} ${phase.headline || ''} ${phase.title || ''} ${phase.feelsLike || ''}`.toLowerCase();
+          
+          console.log(`[Pass 2]   Phase[${i}]: "${phase.enabledBy}" - searching in: "${searchText.substring(0, 80)}..."`);
           
           // Find matching service from Pass 1
+          let matched = false;
           for (const [code, info] of Object.entries(pass1ServicePrices)) {
-            const serviceName = info.service.toLowerCase();
-            if (enabledBy.includes(serviceName.split(' ')[0]) || 
-                enabledBy.includes('365') && code === '365_method' ||
-                enabledBy.includes('goal alignment') && code === '365_method' ||
-                enabledBy.includes('benchmark') && code === 'benchmarking' ||
-                enabledBy.includes('management') && code === 'management_accounts' ||
-                enabledBy.includes('systems') && code === 'systems_audit' ||
-                enabledBy.includes('automation') && code === 'automation' ||
-                enabledBy.includes('cfo') && code === 'fractional_cfo' ||
-                enabledBy.includes('coo') && code === 'fractional_coo') {
-              
+            const isMatch = (
+              // 365 Method / Goal Alignment matches
+              (code === '365_method' && (
+                searchText.includes('365') ||
+                searchText.includes('goal') ||
+                searchText.includes('alignment') ||
+                searchText.includes('corner') ||  // "Someone in your corner"
+                searchText.includes('accountab') // "accountability"
+              )) ||
+              // Benchmarking matches
+              (code === 'benchmarking' && (
+                searchText.includes('benchmark') ||
+                searchText.includes('hidden value') ||
+                searchText.includes('where you stand') ||
+                searchText.includes('value analysis')
+              )) ||
+              // Management Accounts matches
+              (code === 'management_accounts' && (
+                searchText.includes('management account') ||
+                searchText.includes('know your number') ||
+                searchText.includes('financial clarity')
+              )) ||
+              // Systems Audit matches
+              (code === 'systems_audit' && (
+                searchText.includes('systems audit') ||
+                searchText.includes('where the time goes') ||
+                searchText.includes('operational')
+              )) ||
+              // Automation matches
+              (code === 'automation' && (
+                searchText.includes('automat') ||
+                searchText.includes('manual work disappears')
+              )) ||
+              // Fractional CFO matches
+              (code === 'fractional_cfo' && (
+                searchText.includes('cfo') ||
+                searchText.includes('financial leadership')
+              )) ||
+              // Fractional COO matches
+              (code === 'fractional_coo' && (
+                searchText.includes('coo') ||
+                searchText.includes('carries the load')
+              ))
+            );
+            
+            if (isMatch) {
               const oldPrice = phase.price;
               phase.price = info.price;
+              matched = true;
               
-              // Also add tier info to enabledBy if missing
-              if (info.tier && !phase.enabledBy.toLowerCase().includes(info.tier.toLowerCase())) {
-                // Don't modify enabledBy, just ensure price is correct
+              // Also update enabledBy to include tier if available
+              if (info.tier && code === '365_method' && !phase.enabledBy.toLowerCase().includes(info.tier.toLowerCase())) {
+                const oldEnabledBy = phase.enabledBy;
+                phase.enabledBy = `Goal Alignment Programme (${info.tier})`;
+                console.log(`[Pass 2]   ✓ Updated enabledBy: "${oldEnabledBy}" → "${phase.enabledBy}"`);
               }
               
               if (oldPrice !== info.price) {
-                console.log(`[Pass 2] Fixed price: ${phase.enabledBy} from "${oldPrice}" → "${info.price}"`);
+                console.log(`[Pass 2]   ✓ Fixed: ${phase.enabledBy} (${code}) from "${oldPrice}" → "${info.price}"`);
+              } else {
+                console.log(`[Pass 2]   ✓ Already correct: ${phase.enabledBy} (${code}) = "${info.price}"`);
               }
               break;
             }
+          }
+          
+          if (!matched) {
+            console.log(`[Pass 2]   ⚠️ No match found for: "${phase.enabledBy}" with price "${phase.price}"`);
           }
         }
       }
       
       // Fix page4_numbers.investment array
+      // NOTE: page4.investment items have { phase: "Months 1-3", whatYouGet: "...", amount: "£X" }
+      // The service name might be in whatYouGet, not phase
       if (narratives.page4_numbers?.investment) {
-        for (const inv of narratives.page4_numbers.investment) {
-          const phaseName = (inv.phase || inv.service || '').toLowerCase();
+        console.log('[Pass 2] Fixing page4_numbers.investment items...');
+        
+        for (let i = 0; i < narratives.page4_numbers.investment.length; i++) {
+          const inv = narratives.page4_numbers.investment[i];
+          // Combine all text fields to search for service keywords
+          const searchText = `${inv.phase || ''} ${inv.service || ''} ${inv.whatYouGet || ''} ${inv.description || ''}`.toLowerCase();
+          
+          console.log(`[Pass 2]   Investment[${i}]: "${inv.phase}" - searching in: "${searchText.substring(0, 80)}..."`);
           
           // Find matching service from Pass 1
+          let matched = false;
           for (const [code, info] of Object.entries(pass1ServicePrices)) {
-            const serviceName = info.service.toLowerCase();
-            if (phaseName.includes(serviceName.split(' ')[0]) ||
-                phaseName.includes('365') && code === '365_method' ||
-                phaseName.includes('goal') && code === '365_method' ||
-                phaseName.includes('benchmark') && code === 'benchmarking' ||
-                phaseName.includes('management') && code === 'management_accounts' ||
-                phaseName.includes('systems') && code === 'systems_audit' ||
-                phaseName.includes('automation') && code === 'automation') {
-              
+            const isMatch = (
+              // 365 Method / Goal Alignment matches
+              (code === '365_method' && (
+                searchText.includes('365') ||
+                searchText.includes('goal') ||
+                searchText.includes('alignment') ||
+                searchText.includes('corner') ||  // "Someone in your corner"
+                searchText.includes('accountab') // "accountability"
+              )) ||
+              // Benchmarking matches
+              (code === 'benchmarking' && (
+                searchText.includes('benchmark') ||
+                searchText.includes('hidden value') ||
+                searchText.includes('where you stand') ||
+                searchText.includes('value analysis')
+              )) ||
+              // Management Accounts matches
+              (code === 'management_accounts' && (
+                searchText.includes('management account') ||
+                searchText.includes('know your number') ||
+                searchText.includes('financial clarity')
+              )) ||
+              // Systems Audit matches
+              (code === 'systems_audit' && (
+                searchText.includes('systems audit') ||
+                searchText.includes('where the time goes') ||
+                searchText.includes('operational')
+              )) ||
+              // Automation matches
+              (code === 'automation' && (
+                searchText.includes('automat') ||
+                searchText.includes('manual work disappears')
+              )) ||
+              // Fractional CFO matches
+              (code === 'fractional_cfo' && (
+                searchText.includes('cfo') ||
+                searchText.includes('financial leadership')
+              )) ||
+              // Fractional COO matches
+              (code === 'fractional_coo' && (
+                searchText.includes('coo') ||
+                searchText.includes('carries the load')
+              ))
+            );
+            
+            if (isMatch) {
               const oldAmount = inv.amount;
               inv.amount = info.price;
+              matched = true;
               
               if (oldAmount !== info.price) {
-                console.log(`[Pass 2] Fixed investment: ${inv.phase} from "${oldAmount}" → "${info.price}"`);
+                console.log(`[Pass 2]   ✓ Fixed: ${inv.phase} (${code}) from "${oldAmount}" → "${info.price}"`);
+              } else {
+                console.log(`[Pass 2]   ✓ Already correct: ${inv.phase} (${code}) = "${info.price}"`);
               }
               break;
             }
+          }
+          
+          if (!matched) {
+            console.log(`[Pass 2]   ⚠️ No match found for: "${inv.phase}" with amount "${inv.amount}"`);
           }
         }
       }

@@ -254,11 +254,25 @@ async function fetchReportData(
                                      '';
       
       // ========================================================================
-      // USE PAGE4.INVESTMENT array - the EXACT same data Portal displays
-      // Each item has: { phase, whatYouGet, amount }
+      // USE PAGE3.PHASES for service prices (PRIMARY SOURCE)
+      // Portal displays phase.enabledBy and phase.price in the Journey section
       // ========================================================================
+      const page3Phases = page3.phases || [];
+      
+      // Build services from page3.phases (the source of truth for Portal)
+      const servicesFromPage3 = page3Phases
+        .filter((p: any) => p.enabledBy && p.price)
+        .map((p: any) => ({
+          service: p.enabledBy || '',
+          tier: '',
+          investment: p.price || '',
+          whatYouGet: p.outcome || p.headline || '',
+          rationale: p.feelsLike || '',
+        }));
+      
+      // Also check page4.investment for comparison
       const page4Investments = page4.investment || [];
-      const recommendedServices = page4Investments.map((inv: any) => ({
+      const servicesFromPage4 = page4Investments.map((inv: any) => ({
         service: inv.phase || inv.service || '',
         tier: inv.tier || '',
         investment: inv.amount || inv.price || '',
@@ -266,12 +280,43 @@ async function fetchReportData(
         rationale: inv.whatYouGet || '',
       }));
       
-      // Log exactly what Portal shows vs what PDF will use
-      console.log('[PDF] ✅ PORTAL-IDENTICAL DATA:', {
-        totalYear1: page4.totalYear1,
-        page4Investments: page4Investments.map((i: any) => `${i.phase}: ${i.amount}`),
-        servicesCount: recommendedServices.length,
-      });
+      // Log comparison for debugging
+      console.log('[PDF] 📊 Service sources comparison:');
+      console.log('[PDF]   page3.phases:', page3Phases.map((p: any) => `${p.enabledBy}: ${p.price}`));
+      console.log('[PDF]   page4.investment:', page4Investments.map((i: any) => `${i.phase}: ${i.amount}`));
+      
+      // Validate that page3 and page4 match (or warn if they don't)
+      const page3Total = servicesFromPage3.reduce((sum: number, s: any) => {
+        const match = (s.investment || '').match(/[\d,]+/);
+        return sum + (match ? parseInt(match[0].replace(/,/g, ''), 10) : 0);
+      }, 0);
+      
+      const page4Total = servicesFromPage4.reduce((sum: number, s: any) => {
+        const match = (s.investment || '').match(/[\d,]+/);
+        return sum + (match ? parseInt(match[0].replace(/,/g, ''), 10) : 0);
+      }, 0);
+      
+      const storedTotal = (page4.totalYear1 || '').match(/[\d,]+/);
+      const storedTotalNum = storedTotal ? parseInt(storedTotal[0].replace(/,/g, ''), 10) : 0;
+      
+      if (page3Total !== page4Total) {
+        console.warn('[PDF] ⚠️ MISMATCH: page3 total (£' + page3Total + ') ≠ page4 total (£' + page4Total + ')');
+        console.warn('[PDF] Using page3.phases as source of truth (this is what Portal Journey shows)');
+      }
+      
+      if (storedTotalNum > 0 && page3Total !== storedTotalNum) {
+        console.warn('[PDF] ⚠️ MISMATCH: page3 total (£' + page3Total + ') ≠ stored totalYear1 (£' + storedTotalNum + ')');
+      }
+      
+      // Use page3 services (what Portal Journey displays) as the primary source
+      // Fall back to page4 if page3 is empty
+      const recommendedServices = servicesFromPage3.length > 0 ? servicesFromPage3 : servicesFromPage4;
+      
+      // Calculate correct total from page3 (source of truth)
+      const calculatedTotal = page3Total > 0 ? `£${page3Total.toLocaleString()}` : (page4.totalYear1 || totalInvestmentDisplay);
+      
+      console.log('[PDF] ✅ Using services from:', servicesFromPage3.length > 0 ? 'page3.phases' : 'page4.investment');
+      console.log('[PDF] ✅ Total investment:', calculatedTotal);
       
       // ========================================================================
       // USE PAGE3.PHASES with FULL narrative content
@@ -334,8 +379,8 @@ async function fetchReportData(
           clarityExplanation: page1.clarityExplanation || '',
         },
         investmentSummary: {
-          // USE PORTAL'S EXACT FIELD
-          totalFirstYearInvestment: totalInvestmentDisplay,
+          // USE CALCULATED TOTAL from page3.phases (source of truth)
+          totalFirstYearInvestment: calculatedTotal,
           projectedFirstYearReturn: page4.returns?.realistic?.total || 
                                     page4.returnProjection || 
                                     page4.investmentSummary?.projectedReturn || '',
@@ -356,8 +401,8 @@ async function fetchReportData(
           destinationContext: page3.destinationContext || '',
           totalTimeframe: page3.totalTimeframe || '',
           phases: phases,
-          // USE PORTAL'S EXACT FIELD
-          totalInvestment: totalInvestmentDisplay,
+          // USE CALCULATED TOTAL from page3.phases (source of truth)
+          totalInvestment: calculatedTotal,
         },
         // USE PAGE4.INVESTMENT - same as Portal
         recommendedInvestments: recommendedServices,
