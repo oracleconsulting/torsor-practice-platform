@@ -695,50 +695,33 @@ async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise
   return fullText.substring(0, 100000);
 }
 
-// Select key pages for UK statutory accounts - where financial data lives
+// Select ESSENTIAL pages only - 5 max for speed
 function selectKeyFinancialPages(totalPages: number): number[] {
-  // UK FRS 102 statutory accounts structure:
-  // 1-2: Cover, company info
-  // 3-4: Directors report
-  // 5-6: Accountant's report
-  // 7-8: P&L, detailed P&L (TURNOVER, STAFF COSTS, OPERATING PROFIT)
-  // 9-10: Balance Sheet (ASSETS, LIABILITIES)
-  // 11-15: Notes (staff costs breakdown, wages, directors remuneration)
-  // 16+: Detailed schedules
+  // UK FRS 102 statutory accounts - ONLY the pages with actual numbers:
+  // Page 7-8: P&L (TURNOVER, STAFF COSTS, OPERATING PROFIT) - CRITICAL
+  // Page 9: Balance Sheet (NET ASSETS) - CRITICAL  
+  // Page 11-12: Notes (staff costs breakdown) - CRITICAL
   
-  if (totalPages <= 6) {
-    // Small doc - do all pages
+  if (totalPages <= 5) {
     return Array.from({length: totalPages}, (_, i) => i + 1);
   }
   
-  // For 20 page doc, target the money pages (max ~8 to fit timeout)
+  // Maximum 5 pages to complete in ~25 seconds
   const keyPages: number[] = [];
   
-  // First page - company name & period
-  keyPages.push(1);
+  // P&L - THE most important (turnover, staff costs, profit)
+  if (totalPages >= 7) keyPages.push(7);
+  if (totalPages >= 8) keyPages.push(8);
   
-  // P&L pages (usually 5-8)
-  const plStart = Math.min(5, totalPages);
-  const plEnd = Math.min(8, totalPages);
-  for (let p = plStart; p <= plEnd; p++) {
-    if (!keyPages.includes(p)) keyPages.push(p);
-  }
+  // Balance sheet (net assets for valuation)
+  if (totalPages >= 9) keyPages.push(9);
   
-  // Balance sheet (usually 9-10)
-  const bsStart = Math.min(9, totalPages);
-  const bsEnd = Math.min(10, totalPages);
-  for (let p = bsStart; p <= bsEnd; p++) {
-    if (!keyPages.includes(p)) keyPages.push(p);
-  }
+  // Notes with staff costs breakdown
+  if (totalPages >= 11) keyPages.push(11);
+  if (totalPages >= 12) keyPages.push(12);
   
-  // Notes with staff costs (11-13)
-  const notesStart = Math.min(11, totalPages);
-  const notesEnd = Math.min(13, totalPages);
-  for (let p = notesStart; p <= notesEnd; p++) {
-    if (!keyPages.includes(p)) keyPages.push(p);
-  }
-  
-  return keyPages.sort((a, b) => a - b);
+  console.log(`[ProcessDocs] Selected ${keyPages.length} essential pages: [${keyPages.join(', ')}]`);
+  return keyPages;
 }
 
 // Extract a single page's image from the PDF
@@ -787,11 +770,11 @@ async function ocrSingleImage(
   totalPages: number,
   apiKey: string
 ): Promise<string> {
-  // Use Mistral - it's working and fast (from the logs)
-  // Qwen models were failing, adding ~30s delay per page
+  // Gemini Flash is MUCH faster (2-5s vs Mistral's 25-50s)
   const ocrModels = [
-    'mistralai/mistral-small-3.1-24b-instruct', // Fast and working
-    'google/gemini-2.0-flash-001'               // Fast fallback
+    'google/gemini-2.0-flash-001',              // Fastest - ~3s per page
+    'google/gemini-flash-1.5',                  // Backup fast
+    'mistralai/mistral-small-3.1-24b-instruct'  // Fallback if Gemini fails
   ];
   
   const ocrPrompt = `Extract ALL text from this page (page ${pageNum} of ${totalPages}) of a UK company accounts document.
