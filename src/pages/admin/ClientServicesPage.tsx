@@ -2261,34 +2261,38 @@ function DiscoveryClientModal({
         }
         
         // CRITICAL: Call process-documents to extract PDF text
+        // NOTE: For large scanned PDFs, this can take 2-3 minutes
+        // We fire-and-forget so the UI doesn't block
         console.log('📄 Processing document for text extraction:', file.name);
-        try {
-          const { data: processResult, error: processError } = await supabase.functions.invoke('process-documents', {
-            body: {
-              clientId,
-              practiceId: client.practice_id,
-              contextId: contextRecord?.id,
-              documents: [{
-                fileName: file.name,
-                fileUrl: urlData.publicUrl,
-                fileType: file.type || 'application/pdf',
-                fileSize: file.size
-              }],
-              appliesTo: ['discovery'],
-              isShared: false,
-              dataSourceType: 'accounts'
-            }
-          });
-          
-          if (processError) {
-            console.error('Document processing error:', processError);
-          } else {
-            console.log('✅ Document processed successfully:', processResult);
+        
+        // Fire and forget - don't await, let it process in background
+        supabase.functions.invoke('process-documents', {
+          body: {
+            clientId,
+            practiceId: client.practice_id,
+            contextId: contextRecord?.id,
+            documents: [{
+              fileName: file.name,
+              fileUrl: urlData.publicUrl,
+              fileType: file.type || 'application/pdf',
+              fileSize: file.size
+            }],
+            appliesTo: ['discovery'],
+            isShared: false,
+            dataSourceType: 'accounts'
           }
-        } catch (procErr) {
-          console.error('Error calling process-documents:', procErr);
-          // Don't fail the whole upload - document is uploaded, just not processed
-        }
+        }).then(({ data, error }) => {
+          if (error) {
+            console.log('Document processing still running or completed with note:', error.message);
+          } else {
+            console.log('✅ Document processed successfully:', data);
+          }
+        }).catch(err => {
+          // Expected for long-running processing - function may still complete server-side
+          console.log('Document processing running in background (may take 2-3 minutes for large PDFs)');
+        });
+        
+        console.log('📄 Document upload complete - text extraction running in background');
       }
       
       await fetchClientDetail();

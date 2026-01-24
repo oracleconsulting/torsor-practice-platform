@@ -764,11 +764,10 @@ async function ocrSingleImage(
   totalPages: number,
   apiKey: string
 ): Promise<string> {
-  // Gemini Flash is MUCH faster (2-5s vs Mistral's 25-50s)
+  // Use ONLY Mistral - Gemini endpoints returning 404s, wasting time on retries
+  // Mistral is working reliably at ~5-10s per page
   const ocrModels = [
-    'google/gemini-2.0-flash-001',              // Fastest - ~3s per page
-    'google/gemini-flash-1.5',                  // Backup fast
-    'mistralai/mistral-small-3.1-24b-instruct'  // Fallback if Gemini fails
+    'mistralai/mistral-small-3.1-24b-instruct'
   ];
   
   const ocrPrompt = `Extract ALL text from this page (page ${pageNum} of ${totalPages}) of a UK company accounts document.
