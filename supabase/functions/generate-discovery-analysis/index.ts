@@ -6373,6 +6373,98 @@ Return ONLY the JSON object with no additional text.`;
         } else {
           console.warn('[Discovery] ⚠️ No calculable investment from recommendedInvestments');
         }
+        
+        // ========================================================================
+        // FIX: Replace incorrect investment amounts in all narrative text fields
+        // ========================================================================
+        // The LLM may have used wrong amounts in closing messages/CTAs
+        const correctTotal = analysis.investmentSummary?.totalFirstYearInvestment || '';
+        const correctTotalMatch = correctTotal.match(/£?([\d,]+)/);
+        const correctAmount = correctTotalMatch ? `£${correctTotalMatch[1]}` : '';
+        
+        if (correctAmount) {
+          // Pattern to find investment amounts in context (near words like "gets", "for", "investment")
+          const wrongAmountContextPattern = /£[\d,]+(?=\s+(?:gets|gives|buys|for|to\s+know|investment|builds|and\s+\d+))/gi;
+          
+          // Also match standalone amounts that look like yearly investments (common patterns)
+          const commonWrongAmounts = ['£7,500', '£6,500', '£5,500', '£10,000', '£11,500', '£4,000'];
+          
+          // Helper to replace in text
+          const fixInvestmentInText = (text: string | undefined): string => {
+            if (!text || typeof text !== 'string') return text || '';
+            let fixed = text;
+            
+            // Replace contextual patterns
+            fixed = fixed.replace(wrongAmountContextPattern, correctAmount);
+            
+            // Replace common wrong amounts
+            for (const wrong of commonWrongAmounts) {
+              if (wrong !== correctAmount && fixed.includes(wrong)) {
+                // Only replace if in investment context
+                const investmentContext = new RegExp(wrong.replace(/[£,]/g, '\\$&') + '(?=\\s+(?:gets|gives|buys|for|to|investment|builds|and|first))', 'gi');
+                fixed = fixed.replace(investmentContext, correctAmount);
+              }
+            }
+            
+            return fixed;
+          };
+          
+          // Fix closing message fields
+          if (analysis.closingMessage) {
+            if (typeof analysis.closingMessage === 'string') {
+              const fixed = fixInvestmentInText(analysis.closingMessage);
+              if (fixed !== analysis.closingMessage) {
+                console.log('[Discovery] Fixed investment amount in closingMessage');
+                analysis.closingMessage = fixed;
+              }
+            } else if (typeof analysis.closingMessage === 'object') {
+              for (const key of Object.keys(analysis.closingMessage)) {
+                if (typeof analysis.closingMessage[key] === 'string') {
+                  const fixed = fixInvestmentInText(analysis.closingMessage[key]);
+                  if (fixed !== analysis.closingMessage[key]) {
+                    console.log(`[Discovery] Fixed investment amount in closingMessage.${key}`);
+                    analysis.closingMessage[key] = fixed;
+                  }
+                }
+              }
+            }
+          }
+          
+          // Fix nextSteps fields
+          if (analysis.nextSteps) {
+            for (const key of Object.keys(analysis.nextSteps)) {
+              if (typeof analysis.nextSteps[key] === 'string') {
+                const fixed = fixInvestmentInText(analysis.nextSteps[key]);
+                if (fixed !== analysis.nextSteps[key]) {
+                  console.log(`[Discovery] Fixed investment amount in nextSteps.${key}`);
+                  analysis.nextSteps[key] = fixed;
+                }
+              }
+            }
+          }
+          
+          // Fix callToAction if at top level
+          if (analysis.callToAction && typeof analysis.callToAction === 'string') {
+            const fixed = fixInvestmentInText(analysis.callToAction);
+            if (fixed !== analysis.callToAction) {
+              console.log('[Discovery] Fixed investment amount in callToAction');
+              analysis.callToAction = fixed;
+            }
+          }
+          
+          // Fix destinationContext and journeyLabel if they include amounts
+          if (analysis.transformationJourney) {
+            if (analysis.transformationJourney.destinationContext) {
+              const fixed = fixInvestmentInText(analysis.transformationJourney.destinationContext);
+              if (fixed !== analysis.transformationJourney.destinationContext) {
+                console.log('[Discovery] Fixed investment amount in transformationJourney.destinationContext');
+                analysis.transformationJourney.destinationContext = fixed;
+              }
+            }
+          }
+          
+          console.log(`[Discovery] ✅ Checked narrative fields for investment amount (correct: ${correctAmount})`);
+        }
       }
       
     } catch (e: any) {
