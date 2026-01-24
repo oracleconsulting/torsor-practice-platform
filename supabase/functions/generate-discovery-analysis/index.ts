@@ -1577,78 +1577,31 @@ async function extractFinancialsFromAccounts(
     return emptyResult;
   }
   
-  console.log('[FinancialExtract] Checking', documents.length, 'documents:', 
-    documents.map(d => d.fileName || 'unnamed').join(', '));
-  
-  // Filter for financial documents - EXPANDED CRITERIA
+  // Filter for financial documents
   const financialDocs = documents.filter(doc => {
     const name = (doc.fileName || '').toLowerCase();
-    const content = (doc.content || doc.text || '').substring(0, 5000).toLowerCase();
-    
-    // Filename matches
-    const nameMatch = name.includes('account') || 
+    const content = (doc.content || doc.text || '').toLowerCase();
+    return name.includes('account') || 
            name.includes('financial') ||
            name.includes('statement') ||
-           name.includes('p&l') ||
-           name.includes('pnl') ||
-           name.includes('balance') ||
-           name.includes('annual') ||
-           name.includes('statutory') ||
-           name.includes('abbreviated');
-    
-    // Content matches - look for financial keywords
-    const contentMatch = content.includes('profit and loss') ||
+           content.includes('profit and loss') ||
            content.includes('balance sheet') ||
            content.includes('turnover') ||
            content.includes('total assets') ||
-           content.includes('directors\' report') ||
-           content.includes('staff costs') ||
-           content.includes('gross profit') ||
-           content.includes('net assets') ||
-           content.includes('operating profit') ||
-           content.includes('cost of sales') ||
-           content.includes('administrative expenses') ||
-           content.includes('company registration') ||
-           content.includes('registered number') ||
-           // UK company account indicators
-           content.includes('companies house') ||
-           content.includes('frs 102') ||
-           content.includes('small companies regime') ||
-           // Numbers that look like financials (£ followed by 4+ digits)
-           /£\d{4,}/.test(content) ||
-           /£[\d,]+k/.test(content);
-    
-    if (nameMatch || contentMatch) {
-      console.log('[FinancialExtract] ✓ Match found:', doc.fileName, 
-        '(name:', nameMatch, ', content:', contentMatch, ')');
-    }
-    
-    return nameMatch || contentMatch;
+           content.includes('directors\' report');
   });
   
-  // FALLBACK: If no filtered docs, try ALL documents that have substantial content
-  let docsToProcess = financialDocs;
-  if (financialDocs.length === 0 && documents.length > 0) {
-    console.log('[FinancialExtract] No filtered matches, trying ALL documents as fallback');
-    docsToProcess = documents.filter(doc => {
-      const content = doc.content || doc.text || '';
-      return content.length > 500; // Only docs with substantial content
-    });
-  }
-  
-  if (docsToProcess.length === 0) {
-    console.log('[FinancialExtract] No documents with financial data found');
-    console.log('[FinancialExtract] Document filenames checked:', 
-      documents.map(d => d.fileName).join(', '));
+  if (financialDocs.length === 0) {
+    console.log('[FinancialExtract] No financial documents found');
     return emptyResult;
   }
   
-  const documentContent = docsToProcess.map((doc, i) => {
+  const documentContent = financialDocs.map((doc, i) => {
     const content = doc.content || doc.text || '';
     return `\n--- DOCUMENT ${i + 1}: ${doc.fileName || 'Unnamed'} ---\n${content}\n`;
   }).join('\n');
   
-  console.log('[FinancialExtract] Processing', docsToProcess.length, 'documents, content length:', documentContent.length);
+  console.log('[FinancialExtract] Processing financial documents, content length:', documentContent.length);
   
   const extractionPrompt = `You are a UK accountant extracting financial data from company accounts.
 
@@ -4844,6 +4797,27 @@ serve(async (req) => {
     // FINANCIAL GROUNDING - Extract actual figures from uploaded accounts
     // ========================================================================
     
+    // DIAGNOSTIC: Log what data sources are available
+    console.log('[Discovery] ========== FINANCIAL DATA SOURCES ==========');
+    console.log('[Discovery] Documents available:', preparedData.documents?.length || 0);
+    if (preparedData.documents?.length > 0) {
+      console.log('[Discovery] Document filenames:', preparedData.documents.map((d: any) => d.fileName).join(', '));
+      console.log('[Discovery] Document content lengths:', preparedData.documents.map((d: any) => `${d.fileName}: ${(d.content || '').length} chars`).join(', '));
+    }
+    console.log('[Discovery] financialContext available:', !!preparedData.financialContext);
+    if (preparedData.financialContext) {
+      console.log('[Discovery] financialContext data:', {
+        turnover: preparedData.financialContext.turnover,
+        revenue: preparedData.financialContext.revenue,
+        staffCosts: preparedData.financialContext.staffCosts,
+        totalStaffCosts: preparedData.financialContext.totalStaffCosts,
+        staffCostsPct: preparedData.financialContext.staffCostsPct
+      });
+    } else {
+      console.log('[Discovery] ⚠️ NO financialContext - client_financial_context table may be empty for this client');
+    }
+    console.log('[Discovery] ================================================');
+    
     console.log('[Discovery] Extracting financials from accounts...');
     let extractedFinancials = await extractFinancialsFromAccounts(
       preparedData.documents || [],
@@ -4859,7 +4833,7 @@ serve(async (req) => {
     });
     
     // ========================================================================
-    // FALLBACK 1: If no data from documents, use preparedData.financialContext
+    // FALLBACK: If no data from documents, use preparedData.financialContext
     // This handles cases where data is in client_financial_context table
     // ========================================================================
     
@@ -4893,12 +4867,24 @@ serve(async (req) => {
       }
     }
     
+    // DIAGNOSTIC: Final status after all fallbacks
+    if (!extractedFinancials.hasAccounts) {
+      console.error('[Discovery] ❌❌❌ NO FINANCIAL DATA AVAILABLE ❌❌❌');
+      console.error('[Discovery] Reason: Neither documents nor client_financial_context contained usable financial data');
+      console.error('[Discovery] To fix this, either:');
+      console.error('[Discovery]   1. Upload accounts PDF with financial keywords (profit and loss, balance sheet, turnover, etc)');
+      console.error('[Discovery]   2. Add a record to client_financial_context table with turnover and staff_costs');
+      console.error('[Discovery] Report will proceed WITHOUT financial analysis (labourInefficiency will show "Unknown")');
+    } else {
+      console.log('[Discovery] ✅ Financial data successfully loaded');
+    }
+    
     // DIAGNOSTIC TRACE: After financial extraction
     traceFinancialData('A1_EXTRACTION', {
       staffCosts: extractedFinancials.totalStaffCosts,
       turnover: extractedFinancials.turnover,
       storedPct: extractedFinancials.staffCostsPercentOfRevenue,
-      source: extractedFinancials.hasAccounts ? 'extractFinancialsFromAccounts/financialContext' : 'none',
+      source: extractedFinancials.hasAccounts ? 'extractFinancialsFromAccounts/financialContext' : 'NONE - NO DATA',
       details: { hasAccounts: extractedFinancials.hasAccounts, ebitda: extractedFinancials.ebitda }
     });
 
