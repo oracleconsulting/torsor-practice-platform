@@ -220,8 +220,12 @@ function extractAssessmentSignals(responses: Record<string, any>): AssessmentSig
   const strategicTimeBalance = ['70% strategic', '90% strategic', '70%', '90%']
     .some(s => timeAllocation.includes(s));
   
+  // sd_manual_tasks may be an array (multi-select) or string
+  const manualTasksValue = Array.isArray(responses.sd_manual_tasks) 
+    ? responses.sd_manual_tasks.join(' ').toLowerCase()
+    : (responses.sd_manual_tasks || '').toString().toLowerCase();
   const systemsWorking = ['highly automated', 'none of these']
-    .some(s => (responses.sd_manual_tasks || '').toLowerCase().includes(s));
+    .some(s => manualTasksValue.includes(s));
   
   const documentationReady = ['yes', 'probably']
     .some(s => (responses.sd_documentation_readiness || '').toLowerCase().includes(s));
@@ -2203,8 +2207,12 @@ function checkFractionalCFOAppropriateness(
   const raisingCapital = (responses.sd_exit_timeline || '').includes('investment-ready') ||
                          (responses.sd_raising_capital || '').toLowerCase().includes('yes');
   const rapidGrowth = financials.turnoverGrowth && financials.turnoverGrowth > 30;
+  // dd_sleep_thieves may be an array
+  const sleepThievesForCFO = Array.isArray(responses.dd_sleep_thieves) 
+    ? responses.dd_sleep_thieves.join(' ')
+    : (responses.dd_sleep_thieves || '').toString();
   const financialCrisis = (responses.sd_financial_confidence || '').includes('Crisis') ||
-                          (responses.dd_sleep_thieves || '').includes('Cash flow');
+                          sleepThievesForCFO.includes('Cash flow');
   const noFinancialInfrastructure = (responses.sd_financial_confidence || '').includes('No visibility');
   
   // NOT APPROPRIATE when: Stable, profitable, has accountant, no scaling, exit planning
@@ -2546,7 +2554,11 @@ function check365AlignmentAppropriateness(
   
   // NOT APPROPRIATE when: Operational chaos (needs COO) or financial crisis (needs CFO)
   const operationalChaos = (responses.sd_founder_dependency || '').includes('Chaos');
-  const financialCrisis = (responses.dd_sleep_thieves || '').includes('Cash flow');
+  // dd_sleep_thieves may be an array
+  const sleepThievesFor365 = Array.isArray(responses.dd_sleep_thieves) 
+    ? responses.dd_sleep_thieves.join(' ')
+    : (responses.dd_sleep_thieves || '').toString();
+  const financialCrisis = sleepThievesFor365.includes('Cash flow');
   
   if (operationalChaos) {
     return { isAppropriate: false, reason: 'Operational chaos needs COO, not Goal Alignment. Fix operations first.' };
