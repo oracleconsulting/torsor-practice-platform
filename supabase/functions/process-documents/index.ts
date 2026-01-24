@@ -518,15 +518,28 @@ async function extractTextWithOCR(buffer: ArrayBuffer): Promise<string> {
     throw new Error('OPENROUTER_API_KEY not configured for OCR');
   }
   
-  // Convert PDF buffer to base64 for the API
-  // Use chunked conversion to avoid stack overflow with large files
+  console.log(`[ProcessDocs] Attempting OCR for scanned PDF (${Math.round(buffer.byteLength / 1024)}KB)`);
+  
+  // Try to extract embedded images from the PDF (scanned PDFs store pages as images)
   const uint8Array = new Uint8Array(buffer);
-  const base64Pdf = uint8ArrayToBase64(uint8Array);
+  const images = await extractImagesFromPDF(uint8Array);
   
-  console.log(`[ProcessDocs] Sending PDF to Vision LLM for OCR (${Math.round(buffer.byteLength / 1024)}KB)`);
+  if (images.length === 0) {
+    console.log('[ProcessDocs] No images found in PDF, cannot perform OCR');
+    throw new Error('No images found in scanned PDF');
+  }
   
-  // Use Claude 3.5 Sonnet which has excellent document understanding
-  // Note: We're sending the PDF as a data URL - Claude can read PDFs directly
+  console.log(`[ProcessDocs] Found ${images.length} images in PDF, sending to Vision LLM`);
+  
+  // Send images to Claude Vision for OCR (limit to first 5 pages to avoid token limits)
+  const imagesToProcess = images.slice(0, 5);
+  const imageContent = imagesToProcess.map((img, idx) => ({
+    type: 'image_url',
+    image_url: {
+      url: `data:${img.mimeType};base64,${img.base64}`
+    }
+  }));
+  
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -544,23 +557,19 @@ async function extractTextWithOCR(buffer: ArrayBuffer): Promise<string> {
           content: [
             {
               type: 'text',
-              text: `You are an OCR assistant. Extract ALL text from this PDF document exactly as it appears.
+              text: `You are an OCR assistant. Extract ALL text from these ${imagesToProcess.length} page(s) of a financial document (company accounts).
 
-This is a financial document (company accounts). Extract:
-- All text, numbers, and figures
+Extract:
+- All text, numbers, and figures exactly as they appear
 - Preserve the structure (tables, columns, sections)
 - Include all financial figures, dates, company names
 - Include notes, headers, footers
 
-Output ONLY the extracted text, no commentary. Format tables clearly.
-If you cannot read parts clearly, indicate with [illegible].`
+Output ONLY the extracted text, no commentary. Format tables clearly using | separators.
+If you cannot read parts clearly, indicate with [illegible].
+Process each page in order.`
             },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:application/pdf;base64,${base64Pdf}`
-              }
-            }
+            ...imageContent
           ]
         }
       ]
@@ -570,21 +579,76 @@ If you cannot read parts clearly, indicate with [illegible].`
   if (!response.ok) {
     const errorText = await response.text();
     console.error('[ProcessDocs] OCR API error:', response.status, errorText);
-    
-    // If PDF format not supported, try converting first page description
-    if (errorText.includes('pdf') || errorText.includes('format')) {
-      console.log('[ProcessDocs] PDF format not directly supported, trying alternative approach...');
-      return await extractTextWithOCRFallback(buffer, openRouterKey);
-    }
-    
     throw new Error(`OCR API error: ${response.status}`);
   }
   
   const data = await response.json();
   const extractedText = data.choices?.[0]?.message?.content || '';
   
-  console.log(`[ProcessDocs] OCR successful: ${extractedText.length} chars extracted`);
+  console.log(`[ProcessDocs] OCR successful: ${extractedText.length} chars extracted from ${imagesToProcess.length} pages`);
   return extractedText.substring(0, 50000);
+}
+
+// Extract embedded images from a PDF (scanned PDFs store each page as an image)
+async function extractImagesFromPDF(uint8Array: Uint8Array): Promise<Array<{base64: string, mimeType: string}>> {
+  const images: Array<{base64: string, mimeType: string}> = [];
+  
+  try {
+    const unpdf = await import('https://esm.sh/unpdf@0.12.1?bundle');
+    const pdf = await unpdf.getDocumentProxy(uint8Array);
+    
+    console.log(`[ProcessDocs] PDF has ${pdf.numPages} pages, extracting images...`);
+    
+    // Process each page to find embedded images
+    for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, 10); pageNum++) {
+      try {
+        const page = await pdf.getPage(pageNum);
+        const ops = await page.getOperatorList();
+        
+        // Look for image XObjects in the operator list
+        for (let i = 0; i < ops.fnArray.length; i++) {
+          // OPS.paintImageXObject = 85, OPS.paintJpegXObject = 82
+          if (ops.fnArray[i] === 85 || ops.fnArray[i] === 82) {
+            const imgName = ops.argsArray[i]?.[0];
+            if (imgName) {
+              try {
+                const imgData = await page.objs.get(imgName);
+                if (imgData && imgData.data) {
+                  // Convert image data to base64
+                  const imageBase64 = uint8ArrayToBase64(new Uint8Array(imgData.data));
+                  
+                  // Determine MIME type based on image format
+                  let mimeType = 'image/png'; // Default
+                  if (imgData.data[0] === 0xFF && imgData.data[1] === 0xD8) {
+                    mimeType = 'image/jpeg';
+                  }
+                  
+                  images.push({ base64: imageBase64, mimeType });
+                  console.log(`[ProcessDocs] Extracted image from page ${pageNum}: ${Math.round(imgData.data.length / 1024)}KB`);
+                  
+                  // Only need one image per page for scanned docs
+                  break;
+                }
+              } catch (imgErr) {
+                console.log(`[ProcessDocs] Could not extract image ${imgName}:`, imgErr);
+              }
+            }
+          }
+        }
+      } catch (pageErr) {
+        console.log(`[ProcessDocs] Error processing page ${pageNum}:`, pageErr);
+      }
+    }
+  } catch (err) {
+    console.error('[ProcessDocs] Error extracting images from PDF:', err);
+  }
+  
+  // If no embedded images found, try alternative: render pages as images
+  if (images.length === 0) {
+    console.log('[ProcessDocs] No embedded images found, PDF may use different format');
+  }
+  
+  return images;
 }
 
 // Fallback OCR: Describe what we need and ask LLM to help
