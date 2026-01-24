@@ -6757,6 +6757,64 @@ Return ONLY the JSON object with no additional text.`;
           destinationContext: analysis.transformationJourney?.destinationContext || ''
         };
         
+        // ========================================================================
+        // BUILD FINANCIAL INSIGHTS for display (with calculation breakdowns)
+        // ========================================================================
+        const financialInsights: any = {};
+        
+        if (payrollAnalysis) {
+          const recoverableLow = Math.round(payrollAnalysis.annualExcess * 0.35);
+          const recoverableHigh = Math.round(payrollAnalysis.annualExcess * 0.50);
+          
+          financialInsights.payroll = {
+            staffCosts: payrollAnalysis.staffCosts,
+            turnover: payrollAnalysis.turnover,
+            actualPct: payrollAnalysis.staffCostsPct,
+            benchmarkPct: payrollAnalysis.benchmark?.typical || 28,
+            grossExcess: payrollAnalysis.annualExcess,
+            recoverableLow,
+            recoverableHigh,
+            calculationBreakdown: `Staff costs £${Math.round(payrollAnalysis.staffCosts / 1000)}k ÷ Turnover £${Math.round(payrollAnalysis.turnover / 1000)}k = ${payrollAnalysis.staffCostsPct.toFixed(1)}%
+Industry benchmark: ${payrollAnalysis.benchmark?.typical || 28}%
+Excess: ${payrollAnalysis.excessPercentage?.toFixed(1) || (payrollAnalysis.staffCostsPct - 28).toFixed(1)}% above benchmark
+Gross annual excess: £${Math.round(payrollAnalysis.annualExcess / 1000)}k
+Conservative recovery (35-50%): £${Math.round(recoverableLow / 1000)}k-£${Math.round(recoverableHigh / 1000)}k/year`,
+            summary: `£${Math.round(recoverableLow / 1000)}k-£${Math.round(recoverableHigh / 1000)}k/year recoverable from payroll restructuring`
+          };
+          
+          console.log('[Discovery] Built payroll financial insights:', financialInsights.payroll.summary);
+        }
+        
+        // Valuation insights if we have EBITDA
+        if (extractedFinancials.ebitda && extractedFinancials.ebitda > 0) {
+          const currentMultiple = 3.0;
+          const improvedMultiple = clientJourneyStage.journey === 'established-exit-focused' ? 4.0 : 3.5;
+          const currentVal = extractedFinancials.ebitda * currentMultiple;
+          const payrollUplift = financialInsights.payroll 
+            ? Math.round((financialInsights.payroll.recoverableLow + financialInsights.payroll.recoverableHigh) / 2)
+            : 0;
+          const improvedEbitda = extractedFinancials.ebitda + payrollUplift;
+          const improvedVal = improvedEbitda * improvedMultiple;
+          const uplift = improvedVal - currentVal;
+          
+          financialInsights.valuation = {
+            currentEbitda: extractedFinancials.ebitda,
+            currentMultiple,
+            currentValuation: currentVal,
+            improvedEbitda,
+            improvedMultiple,
+            improvedValuation: improvedVal,
+            uplift,
+            calculationBreakdown: `Current: £${Math.round(extractedFinancials.ebitda / 1000)}k EBITDA × ${currentMultiple}x = £${Math.round(currentVal / 1000)}k
+With payroll savings: £${Math.round(improvedEbitda / 1000)}k EBITDA
+At improved multiple: ${improvedMultiple}x = £${Math.round(improvedVal / 1000)}k
+Uplift potential: £${Math.round(uplift / 1000)}k`,
+            summary: `£${Math.round(uplift / 1000 * 0.8)}k-£${Math.round(uplift / 1000 * 1.2)}k valuation uplift potential`
+          };
+          
+          console.log('[Discovery] Built valuation financial insights:', financialInsights.valuation.summary);
+        }
+        
         const page4_numbers = {
           investmentSummary: analysis.investmentSummary || {},
           costOfStaying: analysis.gapAnalysis?.costOfInaction || {},
@@ -6764,7 +6822,19 @@ Return ONLY the JSON object with no additional text.`;
           returnBreakdown: analysis.investmentSummary?.projectedReturnBreakdown || '',
           paybackPeriod: analysis.investmentSummary?.paybackPeriod || '',
           paybackCalculation: analysis.investmentSummary?.paybackCalculation || '',
-          roiRatio: analysis.investmentSummary?.roiRatio || ''
+          roiRatio: analysis.investmentSummary?.roiRatio || '',
+          // STORE PAYROLL ANALYSIS for Pass 2 and PDF
+          payrollAnalysis: payrollAnalysis ? {
+            turnover: payrollAnalysis.turnover,
+            staffCosts: payrollAnalysis.staffCosts,
+            staffCostsPct: payrollAnalysis.staffCostsPct,
+            benchmarkPct: payrollAnalysis.benchmark?.typical || 28,
+            excessPct: payrollAnalysis.excessPercentage,
+            annualExcess: payrollAnalysis.annualExcess,
+            calculation: payrollAnalysis.calculation
+          } : null,
+          // STORE FINANCIAL INSIGHTS for display
+          financialInsights
         };
         
         const page5_next_steps = {

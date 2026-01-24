@@ -1387,7 +1387,23 @@ function buildGapAnalysis(analysis: any): string {
   const gaps = gapAnalysis.primaryGaps || [];
   const costOfInaction = gapAnalysis.costOfInaction || {};
   
-  if (gaps.length === 0 && !costOfInaction.annualFinancialCost && !costOfInaction.labourInefficiency) {
+  // Use financialInsights from page4 if available (calculated figures)
+  const rawPages = analysis._rawPages || {};
+  const page4 = rawPages.page4 || {};
+  const financialInsights = page4.financialInsights || {};
+  
+  // Prefer calculated values from financialInsights over LLM-generated text
+  const labourInefficiency = financialInsights.payroll?.summary || costOfInaction.labourInefficiency;
+  const valuationCost = financialInsights.valuation?.summary || costOfInaction.marginLeakage;
+  
+  console.log('[PDF] Gap Analysis financialInsights:', {
+    hasPayroll: !!financialInsights.payroll,
+    hasValuation: !!financialInsights.valuation,
+    labourInefficiency,
+    valuationCost
+  });
+  
+  if (gaps.length === 0 && !costOfInaction.annualFinancialCost && !labourInefficiency) {
     return '';
   }
   
@@ -1452,24 +1468,24 @@ function buildGapAnalysis(analysis: any): string {
         </div>
       ` : ''}
       
-      ${(costOfInaction.annualFinancialCost || costOfInaction.annual || costOfInaction.labourInefficiency) ? `
+      ${(costOfInaction.annualFinancialCost || costOfInaction.annual || labourInefficiency) ? `
         <div style="background: linear-gradient(135deg, #fef2f2, #fee2e2); padding: 30px; border-radius: 16px; border: 1px solid #fca5a5; margin-top: 30px;">
           <div style="font-size: 10pt; color: #dc2626; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px;">
             Cost of Staying Here
           </div>
           
-          ${costOfInaction.labourInefficiency || costOfInaction.marginLeakage || costOfInaction.yourTimeWasted ? `
+          ${labourInefficiency || valuationCost || costOfInaction.yourTimeWasted ? `
             <div style="display: grid; gap: 12px; margin-bottom: 16px;">
-              ${costOfInaction.labourInefficiency ? `
+              ${labourInefficiency ? `
                 <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #fca5a5;">
                   <span style="color: #7f1d1d;">Labour inefficiency</span>
-                  <span style="font-weight: 600; color: #dc2626;">${costOfInaction.labourInefficiency}</span>
+                  <span style="font-weight: 600; color: #dc2626;">${labourInefficiency}</span>
                 </div>
               ` : ''}
-              ${costOfInaction.marginLeakage ? `
+              ${valuationCost ? `
                 <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #fca5a5;">
-                  <span style="color: #7f1d1d;">Margin leakage</span>
-                  <span style="font-weight: 600; color: #dc2626;">${costOfInaction.marginLeakage}</span>
+                  <span style="color: #7f1d1d;">Valuation suppression</span>
+                  <span style="font-weight: 600; color: #dc2626;">${valuationCost}</span>
                 </div>
               ` : ''}
               ${costOfInaction.yourTimeWasted ? `

@@ -359,8 +359,30 @@ serve(async (req) => {
       calculation: null
     };
     
-    // Priority 1: Use generate-discovery-analysis output (most validated)
-    if (analysisReport?.report_data?.analysis?.financialContext?.payrollAnalysis) {
+    // Priority 1: Use discovery_reports.page4_numbers.payrollAnalysis (most validated - from Pass 1)
+    // Also check the old path for backwards compatibility
+    const { data: discoveryReportForPayroll } = await supabase
+      .from('discovery_reports')
+      .select('page4_numbers')
+      .eq('engagement_id', engagementId)
+      .maybeSingle();
+    
+    const pass1PayrollAnalysis = discoveryReportForPayroll?.page4_numbers?.payrollAnalysis;
+    
+    if (pass1PayrollAnalysis) {
+      validatedPayroll = {
+        turnover: pass1PayrollAnalysis.turnover || null,
+        staffCosts: pass1PayrollAnalysis.staffCosts || null,
+        staffCostsPct: pass1PayrollAnalysis.staffCostsPct || null,
+        benchmarkPct: pass1PayrollAnalysis.benchmarkPct || 28,
+        excessPct: pass1PayrollAnalysis.excessPct || null,
+        excessAmount: pass1PayrollAnalysis.annualExcess || null,
+        calculation: pass1PayrollAnalysis.calculation || null
+      };
+      console.log('[Pass 2] Using validated payroll from discovery_reports.page4_numbers:', validatedPayroll);
+    }
+    // Fallback: Try the old client_reports path
+    else if (analysisReport?.report_data?.analysis?.financialContext?.payrollAnalysis) {
       const pa = analysisReport.report_data.analysis.financialContext.payrollAnalysis;
       validatedPayroll = {
         turnover: pa.turnover || null,
@@ -371,7 +393,7 @@ serve(async (req) => {
         excessAmount: pa.annualExcess || null,
         calculation: pa.calculation || null
       };
-      console.log('[Pass 2] Using validated payroll from generate-discovery-analysis:', validatedPayroll);
+      console.log('[Pass 2] Using validated payroll from client_reports (fallback):', validatedPayroll);
     }
     // Priority 2: Use client_financial_context
     else if (financialContext) {
