@@ -433,6 +433,42 @@ No validated financial data available. When discussing financial figures:
 `;
       console.log('[Pass 2] ⚠️ No validated financial data available - LLM should not invent figures');
     }
+    
+    // ========================================================================
+    // CRITICAL: Inject Pass 1's EXACT service prices into the prompt
+    // These are MANDATORY - the LLM must NOT change them
+    // ========================================================================
+    let servicePriceConstraints = '';
+    if (Object.keys(pass1ServicePrices).length > 0) {
+      servicePriceConstraints = `
+
+============================================================================
+🚨 MANDATORY SERVICE PRICES - DO NOT CHANGE THESE
+============================================================================
+Pass 1 has calculated the EXACT services, tiers, and prices for this client.
+You MUST use these EXACT prices in page3_journey phases and page4_numbers investment.
+
+SERVICES AND PRICES (USE THESE EXACTLY):
+`;
+      for (const [code, info] of Object.entries(pass1ServicePrices)) {
+        servicePriceConstraints += `- ${info.service}${info.tier ? ` (${info.tier})` : ''}: ${info.price}\n`;
+      }
+      
+      if (pass1Total) {
+        servicePriceConstraints += `
+TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
+
+⚠️ CRITICAL RULES:
+1. In page3_journey.phases, each phase's "price" MUST match these exact amounts
+2. In page4_numbers.investment, amounts MUST match these exactly
+3. page4_numbers.totalYear1 MUST equal ${pass1Total}
+4. DO NOT round, change, or "simplify" these prices
+5. If 365 Method/Goal Alignment is listed above, use that EXACT tier and price
+`;
+      }
+      
+      console.log('[Pass 2] ✅ Injecting Pass 1 service prices as constraints');
+    }
 
     // Fetch Pass 1 results
     const { data: report, error: reportError } = await supabase
@@ -444,6 +480,51 @@ No validated financial data available. When discussing financial figures:
     if (reportError || !report) {
       throw new Error('Pass 1 must be completed first');
     }
+
+    // ========================================================================
+    // CRITICAL: Extract Pass 1's EXACT service decisions with tiers/prices
+    // These are the source of truth - Pass 2 MUST NOT change them
+    // ========================================================================
+    const pass1InvestmentSummary = report.destination_report?.recommendedInvestments || 
+                                   report.page4_numbers?.investmentSummary || {};
+    const pass1Phases = report.page3_journey?.phases || report.destination_report?.page3_journey?.phases || [];
+    const pass1Total = report.page4_numbers?.investmentSummary?.totalFirstYearInvestment || 
+                       report.destination_report?.analysis?.investmentSummary?.totalFirstYearInvestment || '';
+    
+    // Build a map of service -> exact price from Pass 1
+    const pass1ServicePrices: Record<string, { service: string; tier: string; price: string }> = {};
+    
+    // Extract from recommendedInvestments array
+    const pass1Investments = report.destination_report?.recommendedInvestments || 
+                             report.destination_report?.analysis?.recommendedInvestments || [];
+    for (const inv of pass1Investments) {
+      const code = inv.code || inv.serviceCode || '';
+      if (code) {
+        pass1ServicePrices[code] = {
+          service: inv.service || inv.serviceName || code,
+          tier: inv.recommendedTier || inv.tier || '',
+          price: inv.investment || inv.price || ''
+        };
+      }
+    }
+    
+    // Also extract from phases if not already captured
+    for (const phase of pass1Phases) {
+      const code = phase.enabledByCode || '';
+      if (code && !pass1ServicePrices[code]) {
+        pass1ServicePrices[code] = {
+          service: phase.enabledBy || code,
+          tier: phase.tier || '',
+          price: phase.price || phase.investment || ''
+        };
+      }
+    }
+    
+    console.log('[Pass 2] 📊 Pass 1 Service Decisions (MUST USE THESE PRICES):');
+    Object.entries(pass1ServicePrices).forEach(([code, info]) => {
+      console.log(`  - ${code}: ${info.service} | ${info.tier || 'no tier'} | ${info.price}`);
+    });
+    console.log(`[Pass 2] 📊 Pass 1 Total Investment: ${pass1Total}`);
 
     // Fetch context notes
     const { data: contextNotes } = await supabase
@@ -735,6 +816,7 @@ WRITING STYLE:
 7. Personal anchors - reference spouse names, kids' ages, specific details
 8. Services as footnotes - headline the OUTCOME, service is just how
 ${financialDataSection}
+${servicePriceConstraints}
 ============================================================================
 DATA COMPLETENESS STATUS
 ============================================================================
@@ -1126,6 +1208,89 @@ Before returning, verify:
     // Apply cleanup to all narratives
     narratives = cleanupText(narratives);
     console.log('[Pass 2] Applied text cleanup to fix kk typos');
+    
+    // ========================================================================
+    // CRITICAL: Enforce Pass 1 service prices in LLM output
+    // The LLM might have ignored our constraints, so we fix them here
+    // ========================================================================
+    if (Object.keys(pass1ServicePrices).length > 0) {
+      console.log('[Pass 2] 🔧 Enforcing Pass 1 service prices...');
+      
+      // Fix page3_journey.phases prices
+      if (narratives.page3_journey?.phases) {
+        for (const phase of narratives.page3_journey.phases) {
+          const enabledBy = (phase.enabledBy || '').toLowerCase();
+          
+          // Find matching service from Pass 1
+          for (const [code, info] of Object.entries(pass1ServicePrices)) {
+            const serviceName = info.service.toLowerCase();
+            if (enabledBy.includes(serviceName.split(' ')[0]) || 
+                enabledBy.includes('365') && code === '365_method' ||
+                enabledBy.includes('goal alignment') && code === '365_method' ||
+                enabledBy.includes('benchmark') && code === 'benchmarking' ||
+                enabledBy.includes('management') && code === 'management_accounts' ||
+                enabledBy.includes('systems') && code === 'systems_audit' ||
+                enabledBy.includes('automation') && code === 'automation' ||
+                enabledBy.includes('cfo') && code === 'fractional_cfo' ||
+                enabledBy.includes('coo') && code === 'fractional_coo') {
+              
+              const oldPrice = phase.price;
+              phase.price = info.price;
+              
+              // Also add tier info to enabledBy if missing
+              if (info.tier && !phase.enabledBy.toLowerCase().includes(info.tier.toLowerCase())) {
+                // Don't modify enabledBy, just ensure price is correct
+              }
+              
+              if (oldPrice !== info.price) {
+                console.log(`[Pass 2] Fixed price: ${phase.enabledBy} from "${oldPrice}" → "${info.price}"`);
+              }
+              break;
+            }
+          }
+        }
+      }
+      
+      // Fix page4_numbers.investment array
+      if (narratives.page4_numbers?.investment) {
+        for (const inv of narratives.page4_numbers.investment) {
+          const phaseName = (inv.phase || inv.service || '').toLowerCase();
+          
+          // Find matching service from Pass 1
+          for (const [code, info] of Object.entries(pass1ServicePrices)) {
+            const serviceName = info.service.toLowerCase();
+            if (phaseName.includes(serviceName.split(' ')[0]) ||
+                phaseName.includes('365') && code === '365_method' ||
+                phaseName.includes('goal') && code === '365_method' ||
+                phaseName.includes('benchmark') && code === 'benchmarking' ||
+                phaseName.includes('management') && code === 'management_accounts' ||
+                phaseName.includes('systems') && code === 'systems_audit' ||
+                phaseName.includes('automation') && code === 'automation') {
+              
+              const oldAmount = inv.amount;
+              inv.amount = info.price;
+              
+              if (oldAmount !== info.price) {
+                console.log(`[Pass 2] Fixed investment: ${inv.phase} from "${oldAmount}" → "${info.price}"`);
+              }
+              break;
+            }
+          }
+        }
+      }
+      
+      // Fix page4_numbers.totalYear1 if we have it from Pass 1
+      if (pass1Total && narratives.page4_numbers) {
+        const oldTotal = narratives.page4_numbers.totalYear1;
+        narratives.page4_numbers.totalYear1 = pass1Total;
+        
+        if (oldTotal !== pass1Total) {
+          console.log(`[Pass 2] Fixed totalYear1 from "${oldTotal}" → "${pass1Total}"`);
+        }
+      }
+      
+      console.log('[Pass 2] ✅ Pass 1 service prices enforced');
+    }
     
     // If we have validated payroll data, check for wrong figures and log warnings
     if (validatedPayroll.excessAmount && validatedPayroll.excessAmount > 0) {
