@@ -280,7 +280,10 @@ function extractAssessmentSignals(responses: Record<string, any>): AssessmentSig
       magicFix: responses.dd_magic_fix || '',
       hardTruth: responses.dd_hard_truth || '',
       sacrifice: responses.dd_sacrifice_list || '',
-      nonNegotiables: (responses.dd_non_negotiables || '').split(',').map((s: string) => s.trim()).filter(Boolean),
+      // dd_non_negotiables may be an array (multi-select) or comma-separated string
+      nonNegotiables: Array.isArray(responses.dd_non_negotiables)
+        ? responses.dd_non_negotiables.filter(Boolean)
+        : (responses.dd_non_negotiables || '').toString().split(',').map((s: string) => s.trim()).filter(Boolean),
     },
     isExitFocused,
     isHighPerformer,
