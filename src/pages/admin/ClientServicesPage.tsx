@@ -1888,6 +1888,7 @@ function DiscoveryClientModal({
   const [isReportShared, setIsReportShared] = useState(false);
   const [sharingReport, setSharingReport] = useState(false);
   const [viewMode, setViewMode] = useState<'admin' | 'client'>('admin');
+  const [exportingResponsesPDF, setExportingResponsesPDF] = useState(false);
   
   // NEW: Destination-focused report from discovery_reports table
   const [destinationReport, setDestinationReport] = useState<any>(null);
@@ -3441,6 +3442,42 @@ function DiscoveryClientModal({
     }
   };
 
+  // Export Discovery Responses as separate PDF
+  const handleExportResponsesPDF = async () => {
+    if (!clientId || !discovery) return;
+    
+    setExportingResponsesPDF(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-discovery-responses-pdf', {
+        body: { 
+          clientId,
+          engagementId: discoveryEngagement?.id 
+        }
+      });
+      
+      if (error) throw error;
+      
+      if (data?.html) {
+        // Open in new window for printing
+        const printWindow = window.open('', '_blank', 'width=800,height=600');
+        if (printWindow) {
+          printWindow.document.write(data.html);
+          printWindow.document.close();
+          printWindow.onload = () => {
+            setTimeout(() => {
+              printWindow.print();
+            }, 500);
+          };
+        }
+      }
+    } catch (err) {
+      console.error('Error exporting responses PDF:', err);
+      alert('Failed to export responses PDF. Please try again.');
+    } finally {
+      setExportingResponsesPDF(false);
+    }
+  };
+
   // Assign services to client
   const handleAssignServices = async () => {
     if (selectedServices.length === 0 || !client?.practice_id) return;
@@ -3823,6 +3860,28 @@ function DiscoveryClientModal({
                     </div>
                   ) : (
                     <>
+                      {/* Header with Export Button */}
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-gray-900">Discovery Responses</h3>
+                        <button
+                          onClick={handleExportResponsesPDF}
+                          disabled={exportingResponsesPDF}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium transition-colors"
+                        >
+                          {exportingResponsesPDF ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Exporting...
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="w-4 h-4" />
+                              Export Responses to PDF
+                            </>
+                          )}
+                        </button>
+                      </div>
+
                       {/* Summary cards */}
                       <div className="grid grid-cols-3 gap-4">
                         <div className="bg-cyan-50 rounded-xl p-4">
