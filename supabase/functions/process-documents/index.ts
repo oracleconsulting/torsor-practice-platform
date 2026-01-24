@@ -329,15 +329,17 @@ async function extractTextFromUrl(fileUrl: string, fileType: string): Promise<st
       return await response.text();
     }
     
-    // For PDF, DOCX, etc. - we'll need to use a more sophisticated approach
-    // For now, return a placeholder that indicates the file type
-    // In production, you'd use a PDF parsing library or external service
+    // For PDF files - use unpdf for proper text extraction
     if (contentType.includes('pdf') || fileType.endsWith('.pdf')) {
-      // Note: Full PDF parsing requires additional libraries
-      // For MVP, we'll extract what we can or mark for manual processing
+      console.log('[ProcessDocs] Extracting text from PDF...');
       const buffer = await response.arrayBuffer();
-      const text = extractTextFromPDF(buffer);
-      return text || `[PDF Document: Content extraction pending - ${fileType}]`;
+      const text = await extractTextFromPDF(buffer);
+      if (text && text.length > 50) {
+        console.log(`[ProcessDocs] Successfully extracted ${text.length} chars from PDF`);
+        return text;
+      }
+      console.log('[ProcessDocs] PDF extraction returned insufficient text');
+      return `[PDF Document: Could not extract text - ${fileType}]`;
     }
     
     // For Office documents
@@ -363,40 +365,103 @@ async function extractTextFromUrl(fileUrl: string, fileType: string): Promise<st
   }
 }
 
-// Simple PDF text extraction (basic implementation)
-function extractTextFromPDF(buffer: ArrayBuffer): string {
+// ============================================================================
+// PDF TEXT EXTRACTION - Uses unpdf library for proper compressed PDF handling
+// ============================================================================
+
+async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
+  const uint8Array = new Uint8Array(buffer);
+  
+  // Try unpdf first - handles compressed PDFs properly
+  try {
+    console.log('[ProcessDocs] Attempting PDF extraction with unpdf...');
+    
+    const unpdf = await import('https://esm.sh/unpdf@0.12.1?bundle');
+    const result = await unpdf.extractText(uint8Array, { mergePages: true });
+    const text = result.text || '';
+    
+    if (text && text.length > 20) {
+      const hasRealText = /[a-zA-Z]{3,}/.test(text);
+      console.log(`[ProcessDocs] unpdf extracted: ${text.length} chars, hasRealText: ${hasRealText}`);
+      
+      if (hasRealText) {
+        console.log('[ProcessDocs] PDF content preview:', text.substring(0, 200));
+        return text.substring(0, 50000);
+      }
+    }
+    
+    console.log('[ProcessDocs] unpdf returned empty, trying getDocumentProxy...');
+  } catch (unpdfError: any) {
+    console.error('[ProcessDocs] unpdf error:', unpdfError?.message || unpdfError);
+  }
+  
+  // Fallback: Try unpdf's getDocumentProxy for more control
+  try {
+    const unpdf = await import('https://esm.sh/unpdf@0.12.1?bundle');
+    
+    const pdf = await unpdf.getDocumentProxy(uint8Array);
+    let fullText = '';
+    
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .filter((item: any) => item.str)
+        .map((item: any) => item.str)
+        .join(' ');
+      fullText += pageText + '\n';
+    }
+    
+    fullText = fullText.trim();
+    
+    if (fullText && fullText.length > 20) {
+      const hasRealText = /[a-zA-Z]{3,}/.test(fullText);
+      console.log(`[ProcessDocs] unpdf proxy extracted: ${fullText.length} chars, ${pdf.numPages} pages`);
+      
+      if (hasRealText) {
+        return fullText.substring(0, 50000);
+      }
+    }
+  } catch (proxyError: any) {
+    console.error('[ProcessDocs] unpdf proxy error:', proxyError?.message || proxyError);
+  }
+  
+  // Final fallback: regex-based extraction for simple/uncompressed PDFs
+  console.log('[ProcessDocs] Falling back to regex extraction...');
+  return extractTextFromPDFFallback(buffer);
+}
+
+// Fallback regex method for simple/uncompressed PDFs
+function extractTextFromPDFFallback(buffer: ArrayBuffer): string {
   try {
     const bytes = new Uint8Array(buffer);
     const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
     
-    // Look for text streams in PDF
     const textMatches: string[] = [];
-    const streamRegex = /stream\s*([\s\S]*?)\s*endstream/g;
     let match;
     
-    while ((match = streamRegex.exec(text)) !== null) {
-      const streamContent = match[1];
-      // Extract readable text (basic approach)
-      const readable = streamContent
-        .replace(/[\x00-\x1F\x7F-\xFF]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      if (readable.length > 20) {
-        textMatches.push(readable);
+    // Extract text between parentheses (PDF text objects)
+    const textObjRegex = /\(([^)]{3,})\)/g;
+    while ((match = textObjRegex.exec(text)) !== null) {
+      const content = match[1];
+      if (/[a-zA-Z]{2,}/.test(content) && content.length > 3) {
+        textMatches.push(content);
       }
     }
     
-    // Also look for text between parentheses (PDF text objects)
-    const textObjRegex = /\(([^)]+)\)/g;
-    while ((match = textObjRegex.exec(text)) !== null) {
-      if (match[1].length > 3 && !/^[\d\s]+$/.test(match[1])) {
+    // Look for Tj operators
+    const tjRegex = /\(([^)]+)\)\s*Tj/g;
+    while ((match = tjRegex.exec(text)) !== null) {
+      if (match[1].length > 2 && /[a-zA-Z]/.test(match[1])) {
         textMatches.push(match[1]);
       }
     }
     
-    return textMatches.join(' ').substring(0, 50000); // Limit to 50k chars
+    const result = [...new Set(textMatches)].join(' ').substring(0, 50000);
+    console.log(`[ProcessDocs] Fallback extraction: ${result.length} chars`);
+    return result;
   } catch (error) {
-    console.error('PDF extraction error:', error);
+    console.error('[ProcessDocs] Fallback PDF extraction error:', error);
     return '';
   }
 }
@@ -569,18 +634,22 @@ serve(async (req) => {
         const { sanitizedText, extractedMetrics } = sanitizeForLLM(rawText);
         console.log(`Sanitized text: ${sanitizedText.length} chars, extracted ${Object.keys(extractedMetrics).length} metrics`);
         
-        // Store extracted metrics locally (these never go to LLM)
-        if (Object.keys(extractedMetrics).length > 0) {
-          await supabase
-            .from('client_context')
-            .update({ 
-              extracted_metrics: extractedMetrics,
-              data_source_type: sourceInfo.type,
-              priority_level: sourceInfo.priority,
-              processed: true 
-            })
-            .eq('id', contextId);
-        }
+        // CRITICAL: Store extracted text and metrics in client_context
+        // This is what prepare-discovery-data reads to get document content!
+        console.log(`[ProcessDocs] Updating client_context with extracted content (${rawText.length} chars)`);
+        
+        await supabase
+          .from('client_context')
+          .update({ 
+            content: rawText.substring(0, 50000), // Store the actual extracted text!
+            extracted_metrics: extractedMetrics,
+            data_source_type: sourceInfo.type,
+            priority_level: sourceInfo.priority,
+            processed: true 
+          })
+          .eq('id', contextId);
+        
+        console.log(`[ProcessDocs] ✅ Updated client_context ${contextId} with ${rawText.length} chars of content`);
         
         // 4. Determine which clients to process for
         const targetClients = isShared && clientEntities.length > 1
