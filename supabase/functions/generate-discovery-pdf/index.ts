@@ -321,20 +321,39 @@ async function fetchReportData(
       // ========================================================================
       // USE PAGE3.PHASES with FULL narrative content
       // Portal shows: phase.headline, phase.whatChanges, phase.feelsLike, etc.
+      // CRITICAL: Preserve ALL emotional/narrative content - do NOT truncate
       // ========================================================================
-      const phases = (page3.phases || []).map((phase: any) => ({
-        timeframe: phase.timeframe || '',
-        title: phase.headline || phase.title || '',
-        // PRESERVE FULL "whatChanges" array or string - don't truncate
-        whatChanges: Array.isArray(phase.whatChanges) 
-          ? phase.whatChanges.join('. ') 
-          : phase.whatChanges || '',
-        youWillHave: phase.outcome || '',
-        // PRESERVE FULL "feelsLike" narrative - this is key emotional content
-        feelsLike: phase.feelsLike || '',
-        enabledBy: phase.enabledBy || '',
-        investment: phase.price || '',
-      }));
+      const phases = (page3.phases || []).map((phase: any) => {
+        // PRESERVE whatChanges as array for proper bullet rendering
+        let whatChanges = phase.whatChanges || [];
+        if (typeof whatChanges === 'string') {
+          // Split back into array if it was joined
+          whatChanges = whatChanges.split(/[.\n]/).map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+        }
+        if (!Array.isArray(whatChanges)) {
+          whatChanges = [whatChanges];
+        }
+        
+        // Log to verify full content is preserved
+        console.log(`[PDF] Phase "${phase.headline || phase.title}":`, {
+          whatChangesCount: whatChanges.length,
+          feelsLikeLength: (phase.feelsLike || '').length,
+          outcomeLength: (phase.outcome || '').length
+        });
+        
+        return {
+          timeframe: phase.timeframe || '',
+          title: phase.headline || phase.title || '',
+          // PRESERVE FULL "whatChanges" as array for bullet rendering
+          whatChanges: whatChanges,
+          // PRESERVE FULL outcome text
+          youWillHave: phase.outcome || phase.youWillHave || '',
+          // PRESERVE FULL "feelsLike" narrative - this is key emotional content
+          feelsLike: phase.feelsLike || phase.whatThisFeelsLike || '',
+          enabledBy: phase.enabledBy || '',
+          investment: phase.price || phase.investment || '',
+        };
+      });
       
       // ========================================================================
       // USE PAGE2.GAPS with FULL narrative content
@@ -1222,14 +1241,16 @@ function buildTransformationJourney(analysis: any): string {
               <div class="phase-timeframe">${phase.timeframe || `Phase ${idx + 1}`}</div>
               <div class="phase-title">${phase.title || 'Building Foundations'}</div>
               
-              ${phase.whatChanges ? `
+              ${phase.whatChanges && (Array.isArray(phase.whatChanges) ? phase.whatChanges.length > 0 : phase.whatChanges) ? `
                 <div style="margin: 12px 0;">
-                  <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">WHAT CHANGES:</div>
+                  <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">YOU WILL HAVE:</div>
                   <ul style="list-style: none; padding: 0; margin: 0;">
-                    ${(Array.isArray(phase.whatChanges) ? phase.whatChanges : [phase.whatChanges]).map((change: string) => `
-                      <li style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px;">
-                        <span style="color: #10b981;">✓</span>
-                        <span style="color: #475569;">${change}</span>
+                    ${(Array.isArray(phase.whatChanges) ? phase.whatChanges : [phase.whatChanges])
+                      .filter((c: string) => c && c.trim().length > 0)
+                      .map((change: string) => `
+                      <li style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+                        <span style="color: #10b981; flex-shrink: 0;">✓</span>
+                        <span style="color: #475569; line-height: 1.5;">${change}</span>
                       </li>
                     `).join('')}
                   </ul>
@@ -1468,37 +1489,80 @@ function buildGapAnalysis(analysis: any): string {
         </div>
       ` : ''}
       
-      ${(costOfInaction.annualFinancialCost || costOfInaction.annual || labourInefficiency) ? `
+      ${(costOfInaction.annualFinancialCost || costOfInaction.annual || labourInefficiency || financialInsights.payroll) ? `
         <div style="background: linear-gradient(135deg, #fef2f2, #fee2e2); padding: 30px; border-radius: 16px; border: 1px solid #fca5a5; margin-top: 30px;">
           <div style="font-size: 10pt; color: #dc2626; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px;">
             Cost of Staying Here
           </div>
           
-          ${labourInefficiency || valuationCost || costOfInaction.yourTimeWasted ? `
-            <div style="display: grid; gap: 12px; margin-bottom: 16px;">
-              ${labourInefficiency ? `
-                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #fca5a5;">
-                  <span style="color: #7f1d1d;">Labour inefficiency</span>
-                  <span style="font-weight: 600; color: #dc2626;">${labourInefficiency}</span>
+          ${financialInsights.payroll ? `
+            <!-- Payroll Analysis with FULL calculation breakdown -->
+            <div style="margin-bottom: 20px;">
+              <div style="font-weight: 600; color: #7f1d1d; margin-bottom: 12px;">Labour Inefficiency</div>
+              
+              <div style="background: white; padding: 16px; border-radius: 8px; margin-bottom: 12px;">
+                <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">YOUR SITUATION:</div>
+                <div style="font-size: 10pt; color: #1e293b; line-height: 1.6;">
+                  Staff costs £${Math.round(financialInsights.payroll.staffCosts / 1000)}k on £${Math.round(financialInsights.payroll.turnover / 1000)}k turnover = <strong>${financialInsights.payroll.actualPct?.toFixed(1) || '—'}%</strong><br>
+                  Industry average: <strong>${financialInsights.payroll.benchmarkPct || 28}%</strong>*<br>
+                  You're <strong>${((financialInsights.payroll.actualPct || 0) - (financialInsights.payroll.benchmarkPct || 28)).toFixed(1)}%</strong> above benchmark
                 </div>
-              ` : ''}
-              ${valuationCost ? `
-                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #fca5a5;">
-                  <span style="color: #7f1d1d;">Valuation suppression</span>
-                  <span style="font-weight: 600; color: #dc2626;">${valuationCost}</span>
+              </div>
+              
+              <div style="background: white; padding: 16px; border-radius: 8px; margin-bottom: 12px;">
+                <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">THE IMPACT:</div>
+                <div style="font-size: 10pt; color: #1e293b; line-height: 1.6;">
+                  • Gross excess: <strong>£${Math.round(financialInsights.payroll.grossExcess / 1000)}k/year</strong><br>
+                  • Conservatively recoverable (35-50%): <strong>£${Math.round(financialInsights.payroll.recoverableLow / 1000)}k-£${Math.round(financialInsights.payroll.recoverableHigh / 1000)}k/year</strong><br>
+                  • Exit impact at 3.5x: <strong>£${Math.round(financialInsights.payroll.recoverableLow * 3.5 / 1000)}k-£${Math.round(financialInsights.payroll.recoverableHigh * 3.5 / 1000)}k</strong> added to sale price
                 </div>
-              ` : ''}
-              ${costOfInaction.yourTimeWasted ? `
-                <div style="display: flex; justify-content: space-between; padding: 8px 0;">
-                  <span style="color: #7f1d1d;">Your time on work below pay grade</span>
-                  <span style="font-weight: 600; color: #dc2626;">${costOfInaction.yourTimeWasted}</span>
+              </div>
+              
+              <div style="font-size: 9pt; color: #64748b; font-style: italic;">
+                *Industry average is indicative. Your Benchmarking analysis will show your exact peer comparison.
+              </div>
+            </div>
+          ` : labourInefficiency ? `
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #fca5a5;">
+              <span style="color: #7f1d1d;">Labour inefficiency</span>
+              <span style="font-weight: 600; color: #dc2626;">${labourInefficiency}</span>
+            </div>
+          ` : ''}
+          
+          ${financialInsights.valuation ? `
+            <!-- Valuation Analysis with calculation breakdown -->
+            <div style="margin-bottom: 20px;">
+              <div style="font-weight: 600; color: #7f1d1d; margin-bottom: 12px;">Valuation Suppression</div>
+              
+              <div style="background: white; padding: 16px; border-radius: 8px; margin-bottom: 12px;">
+                <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">THE NUMBERS:</div>
+                <div style="font-size: 10pt; color: #1e293b; line-height: 1.6;">
+                  Current: £${Math.round(financialInsights.valuation.currentEbitda / 1000)}k EBITDA × ${financialInsights.valuation.currentMultiple}x = <strong>£${Math.round(financialInsights.valuation.currentValuation / 1000)}k</strong><br>
+                  With improvements: £${Math.round(financialInsights.valuation.improvedEbitda / 1000)}k × ${financialInsights.valuation.improvedMultiple}x = <strong>£${Math.round(financialInsights.valuation.improvedValuation / 1000)}k</strong><br>
+                  Potential uplift: <strong>£${Math.round(financialInsights.valuation.uplift / 1000)}k</strong>
                 </div>
-              ` : ''}
+              </div>
+              
+              <div style="font-size: 18pt; font-weight: 700; color: #dc2626;">
+                ${financialInsights.valuation.summary || `£${Math.round(financialInsights.valuation.uplift / 1000)}k potential uplift`}
+              </div>
+            </div>
+          ` : valuationCost ? `
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #fca5a5;">
+              <span style="color: #7f1d1d;">Valuation suppression</span>
+              <span style="font-weight: 600; color: #dc2626;">${valuationCost}</span>
+            </div>
+          ` : ''}
+          
+          ${costOfInaction.yourTimeWasted ? `
+            <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+              <span style="color: #7f1d1d;">Your time on work below pay grade</span>
+              <span style="font-weight: 600; color: #dc2626;">${costOfInaction.yourTimeWasted}</span>
             </div>
           ` : ''}
           
           ${costOfInaction.annualFinancialCost || costOfInaction.annual ? `
-            <div style="font-size: 24pt; font-weight: 700; color: #dc2626; margin-bottom: 12px;">
+            <div style="font-size: 24pt; font-weight: 700; color: #dc2626; margin-bottom: 12px; margin-top: 16px;">
               ${costOfInaction.annualFinancialCost || costOfInaction.annual || '—'}
             </div>
           ` : ''}
