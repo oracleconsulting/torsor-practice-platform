@@ -10,6 +10,7 @@ import {
   SectionCommentBox,
   useAnalysisComments
 } from '../../components/discovery';
+import { EnabledByLink } from '../../components/ServiceDetailPopup';
 import { 
   Users, 
   CheckCircle,
@@ -3621,34 +3622,80 @@ function DiscoveryClientModal({
     }
   };
 
-  // Parse discovery responses for display
-  const getDiscoveryResponses = () => {
-    if (!discovery?.responses) return [];
-    
-    const responses = discovery.responses;
-    const grouped: Record<string, any[]> = {};
-    
-    Object.entries(responses).forEach(([key, value]) => {
-      // Extract section from question ID (e.g., dd_dream_1 -> The Dream)
-      let section = 'Other';
-      if (key.includes('dream')) section = 'The Dream';
-      else if (key.includes('gap')) section = 'The Gap';
-      else if (key.includes('tuesday')) section = 'Tuesday Reality';
-      else if (key.includes('real')) section = 'The Real Question';
-      else if (key.includes('financial')) section = 'Financial Clarity';
-      else if (key.includes('operational')) section = 'Operational Freedom';
-      else if (key.includes('strategic')) section = 'Strategic Direction';
-      else if (key.includes('growth')) section = 'Growth Readiness';
-      else if (key.includes('exit')) section = 'Exit & Protection';
-      
-      if (!grouped[section]) grouped[section] = [];
-      grouped[section].push({ key, value });
-    });
-    
-    return grouped;
+  // Discovery Questions Mapping - ALL questions with proper labels
+  const DISCOVERY_QUESTIONS = {
+    destination: {
+      title: 'Part 1: The Destination',
+      subtitle: 'Understanding where you want to go',
+      questions: [
+        { key: 'dd_five_year_vision', question: 'Picture it: Five years from now, it\'s a random Tuesday morning. What does your ideal day look like?', label: 'Tuesday Test (5-Year Vision)' },
+        { key: 'dd_success_definition', question: 'When you think about the next 3-5 years, how would you define success for yourself personally?', label: 'Success Definition' },
+        { key: 'dd_non_negotiables', question: 'What are the non-negotiables in your vision?', label: 'Non-Negotiables' },
+        { key: 'dd_magic_fix', question: 'If we could fix just ONE thing in the next 90 days that would make the biggest difference to your day-to-day, what would it be?', label: 'Magic Fix (90 Days)' },
+      ]
+    },
+    reality: {
+      title: 'Part 2: The Reality',
+      subtitle: 'Understanding where you are now',
+      questions: [
+        { key: 'dd_weekly_hours', question: 'Roughly how many hours per week do you currently work?', label: 'Weekly Hours' },
+        { key: 'dd_owner_hours', question: 'Roughly how many hours per week do you currently work?', label: 'Owner Hours' },
+        { key: 'dd_time_allocation', question: 'How would you describe the split of your time between firefighting vs strategic work?', label: 'Time Allocation' },
+        { key: 'dd_core_frustration', question: 'What\'s the biggest frustration in your business right now?', label: 'Core Frustration' },
+        { key: 'dd_emergency_log', question: 'Think about the last month. What emergencies or unexpected issues pulled you away from what you should have been doing?', label: 'Emergency Log' },
+        { key: 'dd_relationship_mirror', question: 'If your relationship with your business was a relationship with a person, what kind would it be?', label: 'Business Relationship' },
+        { key: 'dd_external_view', question: 'How do people outside the business perceive it?', label: 'External View' },
+        { key: 'dd_sacrifice_list', question: 'What have you sacrificed or put on hold because of the business?', label: 'What You\'ve Sacrificed' },
+        { key: 'dd_last_real_break', question: 'When did you last have a proper break (a week or more) without checking in?', label: 'Last Real Break' },
+        { key: 'dd_sleep_thief', question: 'What keeps you awake at night about the business?', label: 'Sleep Thief' },
+      ]
+    },
+    truth: {
+      title: 'Part 3: The Hard Truth',
+      subtitle: 'The conversations that matter',
+      questions: [
+        { key: 'dd_avoided_conversation', question: 'Is there a conversation you\'ve been avoiding? Someone you need to talk to but haven\'t?', label: 'Avoided Conversation' },
+        { key: 'dd_hard_truth', question: 'What\'s the hard truth about your business that you suspect but haven\'t confirmed?', label: 'Hard Truth' },
+        { key: 'dd_if_i_knew', question: 'If you could know one thing with certainty about your business, what would it be?', label: 'If I Knew...' },
+        { key: 'dd_suspected_truth', question: 'If you had to guess - what do you think your numbers would tell you that you don\'t currently know?', label: 'Suspected Truth' },
+        { key: 'dd_team_secret', question: 'What does your team not know about how you\'re feeling?', label: 'Team Secret' },
+        { key: 'dd_scaling_constraint', question: 'What\'s the main constraint stopping you from growing right now?', label: 'Scaling Constraint' },
+        { key: 'dd_change_readiness', question: 'How ready are you to make significant changes to how things work?', label: 'Change Readiness' },
+      ]
+    },
+    systems: {
+      title: 'Part 4: Systems & Operations',
+      subtitle: 'How the business runs',
+      questions: [
+        { key: 'sd_financial_confidence', question: 'How confident are you that your financial data is accurate and up to date?', label: 'Financial Confidence' },
+        { key: 'sd_founder_dependency', question: 'If you disappeared for 2 weeks, what would happen to the business?', label: 'Founder Dependency' },
+        { key: 'sd_manual_tasks', question: 'Which of these tasks are still largely manual in your business?', label: 'Manual Tasks' },
+        { key: 'sd_manual_work', question: 'How much of your team\'s effort is manual vs automated?', label: 'Manual Work' },
+        { key: 'sd_plan_clarity', question: 'Do you have a clear business plan?', label: 'Plan Clarity' },
+        { key: 'sd_numbers_action_frequency', question: 'How often do you make decisions based on your financial data?', label: 'Data-Driven Decisions' },
+        { key: 'sd_documentation_readiness', question: 'If someone needed to understand how your business works, is it documented?', label: 'Documentation Ready' },
+        { key: 'sd_operational_frustration', question: 'What processes or systems frustrate you most?', label: 'Operational Frustration' },
+        { key: 'sd_growth_blocker', question: 'What\'s blocking your growth right now?', label: 'Growth Blocker' },
+        { key: 'sd_competitive_position', question: 'How would you describe your market position?', label: 'Market Position' },
+        { key: 'sd_exit_timeline', question: 'Are you thinking about an exit? If so, what\'s your timeline?', label: 'Exit Timeline' },
+      ]
+    },
+    other: {
+      title: 'Additional Responses',
+      subtitle: 'Other captured information',
+      questions: [
+        { key: 'dd_final_message', question: 'Is there anything else you\'d like us to know?', label: 'Final Message' },
+      ]
+    }
   };
 
-  const responseGroups = getDiscoveryResponses();
+  // Get discovery responses in structured format
+  const getStructuredResponses = () => {
+    const responses = discovery?.responses || discovery || {};
+    return responses;
+  };
+
+  const discoveryResponses = getStructuredResponses();
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -3798,38 +3845,52 @@ function DiscoveryClientModal({
                         </div>
                       </div>
 
-                      {/* Emotional anchors */}
-                      {discovery.extracted_anchors && Object.keys(discovery.extracted_anchors).length > 0 && (
-                        <div className="bg-purple-50 rounded-xl p-4">
-                          <h4 className="font-medium text-purple-900 mb-2">Extracted Emotional Anchors</h4>
-                          <div className="flex flex-wrap gap-2">
-                            {Object.values(discovery.extracted_anchors).flat().map((anchor: any, idx: number) => (
-                              <span key={idx} className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
-                                "{anchor}"
-                              </span>
-                            ))}
+                      {/* Full Questions & Answers by Section */}
+                      {Object.entries(DISCOVERY_QUESTIONS).map(([sectionKey, section]) => {
+                        // Check if section has any answered questions
+                        const hasAnswers = section.questions.some(q => {
+                          const val = discoveryResponses[q.key];
+                          return val && (Array.isArray(val) ? val.length > 0 : val.toString().trim().length > 0);
+                        });
+                        
+                        if (!hasAnswers) return null;
+                        
+                        return (
+                          <div key={sectionKey} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                            {/* Section Header */}
+                            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 px-6 py-4 border-b border-gray-200">
+                              <h3 className="text-lg font-semibold text-indigo-900">{section.title}</h3>
+                              <p className="text-sm text-indigo-600">{section.subtitle}</p>
+                            </div>
+                            
+                            {/* Questions */}
+                            <div className="divide-y divide-gray-100">
+                              {section.questions.map((q) => {
+                                let answer = discoveryResponses[q.key];
+                                if (Array.isArray(answer)) answer = answer.join(', ');
+                                if (!answer || (typeof answer === 'string' && answer.trim() === '')) return null;
+                                
+                                return (
+                                  <div key={q.key} className="p-4">
+                                    <div className="flex items-start gap-3">
+                                      <div className="w-2 h-2 rounded-full mt-2 flex-shrink-0 bg-emerald-500" />
+                                      <div className="flex-1">
+                                        <p className="text-xs font-medium text-indigo-600 uppercase tracking-wide mb-1">
+                                          {q.label}
+                                        </p>
+                                        <p className="text-sm text-gray-500 italic mb-2">"{q.question}"</p>
+                                        <div className="p-3 rounded-lg bg-gray-50 border-l-3 border-indigo-500">
+                                          <p className="text-gray-900 whitespace-pre-wrap">{answer}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      )}
-
-                      {/* Response sections */}
-                      {Object.entries(responseGroups).map(([section, items]) => (
-                        <div key={section} className="border border-gray-200 rounded-xl overflow-hidden">
-                          <div className="bg-gray-50 p-4">
-                            <h4 className="font-semibold text-gray-900">{section}</h4>
-                          </div>
-                          <div className="divide-y divide-gray-100">
-                            {items.map(({ key, value }) => (
-                              <div key={key} className="p-4">
-                                <p className="text-xs text-gray-400 mb-1">{key}</p>
-                                <p className="text-gray-900">
-                                  {Array.isArray(value) ? value.join(', ') : value || '—'}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
 
                       {/* Recommended services from discovery */}
                       {discovery.recommended_services && (
@@ -4344,9 +4405,22 @@ function DiscoveryClientModal({
                                           {phase.outcome && (
                                             <p className="text-gray-700"><strong>The outcome:</strong> {phase.outcome}</p>
                                           )}
-                                          <p className="text-xs text-gray-400 pt-2 border-t border-gray-100">
-                                            Enabled by: {phase.enabledBy} ({phase.price})
-                                          </p>
+                                          <div className="pt-2 border-t border-gray-100">
+                                            <EnabledByLink
+                                              serviceCode={(() => {
+                                                const name = (phase.enabledBy || '').toLowerCase();
+                                                if (name.includes('365') || name.includes('goal alignment')) return '365_method';
+                                                if (name.includes('systems audit')) return 'systems_audit';
+                                                if (name.includes('management account')) return 'management_accounts';
+                                                if (name.includes('fractional cfo')) return 'fractional_cfo';
+                                                if (name.includes('benchmark')) return 'benchmarking';
+                                                if (name.includes('automation')) return 'automation';
+                                                return phase.enabledByCode || 'discovery';
+                                              })()}
+                                              serviceName={phase.enabledBy?.includes('365') ? 'Goal Alignment Programme' : phase.enabledBy}
+                                              price={phase.price}
+                                            />
+                                          </div>
                                         </div>
                                       </div>
                                     ))}
