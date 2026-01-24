@@ -6073,6 +6073,65 @@ Return ONLY the JSON object with no additional text.`;
             }
           }
         }
+        
+        // ========================================================================
+        // CRITICAL FIX: FORCE totalFirstYearInvestment TO MATCH recommendedInvestments
+        // ========================================================================
+        // The LLM often puts a different value in totalFirstYearInvestment than the
+        // sum of recommendedInvestments. This MUST be corrected as recommendedInvestments
+        // is the authoritative source of what services are being recommended.
+        
+        console.log('[Discovery] === FINAL INVESTMENT TOTAL VALIDATION ===');
+        
+        let calculatedTotal = 0;
+        const serviceBreakdown: string[] = [];
+        
+        for (const inv of analysis.recommendedInvestments) {
+          // Extract numeric value from strings like "£2,000", "£1,500/year", "£4,500/year"
+          const investmentStr = inv.investment || inv.price || inv.cost || '0';
+          const match = investmentStr.toString().match(/£?([\d,]+)/);
+          const value = match ? parseInt(match[1].replace(/,/g, ''), 10) : 0;
+          
+          console.log(`[Discovery] → ${inv.service || inv.code || 'Unknown'}: "${investmentStr}" = £${value.toLocaleString()}`);
+          calculatedTotal += value;
+          
+          if (value > 0) {
+            serviceBreakdown.push(`${inv.service || inv.code}: £${value.toLocaleString()}`);
+          }
+        }
+        
+        console.log(`[Discovery] Sum of recommendedInvestments: £${calculatedTotal.toLocaleString()}`);
+        
+        // Check what was previously set
+        const previousTotal = analysis.investmentSummary?.totalFirstYearInvestment || 'not set';
+        const previousMatch = previousTotal.toString().match(/£?([\d,]+)/);
+        const previousValue = previousMatch ? parseInt(previousMatch[1].replace(/,/g, ''), 10) : 0;
+        
+        // ALWAYS override with calculated total if we have services
+        if (calculatedTotal > 0) {
+          if (!analysis.investmentSummary) {
+            analysis.investmentSummary = {};
+          }
+          
+          analysis.investmentSummary.totalFirstYearInvestment = `£${calculatedTotal.toLocaleString()}`;
+          analysis.investmentSummary.investmentBreakdown = serviceBreakdown.join(' + ');
+          
+          if (previousValue !== calculatedTotal) {
+            console.warn(`[Discovery] ⚠️ CORRECTED INVESTMENT TOTAL: was "${previousTotal}" (£${previousValue}), now "£${calculatedTotal.toLocaleString()}"`);
+            analysis.investmentSummary.wasForceRecalculated = true;
+          } else {
+            console.log(`[Discovery] ✓ Investment total matches: £${calculatedTotal.toLocaleString()}`);
+          }
+          
+          // Also sync to transformationJourney if it exists
+          if (analysis.transformationJourney) {
+            analysis.transformationJourney.totalInvestment = `£${calculatedTotal.toLocaleString()}`;
+          }
+          
+          console.log(`[Discovery] ✅ Final totalFirstYearInvestment: £${calculatedTotal.toLocaleString()}`);
+        } else {
+          console.warn('[Discovery] ⚠️ No calculable investment from recommendedInvestments');
+        }
       }
       
     } catch (e: any) {
