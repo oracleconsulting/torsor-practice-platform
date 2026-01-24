@@ -228,89 +228,116 @@ async function fetchReportData(
     
     if (discoveryReport?.destination_report) {
       console.log('[PDF] Using discovery_reports (new format) as data source');
+      console.log('[PDF] Report ID:', discoveryReport.id);
       dataSource = 'discovery_reports';
       report = discoveryReport;
       
-      // Convert discovery_reports format to analysis format
+      // ========================================================================
+      // CRITICAL: Use EXACT SAME data structure as Portal
+      // Portal uses: destinationReport.destination_report.pageX
+      // We must use the SAME fields to ensure PDF matches Portal
+      // ========================================================================
       const destReport = discoveryReport.destination_report || {};
       const page1 = discoveryReport.page1_destination || destReport.page1_destination || {};
       const page2 = discoveryReport.page2_gaps || destReport.page2_gaps || {};
       const page3 = discoveryReport.page3_journey || destReport.page3_journey || {};
       const page4 = discoveryReport.page4_numbers || destReport.page4_numbers || {};
-      const page5 = discoveryReport.page5_next_steps || destReport.page5_next_steps || {};
+      const page5 = discoveryReport.page5_next_steps || destReport.page5_next_steps || destReport.page5_nextSteps || {};
       
       // ========================================================================
-      // CALCULATE investment total from phases (don't trust stored values!)
+      // USE PAGE4.TOTALYEAR1 - the EXACT same field Portal displays
+      // This is the source of truth for investment total
       // ========================================================================
-      const phases = page3.phases || [];
-      const calculatedServices: Array<{service: string; investment: string; price: number}> = [];
-      let calculatedTotal = 0;
+      const totalInvestmentDisplay = page4.totalYear1 || 
+                                     page4.investmentSummary?.totalFirstYear || 
+                                     destReport.investmentSummary?.totalFirstYear || 
+                                     '';
       
-      for (const phase of phases) {
-        if (phase.enabledBy && phase.price) {
-          // Parse the price from strings like "£2,000" or "£4,500/year"
-          const priceMatch = String(phase.price).match(/[\d,]+/);
-          const price = priceMatch ? parseInt(priceMatch[0].replace(/,/g, ''), 10) : 0;
-          
-          calculatedServices.push({
-            service: phase.enabledBy,
-            investment: phase.price,
-            price: price
-          });
-          calculatedTotal += price;
-        }
-      }
+      // ========================================================================
+      // USE PAGE4.INVESTMENT array - the EXACT same data Portal displays
+      // Each item has: { phase, whatYouGet, amount }
+      // ========================================================================
+      const page4Investments = page4.investment || [];
+      const recommendedServices = page4Investments.map((inv: any) => ({
+        service: inv.phase || inv.service || '',
+        tier: inv.tier || '',
+        investment: inv.amount || inv.price || '',
+        whatYouGet: inv.whatYouGet || '',
+        rationale: inv.whatYouGet || '',
+      }));
       
-      // Also check page4.investment array if phases don't have services
-      if (calculatedTotal === 0 && page4.investment) {
-        for (const inv of page4.investment) {
-          if (inv.amount) {
-            const priceMatch = String(inv.amount).match(/[\d,]+/);
-            const price = priceMatch ? parseInt(priceMatch[0].replace(/,/g, ''), 10) : 0;
-            calculatedTotal += price;
-          }
-        }
-      }
-      
-      // Log any discrepancy between stored and calculated
-      const storedTotal = page4.investmentSummary?.totalFirstYear || 
-                          page3.totalInvestment || 
-                          destReport.investmentSummary?.totalFirstYear || '';
-      const storedTotalNum = storedTotal ? parseInt(String(storedTotal).replace(/[^\d]/g, ''), 10) : 0;
-      
-      if (calculatedTotal > 0 && storedTotalNum > 0 && calculatedTotal !== storedTotalNum) {
-        console.warn('[PDF] ⚠️ INVESTMENT MISMATCH DETECTED:', {
-          storedTotal: `£${storedTotalNum.toLocaleString()}`,
-          calculatedTotal: `£${calculatedTotal.toLocaleString()}`,
-          services: calculatedServices.map(s => `${s.service}: £${s.price.toLocaleString()}`),
-          USING: 'Calculated (not stored)'
-        });
-      }
-      
-      // Format the calculated total
-      const totalInvestmentDisplay = calculatedTotal > 0 
-        ? `£${calculatedTotal.toLocaleString()}`
-        : storedTotal || '';
-      
-      console.log('[PDF] Investment calculation:', {
-        calculatedTotal: `£${calculatedTotal.toLocaleString()}`,
-        storedTotal: storedTotal || 'N/A',
-        services: calculatedServices.map(s => `${s.service}: £${s.price.toLocaleString()}`),
-        using: calculatedTotal > 0 ? 'CALCULATED' : 'STORED'
+      // Log exactly what Portal shows vs what PDF will use
+      console.log('[PDF] ✅ PORTAL-IDENTICAL DATA:', {
+        totalYear1: page4.totalYear1,
+        page4Investments: page4Investments.map((i: any) => `${i.phase}: ${i.amount}`),
+        servicesCount: recommendedServices.length,
       });
+      
+      // ========================================================================
+      // USE PAGE3.PHASES with FULL narrative content
+      // Portal shows: phase.headline, phase.whatChanges, phase.feelsLike, etc.
+      // ========================================================================
+      const phases = (page3.phases || []).map((phase: any) => ({
+        timeframe: phase.timeframe || '',
+        title: phase.headline || phase.title || '',
+        // PRESERVE FULL "whatChanges" array or string - don't truncate
+        whatChanges: Array.isArray(phase.whatChanges) 
+          ? phase.whatChanges.join('. ') 
+          : phase.whatChanges || '',
+        youWillHave: phase.outcome || '',
+        // PRESERVE FULL "feelsLike" narrative - this is key emotional content
+        feelsLike: phase.feelsLike || '',
+        enabledBy: phase.enabledBy || '',
+        investment: phase.price || '',
+      }));
+      
+      // ========================================================================
+      // USE PAGE2.GAPS with FULL narrative content
+      // Portal shows: gap.title, gap.pattern (quote), gap.costs, gap.shiftRequired
+      // ========================================================================
+      const gaps = (page2.gaps || page2.primaryGaps || []).map((gap: any) => ({
+        severity: gap.severity || 'high',
+        category: gap.category || '',
+        title: gap.title || '',
+        // PRESERVE FULL "pattern" (client's own words)
+        pattern: gap.pattern || '',
+        // PRESERVE FULL "costs" array
+        costs: gap.costs || [],
+        // PRESERVE FULL "shiftRequired" narrative
+        shiftRequired: gap.shiftRequired || '',
+        description: gap.description || gap.pattern || '',
+        cost: gap.cost || '',
+      }));
+      
+      // ========================================================================
+      // USE PAGE5 for FULL closing narrative
+      // Portal shows: thisWeek, firstStep, closingQuote, closingNarrative
+      // ========================================================================
+      const closingMessage = {
+        personalNote: page5.thisWeek || page5.personalMessage || '',
+        callToAction: page5.firstStep || '',
+        closingQuote: page5.closingQuote || '',
+        // PRESERVE FULL "closingNarrative" - includes "This isn't a sales pitch..."
+        closingNarrative: page5.closingNarrative || page5.personalMessage || '',
+        investment: page5.investment || totalInvestmentDisplay,
+        fullCTA: page5.fullCTA || page5.callToAction || '',
+      };
 
-      // Build analysis object matching the expected format
+      // Build analysis object using PORTAL-IDENTICAL data
       analysis = {
         executiveSummary: {
-          headline: destReport.executiveSummary?.headline || page1.visionNarrative || '',
-          criticalInsight: destReport.executiveSummary?.criticalInsight || page2.headline || '',
-          currentReality: page2.introduction || '',
-          destinationVision: page1.tuesdayTest || '',
+          headline: destReport.executiveSummary?.headline || page1.headerLine || '',
+          criticalInsight: destReport.executiveSummary?.criticalInsight || page2.openingLine || page2.headline || '',
+          currentReality: page2.introduction || page2.openingLine || '',
+          destinationVision: page1.visionVerbatim || page1.tuesdayTest || '',
+          clarityScore: page1.destinationClarityScore || '',
+          clarityExplanation: page1.clarityExplanation || '',
         },
         investmentSummary: {
-          // USE CALCULATED TOTAL, not stored!
+          // USE PORTAL'S EXACT FIELD
           totalFirstYearInvestment: totalInvestmentDisplay,
-          projectedFirstYearReturn: page4.returnProjection || 
+          projectedFirstYearReturn: page4.returns?.realistic?.total || 
+                                    page4.returnProjection || 
                                     page4.investmentSummary?.projectedReturn || '',
           paybackPeriod: page4.paybackPeriod || 
                          page4.investmentSummary?.paybackPeriod || '',
@@ -319,56 +346,43 @@ async function fetchReportData(
           investmentBreakdown: page4.investmentSummary?.breakdown || '',
           roiCalculation: page4.paybackCalculation || 
                           page4.investmentSummary?.roiCalculation || '',
+          realReturn: page4.realReturn || '',
         },
         transformationJourney: {
-          journeyLabel: page3.journeyLabel || 'Your Journey',
-          destination: page1.tuesdayTest || '',
+          journeyLabel: page3.journeyLabel || page3.headerLine || 'Your Journey',
+          destination: page1.visionVerbatim || page1.tuesdayTest || '',
           destinationLabel: page3.destinationLabel || 'Your Destination',
+          // PRESERVE FULL destinationContext
           destinationContext: page3.destinationContext || '',
           totalTimeframe: page3.totalTimeframe || '',
-          phases: phases.map((phase: any) => ({
-            timeframe: phase.timeframe || '',
-            title: phase.headline || phase.title || '',
-            whatChanges: Array.isArray(phase.whatChanges) 
-              ? phase.whatChanges.join('. ') 
-              : phase.whatChanges || '',
-            youWillHave: phase.outcome || '',
-            feelsLike: phase.feelsLike || '',
-            enabledBy: phase.enabledBy || '',
-            investment: phase.price || '',
-          })),
-          // USE CALCULATED TOTAL, not stored!
+          phases: phases,
+          // USE PORTAL'S EXACT FIELD
           totalInvestment: totalInvestmentDisplay,
         },
-        recommendedInvestments: calculatedServices.length > 0 
-          ? calculatedServices.map(s => ({
-              service: s.service,
-              investment: s.investment,
-              rationale: '',
-            }))
-          : (page3.phases || []).filter((p: any) => p.enabledBy).map((phase: any) => ({
-              service: phase.enabledBy || '',
-              investment: phase.price || '',
-              rationale: phase.feelsLike || '',
-            })),
+        // USE PAGE4.INVESTMENT - same as Portal
+        recommendedInvestments: recommendedServices,
         gapAnalysis: {
-          headline: page2.headline || '',
-          introduction: page2.introduction || '',
-          primaryGaps: page2.primaryGaps || [],
-          costOfInaction: page2.costOfInaction || page4.costOfStaying || {},
+          headline: page2.headerLine || page2.headline || '',
+          introduction: page2.openingLine || page2.introduction || '',
+          // PRESERVE FULL gap data
+          primaryGaps: gaps,
+          costOfInaction: page4.costOfStaying || page2.costOfInaction || {},
         },
-        closingMessage: page5.personalMessage || page5.closingMessage || {
-          personalNote: page5.thisWeek || '',
-          callToAction: page5.firstStep || '',
-        },
+        // PRESERVE FULL closing content
+        closingMessage: closingMessage,
+        // Store raw page data for full access
+        _rawPages: { page1, page2, page3, page4, page5 },
         _dataSource: dataSource,
         _reportId: discoveryReport.id,
       };
       
-      console.log('[PDF] Converted discovery_reports data:', {
+      console.log('[PDF] ✅ Data mapping complete:', {
         totalInvestment: analysis.investmentSummary.totalFirstYearInvestment,
-        phases: analysis.transformationJourney.phases?.length,
-        services: analysis.recommendedInvestments?.length,
+        projectedReturn: analysis.investmentSummary.projectedFirstYearReturn,
+        phases: phases.length,
+        gaps: gaps.length,
+        services: recommendedServices.length,
+        hasClosingNarrative: !!closingMessage.closingNarrative,
       });
     }
   }
@@ -1048,21 +1062,51 @@ function buildExecutiveSummary(analysis: any): string {
   const summary = analysis.executiveSummary || {};
   const investment = analysis.investmentSummary || {};
   const journey = analysis.transformationJourney || {};
+  const rawPages = analysis._rawPages || {};
+  const page1 = rawPages.page1 || {};
   
   const totalInvestment = investment.totalFirstYearInvestment || journey.totalInvestment || '—';
   const projectedReturn = investment.projectedFirstYearReturn || '—';
   const paybackPeriod = investment.paybackPeriod || '—';
-  const roiMultiple = investment.roiMultiple || '—';
+  const clarityScore = summary.clarityScore || page1.destinationClarityScore || null;
   
   return `
     <div class="page">
       <div class="section-header">
-        <div class="section-label">Executive Summary</div>
-        <h2 class="section-title">${summary.headline || 'Your Path Forward'}</h2>
-        <p class="section-subtitle">
-          ${summary.criticalInsight || 'A personalised analysis based on your discovery assessment responses.'}
-        </p>
+        <div class="section-label">Page 1 — Your Vision</div>
+        <h2 class="section-title">${summary.headline || page1.headerLine || 'Your Path Forward'}</h2>
+        ${summary.criticalInsight ? `
+          <p class="section-subtitle" style="color: #dc2626; font-style: italic;">
+            ${summary.criticalInsight}
+          </p>
+        ` : ''}
       </div>
+      
+      ${summary.destinationVision || page1.visionVerbatim ? `
+        <div style="background: #fef3c7; border-radius: 16px; padding: 28px; margin: 24px 0; border-left: 4px solid #f59e0b;">
+          <div style="font-size: 24px; color: #f59e0b; margin-bottom: 12px;">"</div>
+          <blockquote style="font-size: 14pt; color: #475569; line-height: 1.7; font-style: italic; margin: 0;">
+            ${summary.destinationVision || page1.visionVerbatim}
+          </blockquote>
+        </div>
+      ` : ''}
+      
+      ${clarityScore ? `
+        <div style="margin: 24px 0;">
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <div style="flex: 1; height: 12px; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
+              <div style="height: 100%; width: ${(clarityScore / 10) * 100}%; background: linear-gradient(90deg, #f59e0b, #10b981); border-radius: 999px;"></div>
+            </div>
+            <div style="text-align: right;">
+              <span style="font-size: 18pt; font-weight: 700; color: #059669;">${clarityScore}/10</span>
+              <span style="font-size: 11pt; color: #64748b; margin-left: 8px;">Destination Clarity</span>
+            </div>
+          </div>
+          ${summary.clarityExplanation || page1.clarityExplanation ? `
+            <p style="margin-top: 8px; font-size: 11pt; color: #64748b;">${summary.clarityExplanation || page1.clarityExplanation}</p>
+          ` : ''}
+        </div>
+      ` : ''}
       
       <div class="metric-grid">
         <div class="metric-card highlight">
@@ -1086,13 +1130,6 @@ function buildExecutiveSummary(analysis: any): string {
         <div class="subsection-title">Where You Are Today</div>
         <p style="color: #475569; line-height: 1.8; margin-bottom: 20px;">
           ${summary.currentReality}
-        </p>
-      ` : ''}
-      
-      ${summary.destinationVision ? `
-        <div class="subsection-title">Where You're Headed</div>
-        <p style="color: #475569; line-height: 1.8;">
-          ${summary.destinationVision}
         </p>
       ` : ''}
       
@@ -1139,12 +1176,43 @@ function buildTransformationJourney(analysis: any): string {
             <div class="phase-content">
               <div class="phase-timeframe">${phase.timeframe || `Phase ${idx + 1}`}</div>
               <div class="phase-title">${phase.title || 'Building Foundations'}</div>
-              <div class="phase-description">${phase.youWillHave || phase.whatChanges || ''}</div>
-              ${phase.whatChanges && phase.youWillHave ? `
-                <div class="phase-outcome">✓ ${phase.whatChanges}</div>
+              
+              ${phase.whatChanges ? `
+                <div style="margin: 12px 0;">
+                  <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">WHAT CHANGES:</div>
+                  <ul style="list-style: none; padding: 0; margin: 0;">
+                    ${(Array.isArray(phase.whatChanges) ? phase.whatChanges : [phase.whatChanges]).map((change: string) => `
+                      <li style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px;">
+                        <span style="color: #10b981;">✓</span>
+                        <span style="color: #475569;">${change}</span>
+                      </li>
+                    `).join('')}
+                  </ul>
+                </div>
               ` : ''}
-              ${phase.investment ? `
-                <div class="phase-investment">${phase.investment}</div>
+              
+              ${phase.feelsLike ? `
+                <div style="background: #fffbeb; padding: 12px 16px; border-radius: 8px; margin: 12px 0; border: 1px solid #fcd34d;">
+                  <div style="font-size: 9pt; color: #b45309; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;">WHAT THIS FEELS LIKE:</div>
+                  <div style="color: #92400e; font-style: italic;">${phase.feelsLike}</div>
+                </div>
+              ` : ''}
+              
+              ${phase.youWillHave ? `
+                <div class="phase-outcome">
+                  <strong>The outcome:</strong> ${phase.youWillHave}
+                </div>
+              ` : ''}
+              
+              ${phase.enabledBy || phase.investment ? `
+                <div style="display: flex; align-items: center; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
+                  ${phase.enabledBy ? `
+                    <span style="font-size: 10pt; color: #64748b;">Enabled by: <strong style="color: #1e293b;">${phase.enabledBy}</strong></span>
+                  ` : ''}
+                  ${phase.investment ? `
+                    <div class="phase-investment">${phase.investment}</div>
+                  ` : ''}
+                </div>
               ` : ''}
             </div>
           </div>
@@ -1162,54 +1230,30 @@ function buildTransformationJourney(analysis: any): string {
 function buildInvestmentBreakdown(analysis: any): string {
   const investments = analysis.recommendedInvestments || [];
   const summary = analysis.investmentSummary || {};
+  const rawPages = analysis._rawPages || {};
+  const page4 = rawPages.page4 || {};
   
   if (investments.length === 0) {
     return '';
   }
   
   // ========================================================================
-  // CALCULATE total from investments (don't trust stored summary values!)
+  // USE THE STORED TOTAL from page4.totalYear1 (same as Portal)
+  // DO NOT recalculate - this ensures PDF matches Portal exactly
   // ========================================================================
-  const parseAmount = (str: string): number => {
-    if (!str) return 0;
-    const match = String(str).match(/[\d,]+/);
-    return match ? parseInt(match[0].replace(/,/g, ''), 10) : 0;
-  };
+  const displayTotal = summary.totalFirstYearInvestment || '—';
   
-  const calculatedTotal = investments.reduce((sum: number, inv: any) => {
-    const price = parseAmount(inv.investment || inv.price || '');
-    return sum + price;
-  }, 0);
-  
-  // Use calculated total, fall back to stored if calculation fails
-  const storedTotal = summary.totalFirstYearInvestment || '';
-  const storedTotalNum = parseAmount(storedTotal);
-  
-  // Warn if there's a discrepancy
-  if (calculatedTotal > 0 && storedTotalNum > 0 && calculatedTotal !== storedTotalNum) {
-    console.warn('[PDF Investment Table] ⚠️ MISMATCH:', {
-      calculated: `£${calculatedTotal.toLocaleString()}`,
-      stored: storedTotal,
-      investments: investments.map((i: any) => `${i.service}: ${i.investment || i.price}`)
-    });
-  }
-  
-  const displayTotal = calculatedTotal > 0 
-    ? `£${calculatedTotal.toLocaleString()}`
-    : storedTotal || '—';
-  
-  console.log('[PDF Investment Table] Using:', {
+  console.log('[PDF Investment Table] Using PORTAL-IDENTICAL total:', {
     displayTotal,
-    calculatedTotal: `£${calculatedTotal.toLocaleString()}`,
-    storedTotal: storedTotal || 'N/A',
-    investmentCount: investments.length
+    investmentCount: investments.length,
+    investments: investments.map((i: any) => `${i.service}: ${i.investment}`)
   });
   
   return `
     <div class="page">
       <div class="section-header">
         <div class="section-label">Investment Breakdown</div>
-        <h2 class="section-title">Your Recommended Services</h2>
+        <h2 class="section-title">${page4.headerLine || 'Your Recommended Services'}</h2>
         <p class="section-subtitle">
           Each service is selected based on your specific situation and goals.
         </p>
@@ -1218,8 +1262,8 @@ function buildInvestmentBreakdown(analysis: any): string {
       <table class="investment-table">
         <thead>
           <tr>
-            <th>Service</th>
-            <th>Tier</th>
+            <th>Service / Phase</th>
+            <th>What You Get</th>
             <th class="text-right">Investment</th>
           </tr>
         </thead>
@@ -1227,11 +1271,13 @@ function buildInvestmentBreakdown(analysis: any): string {
           ${investments.map((inv: any) => `
             <tr>
               <td>
-                <strong>${inv.service || inv.serviceName || inv.name || 'Service'}</strong>
-                ${inv.rationale ? `<br><small style="color: #64748b;">${inv.rationale.substring(0, 80)}${inv.rationale.length > 80 ? '...' : ''}</small>` : ''}
+                <strong>${inv.service || inv.phase || inv.serviceName || inv.name || 'Service'}</strong>
+                ${inv.tier ? `<br><small style="color: #059669; font-weight: 500;">${inv.tier}</small>` : ''}
               </td>
-              <td>${inv.recommendedTier || inv.tier || '—'}</td>
-              <td class="text-right font-bold">${inv.investment || inv.price || '—'}</td>
+              <td style="color: #64748b; font-size: 10pt;">
+                ${inv.whatYouGet || inv.rationale || '—'}
+              </td>
+              <td class="text-right font-bold">${inv.investment || inv.amount || inv.price || '—'}</td>
             </tr>
           `).join('')}
           <tr class="total-row">
@@ -1240,6 +1286,34 @@ function buildInvestmentBreakdown(analysis: any): string {
           </tr>
         </tbody>
       </table>
+      
+      ${page4.returns ? `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px;">
+          <div style="background: #ecfdf5; padding: 20px; border-radius: 12px; border: 1px solid #6ee7b7;">
+            <div style="font-size: 10pt; color: #64748b; margin-bottom: 4px;">Conservative Return</div>
+            <div style="font-size: 20pt; font-weight: 700; color: #059669;">${page4.returns.conservative?.total || '—'}</div>
+          </div>
+          <div style="background: #ecfdf5; padding: 20px; border-radius: 12px; border: 1px solid #6ee7b7;">
+            <div style="font-size: 10pt; color: #059669; margin-bottom: 4px;">Realistic Return</div>
+            <div style="font-size: 20pt; font-weight: 700; color: #059669;">${page4.returns.realistic?.total || '—'}</div>
+          </div>
+        </div>
+      ` : ''}
+      
+      ${page4.paybackPeriod ? `
+        <div style="text-align: center; margin-top: 16px; padding: 16px; background: #f0fdf4; border-radius: 12px;">
+          <span style="color: #166534;">Payback period: </span>
+          <strong style="color: #059669; font-size: 14pt;">${page4.paybackPeriod}</strong>
+        </div>
+      ` : ''}
+      
+      ${page4.realReturn || summary.realReturn ? `
+        <div style="margin-top: 20px; padding: 20px; background: linear-gradient(135deg, #f8fafc, #f1f5f9); border-radius: 12px; border-left: 4px solid #059669;">
+          <div style="font-size: 11pt; color: #475569; font-style: italic;">
+            But the real return? ${page4.realReturn || summary.realReturn}
+          </div>
+        </div>
+      ` : ''}
       
       ${summary.investmentBreakdown ? `
         <div style="background: #f8fafc; padding: 20px; border-radius: 12px; margin-top: 20px;">
@@ -1268,7 +1342,7 @@ function buildGapAnalysis(analysis: any): string {
   const gaps = gapAnalysis.primaryGaps || [];
   const costOfInaction = gapAnalysis.costOfInaction || {};
   
-  if (gaps.length === 0 && !costOfInaction.annualFinancialCost) {
+  if (gaps.length === 0 && !costOfInaction.annualFinancialCost && !costOfInaction.labourInefficiency) {
     return '';
   }
   
@@ -1276,9 +1350,9 @@ function buildGapAnalysis(analysis: any): string {
     <div class="page">
       <div class="section-header">
         <div class="section-label">Gap Analysis</div>
-        <h2 class="section-title">What's Holding You Back</h2>
+        <h2 class="section-title">${gapAnalysis.headline || "What's Holding You Back"}</h2>
         <p class="section-subtitle">
-          Understanding the gaps between where you are and where you want to be.
+          ${gapAnalysis.introduction || 'Understanding the gaps between where you are and where you want to be.'}
         </p>
       </div>
       
@@ -1286,9 +1360,44 @@ function buildGapAnalysis(analysis: any): string {
         <div style="margin: 30px 0;">
           ${gaps.map((gap: any, idx: number) => `
             <div class="gap-card ${gap.severity === 'critical' ? 'critical' : ''}">
-              <div class="gap-title">${gap.title || gap.gap || `Gap ${idx + 1}`}</div>
-              <div class="gap-description">${gap.description || gap.impact || ''}</div>
-              ${gap.cost ? `
+              <div class="gap-title" style="display: flex; align-items: center; gap: 8px;">
+                <span style="color: ${gap.severity === 'critical' ? '#dc2626' : '#f59e0b'};">⚠</span>
+                ${gap.title || gap.gap || `Gap ${idx + 1}`}
+              </div>
+              
+              ${gap.pattern ? `
+                <div style="background: #f8fafc; padding: 12px 16px; border-radius: 8px; margin: 12px 0; border-left: 3px solid #64748b;">
+                  <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;">THE PATTERN:</div>
+                  <div style="font-style: italic; color: #475569;">"${gap.pattern}"</div>
+                </div>
+              ` : ''}
+              
+              ${gap.costs && gap.costs.length > 0 ? `
+                <div style="margin: 12px 0;">
+                  <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">WHAT THIS COSTS YOU:</div>
+                  <ul style="list-style: none; padding: 0; margin: 0;">
+                    ${gap.costs.map((cost: string) => `
+                      <li style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px; color: #dc2626;">
+                        <span style="color: #fca5a5;">•</span>
+                        <span style="color: #7f1d1d;">${cost}</span>
+                      </li>
+                    `).join('')}
+                  </ul>
+                </div>
+              ` : ''}
+              
+              ${gap.shiftRequired ? `
+                <div style="background: #ecfdf5; padding: 12px 16px; border-radius: 8px; margin-top: 12px;">
+                  <div style="font-size: 9pt; color: #059669; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;">THE SHIFT REQUIRED:</div>
+                  <div style="color: #047857;">${gap.shiftRequired}</div>
+                </div>
+              ` : ''}
+              
+              ${!gap.pattern && !gap.shiftRequired && gap.description ? `
+                <div class="gap-description">${gap.description}</div>
+              ` : ''}
+              
+              ${gap.cost && !gap.costs ? `
                 <div class="gap-cost">
                   <strong>Cost:</strong> ${gap.cost}
                 </div>
@@ -1298,21 +1407,48 @@ function buildGapAnalysis(analysis: any): string {
         </div>
       ` : ''}
       
-      ${costOfInaction.annualFinancialCost || costOfInaction.annual ? `
+      ${(costOfInaction.annualFinancialCost || costOfInaction.annual || costOfInaction.labourInefficiency) ? `
         <div style="background: linear-gradient(135deg, #fef2f2, #fee2e2); padding: 30px; border-radius: 16px; border: 1px solid #fca5a5; margin-top: 30px;">
           <div style="font-size: 10pt; color: #dc2626; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px;">
-            Cost of Inaction
+            Cost of Staying Here
           </div>
-          <div style="font-size: 24pt; font-weight: 700; color: #dc2626; margin-bottom: 12px;">
-            ${costOfInaction.annualFinancialCost || costOfInaction.annual || '—'}
-          </div>
+          
+          ${costOfInaction.labourInefficiency || costOfInaction.marginLeakage || costOfInaction.yourTimeWasted ? `
+            <div style="display: grid; gap: 12px; margin-bottom: 16px;">
+              ${costOfInaction.labourInefficiency ? `
+                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #fca5a5;">
+                  <span style="color: #7f1d1d;">Labour inefficiency</span>
+                  <span style="font-weight: 600; color: #dc2626;">${costOfInaction.labourInefficiency}</span>
+                </div>
+              ` : ''}
+              ${costOfInaction.marginLeakage ? `
+                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #fca5a5;">
+                  <span style="color: #7f1d1d;">Margin leakage</span>
+                  <span style="font-weight: 600; color: #dc2626;">${costOfInaction.marginLeakage}</span>
+                </div>
+              ` : ''}
+              ${costOfInaction.yourTimeWasted ? `
+                <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                  <span style="color: #7f1d1d;">Your time on work below pay grade</span>
+                  <span style="font-weight: 600; color: #dc2626;">${costOfInaction.yourTimeWasted}</span>
+                </div>
+              ` : ''}
+            </div>
+          ` : ''}
+          
+          ${costOfInaction.annualFinancialCost || costOfInaction.annual ? `
+            <div style="font-size: 24pt; font-weight: 700; color: #dc2626; margin-bottom: 12px;">
+              ${costOfInaction.annualFinancialCost || costOfInaction.annual || '—'}
+            </div>
+          ` : ''}
+          
           ${costOfInaction.description ? `
             <div style="font-size: 11pt; color: #7f1d1d;">
               ${costOfInaction.description}
             </div>
           ` : ''}
           ${costOfInaction.personalCost ? `
-            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #fca5a5; font-size: 11pt; color: #991b1b; font-style: italic;">
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #fca5a5; font-size: 11pt; color: #991b1b; font-weight: 500;">
               ${costOfInaction.personalCost}
             </div>
           ` : ''}
@@ -1329,31 +1465,61 @@ function buildGapAnalysis(analysis: any): string {
 
 function buildClosingPage(analysis: any, practiceName: string): string {
   const closing = analysis.closingMessage || {};
-  const personalNote = typeof closing === 'string' ? closing : closing.personalNote;
-  const callToAction = typeof closing === 'object' ? closing.callToAction : null;
+  const rawPages = analysis._rawPages || {};
+  const page5 = rawPages.page5 || {};
+  
+  // Use FULL closing content from page5
+  const thisWeek = closing.personalNote || page5.thisWeek || '';
+  const firstStep = closing.callToAction || page5.firstStep || '';
+  const closingQuote = closing.closingQuote || page5.closingQuote || '';
+  const closingNarrative = closing.closingNarrative || page5.personalMessage || page5.closingNarrative || '';
+  const investment = closing.investment || page5.investment || analysis.investmentSummary?.totalFirstYearInvestment || '';
+  const fullCTA = closing.fullCTA || page5.fullCTA || page5.callToAction || '';
   
   return `
     <div class="page closing-page">
       <div class="section-header">
         <div class="section-label">Next Steps</div>
-        <h2 class="section-title">Ready to Begin?</h2>
+        <h2 class="section-title">${page5.headerLine || 'Ready to Begin?'}</h2>
       </div>
       
-      ${personalNote ? `
+      ${thisWeek ? `
+        <div style="background: #f0fdf4; border-radius: 16px; padding: 24px; margin-bottom: 24px; border: 1px solid #86efac;">
+          <div style="font-size: 10pt; color: #059669; text-transform: uppercase; font-weight: 600; margin-bottom: 12px;">THIS WEEK</div>
+          <div style="font-size: 12pt; color: #166534; line-height: 1.7;">${thisWeek}</div>
+        </div>
+      ` : ''}
+      
+      ${firstStep ? `
+        <div style="background: #f8fafc; border-radius: 16px; padding: 24px; margin-bottom: 24px; border: 1px solid #e2e8f0;">
+          <div style="font-size: 10pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 12px;">YOUR FIRST STEP</div>
+          <div style="font-size: 12pt; color: #334155; line-height: 1.7;">${firstStep}</div>
+        </div>
+      ` : ''}
+      
+      ${closingQuote ? `
         <div class="closing-message">
-          <div class="closing-quote">${personalNote}</div>
+          <div class="closing-quote" style="font-size: 16pt; border-left: 4px solid #059669; padding-left: 20px;">
+            "${closingQuote}"
+          </div>
+        </div>
+      ` : ''}
+      
+      ${closingNarrative ? `
+        <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 16px; padding: 28px; margin: 24px 0; border: 1px solid #e2e8f0;">
+          <div style="font-size: 12pt; color: #475569; line-height: 1.8; white-space: pre-line;">${closingNarrative}</div>
         </div>
       ` : ''}
       
       <div class="cta-box">
-        <div class="cta-title">Book Your Strategy Call</div>
-        <div class="cta-text">
-          ${callToAction || `Let's discuss how we can help you achieve your goals. Schedule a 30-minute call with ${practiceName} to review this analysis and plan your next steps.`}
+        <div class="cta-title">Your Investment: ${investment}</div>
+        <div class="cta-text" style="font-size: 13pt; line-height: 1.7; max-width: 500px; margin: 0 auto 24px;">
+          ${fullCTA || `Let's discuss how we can help you achieve your goals. Schedule a 30-minute call with ${practiceName} to review this analysis and plan your next steps.`}
         </div>
         <span class="cta-button">Schedule a Call →</span>
       </div>
       
-      <div style="text-align: center; margin-top: 60px; color: #64748b; font-size: 10pt;">
+      <div style="text-align: center; margin-top: 40px; color: #64748b; font-size: 10pt;">
         <p>This analysis was generated based on your discovery assessment responses.</p>
         <p style="margin-top: 8px;">All projections are estimates and actual results may vary.</p>
       </div>
