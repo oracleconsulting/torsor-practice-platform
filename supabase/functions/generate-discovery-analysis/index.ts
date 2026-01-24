@@ -4798,12 +4798,12 @@ serve(async (req) => {
     // ========================================================================
     
     console.log('[Discovery] Extracting financials from accounts...');
-    const extractedFinancials = await extractFinancialsFromAccounts(
+    let extractedFinancials = await extractFinancialsFromAccounts(
       preparedData.documents || [],
       openrouterKey
     );
     
-    console.log('[Discovery] Extracted financials:', {
+    console.log('[Discovery] Extracted financials from docs:', {
       hasAccounts: extractedFinancials.hasAccounts,
       turnover: extractedFinancials.turnover,
       staffCosts: extractedFinancials.totalStaffCosts,
@@ -4811,12 +4811,47 @@ serve(async (req) => {
       ebitda: extractedFinancials.ebitda
     });
     
+    // ========================================================================
+    // FALLBACK: If no data from documents, use preparedData.financialContext
+    // This handles cases where data is in client_financial_context table
+    // ========================================================================
+    
+    if (!extractedFinancials.hasAccounts && preparedData.financialContext) {
+      const fc = preparedData.financialContext;
+      console.log('[Discovery] Using financialContext fallback:', {
+        turnover: fc.turnover,
+        staffCosts: fc.totalStaffCosts || fc.staffCosts,
+        staffCostsPct: fc.staffCostsPct
+      });
+      
+      if (fc.turnover && (fc.totalStaffCosts || fc.staffCosts)) {
+        extractedFinancials = {
+          hasAccounts: true,
+          source: 'statutory_accounts', // Assume statutory if from DB
+          turnover: fc.turnover,
+          totalStaffCosts: fc.totalStaffCosts || fc.staffCosts,
+          staffCostsPercentOfRevenue: fc.staffCostsPct || ((fc.totalStaffCosts || fc.staffCosts) / fc.turnover * 100),
+          operatingProfit: fc.operatingProfit,
+          ebitda: fc.ebitda,
+          netAssets: fc.netAssets,
+          employeeCount: fc.staffCount,
+          grossProfit: fc.grossProfit,
+          grossMarginPct: fc.grossMarginPct,
+        };
+        console.log('[Discovery] ✅ Built extractedFinancials from financialContext:', {
+          turnover: extractedFinancials.turnover,
+          staffCosts: extractedFinancials.totalStaffCosts,
+          staffCostsPct: extractedFinancials.staffCostsPercentOfRevenue?.toFixed(1)
+        });
+      }
+    }
+    
     // DIAGNOSTIC TRACE: After financial extraction
     traceFinancialData('A1_EXTRACTION', {
       staffCosts: extractedFinancials.totalStaffCosts,
       turnover: extractedFinancials.turnover,
       storedPct: extractedFinancials.staffCostsPercentOfRevenue,
-      source: 'extractFinancialsFromAccounts',
+      source: extractedFinancials.hasAccounts ? 'extractFinancialsFromAccounts/financialContext' : 'none',
       details: { hasAccounts: extractedFinancials.hasAccounts, ebitda: extractedFinancials.ebitda }
     });
 
