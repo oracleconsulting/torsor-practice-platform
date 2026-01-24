@@ -1498,28 +1498,36 @@ function buildGapAnalysis(analysis: any): string {
           ${financialInsights.payroll ? `
             <!-- Payroll Analysis with FULL calculation breakdown -->
             <div style="margin-bottom: 20px;">
-              <div style="font-weight: 600; color: #7f1d1d; margin-bottom: 12px;">Labour Inefficiency</div>
+              <div style="font-weight: 600; color: #7f1d1d; margin-bottom: 12px;">Elevated Payroll Suppressing Margins</div>
               
               <div style="background: white; padding: 16px; border-radius: 8px; margin-bottom: 12px;">
-                <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">YOUR SITUATION:</div>
-                <div style="font-size: 10pt; color: #1e293b; line-height: 1.6;">
-                  Staff costs £${Math.round(financialInsights.payroll.staffCosts / 1000)}k on £${Math.round(financialInsights.payroll.turnover / 1000)}k turnover = <strong>${financialInsights.payroll.actualPct?.toFixed(1) || '—'}%</strong><br>
-                  Industry average: <strong>${financialInsights.payroll.benchmarkPct || 28}%</strong>*<br>
-                  You're <strong>${((financialInsights.payroll.actualPct || 0) - (financialInsights.payroll.benchmarkPct || 28)).toFixed(1)}%</strong> above benchmark
+                <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">YOUR NUMBERS:</div>
+                <div style="font-size: 10pt; color: #1e293b; line-height: 1.7;">
+                  • Staff costs: <strong>£${Math.round(financialInsights.payroll.staffCosts / 1000)}k</strong> (${financialInsights.payroll.actualPct?.toFixed(1) || '—'}% of £${Math.round(financialInsights.payroll.turnover / 1000)}k turnover)<br>
+                  • Industry typical: <strong>${financialInsights.payroll.benchmarkPct || 28}-${(financialInsights.payroll.benchmarkPct || 28) + 2}%</strong>*<br>
+                  • Gross excess: <strong>~£${Math.round(financialInsights.payroll.grossExcess / 1000)}k/year</strong><br>
+                  • Recoverable (35-50%): <strong>£${Math.round(financialInsights.payroll.recoverableLow / 1000)}k-£${Math.round(financialInsights.payroll.recoverableHigh / 1000)}k/year</strong>
+                </div>
+              </div>
+              
+              <div style="background: #fef3c7; padding: 14px 16px; border-radius: 8px; margin-bottom: 12px; border-left: 3px solid #f59e0b;">
+                <div style="font-size: 9pt; color: #92400e; font-weight: 600; margin-bottom: 6px;">WHY NOT 100% RECOVERABLE?</div>
+                <div style="font-size: 10pt; color: #78350f; line-height: 1.5;">
+                  Not all payroll excess can be addressed without disrupting operations. Some is embedded in service delivery; some protects against key-person risk. <strong>35-50%</strong> is a conservative, achievable target that maintains business stability.
                 </div>
               </div>
               
               <div style="background: white; padding: 16px; border-radius: 8px; margin-bottom: 12px;">
-                <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">THE IMPACT:</div>
-                <div style="font-size: 10pt; color: #1e293b; line-height: 1.6;">
-                  • Gross excess: <strong>£${Math.round(financialInsights.payroll.grossExcess / 1000)}k/year</strong><br>
-                  • Conservatively recoverable (35-50%): <strong>£${Math.round(financialInsights.payroll.recoverableLow / 1000)}k-£${Math.round(financialInsights.payroll.recoverableHigh / 1000)}k/year</strong><br>
-                  • Exit impact at 3.5x: <strong>£${Math.round(financialInsights.payroll.recoverableLow * 3.5 / 1000)}k-£${Math.round(financialInsights.payroll.recoverableHigh * 3.5 / 1000)}k</strong> added to sale price
+                <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">EXIT IMPACT:</div>
+                <div style="font-size: 10pt; color: #1e293b; line-height: 1.7;">
+                  • Annual savings: <strong>£${Math.round(financialInsights.payroll.recoverableLow / 1000)}k-£${Math.round(financialInsights.payroll.recoverableHigh / 1000)}k</strong> flows to EBITDA<br>
+                  • At 3.5x exit multiple: <strong>£${Math.round(financialInsights.payroll.recoverableLow * 3.5 / 1000)}k-£${Math.round(financialInsights.payroll.recoverableHigh * 3.5 / 1000)}k</strong> added to sale price<br>
+                  • Monthly impact: <strong>~£${Math.round(financialInsights.payroll.recoverableLow / 12 / 1000)}k-£${Math.round(financialInsights.payroll.recoverableHigh / 12 / 1000)}k/month</strong>
                 </div>
               </div>
               
-              <div style="font-size: 9pt; color: #64748b; font-style: italic;">
-                *Industry average is indicative. Your Benchmarking analysis will show your exact peer comparison.
+              <div style="font-size: 9pt; color: #64748b; font-style: italic; line-height: 1.5;">
+                *Industry averages are indicative based on published benchmarks. Your <strong>Benchmarking analysis</strong> will confirm your exact position against direct peers in your sector.
               </div>
             </div>
           ` : labourInefficiency ? `
@@ -1532,19 +1540,29 @@ function buildGapAnalysis(analysis: any): string {
           ${financialInsights.valuation ? `
             <!-- Valuation Analysis with calculation breakdown -->
             <div style="margin-bottom: 20px;">
-              <div style="font-weight: 600; color: #7f1d1d; margin-bottom: 12px;">Valuation Suppression</div>
+              <div style="font-weight: 600; color: #7f1d1d; margin-bottom: 12px;">Value Being Left on the Table</div>
               
               <div style="background: white; padding: 16px; border-radius: 8px; margin-bottom: 12px;">
-                <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">THE NUMBERS:</div>
-                <div style="font-size: 10pt; color: #1e293b; line-height: 1.6;">
-                  Current: £${Math.round(financialInsights.valuation.currentEbitda / 1000)}k EBITDA × ${financialInsights.valuation.currentMultiple}x = <strong>£${Math.round(financialInsights.valuation.currentValuation / 1000)}k</strong><br>
-                  With improvements: £${Math.round(financialInsights.valuation.improvedEbitda / 1000)}k × ${financialInsights.valuation.improvedMultiple}x = <strong>£${Math.round(financialInsights.valuation.improvedValuation / 1000)}k</strong><br>
-                  Potential uplift: <strong>£${Math.round(financialInsights.valuation.uplift / 1000)}k</strong>
+                <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">THE MULTIPLE EFFECT:</div>
+                <div style="font-size: 10pt; color: #1e293b; line-height: 1.7;">
+                  • Current position: £${Math.round(financialInsights.valuation.currentEbitda / 1000)}k EBITDA × <strong>${financialInsights.valuation.currentMultiple}x</strong> = £${Math.round(financialInsights.valuation.currentValuation / 1000)}k<br>
+                  • With payroll savings: +£${Math.round((financialInsights.valuation.improvedEbitda - financialInsights.valuation.currentEbitda) / 1000)}k to EBITDA<br>
+                  • At improved multiple: <strong>${financialInsights.valuation.improvedMultiple}x</strong> (from operational improvements)
                 </div>
               </div>
               
-              <div style="font-size: 18pt; font-weight: 700; color: #dc2626;">
-                ${financialInsights.valuation.summary || `£${Math.round(financialInsights.valuation.uplift / 1000)}k potential uplift`}
+              <div style="background: #fef3c7; padding: 14px 16px; border-radius: 8px; margin-bottom: 12px; border-left: 3px solid #f59e0b;">
+                <div style="font-size: 9pt; color: #92400e; font-weight: 600; margin-bottom: 6px;">THE DIFFERENCE A MULTIPLE MAKES:</div>
+                <div style="font-size: 10pt; color: #78350f; line-height: 1.5;">
+                  The difference between a <strong>${financialInsights.valuation.currentMultiple}x</strong> and <strong>${financialInsights.valuation.improvedMultiple}x</strong> multiple on £${Math.round(financialInsights.valuation.improvedEbitda / 1000)}k EBITDA is <strong>£${Math.round(financialInsights.valuation.improvedEbitda * (financialInsights.valuation.improvedMultiple - financialInsights.valuation.currentMultiple) / 1000)}k</strong> on your sale price.
+                </div>
+              </div>
+              
+              <div style="text-align: center; margin-top: 16px;">
+                <div style="font-size: 12pt; color: #7f1d1d; margin-bottom: 4px;">Potential Uplift</div>
+                <div style="font-size: 24pt; font-weight: 700; color: #dc2626;">
+                  £${Math.round(financialInsights.valuation.uplift * 0.8 / 1000)}k - £${Math.round(financialInsights.valuation.uplift * 1.2 / 1000)}k
+                </div>
               </div>
             </div>
           ` : valuationCost ? `
