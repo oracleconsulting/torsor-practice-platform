@@ -399,7 +399,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
     setExportingResponses(true);
     try {
       // Build HTML content
-      const sections = Object.entries(DISCOVERY_QUESTIONS).map(([sectionKey, section]) => {
+      const sections = Object.entries(DISCOVERY_QUESTIONS).map(([_sectionKey, section]) => {
         const questionsHtml = section.questions.map(q => {
           let answer = discovery[q.key];
           // Handle array answers
