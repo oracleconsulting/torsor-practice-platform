@@ -455,6 +455,22 @@ No validated financial data available. When discussing financial figures:
     const pass1Total = report.page4_numbers?.investmentSummary?.totalFirstYearInvestment || 
                        report.destination_report?.analysis?.investmentSummary?.totalFirstYearInvestment || '';
     
+    // ========================================================================
+    // CRITICAL: Extract Pass 1's SCORES - these MUST NOT be recalculated
+    // ========================================================================
+    const pass1ClarityScore = report.page1_destination?.clarityScore ||
+                              report.destination_report?.page1_destination?.clarityScore ||
+                              report.destination_report?.analysis?.discoveryScores?.clarityScore ||
+                              null;
+    const pass1GapScore = report.page2_gaps?.gapScore ||
+                          report.destination_report?.page2_gaps?.gapScore ||
+                          report.destination_report?.analysis?.discoveryScores?.gapScore ||
+                          null;
+    
+    console.log('[Pass 2] 📊 Pass 1 Scores (MUST PRESERVE):');
+    console.log(`  - Clarity Score: ${pass1ClarityScore}`);
+    console.log(`  - Gap Score: ${pass1GapScore}`);
+    
     // Build a map of service -> exact price from Pass 1
     const pass1ServicePrices: Record<string, { service: string; tier: string; price: string }> = {};
     
@@ -1395,6 +1411,30 @@ Before returning, verify:
       }
       
       console.log('[Pass 2] ✅ Pass 1 service prices enforced');
+    }
+    
+    // ========================================================================
+    // CRITICAL: Override LLM scores with Pass 1's calculated scores
+    // The LLM should NOT recalculate these - they're data, not narrative
+    // ========================================================================
+    if (pass1ClarityScore !== null && narratives.page1_destination) {
+      const llmClarityScore = narratives.page1_destination.destinationClarityScore || 
+                              narratives.page1_destination.clarityScore;
+      narratives.page1_destination.clarityScore = pass1ClarityScore;
+      narratives.page1_destination.destinationClarityScore = pass1ClarityScore;
+      
+      if (llmClarityScore !== pass1ClarityScore) {
+        console.log(`[Pass 2] ✅ Fixed clarityScore: LLM gave ${llmClarityScore} → Pass 1's ${pass1ClarityScore}`);
+      }
+    }
+    
+    if (pass1GapScore !== null && narratives.page2_gaps) {
+      const llmGapScore = narratives.page2_gaps.gapScore;
+      narratives.page2_gaps.gapScore = pass1GapScore;
+      
+      if (llmGapScore !== pass1GapScore) {
+        console.log(`[Pass 2] ✅ Fixed gapScore: LLM gave ${llmGapScore} → Pass 1's ${pass1GapScore}`);
+      }
     }
     
     // If we have validated payroll data, check for wrong figures and log warnings
