@@ -2243,15 +2243,52 @@ function DiscoveryClientModal({
           throw new Error(`Storage path validation failed. Expected client_id ${clientId} in path.`);
         }
         
-        await supabase.from('client_context').insert({
+        // Insert document record with placeholder content
+        const { data: contextRecord, error: insertError } = await supabase.from('client_context').insert({
           practice_id: client.practice_id,
           client_id: clientId, // Verified above
           context_type: 'document',
-          content: `Uploaded: ${file.name}`,
+          content: `Uploaded: ${file.name}`, // Placeholder - will be updated by process-documents
           source_file_url: urlData.publicUrl,
           applies_to: ['discovery'],
+          data_source_type: 'accounts',
           processed: false
-        });
+        }).select('id').single();
+        
+        if (insertError) {
+          console.error('Error inserting document record:', insertError);
+          continue;
+        }
+        
+        // CRITICAL: Call process-documents to extract PDF text
+        console.log('📄 Processing document for text extraction:', file.name);
+        try {
+          const { data: processResult, error: processError } = await supabase.functions.invoke('process-documents', {
+            body: {
+              clientId,
+              practiceId: client.practice_id,
+              contextId: contextRecord?.id,
+              documents: [{
+                fileName: file.name,
+                fileUrl: urlData.publicUrl,
+                fileType: file.type || 'application/pdf',
+                fileSize: file.size
+              }],
+              appliesTo: ['discovery'],
+              isShared: false,
+              dataSourceType: 'accounts'
+            }
+          });
+          
+          if (processError) {
+            console.error('Document processing error:', processError);
+          } else {
+            console.log('✅ Document processed successfully:', processResult);
+          }
+        } catch (procErr) {
+          console.error('Error calling process-documents:', procErr);
+          // Don't fail the whole upload - document is uploaded, just not processed
+        }
       }
       
       await fetchClientDetail();
