@@ -207,27 +207,55 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
                   </div>
                   
                   {/* What This Costs */}
-                  <div className="mb-4">
-                    <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-2">
-                      What this costs you:
-                    </p>
-                    <ul className="space-y-1">
-                      {gap.costs?.map((cost: string, costIdx: number) => (
-                        <li key={costIdx} className="flex items-start gap-2 text-slate-600">
-                          <span className="text-rose-400 mt-1">•</span>
-                          {cost}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  {(gap.costs?.length > 0 || gap.financialImpact || gap.timeImpact) && (
+                    <div className="mb-4">
+                      <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-2">
+                        What this costs you:
+                      </p>
+                      <ul className="space-y-2">
+                        {gap.costs?.map((cost: string, costIdx: number) => (
+                          <li key={costIdx} className="flex items-start gap-2 text-slate-600">
+                            <span className="text-rose-400 mt-1">•</span>
+                            {cost}
+                          </li>
+                        ))}
+                        {/* Financial impact - show calculated figures if available */}
+                        {gap.financialImpact && (
+                          <li className="flex items-start gap-2 text-rose-700 font-medium">
+                            <span className="text-rose-500 mt-1">£</span>
+                            {gap.financialImpact}
+                          </li>
+                        )}
+                        {/* Time impact */}
+                        {gap.timeImpact && (
+                          <li className="flex items-start gap-2 text-amber-700">
+                            <span className="text-amber-500 mt-1">⏱</span>
+                            {gap.timeImpact}
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {/* What This Feels Like */}
+                  {gap.emotionalImpact && (
+                    <div className="bg-amber-50 rounded-lg p-4 mb-4 border border-amber-100">
+                      <p className="text-sm font-medium text-amber-700 uppercase tracking-wide mb-1">
+                        What this feels like:
+                      </p>
+                      <p className="text-amber-800 italic">{gap.emotionalImpact}</p>
+                    </div>
+                  )}
                   
                   {/* The Shift Required */}
-                  <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-100">
-                    <p className="text-sm font-medium text-emerald-700 uppercase tracking-wide mb-1">
-                      The shift required:
-                    </p>
-                    <p className="text-emerald-800">{gap.shiftRequired}</p>
-                  </div>
+                  {gap.shiftRequired && (
+                    <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-100">
+                      <p className="text-sm font-medium text-emerald-700 uppercase tracking-wide mb-1">
+                        The shift required:
+                      </p>
+                      <p className="text-emerald-800">{gap.shiftRequired}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

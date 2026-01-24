@@ -1044,14 +1044,27 @@ If no financial projections exist, return: { "hasProjections": false }`;
       financialContext: financialContext ? {
         periodType: financialContext.period_type,
         periodEnd: financialContext.period_end_date,
+        // Core revenue figures
         revenue: financialContext.revenue,
+        turnover: financialContext.turnover || financialContext.revenue,
+        // Profitability
         grossProfit: financialContext.gross_profit,
         grossMarginPct: financialContext.gross_margin_pct,
         netProfit: financialContext.net_profit,
         netMarginPct: financialContext.net_margin_pct,
+        operatingProfit: financialContext.operating_profit,
+        ebitda: financialContext.ebitda,
+        // Staff costs (CRITICAL for payroll analysis)
+        staffCosts: financialContext.staff_costs || financialContext.total_staff_costs,
+        totalStaffCosts: financialContext.total_staff_costs || financialContext.staff_costs,
+        staffCostsPct: financialContext.staff_costs_pct,
+        // Headcount
         staffCount: financialContext.staff_count,
         revenuePerHead: financialContext.revenue_per_head,
-        revenueGrowthPct: financialContext.revenue_growth_pct
+        revenueGrowthPct: financialContext.revenue_growth_pct,
+        // Assets for valuation
+        netAssets: financialContext.net_assets,
+        totalAssets: financialContext.total_assets
       } : null,
       operationalContext: operationalContext ? {
         businessType: operationalContext.business_type,
