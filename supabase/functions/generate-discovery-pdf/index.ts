@@ -375,8 +375,8 @@ async function fetchReportData(
           criticalInsight: destReport.executiveSummary?.criticalInsight || page2.openingLine || page2.headline || '',
           currentReality: page2.introduction || page2.openingLine || '',
           destinationVision: page1.visionVerbatim || page1.tuesdayTest || '',
-          clarityScore: page1.destinationClarityScore || '',
-          clarityExplanation: page1.clarityExplanation || '',
+          clarityScore: page1.clarityScore || page1.destinationClarityScore || '',
+          clarityExplanation: page1.clarityExplanation || page1.clarityNarrative || '',
         },
         investmentSummary: {
           // USE CALCULATED TOTAL from page3.phases (source of truth)
@@ -1113,7 +1113,7 @@ function buildExecutiveSummary(analysis: any): string {
   const totalInvestment = investment.totalFirstYearInvestment || journey.totalInvestment || '—';
   const projectedReturn = investment.projectedFirstYearReturn || '—';
   const paybackPeriod = investment.paybackPeriod || '—';
-  const clarityScore = summary.clarityScore || page1.destinationClarityScore || null;
+  const clarityScore = summary.clarityScore || page1.clarityScore || page1.destinationClarityScore || null;
   
   return `
     <div class="page">

@@ -2533,6 +2533,104 @@ function checkHiddenValueAuditAppropriateness(
   return { isAppropriate: false, reason: 'No exit timeline and no significant risk factors identified.' };
 }
 
+// ============================================================================
+// GOAL ALIGNMENT TIER SELECTION
+// ============================================================================
+// Lite (£1,500/year): Quarterly reviews, for clients who can self-execute
+// Growth (£4,500/year): Monthly accountability, for decision avoiders + exit prep
+// Partner (£9,000/year): Weekly check-ins, for complex/imminent exits
+// ============================================================================
+function selectGoalAlignmentTier(
+  responses: Record<string, any>,
+  clientStage: ClientStageProfile
+): { tier: 'Lite' | 'Growth' | 'Partner'; price: number; reason: string } {
+  
+  const exitTimeline = (responses.sd_exit_timeline || '').toLowerCase();
+  const avoidedConversation = responses.dd_avoided_conversation || '';
+  const hardTruth = (responses.dd_hard_truth || '').toLowerCase();
+  const fiveYearVision = (responses.dd_five_year_vision || '').toLowerCase();
+  const weeklyHours = responses.dd_owner_hours || responses.dd_weekly_hours || '';
+  const growthBlocker = (responses.sd_growth_blocker || '').toLowerCase();
+  
+  // Detect key signals
+  const hasAvoidedConversation = avoidedConversation.trim().length > 0;
+  const avoidingDifficultDecisions = avoidedConversation.toLowerCase().includes('redundan') ||
+                                      avoidedConversation.toLowerCase().includes('staff') ||
+                                      avoidedConversation.toLowerCase().includes('difficult') ||
+                                      avoidedConversation.toLowerCase().includes('firing') ||
+                                      avoidedConversation.toLowerCase().includes('letting go');
+  const needsAccountability = fiveYearVision.includes('someone in my corner') ||
+                               fiveYearVision.includes('accountability') ||
+                               hardTruth.includes('carrying') ||
+                               hardTruth.includes('alone');
+  const needsLeadershipSupport = growthBlocker.includes('leadership') ||
+                                  growthBlocker.includes('direction') ||
+                                  growthBlocker.includes('strategic');
+  const isOverwhelmed = weeklyHours.includes('60+') || weeklyHours.includes('70+');
+  const isExitFocused = clientStage.journey === 'established-exit-focused';
+  
+  // ========== PARTNER TIER (£9,000/year) ==========
+  // Weekly check-ins for intense support needs
+  const needsPartner = 
+    // Imminent exit (already in process or < 1 year)
+    exitTimeline.includes('already') ||
+    exitTimeline.includes('in progress') ||
+    // Avoiding decisions AND overwhelmed (needs intense support)
+    (avoidingDifficultDecisions && isOverwhelmed) ||
+    // Complex exit mentioned
+    exitTimeline.includes('complex');
+  
+  if (needsPartner) {
+    return {
+      tier: 'Partner',
+      price: 9000,
+      reason: 'Weekly support for complex/imminent exit execution'
+    };
+  }
+  
+  // ========== GROWTH TIER (£4,500/year) ==========
+  // Monthly accountability for decision avoiders, exit prep, accountability needs
+  const needsGrowth = 
+    // Exit within 5 years needs Business Value Analysis
+    exitTimeline.includes('1-3') ||
+    exitTimeline.includes('3-5') ||
+    exitTimeline.includes('1 to 3') ||
+    exitTimeline.includes('3 to 5') ||
+    // Any avoided conversation needs monthly accountability (not quarterly)
+    hasAvoidedConversation ||
+    // Explicit accountability need
+    needsAccountability ||
+    // Leadership/strategic support request
+    needsLeadershipSupport ||
+    // Exit-focused journey
+    isExitFocused;
+  
+  if (needsGrowth) {
+    let reason = 'Monthly accountability + Business Value Analysis';
+    if (avoidingDifficultDecisions) {
+      reason = `Monthly accountability for the "${avoidedConversation.substring(0, 50)}${avoidedConversation.length > 50 ? '...' : ''}" conversation`;
+    } else if (needsAccountability) {
+      reason = 'Monthly accountability - someone in your corner';
+    } else if (exitTimeline.includes('1-3') || exitTimeline.includes('1 to 3')) {
+      reason = 'Monthly accountability + Business Value Analysis for exit preparation';
+    }
+    
+    return {
+      tier: 'Growth',
+      price: 4500,
+      reason
+    };
+  }
+  
+  // ========== LITE TIER (£1,500/year) ==========
+  // Quarterly reviews for self-directed clients
+  return {
+    tier: 'Lite',
+    price: 1500,
+    reason: 'Quarterly check-ins to maintain alignment'
+  };
+}
+
 function check365AlignmentAppropriateness(
   responses: Record<string, any>,
   clientStage: ClientStageProfile
@@ -2540,7 +2638,7 @@ function check365AlignmentAppropriateness(
   // GOAL ALIGNMENT PROGRAMME - "You'll Have Someone In Your Corner"
   // This is STAGE 2 (ALIGN): Long-term destination + accountability to execute
   // For exit clients: Supports 3-year exit plan execution
-  // Recommended tier for exit clients: Growth (£4,500/year) or Partner (£9,000/year)
+  // Tier selection is done by selectGoalAlignmentTier()
   
   const avoidingDecisions = (responses.dd_avoided_conversation || '').toLowerCase().includes('redundan') ||
                             (responses.dd_avoided_conversation || '').toLowerCase().includes('staff') ||
@@ -3114,20 +3212,32 @@ function generateAppropriateRecommendations(
   // ========== 365 ALIGNMENT ==========
   const alignmentCheck = check365AlignmentAppropriateness(responses, clientStage);
   if (alignmentCheck.isAppropriate) {
-    const investment = 1500;
+    // Use tier selection logic to determine appropriate tier
+    const tierSelection = selectGoalAlignmentTier(responses, clientStage);
+    const investment = tierSelection.price;
+    
+    console.log(`[Service Selection] Goal Alignment tier: ${tierSelection.tier} (£${investment}) - ${tierSelection.reason}`);
+    
     recommendations.push({
       code: '365_method',
       name: 'Goal Alignment Programme',
-      score: 65,
-      confidence: 'medium',
-      reasoning: alignmentCheck.reason,
-      specificBenefit: 'Structured accountability for decisions you know need making. Not advice - accountability.',
+      recommendedTier: tierSelection.tier,
+      score: tierSelection.tier === 'Partner' ? 85 : tierSelection.tier === 'Growth' ? 75 : 65,
+      confidence: 'high',
+      reasoning: `${alignmentCheck.reason} ${tierSelection.reason}`,
+      specificBenefit: tierSelection.tier === 'Partner' 
+        ? 'Weekly check-ins with full valuation and exit planning support.'
+        : tierSelection.tier === 'Growth'
+          ? 'Monthly accountability calls + Business Value Analysis for exit preparation.'
+          : 'Structured accountability for decisions you know need making. Not advice - accountability.',
       investmentContext: financials.turnover 
-        ? `£${investment.toLocaleString()} is ${((investment / financials.turnover) * 100).toFixed(2)}% of turnover`
-        : `£${investment.toLocaleString()} (Lite tier)`,
+        ? `£${investment.toLocaleString()}/year (${tierSelection.tier} tier) = ${((investment / financials.turnover) * 100).toFixed(2)}% of turnover`
+        : `£${investment.toLocaleString()}/year (${tierSelection.tier} tier)`,
       investment,
       valueCreated: null,
-      valueCalculation: 'Enables execution of identified value opportunities. Multiplier on other recommendations.',
+      valueCalculation: tierSelection.tier === 'Growth' 
+        ? 'Business Value Analysis included - identifies value creation opportunities'
+        : 'Enables execution of identified value opportunities. Multiplier on other recommendations.',
       roiRatio: 'Multiplier on other ROI'
     });
   }
