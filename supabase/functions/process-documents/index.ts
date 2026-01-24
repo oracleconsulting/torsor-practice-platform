@@ -634,9 +634,9 @@ async function ocrWithGoogleVisionSync(buffer: ArrayBuffer, apiKey: string): Pro
   return allText.join('\n\n');
 }
 
-// Claude Vision fallback - page by page with size limits
+// OCR with smart page targeting - UK statutory accounts have financial data on specific pages
 async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise<string> {
-  console.log('[ProcessDocs] Using Claude Vision for OCR (fallback)...');
+  console.log('[ProcessDocs] Using Vision OCR with smart page targeting...');
   
   const uint8Array = new Uint8Array(buffer);
   const allExtractedText: string[] = [];
@@ -646,9 +646,16 @@ async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise
     const pdf = await unpdf.getDocumentProxy(uint8Array);
     const totalPages = pdf.numPages;
     
-    console.log(`[ProcessDocs] PDF has ${totalPages} pages, processing with Claude Vision...`);
+    // UK statutory accounts key pages:
+    // Pages 1-2: Cover, contents
+    // Pages 5-8: P&L, Balance Sheet (KEY FINANCIAL DATA)
+    // Pages 10-14: Notes including staff costs, wages, directors
+    // For a 20-page doc, prioritize financial pages to stay within timeout
     
-    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+    const keyPages = selectKeyFinancialPages(totalPages);
+    console.log(`[ProcessDocs] PDF has ${totalPages} pages, targeting ${keyPages.length} key pages: [${keyPages.join(', ')}]`);
+    
+    for (const pageNum of keyPages) {
       try {
         console.log(`[ProcessDocs] Processing page ${pageNum}/${totalPages}...`);
         
@@ -657,14 +664,6 @@ async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise
         if (!pageImage) {
           console.log(`[ProcessDocs] No image found on page ${pageNum}, skipping`);
           continue;
-        }
-        
-        // Check image size - Qwen supports ~10MB, Claude has 5MB limit
-        // Try all images but note very large ones
-        const imageSizeBytes = (pageImage.base64.length * 3) / 4; // Approximate decoded size
-        const imageSizeMB = imageSizeBytes / 1024 / 1024;
-        if (imageSizeMB > 15) {
-          console.log(`[ProcessDocs] Page ${pageNum} image very large (${Math.round(imageSizeMB)}MB), may fail`);
         }
         
         const pageText = await ocrSingleImage(pageImage, pageNum, totalPages, apiKey);
@@ -676,7 +675,6 @@ async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise
         
       } catch (pageErr: any) {
         console.error(`[ProcessDocs] Error on page ${pageNum}:`, pageErr?.message || pageErr);
-        allExtractedText.push(`--- PAGE ${pageNum} ---\n[OCR Error: ${pageErr?.message?.substring(0, 100)}]`);
       }
     }
     
@@ -695,6 +693,52 @@ async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise
   console.log(`[ProcessDocs] OCR complete: ${fullText.length} chars from ${allExtractedText.length} pages`);
   
   return fullText.substring(0, 100000);
+}
+
+// Select key pages for UK statutory accounts - where financial data lives
+function selectKeyFinancialPages(totalPages: number): number[] {
+  // UK FRS 102 statutory accounts structure:
+  // 1-2: Cover, company info
+  // 3-4: Directors report
+  // 5-6: Accountant's report
+  // 7-8: P&L, detailed P&L (TURNOVER, STAFF COSTS, OPERATING PROFIT)
+  // 9-10: Balance Sheet (ASSETS, LIABILITIES)
+  // 11-15: Notes (staff costs breakdown, wages, directors remuneration)
+  // 16+: Detailed schedules
+  
+  if (totalPages <= 6) {
+    // Small doc - do all pages
+    return Array.from({length: totalPages}, (_, i) => i + 1);
+  }
+  
+  // For 20 page doc, target the money pages (max ~8 to fit timeout)
+  const keyPages: number[] = [];
+  
+  // First page - company name & period
+  keyPages.push(1);
+  
+  // P&L pages (usually 5-8)
+  const plStart = Math.min(5, totalPages);
+  const plEnd = Math.min(8, totalPages);
+  for (let p = plStart; p <= plEnd; p++) {
+    if (!keyPages.includes(p)) keyPages.push(p);
+  }
+  
+  // Balance sheet (usually 9-10)
+  const bsStart = Math.min(9, totalPages);
+  const bsEnd = Math.min(10, totalPages);
+  for (let p = bsStart; p <= bsEnd; p++) {
+    if (!keyPages.includes(p)) keyPages.push(p);
+  }
+  
+  // Notes with staff costs (11-13)
+  const notesStart = Math.min(11, totalPages);
+  const notesEnd = Math.min(13, totalPages);
+  for (let p = notesStart; p <= notesEnd; p++) {
+    if (!keyPages.includes(p)) keyPages.push(p);
+  }
+  
+  return keyPages.sort((a, b) => a - b);
 }
 
 // Extract a single page's image from the PDF
@@ -736,19 +780,18 @@ async function extractSinglePageImage(pdf: any, pageNum: number): Promise<{base6
   return null;
 }
 
-// OCR a single image - try Qwen2.5-VL first (best OCR), then Mistral, then Claude
+// OCR a single image - use fast reliable model to stay within timeout
 async function ocrSingleImage(
   image: {base64: string, mimeType: string}, 
   pageNum: number, 
   totalPages: number,
   apiKey: string
 ): Promise<string> {
-  // OCR models to try in order of preference (Qwen2.5-VL is best for document OCR)
+  // Use Mistral - it's working and fast (from the logs)
+  // Qwen models were failing, adding ~30s delay per page
   const ocrModels = [
-    'qwen/qwen2.5-vl-72b-instruct',     // Best OCR accuracy, larger image support
-    'qwen/qwen2.5-vl-32b-instruct',     // Fallback Qwen
-    'mistralai/mistral-small-3.1-24b-instruct', // Good multilingual OCR
-    'anthropic/claude-3.5-sonnet'        // Final fallback
+    'mistralai/mistral-small-3.1-24b-instruct', // Fast and working
+    'google/gemini-2.0-flash-001'               // Fast fallback
   ];
   
   const ocrPrompt = `Extract ALL text from this page (page ${pageNum} of ${totalPages}) of a UK company accounts document.
