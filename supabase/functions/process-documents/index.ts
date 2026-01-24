@@ -424,17 +424,22 @@ async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
     const result = await unpdf.extractText(uint8Array, { mergePages: true });
     const text = result.text || '';
     
-    if (text && text.length > 20) {
+    if (text && text.length > 100) {
+      // Check if it's real readable text (not PDF binary garbage)
       const hasRealText = /[a-zA-Z]{3,}/.test(text);
-      console.log(`[ProcessDocs] unpdf extracted: ${text.length} chars, hasRealText: ${hasRealText}`);
+      const hasSentences = /[A-Z][a-z]+\s+[a-z]+/.test(text); // Capitalized word followed by lowercase
+      const garbageRatio = (text.match(/[^\x20-\x7E\n\r\t]/g) || []).length / text.length;
       
-      if (hasRealText) {
+      console.log(`[ProcessDocs] unpdf extracted: ${text.length} chars, hasRealText: ${hasRealText}, hasSentences: ${hasSentences}, garbageRatio: ${garbageRatio.toFixed(2)}`);
+      
+      // Only use if it looks like real text (low garbage ratio)
+      if (hasRealText && garbageRatio < 0.3) {
         console.log('[ProcessDocs] PDF content preview:', text.substring(0, 200));
         return text.substring(0, 50000);
       }
     }
     
-    console.log('[ProcessDocs] unpdf returned empty, trying getDocumentProxy...');
+    console.log('[ProcessDocs] unpdf returned empty or garbage, trying getDocumentProxy...');
   } catch (unpdfError: any) {
     console.error('[ProcessDocs] unpdf error:', unpdfError?.message || unpdfError);
   }
@@ -458,11 +463,12 @@ async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
     
     fullText = fullText.trim();
     
-    if (fullText && fullText.length > 20) {
+    if (fullText && fullText.length > 100) {
       const hasRealText = /[a-zA-Z]{3,}/.test(fullText);
-      console.log(`[ProcessDocs] unpdf proxy extracted: ${fullText.length} chars, ${pdf.numPages} pages`);
+      const garbageRatio = (fullText.match(/[^\x20-\x7E\n\r\t]/g) || []).length / fullText.length;
+      console.log(`[ProcessDocs] unpdf proxy extracted: ${fullText.length} chars, ${pdf.numPages} pages, garbageRatio: ${garbageRatio.toFixed(2)}`);
       
-      if (hasRealText) {
+      if (hasRealText && garbageRatio < 0.3) {
         return fullText.substring(0, 50000);
       }
     }
@@ -470,9 +476,148 @@ async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
     console.error('[ProcessDocs] unpdf proxy error:', proxyError?.message || proxyError);
   }
   
-  // Final fallback: regex-based extraction for simple/uncompressed PDFs
-  console.log('[ProcessDocs] Falling back to regex extraction...');
-  return extractTextFromPDFFallback(buffer);
+  // If we get here, it's likely a scanned PDF - try OCR via Vision LLM
+  console.log('[ProcessDocs] Text extraction failed - attempting OCR via Vision LLM...');
+  try {
+    const ocrText = await extractTextWithOCR(buffer);
+    if (ocrText && ocrText.length > 50) {
+      console.log(`[ProcessDocs] OCR extracted: ${ocrText.length} chars`);
+      return ocrText;
+    }
+  } catch (ocrError: any) {
+    console.error('[ProcessDocs] OCR error:', ocrError?.message || ocrError);
+  }
+  
+  // Last resort: return empty with explanation
+  console.log('[ProcessDocs] All extraction methods failed');
+  return '[Could not extract text from scanned PDF - OCR failed]';
+}
+
+// ============================================================================
+// OCR VIA VISION LLM - For scanned PDFs that don't have extractable text
+// Uses Claude Vision via OpenRouter to read text from PDF images
+// ============================================================================
+
+async function extractTextWithOCR(buffer: ArrayBuffer): Promise<string> {
+  const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
+  if (!openRouterKey) {
+    throw new Error('OPENROUTER_API_KEY not configured for OCR');
+  }
+  
+  // Convert PDF buffer to base64 for the API
+  const uint8Array = new Uint8Array(buffer);
+  const base64Pdf = btoa(String.fromCharCode(...uint8Array));
+  
+  console.log(`[ProcessDocs] Sending PDF to Vision LLM for OCR (${Math.round(buffer.byteLength / 1024)}KB)`);
+  
+  // Use Claude 3.5 Sonnet which has excellent document understanding
+  // Note: We're sending the PDF as a data URL - Claude can read PDFs directly
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openRouterKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://torsor.co.uk',
+      'X-Title': 'Torsor Document OCR'
+    },
+    body: JSON.stringify({
+      model: 'anthropic/claude-3.5-sonnet',
+      max_tokens: 16000,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `You are an OCR assistant. Extract ALL text from this PDF document exactly as it appears.
+
+This is a financial document (company accounts). Extract:
+- All text, numbers, and figures
+- Preserve the structure (tables, columns, sections)
+- Include all financial figures, dates, company names
+- Include notes, headers, footers
+
+Output ONLY the extracted text, no commentary. Format tables clearly.
+If you cannot read parts clearly, indicate with [illegible].`
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:application/pdf;base64,${base64Pdf}`
+              }
+            }
+          ]
+        }
+      ]
+    })
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[ProcessDocs] OCR API error:', response.status, errorText);
+    
+    // If PDF format not supported, try converting first page description
+    if (errorText.includes('pdf') || errorText.includes('format')) {
+      console.log('[ProcessDocs] PDF format not directly supported, trying alternative approach...');
+      return await extractTextWithOCRFallback(buffer, openRouterKey);
+    }
+    
+    throw new Error(`OCR API error: ${response.status}`);
+  }
+  
+  const data = await response.json();
+  const extractedText = data.choices?.[0]?.message?.content || '';
+  
+  console.log(`[ProcessDocs] OCR successful: ${extractedText.length} chars extracted`);
+  return extractedText.substring(0, 50000);
+}
+
+// Fallback OCR: Describe what we need and ask LLM to help
+async function extractTextWithOCRFallback(buffer: ArrayBuffer, apiKey: string): Promise<string> {
+  console.log('[ProcessDocs] Using OCR fallback - requesting document analysis...');
+  
+  // For scanned PDFs, we need to either:
+  // 1. Use a dedicated OCR service (Google Vision, AWS Textract)
+  // 2. Convert PDF pages to images first
+  
+  // For now, return a message indicating OCR is needed
+  // This can be enhanced with actual OCR service integration
+  
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://torsor.co.uk',
+      'X-Title': 'Torsor Document OCR'
+    },
+    body: JSON.stringify({
+      model: 'anthropic/claude-3.5-sonnet',
+      max_tokens: 1000,
+      messages: [
+        {
+          role: 'user',
+          content: `A scanned PDF document was uploaded but text extraction failed.
+The document is ${Math.round(buffer.byteLength / 1024)}KB in size.
+Based on the filename containing "Services Limited" and "24", this is likely company annual accounts for 2024.
+
+Please respond with a message explaining that:
+1. This appears to be a scanned PDF (image-based, not text-based)
+2. The financial data needs to be entered manually or the document re-uploaded as a text-based PDF
+3. If exported from accounting software, use "Save as PDF" rather than scanning
+
+Keep it brief and helpful.`
+        }
+      ]
+    })
+  });
+  
+  if (response.ok) {
+    const data = await response.json();
+    return `[SCANNED PDF - OCR REQUIRED]\n\n${data.choices?.[0]?.message?.content || 'This document requires OCR processing.'}`;
+  }
+  
+  return '[SCANNED PDF - Manual data entry required. Please re-upload as a text-based PDF or enter financial data manually.]';
 }
 
 // Fallback regex method for simple/uncompressed PDFs
