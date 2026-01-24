@@ -634,94 +634,86 @@ async function ocrWithGoogleVisionSync(buffer: ArrayBuffer, apiKey: string): Pro
   return allText.join('\n\n');
 }
 
-// OCR with smart page targeting - UK statutory accounts have financial data on specific pages
+// OCR ALL pages using PARALLEL processing - no compromises on coverage
 async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise<string> {
-  console.log('[ProcessDocs] Using Vision OCR with smart page targeting...');
+  console.log('[ProcessDocs] Using PARALLEL Vision OCR - ALL pages, no limits...');
   
   const uint8Array = new Uint8Array(buffer);
-  const allExtractedText: string[] = [];
   
   try {
     const unpdf = await import('https://esm.sh/unpdf@0.12.1?bundle');
     const pdf = await unpdf.getDocumentProxy(uint8Array);
     const totalPages = pdf.numPages;
     
-    // UK statutory accounts key pages:
-    // Pages 1-2: Cover, contents
-    // Pages 5-8: P&L, Balance Sheet (KEY FINANCIAL DATA)
-    // Pages 10-14: Notes including staff costs, wages, directors
-    // For a 20-page doc, prioritize financial pages to stay within timeout
+    console.log(`[ProcessDocs] PDF has ${totalPages} pages - processing ALL in parallel batches`);
     
-    const keyPages = selectKeyFinancialPages(totalPages);
-    console.log(`[ProcessDocs] PDF has ${totalPages} pages, targeting ${keyPages.length} key pages: [${keyPages.join(', ')}]`);
-    
-    for (const pageNum of keyPages) {
-      try {
-        console.log(`[ProcessDocs] Processing page ${pageNum}/${totalPages}...`);
-        
-        const pageImage = await extractSinglePageImage(pdf, pageNum);
-        
-        if (!pageImage) {
-          console.log(`[ProcessDocs] No image found on page ${pageNum}, skipping`);
-          continue;
-        }
-        
-        const pageText = await ocrSingleImage(pageImage, pageNum, totalPages, apiKey);
-        
-        if (pageText && pageText.length > 10) {
-          allExtractedText.push(`--- PAGE ${pageNum} ---\n${pageText}`);
-          console.log(`[ProcessDocs] Page ${pageNum}: extracted ${pageText.length} chars`);
-        }
-        
-      } catch (pageErr: any) {
-        console.error(`[ProcessDocs] Error on page ${pageNum}:`, pageErr?.message || pageErr);
+    // Extract ALL page images first (fast, ~1s total)
+    const pageImages: {pageNum: number, image: {base64: string, mimeType: string}}[] = [];
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      const pageImage = await extractSinglePageImage(pdf, pageNum);
+      if (pageImage) {
+        pageImages.push({ pageNum, image: pageImage });
       }
     }
     
+    console.log(`[ProcessDocs] Extracted ${pageImages.length} page images, starting parallel OCR...`);
+    
+    // Process ALL pages in PARALLEL (5 at a time to avoid rate limits)
+    const BATCH_SIZE = 5;
+    const allResults: {pageNum: number, text: string}[] = [];
+    
+    for (let i = 0; i < pageImages.length; i += BATCH_SIZE) {
+      const batch = pageImages.slice(i, i + BATCH_SIZE);
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(pageImages.length / BATCH_SIZE);
+      
+      console.log(`[ProcessDocs] Batch ${batchNum}/${totalBatches} (pages ${batch.map(p => p.pageNum).join(', ')})...`);
+      
+      // Process batch in PARALLEL - 5 OCR calls at once
+      const batchPromises = batch.map(async ({ pageNum, image }) => {
+        try {
+          const text = await ocrSingleImage(image, pageNum, totalPages, apiKey);
+          return { pageNum, text: text || '' };
+        } catch (err: any) {
+          console.error(`[ProcessDocs] Page ${pageNum} error:`, err?.message?.substring(0, 50));
+          return { pageNum, text: '' };
+        }
+      });
+      
+      const batchResults = await Promise.all(batchPromises);
+      allResults.push(...batchResults);
+      
+      const successCount = batchResults.filter(r => r.text.length > 50).length;
+      console.log(`[ProcessDocs] Batch ${batchNum} done: ${successCount}/${batch.length} extracted`);
+    }
+    
     pdf.destroy();
+    
+    // Sort by page number and combine
+    allResults.sort((a, b) => a.pageNum - b.pageNum);
+    const fullText = allResults
+      .filter(r => r.text.length > 10)
+      .map(r => `--- PAGE ${r.pageNum} ---\n${r.text}`)
+      .join('\n\n');
+    
+    const successPages = allResults.filter(r => r.text.length > 50).length;
+    console.log(`[ProcessDocs] ✅ OCR complete: ${fullText.length} chars from ${successPages}/${totalPages} pages`);
+    
+    if (successPages === 0) {
+      throw new Error('Could not extract text from any pages');
+    }
+    
+    return fullText.substring(0, 200000); // Allow large docs
     
   } catch (err: any) {
     console.error('[ProcessDocs] PDF processing error:', err?.message || err);
     throw err;
   }
-  
-  if (allExtractedText.length === 0) {
-    throw new Error('Could not extract text from any pages');
-  }
-  
-  const fullText = allExtractedText.join('\n\n');
-  console.log(`[ProcessDocs] OCR complete: ${fullText.length} chars from ${allExtractedText.length} pages`);
-  
-  return fullText.substring(0, 100000);
 }
 
-// Select ESSENTIAL pages only - 5 max for speed
+// ALL pages - no assumptions about document structure (8, 20, or 47 pages - doesn't matter)
 function selectKeyFinancialPages(totalPages: number): number[] {
-  // UK FRS 102 statutory accounts - ONLY the pages with actual numbers:
-  // Page 7-8: P&L (TURNOVER, STAFF COSTS, OPERATING PROFIT) - CRITICAL
-  // Page 9: Balance Sheet (NET ASSETS) - CRITICAL  
-  // Page 11-12: Notes (staff costs breakdown) - CRITICAL
-  
-  if (totalPages <= 5) {
-    return Array.from({length: totalPages}, (_, i) => i + 1);
-  }
-  
-  // Maximum 5 pages to complete in ~25 seconds
-  const keyPages: number[] = [];
-  
-  // P&L - THE most important (turnover, staff costs, profit)
-  if (totalPages >= 7) keyPages.push(7);
-  if (totalPages >= 8) keyPages.push(8);
-  
-  // Balance sheet (net assets for valuation)
-  if (totalPages >= 9) keyPages.push(9);
-  
-  // Notes with staff costs breakdown
-  if (totalPages >= 11) keyPages.push(11);
-  if (totalPages >= 12) keyPages.push(12);
-  
-  console.log(`[ProcessDocs] Selected ${keyPages.length} essential pages: [${keyPages.join(', ')}]`);
-  return keyPages;
+  return Array.from({length: totalPages}, (_, i) => i + 1);
 }
 
 // Extract a single page's image from the PDF
