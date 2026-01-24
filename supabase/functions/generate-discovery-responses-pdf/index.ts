@@ -226,18 +226,6 @@ function buildResponsesHTML({ client, responses, engagement, practiceName }: Bui
     : 'In Progress';
 
   // Count answered questions
-  let totalAnswered = 0;
-  let totalQuestions = 0;
-  Object.values(DISCOVERY_QUESTIONS).forEach(section => {
-    section.questions.forEach(q => {
-      totalQuestions++;
-      const answer = responses[q.key];
-      if (answer && (Array.isArray(answer) ? answer.length > 0 : String(answer).trim().length > 0)) {
-        totalAnswered++;
-      }
-    });
-  });
-
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -251,7 +239,7 @@ function buildResponsesHTML({ client, responses, engagement, practiceName }: Bui
       </style>
     </head>
     <body>
-      ${buildCoverPage(clientName, companyName, practiceName, completionDate, totalAnswered, totalQuestions)}
+      ${buildCoverPage(clientName, companyName, practiceName, completionDate)}
       ${buildSectionsHTML(responses)}
     </body>
     </html>
@@ -268,21 +256,22 @@ function getStyles(): string {
     
     @page {
       size: A4;
-      margin: 20mm;
+      margin: 15mm 20mm;
     }
     
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       font-size: 10pt;
-      line-height: 1.6;
+      line-height: 1.5;
       color: #1e293b;
       background: white;
+      text-align: left;
     }
     
     .page {
       page-break-after: always;
       min-height: 100vh;
-      padding: 40px;
+      padding: 30px 40px;
       position: relative;
     }
     
@@ -302,11 +291,6 @@ function getStyles(): string {
       padding: 60px;
     }
     
-    .cover-icon {
-      font-size: 64px;
-      margin-bottom: 30px;
-    }
-    
     .cover-title {
       font-size: 36pt;
       font-weight: 700;
@@ -317,97 +301,68 @@ function getStyles(): string {
     .cover-subtitle {
       font-size: 16pt;
       opacity: 0.9;
-      margin-bottom: 50px;
+      margin-bottom: 60px;
     }
     
     .cover-client {
-      font-size: 24pt;
+      font-size: 28pt;
       font-weight: 600;
       margin-bottom: 8px;
     }
     
     .cover-company {
-      font-size: 14pt;
+      font-size: 16pt;
       opacity: 0.85;
-      margin-bottom: 40px;
-    }
-    
-    .cover-stats {
-      display: flex;
-      gap: 40px;
-      margin-bottom: 40px;
-    }
-    
-    .cover-stat {
-      text-align: center;
-    }
-    
-    .cover-stat-value {
-      font-size: 28pt;
-      font-weight: 700;
-    }
-    
-    .cover-stat-label {
-      font-size: 10pt;
-      opacity: 0.8;
-      text-transform: uppercase;
-      letter-spacing: 1px;
     }
     
     .cover-footer {
       position: absolute;
-      bottom: 40px;
+      bottom: 50px;
       left: 0;
       right: 0;
       text-align: center;
-      font-size: 9pt;
-      opacity: 0.7;
+      font-size: 10pt;
+      opacity: 0.8;
     }
     
     /* Section Styles */
     .section {
-      margin-bottom: 40px;
-      page-break-inside: avoid;
+      margin-bottom: 30px;
     }
     
     .section-header {
-      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-      border-radius: 12px;
-      padding: 20px 24px;
-      margin-bottom: 20px;
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
       border-left: 4px solid #3b82f6;
-    }
-    
-    .section-icon {
-      font-size: 24px;
-      margin-bottom: 8px;
+      text-align: left;
     }
     
     .section-title {
-      font-size: 16pt;
+      font-size: 14pt;
       font-weight: 700;
       color: #0f172a;
-      margin-bottom: 4px;
+      margin: 0 0 4px 0;
+      text-align: left;
     }
     
     .section-subtitle {
       font-size: 10pt;
       color: #64748b;
+      margin: 0;
+      text-align: left;
     }
     
     /* Question Styles */
     .question-card {
       background: white;
       border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 16px 20px;
-      margin-bottom: 12px;
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin-bottom: 10px;
       page-break-inside: avoid;
-    }
-    
-    .question-card.unanswered {
-      opacity: 0.5;
-      background: #f8fafc;
+      text-align: left;
     }
     
     .question-label {
@@ -416,34 +371,35 @@ function getStyles(): string {
       color: #3b82f6;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      margin-bottom: 6px;
+      margin: 0 0 8px 0;
+      text-align: left;
     }
     
     .question-text {
-      font-size: 10pt;
+      font-size: 9pt;
       color: #64748b;
       font-style: italic;
-      margin-bottom: 10px;
-      padding-bottom: 10px;
+      margin: 0 0 12px 0;
+      padding: 0 0 10px 0;
       border-bottom: 1px solid #e2e8f0;
+      text-align: left;
     }
     
     .answer-text {
       font-size: 11pt;
       color: #1e293b;
-      line-height: 1.7;
-      white-space: pre-wrap;
-    }
-    
-    .answer-text.empty {
-      color: #94a3b8;
-      font-style: italic;
+      line-height: 1.6;
+      margin: 0;
+      padding: 0;
+      text-align: left;
+      white-space: normal;
+      word-wrap: break-word;
     }
     
     /* Page Footer */
     .page-footer {
       position: absolute;
-      bottom: 20px;
+      bottom: 15px;
       left: 40px;
       right: 40px;
       display: flex;
@@ -451,7 +407,7 @@ function getStyles(): string {
       font-size: 8pt;
       color: #94a3b8;
       border-top: 1px solid #e2e8f0;
-      padding-top: 10px;
+      padding-top: 8px;
     }
     
     /* Print Styles */
@@ -476,34 +432,18 @@ function buildCoverPage(
   clientName: string, 
   companyName: string, 
   practiceName: string,
-  completionDate: string,
-  totalAnswered: number,
-  totalQuestions: number
+  completionDate: string
 ): string {
-  const completionPct = Math.round((totalAnswered / totalQuestions) * 100);
-  
   return `
     <div class="page cover-page">
-      <div class="cover-icon">📋</div>
       <h1 class="cover-title">Discovery Responses</h1>
       <p class="cover-subtitle">Assessment Questions & Answers</p>
       
       <div class="cover-client">${clientName}</div>
       <div class="cover-company">${companyName}</div>
       
-      <div class="cover-stats">
-        <div class="cover-stat">
-          <div class="cover-stat-value">${totalAnswered}</div>
-          <div class="cover-stat-label">Questions Answered</div>
-        </div>
-        <div class="cover-stat">
-          <div class="cover-stat-value">${completionPct}%</div>
-          <div class="cover-stat-label">Completion Rate</div>
-        </div>
-      </div>
-      
       <div class="cover-footer">
-        Completed: ${completionDate}<br>
+        ${completionDate}<br>
         Prepared by ${practiceName}
       </div>
     </div>
@@ -527,7 +467,6 @@ function buildSectionsHTML(responses: Record<string, any>): string {
       <div class="page">
         <div class="section">
           <div class="section-header">
-            <div class="section-icon">${section.icon}</div>
             <h2 class="section-title">${section.title}</h2>
             <p class="section-subtitle">${section.subtitle}</p>
           </div>
@@ -541,13 +480,20 @@ function buildSectionsHTML(responses: Record<string, any>): string {
             
             if (!hasAnswer) return ''; // Skip unanswered questions
             
+            // Clean up the answer text - normalize whitespace and remove weird indents
+            const cleanedAnswer = String(answer)
+              .replace(/\r\n/g, '\n')           // Normalize line endings
+              .replace(/\t/g, ' ')              // Replace tabs with spaces
+              .replace(/  +/g, ' ')             // Collapse multiple spaces
+              .replace(/^\s+/gm, '')            // Remove leading whitespace from each line
+              .replace(/\n{3,}/g, '\n\n')       // Max 2 newlines in a row
+              .trim();
+            
             return `
-              <div class="question-card ${hasAnswer ? '' : 'unanswered'}">
+              <div class="question-card">
                 <div class="question-label">${q.label}</div>
                 <div class="question-text">"${q.question}"</div>
-                <div class="answer-text ${hasAnswer ? '' : 'empty'}">
-                  ${hasAnswer ? escapeHtml(String(answer)) : '— Not answered —'}
-                </div>
+                <div class="answer-text">${escapeHtml(cleanedAnswer)}</div>
               </div>
             `;
           }).join('')}
