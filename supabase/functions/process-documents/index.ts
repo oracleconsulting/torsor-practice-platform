@@ -520,57 +520,137 @@ async function extractTextWithOCR(buffer: ArrayBuffer): Promise<string> {
   
   console.log(`[ProcessDocs] Attempting OCR for scanned PDF (${Math.round(buffer.byteLength / 1024)}KB)`);
   
-  // Try to extract embedded images from the PDF (scanned PDFs store pages as images)
-  // IMPORTANT: Only extract first 3 pages to avoid memory limits (each page can be 5-10MB)
+  // SEQUENTIAL PAGE PROCESSING to avoid memory limits
+  // Process one page at a time: extract image → OCR → release memory → next page
   const uint8Array = new Uint8Array(buffer);
-  const images = await extractImagesFromPDF(uint8Array, 3); // Limit to 3 pages
+  const allExtractedText: string[] = [];
   
-  if (images.length === 0) {
-    console.log('[ProcessDocs] No images found in PDF, cannot perform OCR');
-    throw new Error('No images found in scanned PDF');
+  try {
+    const unpdf = await import('https://esm.sh/unpdf@0.12.1?bundle');
+    const pdf = await unpdf.getDocumentProxy(uint8Array);
+    const totalPages = pdf.numPages;
+    
+    console.log(`[ProcessDocs] PDF has ${totalPages} pages, processing sequentially...`);
+    
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      try {
+        console.log(`[ProcessDocs] Processing page ${pageNum}/${totalPages}...`);
+        
+        // Extract single page image
+        const pageImage = await extractSinglePageImage(pdf, pageNum);
+        
+        if (!pageImage) {
+          console.log(`[ProcessDocs] No image found on page ${pageNum}, skipping`);
+          continue;
+        }
+        
+        // OCR this single page
+        const pageText = await ocrSingleImage(pageImage, pageNum, totalPages, openRouterKey);
+        
+        if (pageText && pageText.length > 10) {
+          allExtractedText.push(`--- PAGE ${pageNum} ---\n${pageText}`);
+          console.log(`[ProcessDocs] Page ${pageNum}: extracted ${pageText.length} chars`);
+        }
+        
+        // Memory is released as pageImage goes out of scope
+        
+      } catch (pageErr: any) {
+        console.error(`[ProcessDocs] Error on page ${pageNum}:`, pageErr?.message || pageErr);
+        // Continue to next page
+      }
+    }
+    
+    // Cleanup
+    pdf.destroy();
+    
+  } catch (err: any) {
+    console.error('[ProcessDocs] PDF processing error:', err?.message || err);
+    throw err;
   }
   
-  console.log(`[ProcessDocs] Found ${images.length} images in PDF, sending to Vision LLM`);
+  if (allExtractedText.length === 0) {
+    throw new Error('Could not extract text from any pages');
+  }
   
-  // Send images to Claude Vision for OCR
-  const imagesToProcess = images;
-  const imageContent = imagesToProcess.map((img, idx) => ({
-    type: 'image_url',
-    image_url: {
-      url: `data:${img.mimeType};base64,${img.base64}`
+  const fullText = allExtractedText.join('\n\n');
+  console.log(`[ProcessDocs] OCR complete: ${fullText.length} chars from ${allExtractedText.length} pages`);
+  
+  return fullText.substring(0, 100000); // Allow more text since we're processing all pages
+}
+
+// Extract a single page's image from the PDF
+async function extractSinglePageImage(pdf: any, pageNum: number): Promise<{base64: string, mimeType: string} | null> {
+  try {
+    const page = await pdf.getPage(pageNum);
+    const ops = await page.getOperatorList();
+    
+    // Look for image XObjects in the operator list
+    for (let i = 0; i < ops.fnArray.length; i++) {
+      // OPS.paintImageXObject = 85, OPS.paintJpegXObject = 82
+      if (ops.fnArray[i] === 85 || ops.fnArray[i] === 82) {
+        const imgName = ops.argsArray[i]?.[0];
+        if (imgName) {
+          try {
+            const imgData = await page.objs.get(imgName);
+            if (imgData && imgData.data && imgData.data.length > 1000) {
+              // Convert image data to base64
+              const imageBase64 = uint8ArrayToBase64(new Uint8Array(imgData.data));
+              
+              // Determine MIME type
+              let mimeType = 'image/png';
+              if (imgData.data[0] === 0xFF && imgData.data[1] === 0xD8) {
+                mimeType = 'image/jpeg';
+              }
+              
+              return { base64: imageBase64, mimeType };
+            }
+          } catch (imgErr) {
+            // Try next image
+          }
+        }
+      }
     }
-  }));
+  } catch (err) {
+    console.log(`[ProcessDocs] Could not extract image from page ${pageNum}`);
+  }
   
+  return null;
+}
+
+// OCR a single image using Claude Vision
+async function ocrSingleImage(
+  image: {base64: string, mimeType: string}, 
+  pageNum: number, 
+  totalPages: number,
+  apiKey: string
+): Promise<string> {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${openRouterKey}`,
+      'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': 'https://torsor.co.uk',
       'X-Title': 'Torsor Document OCR'
     },
     body: JSON.stringify({
       model: 'anthropic/claude-3.5-sonnet',
-      max_tokens: 16000,
+      max_tokens: 4000,
       messages: [
         {
           role: 'user',
           content: [
             {
               type: 'text',
-              text: `You are an OCR assistant. Extract ALL text from these ${imagesToProcess.length} page(s) of a financial document (company accounts).
-
-Extract:
-- All text, numbers, and figures exactly as they appear
-- Preserve the structure (tables, columns, sections)
-- Include all financial figures, dates, company names
-- Include notes, headers, footers
-
-Output ONLY the extracted text, no commentary. Format tables clearly using | separators.
-If you cannot read parts clearly, indicate with [illegible].
-Process each page in order.`
+              text: `Extract ALL text from this page (page ${pageNum} of ${totalPages}) of a UK company accounts document.
+Extract exactly as written: all text, numbers, tables, headers, notes.
+Format tables with | separators. Output ONLY the text, no commentary.`
             },
-            ...imageContent
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${image.mimeType};base64,${image.base64}`
+              }
+            }
           ]
         }
       ]
@@ -579,80 +659,13 @@ Process each page in order.`
   
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('[ProcessDocs] OCR API error:', response.status, errorText);
-    throw new Error(`OCR API error: ${response.status}`);
+    throw new Error(`OCR API error: ${response.status} - ${errorText.substring(0, 200)}`);
   }
   
   const data = await response.json();
-  const extractedText = data.choices?.[0]?.message?.content || '';
-  
-  console.log(`[ProcessDocs] OCR successful: ${extractedText.length} chars extracted from ${imagesToProcess.length} pages`);
-  return extractedText.substring(0, 50000);
+  return data.choices?.[0]?.message?.content || '';
 }
 
-// Extract embedded images from a PDF (scanned PDFs store each page as an image)
-// maxPages limits extraction to avoid memory issues (each page image can be 5-10MB)
-async function extractImagesFromPDF(uint8Array: Uint8Array, maxPages: number = 3): Promise<Array<{base64: string, mimeType: string}>> {
-  const images: Array<{base64: string, mimeType: string}> = [];
-  
-  try {
-    const unpdf = await import('https://esm.sh/unpdf@0.12.1?bundle');
-    const pdf = await unpdf.getDocumentProxy(uint8Array);
-    
-    console.log(`[ProcessDocs] PDF has ${pdf.numPages} pages, extracting first ${maxPages} pages...`);
-    
-    // Process only first few pages to stay within memory limits
-    // Financial summary data is usually on pages 1-3
-    for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, maxPages); pageNum++) {
-      try {
-        const page = await pdf.getPage(pageNum);
-        const ops = await page.getOperatorList();
-        
-        // Look for image XObjects in the operator list
-        for (let i = 0; i < ops.fnArray.length; i++) {
-          // OPS.paintImageXObject = 85, OPS.paintJpegXObject = 82
-          if (ops.fnArray[i] === 85 || ops.fnArray[i] === 82) {
-            const imgName = ops.argsArray[i]?.[0];
-            if (imgName) {
-              try {
-                const imgData = await page.objs.get(imgName);
-                if (imgData && imgData.data) {
-                  // Convert image data to base64
-                  const imageBase64 = uint8ArrayToBase64(new Uint8Array(imgData.data));
-                  
-                  // Determine MIME type based on image format
-                  let mimeType = 'image/png'; // Default
-                  if (imgData.data[0] === 0xFF && imgData.data[1] === 0xD8) {
-                    mimeType = 'image/jpeg';
-                  }
-                  
-                  images.push({ base64: imageBase64, mimeType });
-                  console.log(`[ProcessDocs] Extracted image from page ${pageNum}: ${Math.round(imgData.data.length / 1024)}KB`);
-                  
-                  // Only need one image per page for scanned docs
-                  break;
-                }
-              } catch (imgErr) {
-                console.log(`[ProcessDocs] Could not extract image ${imgName}:`, imgErr);
-              }
-            }
-          }
-        }
-      } catch (pageErr) {
-        console.log(`[ProcessDocs] Error processing page ${pageNum}:`, pageErr);
-      }
-    }
-  } catch (err) {
-    console.error('[ProcessDocs] Error extracting images from PDF:', err);
-  }
-  
-  // If no embedded images found, try alternative: render pages as images
-  if (images.length === 0) {
-    console.log('[ProcessDocs] No embedded images found, PDF may use different format');
-  }
-  
-  return images;
-}
 
 // Fallback OCR: Describe what we need and ask LLM to help
 async function extractTextWithOCRFallback(buffer: ArrayBuffer, apiKey: string): Promise<string> {
