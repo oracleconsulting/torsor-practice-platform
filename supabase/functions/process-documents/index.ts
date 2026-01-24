@@ -681,20 +681,34 @@ serve(async (req) => {
         
         // CRITICAL: Store extracted text and metrics in client_context
         // This is what prepare-discovery-data reads to get document content!
-        console.log(`[ProcessDocs] Updating client_context with extracted content (${rawText.length} chars)`);
+        console.log(`[ProcessDocs] Updating client_context ID: ${contextId} with extracted content (${rawText.length} chars)`);
         
-        await supabase
-          .from('client_context')
-          .update({ 
-            content: rawText.substring(0, 50000), // Store the actual extracted text!
-            extracted_metrics: extractedMetrics,
-            data_source_type: sourceInfo.type,
-            priority_level: sourceInfo.priority,
-            processed: true 
-          })
-          .eq('id', contextId);
-        
-        console.log(`[ProcessDocs] ✅ Updated client_context ${contextId} with ${rawText.length} chars of content`);
+        if (!contextId) {
+          console.error('[ProcessDocs] ERROR: No contextId provided! Cannot update client_context');
+          errors.push('No contextId provided for update');
+        } else {
+          const { data: updateData, error: updateError } = await supabase
+            .from('client_context')
+            .update({ 
+              content: rawText.substring(0, 50000), // Store the actual extracted text!
+              extracted_metrics: extractedMetrics,
+              data_source_type: sourceInfo.type,
+              priority_level: sourceInfo.priority,
+              processed: true 
+            })
+            .eq('id', contextId)
+            .select('id');
+          
+          if (updateError) {
+            console.error(`[ProcessDocs] Update ERROR: ${updateError.message}`);
+            errors.push(`Failed to update client_context: ${updateError.message}`);
+          } else if (!updateData || updateData.length === 0) {
+            console.error(`[ProcessDocs] Update WARNING: No rows matched contextId ${contextId}`);
+            errors.push(`No client_context found with id ${contextId}`);
+          } else {
+            console.log(`[ProcessDocs] ✅ Updated client_context ${contextId} with ${rawText.length} chars of content`);
+          }
+        }
         
         // 4. Determine which clients to process for
         const targetClients = isShared && clientEntities.length > 1
@@ -746,7 +760,7 @@ serve(async (req) => {
                   total_chunks: chunk.metadata.totalChunks,
                   content: chunk.content,
                   embedding: embedding,
-                  applies_to: appliesTo || ['sprint'],
+                  // Note: applies_to column removed - doesn't exist in document_embeddings table
                   metadata: {
                     fileType: doc.fileType,
                     fileSize: doc.fileSize,
