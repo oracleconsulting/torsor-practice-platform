@@ -433,42 +433,6 @@ No validated financial data available. When discussing financial figures:
 `;
       console.log('[Pass 2] ⚠️ No validated financial data available - LLM should not invent figures');
     }
-    
-    // ========================================================================
-    // CRITICAL: Inject Pass 1's EXACT service prices into the prompt
-    // These are MANDATORY - the LLM must NOT change them
-    // ========================================================================
-    let servicePriceConstraints = '';
-    if (Object.keys(pass1ServicePrices).length > 0) {
-      servicePriceConstraints = `
-
-============================================================================
-🚨 MANDATORY SERVICE PRICES - DO NOT CHANGE THESE
-============================================================================
-Pass 1 has calculated the EXACT services, tiers, and prices for this client.
-You MUST use these EXACT prices in page3_journey phases and page4_numbers investment.
-
-SERVICES AND PRICES (USE THESE EXACTLY):
-`;
-      for (const [code, info] of Object.entries(pass1ServicePrices)) {
-        servicePriceConstraints += `- ${info.service}${info.tier ? ` (${info.tier})` : ''}: ${info.price}\n`;
-      }
-      
-      if (pass1Total) {
-        servicePriceConstraints += `
-TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
-
-⚠️ CRITICAL RULES:
-1. In page3_journey.phases, each phase's "price" MUST match these exact amounts
-2. In page4_numbers.investment, amounts MUST match these exactly
-3. page4_numbers.totalYear1 MUST equal ${pass1Total}
-4. DO NOT round, change, or "simplify" these prices
-5. If 365 Method/Goal Alignment is listed above, use that EXACT tier and price
-`;
-      }
-      
-      console.log('[Pass 2] ✅ Injecting Pass 1 service prices as constraints');
-    }
 
     // Fetch Pass 1 results
     const { data: report, error: reportError } = await supabase
@@ -525,6 +489,42 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
       console.log(`  - ${code}: ${info.service} | ${info.tier || 'no tier'} | ${info.price}`);
     });
     console.log(`[Pass 2] 📊 Pass 1 Total Investment: ${pass1Total}`);
+
+    // ========================================================================
+    // CRITICAL: Inject Pass 1's EXACT service prices into the prompt
+    // These are MANDATORY - the LLM must NOT change them
+    // ========================================================================
+    let servicePriceConstraints = '';
+    if (Object.keys(pass1ServicePrices).length > 0) {
+      servicePriceConstraints = `
+
+============================================================================
+🚨 MANDATORY SERVICE PRICES - DO NOT CHANGE THESE
+============================================================================
+Pass 1 has calculated the EXACT services, tiers, and prices for this client.
+You MUST use these EXACT prices in page3_journey phases and page4_numbers investment.
+
+SERVICES AND PRICES (USE THESE EXACTLY):
+`;
+      for (const [code, info] of Object.entries(pass1ServicePrices)) {
+        servicePriceConstraints += `- ${info.service}${info.tier ? ` (${info.tier})` : ''}: ${info.price}\n`;
+      }
+      
+      if (pass1Total) {
+        servicePriceConstraints += `
+TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
+
+⚠️ CRITICAL RULES:
+1. In page3_journey.phases, each phase's "price" MUST match these exact amounts
+2. In page4_numbers.investment, amounts MUST match these exactly
+3. page4_numbers.totalYear1 MUST equal ${pass1Total}
+4. DO NOT round, change, or "simplify" these prices
+5. If 365 Method/Goal Alignment is listed above, use that EXACT tier and price
+`;
+      }
+      
+      console.log('[Pass 2] ✅ Injecting Pass 1 service prices as constraints');
+    }
 
     // Fetch context notes
     const { data: contextNotes } = await supabase
