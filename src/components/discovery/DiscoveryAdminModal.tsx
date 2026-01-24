@@ -42,7 +42,6 @@ import {
 } from 'lucide-react';
 import { EnabledByLink } from '../ServiceDetailPopup';
 import { 
-  SectionCommentBox, 
   LearningReviewPanel, 
   useAnalysisComments 
 } from './AnalysisCommentSystem';
@@ -94,6 +93,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
   
   // Context note form
   const [showAddContext, setShowAddContext] = useState(false);
+  const [exportingResponses, setExportingResponses] = useState(false);
   const [newContext, setNewContext] = useState({
     note_type: 'discovery_call' as string,
     title: '',
@@ -335,6 +335,152 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
       await fetchData();
     } catch (error: any) {
       alert(`Error deleting note: ${error.message}`);
+    }
+  };
+
+  // Discovery Questions Mapping - ALL questions with proper labels
+  const DISCOVERY_QUESTIONS = {
+    destination: {
+      title: 'Part 1: The Destination',
+      subtitle: 'Understanding where you want to go',
+      questions: [
+        { key: 'dd_five_year_vision', question: 'Picture it: Five years from now, it\'s a random Tuesday morning. What does your ideal day look like?', label: 'Tuesday Test (5-Year Vision)' },
+        { key: 'dd_success_definition', question: 'When you think about the next 3-5 years, how would you define success for yourself personally?', label: 'Success Definition' },
+        { key: 'dd_non_negotiables', question: 'What are the non-negotiables in your vision?', label: 'Non-Negotiables' },
+        { key: 'dd_magic_fix', question: 'If we could fix just ONE thing in the next 90 days that would make the biggest difference to your day-to-day, what would it be?', label: 'Magic Fix (90 Days)' },
+      ]
+    },
+    reality: {
+      title: 'Part 2: The Reality',
+      subtitle: 'Understanding where you are now',
+      questions: [
+        { key: 'dd_weekly_hours', question: 'Roughly how many hours per week do you currently work?', label: 'Weekly Hours' },
+        { key: 'dd_time_allocation', question: 'How would you describe the split of your time between firefighting vs strategic work?', label: 'Time Allocation' },
+        { key: 'dd_core_frustration', question: 'What\'s the biggest frustration in your business right now?', label: 'Core Frustration' },
+        { key: 'dd_emergency_log', question: 'Think about the last month. What emergencies or unexpected issues pulled you away from what you should have been doing?', label: 'Emergency Log' },
+        { key: 'dd_relationship_mirror', question: 'If your relationship with your business was a relationship with a person, what kind would it be?', label: 'Business Relationship' },
+        { key: 'dd_sacrifice_list', question: 'What have you sacrificed or put on hold because of the business?', label: 'What You\'ve Sacrificed' },
+        { key: 'dd_last_real_break', question: 'When did you last have a proper break (a week or more) without checking in?', label: 'Last Real Break' },
+        { key: 'dd_sleep_thief', question: 'What keeps you awake at night about the business?', label: 'Sleep Thief' },
+      ]
+    },
+    truth: {
+      title: 'Part 3: The Hard Truth',
+      subtitle: 'The conversations that matter',
+      questions: [
+        { key: 'dd_avoided_conversation', question: 'Is there a conversation you\'ve been avoiding? Someone you need to talk to but haven\'t?', label: 'Avoided Conversation' },
+        { key: 'dd_hard_truth', question: 'What\'s the hard truth about your business that you suspect but haven\'t confirmed?', label: 'Hard Truth' },
+        { key: 'dd_suspected_truth', question: 'If you had to guess - what do you think your numbers would tell you that you don\'t currently know?', label: 'Suspected Truth' },
+        { key: 'dd_scaling_constraint', question: 'What\'s the main constraint stopping you from growing right now?', label: 'Scaling Constraint' },
+        { key: 'dd_change_readiness', question: 'How ready are you to make significant changes to how things work?', label: 'Change Readiness' },
+      ]
+    },
+    systems: {
+      title: 'Part 4: Systems & Operations',
+      subtitle: 'How the business runs',
+      questions: [
+        { key: 'sd_financial_confidence', question: 'How confident are you that your financial data is accurate and up to date?', label: 'Financial Confidence' },
+        { key: 'sd_founder_dependency', question: 'If you disappeared for 2 weeks, what would happen to the business?', label: 'Founder Dependency' },
+        { key: 'sd_manual_tasks', question: 'Which of these tasks are still largely manual in your business?', label: 'Manual Tasks' },
+        { key: 'sd_numbers_action_frequency', question: 'How often do you make decisions based on your financial data?', label: 'Data-Driven Decisions' },
+        { key: 'sd_documentation_readiness', question: 'If someone needed to understand how your business works, is it documented?', label: 'Documentation Ready' },
+        { key: 'sd_operational_frustration', question: 'What processes or systems frustrate you most?', label: 'Operational Frustration' },
+        { key: 'sd_growth_blocker', question: 'What\'s blocking your growth right now?', label: 'Growth Blocker' },
+        { key: 'sd_competitive_position', question: 'How would you describe your market position?', label: 'Market Position' },
+        { key: 'sd_exit_timeline', question: 'Are you thinking about an exit? If so, what\'s your timeline?', label: 'Exit Timeline' },
+      ]
+    }
+  };
+
+  // Export responses to PDF
+  const handleExportResponses = async () => {
+    if (!discovery || !clientName) return;
+    
+    setExportingResponses(true);
+    try {
+      // Build HTML content
+      const sections = Object.entries(DISCOVERY_QUESTIONS).map(([sectionKey, section]) => {
+        const questionsHtml = section.questions.map(q => {
+          let answer = discovery[q.key];
+          // Handle array answers
+          if (Array.isArray(answer)) {
+            answer = answer.join(', ');
+          }
+          return `
+            <div style="margin-bottom: 20px; page-break-inside: avoid;">
+              <p style="font-size: 11px; color: #6b7280; margin-bottom: 4px; font-weight: 500;">${q.label}</p>
+              <p style="font-size: 13px; color: #374151; margin-bottom: 8px; font-style: italic;">"${q.question}"</p>
+              <div style="background: #f9fafb; padding: 12px 16px; border-radius: 8px; border-left: 3px solid #6366f1;">
+                <p style="font-size: 14px; color: #111827; margin: 0; white-space: pre-wrap;">
+                  ${answer || '<span style="color: #9ca3af; font-style: italic;">Not answered</span>'}
+                </p>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div style="margin-bottom: 32px;">
+            <h2 style="font-size: 18px; color: #1f2937; margin-bottom: 4px; border-bottom: 2px solid #6366f1; padding-bottom: 8px;">${section.title}</h2>
+            <p style="font-size: 12px; color: #6b7280; margin-bottom: 16px;">${section.subtitle}</p>
+            ${questionsHtml}
+          </div>
+        `;
+      }).join('');
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Discovery Responses - ${clientName}</title>
+          <style>
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              max-width: 800px;
+              margin: 0 auto;
+              padding: 40px;
+              color: #1f2937;
+            }
+            @page { margin: 2cm; }
+          </style>
+        </head>
+        <body>
+          <div style="text-align: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 1px solid #e5e7eb;">
+            <h1 style="font-size: 24px; color: #111827; margin-bottom: 8px;">Discovery Assessment Responses</h1>
+            <p style="font-size: 16px; color: #4b5563; margin-bottom: 4px;">${clientName}</p>
+            <p style="font-size: 12px; color: #9ca3af;">Generated: ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          </div>
+          
+          ${sections}
+          
+          <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center;">
+            <p style="font-size: 11px; color: #9ca3af;">
+              This document contains the client's verbatim responses to the Discovery Assessment questionnaire.
+              <br>For internal use only.
+            </p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Open in new window for printing
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+        setTimeout(() => {
+          printWindow.print();
+        }, 500);
+      }
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert('Failed to export responses. Please try again.');
+    } finally {
+      setExportingResponses(false);
     }
   };
 
@@ -724,426 +870,6 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
             <li>□ Review client view before publishing</li>
           </ul>
         </div>
-      </div>
-    );
-  };
-
-  const renderClientReport = () => {
-    // Check for new destination-focused structure
-    const dest = report?.destination_report;
-    const page1 = dest?.page1_destination || report?.page1_destination;
-    const page2 = dest?.page2_gaps || report?.page2_gaps;
-    const page3 = dest?.page3_journey || report?.page3_journey;
-    const page4 = dest?.page4_numbers || report?.page4_numbers;
-    const page5 = dest?.page5_nextSteps || dest?.page5_next_steps || report?.page5_next_steps;
-
-    if (!page1 && !report?.headline) {
-      return (
-        <div className="text-center py-12 text-gray-500">
-          <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <p>Report narrative not yet generated</p>
-          <p className="text-sm">Run Pass 2 to generate the destination-focused report</p>
-        </div>
-      );
-    }
-
-    // Render destination-focused 5-page structure
-    return (
-      <div className="space-y-10 bg-gray-50 dark:bg-gray-800 rounded-lg p-6">
-        {/* ================================================================ */}
-        {/* PAGE 1: THE DESTINATION YOU DESCRIBED */}
-        {/* ================================================================ */}
-        {page1 && (
-          <section className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-sm">
-            <span className="text-xs font-medium text-amber-600 uppercase tracking-widest">
-              Page 1 - Your Vision
-            </span>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mt-2">
-              {page1.headerLine || "The Tuesday You're Building Towards"}
-            </h2>
-            
-            <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border-l-4 border-amber-400">
-              <p className="text-gray-700 dark:text-gray-300 italic whitespace-pre-wrap">
-                "{page1.visionVerbatim}"
-              </p>
-            </div>
-            
-            {page1.destinationClarityScore && (
-              <div className="mt-4 flex items-center gap-4">
-                <div className="flex-1 h-2 bg-gray-200 rounded-full">
-                  <div 
-                    className="h-full bg-emerald-500 rounded-full"
-                    style={{ width: `${(page1.destinationClarityScore / 10) * 100}%` }}
-                  />
-                </div>
-                <span className="font-semibold">{page1.destinationClarityScore}/10</span>
-              </div>
-            )}
-            
-            {/* Feedback Box */}
-            {engagement?.id && currentMember?.practice_id && (
-              <SectionCommentBox
-                engagementId={engagement.id}
-                reportId={report?.id}
-                practiceId={currentMember.practice_id}
-                sectionType="page1_destination"
-                originalContent={page1}
-                existingComments={analysisComments}
-                onCommentAdded={refetchComments}
-              />
-            )}
-          </section>
-        )}
-
-        {/* ================================================================ */}
-        {/* PAGE 2: WHAT'S IN THE WAY */}
-        {/* ================================================================ */}
-        {page2 && (
-          <section className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-sm">
-            <span className="text-xs font-medium text-rose-600 uppercase tracking-widest">
-              Page 2 - The Gaps
-            </span>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mt-2">
-              {page2.headerLine || "The Gap Between Here and There"}
-            </h2>
-            
-            {page2.openingLine && (
-              <p className="mt-2 text-gray-600 dark:text-gray-400 italic">
-                {page2.openingLine}
-              </p>
-            )}
-            
-            <div className="mt-4 space-y-4">
-              {page2.gaps?.map((gap: any, idx: number) => (
-                <div key={idx} className="p-4 border rounded-lg dark:border-gray-700">
-                  <h3 className="font-semibold text-rose-700 dark:text-rose-400">{gap.title}</h3>
-                  <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded text-sm">
-                    <p className="italic">"{gap.pattern}"</p>
-                  </div>
-                  <ul className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                    {gap.costs?.map((cost: string, i: number) => (
-                      <li key={i}>• {cost}</li>
-                    ))}
-                  </ul>
-                  <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-400">
-                    <strong>Shift:</strong> {gap.shiftRequired}
-                  </p>
-                  
-                  {/* Feedback Box for individual gap */}
-                  {engagement?.id && currentMember?.practice_id && (
-                    <SectionCommentBox
-                      engagementId={engagement.id}
-                      reportId={report?.id}
-                      practiceId={currentMember.practice_id}
-                      sectionType="page2_gap_item"
-                      sectionIndex={idx}
-                      sectionIdentifier={gap.title}
-                      originalContent={gap}
-                      existingComments={analysisComments}
-                      onCommentAdded={refetchComments}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-            
-            {/* Overall Page 2 Feedback Box */}
-            {engagement?.id && currentMember?.practice_id && (
-              <SectionCommentBox
-                engagementId={engagement.id}
-                reportId={report?.id}
-                practiceId={currentMember.practice_id}
-                sectionType="page2_gaps"
-                originalContent={page2}
-                existingComments={analysisComments}
-                onCommentAdded={refetchComments}
-              />
-            )}
-          </section>
-        )}
-
-        {/* ================================================================ */}
-        {/* PAGE 3: THE JOURNEY */}
-        {/* ================================================================ */}
-        {page3 && (
-          <section className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-sm">
-            <span className="text-xs font-medium text-blue-600 uppercase tracking-widest">
-              Page 3 - The Path Forward
-            </span>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mt-2">
-              {page3.headerLine || "From Here to the 4pm Pickup"}
-            </h2>
-            
-            {/* Timeline Labels */}
-            {page3.timelineLabel && (
-              <div className="mt-4 flex justify-between text-xs text-gray-500 px-2">
-                <span>{page3.timelineLabel.now}</span>
-                <span>{page3.timelineLabel.month3}</span>
-                <span>{page3.timelineLabel.month6}</span>
-                <span className="text-emerald-600 font-medium">{page3.timelineLabel.month12}</span>
-              </div>
-            )}
-            
-            <div className="mt-4 space-y-4">
-              {page3.phases?.map((phase: any, idx: number) => (
-                <div key={idx} className="p-4 border rounded-lg dark:border-gray-700">
-                  <span className="inline-block px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded mb-2">
-                    {phase.timeframe}
-                  </span>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">
-                    {phase.headline}
-                  </h3>
-                  {phase.whatChanges && (
-                    <ul className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                      {phase.whatChanges.map((change: string, i: number) => (
-                        <li key={i}>✓ {change}</li>
-                      ))}
-                    </ul>
-                  )}
-                  {phase.feelsLike && (
-                    <p className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 rounded text-sm text-amber-800 dark:text-amber-300 italic">
-                      {phase.feelsLike}
-                    </p>
-                  )}
-                  <p className="mt-2 text-xs text-gray-400">
-                    Enabled by: {phase.enabledBy} ({phase.price})
-                  </p>
-                  
-                  {/* Feedback Box for individual phase */}
-                  {engagement?.id && currentMember?.practice_id && (
-                    <SectionCommentBox
-                      engagementId={engagement.id}
-                      reportId={report?.id}
-                      practiceId={currentMember.practice_id}
-                      sectionType="page3_phase"
-                      sectionIndex={idx}
-                      sectionIdentifier={phase.timeframe}
-                      originalContent={phase}
-                      existingComments={analysisComments}
-                      onCommentAdded={refetchComments}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-            
-            {/* Overall Page 3 Feedback Box */}
-            {engagement?.id && currentMember?.practice_id && (
-              <SectionCommentBox
-                engagementId={engagement.id}
-                reportId={report?.id}
-                practiceId={currentMember.practice_id}
-                sectionType="page3_journey"
-                originalContent={page3}
-                existingComments={analysisComments}
-                onCommentAdded={refetchComments}
-              />
-            )}
-          </section>
-        )}
-
-        {/* ================================================================ */}
-        {/* PAGE 4: THE NUMBERS */}
-        {/* ================================================================ */}
-        {page4 && (
-          <section className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-sm">
-            <span className="text-xs font-medium text-slate-600 uppercase tracking-widest">
-              Page 4 - The Investment
-            </span>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mt-2">
-              {page4.headerLine || "The Investment in Your Tuesday"}
-            </h2>
-            
-            {/* Cost of Staying */}
-            {page4.costOfStaying && (
-              <div className="mt-4 p-4 bg-rose-50 dark:bg-rose-900/20 rounded-lg">
-                <h3 className="text-sm font-semibold text-rose-700 dark:text-rose-400">
-                  Cost of Staying
-                </h3>
-                <div className="mt-2 text-sm text-rose-600 dark:text-rose-400 space-y-1">
-                  {page4.costOfStaying.labourInefficiency && (
-                    <p>Labour inefficiency: {page4.costOfStaying.labourInefficiency}</p>
-                  )}
-                  {page4.costOfStaying.marginLeakage && (
-                    <p>Margin leakage: {page4.costOfStaying.marginLeakage}</p>
-                  )}
-                </div>
-                {page4.personalCost && (
-                  <p className="mt-2 text-sm text-rose-800 dark:text-rose-300 font-medium">
-                    {page4.personalCost}
-                  </p>
-                )}
-              </div>
-            )}
-            
-            {/* Investment */}
-            {page4.investment && (
-              <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Investment
-                </h3>
-                <div className="mt-2 space-y-1">
-                  {page4.investment.map((inv: any, idx: number) => (
-                    <div key={idx} className="flex justify-between text-sm">
-                      <span>{inv.phase}: {inv.whatYouGet}</span>
-                      <span className="font-medium">{inv.amount}</span>
-                    </div>
-                  ))}
-                </div>
-                {page4.totalYear1 && (
-                  <div className="mt-2 pt-2 border-t dark:border-gray-700 flex justify-between font-semibold">
-                    <span>Total Year 1</span>
-                    <span>{page4.totalYear1}</span>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Returns */}
-            {page4.returns && (
-              <div className="mt-4 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                <h3 className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-                  Projected Return
-                </h3>
-                <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-500">Conservative</p>
-                    <p className="font-bold text-emerald-600">{page4.returns.conservative?.total}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Realistic</p>
-                    <p className="font-bold text-emerald-600">{page4.returns.realistic?.total}</p>
-                  </div>
-                </div>
-                {page4.realReturn && (
-                  <p className="mt-2 text-sm text-emerald-800 dark:text-emerald-300 italic">
-                    But the real return? {page4.realReturn}
-                  </p>
-                )}
-                
-                {/* Feedback Box for returns */}
-                {engagement?.id && currentMember?.practice_id && (
-                  <SectionCommentBox
-                    engagementId={engagement.id}
-                    reportId={report?.id}
-                    practiceId={currentMember.practice_id}
-                    sectionType="page4_returns"
-                    originalContent={page4.returns}
-                    existingComments={analysisComments}
-                    onCommentAdded={refetchComments}
-                  />
-                )}
-              </div>
-            )}
-            
-            {/* Overall Page 4 Feedback Box */}
-            {engagement?.id && currentMember?.practice_id && (
-              <SectionCommentBox
-                engagementId={engagement.id}
-                reportId={report?.id}
-                practiceId={currentMember.practice_id}
-                sectionType="page4_investment"
-                originalContent={page4}
-                existingComments={analysisComments}
-                onCommentAdded={refetchComments}
-              />
-            )}
-          </section>
-        )}
-
-        {/* ================================================================ */}
-        {/* PAGE 5: NEXT STEPS */}
-        {/* ================================================================ */}
-        {page5 && (
-          <section className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-sm">
-            <span className="text-xs font-medium text-emerald-600 uppercase tracking-widest">
-              Page 5 - Next Steps
-            </span>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mt-2">
-              {page5.headerLine || "Starting The Journey"}
-            </h2>
-            
-            {page5.thisWeek && (
-              <div className="mt-4 p-4 border rounded-lg dark:border-gray-700">
-                <h3 className="font-semibold">This Week</h3>
-                <p className="mt-1 text-gray-600 dark:text-gray-400">{page5.thisWeek.action}</p>
-                <p className="mt-1 text-sm text-gray-500">{page5.thisWeek.tone}</p>
-              </div>
-            )}
-            
-            {page5.firstStep && (
-              <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-                <h3 className="font-semibold text-amber-800 dark:text-amber-300">
-                  {page5.firstStep.recommendation}
-                </h3>
-                <p className="mt-1 text-amber-700 dark:text-amber-400 text-sm">
-                  {page5.firstStep.why}
-                </p>
-                {page5.firstStep.simpleCta && (
-                  <p className="mt-2 font-semibold text-amber-900 dark:text-amber-200">
-                    {page5.firstStep.simpleCta}
-                  </p>
-                )}
-                
-                {/* Feedback Box for first step recommendation */}
-                {engagement?.id && currentMember?.practice_id && (
-                  <SectionCommentBox
-                    engagementId={engagement.id}
-                    reportId={report?.id}
-                    practiceId={currentMember.practice_id}
-                    sectionType="page5_first_step"
-                    originalContent={page5.firstStep}
-                    existingComments={analysisComments}
-                    onCommentAdded={refetchComments}
-                  />
-                )}
-              </div>
-            )}
-            
-            {page5.theAsk && (
-              <div className="mt-4 p-4 bg-slate-800 dark:bg-slate-950 rounded-lg text-center">
-                <p className="text-slate-300">{page5.theAsk}</p>
-                {page5.closingLine && (
-                  <p className="mt-2 text-amber-400 font-semibold">{page5.closingLine}</p>
-                )}
-              </div>
-            )}
-            
-            {/* Overall Page 5 Feedback Box */}
-            {engagement?.id && currentMember?.practice_id && (
-              <SectionCommentBox
-                engagementId={engagement.id}
-                reportId={report?.id}
-                practiceId={currentMember.practice_id}
-                sectionType="page5_next_steps"
-                originalContent={page5}
-                existingComments={analysisComments}
-                onCommentAdded={refetchComments}
-              />
-            )}
-          </section>
-        )}
-
-        {/* Meta: Quotes Used */}
-        {report?.quotes_used?.length > 0 && (
-          <section className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-sm">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-widest">
-              Verbatim Quotes Used ({report.quotes_used.length})
-            </span>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {report.quotes_used.slice(0, 5).map((quote: string, idx: number) => (
-                <span key={idx} className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded">
-                  "{quote.substring(0, 40)}..."
-                </span>
-              ))}
-              {report.quotes_used.length > 5 && (
-                <span className="px-2 py-1 text-xs text-gray-500">
-                  +{report.quotes_used.length - 5} more
-                </span>
-              )}
-            </div>
-          </section>
-        )}
       </div>
     );
   };
@@ -1704,43 +1430,93 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                   </div>
                 ) : (
                   <>
-                    {/* Key Responses Summary */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {[
-                        { key: 'dd_five_year_vision', label: 'Tuesday Test (5-Year Vision)' },
-                        { key: 'dd_core_frustration', label: 'Core Frustration' },
-                        { key: 'dd_magic_fix', label: 'Magic Fix (90 Days)' },
-                        { key: 'dd_relationship_mirror', label: 'Business Relationship' },
-                        { key: 'dd_sacrifice_list', label: 'What They\'ve Sacrificed' },
-                        { key: 'dd_emergency_log', label: 'Emergency Log' },
-                      ].map((field) => (
-                        <div key={field.key} className="p-4 rounded-lg border dark:border-gray-700">
-                          <h4 className="text-sm font-medium text-gray-500 mb-2">{field.label}</h4>
-                          <p className="text-gray-900 dark:text-white">
-                            {discovery[field.key] || <span className="text-gray-400 italic">Not answered</span>}
-                          </p>
-                        </div>
-                      ))}
+                    {/* Export Button */}
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h3 className="text-lg font-semibold">Discovery Responses</h3>
+                        <p className="text-sm text-gray-500">
+                          Complete questions and answers from the assessment
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleExportResponses}
+                        disabled={exportingResponses}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {exportingResponses ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <FileText className="h-4 w-4" />
+                        )}
+                        Export PDF
+                      </button>
                     </div>
 
-                    {/* Choice-based responses */}
-                    <div className="mt-6">
-                      <h3 className="text-lg font-semibold mb-4">Key Selections</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {[
-                          { key: 'dd_success_definition', label: 'Success Definition' },
-                          { key: 'dd_weekly_hours', label: 'Weekly Hours' },
-                          { key: 'dd_time_allocation', label: 'Firefighting vs Strategic' },
-                          { key: 'dd_last_real_break', label: 'Last Real Break' },
-                          { key: 'dd_scaling_constraint', label: 'Scaling Constraint' },
-                          { key: 'dd_change_readiness', label: 'Change Readiness' },
-                        ].map((field) => (
-                          <div key={field.key} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
-                            <span className="text-xs font-medium text-gray-500">{field.label}</span>
-                            <p className="text-sm mt-1">{discovery[field.key] || '-'}</p>
-                          </div>
-                        ))}
+                    {/* Full Questions & Answers by Section */}
+                    {Object.entries(DISCOVERY_QUESTIONS).map(([sectionKey, section]) => (
+                      <div key={sectionKey} className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 overflow-hidden">
+                        {/* Section Header */}
+                        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 px-6 py-4 border-b dark:border-gray-700">
+                          <h3 className="text-lg font-semibold text-indigo-900 dark:text-indigo-100">
+                            {section.title}
+                          </h3>
+                          <p className="text-sm text-indigo-600 dark:text-indigo-300">
+                            {section.subtitle}
+                          </p>
+                        </div>
+                        
+                        {/* Questions */}
+                        <div className="divide-y dark:divide-gray-700">
+                          {section.questions.map((q) => {
+                            let answer = discovery[q.key];
+                            // Handle array answers (multi-select)
+                            if (Array.isArray(answer)) {
+                              answer = answer.join(', ');
+                            }
+                            const hasAnswer = answer && answer.toString().trim().length > 0;
+                            
+                            return (
+                              <div key={q.key} className="p-4">
+                                <div className="flex items-start gap-3">
+                                  <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${hasAnswer ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                                  <div className="flex-1">
+                                    <p className="text-xs font-medium text-indigo-600 dark:text-indigo-400 uppercase tracking-wide mb-1">
+                                      {q.label}
+                                    </p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 italic mb-2">
+                                      "{q.question}"
+                                    </p>
+                                    <div className={`p-3 rounded-lg ${hasAnswer ? 'bg-gray-50 dark:bg-gray-700/50 border-l-3 border-indigo-500' : 'bg-gray-50/50 dark:bg-gray-800'}`}>
+                                      {hasAnswer ? (
+                                        <p className="text-gray-900 dark:text-white whitespace-pre-wrap">
+                                          {answer}
+                                        </p>
+                                      ) : (
+                                        <p className="text-gray-400 italic">Not answered</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
+                    ))}
+
+                    {/* Quick Stats */}
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        <strong>Completion:</strong>{' '}
+                        {(() => {
+                          const allQuestions = Object.values(DISCOVERY_QUESTIONS).flatMap(s => s.questions);
+                          const answered = allQuestions.filter(q => {
+                            const val = discovery[q.key];
+                            return val && (Array.isArray(val) ? val.length > 0 : val.toString().trim().length > 0);
+                          }).length;
+                          return `${answered}/${allQuestions.length} questions answered (${Math.round(answered/allQuestions.length*100)}%)`;
+                        })()}
+                      </p>
                     </div>
                   </>
                 )}
