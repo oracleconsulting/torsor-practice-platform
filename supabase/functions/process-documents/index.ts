@@ -498,6 +498,20 @@ async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
 // Uses Claude Vision via OpenRouter to read text from PDF images
 // ============================================================================
 
+// Convert Uint8Array to base64 without stack overflow (handles large files)
+function uint8ArrayToBase64(uint8Array: Uint8Array): string {
+  // Process in chunks to avoid "Maximum call stack size exceeded"
+  const chunkSize = 32768; // 32KB chunks
+  let binaryString = '';
+  
+  for (let i = 0; i < uint8Array.length; i += chunkSize) {
+    const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
+    binaryString += String.fromCharCode.apply(null, chunk as unknown as number[]);
+  }
+  
+  return btoa(binaryString);
+}
+
 async function extractTextWithOCR(buffer: ArrayBuffer): Promise<string> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!openRouterKey) {
@@ -505,8 +519,9 @@ async function extractTextWithOCR(buffer: ArrayBuffer): Promise<string> {
   }
   
   // Convert PDF buffer to base64 for the API
+  // Use chunked conversion to avoid stack overflow with large files
   const uint8Array = new Uint8Array(buffer);
-  const base64Pdf = btoa(String.fromCharCode(...uint8Array));
+  const base64Pdf = uint8ArrayToBase64(uint8Array);
   
   console.log(`[ProcessDocs] Sending PDF to Vision LLM for OCR (${Math.round(buffer.byteLength / 1024)}KB)`);
   
