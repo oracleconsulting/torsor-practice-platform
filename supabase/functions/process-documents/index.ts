@@ -681,7 +681,24 @@ serve(async (req) => {
         
         // CRITICAL: Store extracted text and metrics in client_context
         // This is what prepare-discovery-data reads to get document content!
-        console.log(`[ProcessDocs] Updating client_context ID: ${contextId} with extracted content (${rawText.length} chars)`);
+        
+        // Sanitize text for PostgreSQL - remove problematic Unicode escape sequences
+        // PostgreSQL interprets \uXXXX as Unicode escapes which can fail if malformed
+        const sanitizeForPostgres = (text: string): string => {
+          return text
+            // Remove null bytes
+            .replace(/\x00/g, '')
+            // Remove other control characters (except newline, tab, carriage return)
+            .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+            // Escape backslashes that might be interpreted as Unicode escapes
+            .replace(/\\u[0-9a-fA-F]{0,3}(?![0-9a-fA-F])/g, '') // Remove incomplete \uXXX sequences
+            .replace(/\\/g, '\\\\') // Escape remaining backslashes
+            // Remove any remaining problematic sequences
+            .replace(/[\uFFFD\uFFFE\uFFFF]/g, ''); // Remove replacement characters
+        };
+        
+        const cleanedText = sanitizeForPostgres(rawText.substring(0, 50000));
+        console.log(`[ProcessDocs] Updating client_context ID: ${contextId} with cleaned content (${cleanedText.length} chars)`);
         
         if (!contextId) {
           console.error('[ProcessDocs] ERROR: No contextId provided! Cannot update client_context');
@@ -690,7 +707,7 @@ serve(async (req) => {
           const { data: updateData, error: updateError } = await supabase
             .from('client_context')
             .update({ 
-              content: rawText.substring(0, 50000), // Store the actual extracted text!
+              content: cleanedText, // Store the sanitized extracted text
               extracted_metrics: extractedMetrics,
               data_source_type: sourceInfo.type,
               priority_level: sourceInfo.priority,
@@ -706,7 +723,7 @@ serve(async (req) => {
             console.error(`[ProcessDocs] Update WARNING: No rows matched contextId ${contextId}`);
             errors.push(`No client_context found with id ${contextId}`);
           } else {
-            console.log(`[ProcessDocs] ✅ Updated client_context ${contextId} with ${rawText.length} chars of content`);
+            console.log(`[ProcessDocs] ✅ Updated client_context ${contextId} with ${cleanedText.length} chars of content`);
           }
         }
         
@@ -743,7 +760,13 @@ serve(async (req) => {
           const chunks = chunkText(textToProcess, doc.fileName);
           console.log(`Created ${chunks.length} chunks for ${targetClient.firstName}`);
           
-          // 7. Generate embeddings and store each chunk
+          // TEMPORARILY DISABLED: Embeddings generation
+          // The document_embeddings table schema doesn't match (missing 'content', 'applies_to' columns)
+          // The primary goal is achieved: content is stored in client_context for discovery analysis
+          // Re-enable once table schema is updated
+          console.log(`[ProcessDocs] Skipping embeddings - content already stored in client_context`);
+          
+          /* DISABLED: Generate embeddings and store each chunk
           for (const chunk of chunks) {
             try {
               const embedding = await generateEmbedding(chunk.content);
@@ -760,7 +783,6 @@ serve(async (req) => {
                   total_chunks: chunk.metadata.totalChunks,
                   content: chunk.content,
                   embedding: embedding,
-                  // Note: applies_to column removed - doesn't exist in document_embeddings table
                   metadata: {
                     fileType: doc.fileType,
                     fileSize: doc.fileSize,
@@ -783,6 +805,7 @@ serve(async (req) => {
               errors.push(`Embedding failed for ${doc.fileName} chunk ${chunk.metadata.chunkIndex}`);
             }
           }
+          */
           
           // Store extraction record for shared documents
           if (isShared && targetClient.id !== clientId) {
