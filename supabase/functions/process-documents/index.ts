@@ -521,8 +521,9 @@ async function extractTextWithOCR(buffer: ArrayBuffer): Promise<string> {
   console.log(`[ProcessDocs] Attempting OCR for scanned PDF (${Math.round(buffer.byteLength / 1024)}KB)`);
   
   // Try to extract embedded images from the PDF (scanned PDFs store pages as images)
+  // IMPORTANT: Only extract first 3 pages to avoid memory limits (each page can be 5-10MB)
   const uint8Array = new Uint8Array(buffer);
-  const images = await extractImagesFromPDF(uint8Array);
+  const images = await extractImagesFromPDF(uint8Array, 3); // Limit to 3 pages
   
   if (images.length === 0) {
     console.log('[ProcessDocs] No images found in PDF, cannot perform OCR');
@@ -531,8 +532,8 @@ async function extractTextWithOCR(buffer: ArrayBuffer): Promise<string> {
   
   console.log(`[ProcessDocs] Found ${images.length} images in PDF, sending to Vision LLM`);
   
-  // Send images to Claude Vision for OCR (limit to first 5 pages to avoid token limits)
-  const imagesToProcess = images.slice(0, 5);
+  // Send images to Claude Vision for OCR
+  const imagesToProcess = images;
   const imageContent = imagesToProcess.map((img, idx) => ({
     type: 'image_url',
     image_url: {
@@ -590,17 +591,19 @@ Process each page in order.`
 }
 
 // Extract embedded images from a PDF (scanned PDFs store each page as an image)
-async function extractImagesFromPDF(uint8Array: Uint8Array): Promise<Array<{base64: string, mimeType: string}>> {
+// maxPages limits extraction to avoid memory issues (each page image can be 5-10MB)
+async function extractImagesFromPDF(uint8Array: Uint8Array, maxPages: number = 3): Promise<Array<{base64: string, mimeType: string}>> {
   const images: Array<{base64: string, mimeType: string}> = [];
   
   try {
     const unpdf = await import('https://esm.sh/unpdf@0.12.1?bundle');
     const pdf = await unpdf.getDocumentProxy(uint8Array);
     
-    console.log(`[ProcessDocs] PDF has ${pdf.numPages} pages, extracting images...`);
+    console.log(`[ProcessDocs] PDF has ${pdf.numPages} pages, extracting first ${maxPages} pages...`);
     
-    // Process each page to find embedded images
-    for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, 10); pageNum++) {
+    // Process only first few pages to stay within memory limits
+    // Financial summary data is usually on pages 1-3
+    for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, maxPages); pageNum++) {
       try {
         const page = await pdf.getPage(pageNum);
         const ops = await page.getOperatorList();
