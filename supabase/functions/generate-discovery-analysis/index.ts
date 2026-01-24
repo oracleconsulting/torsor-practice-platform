@@ -153,6 +153,216 @@ function logInvestmentTracesSummary(): void {
 }
 
 // ============================================================================
+// ASSESSMENT SIGNAL EXTRACTION
+// Captures BOTH strengths AND gaps from discovery responses
+// This is critical for balanced, credible reporting
+// ============================================================================
+
+interface AssessmentSignals {
+  // Strengths (positive signals to acknowledge)
+  strengths: {
+    financialConfidence: boolean;      // "Very confident" or "Fairly confident"
+    lowFounderDependency: boolean;     // "Runs fine" or "Minor issues"
+    healthyWorkload: boolean;          // <50 hours/week
+    strategicTimeBalance: boolean;     // >50% strategic
+    systemsWorking: boolean;           // "Highly automated" or "None of these" manual
+    marketPosition: string;            // Direct quote
+    documentationReady: boolean;       // "Yes" or "Probably"
+    numbersActionFrequent: boolean;    // "Weekly" or "Daily"
+  };
+  
+  // Gaps (areas to address)
+  gaps: {
+    avoidedConversation: string | null;  // Direct quote
+    coreFrustration: string | null;      // Direct quote
+    suspectedTruth: string | null;       // Direct quote
+    operationalFrustration: string | null;
+    growthBlocker: string | null;
+    sleepThief: string | null;
+  };
+  
+  // Context for framing
+  context: {
+    exitTimeline: string;
+    successDefinition: string;
+    fiveYearVision: string;
+    weeklyHours: string;
+    timeAllocation: string;
+  };
+  
+  // Emotional anchors for narrative
+  anchors: {
+    magicFix: string;
+    hardTruth: string;
+    sacrifice: string;
+    nonNegotiables: string[];
+  };
+  
+  // Summary flags
+  isExitFocused: boolean;
+  isHighPerformer: boolean;  // Business is already doing well
+  hasSpecificGaps: boolean;  // Has addressable issues
+}
+
+function extractAssessmentSignals(responses: Record<string, any>): AssessmentSignals {
+  // Extract strengths
+  const financialConfidence = ['very confident', 'fairly confident']
+    .some(s => (responses.sd_financial_confidence || '').toLowerCase().includes(s));
+  
+  const lowFounderDependency = ['run fine', 'minor issues', 'optional']
+    .some(s => (responses.sd_founder_dependency || '').toLowerCase().includes(s));
+  
+  const weeklyHours = responses.dd_weekly_hours || '';
+  const healthyWorkload = !['50-60', '60-70', '70+']
+    .some(s => weeklyHours.includes(s));
+  
+  const timeAllocation = responses.dd_time_allocation || '';
+  const strategicTimeBalance = ['70% strategic', '90% strategic', '70%', '90%']
+    .some(s => timeAllocation.includes(s));
+  
+  const systemsWorking = ['highly automated', 'none of these']
+    .some(s => (responses.sd_manual_tasks || '').toLowerCase().includes(s));
+  
+  const documentationReady = ['yes', 'probably']
+    .some(s => (responses.sd_documentation_readiness || '').toLowerCase().includes(s));
+  
+  const numbersActionFrequent = ['weekly', 'daily']
+    .some(s => (responses.sd_numbers_action_frequency || '').toLowerCase().includes(s));
+  
+  // Exit timeline detection
+  const exitTimeline = responses.sd_exit_timeline || '';
+  const isExitFocused = ['1-3 years', '3-5 years', 'already exploring', 'actively preparing']
+    .some(s => exitTimeline.toLowerCase().includes(s.toLowerCase()));
+  
+  // Calculate summary flags
+  const strengthCount = [
+    financialConfidence, lowFounderDependency, healthyWorkload,
+    strategicTimeBalance, systemsWorking, documentationReady, numbersActionFrequent
+  ].filter(Boolean).length;
+  
+  const isHighPerformer = strengthCount >= 4;
+  
+  const gaps = {
+    avoidedConversation: responses.dd_avoided_conversation || null,
+    coreFrustration: responses.dd_core_frustration || null,
+    suspectedTruth: responses.dd_suspected_truth || null,
+    operationalFrustration: responses.sd_operational_frustration || null,
+    growthBlocker: responses.sd_growth_blocker || null,
+    sleepThief: responses.dd_sleep_thief || null,
+  };
+  
+  const hasSpecificGaps = Object.values(gaps).some(g => g && g.trim().length > 0);
+  
+  const signals: AssessmentSignals = {
+    strengths: {
+      financialConfidence,
+      lowFounderDependency,
+      healthyWorkload,
+      strategicTimeBalance,
+      systemsWorking,
+      marketPosition: responses.sd_competitive_position || '',
+      documentationReady,
+      numbersActionFrequent,
+    },
+    gaps,
+    context: {
+      exitTimeline,
+      successDefinition: responses.dd_success_definition || '',
+      fiveYearVision: responses.dd_five_year_vision || responses.dd_five_year_picture || '',
+      weeklyHours,
+      timeAllocation,
+    },
+    anchors: {
+      magicFix: responses.dd_magic_fix || '',
+      hardTruth: responses.dd_hard_truth || '',
+      sacrifice: responses.dd_sacrifice_list || '',
+      nonNegotiables: (responses.dd_non_negotiables || '').split(',').map((s: string) => s.trim()).filter(Boolean),
+    },
+    isExitFocused,
+    isHighPerformer,
+    hasSpecificGaps,
+  };
+  
+  console.log('[AssessmentSignals] Extracted:', {
+    strengthCount,
+    isHighPerformer,
+    isExitFocused,
+    hasSpecificGaps,
+    gaps: Object.entries(gaps).filter(([_, v]) => v).map(([k]) => k)
+  });
+  
+  return signals;
+}
+
+/**
+ * Builds a balanced business health summary for the prompt
+ * Includes BOTH strengths AND gaps
+ */
+function buildBalancedHealthSummary(signals: AssessmentSignals): string {
+  const strengthLines: string[] = [];
+  const gapLines: string[] = [];
+  
+  // Strengths
+  if (signals.strengths.financialConfidence) {
+    strengthLines.push('✅ Trusts their financial data completely');
+  }
+  if (signals.strengths.lowFounderDependency) {
+    strengthLines.push('✅ Business runs without founder involvement');
+  }
+  if (signals.strengths.healthyWorkload) {
+    strengthLines.push(`✅ Healthy workload (${signals.context.weeklyHours || '<50 hours'})`);
+  }
+  if (signals.strengths.strategicTimeBalance) {
+    strengthLines.push(`✅ Good time balance (${signals.context.timeAllocation || 'strategic focus'})`);
+  }
+  if (signals.strengths.systemsWorking) {
+    strengthLines.push('✅ Systems and automation working well');
+  }
+  if (signals.strengths.documentationReady) {
+    strengthLines.push('✅ Documentation mostly in place');
+  }
+  if (signals.strengths.numbersActionFrequent) {
+    strengthLines.push('✅ Data-driven owner (acts on numbers regularly)');
+  }
+  if (signals.strengths.marketPosition) {
+    strengthLines.push(`✅ Market position: "${signals.strengths.marketPosition}"`);
+  }
+  
+  // Gaps
+  if (signals.gaps.avoidedConversation) {
+    gapLines.push(`⚠️ Avoided conversation: "${signals.gaps.avoidedConversation}"`);
+  }
+  if (signals.gaps.coreFrustration) {
+    gapLines.push(`⚠️ Core frustration: "${signals.gaps.coreFrustration}"`);
+  }
+  if (signals.gaps.suspectedTruth) {
+    gapLines.push(`⚠️ Self-identified issue: "${signals.gaps.suspectedTruth}"`);
+  }
+  if (signals.gaps.growthBlocker) {
+    gapLines.push(`⚠️ Growth blocker: "${signals.gaps.growthBlocker}"`);
+  }
+  if (signals.gaps.operationalFrustration) {
+    gapLines.push(`⚠️ Operational frustration: "${signals.gaps.operationalFrustration}"`);
+  }
+  
+  return `
+## BUSINESS ASSESSMENT SIGNALS (Must include BOTH in narrative)
+
+### STRENGTHS TO ACKNOWLEDGE:
+${strengthLines.length > 0 ? strengthLines.join('\n') : 'No major strengths identified'}
+
+### GAPS TO ADDRESS:
+${gapLines.length > 0 ? gapLines.join('\n') : 'No major gaps identified'}
+
+### CLIENT PROFILE:
+- Exit Timeline: ${signals.context.exitTimeline || 'Not specified'}
+- Success Definition: "${signals.context.successDefinition || 'Not specified'}"
+- Five-Year Vision: "${signals.context.fiveYearVision || 'Not specified'}"
+${signals.isHighPerformer ? '\n⚠️ THIS IS A HIGH-PERFORMING BUSINESS - Acknowledge what they\'ve built, don\'t lead with problems only.' : ''}
+`;
+}
+
+// ============================================================================
 // FORCE CORRECTION UTILITIES
 // These functions detect and correct wrong figures in LLM output
 // ============================================================================
@@ -4329,6 +4539,20 @@ serve(async (req) => {
     console.log('[Discovery] Affordability:', affordability);
 
     // ========================================================================
+    // EXTRACT ASSESSMENT SIGNALS (Both strengths AND gaps)
+    // ========================================================================
+    
+    const assessmentSignals = extractAssessmentSignals(preparedData.discovery.responses);
+    const balancedHealthSummary = buildBalancedHealthSummary(assessmentSignals);
+    
+    console.log('[Discovery] Assessment Signals:', {
+      isHighPerformer: assessmentSignals.isHighPerformer,
+      isExitFocused: assessmentSignals.isExitFocused,
+      strengthCount: Object.values(assessmentSignals.strengths).filter(Boolean).length,
+      gapCount: Object.values(assessmentSignals.gaps).filter(g => g).length
+    });
+
+    // ========================================================================
     // DETECT GOAL ALIGNMENT TRANSFORMATION TRIGGERS
     // ========================================================================
     
@@ -4913,6 +5137,8 @@ This is a lifestyle business seeking work-life balance.
 
     const analysisPrompt = `
 Analyse this discovery assessment for ${preparedData.client.name} (${preparedData.client.company || 'their business'}).
+
+${balancedHealthSummary}
 
 ## CLIENT DISCOVERY RESPONSES
 ${JSON.stringify(preparedData.discovery.responses, null, 2)}
