@@ -634,9 +634,9 @@ async function ocrWithGoogleVisionSync(buffer: ArrayBuffer, apiKey: string): Pro
   return allText.join('\n\n');
 }
 
-// OCR ALL pages using PARALLEL processing - no compromises on coverage
+// OCR ALL pages - extract and process in batches to stay under memory limit
 async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise<string> {
-  console.log('[ProcessDocs] Using PARALLEL Vision OCR - ALL pages, no limits...');
+  console.log('[ProcessDocs] Using batched Vision OCR - ALL pages, memory-safe...');
   
   const uint8Array = new Uint8Array(buffer);
   
@@ -645,32 +645,32 @@ async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise
     const pdf = await unpdf.getDocumentProxy(uint8Array);
     const totalPages = pdf.numPages;
     
-    console.log(`[ProcessDocs] PDF has ${totalPages} pages - processing ALL in parallel batches`);
+    console.log(`[ProcessDocs] PDF has ${totalPages} pages - processing in memory-safe batches`);
     
-    // Extract ALL page images first (fast, ~1s total)
-    const pageImages: {pageNum: number, image: {base64: string, mimeType: string}}[] = [];
-    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-      const pageImage = await extractSinglePageImage(pdf, pageNum);
-      if (pageImage) {
-        pageImages.push({ pageNum, image: pageImage });
-      }
-    }
-    
-    console.log(`[ProcessDocs] Extracted ${pageImages.length} page images, starting parallel OCR...`);
-    
-    // Process ALL pages in PARALLEL (5 at a time to avoid rate limits)
-    const BATCH_SIZE = 5;
+    // Process in batches of 3 to stay under memory limit
+    // Extract → OCR → Clear → Next batch (only ~24MB images in memory at a time)
+    const BATCH_SIZE = 3;
     const allResults: {pageNum: number, text: string}[] = [];
+    const totalBatches = Math.ceil(totalPages / BATCH_SIZE);
     
-    for (let i = 0; i < pageImages.length; i += BATCH_SIZE) {
-      const batch = pageImages.slice(i, i + BATCH_SIZE);
-      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-      const totalBatches = Math.ceil(pageImages.length / BATCH_SIZE);
+    for (let batchNum = 0; batchNum < totalBatches; batchNum++) {
+      const startPage = batchNum * BATCH_SIZE + 1;
+      const endPage = Math.min(startPage + BATCH_SIZE - 1, totalPages);
+      const pageNums = Array.from({length: endPage - startPage + 1}, (_, i) => startPage + i);
       
-      console.log(`[ProcessDocs] Batch ${batchNum}/${totalBatches} (pages ${batch.map(p => p.pageNum).join(', ')})...`);
+      console.log(`[ProcessDocs] Batch ${batchNum + 1}/${totalBatches}: pages ${pageNums.join(', ')}`);
       
-      // Process batch in PARALLEL - 5 OCR calls at once
-      const batchPromises = batch.map(async ({ pageNum, image }) => {
+      // Extract images for THIS batch only
+      const batchImages: {pageNum: number, image: {base64: string, mimeType: string}}[] = [];
+      for (const pageNum of pageNums) {
+        const pageImage = await extractSinglePageImage(pdf, pageNum);
+        if (pageImage) {
+          batchImages.push({ pageNum, image: pageImage });
+        }
+      }
+      
+      // OCR this batch in parallel
+      const batchPromises = batchImages.map(async ({ pageNum, image }) => {
         try {
           const text = await ocrSingleImage(image, pageNum, totalPages, apiKey);
           return { pageNum, text: text || '' };
@@ -684,7 +684,9 @@ async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise
       allResults.push(...batchResults);
       
       const successCount = batchResults.filter(r => r.text.length > 50).length;
-      console.log(`[ProcessDocs] Batch ${batchNum} done: ${successCount}/${batch.length} extracted`);
+      console.log(`[ProcessDocs] Batch ${batchNum + 1} done: ${successCount}/${batchImages.length} extracted`);
+      
+      // Images are now out of scope and can be garbage collected
     }
     
     pdf.destroy();
@@ -703,7 +705,7 @@ async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise
       throw new Error('Could not extract text from any pages');
     }
     
-    return fullText.substring(0, 200000); // Allow large docs
+    return fullText.substring(0, 200000);
     
   } catch (err: any) {
     console.error('[ProcessDocs] PDF processing error:', err?.message || err);
