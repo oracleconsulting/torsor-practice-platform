@@ -318,7 +318,8 @@ function sanitizeForLLM(rawText: string): { sanitizedText: string; extractedMetr
 async function extractTextFromStorage(
   supabase: any, 
   fileUrl: string, 
-  fileType: string
+  fileType: string,
+  saveCallback?: (text: string) => Promise<void>
 ): Promise<string> {
   try {
     console.log(`[ProcessDocs] Extracting from: ${fileUrl}`);
@@ -378,7 +379,7 @@ async function extractTextFromStorage(
     // PDF files - use unpdf for proper text extraction
     if (lowerType.includes('pdf') || lowerType.endsWith('.pdf')) {
       console.log('[ProcessDocs] Extracting text from PDF...');
-      const text = await extractTextFromPDF(buffer);
+      const text = await extractTextFromPDF(buffer, saveCallback);
       if (text && text.length > 50) {
         console.log(`[ProcessDocs] Successfully extracted ${text.length} chars from PDF`);
         return text;
@@ -413,7 +414,10 @@ async function extractTextFromStorage(
 // PDF TEXT EXTRACTION - Uses unpdf library for proper compressed PDF handling
 // ============================================================================
 
-async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
+async function extractTextFromPDF(
+  buffer: ArrayBuffer,
+  saveCallback?: (text: string) => Promise<void>
+): Promise<string> {
   const uint8Array = new Uint8Array(buffer);
   
   // Try unpdf first - handles compressed PDFs properly
@@ -479,7 +483,7 @@ async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
   // If we get here, it's likely a scanned PDF - try OCR via Vision LLM
   console.log('[ProcessDocs] Text extraction failed - attempting OCR via Vision LLM...');
   try {
-    const ocrText = await extractTextWithOCR(buffer);
+    const ocrText = await extractTextWithOCR(buffer, saveCallback);
     if (ocrText && ocrText.length > 50) {
       console.log(`[ProcessDocs] OCR extracted: ${ocrText.length} chars`);
       return ocrText;
@@ -512,7 +516,10 @@ function uint8ArrayToBase64(uint8Array: Uint8Array): string {
   return btoa(binaryString);
 }
 
-async function extractTextWithOCR(buffer: ArrayBuffer): Promise<string> {
+async function extractTextWithOCR(
+  buffer: ArrayBuffer, 
+  saveCallback?: (text: string) => Promise<void>
+): Promise<string> {
   console.log(`[ProcessDocs] Attempting OCR for scanned PDF (${Math.round(buffer.byteLength / 1024)}KB)`);
   
   // Try Google Cloud Vision first (best for full document OCR)
@@ -534,7 +541,7 @@ async function extractTextWithOCR(buffer: ArrayBuffer): Promise<string> {
     throw new Error('No OCR API keys configured (GOOGLE_CLOUD_API_KEY or OPENROUTER_API_KEY)');
   }
   
-  return await ocrWithClaudeVision(buffer, openRouterKey);
+  return await ocrWithClaudeVision(buffer, openRouterKey, saveCallback);
 }
 
 // Google Cloud Vision API - handles full PDFs natively, best for documents
@@ -634,20 +641,24 @@ async function ocrWithGoogleVisionSync(buffer: ArrayBuffer, apiKey: string): Pro
   return allText.join('\n\n');
 }
 
-// OCR ALL pages - with timeout protection to save partial results
-async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise<string> {
-  console.log('[ProcessDocs] Using batched Vision OCR - ALL pages with timeout protection...');
+// OCR ALL pages - with INCREMENTAL SAVES after each batch
+async function ocrWithClaudeVision(
+  buffer: ArrayBuffer, 
+  apiKey: string,
+  saveCallback?: (text: string) => Promise<void>
+): Promise<string> {
+  console.log('[ProcessDocs] Using batched Vision OCR with INCREMENTAL saves...');
   
   const uint8Array = new Uint8Array(buffer);
   const startTime = Date.now();
-  const MAX_RUNTIME_MS = 120000; // 2 minutes - leave buffer before 2.5min timeout
+  const MAX_RUNTIME_MS = 110000; // 1 min 50s - leave buffer for final save
   
   try {
     const unpdf = await import('https://esm.sh/unpdf@0.12.1?bundle');
     const pdf = await unpdf.getDocumentProxy(uint8Array);
     const totalPages = pdf.numPages;
     
-    console.log(`[ProcessDocs] PDF has ${totalPages} pages - processing with timeout protection`);
+    console.log(`[ProcessDocs] PDF has ${totalPages} pages - processing with incremental saves`);
     
     // Process in batches of 3
     const BATCH_SIZE = 3;
@@ -655,11 +666,12 @@ async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise
     const totalBatches = Math.ceil(totalPages / BATCH_SIZE);
     
     for (let batchNum = 0; batchNum < totalBatches; batchNum++) {
-      // Check if we're running low on time
       const elapsed = Date.now() - startTime;
+      
+      // Check timeout BEFORE starting batch
       if (elapsed > MAX_RUNTIME_MS) {
-        console.log(`[ProcessDocs] ⏱️ Timeout approaching after ${Math.round(elapsed/1000)}s - saving ${allResults.length} pages`);
-        break; // Save what we have
+        console.log(`[ProcessDocs] ⏱️ Timeout approaching at ${Math.round(elapsed/1000)}s - doing final save`);
+        break;
       }
       
       const startPage = batchNum * BATCH_SIZE + 1;
@@ -693,36 +705,47 @@ async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise
       
       const successCount = batchResults.filter(r => r.text.length > 50).length;
       console.log(`[ProcessDocs] Batch ${batchNum + 1} done: ${successCount}/${batchImages.length} extracted`);
+      
+      // INCREMENTAL SAVE after each batch - never lose data!
+      if (saveCallback && allResults.length > 0) {
+        const partialText = buildOcrText(allResults, totalPages);
+        try {
+          await saveCallback(partialText);
+          console.log(`[ProcessDocs] 💾 Saved ${partialText.length} chars after batch ${batchNum + 1}`);
+        } catch (saveErr: any) {
+          console.error(`[ProcessDocs] Save error:`, saveErr?.message);
+        }
+      }
     }
     
     pdf.destroy();
     
-    // Sort by page number and combine
-    allResults.sort((a, b) => a.pageNum - b.pageNum);
-    const successPages = allResults.filter(r => r.text.length > 50).length;
+    const fullText = buildOcrText(allResults, totalPages);
+    console.log(`[ProcessDocs] ✅ OCR complete: ${fullText.length} chars`);
     
-    // Add note if we didn't finish all pages
-    let fullText = allResults
-      .filter(r => r.text.length > 10)
-      .map(r => `--- PAGE ${r.pageNum} ---\n${r.text}`)
-      .join('\n\n');
-    
-    if (successPages < totalPages) {
-      fullText += `\n\n--- NOTE: Extracted ${successPages} of ${totalPages} pages (timeout protection) ---`;
-    }
-    
-    console.log(`[ProcessDocs] ✅ OCR complete: ${fullText.length} chars from ${successPages}/${totalPages} pages`);
-    
-    if (successPages === 0) {
-      throw new Error('Could not extract text from any pages');
-    }
-    
-    return fullText.substring(0, 200000);
+    return fullText;
     
   } catch (err: any) {
     console.error('[ProcessDocs] PDF processing error:', err?.message || err);
     throw err;
   }
+}
+
+// Helper to build OCR text output
+function buildOcrText(results: {pageNum: number, text: string}[], totalPages: number): string {
+  const sorted = [...results].sort((a, b) => a.pageNum - b.pageNum);
+  const successPages = sorted.filter(r => r.text.length > 50).length;
+  
+  let text = sorted
+    .filter(r => r.text.length > 10)
+    .map(r => `--- PAGE ${r.pageNum} ---\n${r.text}`)
+    .join('\n\n');
+  
+  if (successPages < totalPages) {
+    text += `\n\n--- NOTE: Extracted ${successPages} of ${totalPages} pages ---`;
+  }
+  
+  return text.substring(0, 200000);
 }
 
 // ALL pages - no assumptions about document structure (8, 20, or 47 pages - doesn't matter)
@@ -1078,9 +1101,25 @@ serve(async (req) => {
       try {
         console.log(`Processing: ${doc.fileName}`);
         
+        // Create save callback for incremental OCR saves
+        const incrementalSaveCallback = contextId ? async (text: string) => {
+          const cleanedText = text
+            .replace(/\x00/g, '')
+            .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+            .replace(/\\u[0-9a-fA-F]{0,3}(?![0-9a-fA-F])/g, '')
+            .replace(/\\/g, '\\\\')
+            .replace(/[\uFFFD\uFFFE\uFFFF]/g, '')
+            .substring(0, 100000);
+          
+          await supabase
+            .from('client_context')
+            .update({ content: cleanedText, processed: true })
+            .eq('id', contextId);
+        } : undefined;
+        
         // 1. Extract text from document using authenticated Supabase Storage download
         // (NOT public URL fetch - client-documents bucket is PRIVATE)
-        const rawText = await extractTextFromStorage(supabase, doc.fileUrl, doc.fileType);
+        const rawText = await extractTextFromStorage(supabase, doc.fileUrl, doc.fileType, incrementalSaveCallback);
         console.log(`Extracted ${rawText.length} chars from ${doc.fileName}`);
         
         // 2. Detect data source type (accounts vs transcript)
