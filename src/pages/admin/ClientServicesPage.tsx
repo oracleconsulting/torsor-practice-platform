@@ -2287,7 +2287,7 @@ function DiscoveryClientModal({
           } else {
             console.log('✅ Document processed successfully:', data);
           }
-        }).catch(err => {
+        }).catch(() => {
           // Expected for long-running processing - function may still complete server-side
           console.log('Document processing running in background (may take 2-3 minutes for large PDFs)');
         });
