@@ -1,8 +1,10 @@
 // ============================================================================
-// DISCOVERY REPORT - PASS 1: EXTRACTION & SCORING
+// DISCOVERY REPORT - PASS 1: EXTRACTION & SCORING + 7-DIMENSION ANALYSIS
 // ============================================================================
 // Analyzes discovery responses, calculates service scores, extracts emotional
-// anchors, and detects special patterns (burnout, capital raising, lifestyle)
+// anchors, detects special patterns, AND runs comprehensive 7-dimension
+// financial analysis (valuation, trajectory, payroll, productivity, working
+// capital, exit readiness, cost of inaction)
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -11,6 +13,302 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// ============================================================================
+// 7-DIMENSION ANALYSIS TYPES
+// ============================================================================
+
+interface PayrollBenchmark {
+  typical: number;
+  good: number;
+  concern: number;
+  notes: string;
+}
+
+interface PayrollAnalysis {
+  isOverstaffed: boolean;
+  excessPercentage: number;
+  annualExcess: number;
+  benchmark: PayrollBenchmark;
+  assessment: 'efficient' | 'typical' | 'elevated' | 'concerning';
+  calculation: string;
+  staffCosts: number;
+  turnover: number;
+  staffCostsPct: number;
+  isValidated: boolean;
+  validationErrors: string[];
+}
+
+interface ValuationAdjustment {
+  factor: string;
+  impact: number;
+  reason: string;
+  source: 'accounts' | 'assessment' | 'calculated';
+}
+
+interface HiddenAsset {
+  type: 'property' | 'cash' | 'ip' | 'contracts' | 'other';
+  value: number | null;
+  description: string;
+}
+
+interface ValuationAnalysis {
+  hasData: boolean;
+  operatingProfit: number | null;
+  netAssets: number | null;
+  baseMultipleLow: number;
+  baseMultipleHigh: number;
+  adjustments: ValuationAdjustment[];
+  adjustedMultipleLow: number;
+  adjustedMultipleHigh: number;
+  conservativeValue: number | null;
+  midRangeValue: number | null;
+  optimisticValue: number | null;
+  hiddenAssets: HiddenAsset[];
+  narrative: string;
+}
+
+interface TrajectoryAnalysis {
+  hasData: boolean;
+  currentRevenue: number | null;
+  priorRevenue: number | null;
+  absoluteChange: number | null;
+  percentageChange: number | null;
+  trend: 'growing' | 'stable' | 'declining';
+  concernLevel: 'none' | 'monitor' | 'urgent';
+  ownerPerception: string | null;
+  marketContext: string | null;
+  narrative: string;
+}
+
+interface ProductivityAnalysis {
+  hasData: boolean;
+  revenue: number | null;
+  employeeCount: number | null;
+  revenuePerHead: number | null;
+  benchmarkLow: number;
+  benchmarkHigh: number;
+  gap: number | null;
+  impliedHeadcount: number | null;
+  excessHeadcount: number | null;
+  narrative: string;
+}
+
+interface WorkingCapitalConcern {
+  metric: string;
+  value: number;
+  benchmark: number;
+  concern: string;
+  tiedUpCapital?: number;
+}
+
+interface WorkingCapitalAnalysis {
+  hasData: boolean;
+  debtorDays: number | null;
+  stockDays: number | null;
+  creditorDays: number | null;
+  cashConversionCycle: number | null;
+  cashPosition: number | null;
+  cashAsMonthsRunway: number | null;
+  concerns: WorkingCapitalConcern[];
+  narrative: string;
+}
+
+interface ExitReadinessFactor {
+  name: string;
+  weight: number;
+  score: number;
+  maxScore: number;
+  status: 'green' | 'amber' | 'red';
+  evidence: string;
+}
+
+interface ExitReadinessAnalysis {
+  score: number;
+  maxScore: number;
+  readiness: 'ready' | 'nearly' | 'not_ready';
+  factors: ExitReadinessFactor[];
+  strengths: string[];
+  blockers: string[];
+  narrative: string;
+}
+
+interface CostComponent {
+  category: string;
+  annualCost: number | null;
+  costOverHorizon: number | null;
+  calculation: string;
+  confidence: 'calculated' | 'estimated' | 'indicative';
+}
+
+interface CostOfInactionAnalysis {
+  hasData: boolean;
+  timeHorizon: number;
+  components: CostComponent[];
+  totalAnnual: number;
+  totalOverHorizon: number;
+  narrative: string;
+}
+
+interface ComprehensiveAnalysis {
+  dataQuality: 'comprehensive' | 'partial' | 'limited';
+  availableMetrics: string[];
+  missingMetrics: string[];
+  valuation: ValuationAnalysis | null;
+  trajectory: TrajectoryAnalysis | null;
+  payroll: PayrollAnalysis | null;
+  productivity: ProductivityAnalysis | null;
+  workingCapital: WorkingCapitalAnalysis | null;
+  exitReadiness: ExitReadinessAnalysis | null;
+  costOfInaction: CostOfInactionAnalysis | null;
+}
+
+interface ExtractedFinancials {
+  hasAccounts: boolean;
+  source?: string;
+  turnover?: number;
+  turnoverPriorYear?: number;
+  turnoverGrowth?: number;
+  totalStaffCosts?: number;
+  staffCostsPercentOfRevenue?: number;
+  operatingProfit?: number;
+  ebitda?: number;
+  netAssets?: number;
+  employeeCount?: number;
+  grossProfit?: number;
+  grossMarginPct?: number;
+  cash?: number;
+  debtors?: number;
+  creditors?: number;
+  stock?: number;
+  fixedAssets?: number;
+  freeholdProperty?: number;
+  costOfSales?: number;
+  revenuePerEmployee?: number;
+}
+
+interface DestinationClarityAnalysis {
+  score: number;
+  reasoning: string;
+  factors: string[];
+}
+
+interface ValuationSignals {
+  marketPosition: 'leader' | 'niche' | 'competitor';
+  founderDependency: 'optional' | 'moderate' | 'critical';
+  hasDocumentation: boolean;
+  hasUnresolvedIssues: boolean;
+  coreBusinessDeclining: boolean;
+  exitTimeline: string;
+  avoidedConversation: string;
+}
+
+// ============================================================================
+// INDUSTRY PAYROLL BENCHMARKS (UK SME)
+// ============================================================================
+
+const PAYROLL_BENCHMARKS: Record<string, PayrollBenchmark> = {
+  // Distribution & Wholesale (28-32% is healthy range)
+  'wholesale_distribution': { typical: 30, good: 28, concern: 32, notes: 'Wholesale/distribution - 28-32% healthy' },
+  'distribution': { typical: 30, good: 28, concern: 32, notes: 'Distribution' },
+  'wholesale': { typical: 30, good: 28, concern: 32, notes: 'Wholesale' },
+  'keys_lockers': { typical: 30, good: 28, concern: 32, notes: 'Keys/lockers wholesale' },
+  
+  // Professional Services (45-60% typical)
+  'professional_services': { typical: 52, good: 45, concern: 60, notes: 'People are the product' },
+  'consulting': { typical: 52, good: 45, concern: 60, notes: 'Consulting' },
+  'accountancy': { typical: 50, good: 45, concern: 55, notes: 'Accountancy' },
+  'legal': { typical: 52, good: 45, concern: 60, notes: 'Legal' },
+  
+  // Technology (35-50% typical)
+  'technology': { typical: 42, good: 35, concern: 50, notes: 'Technology' },
+  'saas': { typical: 38, good: 30, concern: 45, notes: 'SaaS' },
+  'software': { typical: 42, good: 35, concern: 50, notes: 'Software' },
+  
+  // Construction (30-40% typical)
+  'construction': { typical: 35, good: 30, concern: 40, notes: 'Construction' },
+  'trades': { typical: 35, good: 30, concern: 40, notes: 'Trades' },
+  
+  // Retail (15-25% typical)
+  'retail': { typical: 20, good: 15, concern: 25, notes: 'Retail' },
+  
+  // Manufacturing (25-35% typical)
+  'manufacturing': { typical: 30, good: 25, concern: 35, notes: 'Manufacturing' },
+  
+  // Default
+  'general_business': { typical: 35, good: 30, concern: 40, notes: 'UK SME average' }
+};
+
+function getPayrollBenchmark(industry: string): PayrollBenchmark {
+  const lower = (industry || '').toLowerCase();
+  
+  // Exact match
+  if (PAYROLL_BENCHMARKS[lower]) return PAYROLL_BENCHMARKS[lower];
+  
+  // Keys/lockers detection
+  if (lower.includes('key') || lower.includes('lock') || lower.includes('locker') || lower.includes('security hardware')) {
+    console.log('[Pass1] Detected keys/lockers -> wholesale_distribution');
+    return PAYROLL_BENCHMARKS['wholesale_distribution'];
+  }
+  
+  // Distribution
+  if (lower.includes('distrib') || lower.includes('wholesale') || lower.includes('supply')) {
+    return PAYROLL_BENCHMARKS['wholesale_distribution'];
+  }
+  
+  // Technology
+  if (lower.includes('tech') || lower.includes('software') || lower.includes('saas')) {
+    return PAYROLL_BENCHMARKS['technology'];
+  }
+  
+  // Professional services
+  if (lower.includes('consult') || lower.includes('advisory')) {
+    return PAYROLL_BENCHMARKS['professional_services'];
+  }
+  
+  // Accountancy
+  if (lower.includes('account') || lower.includes('bookkeep')) {
+    return PAYROLL_BENCHMARKS['accountancy'];
+  }
+  
+  return PAYROLL_BENCHMARKS['general_business'];
+}
+
+// ============================================================================
+// INDUSTRY DETECTION
+// ============================================================================
+
+function detectIndustry(responses: Record<string, any>, companyName?: string): string {
+  const allText = JSON.stringify({ ...responses, companyName }).toLowerCase();
+  
+  if (allText.includes('key') || allText.includes('locker') || allText.includes('lock') || 
+      allText.includes('security hardware') || allText.includes('office furniture')) {
+    return 'keys_lockers';
+  }
+  if (allText.includes('distribut') || allText.includes('wholesale') || allText.includes('supply chain')) {
+    return 'wholesale_distribution';
+  }
+  if (allText.includes('saas') || allText.includes('software') || allText.includes('platform') || allText.includes('app')) {
+    return 'saas';
+  }
+  if (allText.includes('consult') || allText.includes('advisory')) {
+    return 'professional_services';
+  }
+  if (allText.includes('accountan') || allText.includes('bookkeep')) {
+    return 'accountancy';
+  }
+  if (allText.includes('construction') || allText.includes('building') || allText.includes('trade')) {
+    return 'construction';
+  }
+  if (allText.includes('retail') || allText.includes('shop') || allText.includes('ecommerce')) {
+    return 'retail';
+  }
+  if (allText.includes('manufactur') || allText.includes('factory')) {
+    return 'manufacturing';
+  }
+  
+  return 'general_business';
 }
 
 // ============================================================================
@@ -444,6 +742,562 @@ function scoreServicesFromDiscovery(responses: Record<string, any>): ScoringResu
 }
 
 // ============================================================================
+// 7-DIMENSION ANALYSIS FUNCTIONS
+// ============================================================================
+
+// Extract valuation signals from assessment responses
+function extractValuationSignals(responses: Record<string, any>): ValuationSignals {
+  const allText = JSON.stringify(responses).toLowerCase();
+  
+  // Market position
+  let marketPosition: 'leader' | 'niche' | 'competitor' = 'competitor';
+  if (allText.includes('market leader') || allText.includes('clear leader') || allText.includes('dominant')) {
+    marketPosition = 'leader';
+  } else if (allText.includes('niche') || allText.includes('specialist')) {
+    marketPosition = 'niche';
+  }
+  
+  // Founder dependency
+  const depResponse = (responses.sd_day_without_you || responses.dd_day_without_you || 
+                       responses.sd_founder_dependency || '').toLowerCase();
+  let founderDependency: 'optional' | 'moderate' | 'critical' = 'moderate';
+  if (depResponse.includes('runs fine') || depResponse.includes('ticks along') || 
+      depResponse.includes('optional') || depResponse.includes('without me')) {
+    founderDependency = 'optional';
+  } else if (depResponse.includes('critical') || depResponse.includes('falls apart') || 
+             depResponse.includes('need me') || depResponse.includes('rely on me')) {
+    founderDependency = 'critical';
+  }
+  
+  // Documentation
+  const hasDocumentation = allText.includes('documented') || allText.includes('procedures') || 
+                           allText.includes('sops') || allText.includes('processes written');
+  
+  // Unresolved issues
+  const avoidedConversation = responses.sd_avoided_conversation || responses.dd_avoided_conversation || '';
+  const hasUnresolvedIssues = avoidedConversation.length > 10;
+  
+  // Core business declining
+  const coreBusinessDeclining = allText.includes('decline') || allText.includes('shrinking') || 
+                                 allText.includes('slow decline') || allText.includes('dying');
+  
+  // Exit timeline
+  const exitTimeline = responses.sd_exit_timeline || responses.dd_exit_mindset || '';
+  
+  return {
+    marketPosition, founderDependency, hasDocumentation, hasUnresolvedIssues,
+    coreBusinessDeclining, exitTimeline, avoidedConversation
+  };
+}
+
+// 1. PAYROLL EFFICIENCY ANALYSIS
+function analysePayrollEfficiency(financials: ExtractedFinancials, industry: string): PayrollAnalysis | null {
+  if (!financials.turnover || !financials.totalStaffCosts) {
+    return null;
+  }
+  
+  const turnover = financials.turnover;
+  const staffCosts = financials.totalStaffCosts;
+  const staffCostsPct = (staffCosts / turnover) * 100;
+  const benchmark = getPayrollBenchmark(industry);
+  
+  const excessPercentage = Math.max(0, staffCostsPct - benchmark.good);
+  const annualExcess = Math.round((excessPercentage / 100) * turnover);
+  const isOverstaffed = staffCostsPct > benchmark.concern;
+  
+  let assessment: 'efficient' | 'typical' | 'elevated' | 'concerning' = 'typical';
+  if (staffCostsPct <= benchmark.good) assessment = 'efficient';
+  else if (staffCostsPct <= benchmark.typical) assessment = 'typical';
+  else if (staffCostsPct <= benchmark.concern) assessment = 'elevated';
+  else assessment = 'concerning';
+  
+  const calculation = `£${staffCosts.toLocaleString()} ÷ £${turnover.toLocaleString()} = ${staffCostsPct.toFixed(1)}%. ` +
+    `Benchmark ${benchmark.good}-${benchmark.typical}%. Excess ${excessPercentage.toFixed(1)}% = £${annualExcess.toLocaleString()}/year`;
+  
+  return {
+    isOverstaffed, excessPercentage, annualExcess, benchmark, assessment, calculation,
+    staffCosts, turnover, staffCostsPct, isValidated: true, validationErrors: []
+  };
+}
+
+// 2. VALUATION ANALYSIS
+function analyseValuation(financials: ExtractedFinancials, valuationSignals: ValuationSignals, industry: string): ValuationAnalysis | null {
+  if (!financials.operatingProfit && !financials.ebitda && !financials.netAssets) {
+    return null;
+  }
+  
+  // Industry-specific base multiples
+  const industryMultiples: Record<string, { low: number; high: number }> = {
+    'wholesale_distribution': { low: 3.0, high: 5.0 },
+    'keys_lockers': { low: 3.0, high: 5.0 },
+    'professional_services': { low: 4.0, high: 8.0 },
+    'accountancy': { low: 4.0, high: 7.0 },
+    'construction': { low: 2.5, high: 4.5 },
+    'manufacturing': { low: 3.0, high: 5.0 },
+    'retail': { low: 2.0, high: 4.0 },
+    'technology': { low: 5.0, high: 10.0 },
+    'saas': { low: 6.0, high: 12.0 },
+    'general_business': { low: 3.0, high: 5.0 }
+  };
+  
+  const industryLower = industry.toLowerCase();
+  let selectedIndustry = 'general_business';
+  for (const key of Object.keys(industryMultiples)) {
+    if (industryLower.includes(key)) { selectedIndustry = key; break; }
+  }
+  
+  const baseMultiples = industryMultiples[selectedIndustry];
+  const adjustments: ValuationAdjustment[] = [];
+  
+  // Adjustment factors
+  if (valuationSignals.marketPosition === 'leader') {
+    adjustments.push({ factor: 'Market Leader', impact: 0.5, reason: 'Premium for dominant market position', source: 'assessment' });
+  }
+  if (valuationSignals.founderDependency === 'optional') {
+    adjustments.push({ factor: 'Low Founder Dependency', impact: 0.5, reason: 'Business runs without owner', source: 'assessment' });
+  } else if (valuationSignals.founderDependency === 'critical') {
+    adjustments.push({ factor: 'High Founder Dependency', impact: -0.5, reason: 'Business relies heavily on owner', source: 'assessment' });
+  }
+  if (valuationSignals.hasDocumentation) {
+    adjustments.push({ factor: 'Documented Processes', impact: 0.25, reason: 'Easier transition for buyers', source: 'assessment' });
+  }
+  if (financials.turnoverGrowth !== undefined) {
+    if (financials.turnoverGrowth > 5) {
+      adjustments.push({ factor: 'Growing Revenue', impact: 0.5, reason: `Revenue up ${financials.turnoverGrowth.toFixed(1)}% YoY`, source: 'accounts' });
+    } else if (financials.turnoverGrowth < -2) {
+      adjustments.push({ factor: 'Declining Revenue', impact: -0.5, reason: `Revenue down ${Math.abs(financials.turnoverGrowth).toFixed(1)}% YoY`, source: 'accounts' });
+    }
+  }
+  if (valuationSignals.hasUnresolvedIssues) {
+    adjustments.push({ factor: 'Unresolved Issues', impact: -0.25, reason: 'Avoided conversations or known problems', source: 'assessment' });
+  }
+  if (valuationSignals.coreBusinessDeclining) {
+    adjustments.push({ factor: 'Core Business Declining', impact: -0.5, reason: 'Structural decline in primary market', source: 'assessment' });
+  }
+  
+  const totalAdjustment = adjustments.reduce((sum, adj) => sum + adj.impact, 0);
+  const adjustedLow = Math.max(baseMultiples.low + totalAdjustment, 1.5);
+  const adjustedHigh = Math.max(baseMultiples.high + totalAdjustment, 2.0);
+  
+  const earningsBase = financials.operatingProfit || financials.ebitda || 0;
+  const conservativeValue = earningsBase > 0 ? Math.round(earningsBase * adjustedLow) : null;
+  const midRangeValue = earningsBase > 0 ? Math.round(earningsBase * ((adjustedLow + adjustedHigh) / 2)) : null;
+  const optimisticValue = earningsBase > 0 ? Math.round(earningsBase * adjustedHigh) : null;
+  
+  // Identify hidden assets
+  const hiddenAssets: HiddenAsset[] = [];
+  if (financials.freeholdProperty && financials.freeholdProperty > 50000) {
+    hiddenAssets.push({ type: 'property', value: financials.freeholdProperty, description: 'Freehold property on balance sheet' });
+  }
+  if (financials.cash && financials.turnover && financials.cash > financials.turnover * 0.15) {
+    const excessCash = financials.cash - (financials.turnover * 0.1);
+    hiddenAssets.push({ type: 'cash', value: excessCash, description: 'Excess cash above working capital needs' });
+  }
+  
+  // Build narrative
+  let narrative = '';
+  if (conservativeValue && optimisticValue) {
+    if (conservativeValue >= 1000000) {
+      narrative = `Indicative valuation range £${(conservativeValue/1000000).toFixed(1)}M-£${(optimisticValue/1000000).toFixed(1)}M `;
+    } else {
+      narrative = `Indicative valuation range £${(conservativeValue/1000).toFixed(0)}k-£${(optimisticValue/1000).toFixed(0)}k `;
+    }
+    narrative += `based on ${adjustedLow.toFixed(1)}-${adjustedHigh.toFixed(1)}x operating profit.`;
+    if (hiddenAssets.length > 0) {
+      const totalHidden = hiddenAssets.reduce((sum, a) => sum + (a.value || 0), 0);
+      narrative += ` Plus £${(totalHidden/1000).toFixed(0)}k in additional assets.`;
+    }
+  }
+  
+  return {
+    hasData: true, operatingProfit: financials.operatingProfit || null, netAssets: financials.netAssets || null,
+    baseMultipleLow: baseMultiples.low, baseMultipleHigh: baseMultiples.high, adjustments,
+    adjustedMultipleLow: adjustedLow, adjustedMultipleHigh: adjustedHigh,
+    conservativeValue, midRangeValue, optimisticValue, hiddenAssets, narrative
+  };
+}
+
+// 3. TRAJECTORY ANALYSIS
+function analyseTrajectory(financials: ExtractedFinancials, responses: Record<string, any>): TrajectoryAnalysis | null {
+  const currentRevenue = financials.turnover || null;
+  const priorRevenue = financials.turnoverPriorYear || null;
+  
+  const ownerPerception = responses.sd_challenges_facing || responses.dd_challenges_facing || null;
+  const marketContext = responses.sd_market_position || responses.dd_market_position || null;
+  
+  if (!currentRevenue) {
+    const allResponses = JSON.stringify(responses).toLowerCase();
+    if (allResponses.includes('decline') || allResponses.includes('shrinking') || allResponses.includes('falling')) {
+      return {
+        hasData: false, currentRevenue: null, priorRevenue: null, absoluteChange: null, percentageChange: null,
+        trend: 'declining', concernLevel: 'monitor', ownerPerception: 'Owner indicates business may be declining',
+        marketContext, narrative: 'No revenue data available, but assessment responses suggest declining trajectory.'
+      };
+    }
+    return null;
+  }
+  
+  let absoluteChange: number | null = null;
+  let percentageChange: number | null = null;
+  let trend: 'growing' | 'stable' | 'declining' = 'stable';
+  let concernLevel: 'none' | 'monitor' | 'urgent' = 'none';
+  
+  if (priorRevenue && priorRevenue > 0) {
+    absoluteChange = currentRevenue - priorRevenue;
+    percentageChange = ((currentRevenue - priorRevenue) / priorRevenue) * 100;
+    
+    if (percentageChange > 5) { trend = 'growing'; concernLevel = 'none'; }
+    else if (percentageChange < -5) { trend = 'declining'; concernLevel = 'urgent'; }
+    else if (percentageChange < -2) { trend = 'declining'; concernLevel = 'monitor'; }
+    else if (percentageChange < 2) { trend = 'stable'; concernLevel = 'none'; }
+    else { trend = 'growing'; concernLevel = 'none'; }
+  }
+  
+  let narrative = '';
+  if (percentageChange !== null) {
+    if (trend === 'declining') {
+      narrative = `Revenue ${percentageChange > -1 ? 'flat' : `down ${Math.abs(percentageChange).toFixed(1)}%`} year-on-year (£${Math.abs(absoluteChange!/1000).toFixed(0)}k).`;
+    } else if (trend === 'growing') {
+      narrative = `Revenue up ${percentageChange.toFixed(1)}% year-on-year (£${(absoluteChange!/1000).toFixed(0)}k). Positive momentum.`;
+    } else {
+      narrative = `Revenue stable year-on-year.`;
+    }
+  } else {
+    narrative = `Revenue £${(currentRevenue/1000000).toFixed(2)}M. No prior year comparison available.`;
+  }
+  
+  return {
+    hasData: true, currentRevenue, priorRevenue, absoluteChange, percentageChange,
+    trend, concernLevel, ownerPerception, marketContext, narrative
+  };
+}
+
+// 4. PRODUCTIVITY ANALYSIS
+function analyseProductivity(financials: ExtractedFinancials, industry: string): ProductivityAnalysis | null {
+  if (!financials.turnover || !financials.employeeCount) return null;
+  
+  const revenue = financials.turnover;
+  const employeeCount = financials.employeeCount;
+  const revenuePerHead = revenue / employeeCount;
+  
+  const industryBenchmarks: Record<string, { low: number; high: number }> = {
+    'wholesale_distribution': { low: 120000, high: 180000 },
+    'keys_lockers': { low: 120000, high: 180000 },
+    'professional_services': { low: 80000, high: 150000 },
+    'accountancy': { low: 80000, high: 150000 },
+    'construction': { low: 100000, high: 150000 },
+    'manufacturing': { low: 80000, high: 120000 },
+    'retail': { low: 60000, high: 100000 },
+    'technology': { low: 100000, high: 200000 },
+    'saas': { low: 150000, high: 300000 },
+    'general_business': { low: 80000, high: 130000 }
+  };
+  
+  const industryLower = industry.toLowerCase();
+  let selectedIndustry = 'general_business';
+  for (const key of Object.keys(industryBenchmarks)) {
+    if (industryLower.includes(key)) { selectedIndustry = key; break; }
+  }
+  
+  const benchmark = industryBenchmarks[selectedIndustry];
+  const gap = benchmark.low - revenuePerHead;
+  const impliedHeadcount = Math.round(revenue / benchmark.low);
+  const excessHeadcount = employeeCount - impliedHeadcount;
+  
+  let narrative = `Revenue per head £${(revenuePerHead/1000).toFixed(0)}k vs industry benchmark £${(benchmark.low/1000).toFixed(0)}k-£${(benchmark.high/1000).toFixed(0)}k. `;
+  if (revenuePerHead < benchmark.low) {
+    narrative += `Below benchmark suggests ${excessHeadcount > 0 ? `${excessHeadcount} potential excess employees` : 'productivity improvement opportunity'}.`;
+  } else if (revenuePerHead > benchmark.high) {
+    narrative += `Above benchmark - team is highly productive, but watch for burnout.`;
+  } else {
+    narrative += `Within healthy range.`;
+  }
+  
+  return {
+    hasData: true, revenue, employeeCount, revenuePerHead,
+    benchmarkLow: benchmark.low, benchmarkHigh: benchmark.high,
+    gap: gap > 0 ? gap : null, impliedHeadcount, excessHeadcount: excessHeadcount > 0 ? excessHeadcount : null, narrative
+  };
+}
+
+// 5. WORKING CAPITAL ANALYSIS
+function analyseWorkingCapital(financials: ExtractedFinancials): WorkingCapitalAnalysis | null {
+  if (!financials.turnover) return null;
+  
+  const turnover = financials.turnover;
+  const costOfSales = financials.costOfSales || turnover * 0.5;
+  
+  const debtorDays = financials.debtors ? Math.round((financials.debtors / turnover) * 365) : null;
+  const stockDays = financials.stock ? Math.round((financials.stock / costOfSales) * 365) : null;
+  const creditorDays = financials.creditors ? Math.round((financials.creditors / costOfSales) * 365) : null;
+  const cashConversionCycle = (debtorDays !== null && stockDays !== null && creditorDays !== null)
+    ? debtorDays + stockDays - creditorDays : null;
+  
+  const monthlyOverheads = (financials.totalStaffCosts || 0) / 12;
+  const cashAsMonthsRunway = (financials.cash && monthlyOverheads > 0) ? financials.cash / monthlyOverheads : null;
+  
+  const concerns: WorkingCapitalConcern[] = [];
+  if (debtorDays && debtorDays > 60) {
+    concerns.push({ metric: 'Debtor Days', value: debtorDays, benchmark: 45, concern: 'Slow collection of receivables', tiedUpCapital: financials.debtors });
+  }
+  if (stockDays && stockDays > 90) {
+    concerns.push({ metric: 'Stock Days', value: stockDays, benchmark: 60, concern: 'High inventory levels tying up working capital', tiedUpCapital: financials.stock });
+  }
+  if (cashConversionCycle && cashConversionCycle > 90) {
+    concerns.push({ metric: 'Cash Conversion Cycle', value: cashConversionCycle, benchmark: 60, concern: 'Long cycle from spend to cash collection' });
+  }
+  
+  let narrative = '';
+  if (debtorDays !== null || stockDays !== null) {
+    const parts: string[] = [];
+    if (debtorDays) parts.push(`Debtor days: ${debtorDays}`);
+    if (stockDays) parts.push(`Stock days: ${stockDays}`);
+    if (creditorDays) parts.push(`Creditor days: ${creditorDays}`);
+    narrative = parts.join(', ') + '. ';
+  }
+  if (concerns.length > 0) {
+    const totalTiedUp = concerns.reduce((sum, c) => sum + (c.tiedUpCapital || 0), 0);
+    if (totalTiedUp > 0) narrative += `£${(totalTiedUp/1000).toFixed(0)}k tied up in working capital. `;
+    narrative += concerns.map(c => c.concern).join('. ') + '.';
+  } else if (narrative) {
+    narrative += 'Working capital efficiency appears healthy.';
+  }
+  if (cashAsMonthsRunway !== null) {
+    narrative += ` Cash runway: ${cashAsMonthsRunway.toFixed(1)} months.`;
+  }
+  
+  return {
+    hasData: debtorDays !== null || stockDays !== null || financials.cash !== undefined,
+    debtorDays, stockDays, creditorDays, cashConversionCycle,
+    cashPosition: financials.cash || null, cashAsMonthsRunway, concerns,
+    narrative: narrative || 'Insufficient data for working capital analysis.'
+  };
+}
+
+// 6. EXIT READINESS ANALYSIS
+function analyseExitReadiness(responses: Record<string, any>, financials: ExtractedFinancials): ExitReadinessAnalysis | null {
+  const factors: ExitReadinessFactor[] = [];
+  const allText = JSON.stringify(responses).toLowerCase();
+  
+  // 1. FOUNDER DEPENDENCY (20 points)
+  const dependencyResponse = responses.sd_day_without_you || responses.dd_day_without_you || responses.sd_founder_dependency || '';
+  const dependencyLower = dependencyResponse.toLowerCase();
+  let dependencyScore = 10, dependencyStatus: 'green' | 'amber' | 'red' = 'amber';
+  if (dependencyLower.includes('runs fine') || dependencyLower.includes('optional') || dependencyLower.includes('ticks along')) {
+    dependencyScore = 20; dependencyStatus = 'green';
+  } else if (dependencyLower.includes('critical') || dependencyLower.includes('falls apart')) {
+    dependencyScore = 0; dependencyStatus = 'red';
+  }
+  factors.push({ name: 'Founder Dependency', weight: 20, score: dependencyScore, maxScore: 20, status: dependencyStatus, evidence: dependencyResponse.substring(0, 100) || 'No data' });
+  
+  // 2. DOCUMENTATION (15 points)
+  let docScore = 8, docStatus: 'green' | 'amber' | 'red' = 'amber';
+  if (allText.includes('fully documented') || allText.includes('documented')) { docScore = 15; docStatus = 'green'; }
+  else if (allText.includes('nothing documented') || allText.includes('all in my head')) { docScore = 0; docStatus = 'red'; }
+  factors.push({ name: 'Documentation', weight: 15, score: docScore, maxScore: 15, status: docStatus, evidence: 'Based on assessment' });
+  
+  // 3. FINANCIAL CLARITY (15 points)
+  const financeResponse = responses.sd_financial_confidence || responses.dd_financial_confidence || '';
+  const financeLower = financeResponse.toLowerCase();
+  let financeScore = 8, financeStatus: 'green' | 'amber' | 'red' = 'amber';
+  if (financeLower.includes('completely on top') || financeLower.includes('weekly') || allText.includes('completely on top')) {
+    financeScore = 15; financeStatus = 'green';
+  } else if (financeLower.includes("don't know") || financeLower.includes('no idea')) {
+    financeScore = 0; financeStatus = 'red';
+  }
+  factors.push({ name: 'Financial Clarity', weight: 15, score: financeScore, maxScore: 15, status: financeStatus, evidence: financeResponse.substring(0, 100) || 'No data' });
+  
+  // 4. REVENUE TRAJECTORY (20 points)
+  let trajectoryScore = 10, trajectoryStatus: 'green' | 'amber' | 'red' = 'amber', trajectoryEvidence = 'No comparison data';
+  if (financials.turnoverGrowth !== undefined) {
+    if (financials.turnoverGrowth > 5) { trajectoryScore = 20; trajectoryStatus = 'green'; trajectoryEvidence = `Revenue up ${financials.turnoverGrowth.toFixed(1)}%`; }
+    else if (financials.turnoverGrowth > 0) { trajectoryScore = 15; trajectoryStatus = 'green'; trajectoryEvidence = `Revenue up ${financials.turnoverGrowth.toFixed(1)}%`; }
+    else if (financials.turnoverGrowth > -2) { trajectoryScore = 10; trajectoryStatus = 'amber'; trajectoryEvidence = `Revenue flat (${financials.turnoverGrowth.toFixed(1)}%)`; }
+    else { trajectoryScore = 0; trajectoryStatus = 'red'; trajectoryEvidence = `Revenue down ${Math.abs(financials.turnoverGrowth).toFixed(1)}%`; }
+  }
+  factors.push({ name: 'Revenue Trajectory', weight: 20, score: trajectoryScore, maxScore: 20, status: trajectoryStatus, evidence: trajectoryEvidence });
+  
+  // 5. TEAM ISSUES RESOLVED (15 points)
+  const avoidedResponse = responses.sd_avoided_conversation || responses.dd_avoided_conversation || '';
+  let teamScore = 15, teamStatus: 'green' | 'amber' | 'red' = 'green';
+  if (avoidedResponse && avoidedResponse.length > 10) { teamScore = 0; teamStatus = 'red'; }
+  factors.push({ name: 'Team Issues Resolved', weight: 15, score: teamScore, maxScore: 15, status: teamStatus, evidence: avoidedResponse ? `Avoiding: ${avoidedResponse.substring(0, 80)}` : 'No unresolved issues' });
+  
+  // 6. VALUATION BASELINE (15 points)
+  const hasValuation = allText.includes('valuation') || allText.includes('worth') || allText.includes('valued');
+  let valuationScore = 0, valuationStatus: 'green' | 'amber' | 'red' = 'red';
+  if (hasValuation) { valuationScore = 15; valuationStatus = 'green'; }
+  factors.push({ name: 'Valuation Baseline', weight: 15, score: valuationScore, maxScore: 15, status: valuationStatus, evidence: hasValuation ? 'Has considered valuation' : 'No formal valuation' });
+  
+  const totalScore = factors.reduce((sum, f) => sum + f.score, 0);
+  const maxScore = factors.reduce((sum, f) => sum + f.maxScore, 0);
+  const strengths = factors.filter(f => f.status === 'green').map(f => f.name);
+  const blockers = factors.filter(f => f.status === 'red').map(f => f.name);
+  const readiness = totalScore >= 70 ? 'ready' : totalScore >= 50 ? 'nearly' : 'not_ready';
+  
+  let narrative = `Exit readiness score: ${totalScore}/${maxScore} (${Math.round(totalScore/maxScore*100)}%). `;
+  if (strengths.length > 0) narrative += `Strengths: ${strengths.join(', ').toLowerCase()}. `;
+  if (blockers.length > 0) narrative += `Blockers: ${blockers.join(', ').toLowerCase()}.`;
+  
+  return { score: totalScore, maxScore, readiness, factors, strengths, blockers, narrative };
+}
+
+// 7. COST OF INACTION ANALYSIS
+function calculateCostOfInaction(
+  payrollAnalysis: PayrollAnalysis | null,
+  trajectoryAnalysis: TrajectoryAnalysis | null,
+  valuationAnalysis: ValuationAnalysis | null,
+  responses: Record<string, any>
+): CostOfInactionAnalysis {
+  const components: CostComponent[] = [];
+  
+  // Determine time horizon from exit timeline
+  let timeHorizon = 3;
+  const exitResponse = responses.sd_exit_timeline || responses.dd_exit_mindset || '';
+  if (exitResponse.includes('1-3') || exitResponse.includes('actively preparing')) timeHorizon = 2;
+  else if (exitResponse.includes('3-5')) timeHorizon = 4;
+  else if (exitResponse.includes('5+')) timeHorizon = 5;
+  
+  // 1. Payroll excess
+  if (payrollAnalysis?.annualExcess && payrollAnalysis.annualExcess > 0) {
+    components.push({
+      category: 'Payroll Excess', annualCost: payrollAnalysis.annualExcess,
+      costOverHorizon: payrollAnalysis.annualExcess * timeHorizon,
+      calculation: `£${(payrollAnalysis.annualExcess/1000).toFixed(0)}k/year × ${timeHorizon} years`,
+      confidence: 'calculated'
+    });
+  }
+  
+  // 2. Revenue decline
+  if (trajectoryAnalysis?.trend === 'declining' && trajectoryAnalysis.absoluteChange) {
+    const annualDecline = Math.abs(trajectoryAnalysis.absoluteChange);
+    let totalDecline = annualDecline;
+    for (let i = 1; i < timeHorizon; i++) totalDecline += annualDecline * Math.pow(1.5, i);
+    components.push({
+      category: 'Revenue Decline', annualCost: annualDecline,
+      costOverHorizon: Math.round(totalDecline),
+      calculation: `£${(annualDecline/1000).toFixed(0)}k decline, compounding over ${timeHorizon} years`,
+      confidence: 'estimated'
+    });
+  }
+  
+  // 3. Exit value suppression
+  if (valuationAnalysis?.adjustments) {
+    const negativeAdjustments = valuationAnalysis.adjustments.filter(a => a.impact < 0);
+    if (negativeAdjustments.length > 0 && valuationAnalysis.midRangeValue) {
+      const valueLost = Math.round(valuationAnalysis.midRangeValue * 0.1 * negativeAdjustments.length);
+      components.push({
+        category: 'Exit Value Suppression', annualCost: null,
+        costOverHorizon: valueLost,
+        calculation: `${negativeAdjustments.length} value-suppressing factor(s) on £${(valuationAnalysis.midRangeValue/1000000).toFixed(1)}M`,
+        confidence: 'indicative'
+      });
+    }
+  }
+  
+  const totalAnnual = components.filter(c => c.annualCost !== null).reduce((sum, c) => sum + (c.annualCost || 0), 0);
+  const totalOverHorizon = components.filter(c => c.costOverHorizon !== null).reduce((sum, c) => sum + (c.costOverHorizon || 0), 0);
+  
+  let narrative = '';
+  if (totalOverHorizon > 0) {
+    narrative = `Cost of inaction over ${timeHorizon}-year horizon: £${(totalOverHorizon/1000).toFixed(0)}k+. `;
+    const componentDescriptions = components.filter(c => c.costOverHorizon && c.costOverHorizon > 0)
+      .map(c => `${c.category}: £${(c.costOverHorizon!/1000).toFixed(0)}k`).join(', ');
+    narrative += `Breakdown: ${componentDescriptions}.`;
+  } else {
+    narrative = 'Insufficient data to calculate cost of inaction.';
+  }
+  
+  return { hasData: components.length > 0, timeHorizon, components, totalAnnual, totalOverHorizon, narrative };
+}
+
+// 8. DESTINATION CLARITY
+function calculateDestinationClarity(responses: Record<string, any>): DestinationClarityAnalysis {
+  const factors: string[] = [];
+  let score = 0;
+  const allResponses = JSON.stringify(responses).toLowerCase();
+  
+  // OUTCOME SPECIFICITY (0-3 points)
+  const outcomes = ['sold', 'sell', 'exit', 'retire', 'looked after', 'taken care', 'moved on', 'done'];
+  const outcomeCount = outcomes.filter(o => allResponses.includes(o)).length;
+  if (outcomeCount >= 3) { score += 3; factors.push(`${outcomeCount} specific outcomes mentioned`); }
+  else if (outcomeCount >= 1) { score += 2; factors.push(`${outcomeCount} outcome(s) mentioned`); }
+  
+  // EMOTIONAL CLARITY (0-2 points)
+  const emotionalTerms = ['stress', 'peace', 'freedom', 'security', 'done', 'moved on', 'worry', 'relief', 'weight'];
+  const emotionalCount = emotionalTerms.filter(t => allResponses.includes(t)).length;
+  if (emotionalCount >= 2) { score += 2; factors.push(`${emotionalCount} emotional terms detected`); }
+  else if (emotionalCount >= 1) { score += 1; factors.push(`${emotionalCount} emotional term detected`); }
+  
+  // TIMELINE CLARITY (0-2 points)
+  if (allResponses.includes('1-3 year') || allResponses.includes('1 to 3') || allResponses.includes('within 3') || allResponses.includes('next 2-3')) {
+    score += 2; factors.push('Specific timeline (1-3 years)');
+  } else if (allResponses.includes('few years') || allResponses.includes('soon') || allResponses.includes('ready to')) {
+    score += 1; factors.push('General timeline intent');
+  }
+  
+  // STAKEHOLDER AWARENESS (0-2 points)
+  if (allResponses.includes('colleagues') || allResponses.includes('team') || allResponses.includes('staff') || allResponses.includes('loyal')) {
+    score += 2; factors.push('Stakeholder awareness present');
+  }
+  
+  // CONVICTION (0-1 point)
+  if (allResponses.includes('time to move on') || allResponses.includes('ready to') || allResponses.includes('need to')) {
+    score += 1; factors.push('Strong conviction detected');
+  }
+  
+  score = Math.min(10, score);
+  
+  let reasoning = '';
+  if (score >= 8) reasoning = 'Crystal clear on the destination - specific outcome, timeline, and stakeholder considerations defined.';
+  else if (score >= 6) reasoning = 'Good clarity on direction with some specific elements defined.';
+  else if (score >= 4) reasoning = 'General sense of direction but lacking specific details.';
+  else reasoning = 'Destination unclear - needs discovery work to define outcomes.';
+  
+  return { score: Math.max(score, 1), reasoning, factors };
+}
+
+// ============================================================================
+// MASTER ORCHESTRATOR
+// ============================================================================
+
+function performComprehensiveAnalysis(
+  financials: ExtractedFinancials,
+  responses: Record<string, any>,
+  industry: string
+): ComprehensiveAnalysis {
+  const valuationSignals = extractValuationSignals(responses);
+  
+  const payroll = analysePayrollEfficiency(financials, industry);
+  const valuation = analyseValuation(financials, valuationSignals, industry);
+  const trajectory = analyseTrajectory(financials, responses);
+  const productivity = analyseProductivity(financials, industry);
+  const workingCapital = analyseWorkingCapital(financials);
+  const exitReadiness = analyseExitReadiness(responses, financials);
+  const costOfInaction = calculateCostOfInaction(payroll, trajectory, valuation, responses);
+  
+  const availableMetrics: string[] = [];
+  const missingMetrics: string[] = [];
+  
+  if (valuation?.hasData) availableMetrics.push('valuation'); else missingMetrics.push('valuation');
+  if (trajectory?.hasData) availableMetrics.push('trajectory'); else missingMetrics.push('trajectory');
+  if (payroll) availableMetrics.push('payroll'); else missingMetrics.push('payroll');
+  if (productivity?.hasData) availableMetrics.push('productivity'); else missingMetrics.push('productivity');
+  if (workingCapital?.hasData) availableMetrics.push('workingCapital'); else missingMetrics.push('workingCapital');
+  if (exitReadiness) availableMetrics.push('exitReadiness');
+  
+  const dataQuality = availableMetrics.length >= 5 ? 'comprehensive' :
+                      availableMetrics.length >= 3 ? 'partial' : 'limited';
+  
+  console.log('[Pass1] Comprehensive Analysis complete:', { dataQuality, availableMetrics });
+  
+  return {
+    dataQuality, availableMetrics, missingMetrics,
+    valuation, trajectory, payroll, productivity, workingCapital, exitReadiness, costOfInaction
+  };
+}
+
+// ============================================================================
 // MAIN HANDLER
 // ============================================================================
 
@@ -515,6 +1369,73 @@ serve(async (req) => {
       .eq('engagement_id', engagementId)
       .eq('is_for_ai_analysis', true);
 
+    // ========================================================================
+    // FETCH FINANCIAL DATA FOR 7-DIMENSION ANALYSIS
+    // ========================================================================
+    
+    let extractedFinancials: ExtractedFinancials = { hasAccounts: false };
+    
+    const { data: financialContext } = await supabase
+      .from('client_financial_context')
+      .select('*')
+      .eq('client_id', engagement.client_id)
+      .order('period_end_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    if (financialContext) {
+      const turnover = financialContext.turnover || financialContext.revenue;
+      const staffCosts = financialContext.staff_cost || financialContext.total_staff_costs;
+      const insights = financialContext.extracted_insights || {};
+      
+      if (turnover && staffCosts) {
+        extractedFinancials = {
+          hasAccounts: true,
+          source: 'client_financial_context',
+          turnover,
+          turnoverPriorYear: insights.turnover_prior_year || financialContext.turnover_prior_year,
+          turnoverGrowth: financialContext.revenue_growth_pct,
+          totalStaffCosts: staffCosts,
+          staffCostsPercentOfRevenue: (staffCosts / turnover) * 100,
+          operatingProfit: financialContext.operating_profit || insights.operating_profit,
+          ebitda: financialContext.ebitda || insights.ebitda,
+          netAssets: financialContext.net_assets || insights.net_assets,
+          employeeCount: financialContext.staff_count,
+          grossProfit: financialContext.gross_profit || insights.gross_profit,
+          grossMarginPct: financialContext.gross_margin_pct,
+          cash: financialContext.cash_position || insights.cash,
+          debtors: insights.debtors,
+          creditors: insights.creditors,
+          stock: insights.stock,
+          fixedAssets: insights.fixed_assets,
+          freeholdProperty: insights.freehold_property,
+          costOfSales: insights.cost_of_sales,
+        };
+        console.log('[Pass1] ✅ Loaded financials:', { 
+          turnover, staffCosts, 
+          operatingProfit: extractedFinancials.operatingProfit,
+          employeeCount: extractedFinancials.employeeCount
+        });
+      }
+    }
+    
+    // ========================================================================
+    // RUN 7-DIMENSION COMPREHENSIVE ANALYSIS
+    // ========================================================================
+    
+    const industry = detectIndustry(discoveryResponses, engagement.client?.client_company);
+    console.log('[Pass1] Detected industry:', industry);
+    
+    const comprehensiveAnalysis = performComprehensiveAnalysis(extractedFinancials, discoveryResponses, industry);
+    const destinationClarity = calculateDestinationClarity(discoveryResponses);
+    
+    console.log('[Pass1] Results:', {
+      dataQuality: comprehensiveAnalysis.dataQuality,
+      payrollExcess: comprehensiveAnalysis.payroll?.annualExcess,
+      exitReadiness: comprehensiveAnalysis.exitReadiness?.score,
+      destinationClarity: destinationClarity.score
+    });
+
     // Run scoring algorithm - pass the responses (from JSONB column or direct)
     const scoringResult = scoreServicesFromDiscovery(discoveryResponses);
 
@@ -546,8 +1467,39 @@ serve(async (req) => {
       change_readiness: discoveryResponses.dd_change_readiness || engagement.discovery.dd_change_readiness,
       primary_recommendations: primaryRecommendations,
       secondary_recommendations: secondaryRecommendations,
+      
+      // NEW: 7-Dimension Analysis Results
+      comprehensive_analysis: comprehensiveAnalysis,
+      destination_clarity: destinationClarity,
+      detected_industry: industry,
+      
+      // NEW: Pre-calculated values for Pass 2 injection
+      page4_numbers: {
+        payrollAnalysis: comprehensiveAnalysis.payroll ? {
+          turnover: comprehensiveAnalysis.payroll.turnover,
+          staffCosts: comprehensiveAnalysis.payroll.staffCosts,
+          staffCostsPct: comprehensiveAnalysis.payroll.staffCostsPct,
+          benchmarkPct: comprehensiveAnalysis.payroll.benchmark.typical,
+          excessPct: comprehensiveAnalysis.payroll.excessPercentage,
+          annualExcess: comprehensiveAnalysis.payroll.annualExcess,
+          calculation: comprehensiveAnalysis.payroll.calculation,
+          assessment: comprehensiveAnalysis.payroll.assessment
+        } : null,
+        valuationAnalysis: comprehensiveAnalysis.valuation,
+        trajectoryAnalysis: comprehensiveAnalysis.trajectory,
+        productivityAnalysis: comprehensiveAnalysis.productivity,
+        exitReadiness: comprehensiveAnalysis.exitReadiness ? {
+          score: comprehensiveAnalysis.exitReadiness.score,
+          maxScore: comprehensiveAnalysis.exitReadiness.maxScore,
+          percentage: Math.round(comprehensiveAnalysis.exitReadiness.score / comprehensiveAnalysis.exitReadiness.maxScore * 100),
+          strengths: comprehensiveAnalysis.exitReadiness.strengths,
+          blockers: comprehensiveAnalysis.exitReadiness.blockers
+        } : null,
+        costOfInaction: comprehensiveAnalysis.costOfInaction
+      },
+      
       pass1_completed_at: new Date().toISOString(),
-      prompt_version: 'v2.0-pass1',
+      prompt_version: 'v2.0-pass1-7dim',
       generation_time_ms: processingTime,
       updated_at: new Date().toISOString(),
     };
@@ -623,6 +1575,36 @@ serve(async (req) => {
         contextNotesCount: contextNotes?.length || 0,
         documentsCount: documents?.length || 0,
         processingTimeMs: processingTime,
+        
+        // NEW: 7-Dimension Analysis Results
+        comprehensiveAnalysis: {
+          dataQuality: comprehensiveAnalysis.dataQuality,
+          availableMetrics: comprehensiveAnalysis.availableMetrics,
+          missingMetrics: comprehensiveAnalysis.missingMetrics,
+          payroll: comprehensiveAnalysis.payroll ? {
+            excess: comprehensiveAnalysis.payroll.annualExcess,
+            staffCostsPct: comprehensiveAnalysis.payroll.staffCostsPct,
+            assessment: comprehensiveAnalysis.payroll.assessment
+          } : null,
+          valuation: comprehensiveAnalysis.valuation ? {
+            conservativeValue: comprehensiveAnalysis.valuation.conservativeValue,
+            optimisticValue: comprehensiveAnalysis.valuation.optimisticValue
+          } : null,
+          trajectory: comprehensiveAnalysis.trajectory ? {
+            trend: comprehensiveAnalysis.trajectory.trend,
+            percentageChange: comprehensiveAnalysis.trajectory.percentageChange
+          } : null,
+          exitReadiness: comprehensiveAnalysis.exitReadiness ? {
+            score: comprehensiveAnalysis.exitReadiness.score,
+            maxScore: comprehensiveAnalysis.exitReadiness.maxScore
+          } : null,
+          costOfInaction: comprehensiveAnalysis.costOfInaction?.totalOverHorizon || null
+        },
+        destinationClarity: {
+          score: destinationClarity.score,
+          reasoning: destinationClarity.reasoning
+        },
+        industry,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

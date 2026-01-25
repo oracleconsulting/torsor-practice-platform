@@ -394,8 +394,9 @@ async function fetchReportData(
           criticalInsight: destReport.executiveSummary?.criticalInsight || page2.openingLine || page2.headline || '',
           currentReality: page2.introduction || page2.openingLine || '',
           destinationVision: page1.visionVerbatim || page1.tuesdayTest || '',
-          clarityScore: page1.clarityScore || page1.destinationClarityScore || '',
-          clarityExplanation: page1.clarityExplanation || page1.clarityNarrative || '',
+          // Use Pass 1 destination_clarity as primary source
+          clarityScore: discoveryReport.destination_clarity?.score || page1.clarityScore || page1.destinationClarityScore || '',
+          clarityExplanation: discoveryReport.destination_clarity?.reasoning || page1.clarityExplanation || page1.clarityNarrative || '',
         },
         investmentSummary: {
           // USE CALCULATED TOTAL from page3.phases (source of truth)

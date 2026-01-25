@@ -10,9 +10,192 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+// Use Opus for premium narrative quality
+const PASS2_MODEL = 'anthropic/claude-opus-4-5-20250514';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// ============================================================================
+// 7-DIMENSION ANALYSIS TYPES (from Pass 1)
+// ============================================================================
+
+interface ComprehensiveAnalysis {
+  dataQuality: 'comprehensive' | 'partial' | 'limited';
+  availableMetrics: string[];
+  missingMetrics: string[];
+  valuation: any;
+  trajectory: any;
+  payroll: any;
+  productivity: any;
+  workingCapital: any;
+  exitReadiness: any;
+  costOfInaction: any;
+}
+
+interface DestinationClarityAnalysis {
+  score: number;
+  reasoning: string;
+  factors: string[];
+}
+
+// ============================================================================
+// BUILD MANDATORY DIMENSIONS PROMPT (Injects Pass 1 analysis into LLM prompt)
+// ============================================================================
+
+function buildMandatoryDimensionsPrompt(
+  analysis: ComprehensiveAnalysis | null,
+  clarity: DestinationClarityAnalysis | null
+): string {
+  if (!analysis) return '\n[No comprehensive analysis available from Pass 1]\n';
+  
+  let prompt = `
+============================================================================
+⛔ MANDATORY FINANCIAL ANALYSIS - USE THESE EXACT FIGURES
+============================================================================
+
+DATA QUALITY: ${analysis.dataQuality.toUpperCase()}
+AVAILABLE METRICS: ${analysis.availableMetrics.join(', ')}
+
+`;
+
+  // DESTINATION CLARITY
+  if (clarity) {
+    prompt += `
+## DESTINATION CLARITY (PRE-CALCULATED - USE THIS SCORE)
+Score: ${clarity.score}/10
+Reasoning: ${clarity.reasoning}
+⛔ USE THIS SCORE: ${clarity.score}/10. Your narrative MUST match this score level.
+${clarity.score >= 7 ? 'HIGH (7+): Use "crystal clear", "you know exactly"' : 
+  clarity.score >= 4 ? 'MODERATE (4-6): Use "direction is there", "emerging"' : 
+  'LOW (1-3): Use "destination unclear", "needs sharpening"'}
+
+---
+`;
+  }
+
+  // VALUATION
+  if (analysis.valuation?.hasData) {
+    const v = analysis.valuation;
+    prompt += `
+## VALUATION (MANDATORY GAP)
+Operating Profit: £${v.operatingProfit ? (v.operatingProfit/1000).toFixed(0) : 'N/A'}k
+Multiple: ${v.adjustedMultipleLow.toFixed(1)}-${v.adjustedMultipleHigh.toFixed(1)}x
+Range: £${v.conservativeValue ? (v.conservativeValue/1000000).toFixed(1) : '?'}M-£${v.optimisticValue ? (v.optimisticValue/1000000).toFixed(1) : '?'}M
+
+⛔ YOU MUST STATE: "Indicative valuation: £${v.conservativeValue ? (v.conservativeValue/1000000).toFixed(1) : '?'}M-£${v.optimisticValue ? (v.optimisticValue/1000000).toFixed(1) : '?'}M"
+${v.hiddenAssets?.length > 0 ? `Hidden Assets: ${v.hiddenAssets.map((a: any) => `${a.description}: £${a.value ? (a.value/1000).toFixed(0) : '?'}k`).join(', ')}` : ''}
+
+---
+`;
+  }
+
+  // TRAJECTORY
+  if (analysis.trajectory?.hasData && analysis.trajectory.trend === 'declining') {
+    const t = analysis.trajectory;
+    prompt += `
+## TRAJECTORY (MANDATORY GAP - DECLINING)
+Change: ${t.percentageChange?.toFixed(1)}% (£${t.absoluteChange ? Math.abs(t.absoluteChange/1000).toFixed(0) : '?'}k)
+
+⛔ YOU MUST STATE: "Revenue down ${Math.abs(t.percentageChange || 0).toFixed(1)}% year-on-year (£${Math.abs(t.absoluteChange || 0)/1000}k)"
+
+---
+`;
+  }
+
+  // PAYROLL
+  if (analysis.payroll?.annualExcess && analysis.payroll.annualExcess > 0) {
+    const p = analysis.payroll;
+    prompt += `
+## PAYROLL (MANDATORY GAP)
+Staff Costs: £${(p.staffCosts/1000).toFixed(0)}k (${p.staffCostsPct.toFixed(1)}%)
+Benchmark: ${p.benchmark.good}-${p.benchmark.concern}%
+Excess: £${(p.annualExcess/1000).toFixed(0)}k/year
+
+⛔ YOU MUST STATE: "£${(p.annualExcess/1000).toFixed(0)}k/year excess" (EXACT figure)
+
+---
+`;
+  }
+
+  // PRODUCTIVITY
+  if (analysis.productivity?.excessHeadcount && analysis.productivity.excessHeadcount > 0) {
+    const pr = analysis.productivity;
+    prompt += `
+## PRODUCTIVITY (REQUIRED GAP)
+Revenue/Head: £${pr.revenuePerHead ? (pr.revenuePerHead/1000).toFixed(0) : '?'}k vs £${(pr.benchmarkLow/1000).toFixed(0)}k benchmark
+Excess: ${pr.excessHeadcount} employees
+
+⛔ YOU SHOULD MENTION: This independently supports the payroll argument.
+
+---
+`;
+  }
+
+  // EXIT READINESS
+  if (analysis.exitReadiness) {
+    const e = analysis.exitReadiness;
+    const pct = Math.round(e.score / e.maxScore * 100);
+    prompt += `
+## EXIT READINESS (MANDATORY)
+Score: ${e.score}/${e.maxScore} (${pct}%)
+Strengths: ${e.strengths?.join(', ') || 'None'}
+Blockers: ${e.blockers?.join(', ') || 'None'}
+
+⛔ YOU MUST INCLUDE: "Exit readiness: ${pct}%"
+
+---
+`;
+  }
+
+  // COST OF INACTION
+  if (analysis.costOfInaction?.totalOverHorizon && analysis.costOfInaction.totalOverHorizon > 0) {
+    const c = analysis.costOfInaction;
+    prompt += `
+## COST OF INACTION
+Total over ${c.timeHorizon} years: £${(c.totalOverHorizon/1000).toFixed(0)}k+
+${c.components?.map((comp: any) => `- ${comp.category}: £${((comp.costOverHorizon || 0)/1000).toFixed(0)}k`).join('\n') || ''}
+
+⛔ USE THIS when comparing investment to inaction.
+
+---
+`;
+  }
+
+  // GAP DIVERSITY RULES
+  prompt += `
+============================================================================
+⛔ GAP DIVERSITY RULES - CRITICAL
+============================================================================
+
+You MUST create gaps from at least 4 DIFFERENT categories:
+1. VALUATION - "No baseline valuation"
+2. TRAJECTORY - "Revenue declining"
+3. PAYROLL - "Staff costs above benchmark"
+4. PEOPLE - "Avoided conversation"
+5. STRATEGIC - "No exit roadmap"
+6. PRODUCTIVITY - "Revenue per head below benchmark"
+
+⛔ DO NOT create multiple gaps that are the same issue rephrased:
+
+BAD (all same issue):
+- "Payroll too high"
+- "Avoided redundancy conversation"
+- "Need to restructure team"
+
+GOOD (diverse):
+- "No valuation baseline" (VALUATION)
+- "Payroll X% above benchmark" (PAYROLL)
+- "Revenue declining X%" (TRAJECTORY)
+- "Avoided redundancy conversation" (PEOPLE)
+- "Exit plan in your head" (STRATEGIC)
+
+============================================================================
+`;
+
+  return prompt;
 }
 
 // ============================================================================
@@ -468,6 +651,27 @@ No validated financial data available. When discussing financial figures:
     }
 
     // ========================================================================
+    // EXTRACT 7-DIMENSION ANALYSIS FROM PASS 1
+    // ========================================================================
+    const comprehensiveAnalysis = report.comprehensive_analysis as ComprehensiveAnalysis | null;
+    const destinationClarity = report.destination_clarity as DestinationClarityAnalysis | null;
+    const detectedIndustry = report.detected_industry || 'general_business';
+    
+    console.log('[Pass 2] 📊 Loaded 7-Dimension Analysis from Pass 1:', {
+      dataQuality: comprehensiveAnalysis?.dataQuality,
+      hasValuation: !!comprehensiveAnalysis?.valuation,
+      hasPayroll: !!comprehensiveAnalysis?.payroll,
+      hasTrajectory: !!comprehensiveAnalysis?.trajectory,
+      hasProductivity: !!comprehensiveAnalysis?.productivity,
+      hasExitReadiness: !!comprehensiveAnalysis?.exitReadiness,
+      destinationClarityScore: destinationClarity?.score,
+      industry: detectedIndustry
+    });
+    
+    // Build mandatory dimensions prompt from Pass 1 analysis
+    const mandatoryDimensionsPrompt = buildMandatoryDimensionsPrompt(comprehensiveAnalysis, destinationClarity);
+
+    // ========================================================================
     // CRITICAL: Extract Pass 1's EXACT service decisions with tiers/prices
     // These are the source of truth - Pass 2 MUST NOT change them
     // ========================================================================
@@ -479,10 +683,11 @@ No validated financial data available. When discussing financial figures:
     
     // ========================================================================
     // CRITICAL: Extract Pass 1's SCORES - these MUST NOT be recalculated
+    // Use Destination Clarity from comprehensive analysis if available
     // ========================================================================
-    const pass1ClarityScore = report.page1_destination?.clarityScore ||
+    const pass1ClarityScore = destinationClarity?.score ||
+                              report.page1_destination?.clarityScore ||
                               report.destination_report?.page1_destination?.clarityScore ||
-                              report.destination_report?.analysis?.discoveryScores?.clarityScore ||
                               null;
     const pass1GapScore = report.page2_gaps?.gapScore ||
                           report.destination_report?.page2_gaps?.gapScore ||
@@ -855,6 +1060,7 @@ WRITING STYLE:
 8. Services as footnotes - headline the OUTCOME, service is just how
 ${financialDataSection}
 ${servicePriceConstraints}
+${mandatoryDimensionsPrompt}
 ============================================================================
 DATA COMPLETENESS STATUS
 ============================================================================
@@ -1183,10 +1389,10 @@ Before returning, verify:
         'X-Title': 'Torsor Discovery Pass 2'
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-sonnet-4-20250514',
+        model: PASS2_MODEL, // anthropic/claude-opus-4-5-20250514 for premium narrative quality
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3,
-        max_tokens: 12000  // Increased to ensure all 5 pages get full content
+        temperature: 0.4,  // Slightly higher for more creative narrative
+        max_tokens: 16000  // Increased for comprehensive 7-dimension output
       })
     });
 
@@ -1538,7 +1744,7 @@ Before returning, verify:
         admin_actions_needed: dataCompleteness.adminActionRequired,
         ready_for_client: dataCompleteness.canGenerateClientReport,
         // Metadata
-        llm_model: 'claude-sonnet-4-20250514',
+        llm_model: PASS2_MODEL,
         llm_tokens_used: tokensUsed,
         llm_cost: estimatedCost,
         generation_time_ms: processingTime,

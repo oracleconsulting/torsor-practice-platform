@@ -943,20 +943,27 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
               </blockquote>
             </div>
             
-            {page1.destinationClarityScore && (
-              <div className="mt-6 flex items-center gap-4">
-                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-amber-400 to-emerald-500 rounded-full transition-all duration-1000"
-                    style={{ width: `${(page1.destinationClarityScore / 10) * 100}%` }}
-                  />
+            {/* Clarity Score - Use Pass 1 destination_clarity as primary source */}
+            {(() => {
+              const clarityScore = report?.destination_clarity?.score || 
+                                   page1?.destinationClarityScore || 
+                                   page1?.clarityScore;
+              if (!clarityScore) return null;
+              return (
+                <div className="mt-6 flex items-center gap-4">
+                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-amber-400 to-emerald-500 rounded-full transition-all duration-1000"
+                      style={{ width: `${(clarityScore / 10) * 100}%` }}
+                    />
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    <span className="font-semibold text-emerald-600">{clarityScore}/10</span>
+                    <span className="text-slate-400 ml-2">Destination Clarity</span>
+                  </div>
                 </div>
-                <div className="text-sm text-slate-600">
-                  <span className="font-semibold text-emerald-600">{page1.destinationClarityScore}/10</span>
-                  <span className="text-slate-400 ml-2">Destination Clarity</span>
-                </div>
-              </div>
-            )}
+              );
+            })()}
             {page1.clarityExplanation && (
               <p className="mt-2 text-sm text-slate-500">{page1.clarityExplanation}</p>
             )}

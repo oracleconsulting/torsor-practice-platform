@@ -2134,8 +2134,20 @@ function DiscoveryClientModal({
           .eq('engagement_id', discoveryEngagementData.id)
           .maybeSingle();
         
-        if (destReportData?.destination_report) {
-          console.log('[Report] Found destination-focused report:', destReportData.id);
+        // Set destinationReport if any Pass 1/2 data exists (new fields OR legacy destination_report)
+        if (destReportData && (
+          destReportData.destination_report ||
+          destReportData.destination_clarity ||
+          destReportData.page2_gaps ||
+          destReportData.comprehensive_analysis ||
+          destReportData.page1_destination
+        )) {
+          console.log('[Report] Found destination-focused report:', destReportData.id, {
+            hasDestinationReport: !!destReportData.destination_report,
+            hasDestinationClarity: !!destReportData.destination_clarity,
+            hasPage2Gaps: !!destReportData.page2_gaps,
+            hasComprehensiveAnalysis: !!destReportData.comprehensive_analysis
+          });
           setDestinationReport(destReportData);
         }
       }
@@ -2525,9 +2537,19 @@ function DiscoveryClientModal({
                   .eq('engagement_id', engagementId)
                   .maybeSingle();
                 
-                if (destReport?.destination_report) {
+                // Set state if any Pass 1/2 data exists
+                if (destReport && (
+                  destReport.destination_report ||
+                  destReport.destination_clarity ||
+                  destReport.page2_gaps ||
+                  destReport.comprehensive_analysis
+                )) {
                   setDestinationReport(destReport);
-                  console.log('✅ Destination-focused client view ready!');
+                  console.log('✅ Destination-focused client view ready!', {
+                    hasDestinationClarity: !!destReport.destination_clarity,
+                    hasPage2Gaps: !!destReport.page2_gaps,
+                    hasComprehensiveAnalysis: !!destReport.comprehensive_analysis
+                  });
                 }
               }
             }
@@ -2599,14 +2621,21 @@ function DiscoveryClientModal({
 
   // Export report as PDF (opens print dialog) - RPGCC Branded Version
   const handleExportPDF = () => {
-    if (!generatedReport?.analysis) return;
+    if (!generatedReport?.analysis && !destinationReport) return;
 
-    const analysis = generatedReport.analysis;
-    const clarityScore = generatedReport.discoveryScores?.clarityScore || 0;
-    const gapScore = generatedReport.discoveryScores?.gapScore || 0;
-    const clientName = generatedReport.client?.name || client?.name || 'Client';
-    const companyName = generatedReport.client?.company || client?.client_company || '';
-    const generatedDate = generatedReport.generatedAt 
+    const analysis = generatedReport?.analysis;
+    
+    // Use destinationReport data (Pass 1/2) as primary source, fallback to generatedReport (Stage 3)
+    const clarityScore = destinationReport?.destination_clarity?.score ||
+                         destinationReport?.page1_destination?.clarityScore ||
+                         destinationReport?.page1_destination?.destinationClarityScore ||
+                         generatedReport?.discoveryScores?.clarityScore || 0;
+    const gapScore = destinationReport?.page2_gaps?.gapScore ||
+                     (destinationReport?.page2_gaps?.gaps?.length || 0) ||
+                     generatedReport?.discoveryScores?.gapScore || 0;
+    const clientName = generatedReport?.client?.name || client?.name || 'Client';
+    const companyName = generatedReport?.client?.company || client?.client_company || '';
+    const generatedDate = generatedReport?.generatedAt 
       ? new Date(generatedReport.generatedAt).toLocaleDateString('en-GB', { 
           day: 'numeric', 
           month: 'long', 
@@ -2619,26 +2648,38 @@ function DiscoveryClientModal({
         });
 
     // Check if we have the new Transformation Journey data
-    const hasTransformationJourney = analysis.transformationJourney?.phases?.length > 0;
-    const destination = analysis.transformationJourney?.destination || '';
-    const totalInvestment = analysis.transformationJourney?.totalInvestment || analysis.investmentSummary?.totalFirstYearInvestment || '';
+    const hasTransformationJourney = analysis?.transformationJourney?.phases?.length > 0;
+    const destination = analysis?.transformationJourney?.destination || '';
+    const totalInvestment = analysis?.transformationJourney?.totalInvestment || analysis?.investmentSummary?.totalFirstYearInvestment || '';
 
-    // Gap Analysis HTML - Improved with visual severity indicators
-    const gapsHtml = (analysis.gapAnalysis?.primaryGaps || []).map((gap: any) => {
-      const severityIcon = gap.severity === 'critical' ? '🔴' : gap.severity === 'high' ? '🟠' : '🟡';
+    // Gap Analysis HTML - Use destinationReport.page2_gaps as primary, fallback to analysis.gapAnalysis
+    const page2Gaps = destinationReport?.page2_gaps?.gaps || [];
+    const legacyGaps = analysis?.gapAnalysis?.primaryGaps || [];
+    const gapsToRender = page2Gaps.length > 0 ? page2Gaps : legacyGaps;
+    
+    const gapsHtml = gapsToRender.map((gap: any) => {
+      // Handle both new (page2_gaps) and legacy (gapAnalysis) formats
+      const severity = gap.priority || gap.severity || 'medium';
+      const severityIcon = severity === 'critical' ? '🔴' : severity === 'high' ? '🟠' : '🟡';
+      const gapTitle = gap.title || gap.gap || 'Gap identified';
+      const gapEvidence = gap.pattern || gap.evidence || '';
+      // financialImpact is directly on gap in new format, nested in currentImpact in legacy
+      const financialImpact = gap.financialImpact || gap.currentImpact?.financialImpact || '';
+      const timeImpact = gap.timeImpact || gap.currentImpact?.timeImpact || '';
+      
       return `
-      <div class="gap-card severity-${gap.severity || 'medium'}">
+      <div class="gap-card severity-${severity}">
         <div class="gap-header">
           <span class="severity-indicator">${severityIcon}</span>
-          <span class="severity-text severity-${gap.severity || 'medium'}">${(gap.severity || 'medium').toUpperCase()}</span>
+          <span class="severity-text severity-${severity}">${severity.toUpperCase()}</span>
           <span class="gap-divider">|</span>
           <span class="gap-category">${gap.category || 'General'}</span>
         </div>
-        <h3 class="gap-title">${gap.gap || 'Gap identified'}</h3>
-        <blockquote class="gap-evidence">"${gap.evidence || ''}"</blockquote>
+        <h3 class="gap-title">${gapTitle}</h3>
+        ${gapEvidence ? `<blockquote class="gap-evidence">"${gapEvidence}"</blockquote>` : ''}
         <div class="gap-impacts">
-          ${gap.currentImpact?.financialImpact ? `<span class="impact-item">• ${gap.currentImpact.financialImpact}</span>` : ''}
-          ${gap.currentImpact?.timeImpact ? `<span class="impact-item">• ${gap.currentImpact.timeImpact}</span>` : ''}
+          ${financialImpact ? `<span class="impact-item">• ${financialImpact}</span>` : ''}
+          ${timeImpact ? `<span class="impact-item">• ${timeImpact}</span>` : ''}
         </div>
       </div>
     `}).join('');
@@ -3923,18 +3964,23 @@ function DiscoveryClientModal({
                         </button>
                       </div>
 
-                      {/* Summary cards */}
+                      {/* Summary cards - Use destinationReport (Pass 1/2) as primary source */}
                       <div className="grid grid-cols-3 gap-4">
                         <div className="bg-cyan-50 rounded-xl p-4">
                           <p className="text-sm text-cyan-600 font-medium">Destination Clarity</p>
                           <p className="text-2xl font-bold text-cyan-900">
-                            {discovery.destination_clarity_score || '—'}/10
+                            {destinationReport?.destination_clarity?.score ||
+                             destinationReport?.page1_destination?.destinationClarityScore ||
+                             destinationReport?.page1_destination?.clarityScore ||
+                             discovery.destination_clarity_score || '—'}/10
                           </p>
                         </div>
                         <div className="bg-amber-50 rounded-xl p-4">
                           <p className="text-sm text-amber-600 font-medium">Gap Score</p>
                           <p className="text-2xl font-bold text-amber-900">
-                            {discovery.gap_score || '—'}/10
+                            {destinationReport?.page2_gaps?.gapScore ||
+                             (destinationReport?.page2_gaps?.gaps?.length) ||
+                             discovery.gap_score || '—'}/10
                           </p>
                         </div>
                         <div className="bg-emerald-50 rounded-xl p-4">
@@ -4846,6 +4892,18 @@ function DiscoveryClientModal({
                   {/* ADMIN VIEW - Detailed Analysis (existing content) */}
                   {viewMode === 'admin' && generatedReport && (
                     <div className="space-y-6">
+                      {/* DEBUG: Log clarity score sources - Remove after fixing */}
+                      {console.log('[Admin Header Debug] Clarity Score Sources:', {
+                        'destinationReport exists': !!destinationReport,
+                        'destination_clarity.score': destinationReport?.destination_clarity?.score,
+                        'page1_destination.clarityScore': destinationReport?.page1_destination?.clarityScore,
+                        'page1_destination.destinationClarityScore': destinationReport?.page1_destination?.destinationClarityScore,
+                        'generatedReport.discoveryScores.clarityScore': generatedReport?.discoveryScores?.clarityScore,
+                        'FINAL VALUE': destinationReport?.destination_clarity?.score ||
+                          destinationReport?.page1_destination?.clarityScore ||
+                          destinationReport?.page1_destination?.destinationClarityScore ||
+                          generatedReport?.discoveryScores?.clarityScore || 0
+                      })}
                       {/* Executive Summary */}
                       <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-6 text-white">
                         <h3 className="text-lg font-bold mb-2">
@@ -4857,113 +4915,151 @@ function DiscoveryClientModal({
                         <div className="grid grid-cols-2 gap-4 mt-4">
                           <div className="bg-white/10 rounded-lg p-3">
                             <p className="text-indigo-200 text-xs">Destination Clarity</p>
-                            <p className="text-xl font-bold">{generatedReport.discoveryScores?.clarityScore}/10</p>
+                            <p className="text-xl font-bold">{
+                              destinationReport?.destination_clarity?.score ||
+                              destinationReport?.page1_destination?.clarityScore ||
+                              destinationReport?.page1_destination?.destinationClarityScore ||
+                              generatedReport.discoveryScores?.clarityScore || 0
+                            }/10</p>
                           </div>
                           <div className="bg-white/10 rounded-lg p-3">
                             <p className="text-indigo-200 text-xs">Gap Score</p>
-                            <p className="text-xl font-bold">{generatedReport.discoveryScores?.gapScore}/10</p>
+                            <p className="text-xl font-bold">{
+                              destinationReport?.page2_gaps?.gapScore ||
+                              (destinationReport?.page2_gaps?.gaps?.length || 0) ||
+                              generatedReport.discoveryScores?.gapScore || 0
+                            }/10</p>
                           </div>
                         </div>
                       </div>
 
-                      {/* Gap Analysis */}
-                      {generatedReport.analysis?.gapAnalysis && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
-                          <h4 className="font-semibold text-amber-900 mb-4">Gap Analysis</h4>
-                          <div className="space-y-3">
-                            {generatedReport.analysis.gapAnalysis.primaryGaps?.map((gap: any, idx: number) => (
-                              <div key={idx} className="bg-white rounded-lg p-4 border border-amber-100">
-                                <div className="flex items-start justify-between mb-2">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      {gap.category && (
-                                        <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
-                                          {gap.category}
-                                        </span>
-                                      )}
-                                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                                        gap.urgency === 'high' || gap.severity === 'critical' ? 'bg-red-100 text-red-700' :
-                                        gap.urgency === 'medium' || gap.severity === 'high' ? 'bg-amber-100 text-amber-700' :
-                                        'bg-gray-100 text-gray-600'
-                                      }`}>
-                                        {gap.urgency || gap.severity} priority
-                                      </span>
-                                    </div>
-                                    <p className="font-medium text-gray-900">{gap.gap}</p>
-                                  </div>
-                                </div>
+                      {/* Gap Analysis - Use destinationReport (Pass 1/2) as primary source */}
+                      {(() => {
+                        // Prefer destinationReport.page2_gaps, fallback to generatedReport.analysis.gapAnalysis
+                        const page2Gaps = destinationReport?.page2_gaps?.gaps || [];
+                        const legacyGaps = generatedReport?.analysis?.gapAnalysis?.primaryGaps || [];
+                        const gapsToDisplay = page2Gaps.length > 0 ? page2Gaps : legacyGaps;
+                        const costOfInaction = destinationReport?.comprehensive_analysis?.costOfInaction || 
+                                               generatedReport?.analysis?.gapAnalysis?.costOfInaction;
+                        
+                        if (gapsToDisplay.length === 0 && !costOfInaction) return null;
+                        
+                        return (
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
+                            <h4 className="font-semibold text-amber-900 mb-4">Gap Analysis</h4>
+                            <div className="space-y-3">
+                              {gapsToDisplay.map((gap: any, idx: number) => {
+                                // Handle both new (page2_gaps) and legacy (gapAnalysis) formats
+                                const severity = gap.priority || gap.severity || gap.urgency || 'medium';
+                                const gapTitle = gap.title || gap.gap || 'Gap identified';
+                                const gapEvidence = gap.pattern || gap.evidence || '';
+                                const financialImpact = gap.financialImpact || gap.currentImpact?.financialImpact || '';
+                                const timeImpact = gap.timeImpact || gap.currentImpact?.timeImpact || '';
+                                const emotionalImpact = gap.emotionalImpact || gap.currentImpact?.emotionalImpact || '';
                                 
-                                {/* Evidence quote */}
-                                {gap.evidence && (
-                                  <p className="text-sm italic text-indigo-600 bg-indigo-50 p-2 rounded mb-2">
-                                    "{gap.evidence}"
+                                return (
+                                  <div key={idx} className="bg-white rounded-lg p-4 border border-amber-100">
+                                    <div className="flex items-start justify-between mb-2">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          {gap.category && (
+                                            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+                                              {gap.category}
+                                            </span>
+                                          )}
+                                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                            severity === 'high' || severity === 'critical' ? 'bg-red-100 text-red-700' :
+                                            severity === 'medium' ? 'bg-amber-100 text-amber-700' :
+                                            'bg-gray-100 text-gray-600'
+                                          }`}>
+                                            {severity} priority
+                                          </span>
+                                        </div>
+                                        <p className="font-medium text-gray-900">{gapTitle}</p>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Evidence/Pattern quote */}
+                                    {gapEvidence && (
+                                      <p className="text-sm italic text-indigo-600 bg-indigo-50 p-2 rounded mb-2">
+                                        "{gapEvidence}"
+                                      </p>
+                                    )}
+                                    
+                                    {/* Impact grid */}
+                                    {(timeImpact || financialImpact || emotionalImpact) && (
+                                      <div className="grid grid-cols-3 gap-2 text-sm mb-2">
+                                        {timeImpact && (
+                                          <div className="bg-gray-50 p-2 rounded">
+                                            <p className="text-xs text-gray-500">Time Impact</p>
+                                            <p className="font-medium">{timeImpact}</p>
+                                          </div>
+                                        )}
+                                        {financialImpact && (
+                                          <div className="bg-gray-50 p-2 rounded">
+                                            <p className="text-xs text-gray-500">Financial Impact</p>
+                                            <p className="font-medium text-red-600">{financialImpact}</p>
+                                          </div>
+                                        )}
+                                        {emotionalImpact && (
+                                          <div className="bg-gray-50 p-2 rounded">
+                                            <p className="text-xs text-gray-500">Emotional Impact</p>
+                                            <p className="font-medium">{emotionalImpact}</p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {gap.shiftRequired && (
+                                      <p className="text-sm text-emerald-600 mt-2">
+                                        <strong>Shift required:</strong> {gap.shiftRequired}
+                                      </p>
+                                    )}
+                                    
+                                    {gap.rootCause && (
+                                      <p className="text-sm text-gray-500 italic">Root cause: {gap.rootCause}</p>
+                                    )}
+                                    
+                                    {gap.ifUnaddressed && (
+                                      <p className="text-sm text-red-600 mt-2">
+                                        <strong>If not addressed:</strong> {gap.ifUnaddressed}
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            
+                            {/* Cost of Inaction - Use comprehensive_analysis as primary source */}
+                            {costOfInaction && (
+                              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                                <p className="font-medium text-red-800">Cost of Not Acting</p>
+                                <p className="text-2xl font-bold text-red-900">
+                                  {costOfInaction.totalOverHorizon 
+                                    ? `£${Math.round(costOfInaction.totalOverHorizon / 1000)}k+ over ${costOfInaction.timeHorizon || 3} years`
+                                    : costOfInaction.annualFinancialCost || costOfInaction.annual}
+                                </p>
+                                {costOfInaction.narrative && (
+                                  <p className="text-sm text-red-700">{costOfInaction.narrative}</p>
+                                )}
+                                {costOfInaction.description && (
+                                  <p className="text-sm text-red-700">{costOfInaction.description}</p>
+                                )}
+                                {costOfInaction.opportunityCost && (
+                                  <p className="text-sm text-red-600 mt-2">
+                                    <strong>Opportunity cost:</strong> {costOfInaction.opportunityCost}
                                   </p>
                                 )}
-                                
-                                {/* Impact - handle both old and new formats */}
-                                {gap.currentImpact ? (
-                                  <div className="grid grid-cols-3 gap-2 text-sm mb-2">
-                                    {gap.currentImpact.timeImpact && (
-                                      <div className="bg-gray-50 p-2 rounded">
-                                        <p className="text-xs text-gray-500">Time Impact</p>
-                                        <p className="font-medium">{gap.currentImpact.timeImpact}</p>
-                                      </div>
-                                    )}
-                                    {gap.currentImpact.financialImpact && (
-                                      <div className="bg-gray-50 p-2 rounded">
-                                        <p className="text-xs text-gray-500">Financial Impact</p>
-                                        <p className="font-medium text-red-600">{gap.currentImpact.financialImpact}</p>
-                                      </div>
-                                    )}
-                                    {gap.currentImpact.emotionalImpact && (
-                                      <div className="bg-gray-50 p-2 rounded">
-                                        <p className="text-xs text-gray-500">Emotional Impact</p>
-                                        <p className="font-medium">{gap.currentImpact.emotionalImpact}</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : gap.impact && (
-                                  <p className="text-sm text-gray-600 mb-2">{gap.impact}</p>
-                                )}
-                                
-                                {gap.rootCause && (
-                                  <p className="text-sm text-gray-500 italic">Root cause: {gap.rootCause}</p>
-                                )}
-                                
-                                {gap.ifUnaddressed && (
-                                  <p className="text-sm text-red-600 mt-2">
-                                    <strong>If not addressed:</strong> {gap.ifUnaddressed}
+                                {costOfInaction.personalCost && (
+                                  <p className="text-sm text-red-600">
+                                    <strong>Personal cost:</strong> {costOfInaction.personalCost}
                                   </p>
                                 )}
                               </div>
-                            ))}
+                            )}
                           </div>
-                          
-                          {/* Cost of Inaction */}
-                          {generatedReport.analysis.gapAnalysis.costOfInaction && (
-                            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                              <p className="font-medium text-red-800">Cost of Not Acting</p>
-                              <p className="text-2xl font-bold text-red-900">
-                                {generatedReport.analysis.gapAnalysis.costOfInaction.annualFinancialCost || 
-                                 generatedReport.analysis.gapAnalysis.costOfInaction.annual}
-                              </p>
-                              <p className="text-sm text-red-700">
-                                {generatedReport.analysis.gapAnalysis.costOfInaction.description}
-                              </p>
-                              {generatedReport.analysis.gapAnalysis.costOfInaction.opportunityCost && (
-                                <p className="text-sm text-red-600 mt-2">
-                                  <strong>Opportunity cost:</strong> {generatedReport.analysis.gapAnalysis.costOfInaction.opportunityCost}
-                                </p>
-                              )}
-                              {generatedReport.analysis.gapAnalysis.costOfInaction.personalCost && (
-                                <p className="text-sm text-red-600">
-                                  <strong>Personal cost:</strong> {generatedReport.analysis.gapAnalysis.costOfInaction.personalCost}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                        );
+                      })()}
 
                       {/* Transformation Journey (new "travel agent" view) */}
                       {generatedReport.analysis?.transformationJourney?.phases?.length > 0 && (
