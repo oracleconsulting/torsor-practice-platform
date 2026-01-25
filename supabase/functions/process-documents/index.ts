@@ -634,31 +634,39 @@ async function ocrWithGoogleVisionSync(buffer: ArrayBuffer, apiKey: string): Pro
   return allText.join('\n\n');
 }
 
-// OCR ALL pages - extract and process in batches to stay under memory limit
+// OCR ALL pages - with timeout protection to save partial results
 async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise<string> {
-  console.log('[ProcessDocs] Using batched Vision OCR - ALL pages, memory-safe...');
+  console.log('[ProcessDocs] Using batched Vision OCR - ALL pages with timeout protection...');
   
   const uint8Array = new Uint8Array(buffer);
+  const startTime = Date.now();
+  const MAX_RUNTIME_MS = 120000; // 2 minutes - leave buffer before 2.5min timeout
   
   try {
     const unpdf = await import('https://esm.sh/unpdf@0.12.1?bundle');
     const pdf = await unpdf.getDocumentProxy(uint8Array);
     const totalPages = pdf.numPages;
     
-    console.log(`[ProcessDocs] PDF has ${totalPages} pages - processing in memory-safe batches`);
+    console.log(`[ProcessDocs] PDF has ${totalPages} pages - processing with timeout protection`);
     
-    // Process in batches of 3 to stay under memory limit
-    // Extract → OCR → Clear → Next batch (only ~24MB images in memory at a time)
+    // Process in batches of 3
     const BATCH_SIZE = 3;
     const allResults: {pageNum: number, text: string}[] = [];
     const totalBatches = Math.ceil(totalPages / BATCH_SIZE);
     
     for (let batchNum = 0; batchNum < totalBatches; batchNum++) {
+      // Check if we're running low on time
+      const elapsed = Date.now() - startTime;
+      if (elapsed > MAX_RUNTIME_MS) {
+        console.log(`[ProcessDocs] ⏱️ Timeout approaching after ${Math.round(elapsed/1000)}s - saving ${allResults.length} pages`);
+        break; // Save what we have
+      }
+      
       const startPage = batchNum * BATCH_SIZE + 1;
       const endPage = Math.min(startPage + BATCH_SIZE - 1, totalPages);
       const pageNums = Array.from({length: endPage - startPage + 1}, (_, i) => startPage + i);
       
-      console.log(`[ProcessDocs] Batch ${batchNum + 1}/${totalBatches}: pages ${pageNums.join(', ')}`);
+      console.log(`[ProcessDocs] Batch ${batchNum + 1}/${totalBatches}: pages ${pageNums.join(', ')} (${Math.round(elapsed/1000)}s elapsed)`);
       
       // Extract images for THIS batch only
       const batchImages: {pageNum: number, image: {base64: string, mimeType: string}}[] = [];
@@ -685,20 +693,24 @@ async function ocrWithClaudeVision(buffer: ArrayBuffer, apiKey: string): Promise
       
       const successCount = batchResults.filter(r => r.text.length > 50).length;
       console.log(`[ProcessDocs] Batch ${batchNum + 1} done: ${successCount}/${batchImages.length} extracted`);
-      
-      // Images are now out of scope and can be garbage collected
     }
     
     pdf.destroy();
     
     // Sort by page number and combine
     allResults.sort((a, b) => a.pageNum - b.pageNum);
-    const fullText = allResults
+    const successPages = allResults.filter(r => r.text.length > 50).length;
+    
+    // Add note if we didn't finish all pages
+    let fullText = allResults
       .filter(r => r.text.length > 10)
       .map(r => `--- PAGE ${r.pageNum} ---\n${r.text}`)
       .join('\n\n');
     
-    const successPages = allResults.filter(r => r.text.length > 50).length;
+    if (successPages < totalPages) {
+      fullText += `\n\n--- NOTE: Extracted ${successPages} of ${totalPages} pages (timeout protection) ---`;
+    }
+    
     console.log(`[ProcessDocs] ✅ OCR complete: ${fullText.length} chars from ${successPages}/${totalPages} pages`);
     
     if (successPages === 0) {
