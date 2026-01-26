@@ -554,25 +554,41 @@ serve(async (req) => {
     
     // Priority 1: Use discovery_reports.page4_numbers.payrollAnalysis (most validated - from Pass 1)
     // Also check the old path for backwards compatibility
+    // ========================================================================
+    // FIX: Read payroll from comprehensive_analysis (where Pass 1 actually saves it)
+    // ========================================================================
     const { data: discoveryReportForPayroll } = await supabase
       .from('discovery_reports')
-      .select('page4_numbers')
+      .select('page4_numbers, comprehensive_analysis')
       .eq('engagement_id', engagementId)
       .maybeSingle();
     
-    const pass1PayrollAnalysis = discoveryReportForPayroll?.page4_numbers?.payrollAnalysis;
+    const pass1PayrollAnalysis = 
+      discoveryReportForPayroll?.page4_numbers?.payrollAnalysis ||  // Try page4_numbers first (new structure)
+      discoveryReportForPayroll?.comprehensive_analysis?.payroll ||  // Fallback to comprehensive_analysis (actual location)
+      null;
     
     if (pass1PayrollAnalysis) {
+      const payrollSource = discoveryReportForPayroll?.page4_numbers?.payrollAnalysis 
+        ? 'page4_numbers' 
+        : 'comprehensive_analysis';
+      
+      console.log('[Pass2] ✅ Found payroll data:', {
+        annualExcess: pass1PayrollAnalysis.annualExcess,
+        benchmark: pass1PayrollAnalysis.benchmark?.good || pass1PayrollAnalysis.benchmarkPct,
+        source: payrollSource
+      });
+      
       validatedPayroll = {
         turnover: pass1PayrollAnalysis.turnover || null,
         staffCosts: pass1PayrollAnalysis.staffCosts || null,
         staffCostsPct: pass1PayrollAnalysis.staffCostsPct || null,
-        benchmarkPct: pass1PayrollAnalysis.benchmarkPct || 28,
-        excessPct: pass1PayrollAnalysis.excessPct || null,
+        benchmarkPct: pass1PayrollAnalysis.benchmark?.good || pass1PayrollAnalysis.benchmarkPct || 28,
+        excessPct: pass1PayrollAnalysis.excessPercentage || pass1PayrollAnalysis.excessPct || null,
         excessAmount: pass1PayrollAnalysis.annualExcess || null,
         calculation: pass1PayrollAnalysis.calculation || null
       };
-      console.log('[Pass2] Using validated payroll from discovery_reports.page4_numbers:', validatedPayroll);
+      console.log('[Pass2] Using validated payroll:', validatedPayroll);
     }
     // Fallback: Try the old client_reports path
     else if (analysisReport?.report_data?.analysis?.financialContext?.payrollAnalysis) {
