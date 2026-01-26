@@ -462,7 +462,271 @@ serve(async (req) => {
     }
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // ========================================================================
+    // SERVICE CATALOG - CANONICAL SERVICE DEFINITIONS
+    // LLM selects which services are relevant, but cannot change names/prices
+    // ========================================================================
+    
+    interface ServiceLine {
+      id: string;
+      name: string;
+      displayName: string;
+      price: number;
+      priceFormatted: string;
+      tier: string;
+      description: string;
+      keywords: string[];
+    }
+    
+    const SERVICE_CATALOG: Record<string, ServiceLine> = {
+      'benchmarking': {
+        id: 'benchmarking',
+        name: 'Industry Benchmarking',
+        displayName: 'Industry Benchmarking (Full Package)',
+        price: 2000,
+        priceFormatted: '£2,000',
+        tier: 'foundation',
+        description: 'Valuation baseline and hidden value identification',
+        keywords: ['benchmark', 'valuation', 'hidden value', 'what its worth', 'baseline', 'industry']
+      },
+      'goal_alignment_growth': {
+        id: 'goal_alignment_growth',
+        name: 'Goal Alignment Programme',
+        displayName: 'Goal Alignment Programme (Growth)',
+        price: 4500,
+        priceFormatted: '£4,500',
+        tier: 'growth',
+        description: 'Quarterly accountability and strategic support',
+        keywords: ['goal alignment', 'accountability', 'co-pilot', 'corner', 'support', 'growth']
+      },
+      'goal_alignment_scale': {
+        id: 'goal_alignment_scale',
+        name: 'Goal Alignment Programme',
+        displayName: 'Goal Alignment Programme (Scale)',
+        price: 7500,
+        priceFormatted: '£7,500',
+        tier: 'scale',
+        description: 'Intensive strategic partnership',
+        keywords: ['scale', 'intensive', 'transformation']
+      },
+      'systems_audit': {
+        id: 'systems_audit',
+        name: 'Systems & Process Audit',
+        displayName: 'Systems & Process Audit',
+        price: 3500,
+        priceFormatted: '£3,500',
+        tier: 'foundation',
+        description: 'Operational efficiency analysis',
+        keywords: ['systems', 'process', 'efficiency', 'automation', 'audit']
+      },
+      'ma_monthly': {
+        id: 'ma_monthly',
+        name: 'Management Accounts',
+        displayName: 'Management Accounts (Monthly)',
+        price: 500,
+        priceFormatted: '£500/month',
+        tier: 'ongoing',
+        description: 'Monthly financial reporting and insights',
+        keywords: ['management accounts', 'monthly', 'reporting', 'financials']
+      },
+      'fractional_cfo': {
+        id: 'fractional_cfo',
+        name: 'Fractional CFO',
+        displayName: 'Fractional CFO',
+        price: 2500,
+        priceFormatted: '£2,500/month',
+        tier: 'strategic',
+        description: 'Part-time strategic finance leadership',
+        keywords: ['cfo', 'finance director', 'strategic finance', 'fractional']
+      },
+      'exit_planning': {
+        id: 'exit_planning',
+        name: 'Exit Planning',
+        displayName: 'Exit Planning & Preparation',
+        price: 5000,
+        priceFormatted: '£5,000',
+        tier: 'strategic',
+        description: 'Comprehensive exit strategy development',
+        keywords: ['exit', 'sale', 'succession', 'planning']
+      }
+    };
+    
+    // ========================================================================
+    // NON-NEGOTIABLE CONSTANTS - SYSTEM DEFINES, LLM CANNOT OVERRIDE
+    // ========================================================================
+    
+    const NON_NEGOTIABLES = {
+      // Gap score calibration rules
+      gapScoreRules: {
+        businessRunsWithoutFounder: 6,  // At least 6 if business runs independently
+        excellentMargins: 6,            // At least 6 if margins are excellent
+        bothAbove: 7,                   // At least 7 if both conditions met
+        marketLeader: 7,                // At least 7 if market leader
+        maxScore: 9                     // Never give 10 (always room to improve)
+      },
+      
+      // Emotional anchors - MUST use if detected
+      requiredAnchors: {
+        neverHadBreak: "you've never actually taken a proper break - not once",
+        healthSuffered: "Your health has already suffered once from this",
+        followsOnHoliday: "staff issues keep finding you, even on holiday"
+      }
+    };
+    
+    // ========================================================================
+    // SERVICE MATCHING FUNCTIONS
+    // ========================================================================
+    
+    function matchServiceToCatalog(llmServiceName: string): ServiceLine | null {
+      if (!llmServiceName) return null;
+      const normalized = llmServiceName.toLowerCase();
+      
+      // Direct match by keywords
+      for (const [id, service] of Object.entries(SERVICE_CATALOG)) {
+        for (const keyword of service.keywords) {
+          if (normalized.includes(keyword)) {
+            return service;
+          }
+        }
+      }
+      
+      // Fallback: fuzzy match on name
+      for (const [id, service] of Object.entries(SERVICE_CATALOG)) {
+        const firstWord = service.name.toLowerCase().split(' ')[0];
+        if (normalized.includes(firstWord)) {
+          return service;
+        }
+      }
+      
+      console.warn(`[Pass2] ⚠️ Could not match service: "${llmServiceName}"`);
+      return null;
+    }
+    
+    function enforceServiceCatalog(journeyPhases: any[]): any[] {
+      if (!journeyPhases || !Array.isArray(journeyPhases)) return journeyPhases;
+      
+      return journeyPhases.map(phase => {
+        const serviceText = phase.enabledBy || phase.service || phase.serviceName || '';
+        const matched = matchServiceToCatalog(serviceText);
+        
+        if (matched) {
+          console.log(`[Pass2] ✅ Matched "${serviceText}" → ${matched.displayName} (${matched.priceFormatted})`);
+          return {
+            ...phase,
+            enabledBy: matched.displayName,
+            service: matched.name,
+            serviceId: matched.id,
+            price: matched.priceFormatted  // Use formatted string for display
+          };
+        }
+        
+        return phase;
+      });
+    }
+    
+    // ========================================================================
+    // GAP SCORE CALIBRATION - SYSTEM RULES, NOT LLM DISCRETION
+    // ========================================================================
+    
+    function calibrateGapScore(
+      llmScore: number, 
+      comprehensiveAnalysis: any, 
+      emotionalAnchors: any
+    ): number {
+      const rules = NON_NEGOTIABLES.gapScoreRules;
+      let calibrated = llmScore;
+      
+      // Check conditions
+      const businessRunsAlone = 
+        comprehensiveAnalysis?.exitReadiness?.factors?.some(
+          (f: any) => f.name?.includes('Founder') && f.score > f.maxScore * 0.6
+        ) ||
+        (emotionalAnchors?.tuesdayTest || '').toLowerCase().includes('tick') ||
+        (emotionalAnchors?.tuesdayTest || '').toLowerCase().includes('without');
+      
+      const excellentMargins = 
+        comprehensiveAnalysis?.grossMargin?.assessment === 'excellent' ||
+        comprehensiveAnalysis?.grossMargin?.assessment === 'healthy' ||
+        (comprehensiveAnalysis?.grossMargin?.grossMarginPct || 0) > 50;
+      
+      const isMarketLeader = 
+        (emotionalAnchors?.competitivePosition || '').toLowerCase().includes('leader') ||
+        (emotionalAnchors?.competitivePosition || '').toLowerCase().includes('market leader');
+      
+      const achievementCount = comprehensiveAnalysis?.achievements?.achievements?.length || 0;
+      
+      // Apply rules
+      if (businessRunsAlone) {
+        calibrated = Math.max(calibrated, rules.businessRunsWithoutFounder);
+      }
+      
+      if (excellentMargins) {
+        calibrated = Math.max(calibrated, rules.excellentMargins);
+      }
+      
+      if (businessRunsAlone && excellentMargins) {
+        calibrated = Math.max(calibrated, rules.bothAbove);
+      }
+      
+      if (isMarketLeader) {
+        calibrated = Math.max(calibrated, rules.marketLeader);
+      }
+      
+      if (achievementCount >= 4 && excellentMargins) {
+        calibrated = Math.max(calibrated, rules.bothAbove);
+      }
+      
+      // Cap at max (never give 10)
+      calibrated = Math.min(calibrated, rules.maxScore);
+      
+      if (calibrated !== llmScore) {
+        console.log(`[Pass2] 📊 Gap score calibrated: ${llmScore} → ${calibrated}`, {
+          businessRunsAlone,
+          excellentMargins,
+          isMarketLeader,
+          achievementCount
+        });
+      }
+      
+      return calibrated;
+    }
+    
+    // ========================================================================
+    // EMOTIONAL ANCHOR ENFORCEMENT
+    // ========================================================================
+    
+    function enforceEmotionalAnchors(
+      text: string, 
+      emotionalAnchors: any
+    ): string {
+      if (!text) return text;
+      let enforced = text;
+      const anchors = NON_NEGOTIABLES.requiredAnchors;
+      
+      // Check for "never had break" anchor
+      const neverHadBreak = 
+        (emotionalAnchors?.lastHoliday || '').toLowerCase().includes('never') ||
+        (emotionalAnchors?.lastHoliday || '').toLowerCase().includes("can't remember") ||
+        (emotionalAnchors?.lastHoliday || '').toLowerCase().includes('cannot remember');
+      
+      if (neverHadBreak && !enforced.toLowerCase().includes('never')) {
+        console.log('[Pass2] 📌 "Never had break" anchor available - client should see this');
+      }
+      
+      // Check for health anchor
+      const healthSuffered = 
+        (emotionalAnchors?.stressResponse || '').toLowerCase().includes('health') ||
+        (emotionalAnchors?.personalCost || '').toLowerCase().includes('health');
+      
+      if (healthSuffered && !enforced.toLowerCase().includes('health')) {
+        console.log('[Pass2] 📌 Health anchor available - client mentioned health impact');
+      }
+      
+      return enforced;
+    }
+
     console.log('[Pass2] Starting for engagement:', engagementId);
+    console.log('[Pass2] 📋 Loaded service catalog:', Object.keys(SERVICE_CATALOG).length, 'services');
     const startTime = Date.now();
 
     // Update status
@@ -2124,48 +2388,54 @@ Before returning, verify:
     }
 
     // ========================================================================
-    // ENHANCEMENT 6: Calibrate Gap Score Based on Achievements & Strengths
+    // ENHANCEMENT 6: Enforce Service Catalog on Journey Phases
+    // LLM selects which services are relevant, but system defines names/prices
+    // ========================================================================
+    if (narratives.page3_journey?.phases) {
+      console.log('[Pass2] 🔧 Enforcing service catalog on journey phases...');
+      narratives.page3_journey.phases = enforceServiceCatalog(narratives.page3_journey.phases);
+      
+      // Recalculate total from enforced prices
+      const totalPrice = narratives.page3_journey.phases.reduce((sum: number, phase: any) => {
+        const priceStr = phase.price || '';
+        const match = priceStr.match(/[\d,]+/);
+        return sum + (match ? parseInt(match[0].replace(/,/g, ''), 10) : 0);
+      }, 0);
+      
+      if (totalPrice > 0) {
+        const formattedTotal = `£${totalPrice.toLocaleString()}`;
+        if (narratives.page4_numbers) {
+          narratives.page4_numbers.totalYear1 = formattedTotal;
+        }
+        console.log('[Pass2] ✅ Recalculated total investment:', formattedTotal);
+      }
+    }
+    
+    // ========================================================================
+    // ENHANCEMENT 6b: Calibrate Gap Score Using System Rules
     // ========================================================================
     if (narratives.page2_gaps) {
-      const achievementCount = pass1Achievements?.achievements?.length || 0;
-      const currentGapScore = narratives.page2_gaps.gapScore || 6;
-      let calibratedScore = currentGapScore;
-      
-      // Check for business strengths
-      const businessRunsWithoutFounder = comprehensiveAnalysis?.exitReadiness?.factors?.some(
-        (f: any) => f.name?.includes('Founder') && f.score > f.maxScore * 0.6
-      ) || emotionalAnchors.tuesdayTest?.toLowerCase().includes('tick');
-      
-      // Gap score should reflect "how much work to close gaps"
-      // Higher score = fewer gaps / stronger foundation
-      
-      // Base calibration from achievements
-      if (achievementCount >= 4 && calibratedScore < 6) {
-        calibratedScore = 6;
-      } else if (achievementCount >= 3 && calibratedScore < 5) {
-        calibratedScore = 5;
+      const originalScore = narratives.page2_gaps.gapScore || 6;
+      narratives.page2_gaps.gapScore = calibrateGapScore(
+        originalScore,
+        comprehensiveAnalysis,
+        emotionalAnchors
+      );
+    }
+    
+    // ========================================================================
+    // ENHANCEMENT 6c: Enforce Emotional Anchors in Closing
+    // ========================================================================
+    if (narratives.page5_next_steps?.closingMessage || narratives.page5_nextSteps?.closingMessage) {
+      const closing = narratives.page5_next_steps || narratives.page5_nextSteps;
+      if (closing.closingMessage) {
+        closing.closingMessage = enforceEmotionalAnchors(closing.closingMessage, emotionalAnchors);
       }
-      
-      // Bump up for strong margins
-      if (hasExcellentMargin && calibratedScore < 6) {
-        calibratedScore = 6;
+      if (closing.theAsk) {
+        closing.theAsk = enforceEmotionalAnchors(closing.theAsk, emotionalAnchors);
       }
-      
-      // Combined strength factors -> 7
-      if ((achievementCount >= 3 || businessRunsWithoutFounder) && hasExcellentMargin && calibratedScore < 7) {
-        calibratedScore = 7;
-      }
-      if (achievementCount >= 4 && hasExcellentMargin && calibratedScore < 7) {
-        calibratedScore = 7;
-      }
-      
-      if (calibratedScore !== currentGapScore) {
-        console.log(`[Pass2] 📊 Calibrated gapScore: ${currentGapScore} → ${calibratedScore}`, {
-          achievements: achievementCount,
-          excellentMargin: hasExcellentMargin,
-          businessRunsAlone: businessRunsWithoutFounder
-        });
-        narratives.page2_gaps.gapScore = calibratedScore;
+      if (closing.urgencyAnchor) {
+        closing.urgencyAnchor = enforceEmotionalAnchors(closing.urgencyAnchor, emotionalAnchors);
       }
     }
     
