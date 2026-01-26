@@ -732,13 +732,25 @@ No validated financial data available. When discussing financial figures:
       console.log('[Pass2] ✅ Built payroll phrases from Pass 1:', preBuiltPhrases.payrollImpact);
     }
     
-    // VALUATION PHRASE
+    // VALUATION PHRASE (includes hidden assets in enterprise value)
     if (comprehensiveAnalysis?.valuation?.conservativeValue && comprehensiveAnalysis.valuation?.optimisticValue) {
       const v = comprehensiveAnalysis.valuation;
-      const lowM = (v.conservativeValue / 1000000).toFixed(1);
-      const highM = (v.optimisticValue / 1000000).toFixed(1);
-      preBuiltPhrases.valuationRange = `£${lowM}M - £${highM}M`;
-      preBuiltPhrases.valuationHeadline = `Indicative valuation: £${lowM}M - £${highM}M`;
+      const hiddenAssetsTotal = comprehensiveAnalysis?.hiddenAssets?.totalHiddenAssets || 0;
+      const hasHiddenAssets = hiddenAssetsTotal > 50000;
+      
+      if (hasHiddenAssets) {
+        // Enterprise value = earnings value + hidden assets
+        const enterpriseLowM = ((v.conservativeValue + hiddenAssetsTotal) / 1000000).toFixed(1);
+        const enterpriseHighM = ((v.optimisticValue + hiddenAssetsTotal) / 1000000).toFixed(1);
+        preBuiltPhrases.valuationRange = `£${enterpriseLowM}M - £${enterpriseHighM}M`;
+        preBuiltPhrases.valuationHeadline = `Indicative enterprise value: £${enterpriseLowM}M - £${enterpriseHighM}M (includes £${Math.round(hiddenAssetsTotal/1000)}k hidden assets)`;
+        preBuiltPhrases.earningsValueRange = `£${(v.conservativeValue / 1000000).toFixed(1)}M - £${(v.optimisticValue / 1000000).toFixed(1)}M`;
+      } else {
+        const lowM = (v.conservativeValue / 1000000).toFixed(1);
+        const highM = (v.optimisticValue / 1000000).toFixed(1);
+        preBuiltPhrases.valuationRange = `£${lowM}M - £${highM}M`;
+        preBuiltPhrases.valuationHeadline = `Indicative valuation: £${lowM}M - £${highM}M`;
+      }
       
       console.log('[Pass2] ✅ Built valuation phrase from Pass 1:', preBuiltPhrases.valuationRange);
     }
@@ -747,23 +759,30 @@ No validated financial data available. When discussing financial figures:
     if (comprehensiveAnalysis?.hiddenAssets?.totalHiddenAssets && comprehensiveAnalysis.hiddenAssets.totalHiddenAssets > 50000) {
       const h = comprehensiveAnalysis.hiddenAssets;
       const totalK = Math.round(h.totalHiddenAssets / 1000);
-      preBuiltPhrases.hiddenAssetsTotal = `£${totalK}k in hidden assets`;
+      preBuiltPhrases.hiddenAssetsTotal = `£${totalK}k`;
       
       const components: string[] = [];
       if (h.freeholdProperty) components.push(`£${Math.round(h.freeholdProperty/1000)}k freehold property`);
       if (h.excessCash) components.push(`£${Math.round(h.excessCash/1000)}k excess cash`);
+      if (h.undervaluedStock) components.push(`£${Math.round(h.undervaluedStock/1000)}k undervalued stock`);
       preBuiltPhrases.hiddenAssetsBreakdown = components.join(' + ');
+      preBuiltPhrases.hiddenAssetsNote = `${preBuiltPhrases.hiddenAssetsTotal} sits OUTSIDE the earnings-based valuation`;
       
-      console.log('[Pass2] ✅ Built hidden assets phrase from Pass 1:', preBuiltPhrases.hiddenAssetsTotal);
+      console.log('[Pass2] ✅ Built hidden assets phrase from Pass 1:', preBuiltPhrases.hiddenAssetsTotal, '-', preBuiltPhrases.hiddenAssetsBreakdown);
     }
     
-    // GROSS MARGIN PHRASE
-    if (comprehensiveAnalysis?.grossMargin?.grossMarginPct && 
-        (comprehensiveAnalysis.grossMargin.assessment === 'excellent' || comprehensiveAnalysis.grossMargin.assessment === 'healthy')) {
+    // GROSS MARGIN PHRASE (show if healthy or better)
+    if (comprehensiveAnalysis?.grossMargin?.grossMarginPct) {
       const gm = comprehensiveAnalysis.grossMargin;
-      preBuiltPhrases.grossMarginStrength = `${gm.grossMarginPct.toFixed(1)}% gross margin - ${gm.assessment} for the industry`;
+      const assessment = gm.assessment || (gm.grossMarginPct > 50 ? 'excellent' : gm.grossMarginPct > 40 ? 'healthy' : 'typical');
       
-      console.log('[Pass2] ✅ Built gross margin phrase from Pass 1:', preBuiltPhrases.grossMarginStrength);
+      if (assessment === 'excellent' || assessment === 'healthy') {
+        preBuiltPhrases.grossMarginStrength = `${gm.grossMarginPct.toFixed(1)}% gross margin - ${assessment} for the industry`;
+        preBuiltPhrases.grossMarginPct = gm.grossMarginPct.toFixed(1);
+        preBuiltPhrases.grossMarginAssessment = assessment;
+        
+        console.log('[Pass2] ✅ Built gross margin phrase from Pass 1:', preBuiltPhrases.grossMarginStrength);
+      }
     }
     
     // PRODUCTIVITY PHRASE
@@ -824,28 +843,41 @@ USE THESE VERBATIM. THIS IS NOT OPTIONAL.
       
       if (preBuiltPhrases.valuationRange) {
         mandatoryPhrasesSection += `
-💰 VALUATION (USE THIS EXACT PHRASE):
+💰 INDICATIVE VALUATION (MUST include in page4_numbers):
 ────────────────────────────────────────────────────────────────────────────
-► "${preBuiltPhrases.valuationHeadline}"
+► Enterprise Value: "${preBuiltPhrases.valuationRange}"
+► Full phrase: "${preBuiltPhrases.valuationHeadline}"
+
+⛔ YOU MUST include "indicativeValuation": "${preBuiltPhrases.valuationRange}" in page4_numbers
+⛔ Mention this in page4 personalCost or returns section: "The business could be worth ${preBuiltPhrases.valuationRange}"
+⛔ Reference in page5_next_steps closing message
 
 `;
       }
       
       if (preBuiltPhrases.hiddenAssetsTotal) {
         mandatoryPhrasesSection += `
-💎 HIDDEN ASSETS (USE THESE PHRASES):
+💎 HIDDEN ASSETS (MUST include in page4_numbers):
 ────────────────────────────────────────────────────────────────────────────
 ► Total: "${preBuiltPhrases.hiddenAssetsTotal}"
 ► Breakdown: "${preBuiltPhrases.hiddenAssetsBreakdown}"
+► Note: "${preBuiltPhrases.hiddenAssetsNote || 'These assets sit OUTSIDE the earnings-based valuation'}"
+
+⛔ YOU MUST include hiddenAssets object in page4_numbers with total: "${preBuiltPhrases.hiddenAssetsTotal}"
+⛔ Mention in narrative: "Plus ${preBuiltPhrases.hiddenAssetsTotal} in hidden assets that sit outside the earnings valuation"
 
 `;
       }
       
       if (preBuiltPhrases.grossMarginStrength) {
         mandatoryPhrasesSection += `
-📊 GROSS MARGIN (ACKNOWLEDGE THIS STRENGTH):
+📊 GROSS MARGIN STRENGTH (acknowledge in page2 opening):
 ────────────────────────────────────────────────────────────────────────────
-► "${preBuiltPhrases.grossMarginStrength}"
+► Statement: "${preBuiltPhrases.grossMarginStrength}"
+
+⛔ This is a POSITIVE - acknowledge it BEFORE discussing gaps in page2_gaps.openingLine
+⛔ Include "grossMarginStrength": "${preBuiltPhrases.grossMarginStrength}" in page4_numbers
+⛔ This strength supports a higher gap score (7+ with good foundations)
 
 `;
       }
@@ -1620,10 +1652,14 @@ Return a JSON object with this exact structure:
   
   "page4_numbers": {
     "headerLine": "The Investment in Your [Their Specific Goal]",
-    "dataProvided": true/false,${hasValuation ? `
-    "indicativeValuation": "${valuationRangeText}",` : ''}${hasHiddenAssets ? `
-    "hiddenAssetsTotal": "£${(pass1HiddenAssets.totalHiddenAssets/1000).toFixed(0)}k",` : ''}${hasExcellentMargin ? `
-    "grossMarginStrength": "${pass1GrossMargin.grossMarginPct?.toFixed(1)}% (${pass1GrossMargin.assessment})",` : ''}
+    "dataProvided": true/false,${preBuiltPhrases.valuationRange ? `
+    "indicativeValuation": "${preBuiltPhrases.valuationRange}",` : ''}${preBuiltPhrases.hiddenAssetsTotal ? `
+    "hiddenAssets": {
+      "total": "${preBuiltPhrases.hiddenAssetsTotal}",
+      "breakdown": "${preBuiltPhrases.hiddenAssetsBreakdown || ''}",
+      "note": "These assets sit OUTSIDE the earnings-based valuation"
+    },` : ''}${preBuiltPhrases.grossMarginStrength ? `
+    "grossMarginStrength": "${preBuiltPhrases.grossMarginStrength}",` : ''}
     "costOfStaying": {
       "labourInefficiency": "£X - £Y or 'Unknown - we need to assess this'",
       "marginLeakage": "£X or 'Unknown - you suspect significant'",
@@ -2088,27 +2124,75 @@ Before returning, verify:
     }
 
     // ========================================================================
-    // ENHANCEMENT 6: Calibrate Gap Score Based on Achievements
+    // ENHANCEMENT 6: Calibrate Gap Score Based on Achievements & Strengths
     // ========================================================================
-    if (narratives.page2_gaps && hasAchievements) {
-      const achievementCount = pass1Achievements.achievements.length;
+    if (narratives.page2_gaps) {
+      const achievementCount = pass1Achievements?.achievements?.length || 0;
       const currentGapScore = narratives.page2_gaps.gapScore || 6;
+      let calibratedScore = currentGapScore;
       
-      // If they have 3+ achievements but score is very low, bump it up
-      // Gap score should reflect "how much work to close gaps" - achievements reduce this
-      if (achievementCount >= 4 && currentGapScore < 6) {
-        narratives.page2_gaps.gapScore = 6;
-        console.log('[Pass2] 📊 Calibrated gapScore up to 6 (strong achievements)');
-      } else if (achievementCount >= 3 && currentGapScore < 5) {
-        narratives.page2_gaps.gapScore = 5;
-        console.log('[Pass2] 📊 Calibrated gapScore up to 5 (good achievements)');
+      // Check for business strengths
+      const businessRunsWithoutFounder = comprehensiveAnalysis?.exitReadiness?.factors?.some(
+        (f: any) => f.name?.includes('Founder') && f.score > f.maxScore * 0.6
+      ) || emotionalAnchors.tuesdayTest?.toLowerCase().includes('tick');
+      
+      // Gap score should reflect "how much work to close gaps"
+      // Higher score = fewer gaps / stronger foundation
+      
+      // Base calibration from achievements
+      if (achievementCount >= 4 && calibratedScore < 6) {
+        calibratedScore = 6;
+      } else if (achievementCount >= 3 && calibratedScore < 5) {
+        calibratedScore = 5;
       }
       
-      // For clients with strong achievements but real gaps:
-      // 7/10 is appropriate - gaps exist but foundation is solid
-      if (achievementCount >= 3 && currentGapScore === 6 && hasExcellentMargin) {
-        narratives.page2_gaps.gapScore = 7;
-        console.log('[Pass2] 📊 Calibrated gapScore to 7 (strong foundation + margins)');
+      // Bump up for strong margins
+      if (hasExcellentMargin && calibratedScore < 6) {
+        calibratedScore = 6;
+      }
+      
+      // Combined strength factors -> 7
+      if ((achievementCount >= 3 || businessRunsWithoutFounder) && hasExcellentMargin && calibratedScore < 7) {
+        calibratedScore = 7;
+      }
+      if (achievementCount >= 4 && hasExcellentMargin && calibratedScore < 7) {
+        calibratedScore = 7;
+      }
+      
+      if (calibratedScore !== currentGapScore) {
+        console.log(`[Pass2] 📊 Calibrated gapScore: ${currentGapScore} → ${calibratedScore}`, {
+          achievements: achievementCount,
+          excellentMargin: hasExcellentMargin,
+          businessRunsAlone: businessRunsWithoutFounder
+        });
+        narratives.page2_gaps.gapScore = calibratedScore;
+      }
+    }
+    
+    // ========================================================================
+    // ENHANCEMENT 7: Ensure page4_numbers has calculated values
+    // ========================================================================
+    if (narratives.page4_numbers) {
+      // Add indicative valuation if not present
+      if (preBuiltPhrases.valuationRange && !narratives.page4_numbers.indicativeValuation) {
+        narratives.page4_numbers.indicativeValuation = preBuiltPhrases.valuationRange;
+        console.log('[Pass2] 📊 Added indicativeValuation to page4_numbers:', preBuiltPhrases.valuationRange);
+      }
+      
+      // Add hidden assets if not present
+      if (preBuiltPhrases.hiddenAssetsTotal && !narratives.page4_numbers.hiddenAssets) {
+        narratives.page4_numbers.hiddenAssets = {
+          total: preBuiltPhrases.hiddenAssetsTotal,
+          breakdown: preBuiltPhrases.hiddenAssetsBreakdown || '',
+          note: preBuiltPhrases.hiddenAssetsNote || 'These assets sit OUTSIDE the earnings-based valuation'
+        };
+        console.log('[Pass2] 📊 Added hiddenAssets to page4_numbers:', preBuiltPhrases.hiddenAssetsTotal);
+      }
+      
+      // Add gross margin strength if not present
+      if (preBuiltPhrases.grossMarginStrength && !narratives.page4_numbers.grossMarginStrength) {
+        narratives.page4_numbers.grossMarginStrength = preBuiltPhrases.grossMarginStrength;
+        console.log('[Pass2] 📊 Added grossMarginStrength to page4_numbers:', preBuiltPhrases.grossMarginStrength);
       }
     }
     
