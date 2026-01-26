@@ -2329,8 +2329,9 @@ serve(async (req) => {
       destination_clarity: destinationClarity,
       detected_industry: industry,
       
-      // Raw extracted financials (for debugging and future use)
-      extracted_financials: extractedFinancials,
+      // NOTE: extracted_financials column doesn't exist in discovery_reports table
+      // If needed, add the column first via migration, then uncomment:
+      // extracted_financials: extractedFinancials,
       
       // Pre-calculated values for Pass 2 injection
       page4_numbers: {
