@@ -1454,6 +1454,84 @@ Before returning, verify:
     console.log('[Pass 2] Applied text cleanup to fix kk typos');
     
     // ========================================================================
+    // CRITICAL: Map field names to match client view expectations
+    // The LLM output uses different field names than the client components expect
+    // ========================================================================
+    
+    // PAGE 1: Map visionNarrative → visionVerbatim (client view reads visionVerbatim)
+    if (narratives.page1_destination) {
+      // If we have visionNarrative but not visionVerbatim, copy it
+      if (narratives.page1_destination.visionNarrative && !narratives.page1_destination.visionVerbatim) {
+        narratives.page1_destination.visionVerbatim = narratives.page1_destination.visionNarrative;
+      }
+      // Also ensure tuesdayTest is populated from visionVerbatim if missing
+      if (!narratives.page1_destination.tuesdayTest && narratives.page1_destination.visionVerbatim) {
+        narratives.page1_destination.tuesdayTest = narratives.page1_destination.visionVerbatim;
+      }
+      // Ensure clarityScore is correct from destination_clarity
+      if (destinationClarity?.score) {
+        narratives.page1_destination.clarityScore = destinationClarity.score;
+        narratives.page1_destination.destinationClarityScore = destinationClarity.score;
+      }
+      console.log('[Pass 2] ✅ Page 1 field mapping applied:', {
+        hasVisionVerbatim: !!narratives.page1_destination.visionVerbatim,
+        clarityScore: narratives.page1_destination.clarityScore
+      });
+    }
+    
+    // PAGE 3: Map feeling → feelsLike for each phase (client view reads feelsLike)
+    if (narratives.page3_journey?.phases) {
+      for (const phase of narratives.page3_journey.phases) {
+        // Map feeling → feelsLike
+        if (phase.feeling && !phase.feelsLike) {
+          phase.feelsLike = phase.feeling;
+        }
+        // Also map headline → title if missing
+        if (phase.headline && !phase.title) {
+          phase.title = phase.headline;
+        }
+        // Map whatChanges to array if it's a string
+        if (typeof phase.whatChanges === 'string') {
+          phase.whatChanges = [phase.whatChanges];
+        }
+      }
+      console.log('[Pass 2] ✅ Page 3 phase field mapping applied:', {
+        phaseCount: narratives.page3_journey.phases.length,
+        hasFeelsLike: narratives.page3_journey.phases.every((p: any) => !!p.feelsLike || !!p.feeling)
+      });
+    }
+    
+    // PAGE 5: Ensure all expected fields are populated
+    if (narratives.page5_nextSteps) {
+      // Ensure thisWeek is properly structured (can be string or object)
+      if (typeof narratives.page5_nextSteps.thisWeek === 'object' && narratives.page5_nextSteps.thisWeek?.action) {
+        // Already correct format
+      } else if (typeof narratives.page5_nextSteps.thisWeek === 'string') {
+        // Convert string to expected format
+        narratives.page5_nextSteps.thisWeek = {
+          action: narratives.page5_nextSteps.thisWeek,
+          tone: ''
+        };
+      }
+      
+      // Map theAsk → closingMessage if closingMessage is empty
+      if (narratives.page5_nextSteps.theAsk && !narratives.page5_nextSteps.closingMessage) {
+        narratives.page5_nextSteps.closingMessage = narratives.page5_nextSteps.theAsk;
+      }
+      
+      // Map closingLine → callToAction if callToAction is empty
+      if (narratives.page5_nextSteps.closingLine && !narratives.page5_nextSteps.callToAction) {
+        narratives.page5_nextSteps.callToAction = narratives.page5_nextSteps.closingLine;
+      }
+      
+      console.log('[Pass 2] ✅ Page 5 field mapping applied:', {
+        hasThisWeek: !!narratives.page5_nextSteps.thisWeek,
+        hasFirstStep: !!narratives.page5_nextSteps.firstStep,
+        hasClosingMessage: !!narratives.page5_nextSteps.closingMessage
+      });
+    }
+    
+    // ========================================================================
     // CRITICAL: Enforce Pass 1 service prices in LLM output
     // The LLM might have ignored our constraints, so we fix them here
     // ========================================================================
