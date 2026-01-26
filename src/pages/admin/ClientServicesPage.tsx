@@ -4524,6 +4524,33 @@ function DiscoveryClientModal({
                         const page4 = dest?.page4_numbers || destinationReport?.page4_numbers;
                         const page5 = dest?.page5_nextSteps || dest?.page5_next_steps || destinationReport?.page5_next_steps;
                         
+                        // DEBUG: Log what data each page has
+                        console.log('[Client View] Page data:', {
+                          page1: { 
+                            exists: !!page1, 
+                            hasVisionVerbatim: !!page1?.visionVerbatim,
+                            visionVerbatim: page1?.visionVerbatim?.substring?.(0, 50),
+                            hasClarityScore: !!page1?.destinationClarityScore
+                          },
+                          page2: { 
+                            exists: !!page2, 
+                            hasGaps: !!page2?.gaps?.length,
+                            gapCount: page2?.gaps?.length 
+                          },
+                          page3: { 
+                            exists: !!page3, 
+                            hasPhases: !!page3?.phases?.length,
+                            phaseCount: page3?.phases?.length 
+                          },
+                          page5: { 
+                            exists: !!page5, 
+                            hasThisWeek: !!page5?.thisWeek,
+                            hasFirstStep: !!page5?.firstStep 
+                          },
+                          destReportKeys: dest ? Object.keys(dest) : 'none',
+                          topLevelKeys: destinationReport ? Object.keys(destinationReport).filter(k => k.startsWith('page')) : 'none'
+                        });
+                        
                         // If we have destination-focused data, render new structure
                         if (page1 || page2 || page3 || page4 || page5) {
                           return (
