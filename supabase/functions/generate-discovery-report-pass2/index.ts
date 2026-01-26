@@ -707,6 +707,172 @@ No validated financial data available. When discussing financial figures:
       console.log('[Pass2] ✅ Using structured pre-built phrases from Pass 1 v3.0');
     }
     
+    // ========================================================================
+    // BUILD PRE-PHRASED STATEMENTS FROM PASS 1 CALCULATIONS
+    // These are MANDATORY - the LLM must use these exact phrases, not calculate its own
+    // ========================================================================
+    
+    const preBuiltPhrases: Record<string, string> = {};
+    
+    // PAYROLL PHRASE - THE CRITICAL FIX
+    if (comprehensiveAnalysis?.payroll?.annualExcess && comprehensiveAnalysis.payroll.annualExcess > 0) {
+      const p = comprehensiveAnalysis.payroll;
+      const excessK = Math.round(p.annualExcess / 1000);
+      const staffPct = p.staffCostsPct?.toFixed(1) || '?';
+      const benchmarkPct = (p.benchmark as any)?.good || (p as any).benchmarkPct || 28;
+      const monthlyK = Math.round(excessK / 12);
+      const twoYearK = excessK * 2;
+      
+      preBuiltPhrases.payrollImpact = `£${excessK}k/year excess - staff costs at ${staffPct}% vs the ${benchmarkPct}% benchmark`;
+      preBuiltPhrases.payrollMonthly = `£${monthlyK}k walks out the door every month`;
+      preBuiltPhrases.payrollTwoYear = `£${twoYearK}k over the next two years`;
+      preBuiltPhrases.payrollComparison = `${staffPct}% vs the ${benchmarkPct}% benchmark`;
+      preBuiltPhrases.payrollHeadline = `£${excessK}k/year excess`;
+      
+      console.log('[Pass2] ✅ Built payroll phrases from Pass 1:', preBuiltPhrases.payrollImpact);
+    }
+    
+    // VALUATION PHRASE
+    if (comprehensiveAnalysis?.valuation?.conservativeValue && comprehensiveAnalysis.valuation?.optimisticValue) {
+      const v = comprehensiveAnalysis.valuation;
+      const lowM = (v.conservativeValue / 1000000).toFixed(1);
+      const highM = (v.optimisticValue / 1000000).toFixed(1);
+      preBuiltPhrases.valuationRange = `£${lowM}M - £${highM}M`;
+      preBuiltPhrases.valuationHeadline = `Indicative valuation: £${lowM}M - £${highM}M`;
+      
+      console.log('[Pass2] ✅ Built valuation phrase from Pass 1:', preBuiltPhrases.valuationRange);
+    }
+    
+    // HIDDEN ASSETS PHRASE
+    if (comprehensiveAnalysis?.hiddenAssets?.totalHiddenAssets && comprehensiveAnalysis.hiddenAssets.totalHiddenAssets > 50000) {
+      const h = comprehensiveAnalysis.hiddenAssets;
+      const totalK = Math.round(h.totalHiddenAssets / 1000);
+      preBuiltPhrases.hiddenAssetsTotal = `£${totalK}k in hidden assets`;
+      
+      const components: string[] = [];
+      if (h.freeholdProperty) components.push(`£${Math.round(h.freeholdProperty/1000)}k freehold property`);
+      if (h.excessCash) components.push(`£${Math.round(h.excessCash/1000)}k excess cash`);
+      preBuiltPhrases.hiddenAssetsBreakdown = components.join(' + ');
+      
+      console.log('[Pass2] ✅ Built hidden assets phrase from Pass 1:', preBuiltPhrases.hiddenAssetsTotal);
+    }
+    
+    // GROSS MARGIN PHRASE
+    if (comprehensiveAnalysis?.grossMargin?.grossMarginPct && 
+        (comprehensiveAnalysis.grossMargin.assessment === 'excellent' || comprehensiveAnalysis.grossMargin.assessment === 'healthy')) {
+      const gm = comprehensiveAnalysis.grossMargin;
+      preBuiltPhrases.grossMarginStrength = `${gm.grossMarginPct.toFixed(1)}% gross margin - ${gm.assessment} for the industry`;
+      
+      console.log('[Pass2] ✅ Built gross margin phrase from Pass 1:', preBuiltPhrases.grossMarginStrength);
+    }
+    
+    // PRODUCTIVITY PHRASE
+    if (comprehensiveAnalysis?.productivity?.excessHeadcount && comprehensiveAnalysis.productivity.excessHeadcount > 0) {
+      const pr = comprehensiveAnalysis.productivity;
+      const revPerHeadK = pr.revenuePerHead ? Math.round(pr.revenuePerHead / 1000) : null;
+      const benchmarkK = pr.benchmarkLow ? Math.round(pr.benchmarkLow / 1000) : 120;
+      
+      preBuiltPhrases.productivityGap = `Revenue per head at £${revPerHeadK}k vs £${benchmarkK}k benchmark`;
+      preBuiltPhrases.excessHeadcount = `Roughly ${pr.excessHeadcount} excess employees based on productivity`;
+      
+      console.log('[Pass2] ✅ Built productivity phrase from Pass 1:', preBuiltPhrases.productivityGap);
+    }
+    
+    // COST OF INACTION PHRASE
+    if (comprehensiveAnalysis?.costOfInaction?.totalOverHorizon) {
+      const coi = comprehensiveAnalysis.costOfInaction;
+      const totalK = Math.round(coi.totalOverHorizon / 1000);
+      preBuiltPhrases.costOfInaction = `£${totalK}k+ over ${coi.timeHorizon || 2} years`;
+      
+      console.log('[Pass2] ✅ Built cost of inaction phrase from Pass 1:', preBuiltPhrases.costOfInaction);
+    }
+    
+    // ========================================================================
+    // BUILD ULTRA-MANDATORY PHRASES SECTION FOR PROMPT
+    // ========================================================================
+    let mandatoryPhrasesSection = '';
+    
+    if (Object.keys(preBuiltPhrases).length > 0) {
+      mandatoryPhrasesSection = `
+
+============================================================================
+⛔⛔⛔ MANDATORY PHRASES - USE THESE EXACTLY - DO NOT CALCULATE ⛔⛔⛔
+============================================================================
+The following phrases have been PRE-CALCULATED from the client's actual data.
+You MUST use these EXACT phrases. DO NOT calculate your own figures.
+DO NOT paraphrase. DO NOT round differently. DO NOT use generic benchmarks.
+USE THESE VERBATIM. THIS IS NOT OPTIONAL.
+
+`;
+      
+      if (preBuiltPhrases.payrollImpact) {
+        mandatoryPhrasesSection += `
+🚨 PAYROLL (CRITICAL - USE THESE EXACT PHRASES):
+────────────────────────────────────────────────────────────────────────────
+► Impact statement: "${preBuiltPhrases.payrollImpact}"
+► Monthly impact: "${preBuiltPhrases.payrollMonthly}"
+► Two-year cost: "${preBuiltPhrases.payrollTwoYear}"
+► Comparison: "${preBuiltPhrases.payrollComparison}"
+
+⛔ When discussing payroll/staff costs, you MUST use: "${preBuiltPhrases.payrollImpact}"
+⛔ DO NOT write "£147k" or "£148k" - that is WRONG
+⛔ DO NOT use "30% benchmark" - the correct benchmark is in the phrase above
+⛔ The correct figure is: ${preBuiltPhrases.payrollHeadline}
+
+`;
+      }
+      
+      if (preBuiltPhrases.valuationRange) {
+        mandatoryPhrasesSection += `
+💰 VALUATION (USE THIS EXACT PHRASE):
+────────────────────────────────────────────────────────────────────────────
+► "${preBuiltPhrases.valuationHeadline}"
+
+`;
+      }
+      
+      if (preBuiltPhrases.hiddenAssetsTotal) {
+        mandatoryPhrasesSection += `
+💎 HIDDEN ASSETS (USE THESE PHRASES):
+────────────────────────────────────────────────────────────────────────────
+► Total: "${preBuiltPhrases.hiddenAssetsTotal}"
+► Breakdown: "${preBuiltPhrases.hiddenAssetsBreakdown}"
+
+`;
+      }
+      
+      if (preBuiltPhrases.grossMarginStrength) {
+        mandatoryPhrasesSection += `
+📊 GROSS MARGIN (ACKNOWLEDGE THIS STRENGTH):
+────────────────────────────────────────────────────────────────────────────
+► "${preBuiltPhrases.grossMarginStrength}"
+
+`;
+      }
+      
+      if (preBuiltPhrases.productivityGap) {
+        mandatoryPhrasesSection += `
+👥 PRODUCTIVITY (USE THESE PHRASES):
+────────────────────────────────────────────────────────────────────────────
+► Gap: "${preBuiltPhrases.productivityGap}"
+► Excess: "${preBuiltPhrases.excessHeadcount}"
+
+`;
+      }
+      
+      if (preBuiltPhrases.costOfInaction) {
+        mandatoryPhrasesSection += `
+⏱️ COST OF INACTION (USE THIS PHRASE):
+────────────────────────────────────────────────────────────────────────────
+► "Cost of inaction: ${preBuiltPhrases.costOfInaction}"
+
+`;
+      }
+      
+      mandatoryPhrasesSection += `============================================================================
+`;
+    }
+    
     // Build mandatory dimensions prompt from Pass 1 analysis
     // Prefer the new structured prompt injection if available
     const mandatoryDimensionsPrompt = pass2PromptInjection || buildMandatoryDimensionsPrompt(comprehensiveAnalysis, destinationClarity);
@@ -1221,6 +1387,7 @@ WRITING STYLE:
 7. Personal anchors - reference spouse names, kids' ages, specific details
 8. Services as footnotes - headline the OUTCOME, service is just how
 ${financialDataSection}
+${mandatoryPhrasesSection}
 ${servicePriceConstraints}
 ${mandatoryDimensionsPrompt}
 ============================================================================
