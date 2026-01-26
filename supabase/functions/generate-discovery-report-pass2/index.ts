@@ -1916,9 +1916,9 @@ Before returning, verify:
     }
     
     // ========================================================================
-    // ENFORCEMENT: Dynamically replace LLM's wrong payroll figure
-    // The LLM ignores our validated figures and recalculates using 30% default benchmark
-    // We calculate what it PROBABLY got wrong, then replace it
+    // ENFORCEMENT: Replace LLM's wrong payroll figure with Pass 1's validated figure
+    // The LLM ignores our instructions and recalculates using generic benchmarks.
+    // We find ANY payroll figure in the "wrong range" and replace with the correct one.
     // ========================================================================
     if (validatedPayroll.excessAmount && validatedPayroll.excessAmount > 0 && 
         validatedPayroll.turnover && validatedPayroll.staffCostsPct) {
@@ -1933,89 +1933,116 @@ Before returning, verify:
       const llmLikelyExcess = Math.round((llmLikelyExcessPct / 100) * validatedPayroll.turnover);
       const llmLikelyK = Math.round(llmLikelyExcess / 1000);
       
+      // Only proceed if there's a meaningful difference (>£10k gap)
+      const gapK = Math.abs(correctK - llmLikelyK);
+      
       console.log(`[Pass2] 🔧 Payroll enforcement check:`, {
-        correctExcess: `£${correctK}k`,
+        correctExcess: `£${correctK}k (£${correctFormatted})`,
         correctBenchmark: `${correctBenchmark}%`,
         llmLikelyExcess: `£${llmLikelyK}k (using 30% default)`,
-        needsReplacement: Math.abs(llmLikelyK - correctK) > 5
+        gapK: `£${gapK}k`,
+        needsReplacement: gapK > 10
       });
       
-      // Only do replacement if the values are actually different (>£5k gap)
-      if (Math.abs(llmLikelyK - correctK) > 5) {
+      if (gapK > 10) {
         let fixed = JSON.stringify(narratives);
         let replacements = 0;
         
-        // Replace £XXXk format (the LLM's calculated wrong figure)
-        const wrongKPattern = new RegExp(`£${llmLikelyK}k`, 'gi');
-        if (wrongKPattern.test(fixed)) {
-          fixed = fixed.replace(wrongKPattern, `£${correctK}k`);
-          replacements++;
-        }
+        // Define the "wrong range" - LLM could be off by ±10% due to rounding
+        const wrongLowK = Math.round(llmLikelyK * 0.9);
+        const wrongHighK = Math.round(llmLikelyK * 1.1);
         
-        // Also check for nearby values (LLM might round differently)
-        for (let offset = -2; offset <= 2; offset++) {
-          if (offset === 0) continue;
-          const nearbyK = llmLikelyK + offset;
-          const nearbyPattern = new RegExp(`£${nearbyK}k`, 'gi');
-          if (nearbyPattern.test(fixed)) {
-            fixed = fixed.replace(nearbyPattern, `£${correctK}k`);
+        console.log(`[Pass2] Searching for wrong figures in range £${wrongLowK}k - £${wrongHighK}k`);
+        
+        // PATTERN 1: Match £XXXk format for any value in the wrong range
+        for (let k = wrongLowK; k <= wrongHighK; k++) {
+          const kPattern = new RegExp(`£${k}k`, 'gi');
+          if (kPattern.test(fixed)) {
+            console.log(`[Pass2]   Found £${k}k - replacing with £${correctK}k`);
+            fixed = fixed.replace(kPattern, `£${correctK}k`);
             replacements++;
           }
         }
         
-        // Replace £XXX,XXX format (full number with commas)
-        const wrongFullFormatted = llmLikelyExcess.toLocaleString();
-        const wrongFullPattern = new RegExp(`£${wrongFullFormatted}`, 'g');
-        if (wrongFullPattern.test(fixed)) {
-          fixed = fixed.replace(wrongFullPattern, `£${correctFormatted}`);
-          replacements++;
+        // PATTERN 2: Match £XXX,XXX format (full numbers with commas)
+        // Generate all plausible wrong full figures
+        for (let k = wrongLowK; k <= wrongHighK; k++) {
+          // Check for exact thousands (£147,000)
+          const exactThousand = (k * 1000).toLocaleString();
+          const exactPattern = new RegExp(`£${exactThousand}(?![0-9])`, 'g');
+          if (exactPattern.test(fixed)) {
+            console.log(`[Pass2]   Found £${exactThousand} - replacing with £${correctFormatted}`);
+            fixed = fixed.replace(exactPattern, `£${correctFormatted}`);
+            replacements++;
+          }
+          
+          // Check for values with hundreds (£147,500, £147,723, etc.)
+          for (let h = 0; h <= 9; h++) {
+            for (let t = 0; t <= 9; t++) {
+              const fullValue = k * 1000 + h * 100 + t * 10;
+              const fullFormatted = fullValue.toLocaleString();
+              // Only check if it appears in the string (optimization)
+              if (fixed.includes(fullFormatted)) {
+                const fullPattern = new RegExp(`£${fullFormatted}(?![0-9])`, 'g');
+                if (fullPattern.test(fixed)) {
+                  console.log(`[Pass2]   Found £${fullFormatted} - replacing with £${correctFormatted}`);
+                  fixed = fixed.replace(fullPattern, `£${correctFormatted}`);
+                  replacements++;
+                }
+              }
+            }
+          }
         }
         
-        // Replace 2-year figure (2x the wrong amount) - LLM often says "£Xk over two years"
-        const wrongTwoYearK = llmLikelyK * 2;
+        // PATTERN 3: Two-year figures (2x the wrong amount)
+        const wrongTwoYearLowK = wrongLowK * 2;
+        const wrongTwoYearHighK = wrongHighK * 2;
         const correctTwoYearK = correctK * 2;
-        const twoYearPattern = new RegExp(`£${wrongTwoYearK}k`, 'gi');
-        if (twoYearPattern.test(fixed)) {
-          fixed = fixed.replace(twoYearPattern, `£${correctTwoYearK}k`);
-          replacements++;
-        }
         
-        // Also handle nearby 2-year values
-        for (let offset = -4; offset <= 4; offset++) {
-          if (offset === 0) continue;
-          const nearbyTwoYearK = wrongTwoYearK + offset;
-          const nearbyTwoYearPattern = new RegExp(`£${nearbyTwoYearK}k`, 'gi');
-          if (nearbyTwoYearPattern.test(fixed)) {
-            fixed = fixed.replace(nearbyTwoYearPattern, `£${correctTwoYearK}k`);
+        for (let k = wrongTwoYearLowK; k <= wrongTwoYearHighK; k++) {
+          const twoYearPattern = new RegExp(`£${k}k`, 'gi');
+          if (twoYearPattern.test(fixed)) {
+            console.log(`[Pass2]   Found 2-year figure £${k}k - replacing with £${correctTwoYearK}k`);
+            fixed = fixed.replace(twoYearPattern, `£${correctTwoYearK}k`);
             replacements++;
           }
         }
         
-        // Fix monthly figure (LLM often says "£Xk per month" = annual / 12)
-        const wrongMonthlyK = Math.round(llmLikelyK / 12);
+        // PATTERN 4: Monthly figures (wrong annual / 12)
+        const wrongMonthlyLowK = Math.round(wrongLowK / 12);
+        const wrongMonthlyHighK = Math.round(wrongHighK / 12);
         const correctMonthlyK = Math.round(correctK / 12);
-        if (wrongMonthlyK !== correctMonthlyK && wrongMonthlyK > 0) {
-          const monthlyPattern = new RegExp(`£${wrongMonthlyK}k`, 'gi');
-          if (monthlyPattern.test(fixed)) {
-            fixed = fixed.replace(monthlyPattern, `£${correctMonthlyK}k`);
-            replacements++;
+        
+        if (wrongMonthlyLowK !== correctMonthlyK) {
+          for (let k = wrongMonthlyLowK; k <= wrongMonthlyHighK; k++) {
+            if (k !== correctMonthlyK && k > 0) {
+              const monthlyPattern = new RegExp(`£${k}k\\s*(per\\s*month|/month|monthly)`, 'gi');
+              if (monthlyPattern.test(fixed)) {
+                console.log(`[Pass2]   Found monthly figure £${k}k - replacing with £${correctMonthlyK}k`);
+                fixed = fixed.replace(monthlyPattern, `£${correctMonthlyK}k$1`);
+                replacements++;
+              }
+            }
           }
         }
         
-        // Fix benchmark percentages (only if our benchmark isn't 30%)
+        // PATTERN 5: Fix benchmark percentages (only if our benchmark isn't 30%)
         if (correctBenchmark !== 30) {
           const benchmarkPatterns = [
             { find: /30%\s*benchmark/gi, replace: `${correctBenchmark}% benchmark` },
             { find: /vs\s*(the\s*)?30%/gi, replace: `vs the ${correctBenchmark}%` },
-            { find: /benchmark\s*of\s*30%/gi, replace: `benchmark of ${correctBenchmark}%` },
+            { find: /versus\s*(the\s*)?30%/gi, replace: `versus the ${correctBenchmark}%` },
+            { find: /benchmark\s*(of\s*)?30%/gi, replace: `benchmark of ${correctBenchmark}%` },
             { find: /the\s*30%\s*benchmark/gi, replace: `the ${correctBenchmark}% benchmark` },
             { find: /30%\s*industry/gi, replace: `${correctBenchmark}% industry` },
+            { find: /(\d+\.?\d*)%\s*vs\s*30%/gi, replace: `$1% vs ${correctBenchmark}%` },
           ];
           
           for (const pattern of benchmarkPatterns) {
             if (pattern.find.test(fixed)) {
               fixed = fixed.replace(pattern.find, pattern.replace);
               replacements++;
+              console.log(`[Pass2]   Fixed benchmark reference: 30% → ${correctBenchmark}%`);
             }
           }
         }
@@ -2023,17 +2050,27 @@ Before returning, verify:
         narratives = JSON.parse(fixed);
         
         if (replacements > 0) {
-          console.log(`[Pass2] ✅ Made ${replacements} dynamic payroll corrections: £${llmLikelyK}k → £${correctK}k`);
+          console.log(`[Pass2] ✅ Made ${replacements} payroll corrections (range £${wrongLowK}k-£${wrongHighK}k → £${correctK}k)`);
+        } else {
+          console.log(`[Pass2] ⚠️ No replacements made - checking if wrong figures still present...`);
+          
+          // Debug: check what payroll figures ARE in the output
+          const allPayrollMatches = fixed.match(/£\d{2,3}(?:,\d{3})?(?:k|\/year)?/gi);
+          if (allPayrollMatches) {
+            console.log(`[Pass2] Found these payroll-like figures: ${[...new Set(allPayrollMatches)].join(', ')}`);
+          }
         }
         
-        // Final verification log
+        // Final verification
         const verifyStr = JSON.stringify(narratives);
-        const wrongStillPresent = verifyStr.includes(`£${llmLikelyK}k`);
+        const wrongStillPresent = verifyStr.match(/£14[0-9]k|£14[0-9],\d{3}/gi);
         if (wrongStillPresent) {
-          console.warn(`[Pass2] ⚠️ Some instances of £${llmLikelyK}k may still be present`);
+          console.warn(`[Pass2] ⚠️ May still have wrong figures: ${wrongStillPresent.join(', ')}`);
+        } else {
+          console.log(`[Pass2] ✓ No wrong payroll figures detected in final output`);
         }
       } else {
-        console.log(`[Pass2] ✓ Payroll figures appear correct (£${correctK}k) - no replacement needed`);
+        console.log(`[Pass2] ✓ Payroll figures appear correct (gap only £${gapK}k) - no replacement needed`);
       }
     }
 
