@@ -13,13 +13,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-// NEW: Import structured calculator integration
-import { 
-  runStructuredCalculations, 
-  convertFinancialsFormat,
-  buildPass2PromptInjection 
-} from './calculators/integration.ts'
-import type { Pass1Output } from './types/pass1-output.ts'
+// NOTE: Structured calculators are defined inline below (Supabase Edge Functions 
+// don't support relative subdirectory imports). See section at end of file.
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -1599,6 +1594,250 @@ function scoreServicesFromDiscovery(responses: Record<string, any>): ScoringResu
 }
 
 // ============================================================================
+// PREBUILT PHRASES GENERATOR (Inline version for Edge Function compatibility)
+// ============================================================================
+
+function formatCurrencyK(value: number | null | undefined): string {
+  if (value === null || value === undefined) return 'Unknown';
+  if (Math.abs(value) >= 1000000) {
+    return `£${(value / 1000000).toFixed(1)}M`;
+  }
+  return `£${Math.round(value / 1000)}k`;
+}
+
+function buildPrebuiltPhrases(
+  analysis: ComprehensiveAnalysis | null,
+  clarity: DestinationClarityAnalysis | null,
+  industry: string
+): any {
+  if (!analysis) return null;
+  
+  const phrases: any = {
+    payroll: null,
+    valuation: null,
+    trajectory: null,
+    costOfInaction: null,
+    exitReadiness: null,
+    closing: null
+  };
+  
+  // Payroll phrases
+  if (analysis.payroll?.annualExcess && analysis.payroll.annualExcess > 0) {
+    const p = analysis.payroll;
+    const annualK = Math.round(p.annualExcess / 1000);
+    const monthlyK = Math.round(p.annualExcess / 12 / 1000);
+    const twoYearK = annualK * 2;
+    
+    phrases.payroll = {
+      headline: `£${annualK}k/year payroll excess`,
+      impact: `£${annualK}k/year excess - staff costs at ${p.staffCostsPct?.toFixed(1) || '?'}% vs the ${p.benchmark?.good || 28}% benchmark`,
+      monthly: `£${monthlyK}k walks out the door every month`,
+      twoYear: `£${twoYearK}k over the next two years`,
+      comparison: `${p.staffCostsPct?.toFixed(1) || '?'}% vs the ${p.benchmark?.good || 28}% benchmark for ${industry.replace(/_/g, ' ')}`,
+      action: 'Right-size the team before a buyer does it for you',
+      isOverstaffed: p.isOverstaffed || false
+    };
+  }
+  
+  // Valuation phrases
+  if (analysis.valuation?.enterpriseValueLow && analysis.valuation?.enterpriseValueHigh) {
+    const v = analysis.valuation;
+    const lowM = (v.enterpriseValueLow! / 1000000).toFixed(1);
+    const highM = (v.enterpriseValueHigh! / 1000000).toFixed(1);
+    
+    phrases.valuation = {
+      headline: `Indicative enterprise value: £${lowM}M-£${highM}M`,
+      range: `£${lowM}M-£${highM}M`,
+      multiple: `${v.adjustedMultipleLow?.toFixed(1) || '?'}-${v.adjustedMultipleHigh?.toFixed(1) || '?'}x EBITDA`
+    };
+  }
+  
+  // Trajectory phrases
+  if (analysis.trajectory?.hasData) {
+    const t = analysis.trajectory;
+    const changePct = t.percentageChange?.toFixed(1) || '?';
+    const direction = (t.percentageChange || 0) >= 0 ? 'up' : 'down';
+    
+    phrases.trajectory = {
+      headline: `Revenue ${direction} ${Math.abs(t.percentageChange || 0).toFixed(1)}% year-on-year`,
+      impact: t.absoluteChange ? `${formatCurrencyK(Math.abs(t.absoluteChange))} ${direction === 'up' ? 'increase' : 'decline'} from prior year` : '',
+      trend: t.trend || 'unknown'
+    };
+  }
+  
+  // Cost of Inaction phrases
+  if (analysis.costOfInaction?.totalOverHorizon && analysis.costOfInaction.totalOverHorizon > 0) {
+    const c = analysis.costOfInaction;
+    const totalK = Math.round(c.totalOverHorizon / 1000);
+    const monthlyK = Math.round(c.totalAnnual / 12 / 1000);
+    
+    phrases.costOfInaction = {
+      headline: `Cost of inaction: £${totalK}k+ over ${c.timeHorizon || 2} years`,
+      breakdown: c.components?.map((comp: any) => `${comp.category}: ${formatCurrencyK(comp.costOverHorizon)}`).join('. ') || '',
+      urgency: monthlyK > 0 ? `Every month you wait is another £${monthlyK}k gone` : 'Act now to preserve value'
+    };
+  }
+  
+  // Exit Readiness phrases
+  if (analysis.exitReadiness) {
+    const e = analysis.exitReadiness;
+    const pct = Math.round((e.score / e.maxScore) * 100);
+    
+    phrases.exitReadiness = {
+      headline: `Exit readiness: ${pct}%`,
+      summary: `${pct}% exit ready - ${pct >= 70 ? 'strong foundation' : pct >= 50 ? 'gaps to close' : 'work needed'}`,
+      topStrength: e.strengths?.[0] || 'Foundation being built',
+      topBlocker: e.blockers?.[0] || 'No major blockers'
+    };
+  }
+  
+  // Closing phrases
+  const neverHadBreak = detectNeverHadBreakPhrase(analysis);
+  phrases.closing = {
+    openingLine: analysis.achievements?.achievements?.[0]?.achievement || "Let's talk about where you're at.",
+    situationStatement: analysis.payroll?.isOverstaffed 
+      ? 'Now you need to address the payroll drag before you sell.'
+      : 'The foundation is solid - now it\'s about closing the gaps.',
+    theAsk: clarity && clarity.score >= 7 
+      ? "You're close. Let's close the gaps and get you to the finish line."
+      : "There's work to do, but it's achievable. Let's start.",
+    urgencyAnchor: phrases.costOfInaction?.urgency || 'The sooner you start, the sooner you\'re free.',
+    neverHadBreak
+  };
+  
+  return phrases;
+}
+
+function detectNeverHadBreakPhrase(analysis: ComprehensiveAnalysis | null): string | null {
+  // This would need access to responses - for now return null
+  // The actual detection happens in Pass 2 which has access to responses
+  return null;
+}
+
+function buildPass2PromptInjectionFromAnalysis(
+  analysis: ComprehensiveAnalysis | null,
+  clarity: DestinationClarityAnalysis | null
+): string {
+  if (!analysis) return '';
+  
+  let injection = `
+============================================================================
+⛔ MANDATORY PRE-CALCULATED PHRASES - USE THESE VERBATIM
+============================================================================
+
+The following figures have been calculated by Pass 1 using validated financial data.
+DO NOT calculate your own figures. USE THESE EXACT NUMBERS.
+
+`;
+
+  // Payroll section
+  if (analysis.payroll?.annualExcess && analysis.payroll.annualExcess > 0) {
+    const p = analysis.payroll;
+    const annualK = Math.round(p.annualExcess / 1000);
+    const monthlyK = Math.round(p.annualExcess / 12 / 1000);
+    const twoYearK = annualK * 2;
+    
+    injection += `
+## PAYROLL (CRITICAL - USE EXACT FIGURES)
+
+Staff Costs: ${p.staffCostsPct?.toFixed(1) || '?'}% of revenue
+Benchmark: ${p.benchmark?.good || 28}%
+Annual Excess: £${annualK}k
+Monthly: £${monthlyK}k
+Two-Year: £${twoYearK}k
+
+⛔ USE THIS EXACT PHRASE: "£${annualK}k/year excess - staff costs at ${p.staffCostsPct?.toFixed(1) || '?'}% vs the ${p.benchmark?.good || 28}% benchmark"
+
+---
+`;
+  }
+
+  // Valuation section
+  if (analysis.valuation?.enterpriseValueLow && analysis.valuation?.enterpriseValueHigh) {
+    const v = analysis.valuation;
+    const lowM = (v.enterpriseValueLow! / 1000000).toFixed(1);
+    const highM = (v.enterpriseValueHigh! / 1000000).toFixed(1);
+    
+    injection += `
+## VALUATION (MANDATORY)
+
+Enterprise Value Range: £${lowM}M-£${highM}M
+Multiple: ${v.adjustedMultipleLow?.toFixed(1) || '?'}-${v.adjustedMultipleHigh?.toFixed(1) || '?'}x
+
+⛔ USE THIS: "Indicative enterprise value: £${lowM}M-£${highM}M"
+
+---
+`;
+  }
+
+  // Trajectory section
+  if (analysis.trajectory?.hasData && analysis.trajectory.trend === 'declining') {
+    const t = analysis.trajectory;
+    
+    injection += `
+## TRAJECTORY (MANDATORY GAP - DECLINING)
+
+Change: ${t.percentageChange?.toFixed(1) || '?'}% year-on-year
+Absolute: ${formatCurrencyK(Math.abs(t.absoluteChange || 0))}
+
+⛔ USE THIS: "Revenue down ${Math.abs(t.percentageChange || 0).toFixed(1)}% year-on-year"
+
+---
+`;
+  }
+
+  // Exit Readiness section
+  if (analysis.exitReadiness) {
+    const e = analysis.exitReadiness;
+    const pct = Math.round((e.score / e.maxScore) * 100);
+    
+    injection += `
+## EXIT READINESS (MANDATORY)
+
+Score: ${pct}%
+Strengths: ${e.strengths?.join(', ') || 'None'}
+Blockers: ${e.blockers?.join(', ') || 'None'}
+
+⛔ USE THIS: "Exit readiness: ${pct}%"
+
+---
+`;
+  }
+
+  // Cost of Inaction section
+  if (analysis.costOfInaction?.totalOverHorizon) {
+    const c = analysis.costOfInaction;
+    const totalK = Math.round(c.totalOverHorizon / 1000);
+    
+    injection += `
+## COST OF INACTION (MANDATORY)
+
+Total over ${c.timeHorizon || 2} years: £${totalK}k+
+
+⛔ USE THIS: "Cost of inaction: £${totalK}k+ over ${c.timeHorizon || 2} years"
+
+---
+`;
+  }
+
+  // Destination Clarity
+  if (clarity) {
+    injection += `
+## DESTINATION CLARITY (PRE-CALCULATED - DO NOT OVERRIDE)
+
+Score: ${clarity.score}/10
+Reasoning: ${clarity.reasoning}
+
+⛔ USE THIS SCORE: ${clarity.score}/10. Your narrative MUST match this score level.
+
+============================================================================
+`;
+  }
+
+  return injection;
+}
+
+// ============================================================================
 // MAIN HANDLER
 // ============================================================================
 
@@ -1984,36 +2223,20 @@ serve(async (req) => {
     });
 
     // ========================================================================
-    // NEW: RUN STRUCTURED CALCULATIONS WITH PRE-BUILT PHRASES
+    // BUILD PRE-BUILT PHRASES FOR PASS 2
+    // ========================================================================
+    // These phrases are built from comprehensiveAnalysis and injected into Pass 2
+    // so the LLM uses exact figures rather than calculating its own.
     // ========================================================================
     
-    let structuredOutput: Pass1Output | null = null;
-    let pass2PromptInjection: string | null = null;
+    const prebuiltPhrases = buildPrebuiltPhrases(comprehensiveAnalysis, destinationClarity, industry);
+    const pass2PromptInjection = buildPass2PromptInjectionFromAnalysis(comprehensiveAnalysis, destinationClarity);
     
-    try {
-      const convertedFinancials = convertFinancialsFormat(extractedFinancials);
-      
-      structuredOutput = runStructuredCalculations(
-        engagementId,
-        engagement.client_id,
-        engagement.client?.full_name || engagement.client?.client_name || 'Unknown',
-        engagement.client?.client_company || 'Unknown Company',
-        convertedFinancials,
-        discoveryResponses
-      );
-      
-      // Build the prompt injection for Pass 2
-      pass2PromptInjection = buildPass2PromptInjection(structuredOutput);
-      
-      console.log('[Pass1] ✅ Structured calculations complete:', {
-        dataQuality: structuredOutput.meta.dataQuality,
-        payrollPhrase: structuredOutput.payroll?.annualExcess?.phrases?.impact || 'N/A',
-        valuationRange: structuredOutput.valuation?.enterpriseValue?.formatted || 'N/A'
-      });
-    } catch (structuredError: any) {
-      console.error('[Pass1] ⚠️ Structured calculations failed (non-fatal):', structuredError.message);
-      // Continue with existing flow - structured output is enhancement, not requirement
-    }
+    console.log('[Pass1] ✅ Prebuilt phrases generated:', {
+      hasPayroll: !!prebuiltPhrases?.payroll?.impact,
+      hasValuation: !!prebuiltPhrases?.valuation?.range,
+      hasCostOfInaction: !!prebuiltPhrases?.costOfInaction?.headline
+    });
 
     // ========================================================================
     // RUN SERVICE SCORING
@@ -2144,52 +2367,11 @@ serve(async (req) => {
         analysisVersion: '3.0-structured-phrases'
       },
       
-      // NEW: Structured output with pre-built phrases
-      structured_output: structuredOutput,
-      
-      // NEW: Pre-built prompt injection for Pass 2
+      // Pre-built prompt injection for Pass 2
       pass2_prompt_injection: pass2PromptInjection,
       
-      // NEW: Flattened phrase lookup for easy Pass 2 access
-      prebuilt_phrases: structuredOutput ? {
-        payroll: {
-          headline: structuredOutput.payroll?.annualExcess?.phrases?.headline || null,
-          impact: structuredOutput.payroll?.annualExcess?.phrases?.impact || null,
-          monthly: structuredOutput.payroll?.monthlyExcess?.phrases?.impact || null,
-          twoYear: structuredOutput.payroll?.twoYearExcess?.phrases?.impact || null,
-          comparison: structuredOutput.payroll?.staffCostsPercent?.phrases?.comparison || null,
-          action: structuredOutput.payroll?.staffCostsPercent?.phrases?.actionRequired || null,
-          isOverstaffed: structuredOutput.payroll?.summary?.isOverstaffed || false
-        },
-        valuation: {
-          headline: structuredOutput.valuation?.enterpriseValue?.phrases?.headline || null,
-          range: structuredOutput.valuation?.enterpriseValue?.formatted || null,
-          multiple: structuredOutput.valuation?.multipleRange?.phrases?.headline || null
-        },
-        trajectory: {
-          headline: structuredOutput.trajectory?.revenueGrowthYoY?.phrases?.headline || null,
-          impact: structuredOutput.trajectory?.revenueGrowthYoY?.phrases?.impact || null,
-          trend: structuredOutput.trajectory?.trend?.classification || null
-        },
-        costOfInaction: {
-          headline: structuredOutput.costOfInaction?.totalCostOfInaction?.phrases?.headline || null,
-          breakdown: structuredOutput.costOfInaction?.totalCostOfInaction?.phrases?.breakdown || null,
-          urgency: structuredOutput.costOfInaction?.totalCostOfInaction?.phrases?.urgency || null
-        },
-        exitReadiness: {
-          headline: structuredOutput.exitReadiness?.overallScore?.phrases?.headline || null,
-          summary: structuredOutput.exitReadiness?.phrases?.summary || null,
-          topStrength: structuredOutput.exitReadiness?.phrases?.topStrength || null,
-          topBlocker: structuredOutput.exitReadiness?.phrases?.topBlocker || null
-        },
-        closing: {
-          openingLine: structuredOutput.narrativeBlocks?.executiveSummary?.openingLine || null,
-          situationStatement: structuredOutput.narrativeBlocks?.executiveSummary?.situationStatement || null,
-          theAsk: structuredOutput.narrativeBlocks?.closingPhrases?.theAsk || null,
-          urgencyAnchor: structuredOutput.narrativeBlocks?.closingPhrases?.urgencyAnchor || null,
-          neverHadBreak: structuredOutput.narrativeBlocks?.closingPhrases?.neverHadBreak || null
-        }
-      } : null
+      // Flattened phrase lookup for easy Pass 2 access (built from comprehensiveAnalysis)
+      prebuilt_phrases: prebuiltPhrases
     };
 
     if (existingReport) {
