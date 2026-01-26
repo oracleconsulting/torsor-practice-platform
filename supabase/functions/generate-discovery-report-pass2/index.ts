@@ -11,7 +11,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // Use Opus for premium narrative quality
-const PASS2_MODEL = 'anthropic/claude-opus-4-5-20250514';
+const PASS2_MODEL = 'anthropic/claude-opus-4.5';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -459,6 +459,7 @@ serve(async (req) => {
     }
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    console.log('[Pass2] Starting for engagement:', engagementId);
     const startTime = Date.now();
 
     // Update status
@@ -476,7 +477,10 @@ serve(async (req) => {
       .update({ status: 'pass2_processing', updated_at: new Date().toISOString() })
       .eq('engagement_id', engagementId);
 
-    // Fetch engagement with all related data
+    // ========================================================================
+    // FETCH ENGAGEMENT DATA
+    // IMPORTANT: Query discovery_engagements table (matches frontend & Pass 1)
+    // ========================================================================
     const { data: engagement, error: engError } = await supabase
       .from('discovery_engagements')
       .select(`
@@ -490,13 +494,16 @@ serve(async (req) => {
       .single();
 
     if (engError || !engagement) {
+      console.error('[Pass2] Engagement not found:', engError?.message);
       throw new Error('Engagement not found');
     }
+
+    console.log('[Pass2] Found engagement for client:', engagement.client?.name);
 
     // Fetch service pricing from database (single source of truth)
     // Pass practice_id to use practice-specific pricing if available
     const SERVICE_DETAILS = await fetchServiceDetails(supabase, engagement.practice_id);
-    console.log('Loaded service details for', Object.keys(SERVICE_DETAILS).length, 'services');
+    console.log('[Pass2] Loaded service details for', Object.keys(SERVICE_DETAILS).length, 'services');
 
     // ========================================================================
     // FETCH VALIDATED FINANCIAL DATA
@@ -562,7 +569,7 @@ serve(async (req) => {
         excessAmount: pass1PayrollAnalysis.annualExcess || null,
         calculation: pass1PayrollAnalysis.calculation || null
       };
-      console.log('[Pass 2] Using validated payroll from discovery_reports.page4_numbers:', validatedPayroll);
+      console.log('[Pass2] Using validated payroll from discovery_reports.page4_numbers:', validatedPayroll);
     }
     // Fallback: Try the old client_reports path
     else if (analysisReport?.report_data?.analysis?.financialContext?.payrollAnalysis) {
@@ -576,7 +583,7 @@ serve(async (req) => {
         excessAmount: pa.annualExcess || null,
         calculation: pa.calculation || null
       };
-      console.log('[Pass 2] Using validated payroll from client_reports (fallback):', validatedPayroll);
+      console.log('[Pass2] Using validated payroll from client_reports (fallback):', validatedPayroll);
     }
     // Priority 2: Use client_financial_context
     else if (financialContext) {
@@ -597,7 +604,7 @@ serve(async (req) => {
           excessAmount,
           calculation: `£${staffCosts.toLocaleString()} ÷ £${turnover.toLocaleString()} = ${staffCostsPct.toFixed(1)}%. Excess: ${excessPct.toFixed(1)}% = £${excessAmount.toLocaleString()}`
         };
-        console.log('[Pass 2] Calculated payroll from client_financial_context:', validatedPayroll);
+        console.log('[Pass2] Calculated payroll from client_financial_context:', validatedPayroll);
       }
     }
     
@@ -636,7 +643,7 @@ No validated financial data available. When discussing financial figures:
 - Use phrases like "Unknown precisely" or "To be confirmed from accounts"
 - DO NOT guess at payroll percentages or excess amounts
 `;
-      console.log('[Pass 2] ⚠️ No validated financial data available - LLM should not invent figures');
+      console.log('[Pass2] ⚠️ No validated financial data available - LLM should not invent figures');
     }
 
     // Fetch Pass 1 results
@@ -657,7 +664,7 @@ No validated financial data available. When discussing financial figures:
     const destinationClarity = report.destination_clarity as DestinationClarityAnalysis | null;
     const detectedIndustry = report.detected_industry || 'general_business';
     
-    console.log('[Pass 2] 📊 Loaded 7-Dimension Analysis from Pass 1:', {
+    console.log('[Pass2] 📊 Loaded 7-Dimension Analysis from Pass 1:', {
       dataQuality: comprehensiveAnalysis?.dataQuality,
       hasValuation: !!comprehensiveAnalysis?.valuation,
       hasPayroll: !!comprehensiveAnalysis?.payroll,
@@ -694,7 +701,7 @@ No validated financial data available. When discussing financial figures:
                           report.destination_report?.analysis?.discoveryScores?.gapScore ||
                           null;
     
-    console.log('[Pass 2] 📊 Pass 1 Scores (MUST PRESERVE):');
+    console.log('[Pass2] 📊 Pass 1 Scores (MUST PRESERVE):');
     console.log(`  - Clarity Score: ${pass1ClarityScore}`);
     console.log(`  - Gap Score: ${pass1GapScore}`);
     
@@ -727,11 +734,11 @@ No validated financial data available. When discussing financial figures:
       }
     }
     
-    console.log('[Pass 2] 📊 Pass 1 Service Decisions (MUST USE THESE PRICES):');
+    console.log('[Pass2] 📊 Pass 1 Service Decisions (MUST USE THESE PRICES):');
     Object.entries(pass1ServicePrices).forEach(([code, info]) => {
       console.log(`  - ${code}: ${info.service} | ${info.tier || 'no tier'} | ${info.price}`);
     });
-    console.log(`[Pass 2] 📊 Pass 1 Total Investment: ${pass1Total}`);
+    console.log(`[Pass2] 📊 Pass 1 Total Investment: ${pass1Total}`);
 
     // ========================================================================
     // CRITICAL: Inject Pass 1's EXACT service prices into the prompt
@@ -766,7 +773,7 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
 `;
       }
       
-      console.log('[Pass 2] ✅ Injecting Pass 1 service prices as constraints');
+      console.log('[Pass2] ✅ Injecting Pass 1 service prices as constraints');
     }
 
     // Fetch context notes
@@ -795,8 +802,8 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
 
     // Assess data completeness
     const dataCompleteness = assessDataCompleteness(emotionalAnchors);
-    console.log(`[Pass 2] Data completeness: ${dataCompleteness.score}% (${dataCompleteness.status})`);
-    console.log(`[Pass 2] Missing critical: ${dataCompleteness.missingCritical.join(', ') || 'None'}`);
+    console.log(`[Pass2] Data completeness: ${dataCompleteness.score}% (${dataCompleteness.status})`);
+    console.log(`[Pass2] Missing critical: ${dataCompleteness.missingCritical.join(', ') || 'None'}`);
 
     // ========================================================================
     // COO APPROPRIATENESS CHECK - Block COO when not appropriate
@@ -855,9 +862,9 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
     const shouldBlockCOO = businessRunsFine || reasonableHours || hasGoodWorkLifeBalance || isOneTimeRestructuring || (isExitFocused && businessRunsFine);
     
     // For exit-focused clients, we enforce a specific service ordering
-    console.log(`[Pass 2] Exit-focused client detection: ${isExitFocused}`);
+    console.log(`[Pass2] Exit-focused client detection: ${isExitFocused}`);
     if (isExitFocused) {
-      console.log(`[Pass 2] 🎯 EXIT CLIENT DETECTED - Enforcing: Benchmarking FIRST, then improvements, then Goal Alignment`);
+      console.log(`[Pass2] 🎯 EXIT CLIENT DETECTED - Enforcing: Benchmarking FIRST, then improvements, then Goal Alignment`);
     }
     
     let cooBlockReason = '';
@@ -868,9 +875,9 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
       else if (isOneTimeRestructuring) cooBlockReason = 'Redundancy/restructuring is one-time - use HR consultant, not ongoing COO';
       else if (isExitFocused) cooBlockReason = 'Exit-focused client with stable operations - COO costs reduce sale value';
       
-      console.log(`[Pass 2] 🚫 BLOCKING COO: ${cooBlockReason}`);
+      console.log(`[Pass2] 🚫 BLOCKING COO: ${cooBlockReason}`);
     } else {
-      console.log(`[Pass 2] ✓ COO may be appropriate`);
+      console.log(`[Pass2] ✓ COO may be appropriate`);
     }
 
     // Build recommended services with pricing, filtering out blocked services
@@ -881,7 +888,7 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
       'hidden_value',       // Not separate - included in benchmarking
       ...(shouldBlockCOO ? ['fractional_coo', 'combined_advisory'] : [])
     ];
-    console.log(`[Pass 2] Blocked services: ${blockedServices.join(', ')}`);
+    console.log(`[Pass2] Blocked services: ${blockedServices.join(', ')}`);
     
     let recommendedServices = [...primaryRecs, ...secondaryRecs]
       .filter(r => r.recommended)
@@ -897,7 +904,7 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
     // FOR EXIT-FOCUSED CLIENTS: Force correct service ordering
     // ========================================================================
     if (isExitFocused) {
-      console.log(`[Pass 2] 🎯 EXIT CLIENT: Forcing Benchmarking FIRST, then Goal Alignment`);
+      console.log(`[Pass2] 🎯 EXIT CLIENT: Forcing Benchmarking FIRST, then Goal Alignment`);
       
       // Build the correct exit-focused service order
       const exitOrderedServices = [];
@@ -930,10 +937,10 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
       
       // Use the forced ordering
       recommendedServices = exitOrderedServices;
-      console.log(`[Pass 2] EXIT SERVICE ORDER: ${recommendedServices.map(s => `${s.exitPhase}. ${s.code}`).join(', ')}`);
+      console.log(`[Pass2] EXIT SERVICE ORDER: ${recommendedServices.map(s => `${s.exitPhase}. ${s.code}`).join(', ')}`);
     }
     
-    console.log(`[Pass 2] Recommended services after filtering:`, recommendedServices.map(s => s.code));
+    console.log(`[Pass2] Recommended services after filtering:`, recommendedServices.map(s => s.code));
 
     // Build context from notes
     const contextSection = contextNotes?.length 
@@ -955,7 +962,7 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
       .in('status', ['pending', 'approved'])
       .order('created_at', { ascending: true });
 
-    console.log(`[Pass 2] Found ${feedbackComments?.length || 0} feedback comments to apply`);
+    console.log(`[Pass2] Found ${feedbackComments?.length || 0} feedback comments to apply`);
 
     // Build feedback section for the prompt
     let feedbackSection = '';
@@ -993,7 +1000,7 @@ IMPORTANT: When generating pages 1-5, you MUST:
 
     // Log what feedback will be applied
     if (feedbackComments && feedbackComments.length > 0) {
-      console.log('[Pass 2] Applying feedback:');
+      console.log('[Pass2] Applying feedback:');
       feedbackComments.forEach(f => {
         console.log(`  - [${f.section_type}] ${f.comment_type}: ${f.comment_text.substring(0, 50)}...`);
       });
@@ -1379,7 +1386,7 @@ Before returning, verify:
 - [ ] meta.readyForClient correctly reflects data completeness`;
 
     // Call Claude via OpenRouter
-    console.log('[Discovery Pass 2] Calling Claude Sonnet via OpenRouter...');
+    console.log('[Pass2] Calling Claude Opus via OpenRouter...');
     const llmResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -1389,7 +1396,7 @@ Before returning, verify:
         'X-Title': 'Torsor Discovery Pass 2'
       },
       body: JSON.stringify({
-        model: PASS2_MODEL, // anthropic/claude-opus-4-5-20250514 for premium narrative quality
+        model: PASS2_MODEL, // anthropic/claude-opus-4.5 for premium narrative quality
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.4,  // Slightly higher for more creative narrative
         max_tokens: 16000  // Increased for comprehensive 7-dimension output
@@ -1416,7 +1423,7 @@ Before returning, verify:
       } else {
         throw new Error('No JSON found in response');
       }
-    } catch (parseError) {
+    } catch (parseError: any) {
       console.error('JSON parse error:', parseError);
       console.error('Response text (first 2000 chars):', responseText.substring(0, 2000));
       throw new Error(`Failed to parse LLM response: ${parseError.message}`);
@@ -1451,7 +1458,7 @@ Before returning, verify:
     
     // Apply cleanup to all narratives
     narratives = cleanupText(narratives);
-    console.log('[Pass 2] Applied text cleanup to fix kk typos');
+    console.log('[Pass2] Applied text cleanup to fix kk typos');
     
     // ========================================================================
     // CRITICAL: Map field names to match client view expectations
@@ -1473,7 +1480,7 @@ Before returning, verify:
         narratives.page1_destination.clarityScore = destinationClarity.score;
         narratives.page1_destination.destinationClarityScore = destinationClarity.score;
       }
-      console.log('[Pass 2] ✅ Page 1 field mapping applied:', {
+      console.log('[Pass2] ✅ Page 1 field mapping applied:', {
         hasVisionVerbatim: !!narratives.page1_destination.visionVerbatim,
         clarityScore: narratives.page1_destination.clarityScore
       });
@@ -1495,7 +1502,7 @@ Before returning, verify:
           phase.whatChanges = [phase.whatChanges];
         }
       }
-      console.log('[Pass 2] ✅ Page 3 phase field mapping applied:', {
+      console.log('[Pass2] ✅ Page 3 phase field mapping applied:', {
         phaseCount: narratives.page3_journey.phases.length,
         hasFeelsLike: narratives.page3_journey.phases.every((p: any) => !!p.feelsLike || !!p.feeling)
       });
@@ -1524,7 +1531,7 @@ Before returning, verify:
         narratives.page5_nextSteps.callToAction = narratives.page5_nextSteps.closingLine;
       }
       
-      console.log('[Pass 2] ✅ Page 5 field mapping applied:', {
+      console.log('[Pass2] ✅ Page 5 field mapping applied:', {
         hasThisWeek: !!narratives.page5_nextSteps.thisWeek,
         hasFirstStep: !!narratives.page5_nextSteps.firstStep,
         hasClosingMessage: !!narratives.page5_nextSteps.closingMessage
@@ -1536,62 +1543,52 @@ Before returning, verify:
     // The LLM might have ignored our constraints, so we fix them here
     // ========================================================================
     if (Object.keys(pass1ServicePrices).length > 0) {
-      console.log('[Pass 2] 🔧 Enforcing Pass 1 service prices...');
+      console.log('[Pass2] 🔧 Enforcing Pass 1 service prices...');
       
       // Fix page3_journey.phases prices
-      // NOTE: page3.phases items have { enabledBy: "Service Name", price: "£X", ... }
       if (narratives.page3_journey?.phases) {
-        console.log('[Pass 2] Fixing page3_journey.phases prices...');
+        console.log('[Pass2] Fixing page3_journey.phases prices...');
         
         for (let i = 0; i < narratives.page3_journey.phases.length; i++) {
           const phase = narratives.page3_journey.phases[i];
-          // Combine enabledBy and headline to search for service keywords
           const searchText = `${phase.enabledBy || ''} ${phase.headline || ''} ${phase.title || ''} ${phase.feelsLike || ''}`.toLowerCase();
           
-          console.log(`[Pass 2]   Phase[${i}]: "${phase.enabledBy}" - searching in: "${searchText.substring(0, 80)}..."`);
+          console.log(`[Pass2]   Phase[${i}]: "${phase.enabledBy}" - searching in: "${searchText.substring(0, 80)}..."`);
           
-          // Find matching service from Pass 1
           let matched = false;
           for (const [code, info] of Object.entries(pass1ServicePrices)) {
             const isMatch = (
-              // 365 Method / Goal Alignment matches
               (code === '365_method' && (
                 searchText.includes('365') ||
                 searchText.includes('goal') ||
                 searchText.includes('alignment') ||
-                searchText.includes('corner') ||  // "Someone in your corner"
-                searchText.includes('accountab') // "accountability"
+                searchText.includes('corner') ||
+                searchText.includes('accountab')
               )) ||
-              // Benchmarking matches
               (code === 'benchmarking' && (
                 searchText.includes('benchmark') ||
                 searchText.includes('hidden value') ||
                 searchText.includes('where you stand') ||
                 searchText.includes('value analysis')
               )) ||
-              // Management Accounts matches
               (code === 'management_accounts' && (
                 searchText.includes('management account') ||
                 searchText.includes('know your number') ||
                 searchText.includes('financial clarity')
               )) ||
-              // Systems Audit matches
               (code === 'systems_audit' && (
                 searchText.includes('systems audit') ||
                 searchText.includes('where the time goes') ||
                 searchText.includes('operational')
               )) ||
-              // Automation matches
               (code === 'automation' && (
                 searchText.includes('automat') ||
                 searchText.includes('manual work disappears')
               )) ||
-              // Fractional CFO matches
               (code === 'fractional_cfo' && (
                 searchText.includes('cfo') ||
                 searchText.includes('financial leadership')
               )) ||
-              // Fractional COO matches
               (code === 'fractional_coo' && (
                 searchText.includes('coo') ||
                 searchText.includes('carries the load')
@@ -1603,83 +1600,71 @@ Before returning, verify:
               phase.price = info.price;
               matched = true;
               
-              // Also update enabledBy to include tier if available
               if (info.tier && code === '365_method' && !phase.enabledBy.toLowerCase().includes(info.tier.toLowerCase())) {
                 const oldEnabledBy = phase.enabledBy;
                 phase.enabledBy = `Goal Alignment Programme (${info.tier})`;
-                console.log(`[Pass 2]   ✓ Updated enabledBy: "${oldEnabledBy}" → "${phase.enabledBy}"`);
+                console.log(`[Pass2]   ✓ Updated enabledBy: "${oldEnabledBy}" → "${phase.enabledBy}"`);
               }
               
               if (oldPrice !== info.price) {
-                console.log(`[Pass 2]   ✓ Fixed: ${phase.enabledBy} (${code}) from "${oldPrice}" → "${info.price}"`);
+                console.log(`[Pass2]   ✓ Fixed: ${phase.enabledBy} (${code}) from "${oldPrice}" → "${info.price}"`);
               } else {
-                console.log(`[Pass 2]   ✓ Already correct: ${phase.enabledBy} (${code}) = "${info.price}"`);
+                console.log(`[Pass2]   ✓ Already correct: ${phase.enabledBy} (${code}) = "${info.price}"`);
               }
               break;
             }
           }
           
           if (!matched) {
-            console.log(`[Pass 2]   ⚠️ No match found for: "${phase.enabledBy}" with price "${phase.price}"`);
+            console.log(`[Pass2]   ⚠️ No match found for: "${phase.enabledBy}" with price "${phase.price}"`);
           }
         }
       }
       
       // Fix page4_numbers.investment array
-      // NOTE: page4.investment items have { phase: "Months 1-3", whatYouGet: "...", amount: "£X" }
-      // The service name might be in whatYouGet, not phase
       if (narratives.page4_numbers?.investment) {
-        console.log('[Pass 2] Fixing page4_numbers.investment items...');
+        console.log('[Pass2] Fixing page4_numbers.investment items...');
         
         for (let i = 0; i < narratives.page4_numbers.investment.length; i++) {
           const inv = narratives.page4_numbers.investment[i];
-          // Combine all text fields to search for service keywords
           const searchText = `${inv.phase || ''} ${inv.service || ''} ${inv.whatYouGet || ''} ${inv.description || ''}`.toLowerCase();
           
-          console.log(`[Pass 2]   Investment[${i}]: "${inv.phase}" - searching in: "${searchText.substring(0, 80)}..."`);
+          console.log(`[Pass2]   Investment[${i}]: "${inv.phase}" - searching in: "${searchText.substring(0, 80)}..."`);
           
-          // Find matching service from Pass 1
           let matched = false;
           for (const [code, info] of Object.entries(pass1ServicePrices)) {
             const isMatch = (
-              // 365 Method / Goal Alignment matches
               (code === '365_method' && (
                 searchText.includes('365') ||
                 searchText.includes('goal') ||
                 searchText.includes('alignment') ||
-                searchText.includes('corner') ||  // "Someone in your corner"
-                searchText.includes('accountab') // "accountability"
+                searchText.includes('corner') ||
+                searchText.includes('accountab')
               )) ||
-              // Benchmarking matches
               (code === 'benchmarking' && (
                 searchText.includes('benchmark') ||
                 searchText.includes('hidden value') ||
                 searchText.includes('where you stand') ||
                 searchText.includes('value analysis')
               )) ||
-              // Management Accounts matches
               (code === 'management_accounts' && (
                 searchText.includes('management account') ||
                 searchText.includes('know your number') ||
                 searchText.includes('financial clarity')
               )) ||
-              // Systems Audit matches
               (code === 'systems_audit' && (
                 searchText.includes('systems audit') ||
                 searchText.includes('where the time goes') ||
                 searchText.includes('operational')
               )) ||
-              // Automation matches
               (code === 'automation' && (
                 searchText.includes('automat') ||
                 searchText.includes('manual work disappears')
               )) ||
-              // Fractional CFO matches
               (code === 'fractional_cfo' && (
                 searchText.includes('cfo') ||
                 searchText.includes('financial leadership')
               )) ||
-              // Fractional COO matches
               (code === 'fractional_coo' && (
                 searchText.includes('coo') ||
                 searchText.includes('carries the load')
@@ -1692,16 +1677,16 @@ Before returning, verify:
               matched = true;
               
               if (oldAmount !== info.price) {
-                console.log(`[Pass 2]   ✓ Fixed: ${inv.phase} (${code}) from "${oldAmount}" → "${info.price}"`);
+                console.log(`[Pass2]   ✓ Fixed: ${inv.phase} (${code}) from "${oldAmount}" → "${info.price}"`);
               } else {
-                console.log(`[Pass 2]   ✓ Already correct: ${inv.phase} (${code}) = "${info.price}"`);
+                console.log(`[Pass2]   ✓ Already correct: ${inv.phase} (${code}) = "${info.price}"`);
               }
               break;
             }
           }
           
           if (!matched) {
-            console.log(`[Pass 2]   ⚠️ No match found for: "${inv.phase}" with amount "${inv.amount}"`);
+            console.log(`[Pass2]   ⚠️ No match found for: "${inv.phase}" with amount "${inv.amount}"`);
           }
         }
       }
@@ -1712,11 +1697,11 @@ Before returning, verify:
         narratives.page4_numbers.totalYear1 = pass1Total;
         
         if (oldTotal !== pass1Total) {
-          console.log(`[Pass 2] Fixed totalYear1 from "${oldTotal}" → "${pass1Total}"`);
+          console.log(`[Pass2] Fixed totalYear1 from "${oldTotal}" → "${pass1Total}"`);
         }
       }
       
-      console.log('[Pass 2] ✅ Pass 1 service prices enforced');
+      console.log('[Pass2] ✅ Pass 1 service prices enforced');
     }
     
     // ========================================================================
@@ -1730,7 +1715,7 @@ Before returning, verify:
       narratives.page1_destination.destinationClarityScore = pass1ClarityScore;
       
       if (llmClarityScore !== pass1ClarityScore) {
-        console.log(`[Pass 2] ✅ Fixed clarityScore: LLM gave ${llmClarityScore} → Pass 1's ${pass1ClarityScore}`);
+        console.log(`[Pass2] ✅ Fixed clarityScore: LLM gave ${llmClarityScore} → Pass 1's ${pass1ClarityScore}`);
       }
     }
     
@@ -1739,7 +1724,7 @@ Before returning, verify:
       narratives.page2_gaps.gapScore = pass1GapScore;
       
       if (llmGapScore !== pass1GapScore) {
-        console.log(`[Pass 2] ✅ Fixed gapScore: LLM gave ${llmGapScore} → Pass 1's ${pass1GapScore}`);
+        console.log(`[Pass2] ✅ Fixed gapScore: LLM gave ${llmGapScore} → Pass 1's ${pass1GapScore}`);
       }
     }
     
@@ -1748,7 +1733,6 @@ Before returning, verify:
       const correctExcessK = Math.round(validatedPayroll.excessAmount / 1000);
       const narrativesStr = JSON.stringify(narratives);
       
-      // Check for figures that are significantly different from validated amount
       const wrongFigurePatterns = [
         /£(\d{3,})k.*(?:excess|payroll)/gi,
         /(?:excess|payroll).*£(\d{3,})k/gi
@@ -1762,8 +1746,8 @@ Before returning, verify:
             if (figureMatch) {
               const foundK = parseInt(figureMatch[1], 10);
               const difference = Math.abs(foundK - correctExcessK);
-              if (difference > 50) { // More than £50k difference
-                console.warn(`[Pass 2] ⚠️ POSSIBLE WRONG PAYROLL FIGURE: Found £${foundK}k but validated excess is £${correctExcessK}k (difference: £${difference}k)`);
+              if (difference > 50) {
+                console.warn(`[Pass2] ⚠️ POSSIBLE WRONG PAYROLL FIGURE: Found £${foundK}k but validated excess is £${correctExcessK}k (difference: £${difference}k)`);
               }
             }
           }
@@ -1779,32 +1763,28 @@ Before returning, verify:
       page4: !!narratives.page4_numbers?.investment?.length,
       page5: !!narratives.page5_nextSteps?.thisWeek
     };
-    console.log(`[Pass 2] Page content status:`, pageStatus);
+    console.log(`[Pass2] Page content status:`, pageStatus);
     
-    // Warn if any pages are empty
     const emptyPages = Object.entries(pageStatus).filter(([_, hasContent]) => !hasContent).map(([page]) => page);
     if (emptyPages.length > 0) {
-      console.warn(`[Pass 2] ⚠️ Pages with missing content: ${emptyPages.join(', ')}`);
-      console.log(`[Pass 2] Response length: ${responseText.length} chars`);
+      console.warn(`[Pass2] ⚠️ Pages with missing content: ${emptyPages.join(', ')}`);
+      console.log(`[Pass2] Response length: ${responseText.length} chars`);
     }
 
     const processingTime = Date.now() - startTime;
     const tokensUsed = llmData.usage?.total_tokens || 0;
-    const estimatedCost = (tokensUsed / 1000000) * 3; // Claude Sonnet pricing via OpenRouter
+    const estimatedCost = (tokensUsed / 1000000) * 3;
 
-    // Determine status based on data completeness
-    // If data is incomplete, set to 'admin_review' - admin must review before publishing to client
     const reportStatus = dataCompleteness.canGenerateClientReport ? 'generated' : 'admin_review';
     const engagementStatus = dataCompleteness.canGenerateClientReport ? 'pass2_complete' : 'awaiting_admin_review';
 
-    console.log(`[Pass 2] Setting status to: ${reportStatus} (data completeness: ${dataCompleteness.score}%)`);
+    console.log(`[Pass2] Setting status to: ${reportStatus} (data completeness: ${dataCompleteness.score}%)`);
 
-    // Update report with Pass 2 results - new destination-focused structure
+    // Update report with Pass 2 results
     await supabase
       .from('discovery_reports')
       .update({
         status: reportStatus,
-        // New destination-focused structure
         destination_report: narratives,
         page1_destination: narratives.page1_destination,
         page2_gaps: narratives.page2_gaps,
@@ -1814,14 +1794,12 @@ Before returning, verify:
         quotes_used: narratives.meta?.quotesUsed || [],
         personal_anchors: narratives.meta?.personalAnchors || [],
         urgency_level: narratives.meta?.urgencyLevel || 'medium',
-        // Data completeness tracking
         data_completeness_score: dataCompleteness.score,
         data_completeness_status: dataCompleteness.status,
         missing_critical_data: dataCompleteness.missingCritical,
         missing_important_data: dataCompleteness.missingImportant,
         admin_actions_needed: dataCompleteness.adminActionRequired,
         ready_for_client: dataCompleteness.canGenerateClientReport,
-        // Metadata
         llm_model: PASS2_MODEL,
         llm_tokens_used: tokensUsed,
         llm_cost: estimatedCost,
@@ -1842,6 +1820,8 @@ Before returning, verify:
         updated_at: new Date().toISOString()
       })
       .eq('id', engagementId);
+
+    console.log(`[Pass2] ✅ Complete in ${processingTime}ms`);
 
     return new Response(
       JSON.stringify({
@@ -1864,8 +1844,8 @@ Before returning, verify:
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
-    console.error('Pass 2 error:', error);
+  } catch (error: any) {
+    console.error('[Pass2] Error:', error.message);
     
     // Update status to indicate failure
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
