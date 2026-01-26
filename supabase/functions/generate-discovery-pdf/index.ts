@@ -1330,11 +1330,57 @@ function buildInvestmentBreakdown(analysis: any): string {
   // ========================================================================
   const displayTotal = summary.totalFirstYearInvestment || '—';
   
-  // Extract valuation, hidden assets, gross margin from page4_numbers or comprehensiveAnalysis
-  const indicativeValuation = page4.indicativeValuation || null;
-  const hiddenAssets = page4.hiddenAssets || null;
-  const grossMarginStrength = page4.grossMarginStrength || comprehensiveAnalysis.grossMargin?.grossMarginPct ? 
-    `${comprehensiveAnalysis.grossMargin?.grossMarginPct?.toFixed(1)}% gross margin` : null;
+  // ========================================================================
+  // EXTRACT valuation, hidden assets, gross margin
+  // Priority: page4_numbers (Pass 2 output) > comprehensiveAnalysis (Pass 1 raw data)
+  // ========================================================================
+  
+  // VALUATION - check page4_numbers first, then build from comprehensiveAnalysis
+  let indicativeValuation = page4.indicativeValuation || null;
+  if (!indicativeValuation && comprehensiveAnalysis?.valuation?.conservativeValue && comprehensiveAnalysis?.valuation?.optimisticValue) {
+    const v = comprehensiveAnalysis.valuation;
+    const hiddenAssetsTotal = comprehensiveAnalysis?.hiddenAssets?.totalHiddenAssets || 0;
+    if (hiddenAssetsTotal > 50000) {
+      const lowM = ((v.conservativeValue + hiddenAssetsTotal) / 1000000).toFixed(1);
+      const highM = ((v.optimisticValue + hiddenAssetsTotal) / 1000000).toFixed(1);
+      indicativeValuation = `£${lowM}M - £${highM}M`;
+    } else {
+      const lowM = (v.conservativeValue / 1000000).toFixed(1);
+      const highM = (v.optimisticValue / 1000000).toFixed(1);
+      indicativeValuation = `£${lowM}M - £${highM}M`;
+    }
+    console.log('[PDF] Built valuation from comprehensiveAnalysis:', indicativeValuation);
+  }
+  
+  // HIDDEN ASSETS - check page4_numbers first, then build from comprehensiveAnalysis
+  let hiddenAssets = page4.hiddenAssets || null;
+  if (!hiddenAssets && comprehensiveAnalysis?.hiddenAssets?.totalHiddenAssets && comprehensiveAnalysis.hiddenAssets.totalHiddenAssets > 50000) {
+    const h = comprehensiveAnalysis.hiddenAssets;
+    const components: string[] = [];
+    if (h.freeholdProperty) components.push(`£${Math.round(h.freeholdProperty/1000)}k freehold property`);
+    if (h.excessCash) components.push(`£${Math.round(h.excessCash/1000)}k excess cash`);
+    
+    hiddenAssets = {
+      total: `£${Math.round(h.totalHiddenAssets / 1000)}k`,
+      breakdown: components.join(' + '),
+      note: 'These assets sit OUTSIDE the earnings-based valuation'
+    };
+    console.log('[PDF] Built hidden assets from comprehensiveAnalysis:', hiddenAssets.total);
+  }
+  
+  // GROSS MARGIN - check page4_numbers first, then build from comprehensiveAnalysis  
+  let grossMarginStrength = page4.grossMarginStrength || null;
+  if (!grossMarginStrength && comprehensiveAnalysis?.grossMargin?.grossMarginPct) {
+    const gm = comprehensiveAnalysis.grossMargin;
+    const grossMarginPct = typeof gm.grossMarginPct === 'number' ? gm.grossMarginPct : parseFloat(gm.grossMarginPct);
+    if (!isNaN(grossMarginPct)) {
+      const assessment = gm.assessment || (grossMarginPct > 50 ? 'excellent' : grossMarginPct > 40 ? 'healthy' : 'typical');
+      if (assessment === 'excellent' || assessment === 'healthy') {
+        grossMarginStrength = `${grossMarginPct.toFixed(1)}% gross margin - ${assessment} for the industry`;
+        console.log('[PDF] Built gross margin from comprehensiveAnalysis:', grossMarginStrength);
+      }
+    }
+  }
   
   console.log('[PDF Investment Table] Using PORTAL-IDENTICAL total:', {
     displayTotal,

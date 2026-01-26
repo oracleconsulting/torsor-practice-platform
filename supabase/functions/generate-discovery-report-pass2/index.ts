@@ -956,9 +956,16 @@ No validated financial data available. When discussing financial figures:
     console.log('[Pass2] 📊 Loaded 7-Dimension Analysis from Pass 1:', {
       dataQuality: comprehensiveAnalysis?.dataQuality,
       hasValuation: !!comprehensiveAnalysis?.valuation,
+      valuationConservative: comprehensiveAnalysis?.valuation?.conservativeValue,
+      valuationOptimistic: comprehensiveAnalysis?.valuation?.optimisticValue,
       hasPayroll: !!comprehensiveAnalysis?.payroll,
       hasTrajectory: !!comprehensiveAnalysis?.trajectory,
       hasProductivity: !!comprehensiveAnalysis?.productivity,
+      hasGrossMargin: !!comprehensiveAnalysis?.grossMargin,
+      grossMarginPct: comprehensiveAnalysis?.grossMargin?.grossMarginPct,
+      grossMarginAssessment: comprehensiveAnalysis?.grossMargin?.assessment,
+      hasHiddenAssets: !!comprehensiveAnalysis?.hiddenAssets,
+      hiddenAssetsTotal: comprehensiveAnalysis?.hiddenAssets?.totalHiddenAssets,
       hasExitReadiness: !!comprehensiveAnalysis?.exitReadiness,
       destinationClarityScore: destinationClarity?.score,
       industry: detectedIndustry,
@@ -2663,6 +2670,17 @@ Before returning, verify:
     const engagementStatus = dataCompleteness.canGenerateClientReport ? 'pass2_complete' : 'awaiting_admin_review';
 
     console.log(`[Pass2] Setting status to: ${reportStatus} (data completeness: ${dataCompleteness.score}%)`);
+
+    // Log what we're saving to page4_numbers (for debugging valuation/hidden assets issues)
+    console.log('[Pass2] 📄 page4_numbers being saved:', {
+      hasIndicativeValuation: !!narratives.page4_numbers?.indicativeValuation,
+      indicativeValuation: narratives.page4_numbers?.indicativeValuation,
+      hasHiddenAssets: !!narratives.page4_numbers?.hiddenAssets,
+      hiddenAssetsTotal: narratives.page4_numbers?.hiddenAssets?.total,
+      hasGrossMarginStrength: !!narratives.page4_numbers?.grossMarginStrength,
+      grossMarginStrength: narratives.page4_numbers?.grossMarginStrength,
+      hasPayrollAnalysis: !!narratives.page4_numbers?.payrollAnalysis,
+    });
 
     // Update report with Pass 2 results
     await supabase
