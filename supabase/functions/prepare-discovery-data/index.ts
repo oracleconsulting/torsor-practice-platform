@@ -1052,19 +1052,28 @@ If no financial projections exist, return: { "hasProjections": false }`;
         grossMarginPct: financialContext.gross_margin_pct,
         netProfit: financialContext.net_profit,
         netMarginPct: financialContext.net_margin_pct,
-        operatingProfit: financialContext.operating_profit,
-        ebitda: financialContext.ebitda,
+        // Operating profit may be in extracted_insights JSON
+        operatingProfit: financialContext.operating_profit || financialContext.extracted_insights?.operating_profit,
+        ebitda: financialContext.ebitda || financialContext.extracted_insights?.ebitda,
         // Staff costs (CRITICAL for payroll analysis)
-        staffCosts: financialContext.staff_costs || financialContext.total_staff_costs,
-        totalStaffCosts: financialContext.total_staff_costs || financialContext.staff_costs,
-        staffCostsPct: financialContext.staff_costs_pct,
+        // Note: DB column is staff_cost (singular) but code expects staff_costs (plural)
+        staffCosts: financialContext.staff_cost || financialContext.staff_costs || financialContext.total_staff_costs,
+        totalStaffCosts: financialContext.staff_cost || financialContext.total_staff_costs || financialContext.staff_costs,
+        staffCostsPct: financialContext.staff_costs_pct || (financialContext.staff_cost && financialContext.revenue ? (financialContext.staff_cost / financialContext.revenue * 100) : null),
         // Headcount
         staffCount: financialContext.staff_count,
         revenuePerHead: financialContext.revenue_per_head,
         revenueGrowthPct: financialContext.revenue_growth_pct,
         // Assets for valuation
-        netAssets: financialContext.net_assets,
-        totalAssets: financialContext.total_assets
+        netAssets: financialContext.net_assets || financialContext.extracted_insights?.net_assets,
+        totalAssets: financialContext.total_assets || financialContext.extracted_insights?.total_assets,
+        // Additional data from extracted_insights
+        turnoverPriorYear: financialContext.extracted_insights?.turnover_prior_year,
+        stock: financialContext.extracted_insights?.stock,
+        debtors: financialContext.extracted_insights?.debtors,
+        creditors: financialContext.extracted_insights?.creditors,
+        fixedAssets: financialContext.extracted_insights?.fixed_assets,
+        cash: financialContext.cash_position || financialContext.extracted_insights?.cash
       } : null,
       operationalContext: operationalContext ? {
         businessType: operationalContext.business_type,

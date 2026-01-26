@@ -522,7 +522,19 @@ async function extractTextWithOCR(
 ): Promise<string> {
   console.log(`[ProcessDocs] Attempting OCR for scanned PDF (${Math.round(buffer.byteLength / 1024)}KB)`);
   
-  // Try Google Cloud Vision first (best for full document OCR)
+  // PRIMARY: Tesseract.js - TRUE OCR that runs locally (no external API, full data security)
+  // This is the ONLY option that won't hallucinate content
+  try {
+    const text = await ocrWithTesseract(buffer, saveCallback);
+    if (text && text.length > 100) {
+      console.log(`[ProcessDocs] ✅ Tesseract OCR successful: ${text.length} chars`);
+      return text;
+    }
+  } catch (tesseractErr: any) {
+    console.error('[ProcessDocs] Tesseract OCR failed:', tesseractErr?.message);
+  }
+  
+  // FALLBACK: Google Cloud Vision (if configured - requires API key)
   const gcpKey = Deno.env.get('GOOGLE_CLOUD_API_KEY');
   if (gcpKey) {
     try {
@@ -535,13 +547,115 @@ async function extractTextWithOCR(
     }
   }
   
-  // Fallback to Claude Vision with page-by-page processing
+  // LAST RESORT: Vision LLM (WARNING: may hallucinate content)
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
-  if (!openRouterKey) {
-    throw new Error('No OCR API keys configured (GOOGLE_CLOUD_API_KEY or OPENROUTER_API_KEY)');
+  if (openRouterKey) {
+    console.log('[ProcessDocs] ⚠️ Falling back to Vision LLM - may not extract actual text');
+    return await ocrWithClaudeVision(buffer, openRouterKey, saveCallback);
   }
   
-  return await ocrWithClaudeVision(buffer, openRouterKey, saveCallback);
+  throw new Error('No OCR options available - Tesseract failed and no API keys configured');
+}
+
+// ============================================================================
+// TESSERACT.JS - TRUE LOCAL OCR (No external API, full data security)
+// Uses WASM-compiled Tesseract engine that runs entirely in the Edge Function
+// ============================================================================
+
+async function ocrWithTesseract(
+  buffer: ArrayBuffer,
+  saveCallback?: (text: string) => Promise<void>
+): Promise<string> {
+  console.log('[ProcessDocs] Using Tesseract.js for TRUE local OCR (no external API)...');
+  
+  const uint8Array = new Uint8Array(buffer);
+  const startTime = Date.now();
+  const MAX_RUNTIME_MS = 110000; // 1 min 50s - leave buffer for final save
+  
+  try {
+    // Import Tesseract.js - runs entirely in WASM, no network calls for OCR
+    const Tesseract = await import('https://esm.sh/tesseract.js@5.1.0');
+    const unpdf = await import('https://esm.sh/unpdf@0.12.1?bundle');
+    
+    const pdf = await unpdf.getDocumentProxy(uint8Array);
+    const totalPages = pdf.numPages;
+    
+    console.log(`[ProcessDocs] Tesseract: Processing ${totalPages} pages...`);
+    
+    // Create Tesseract worker - loads WASM + English language data
+    const worker = await Tesseract.createWorker('eng', 1, {
+      logger: (m: any) => {
+        if (m.status === 'recognizing text') {
+          console.log(`[Tesseract] ${m.status}: ${Math.round(m.progress * 100)}%`);
+        }
+      }
+    });
+    
+    const allResults: {pageNum: number, text: string}[] = [];
+    
+    // Process pages one at a time (Tesseract is memory-intensive)
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      const elapsed = Date.now() - startTime;
+      
+      // Check timeout
+      if (elapsed > MAX_RUNTIME_MS) {
+        console.log(`[ProcessDocs] ⏱️ Tesseract timeout at ${Math.round(elapsed/1000)}s after ${pageNum - 1} pages`);
+        break;
+      }
+      
+      try {
+        console.log(`[ProcessDocs] Tesseract: Page ${pageNum}/${totalPages}...`);
+        
+        // Extract page image
+        const pageImage = await extractSinglePageImage(pdf, pageNum);
+        if (!pageImage) {
+          console.log(`[ProcessDocs] No image on page ${pageNum}, skipping`);
+          continue;
+        }
+        
+        // Convert base64 to data URL for Tesseract
+        const imageDataUrl = `data:${pageImage.mimeType};base64,${pageImage.base64}`;
+        
+        // Run Tesseract OCR - this is TRUE text recognition, not AI generation
+        const result = await worker.recognize(imageDataUrl);
+        const pageText = result.data.text?.trim() || '';
+        
+        if (pageText.length > 20) {
+          allResults.push({ pageNum, text: pageText });
+          console.log(`[ProcessDocs] Tesseract page ${pageNum}: ${pageText.length} chars extracted`);
+          
+          // Incremental save after each page
+          if (saveCallback && allResults.length > 0) {
+            const partialText = buildOcrText(allResults, totalPages);
+            try {
+              await saveCallback(partialText);
+              console.log(`[ProcessDocs] 💾 Tesseract: Saved ${partialText.length} chars`);
+            } catch (saveErr: any) {
+              console.error(`[ProcessDocs] Save error:`, saveErr?.message);
+            }
+          }
+        } else {
+          console.log(`[ProcessDocs] Tesseract page ${pageNum}: insufficient text`);
+        }
+        
+      } catch (pageErr: any) {
+        console.error(`[ProcessDocs] Tesseract page ${pageNum} error:`, pageErr?.message?.substring(0, 100));
+      }
+    }
+    
+    // Cleanup
+    await worker.terminate();
+    pdf.destroy();
+    
+    const fullText = buildOcrText(allResults, totalPages);
+    console.log(`[ProcessDocs] ✅ Tesseract complete: ${fullText.length} chars from ${allResults.length} pages`);
+    
+    return fullText;
+    
+  } catch (err: any) {
+    console.error('[ProcessDocs] Tesseract error:', err?.message || err);
+    throw new Error(`Tesseract OCR failed: ${err?.message}`);
+  }
 }
 
 // Google Cloud Vision API - handles full PDFs natively, best for documents
@@ -805,10 +919,17 @@ async function ocrSingleImage(
     'mistralai/mistral-small-3.1-24b-instruct'
   ];
   
-  const ocrPrompt = `Extract ALL text from this page (page ${pageNum} of ${totalPages}) of a UK company accounts document.
-Extract exactly as written: all text, numbers, tables, headers, notes.
-Format tables with | separators. Preserve structure.
-Output ONLY the extracted text, no commentary.`;
+  const ocrPrompt = `You are an OCR engine. Extract ALL text EXACTLY as it appears on this page (page ${pageNum} of ${totalPages}) of a UK company accounts document.
+
+CRITICAL INSTRUCTIONS:
+1. Extract VERBATIM text only - do NOT generate, summarize, or infer content
+2. UK accounts have TWO COLUMNS of figures: current year AND prior year (comparative data) - extract BOTH
+3. Format tables with | separators showing: | Item | Current Year £ | Prior Year £ |
+4. Include all headers, notes, page numbers, and document references
+5. Preserve exact numbers - do not round or modify figures
+6. If you cannot read something, write [ILLEGIBLE] - do NOT guess
+
+Output ONLY the extracted text. No commentary or explanations.`;
 
   for (const model of ocrModels) {
     try {

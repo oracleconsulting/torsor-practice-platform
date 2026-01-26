@@ -1552,6 +1552,7 @@ interface ExtractedFinancials {
   cash?: number;
   debtors?: number;
   creditors?: number;
+  stock?: number;
   fixedAssets?: number;
   freeholdProperty?: number;
   
@@ -1857,33 +1858,45 @@ const PAYROLL_BENCHMARKS: Record<string, {
   concern: number;
   notes: string;
 }> = {
-  // Distribution & Wholesale
-  'distribution': { typical: 25, good: 20, concern: 35, notes: 'Labour-light, logistics-focused' },
-  'wholesale': { typical: 22, good: 18, concern: 30, notes: 'Low touch, volume-based' },
-  'key_cutting_locksmith': { typical: 30, good: 25, concern: 40, notes: 'Skilled labour required' },
+  // Distribution & Wholesale (28-32% is healthy range)
+  // Keys, lockers, security hardware = wholesale distribution model
+  'wholesale_distribution': { typical: 30, good: 28, concern: 32, notes: 'Wholesale/distribution - 28-32% healthy' },
+  'distribution': { typical: 30, good: 28, concern: 32, notes: 'Distribution - 28-32% healthy' },
+  'wholesale': { typical: 30, good: 28, concern: 32, notes: 'Wholesale - 28-32% healthy' },
+  'keys_lockers': { typical: 30, good: 28, concern: 32, notes: 'Keys/lockers wholesale distribution' },
   
-  // Professional Services
-  'consulting': { typical: 55, good: 45, concern: 70, notes: 'People ARE the product' },
-  'accounting': { typical: 50, good: 40, concern: 65, notes: 'High skill, billable hours' },
-  'legal': { typical: 55, good: 45, concern: 70, notes: 'Partner-heavy model' },
+  // Professional Services (45-60% typical - people ARE the product)
+  'professional_services': { typical: 52, good: 45, concern: 60, notes: 'People are the product' },
+  'consulting': { typical: 52, good: 45, concern: 60, notes: 'Consulting - billable hours model' },
+  'accounting': { typical: 50, good: 45, concern: 55, notes: 'Accounting - high skill' },
+  'accountancy': { typical: 50, good: 45, concern: 55, notes: 'Accountancy practice' },
+  'legal': { typical: 52, good: 45, concern: 60, notes: 'Legal - partner model' },
   
-  // Technology
-  'saas': { typical: 45, good: 35, concern: 60, notes: 'Engineering-heavy' },
-  'it_services': { typical: 50, good: 40, concern: 65, notes: 'Consultants + support' },
+  // Technology (35-50% typical)
+  'technology': { typical: 42, good: 35, concern: 50, notes: 'Technology - engineering-heavy' },
+  'saas': { typical: 38, good: 30, concern: 45, notes: 'SaaS - high margin, people cost' },
+  'software': { typical: 42, good: 35, concern: 50, notes: 'Software development' },
+  'it_services': { typical: 45, good: 38, concern: 55, notes: 'IT services' },
   
-  // Trades & Construction
-  'construction': { typical: 35, good: 28, concern: 45, notes: 'Project-based labour' },
-  'trades': { typical: 40, good: 32, concern: 50, notes: 'Skilled labour dependent' },
+  // Construction & Trades (30-40% typical)
+  'construction': { typical: 35, good: 30, concern: 40, notes: 'Construction - project-based' },
+  'trades': { typical: 35, good: 30, concern: 40, notes: 'Trades - skilled labour' },
   
-  // Retail & Hospitality
-  'retail': { typical: 20, good: 15, concern: 30, notes: 'Volume-based, min wage' },
-  'hospitality': { typical: 35, good: 28, concern: 45, notes: 'Service-heavy' },
+  // Retail (15-25% typical)
+  'retail': { typical: 20, good: 15, concern: 25, notes: 'Retail - volume-based' },
   
-  // Manufacturing
-  'manufacturing': { typical: 30, good: 25, concern: 40, notes: 'Automation dependent' },
+  // Hospitality (30-40% typical)
+  'hospitality': { typical: 35, good: 30, concern: 40, notes: 'Hospitality - service-heavy' },
+  'restaurant': { typical: 33, good: 28, concern: 38, notes: 'Restaurant' },
   
-  // Default
-  'general_business': { typical: 30, good: 25, concern: 40, notes: 'UK SME average' }
+  // Manufacturing (25-35% typical)
+  'manufacturing': { typical: 30, good: 25, concern: 35, notes: 'Manufacturing' },
+  
+  // Healthcare (45-60% typical)
+  'healthcare': { typical: 52, good: 45, concern: 60, notes: 'Healthcare - labour intensive' },
+  
+  // Default (30-40% UK SME average)
+  'general_business': { typical: 35, good: 30, concern: 40, notes: 'UK SME average' }
 };
 
 function getPayrollBenchmark(industry: string): typeof PAYROLL_BENCHMARKS['general_business'] {
@@ -1900,20 +1913,44 @@ function getPayrollBenchmark(industry: string): typeof PAYROLL_BENCHMARKS['gener
     }
   }
   
-  // Additional keyword matches
-  if (lowerIndustry.includes('key') || lowerIndustry.includes('lock') || lowerIndustry.includes('security')) {
-    return PAYROLL_BENCHMARKS['key_cutting_locksmith'];
-  }
-  if (lowerIndustry.includes('distrib') || lowerIndustry.includes('supply')) {
-    return PAYROLL_BENCHMARKS['distribution'];
-  }
-  if (lowerIndustry.includes('tech') || lowerIndustry.includes('software')) {
-    return PAYROLL_BENCHMARKS['saas'];
-  }
-  if (lowerIndustry.includes('consult') || lowerIndustry.includes('service')) {
-    return PAYROLL_BENCHMARKS['consulting'];
+  // Additional keyword matches - ORDER MATTERS (more specific first)
+  
+  // Keys, lockers, security = WHOLESALE DISTRIBUTION (not locksmith services)
+  if (lowerIndustry.includes('key') || lowerIndustry.includes('lock') || lowerIndustry.includes('locker') || 
+      lowerIndustry.includes('security hardware') || lowerIndustry.includes('furniture keys')) {
+    console.log('[PayrollBenchmark] Detected keys/lockers business -> wholesale_distribution');
+    return PAYROLL_BENCHMARKS['wholesale_distribution'];
   }
   
+  // Distribution and supply chain
+  if (lowerIndustry.includes('distrib') || lowerIndustry.includes('supply') || lowerIndustry.includes('wholesale') ||
+      lowerIndustry.includes('trade supply') || lowerIndustry.includes('b2b')) {
+    return PAYROLL_BENCHMARKS['wholesale_distribution'];
+  }
+  
+  // Technology
+  if (lowerIndustry.includes('tech') || lowerIndustry.includes('software') || lowerIndustry.includes('saas') ||
+      lowerIndustry.includes('digital') || lowerIndustry.includes('platform')) {
+    return PAYROLL_BENCHMARKS['technology'];
+  }
+  
+  // Professional services
+  if (lowerIndustry.includes('consult') || lowerIndustry.includes('advisory') || 
+      lowerIndustry.includes('professional service')) {
+    return PAYROLL_BENCHMARKS['professional_services'];
+  }
+  
+  // Accountancy
+  if (lowerIndustry.includes('account') || lowerIndustry.includes('bookkeep') || lowerIndustry.includes('audit')) {
+    return PAYROLL_BENCHMARKS['accountancy'];
+  }
+  
+  // Healthcare
+  if (lowerIndustry.includes('health') || lowerIndustry.includes('medical') || lowerIndustry.includes('care')) {
+    return PAYROLL_BENCHMARKS['healthcare'];
+  }
+  
+  console.log('[PayrollBenchmark] No specific match, using general_business for:', lowerIndustry);
   return PAYROLL_BENCHMARKS['general_business'];
 }
 
@@ -2058,6 +2095,1310 @@ function analysePayrollEfficiency(
     isValidated,
     validationErrors
   };
+}
+
+// ============================================================================
+// COMPREHENSIVE BUSINESS ANALYSIS - MULTI-DIMENSIONAL
+// ============================================================================
+// Extracts and analyses ALL available data across 7 dimensions:
+// 1. Valuation Indicators
+// 2. Revenue Trajectory  
+// 3. Payroll Efficiency
+// 4. Productivity (Revenue per Head)
+// 5. Working Capital Efficiency
+// 6. Exit Readiness Score
+// 7. Cost of Inaction
+// ============================================================================
+
+interface ValuationSignals {
+  marketPosition: 'leader' | 'niche' | 'competitor';
+  founderDependency: 'optional' | 'moderate' | 'critical';
+  hasDocumentation: boolean;
+  hasUnresolvedIssues: boolean;
+  coreBusinessDeclining: boolean;
+  exitTimeline: string;
+  avoidedConversation: string;
+}
+
+interface ValuationAdjustment {
+  factor: string;
+  impact: number;
+  reason: string;
+  source: 'accounts' | 'assessment' | 'calculated';
+}
+
+interface HiddenAsset {
+  type: 'property' | 'cash' | 'ip' | 'contracts' | 'other';
+  value: number | null;
+  description: string;
+}
+
+interface ValuationAnalysis {
+  hasData: boolean;
+  operatingProfit: number | null;
+  netAssets: number | null;
+  baseMultipleLow: number;
+  baseMultipleHigh: number;
+  adjustments: ValuationAdjustment[];
+  adjustedMultipleLow: number;
+  adjustedMultipleHigh: number;
+  conservativeValue: number | null;
+  midRangeValue: number | null;
+  optimisticValue: number | null;
+  hiddenAssets: HiddenAsset[];
+  narrative: string;
+}
+
+interface TrajectoryAnalysis {
+  hasData: boolean;
+  currentRevenue: number | null;
+  priorRevenue: number | null;
+  absoluteChange: number | null;
+  percentageChange: number | null;
+  trend: 'growing' | 'stable' | 'declining';
+  concernLevel: 'none' | 'monitor' | 'urgent';
+  ownerPerception: string | null;
+  marketContext: string | null;
+  narrative: string;
+}
+
+interface ProductivityAnalysis {
+  hasData: boolean;
+  revenue: number | null;
+  employeeCount: number | null;
+  revenuePerHead: number | null;
+  benchmarkLow: number;
+  benchmarkHigh: number;
+  gap: number | null;
+  impliedHeadcount: number | null;
+  excessHeadcount: number | null;
+  narrative: string;
+}
+
+interface WorkingCapitalConcern {
+  metric: string;
+  value: number;
+  benchmark: number;
+  concern: string;
+  tiedUpCapital?: number;
+}
+
+interface WorkingCapitalAnalysis {
+  hasData: boolean;
+  debtorDays: number | null;
+  stockDays: number | null;
+  creditorDays: number | null;
+  cashConversionCycle: number | null;
+  cashPosition: number | null;
+  cashAsMonthsRunway: number | null;
+  concerns: WorkingCapitalConcern[];
+  narrative: string;
+}
+
+interface ExitReadinessFactor {
+  name: string;
+  weight: number;
+  score: number;
+  maxScore: number;
+  status: 'green' | 'amber' | 'red';
+  evidence: string;
+}
+
+interface ExitReadinessAnalysis {
+  score: number;
+  maxScore: number;
+  readiness: 'ready' | 'nearly' | 'not_ready';
+  factors: ExitReadinessFactor[];
+  strengths: string[];
+  blockers: string[];
+  narrative: string;
+}
+
+interface CostComponent {
+  category: string;
+  annualCost: number | null;
+  costOverHorizon: number | null;
+  calculation: string;
+  confidence: 'calculated' | 'estimated' | 'indicative';
+}
+
+interface CostOfInactionAnalysis {
+  hasData: boolean;
+  timeHorizon: number;
+  components: CostComponent[];
+  totalAnnual: number;
+  totalOverHorizon: number;
+  narrative: string;
+}
+
+interface ComprehensiveAnalysis {
+  valuation: ValuationAnalysis | null;
+  trajectory: TrajectoryAnalysis | null;
+  payroll: PayrollAnalysis | null;
+  productivity: ProductivityAnalysis | null;
+  workingCapital: WorkingCapitalAnalysis | null;
+  exitReadiness: ExitReadinessAnalysis | null;
+  costOfInaction: CostOfInactionAnalysis | null;
+  dataQuality: 'comprehensive' | 'partial' | 'limited';
+  availableMetrics: string[];
+  missingMetrics: string[];
+}
+
+// ============================================================================
+// VALUATION SIGNAL EXTRACTION (for multiple adjustments)
+// ============================================================================
+
+function extractValuationSignals(responses: Record<string, any>): ValuationSignals {
+  const allText = JSON.stringify(responses).toLowerCase();
+  
+  // Market position
+  let marketPosition: 'leader' | 'niche' | 'competitor' = 'competitor';
+  if (allText.includes('market leader') || allText.includes('clear leader') || allText.includes('dominant')) {
+    marketPosition = 'leader';
+  } else if (allText.includes('niche') || allText.includes('specialist')) {
+    marketPosition = 'niche';
+  }
+  
+  // Founder dependency
+  const depResponse = (responses.sd_day_without_you || responses.dd_day_without_you || 
+                       responses.sd_founder_dependency || '').toLowerCase();
+  let founderDependency: 'optional' | 'moderate' | 'critical' = 'moderate';
+  if (depResponse.includes('runs fine') || depResponse.includes('ticks along') || 
+      depResponse.includes('optional') || depResponse.includes('without me')) {
+    founderDependency = 'optional';
+  } else if (depResponse.includes('critical') || depResponse.includes('falls apart') || 
+             depResponse.includes('need me') || depResponse.includes('rely on me')) {
+    founderDependency = 'critical';
+  }
+  
+  // Documentation
+  const hasDocumentation = allText.includes('documented') || allText.includes('procedures') || 
+                           allText.includes('sops') || allText.includes('processes written');
+  
+  // Unresolved issues
+  const avoidedConversation = responses.sd_avoided_conversation || responses.dd_avoided_conversation || '';
+  const hasUnresolvedIssues = avoidedConversation.length > 10;
+  
+  // Core business declining
+  const coreBusinessDeclining = allText.includes('decline') || allText.includes('shrinking') || 
+                                 allText.includes('slow decline') || allText.includes('dying');
+  
+  // Exit timeline
+  const exitTimeline = responses.sd_exit_timeline || responses.dd_exit_mindset || '';
+  
+  return {
+    marketPosition,
+    founderDependency,
+    hasDocumentation,
+    hasUnresolvedIssues,
+    coreBusinessDeclining,
+    exitTimeline,
+    avoidedConversation
+  };
+}
+
+// ============================================================================
+// 1. VALUATION ANALYSIS
+// ============================================================================
+
+function analyseValuation(
+  financials: ExtractedFinancials,
+  valuationSignals: ValuationSignals,
+  industry: string
+): ValuationAnalysis | null {
+  // Need at minimum operating profit or net assets
+  if (!financials.operatingProfit && !financials.ebitda && !financials.netAssets) {
+    return null;
+  }
+  
+  // Industry-specific base multiples (UK SME)
+  const industryMultiples: Record<string, { low: number; high: number }> = {
+    'wholesale_distribution': { low: 3.0, high: 5.0 },
+    'wholesale': { low: 3.0, high: 5.0 },
+    'distribution': { low: 3.0, high: 5.0 },
+    'keys_lockers': { low: 3.0, high: 5.0 },
+    'professional_services': { low: 4.0, high: 8.0 },
+    'accountancy': { low: 4.0, high: 7.0 },
+    'construction': { low: 2.5, high: 4.5 },
+    'manufacturing': { low: 3.0, high: 5.0 },
+    'retail': { low: 2.0, high: 4.0 },
+    'technology': { low: 5.0, high: 10.0 },
+    'saas': { low: 6.0, high: 12.0 },
+    'software': { low: 5.0, high: 10.0 },
+    'healthcare': { low: 4.0, high: 7.0 },
+    'hospitality': { low: 2.0, high: 4.0 },
+    'general_business': { low: 3.0, high: 5.0 }
+  };
+  
+  // Detect industry from string
+  const industryLower = industry.toLowerCase();
+  let selectedIndustry = 'general_business';
+  for (const key of Object.keys(industryMultiples)) {
+    if (industryLower.includes(key)) {
+      selectedIndustry = key;
+      break;
+    }
+  }
+  
+  const baseMultiples = industryMultiples[selectedIndustry];
+  const adjustments: ValuationAdjustment[] = [];
+  
+  // ADJUSTMENT FACTORS
+  
+  // Market position
+  if (valuationSignals.marketPosition === 'leader') {
+    adjustments.push({
+      factor: 'Market Leader',
+      impact: 0.5,
+      reason: 'Premium for dominant market position',
+      source: 'assessment'
+    });
+  }
+  
+  // Founder dependency
+  if (valuationSignals.founderDependency === 'optional') {
+    adjustments.push({
+      factor: 'Low Founder Dependency',
+      impact: 0.5,
+      reason: 'Business runs without owner - reduces buyer risk',
+      source: 'assessment'
+    });
+  } else if (valuationSignals.founderDependency === 'critical') {
+    adjustments.push({
+      factor: 'High Founder Dependency',
+      impact: -0.5,
+      reason: 'Business relies heavily on owner - increases buyer risk',
+      source: 'assessment'
+    });
+  }
+  
+  // Documentation
+  if (valuationSignals.hasDocumentation) {
+    adjustments.push({
+      factor: 'Documented Processes',
+      impact: 0.25,
+      reason: 'Easier transition for buyers',
+      source: 'assessment'
+    });
+  }
+  
+  // Revenue trajectory
+  if (financials.turnoverGrowth !== undefined) {
+    if (financials.turnoverGrowth > 5) {
+      adjustments.push({
+        factor: 'Growing Revenue',
+        impact: 0.5,
+        reason: `Revenue up ${financials.turnoverGrowth.toFixed(1)}% YoY`,
+        source: 'accounts'
+      });
+    } else if (financials.turnoverGrowth < -2) {
+      adjustments.push({
+        factor: 'Declining Revenue',
+        impact: -0.5,
+        reason: `Revenue down ${Math.abs(financials.turnoverGrowth).toFixed(1)}% YoY`,
+        source: 'accounts'
+      });
+    }
+  }
+  
+  // Unresolved issues
+  if (valuationSignals.hasUnresolvedIssues) {
+    adjustments.push({
+      factor: 'Unresolved Issues',
+      impact: -0.25,
+      reason: 'Avoided conversations or known problems',
+      source: 'assessment'
+    });
+  }
+  
+  // Core business health
+  if (valuationSignals.coreBusinessDeclining) {
+    adjustments.push({
+      factor: 'Core Business Declining',
+      impact: -0.5,
+      reason: 'Structural decline in primary market',
+      source: 'assessment'
+    });
+  }
+  
+  // Calculate adjusted multiples
+  const totalAdjustment = adjustments.reduce((sum, adj) => sum + adj.impact, 0);
+  const adjustedLow = Math.max(baseMultiples.low + totalAdjustment, 1.5);
+  const adjustedHigh = Math.max(baseMultiples.high + totalAdjustment, 2.0);
+  
+  // Calculate valuations
+  const earningsBase = financials.operatingProfit || financials.ebitda || 0;
+  const conservativeValue = earningsBase > 0 ? Math.round(earningsBase * adjustedLow) : null;
+  const midRangeValue = earningsBase > 0 ? Math.round(earningsBase * ((adjustedLow + adjustedHigh) / 2)) : null;
+  const optimisticValue = earningsBase > 0 ? Math.round(earningsBase * adjustedHigh) : null;
+  
+  // Identify hidden assets
+  const hiddenAssets: HiddenAsset[] = [];
+  
+  if (financials.freeholdProperty && financials.freeholdProperty > 50000) {
+    hiddenAssets.push({
+      type: 'property',
+      value: financials.freeholdProperty,
+      description: 'Freehold property on balance sheet'
+    });
+  }
+  
+  if (financials.cash && financials.turnover && financials.cash > financials.turnover * 0.15) {
+    const excessCash = financials.cash - (financials.turnover * 0.1);
+    hiddenAssets.push({
+      type: 'cash',
+      value: excessCash,
+      description: 'Excess cash above working capital needs'
+    });
+  }
+  
+  // Build narrative
+  let narrative = '';
+  if (conservativeValue && optimisticValue) {
+    if (conservativeValue >= 1000000) {
+      narrative = `Indicative valuation range £${(conservativeValue/1000000).toFixed(1)}M-£${(optimisticValue/1000000).toFixed(1)}M `;
+    } else {
+      narrative = `Indicative valuation range £${(conservativeValue/1000).toFixed(0)}k-£${(optimisticValue/1000).toFixed(0)}k `;
+    }
+    narrative += `based on ${adjustedLow.toFixed(1)}-${adjustedHigh.toFixed(1)}x operating profit.`;
+    
+    if (adjustments.length > 0) {
+      const positiveAdj = adjustments.filter(a => a.impact > 0);
+      const negativeAdj = adjustments.filter(a => a.impact < 0);
+      
+      if (positiveAdj.length > 0) {
+        narrative += ` Strengths: ${positiveAdj.map(a => a.factor.toLowerCase()).join(', ')}.`;
+      }
+      if (negativeAdj.length > 0) {
+        narrative += ` Concerns: ${negativeAdj.map(a => a.factor.toLowerCase()).join(', ')}.`;
+      }
+    }
+    
+    if (hiddenAssets.length > 0) {
+      const totalHidden = hiddenAssets.reduce((sum, a) => sum + (a.value || 0), 0);
+      narrative += ` Plus £${(totalHidden/1000).toFixed(0)}k in additional assets.`;
+    }
+  }
+  
+  return {
+    hasData: true,
+    operatingProfit: financials.operatingProfit || null,
+    netAssets: financials.netAssets || null,
+    baseMultipleLow: baseMultiples.low,
+    baseMultipleHigh: baseMultiples.high,
+    adjustments,
+    adjustedMultipleLow: adjustedLow,
+    adjustedMultipleHigh: adjustedHigh,
+    conservativeValue,
+    midRangeValue,
+    optimisticValue,
+    hiddenAssets,
+    narrative
+  };
+}
+
+// ============================================================================
+// 2. TRAJECTORY ANALYSIS
+// ============================================================================
+
+function analyseTrajectory(
+  financials: ExtractedFinancials,
+  assessmentResponses: Record<string, any>
+): TrajectoryAnalysis | null {
+  const currentRevenue = financials.turnover || null;
+  const priorRevenue = financials.turnoverPriorYear || null;
+  
+  // Extract owner perception from assessment
+  const ownerPerception = assessmentResponses.sd_challenges_facing || 
+                          assessmentResponses.dd_challenges_facing ||
+                          assessmentResponses.sd_magic_fix ||
+                          null;
+  
+  const marketContext = assessmentResponses.sd_market_position ||
+                        assessmentResponses.dd_market_position ||
+                        null;
+  
+  // If no revenue data, try to extract insight from assessment alone
+  if (!currentRevenue) {
+    const allResponses = JSON.stringify(assessmentResponses).toLowerCase();
+    
+    if (allResponses.includes('decline') || allResponses.includes('shrinking') || allResponses.includes('falling')) {
+      return {
+        hasData: false,
+        currentRevenue: null,
+        priorRevenue: null,
+        absoluteChange: null,
+        percentageChange: null,
+        trend: 'declining',
+        concernLevel: 'monitor',
+        ownerPerception: 'Owner indicates business may be declining',
+        marketContext,
+        narrative: 'No revenue data available, but assessment responses suggest declining trajectory.'
+      };
+    }
+    
+    return null;
+  }
+  
+  // Calculate change if prior year available
+  let absoluteChange: number | null = null;
+  let percentageChange: number | null = null;
+  let trend: 'growing' | 'stable' | 'declining' = 'stable';
+  let concernLevel: 'none' | 'monitor' | 'urgent' = 'none';
+  
+  if (priorRevenue && priorRevenue > 0) {
+    absoluteChange = currentRevenue - priorRevenue;
+    percentageChange = ((currentRevenue - priorRevenue) / priorRevenue) * 100;
+    
+    if (percentageChange > 5) {
+      trend = 'growing';
+      concernLevel = 'none';
+    } else if (percentageChange < -5) {
+      trend = 'declining';
+      concernLevel = 'urgent';
+    } else if (percentageChange < -2) {
+      trend = 'declining';
+      concernLevel = 'monitor';
+    } else if (percentageChange < 2) {
+      trend = 'stable';
+      concernLevel = 'none';
+    } else {
+      trend = 'growing';
+      concernLevel = 'none';
+    }
+  }
+  
+  // Build narrative
+  let narrative = '';
+  if (percentageChange !== null) {
+    if (trend === 'declining') {
+      narrative = `Revenue ${percentageChange > -1 ? 'flat' : `down ${Math.abs(percentageChange).toFixed(1)}%`} `;
+      narrative += `year-on-year (£${Math.abs(absoluteChange!/1000).toFixed(0)}k). `;
+      
+      const allResponses = JSON.stringify(assessmentResponses).toLowerCase();
+      if (allResponses.includes('decline') || allResponses.includes('slow')) {
+        narrative += `This aligns with owner's view that core business is in decline.`;
+      } else {
+        narrative += `Worth investigating whether this is a temporary dip or structural trend.`;
+      }
+    } else if (trend === 'growing') {
+      narrative = `Revenue up ${percentageChange.toFixed(1)}% year-on-year (£${(absoluteChange!/1000).toFixed(0)}k). Positive momentum.`;
+    } else {
+      narrative = `Revenue stable year-on-year.`;
+    }
+  } else {
+    narrative = `Revenue £${(currentRevenue/1000000).toFixed(2)}M. No prior year comparison available.`;
+  }
+  
+  return {
+    hasData: true,
+    currentRevenue,
+    priorRevenue,
+    absoluteChange,
+    percentageChange,
+    trend,
+    concernLevel,
+    ownerPerception,
+    marketContext,
+    narrative
+  };
+}
+
+// ============================================================================
+// 3. PRODUCTIVITY ANALYSIS (Revenue Per Head)
+// ============================================================================
+
+function analyseProductivity(
+  financials: ExtractedFinancials,
+  industry: string
+): ProductivityAnalysis | null {
+  if (!financials.turnover || !financials.employeeCount) {
+    return null;
+  }
+  
+  const revenue = financials.turnover;
+  const employeeCount = financials.employeeCount;
+  const revenuePerHead = revenue / employeeCount;
+  
+  // Industry benchmarks for revenue per head (UK SME)
+  const industryBenchmarks: Record<string, { low: number; high: number }> = {
+    'wholesale_distribution': { low: 120000, high: 180000 },
+    'wholesale': { low: 120000, high: 180000 },
+    'distribution': { low: 120000, high: 180000 },
+    'keys_lockers': { low: 120000, high: 180000 },
+    'professional_services': { low: 80000, high: 150000 },
+    'accountancy': { low: 80000, high: 150000 },
+    'construction': { low: 100000, high: 150000 },
+    'manufacturing': { low: 80000, high: 120000 },
+    'retail': { low: 60000, high: 100000 },
+    'technology': { low: 100000, high: 200000 },
+    'saas': { low: 150000, high: 300000 },
+    'software': { low: 100000, high: 200000 },
+    'healthcare': { low: 60000, high: 100000 },
+    'hospitality': { low: 40000, high: 70000 },
+    'general_business': { low: 80000, high: 130000 }
+  };
+  
+  // Detect industry from string
+  const industryLower = industry.toLowerCase();
+  let selectedIndustry = 'general_business';
+  for (const key of Object.keys(industryBenchmarks)) {
+    if (industryLower.includes(key)) {
+      selectedIndustry = key;
+      break;
+    }
+  }
+  
+  const benchmark = industryBenchmarks[selectedIndustry];
+  
+  const gap = benchmark.low - revenuePerHead;
+  const impliedHeadcount = Math.round(revenue / benchmark.low);
+  const excessHeadcount = employeeCount - impliedHeadcount;
+  
+  // Build narrative
+  let narrative = `Revenue per head £${(revenuePerHead/1000).toFixed(0)}k `;
+  narrative += `vs industry benchmark £${(benchmark.low/1000).toFixed(0)}k-£${(benchmark.high/1000).toFixed(0)}k. `;
+  
+  if (revenuePerHead < benchmark.low) {
+    narrative += `Below benchmark suggests ${excessHeadcount > 0 ? `${excessHeadcount} potential excess employees` : 'productivity improvement opportunity'}. `;
+    narrative += `This could indicate overstaffing, underpricing, or underutilised capacity.`;
+  } else if (revenuePerHead > benchmark.high) {
+    narrative += `Above benchmark - team is highly productive, but watch for burnout or scaling constraints.`;
+  } else {
+    narrative += `Within healthy range.`;
+  }
+  
+  return {
+    hasData: true,
+    revenue,
+    employeeCount,
+    revenuePerHead,
+    benchmarkLow: benchmark.low,
+    benchmarkHigh: benchmark.high,
+    gap: gap > 0 ? gap : null,
+    impliedHeadcount,
+    excessHeadcount: excessHeadcount > 0 ? excessHeadcount : null,
+    narrative
+  };
+}
+
+// ============================================================================
+// 4. WORKING CAPITAL ANALYSIS
+// ============================================================================
+
+function analyseWorkingCapital(
+  financials: ExtractedFinancials
+): WorkingCapitalAnalysis | null {
+  // Need at minimum turnover and some balance sheet data
+  if (!financials.turnover) {
+    return null;
+  }
+  
+  const turnover = financials.turnover;
+  const costOfSales = financials.costOfSales || turnover * 0.5;
+  
+  // Calculate days
+  const debtorDays = financials.debtors 
+    ? Math.round((financials.debtors / turnover) * 365) 
+    : null;
+    
+  // Stock days calculation
+  const stockDays = financials.stock 
+    ? Math.round((financials.stock / costOfSales) * 365) 
+    : null;
+    
+  const creditorDays = financials.creditors 
+    ? Math.round((financials.creditors / costOfSales) * 365) 
+    : null;
+  
+  const cashConversionCycle = (debtorDays !== null && stockDays !== null && creditorDays !== null)
+    ? debtorDays + stockDays - creditorDays
+    : null;
+  
+  // Cash runway
+  const monthlyOverheads = (financials.totalStaffCosts || 0) / 12;
+  const cashAsMonthsRunway = (financials.cash && monthlyOverheads > 0)
+    ? financials.cash / monthlyOverheads
+    : null;
+  
+  // Identify concerns
+  const concerns: WorkingCapitalConcern[] = [];
+  
+  if (debtorDays && debtorDays > 60) {
+    concerns.push({
+      metric: 'Debtor Days',
+      value: debtorDays,
+      benchmark: 45,
+      concern: 'Slow collection of receivables',
+      tiedUpCapital: financials.debtors
+    });
+  }
+  
+  if (stockDays && stockDays > 90) {
+    concerns.push({
+      metric: 'Stock Days',
+      value: stockDays,
+      benchmark: 60,
+      concern: 'High inventory levels tying up working capital',
+      tiedUpCapital: financials.stock
+    });
+  }
+  
+  if (cashConversionCycle && cashConversionCycle > 90) {
+    concerns.push({
+      metric: 'Cash Conversion Cycle',
+      value: cashConversionCycle,
+      benchmark: 60,
+      concern: 'Long cycle from spend to cash collection'
+    });
+  }
+  
+  // Build narrative
+  let narrative = '';
+  
+  if (debtorDays !== null || stockDays !== null) {
+    const parts: string[] = [];
+    if (debtorDays) parts.push(`Debtor days: ${debtorDays}`);
+    if (stockDays) parts.push(`Stock days: ${stockDays}`);
+    if (creditorDays) parts.push(`Creditor days: ${creditorDays}`);
+    
+    narrative = parts.join(', ') + '. ';
+  }
+  
+  if (concerns.length > 0) {
+    const totalTiedUp = concerns.reduce((sum, c) => sum + (c.tiedUpCapital || 0), 0);
+    if (totalTiedUp > 0) {
+      narrative += `£${(totalTiedUp/1000).toFixed(0)}k tied up in working capital. `;
+    }
+    narrative += concerns.map(c => c.concern).join('. ') + '.';
+  } else if (narrative) {
+    narrative += 'Working capital efficiency appears healthy.';
+  }
+  
+  if (cashAsMonthsRunway !== null) {
+    narrative += ` Cash runway: ${cashAsMonthsRunway.toFixed(1)} months.`;
+  }
+  
+  return {
+    hasData: debtorDays !== null || stockDays !== null || financials.cash !== undefined,
+    debtorDays,
+    stockDays,
+    creditorDays,
+    cashConversionCycle,
+    cashPosition: financials.cash || null,
+    cashAsMonthsRunway,
+    concerns,
+    narrative: narrative || 'Insufficient data for working capital analysis.'
+  };
+}
+
+// ============================================================================
+// 5. EXIT READINESS ANALYSIS
+// ============================================================================
+
+function analyseExitReadiness(
+  assessmentResponses: Record<string, any>,
+  financials: ExtractedFinancials
+): ExitReadinessAnalysis | null {
+  const factors: ExitReadinessFactor[] = [];
+  
+  // 1. FOUNDER DEPENDENCY (20 points)
+  const dependencyResponse = assessmentResponses.sd_day_without_you || 
+                             assessmentResponses.dd_day_without_you || 
+                             assessmentResponses.sd_founder_dependency || '';
+  const dependencyLower = dependencyResponse.toLowerCase();
+  
+  let dependencyScore = 10;
+  let dependencyStatus: 'green' | 'amber' | 'red' = 'amber';
+  
+  if (dependencyLower.includes('runs fine') || dependencyLower.includes('optional') || 
+      dependencyLower.includes('without me') || dependencyLower.includes('ticks along')) {
+    dependencyScore = 20;
+    dependencyStatus = 'green';
+  } else if (dependencyLower.includes('critical') || dependencyLower.includes('falls apart') ||
+             dependencyLower.includes('need me')) {
+    dependencyScore = 0;
+    dependencyStatus = 'red';
+  }
+  
+  factors.push({
+    name: 'Founder Dependency',
+    weight: 20,
+    score: dependencyScore,
+    maxScore: 20,
+    status: dependencyStatus,
+    evidence: dependencyResponse.substring(0, 100) || 'No data'
+  });
+  
+  // 2. DOCUMENTATION (15 points)
+  const docResponse = assessmentResponses.sd_documentation || 
+                      assessmentResponses.dd_documentation || '';
+  const docLower = docResponse.toLowerCase();
+  const allText = JSON.stringify(assessmentResponses).toLowerCase();
+  
+  let docScore = 8;
+  let docStatus: 'green' | 'amber' | 'red' = 'amber';
+  
+  if (docLower.includes('fully documented') || docLower.includes('most things documented') ||
+      docLower.includes('comprehensive') || allText.includes('documented')) {
+    docScore = 15;
+    docStatus = 'green';
+  } else if (docLower.includes('nothing documented') || docLower.includes('all in my head')) {
+    docScore = 0;
+    docStatus = 'red';
+  }
+  
+  factors.push({
+    name: 'Documentation',
+    weight: 15,
+    score: docScore,
+    maxScore: 15,
+    status: docStatus,
+    evidence: docResponse.substring(0, 100) || 'No specific data'
+  });
+  
+  // 3. FINANCIAL CLARITY (15 points)
+  const financeResponse = assessmentResponses.sd_financial_confidence ||
+                          assessmentResponses.dd_financial_confidence || 
+                          assessmentResponses.sd_numbers_confidence || '';
+  const financeLower = financeResponse.toLowerCase();
+  
+  let financeScore = 8;
+  let financeStatus: 'green' | 'amber' | 'red' = 'amber';
+  
+  if (financeLower.includes('completely on top') || financeLower.includes('weekly') ||
+      financeLower.includes('real-time') || financeLower.includes('trust') ||
+      allText.includes('completely on top')) {
+    financeScore = 15;
+    financeStatus = 'green';
+  } else if (financeLower.includes("don't know") || financeLower.includes('no idea')) {
+    financeScore = 0;
+    financeStatus = 'red';
+  }
+  
+  factors.push({
+    name: 'Financial Clarity',
+    weight: 15,
+    score: financeScore,
+    maxScore: 15,
+    status: financeStatus,
+    evidence: financeResponse.substring(0, 100) || 'No specific data'
+  });
+  
+  // 4. REVENUE TRAJECTORY (20 points)
+  let trajectoryScore = 10;
+  let trajectoryStatus: 'green' | 'amber' | 'red' = 'amber';
+  let trajectoryEvidence = 'No comparison data';
+  
+  if (financials.turnoverGrowth !== undefined) {
+    if (financials.turnoverGrowth > 5) {
+      trajectoryScore = 20;
+      trajectoryStatus = 'green';
+      trajectoryEvidence = `Revenue up ${financials.turnoverGrowth.toFixed(1)}%`;
+    } else if (financials.turnoverGrowth > 0) {
+      trajectoryScore = 15;
+      trajectoryStatus = 'green';
+      trajectoryEvidence = `Revenue up ${financials.turnoverGrowth.toFixed(1)}%`;
+    } else if (financials.turnoverGrowth > -2) {
+      trajectoryScore = 10;
+      trajectoryStatus = 'amber';
+      trajectoryEvidence = `Revenue flat (${financials.turnoverGrowth.toFixed(1)}%)`;
+    } else {
+      trajectoryScore = 0;
+      trajectoryStatus = 'red';
+      trajectoryEvidence = `Revenue down ${Math.abs(financials.turnoverGrowth).toFixed(1)}%`;
+    }
+  }
+  
+  factors.push({
+    name: 'Revenue Trajectory',
+    weight: 20,
+    score: trajectoryScore,
+    maxScore: 20,
+    status: trajectoryStatus,
+    evidence: trajectoryEvidence
+  });
+  
+  // 5. TEAM ISSUES RESOLVED (15 points)
+  const avoidedResponse = assessmentResponses.sd_avoided_conversation ||
+                          assessmentResponses.dd_avoided_conversation || '';
+  
+  let teamScore = 15;
+  let teamStatus: 'green' | 'amber' | 'red' = 'green';
+  
+  if (avoidedResponse && avoidedResponse.length > 10) {
+    teamScore = 0;
+    teamStatus = 'red';
+  }
+  
+  factors.push({
+    name: 'Team Issues Resolved',
+    weight: 15,
+    score: teamScore,
+    maxScore: 15,
+    status: teamStatus,
+    evidence: avoidedResponse ? `Avoiding: ${avoidedResponse.substring(0, 80)}` : 'No unresolved issues identified'
+  });
+  
+  // 6. VALUATION BASELINE (15 points)
+  const hasValuation = allText.includes('valuation') || allText.includes('worth') ||
+                       allText.includes('value the business') || allText.includes('valued');
+  
+  let valuationScore = 0;
+  let valuationStatus: 'green' | 'amber' | 'red' = 'red';
+  
+  if (hasValuation) {
+    valuationScore = 15;
+    valuationStatus = 'green';
+  }
+  
+  factors.push({
+    name: 'Valuation Baseline',
+    weight: 15,
+    score: valuationScore,
+    maxScore: 15,
+    status: valuationStatus,
+    evidence: hasValuation ? 'Has considered valuation' : 'No formal valuation mentioned'
+  });
+  
+  // Calculate totals
+  const totalScore = factors.reduce((sum, f) => sum + f.score, 0);
+  const maxScore = factors.reduce((sum, f) => sum + f.maxScore, 0);
+  
+  const strengths = factors.filter(f => f.status === 'green').map(f => f.name);
+  const blockers = factors.filter(f => f.status === 'red').map(f => f.name);
+  
+  const readiness = totalScore >= 70 ? 'ready' : totalScore >= 50 ? 'nearly' : 'not_ready';
+  
+  // Build narrative
+  let narrative = `Exit readiness score: ${totalScore}/${maxScore} (${Math.round(totalScore/maxScore*100)}%). `;
+  
+  if (strengths.length > 0) {
+    narrative += `Strengths: ${strengths.join(', ').toLowerCase()}. `;
+  }
+  
+  if (blockers.length > 0) {
+    narrative += `Blockers: ${blockers.join(', ').toLowerCase()}.`;
+  }
+  
+  return {
+    score: totalScore,
+    maxScore,
+    readiness,
+    factors,
+    strengths,
+    blockers,
+    narrative
+  };
+}
+
+// ============================================================================
+// 6. COST OF INACTION ANALYSIS
+// ============================================================================
+
+function calculateCostOfInaction(
+  payrollAnalysis: PayrollAnalysis | null,
+  trajectoryAnalysis: TrajectoryAnalysis | null,
+  valuationAnalysis: ValuationAnalysis | null,
+  assessmentResponses: Record<string, any>
+): CostOfInactionAnalysis {
+  const components: CostComponent[] = [];
+  
+  // Determine time horizon from exit timeline
+  let timeHorizon = 3;
+  const exitResponse = assessmentResponses.sd_exit_timeline || 
+                       assessmentResponses.dd_exit_mindset || '';
+  
+  if (exitResponse.includes('1-3') || exitResponse.includes('1 to 3') || 
+      exitResponse.includes('actively preparing')) {
+    timeHorizon = 2;
+  } else if (exitResponse.includes('3-5') || exitResponse.includes('3 to 5')) {
+    timeHorizon = 4;
+  } else if (exitResponse.includes('5+') || exitResponse.includes('5 or more')) {
+    timeHorizon = 5;
+  }
+  
+  // 1. Payroll excess
+  if (payrollAnalysis?.annualExcess && payrollAnalysis.annualExcess > 0) {
+    const annualExcess = payrollAnalysis.annualExcess;
+    components.push({
+      category: 'Payroll Excess',
+      annualCost: annualExcess,
+      costOverHorizon: annualExcess * timeHorizon,
+      calculation: `£${(annualExcess/1000).toFixed(0)}k/year × ${timeHorizon} years`,
+      confidence: 'calculated'
+    });
+  }
+  
+  // 2. Revenue decline
+  if (trajectoryAnalysis?.trend === 'declining' && trajectoryAnalysis.absoluteChange) {
+    const annualDecline = Math.abs(trajectoryAnalysis.absoluteChange);
+    // Assume decline compounds at 1.5x rate each year
+    let totalDecline = annualDecline;
+    for (let i = 1; i < timeHorizon; i++) {
+      totalDecline += annualDecline * Math.pow(1.5, i);
+    }
+    
+    components.push({
+      category: 'Revenue Decline',
+      annualCost: annualDecline,
+      costOverHorizon: Math.round(totalDecline),
+      calculation: `£${(annualDecline/1000).toFixed(0)}k decline, compounding over ${timeHorizon} years`,
+      confidence: 'estimated'
+    });
+  }
+  
+  // 3. Exit value suppression
+  if (valuationAnalysis?.adjustments) {
+    const negativeAdjustments = valuationAnalysis.adjustments.filter(a => a.impact < 0);
+    
+    if (negativeAdjustments.length > 0 && valuationAnalysis.midRangeValue) {
+      // Estimate lost value as 10% of mid-range for each negative factor
+      const valueLost = Math.round(valuationAnalysis.midRangeValue * 0.1 * negativeAdjustments.length);
+      
+      components.push({
+        category: 'Exit Value Suppression',
+        annualCost: null,
+        costOverHorizon: valueLost,
+        calculation: `${negativeAdjustments.length} value-suppressing factor(s) on £${(valuationAnalysis.midRangeValue/1000000).toFixed(1)}M`,
+        confidence: 'indicative'
+      });
+    }
+  }
+  
+  // Calculate totals
+  const totalAnnual = components
+    .filter(c => c.annualCost !== null)
+    .reduce((sum, c) => sum + (c.annualCost || 0), 0);
+    
+  const totalOverHorizon = components
+    .filter(c => c.costOverHorizon !== null)
+    .reduce((sum, c) => sum + (c.costOverHorizon || 0), 0);
+  
+  // Build narrative
+  let narrative = '';
+  
+  if (totalOverHorizon > 0) {
+    narrative = `Cost of inaction over ${timeHorizon}-year horizon: £${(totalOverHorizon/1000).toFixed(0)}k+. `;
+    
+    const componentDescriptions = components
+      .filter(c => c.costOverHorizon && c.costOverHorizon > 0)
+      .map(c => `${c.category}: £${(c.costOverHorizon!/1000).toFixed(0)}k`)
+      .join(', ');
+    
+    narrative += `Breakdown: ${componentDescriptions}.`;
+  } else {
+    narrative = 'Insufficient data to calculate cost of inaction.';
+  }
+  
+  return {
+    hasData: components.length > 0,
+    timeHorizon,
+    components,
+    totalAnnual,
+    totalOverHorizon,
+    narrative
+  };
+}
+
+// ============================================================================
+// MASTER ANALYSIS ORCHESTRATOR
+// ============================================================================
+
+function performComprehensiveAnalysis(
+  financials: ExtractedFinancials,
+  assessmentResponses: Record<string, any>,
+  industry: string
+): ComprehensiveAnalysis {
+  // Extract valuation signals for multiple adjustments
+  const valuationSignals = extractValuationSignals(assessmentResponses);
+  
+  // Run all analyses
+  const payroll = analysePayrollEfficiency(financials, industry);
+  const valuation = analyseValuation(financials, valuationSignals, industry);
+  const trajectory = analyseTrajectory(financials, assessmentResponses);
+  const productivity = analyseProductivity(financials, industry);
+  const workingCapital = analyseWorkingCapital(financials);
+  const exitReadiness = analyseExitReadiness(assessmentResponses, financials);
+  const costOfInaction = calculateCostOfInaction(payroll, trajectory, valuation, assessmentResponses);
+  
+  // Determine data quality
+  const availableMetrics: string[] = [];
+  const missingMetrics: string[] = [];
+  
+  if (valuation?.hasData) availableMetrics.push('valuation'); else missingMetrics.push('valuation');
+  if (trajectory?.hasData) availableMetrics.push('trajectory'); else missingMetrics.push('trajectory');
+  if (payroll) availableMetrics.push('payroll'); else missingMetrics.push('payroll');
+  if (productivity?.hasData) availableMetrics.push('productivity'); else missingMetrics.push('productivity');
+  if (workingCapital?.hasData) availableMetrics.push('workingCapital'); else missingMetrics.push('workingCapital');
+  if (exitReadiness) availableMetrics.push('exitReadiness'); else missingMetrics.push('exitReadiness');
+  
+  const dataQuality = availableMetrics.length >= 5 ? 'comprehensive' :
+                      availableMetrics.length >= 3 ? 'partial' : 'limited';
+  
+  console.log('[ComprehensiveAnalysis] Analysis complete:', {
+    dataQuality,
+    availableMetrics,
+    valuation: valuation?.narrative?.substring(0, 80),
+    trajectory: trajectory?.narrative?.substring(0, 80),
+    payroll: payroll?.assessment,
+    exitReadiness: exitReadiness?.score,
+    costOfInaction: costOfInaction?.totalOverHorizon
+  });
+  
+  return {
+    valuation,
+    trajectory,
+    payroll,
+    productivity,
+    workingCapital,
+    exitReadiness,
+    costOfInaction,
+    dataQuality,
+    availableMetrics,
+    missingMetrics
+  };
+}
+
+// ============================================================================
+// DESTINATION CLARITY CALCULATOR
+// ============================================================================
+
+interface DestinationClarityResult {
+  score: number;
+  reasoning: string;
+  factors: string[];
+}
+
+function calculateDestinationClarity(responses: Record<string, unknown>): DestinationClarityResult {
+  let score = 0;
+  const reasons: string[] = [];
+  const factors: string[] = [];
+  
+  // Get all responses as lowercase string for analysis
+  const allResponses = JSON.stringify(responses).toLowerCase();
+  
+  // OUTCOME SPECIFICITY (0-3 points)
+  const outcomes = ['sold', 'sell', 'exit', 'retire', 'looked after', 'taken care', 'moved on', 'done'];
+  const outcomeCount = outcomes.filter(o => allResponses.includes(o)).length;
+  if (outcomeCount >= 3) {
+    score += 3;
+    reasons.push('Multiple specific outcomes articulated');
+    factors.push(`${outcomeCount} specific outcomes mentioned`);
+  } else if (outcomeCount >= 1) {
+    score += 2;
+    reasons.push('Some specific outcomes mentioned');
+    factors.push(`${outcomeCount} outcome(s) mentioned`);
+  }
+  
+  // EMOTIONAL CLARITY (0-2 points)
+  const emotionalTerms = ['stress', 'peace', 'freedom', 'security', 'done', 'moved on', 'worry', 'relief', 'weight'];
+  const emotionalCount = emotionalTerms.filter(t => allResponses.includes(t)).length;
+  if (emotionalCount >= 2) {
+    score += 2;
+    reasons.push('Clear emotional drivers identified');
+    factors.push(`${emotionalCount} emotional terms detected`);
+  } else if (emotionalCount >= 1) {
+    score += 1;
+    reasons.push('Some emotional clarity');
+    factors.push(`${emotionalCount} emotional term detected`);
+  }
+  
+  // TIMELINE CLARITY (0-2 points)
+  if (allResponses.includes('1-3 year') || allResponses.includes('1 to 3') ||
+      allResponses.includes('within 3') || allResponses.includes('next 2-3') ||
+      allResponses.includes('1-3years') || allResponses.includes('2-3 year')) {
+    score += 2;
+    reasons.push('Specific timeline stated');
+    factors.push('Specific timeline (1-3 years)');
+  } else if (allResponses.includes('few years') || allResponses.includes('soon') ||
+             allResponses.includes('ready to') || allResponses.includes('time to move on')) {
+    score += 1;
+    reasons.push('General timeline awareness');
+    factors.push('General timeline intent');
+  }
+  
+  // STAKEHOLDER AWARENESS (0-2 points)
+  if (allResponses.includes('colleagues') || allResponses.includes('team') || 
+      allResponses.includes('staff') || allResponses.includes('employees') ||
+      allResponses.includes('loyal') || allResponses.includes('people')) {
+    score += 2;
+    reasons.push('Considers impact on others');
+    factors.push('Stakeholder awareness present');
+  }
+  
+  // CONVICTION (0-1 point)
+  if (allResponses.includes('time to move on') || allResponses.includes('ready to') ||
+      allResponses.includes('need to') || allResponses.includes('want to sell') ||
+      allResponses.includes('i\'m done') || allResponses.includes('i am done')) {
+    score += 1;
+    reasons.push('Clear conviction expressed');
+    factors.push('Strong conviction detected');
+  }
+  
+  // Scale to 10 - max raw score is 10
+  const scaledScore = Math.min(score, 10);
+  
+  return {
+    score: Math.max(scaledScore, 1), // Minimum 1
+    reasoning: reasons.join('. '),
+    factors
+  };
+}
+
+// ============================================================================
+// LLM CONTEXT BUILDER
+// ============================================================================
+
+function buildComprehensiveAnalysisContext(analysis: ComprehensiveAnalysis): string {
+  let context = `
+============================================================================
+📊 COMPREHENSIVE BUSINESS ANALYSIS
+============================================================================
+Data Quality: ${analysis.dataQuality.toUpperCase()}
+Available Metrics: ${analysis.availableMetrics.join(', ')}
+${analysis.missingMetrics.length > 0 ? `Missing: ${analysis.missingMetrics.join(', ')}` : ''}
+
+`;
+
+  // Valuation Section
+  if (analysis.valuation?.hasData) {
+    context += `
+## VALUATION INDICATORS
+${analysis.valuation.narrative}
+
+Operating Profit: £${analysis.valuation.operatingProfit ? (analysis.valuation.operatingProfit/1000).toFixed(0) + 'k' : 'N/A'}
+Net Assets: £${analysis.valuation.netAssets ? (analysis.valuation.netAssets/1000).toFixed(0) + 'k' : 'N/A'}
+Adjusted Multiple Range: ${analysis.valuation.adjustedMultipleLow.toFixed(1)}x - ${analysis.valuation.adjustedMultipleHigh.toFixed(1)}x
+Indicative Value: £${analysis.valuation.conservativeValue ? (analysis.valuation.conservativeValue >= 1000000 ? (analysis.valuation.conservativeValue/1000000).toFixed(1) + 'M' : (analysis.valuation.conservativeValue/1000).toFixed(0) + 'k') : 'N/A'} - £${analysis.valuation.optimisticValue ? (analysis.valuation.optimisticValue >= 1000000 ? (analysis.valuation.optimisticValue/1000000).toFixed(1) + 'M' : (analysis.valuation.optimisticValue/1000).toFixed(0) + 'k') : 'N/A'}
+
+Adjustments Applied:
+${analysis.valuation.adjustments.map(a => `- ${a.factor}: ${a.impact > 0 ? '+' : ''}${a.impact}x (${a.reason})`).join('\n')}
+
+${analysis.valuation.hiddenAssets.length > 0 ? `Hidden Assets:\n${analysis.valuation.hiddenAssets.map(a => `- ${a.description}: £${a.value ? (a.value/1000).toFixed(0) + 'k' : 'N/A'}`).join('\n')}` : ''}
+
+⚠️ USE IN GAPS: "Indicative valuation £${analysis.valuation.conservativeValue ? (analysis.valuation.conservativeValue >= 1000000 ? (analysis.valuation.conservativeValue/1000000).toFixed(1) + 'M' : (analysis.valuation.conservativeValue/1000).toFixed(0) + 'k') : '?'}-£${analysis.valuation.optimisticValue ? (analysis.valuation.optimisticValue >= 1000000 ? (analysis.valuation.optimisticValue/1000000).toFixed(1) + 'M' : (analysis.valuation.optimisticValue/1000).toFixed(0) + 'k') : '?'}"
+---
+`;
+  }
+
+  // Trajectory Section
+  if (analysis.trajectory?.hasData) {
+    context += `
+## REVENUE TRAJECTORY
+${analysis.trajectory.narrative}
+
+Current Revenue: £${analysis.trajectory.currentRevenue ? (analysis.trajectory.currentRevenue/1000000).toFixed(2) + 'M' : 'N/A'}
+Prior Year: £${analysis.trajectory.priorRevenue ? (analysis.trajectory.priorRevenue/1000000).toFixed(2) + 'M' : 'N/A'}
+Change: ${analysis.trajectory.percentageChange !== null ? analysis.trajectory.percentageChange.toFixed(1) + '%' : 'N/A'}
+Trend: ${analysis.trajectory.trend.toUpperCase()}
+Concern Level: ${analysis.trajectory.concernLevel.toUpperCase()}
+
+⚠️ USE IN GAPS: "Revenue ${analysis.trajectory.trend === 'declining' ? 'down' : analysis.trajectory.trend === 'growing' ? 'up' : 'flat'} ${analysis.trajectory.percentageChange !== null ? Math.abs(analysis.trajectory.percentageChange).toFixed(1) + '%' : ''} year-on-year"
+---
+`;
+  }
+
+  // Payroll Section
+  if (analysis.payroll) {
+    context += `
+## PAYROLL EFFICIENCY
+${analysis.payroll.calculation || ''}
+
+Staff Costs: £${(analysis.payroll.staffCosts/1000).toFixed(0)}k
+As % of Revenue: ${analysis.payroll.staffCostsPct?.toFixed(1)}%
+Industry Benchmark: ${analysis.payroll.benchmark.good}-${analysis.payroll.benchmark.typical}%
+Assessment: ${analysis.payroll.assessment.toUpperCase()}
+${analysis.payroll.annualExcess > 0 ? `Excess: £${(analysis.payroll.annualExcess/1000).toFixed(0)}k/year` : ''}
+
+⚠️ USE IN GAPS: "Staff costs ${analysis.payroll.staffCostsPct?.toFixed(1)}% vs ${analysis.payroll.benchmark.good}-${analysis.payroll.benchmark.typical}% benchmark${analysis.payroll.annualExcess > 0 ? ` = £${(analysis.payroll.annualExcess/1000).toFixed(0)}k excess` : ''}"
+---
+`;
+  }
+
+  // Productivity Section
+  if (analysis.productivity?.hasData) {
+    context += `
+## PRODUCTIVITY (Revenue Per Head)
+${analysis.productivity.narrative}
+
+Employees: ${analysis.productivity.employeeCount}
+Revenue per Head: £${(analysis.productivity.revenuePerHead!/1000).toFixed(0)}k
+Benchmark: £${(analysis.productivity.benchmarkLow/1000).toFixed(0)}k-£${(analysis.productivity.benchmarkHigh/1000).toFixed(0)}k
+${analysis.productivity.excessHeadcount ? `Implied Excess: ${analysis.productivity.excessHeadcount} employees` : ''}
+
+⚠️ USE IN GAPS: "${analysis.productivity.narrative}"
+---
+`;
+  }
+
+  // Working Capital Section
+  if (analysis.workingCapital?.hasData) {
+    context += `
+## WORKING CAPITAL
+${analysis.workingCapital.narrative}
+
+${analysis.workingCapital.debtorDays ? `Debtor Days: ${analysis.workingCapital.debtorDays}` : ''}
+${analysis.workingCapital.stockDays ? `Stock Days: ${analysis.workingCapital.stockDays}` : ''}
+${analysis.workingCapital.creditorDays ? `Creditor Days: ${analysis.workingCapital.creditorDays}` : ''}
+${analysis.workingCapital.cashPosition ? `Cash Position: £${(analysis.workingCapital.cashPosition/1000).toFixed(0)}k` : ''}
+${analysis.workingCapital.cashAsMonthsRunway ? `Cash Runway: ${analysis.workingCapital.cashAsMonthsRunway.toFixed(1)} months` : ''}
+
+${analysis.workingCapital.concerns.length > 0 ? `Concerns:\n${analysis.workingCapital.concerns.map(c => `- ${c.metric}: ${c.value} vs benchmark ${c.benchmark}`).join('\n')}` : ''}
+---
+`;
+  }
+
+  // Exit Readiness Section
+  if (analysis.exitReadiness) {
+    context += `
+## EXIT READINESS
+${analysis.exitReadiness.narrative}
+
+Score: ${analysis.exitReadiness.score}/${analysis.exitReadiness.maxScore} (${Math.round(analysis.exitReadiness.score/analysis.exitReadiness.maxScore*100)}%)
+Readiness: ${analysis.exitReadiness.readiness.toUpperCase()}
+
+Factors:
+${analysis.exitReadiness.factors.map(f => `- ${f.name}: ${f.score}/${f.maxScore} [${f.status.toUpperCase()}] - ${f.evidence.substring(0, 60)}`).join('\n')}
+
+Strengths: ${analysis.exitReadiness.strengths.join(', ') || 'None identified'}
+Blockers: ${analysis.exitReadiness.blockers.join(', ') || 'None identified'}
+
+⚠️ USE IN GAPS: "Exit readiness ${analysis.exitReadiness.score}% - strong on ${analysis.exitReadiness.strengths[0] || 'N/A'}, blocked by ${analysis.exitReadiness.blockers[0] || 'N/A'}"
+---
+`;
+  }
+
+  // Cost of Inaction Section
+  if (analysis.costOfInaction?.hasData) {
+    context += `
+## COST OF INACTION
+${analysis.costOfInaction.narrative}
+
+Time Horizon: ${analysis.costOfInaction.timeHorizon} years
+Total Cost: £${(analysis.costOfInaction.totalOverHorizon/1000).toFixed(0)}k+
+
+Components:
+${analysis.costOfInaction.components.map(c => `- ${c.category}: £${c.costOverHorizon ? (c.costOverHorizon/1000).toFixed(0) + 'k' : 'N/A'} (${c.confidence})`).join('\n')}
+
+⚠️ USE IN INVESTMENT SUMMARY: "Cost of doing nothing: £${(analysis.costOfInaction.totalOverHorizon/1000).toFixed(0)}k+ over ${analysis.costOfInaction.timeHorizon} years"
+---
+`;
+  }
+
+  context += `
+============================================================================
+CRITICAL INSTRUCTIONS FOR GAP ANALYSIS:
+============================================================================
+1. Use the EXACT figures provided above - do not invent numbers
+2. Each gap should reference specific data where available
+3. If data is missing for a dimension, acknowledge uncertainty
+4. Connect assessment responses to financial evidence
+5. Prioritise gaps by financial impact where calculable
+============================================================================
+`;
+
+  return context;
 }
 
 // ============================================================================
@@ -4846,23 +6187,48 @@ serve(async (req) => {
       });
       
       if (fc.turnover && (fc.totalStaffCosts || fc.staffCosts)) {
+        const staffCosts = fc.totalStaffCosts || fc.staffCosts;
+        const turnover = fc.turnover;
+        
+        // Calculate turnover growth if prior year available
+        let turnoverGrowth: number | undefined;
+        if (fc.turnoverPriorYear && fc.turnoverPriorYear > 0) {
+          turnoverGrowth = ((turnover - fc.turnoverPriorYear) / fc.turnoverPriorYear) * 100;
+        } else if (fc.revenueGrowthPct !== undefined && fc.revenueGrowthPct !== null) {
+          turnoverGrowth = fc.revenueGrowthPct;
+        }
+        
         extractedFinancials = {
           hasAccounts: true,
-          source: 'statutory_accounts', // Assume statutory if from DB
-          turnover: fc.turnover,
-          totalStaffCosts: fc.totalStaffCosts || fc.staffCosts,
-          staffCostsPercentOfRevenue: fc.staffCostsPct || ((fc.totalStaffCosts || fc.staffCosts) / fc.turnover * 100),
+          source: 'statutory_accounts',
+          turnover: turnover,
+          turnoverPriorYear: fc.turnoverPriorYear,
+          turnoverGrowth: turnoverGrowth,
+          totalStaffCosts: staffCosts,
+          staffCostsPercentOfRevenue: fc.staffCostsPct || (staffCosts / turnover * 100),
           operatingProfit: fc.operatingProfit,
           ebitda: fc.ebitda,
           netAssets: fc.netAssets,
           employeeCount: fc.staffCount,
           grossProfit: fc.grossProfit,
           grossMarginPct: fc.grossMarginPct,
+          // Balance sheet items
+          cash: fc.cash,
+          debtors: fc.debtors,
+          creditors: fc.creditors,
+          stock: fc.stock,
+          fixedAssets: fc.fixedAssets,
+          // Revenue per head
+          revenuePerEmployee: fc.revenuePerHead || (fc.staffCount ? turnover / fc.staffCount : undefined),
         };
         console.log('[Discovery] ✅ Built extractedFinancials from financialContext:', {
           turnover: extractedFinancials.turnover,
           staffCosts: extractedFinancials.totalStaffCosts,
-          staffCostsPct: extractedFinancials.staffCostsPercentOfRevenue?.toFixed(1)
+          staffCostsPct: extractedFinancials.staffCostsPercentOfRevenue?.toFixed(1),
+          operatingProfit: extractedFinancials.operatingProfit,
+          netAssets: extractedFinancials.netAssets,
+          employeeCount: extractedFinancials.employeeCount,
+          turnoverGrowth: extractedFinancials.turnoverGrowth?.toFixed(1)
         });
       }
     }
@@ -4932,6 +6298,287 @@ serve(async (req) => {
           ') is more than 50% of staff costs. This seems high - please verify.');
       }
     }
+
+    // ========================================================================
+    // COMPREHENSIVE BUSINESS ANALYSIS (7 DIMENSIONS)
+    // ========================================================================
+    
+    const comprehensiveAnalysis = performComprehensiveAnalysis(
+      extractedFinancials,
+      preparedData.discovery.responses,
+      businessOverview
+    );
+    
+    console.log('[Discovery] Comprehensive Analysis:', {
+      dataQuality: comprehensiveAnalysis.dataQuality,
+      availableMetrics: comprehensiveAnalysis.availableMetrics,
+      valuationRange: comprehensiveAnalysis.valuation?.narrative?.substring(0, 100),
+      trajectory: comprehensiveAnalysis.trajectory?.trend,
+      exitReadiness: comprehensiveAnalysis.exitReadiness?.score,
+      costOfInaction: comprehensiveAnalysis.costOfInaction?.totalOverHorizon
+    });
+    
+    // Build comprehensive analysis context for LLM
+    const comprehensiveAnalysisContext = buildComprehensiveAnalysisContext(comprehensiveAnalysis);
+    
+    // Build mandatory dimensions instruction for LLM
+    const mandatoryDimensionsPrompt = `
+============================================================================
+⚠️ MANDATORY: Your gap analysis MUST include ALL of the following dimensions
+where data is available. Do not collapse them into fewer gaps.
+============================================================================
+
+${comprehensiveAnalysis.valuation ? `
+📊 VALUATION (REQUIRED GAP):
+${comprehensiveAnalysis.valuation.narrative}
+→ Create a gap about "not knowing the number" using this data
+` : ''}
+
+${comprehensiveAnalysis.trajectory?.trend === 'declining' ? `
+📈 REVENUE TRAJECTORY (REQUIRED GAP - declining):
+${comprehensiveAnalysis.trajectory.narrative}
+→ Create a gap about trajectory affecting buyer confidence
+` : ''}
+
+${comprehensiveAnalysis.payroll?.annualExcess && comprehensiveAnalysis.payroll.annualExcess > 0 ? `
+💰 PAYROLL (REQUIRED GAP):
+Staff costs ${comprehensiveAnalysis.payroll.staffCostsPct.toFixed(1)}% vs benchmark ${comprehensiveAnalysis.payroll.benchmark.good}-${comprehensiveAnalysis.payroll.benchmark.concern}%
+Excess: £${(comprehensiveAnalysis.payroll.annualExcess/1000).toFixed(0)}k/year
+→ Create the payroll excess gap with EXACT figures above
+` : ''}
+
+${comprehensiveAnalysis.productivity?.excessHeadcount ? `
+👥 PRODUCTIVITY (REQUIRED GAP):
+${comprehensiveAnalysis.productivity.narrative}
+→ Create a gap about headcount efficiency supporting the payroll argument
+` : ''}
+
+${comprehensiveAnalysis.workingCapital?.concerns && comprehensiveAnalysis.workingCapital.concerns.length > 0 ? `
+💵 WORKING CAPITAL (MENTION if concerning):
+${comprehensiveAnalysis.workingCapital.narrative}
+→ Include in a gap about capital efficiency
+` : ''}
+
+${comprehensiveAnalysis.exitReadiness ? `
+🚪 EXIT READINESS SCORE (REQUIRED):
+Score: ${comprehensiveAnalysis.exitReadiness.score}/${comprehensiveAnalysis.exitReadiness.maxScore} (${Math.round(comprehensiveAnalysis.exitReadiness.score/comprehensiveAnalysis.exitReadiness.maxScore*100)}%)
+Strengths: ${comprehensiveAnalysis.exitReadiness.strengths.join(', ') || 'None identified'}
+Blockers: ${comprehensiveAnalysis.exitReadiness.blockers.join(', ') || 'None identified'}
+→ Include this score in the strategic gap about exit preparation
+` : ''}
+
+${comprehensiveAnalysis.costOfInaction && comprehensiveAnalysis.costOfInaction.totalOverHorizon > 0 ? `
+⏰ COST OF INACTION (USE IN INVESTMENT SUMMARY):
+Total: £${(comprehensiveAnalysis.costOfInaction.totalOverHorizon/1000).toFixed(0)}k+ over ${comprehensiveAnalysis.costOfInaction.timeHorizon} years
+→ Reference this when comparing investment to cost of doing nothing
+` : ''}
+`;
+
+    // ========================================================================
+    // DESTINATION CLARITY PRE-CALCULATION
+    // ========================================================================
+    
+    const destinationClarity = calculateDestinationClarity(preparedData.discovery.responses);
+    
+    console.log('[Discovery] Destination Clarity Pre-calculated:', {
+      score: destinationClarity.score,
+      reasoning: destinationClarity.reasoning,
+      factors: destinationClarity.factors
+    });
+
+    // ========================================================================
+    // REQUIRED OUTPUT CHECKS PROMPT
+    // ========================================================================
+    
+    const requiredOutputChecks = `
+============================================================================
+⛔ REQUIRED OUTPUT VALIDATION - READ CAREFULLY
+============================================================================
+
+Before generating your response, you MUST include ALL of the following 
+in your output. If any are missing, your response is INCOMPLETE.
+
+## VALUATION (MANDATORY if operating profit available)
+
+${comprehensiveAnalysis.valuation?.hasData ? `
+Operating Profit: £${comprehensiveAnalysis.valuation.operatingProfit ? (comprehensiveAnalysis.valuation.operatingProfit/1000).toFixed(0) : 'N/A'}k
+Multiple Range: ${comprehensiveAnalysis.valuation.adjustedMultipleLow.toFixed(1)}-${comprehensiveAnalysis.valuation.adjustedMultipleHigh.toFixed(1)}x
+
+⛔ YOU MUST STATE: "Indicative valuation: £${comprehensiveAnalysis.valuation.conservativeValue ? (comprehensiveAnalysis.valuation.conservativeValue >= 1000000 ? (comprehensiveAnalysis.valuation.conservativeValue/1000000).toFixed(1) + 'M' : (comprehensiveAnalysis.valuation.conservativeValue/1000).toFixed(0) + 'k') : 'N/A'}-£${comprehensiveAnalysis.valuation.optimisticValue ? (comprehensiveAnalysis.valuation.optimisticValue >= 1000000 ? (comprehensiveAnalysis.valuation.optimisticValue/1000000).toFixed(1) + 'M' : (comprehensiveAnalysis.valuation.optimisticValue/1000).toFixed(0) + 'k') : 'N/A'}"
+
+This MUST appear in:
+- Gap Analysis (as a gap about "not knowing the number")
+- Page 4 Investment Summary (in "What Staying Here Costs" or "The Return")
+- Page 5 Next Steps (to anchor what "a good sum" might mean)
+` : 'No valuation data available - acknowledge uncertainty'}
+
+---
+
+## REVENUE TRAJECTORY (MANDATORY if YoY data available)
+
+${comprehensiveAnalysis.trajectory?.hasData && comprehensiveAnalysis.trajectory.priorRevenue && comprehensiveAnalysis.trajectory.currentRevenue && comprehensiveAnalysis.trajectory.percentageChange !== null ? `
+Current: £${(comprehensiveAnalysis.trajectory.currentRevenue/1000000).toFixed(2)}M
+Prior: £${(comprehensiveAnalysis.trajectory.priorRevenue/1000000).toFixed(2)}M  
+Change: ${comprehensiveAnalysis.trajectory.percentageChange.toFixed(1)}% (£${(Math.abs(comprehensiveAnalysis.trajectory.currentRevenue - comprehensiveAnalysis.trajectory.priorRevenue)/1000).toFixed(0)}k)
+
+⛔ YOU MUST STATE: "Revenue ${comprehensiveAnalysis.trajectory.trend === 'declining' ? 'down' : comprehensiveAnalysis.trajectory.trend === 'growing' ? 'up' : 'flat'} ${Math.abs(comprehensiveAnalysis.trajectory.percentageChange).toFixed(1)}% year-on-year (£${(Math.abs(comprehensiveAnalysis.trajectory.currentRevenue - comprehensiveAnalysis.trajectory.priorRevenue)/1000).toFixed(0)}k)"
+
+This MUST appear in a gap about trajectory/decline if trend is declining.
+` : 'No trajectory data - do not invent figures'}
+
+---
+
+## PAYROLL (MANDATORY if excess exists)
+
+${comprehensiveAnalysis.payroll?.annualExcess && comprehensiveAnalysis.payroll.annualExcess > 0 ? `
+Staff Costs: £${(comprehensiveAnalysis.payroll.staffCosts/1000).toFixed(0)}k
+Actual %: ${comprehensiveAnalysis.payroll.staffCostsPct.toFixed(1)}%
+Benchmark: ${comprehensiveAnalysis.payroll.benchmark.good}-${comprehensiveAnalysis.payroll.benchmark.concern}%
+Excess: £${(comprehensiveAnalysis.payroll.annualExcess/1000).toFixed(0)}k/year
+
+⛔ YOU MUST STATE: "£${(comprehensiveAnalysis.payroll.annualExcess/1000).toFixed(0)}k/year excess" (not rounded differently)
+
+Monthly equivalent: £${Math.round(comprehensiveAnalysis.payroll.annualExcess/12/1000)}k/month
+` : 'No payroll excess identified'}
+
+---
+
+## PRODUCTIVITY (INCLUDE if below benchmark)
+
+${comprehensiveAnalysis.productivity?.excessHeadcount && comprehensiveAnalysis.productivity.excessHeadcount > 0 && comprehensiveAnalysis.productivity.revenuePerHead ? `
+Employees: ${comprehensiveAnalysis.productivity.employeeCount}
+Revenue/Head: £${(comprehensiveAnalysis.productivity.revenuePerHead/1000).toFixed(0)}k
+Benchmark: £${(comprehensiveAnalysis.productivity.benchmarkLow/1000).toFixed(0)}k
+Implied Excess: ${comprehensiveAnalysis.productivity.excessHeadcount} employees
+
+⛔ YOU SHOULD STATE: "Revenue per head £${(comprehensiveAnalysis.productivity.revenuePerHead/1000).toFixed(0)}k vs £${(comprehensiveAnalysis.productivity.benchmarkLow/1000).toFixed(0)}k benchmark suggests ${comprehensiveAnalysis.productivity.excessHeadcount} excess employees"
+
+This independently supports the payroll argument from a different angle.
+` : 'Productivity within benchmark or no data'}
+
+---
+
+## EXIT READINESS SCORE (MANDATORY)
+
+${comprehensiveAnalysis.exitReadiness ? `
+Score: ${comprehensiveAnalysis.exitReadiness.score}/${comprehensiveAnalysis.exitReadiness.maxScore} (${Math.round(comprehensiveAnalysis.exitReadiness.score/comprehensiveAnalysis.exitReadiness.maxScore*100)}%)
+
+Strengths: ${comprehensiveAnalysis.exitReadiness.strengths.join(', ') || 'None identified'}
+Blockers: ${comprehensiveAnalysis.exitReadiness.blockers.join(', ') || 'None identified'}
+
+⛔ YOU MUST INCLUDE: "Exit readiness: ${Math.round(comprehensiveAnalysis.exitReadiness.score/comprehensiveAnalysis.exitReadiness.maxScore*100)}%" somewhere in the strategic gap or journey section.
+` : 'Exit readiness: Not enough data to calculate'}
+
+---
+
+## HIDDEN ASSETS (MENTION if significant)
+
+${comprehensiveAnalysis.valuation?.hiddenAssets && comprehensiveAnalysis.valuation.hiddenAssets.length > 0 ? `
+${comprehensiveAnalysis.valuation.hiddenAssets.filter(a => a.value !== null).map(a => `- ${a.description}: £${((a.value || 0)/1000).toFixed(0)}k`).join('\n')}
+
+⛔ Mention these as additional value not reflected in earnings multiple.
+` : 'No significant hidden assets identified'}
+
+---
+
+## COST OF INACTION (MANDATORY if > 0)
+
+${comprehensiveAnalysis.costOfInaction && comprehensiveAnalysis.costOfInaction.totalOverHorizon > 0 ? `
+Timeline: ${comprehensiveAnalysis.costOfInaction.timeHorizon} years
+Total: £${(comprehensiveAnalysis.costOfInaction.totalOverHorizon/1000).toFixed(0)}k+
+
+⛔ YOU MUST STATE: "Cost of inaction: £${(comprehensiveAnalysis.costOfInaction.totalOverHorizon/1000).toFixed(0)}k+ over ${comprehensiveAnalysis.costOfInaction.timeHorizon} years"
+` : 'Cost of inaction: Not calculated'}
+
+============================================================================
+OUTPUT CHECKLIST - Verify before responding:
+============================================================================
+[ ] Indicative valuation range stated (£XM-£YM) if data available
+[ ] Revenue trajectory quantified (X% YoY, £Xk) if data available
+[ ] Payroll excess in £k/year (exact figure from above, not rounded differently)
+[ ] Exit readiness percentage included
+[ ] Cost of inaction total stated if available
+[ ] Destination Clarity score matches narrative (no contradictions)
+[ ] At least 5-6 distinct gaps (not variations of the same issue)
+============================================================================
+`;
+
+    // ========================================================================
+    // GAP DIVERSITY RULES PROMPT
+    // ========================================================================
+    
+    const gapDiversityRules = `
+============================================================================
+⛔ GAP DIVERSITY REQUIREMENTS
+============================================================================
+
+Your gap analysis MUST include gaps from AT LEAST 4 different categories:
+
+REQUIRED CATEGORIES (pick at least 4):
+1. VALUATION - "You don't know what it's worth" / "No baseline valuation"
+2. TRAJECTORY - "Revenue is declining" / "Core business shrinking"  
+3. PAYROLL - "Staff costs above benchmark"
+4. PEOPLE - "Avoided conversation" / "Team restructuring needed"
+5. STRATEGIC - "No exit roadmap" / "Planning alone"
+6. PRODUCTIVITY - "Revenue per head below benchmark"
+
+⛔ DO NOT create multiple gaps that are really the same issue rephrased:
+BAD:
+- Gap 1: "Payroll too high"
+- Gap 2: "Avoided redundancy conversation" 
+- Gap 3: "Need to restructure team"
+(These are all the SAME issue - payroll/headcount)
+
+GOOD:
+- Gap 1: "No valuation baseline" (VALUATION)
+- Gap 2: "Payroll X% above benchmark" (PAYROLL)
+- Gap 3: "Revenue declining X% YoY" (TRAJECTORY)
+- Gap 4: "Avoided redundancy conversation" (PEOPLE)
+- Gap 5: "Exit plan still in your head" (STRATEGIC)
+- Gap 6: "Revenue per head suggests X excess employees" (PRODUCTIVITY)
+
+============================================================================
+`;
+
+    // ========================================================================
+    // DESTINATION CLARITY INSTRUCTION (PRE-CALCULATED)
+    // ========================================================================
+    
+    const destinationClarityInstruction = `
+============================================================================
+⛔ DESTINATION CLARITY - PRE-CALCULATED (DO NOT OVERRIDE)
+============================================================================
+
+Based on assessment analysis:
+Score: ${destinationClarity.score}/10
+Reasoning: ${destinationClarity.reasoning}
+Factors detected: ${destinationClarity.factors.join(', ')}
+
+⛔ USE THIS SCORE: ${destinationClarity.score}/10. Do not invent a different score.
+⛔ Your narrative MUST be consistent with this score.
+
+${destinationClarity.score >= 7 ? `
+Since score is ${destinationClarity.score}/10 (HIGH), use phrases like:
+- "You know exactly where you want to end up"
+- "The destination is clear"
+- "Crystal clear on the outcome"
+- "You've articulated exactly what success looks like"
+` : destinationClarity.score >= 4 ? `
+Since score is ${destinationClarity.score}/10 (MODERATE), use phrases like:
+- "The general direction is there, but details are fuzzy"
+- "You have a sense of where you're heading"
+- "The destination is emerging"
+` : `
+Since score is ${destinationClarity.score}/10 (LOW), use phrases like:
+- "The destination isn't clear yet"
+- "We need to define what success looks like"
+- "The vision needs sharpening"
+`}
+
+⛔ CRITICAL: DO NOT score ${destinationClarity.score >= 7 ? 'low (1-4)' : destinationClarity.score >= 4 ? 'very low (1-3) or very high (8-10)' : 'high (7-10)'} then write narrative that contradicts it.
+
+============================================================================
+`;
 
     // ========================================================================
     // CLIENT JOURNEY STAGE DETECTION
@@ -5344,6 +6991,11 @@ ${JSON.stringify(preparedData.discovery.recommendedServices, null, 2)}
 
 ${patternContext}
 ${financialContext}
+${comprehensiveAnalysisContext}
+${mandatoryDimensionsPrompt}
+${requiredOutputChecks}
+${gapDiversityRules}
+${destinationClarityInstruction}
 ${documentsContext}
 ${contextNotesSection}
 ${learningLibrarySection}

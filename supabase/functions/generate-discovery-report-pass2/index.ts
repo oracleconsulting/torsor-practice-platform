@@ -33,6 +33,9 @@ interface ComprehensiveAnalysis {
   workingCapital: any;
   exitReadiness: any;
   costOfInaction: any;
+  hiddenAssets: any;
+  grossMargin: any;
+  achievements: any;
 }
 
 interface DestinationClarityAnalysis {
@@ -608,7 +611,9 @@ serve(async (req) => {
       }
     }
     
-    // Build financial context section for prompt
+    // ========================================================================
+    // ENHANCEMENT 3: Build Enhanced Financial Data Section
+    // ========================================================================
     let financialDataSection = '';
     if (validatedPayroll.turnover && validatedPayroll.staffCosts) {
       financialDataSection = `
@@ -677,6 +682,108 @@ No validated financial data available. When discussing financial figures:
     
     // Build mandatory dimensions prompt from Pass 1 analysis
     const mandatoryDimensionsPrompt = buildMandatoryDimensionsPrompt(comprehensiveAnalysis, destinationClarity);
+
+    // ========================================================================
+    // ENHANCEMENT 2: Extract Hidden Assets & Valuation from Pass 1
+    // ========================================================================
+    const page4Numbers = report.page4_numbers || {};
+    const pass1HiddenAssets = page4Numbers?.hiddenAssets || comprehensiveAnalysis?.hiddenAssets;
+    const hasHiddenAssets = pass1HiddenAssets?.totalHiddenAssets && pass1HiddenAssets.totalHiddenAssets > 50000;
+    
+    if (hasHiddenAssets) {
+      console.log('[Pass2] 💎 Hidden Assets Found:', {
+        total: pass1HiddenAssets.totalHiddenAssets,
+        freehold: pass1HiddenAssets.freeholdProperty,
+        excessCash: pass1HiddenAssets.excessCash
+      });
+    }
+
+    // Extract Enterprise Valuation from Pass 1
+    const pass1Valuation = page4Numbers?.valuationAnalysis || comprehensiveAnalysis?.valuation;
+    const hasValuation = pass1Valuation?.conservativeValue && pass1Valuation?.optimisticValue;
+    
+    let valuationRangeText = '';
+    if (hasValuation) {
+      const lowM = (pass1Valuation.conservativeValue / 1000000).toFixed(1);
+      const highM = (pass1Valuation.optimisticValue / 1000000).toFixed(1);
+      valuationRangeText = `£${lowM}M - £${highM}M`;
+      console.log('[Pass2] 💰 Enterprise Valuation:', valuationRangeText);
+    }
+
+    // Extract Gross Margin from Pass 1
+    const pass1GrossMargin = page4Numbers?.grossMargin || comprehensiveAnalysis?.grossMargin;
+    const hasExcellentMargin = pass1GrossMargin?.assessment === 'excellent' || pass1GrossMargin?.assessment === 'healthy';
+    
+    if (hasExcellentMargin) {
+      console.log('[Pass2] 📊 Gross Margin:', pass1GrossMargin.grossMarginPct?.toFixed(1) + '% (' + pass1GrossMargin.assessment + ')');
+    }
+
+    // Extract Achievements from Pass 1
+    const pass1Achievements = page4Numbers?.achievements || comprehensiveAnalysis?.achievements;
+    const hasAchievements = pass1Achievements?.achievements && pass1Achievements.achievements.length > 0;
+    
+    if (hasAchievements) {
+      console.log('[Pass2] ⭐ Achievements Found:', pass1Achievements.achievements.length);
+    }
+
+    // ========================================================================
+    // ENHANCEMENT 3b: Add extracted data to financial section
+    // ========================================================================
+    
+    // Add Hidden Assets to financial section
+    if (hasHiddenAssets) {
+      financialDataSection += `
+============================================================================
+💎 HIDDEN ASSETS (Include in Page 4 Numbers)
+============================================================================
+Total Hidden Assets: £${(pass1HiddenAssets.totalHiddenAssets/1000).toFixed(0)}k
+${pass1HiddenAssets.freeholdProperty ? `- Freehold Property: £${(pass1HiddenAssets.freeholdProperty/1000).toFixed(0)}k` : ''}
+${pass1HiddenAssets.excessCash ? `- Excess Cash: £${(pass1HiddenAssets.excessCash/1000).toFixed(0)}k` : ''}
+${pass1HiddenAssets.undervaluedStock ? `- Undervalued Stock: £${(pass1HiddenAssets.undervaluedStock/1000).toFixed(0)}k` : ''}
+
+⛔ MENTION these as additional value not reflected in earnings multiple.
+`;
+    }
+
+    // Add Valuation to financial section
+    if (hasValuation) {
+      financialDataSection += `
+============================================================================
+💰 INDICATIVE ENTERPRISE VALUATION
+============================================================================
+${valuationRangeText}
+Operating Profit: £${pass1Valuation.operatingProfit ? (pass1Valuation.operatingProfit/1000).toFixed(0) + 'k' : 'Unknown'}
+Multiple Range: ${pass1Valuation.adjustedMultipleLow?.toFixed(1)}-${pass1Valuation.adjustedMultipleHigh?.toFixed(1)}x
+
+⛔ YOU MUST STATE this valuation range in page4_numbers and reference it in the closing.
+`;
+    }
+
+    // Add Gross Margin to financial section
+    if (hasExcellentMargin) {
+      financialDataSection += `
+============================================================================
+📊 GROSS MARGIN STRENGTH
+============================================================================
+Gross Margin: ${pass1GrossMargin.grossMarginPct?.toFixed(1)}% (${pass1GrossMargin.assessment})
+${pass1GrossMargin.assessment === 'excellent' ? '⭐ This is a STRONG margin - highlight as a positive.' : ''}
+
+This is a business STRENGTH that should be mentioned when discussing value.
+`;
+    }
+
+    // Add Achievements to financial section
+    if (hasAchievements) {
+      financialDataSection += `
+============================================================================
+⭐ CLIENT ACHIEVEMENTS (Use to balance the gaps)
+============================================================================
+${pass1Achievements.achievements.map((a: any) => `- ${a.achievement}: ${a.evidence}`).join('\n')}
+
+⛔ Reference these achievements to show the foundation is solid. 
+   Don't just focus on gaps - acknowledge what's working.
+`;
+    }
 
     // ========================================================================
     // CRITICAL: Extract Pass 1's EXACT service decisions with tiers/prices
@@ -804,6 +911,26 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
     const dataCompleteness = assessDataCompleteness(emotionalAnchors);
     console.log(`[Pass2] Data completeness: ${dataCompleteness.score}% (${dataCompleteness.status})`);
     console.log(`[Pass2] Missing critical: ${dataCompleteness.missingCritical.join(', ') || 'None'}`);
+
+    // ========================================================================
+    // ENHANCEMENT 1: Extract "Never Had Break" Emotional Anchor
+    // ========================================================================
+    const discoveryData = engagement.discovery?.responses || engagement.discovery || {};
+    const breakResponse = (
+      discoveryData.rl_last_break || 
+      discoveryData.dd_last_real_break || 
+      discoveryData.last_break || 
+      ''
+    ).toLowerCase();
+    
+    const neverHadBreak = breakResponse.includes('never') || 
+                          breakResponse.includes('not once') || 
+                          breakResponse.includes("haven't") || 
+                          breakResponse.includes("can't remember");
+    
+    if (neverHadBreak) {
+      console.log('[Pass2] 🎯 DETECTED: Client has never had a proper break - will use in closing');
+    }
 
     // ========================================================================
     // COO APPROPRIATENESS CHECK - Block COO when not appropriate
@@ -1126,6 +1253,22 @@ ANYTHING ELSE THEY SHARED:
 ${contextSection}
 ${docSection}
 ${feedbackSection}
+${neverHadBreak ? `
+
+============================================================================
+🎯 POWERFUL EMOTIONAL ANCHOR: "NEVER HAD A PROPER BREAK"
+============================================================================
+The client has NEVER had a proper break. This is GOLD for the closing.
+
+⛔ YOU MUST USE THIS in page5_nextSteps.theAsk or closingMessage:
+   "You've never taken a proper break. Not once. [Rest of closing]"
+   
+   OR weave it in naturally:
+   "You've built a business that runs without you - but you've never actually 
+   tested that by taking a proper break. It's time."
+
+This is a powerful emotional anchor - use it to create urgency in the closing.
+` : ''}
 
 ============================================================================
 DETECTED PATTERNS
@@ -1282,7 +1425,10 @@ Return a JSON object with this exact structure:
   
   "page4_numbers": {
     "headerLine": "The Investment in Your [Their Specific Goal]",
-    "dataProvided": true/false,
+    "dataProvided": true/false,${hasValuation ? `
+    "indicativeValuation": "${valuationRangeText}",` : ''}${hasHiddenAssets ? `
+    "hiddenAssetsTotal": "£${(pass1HiddenAssets.totalHiddenAssets/1000).toFixed(0)}k",` : ''}${hasExcellentMargin ? `
+    "grossMarginStrength": "${pass1GrossMargin.grossMarginPct?.toFixed(1)}% (${pass1GrossMargin.assessment})",` : ''}
     "costOfStaying": {
       "labourInefficiency": "£X - £Y or 'Unknown - we need to assess this'",
       "marginLeakage": "£X or 'Unknown - you suspect significant'",
@@ -1725,6 +1871,31 @@ Before returning, verify:
       
       if (llmGapScore !== pass1GapScore) {
         console.log(`[Pass2] ✅ Fixed gapScore: LLM gave ${llmGapScore} → Pass 1's ${pass1GapScore}`);
+      }
+    }
+
+    // ========================================================================
+    // ENHANCEMENT 6: Calibrate Gap Score Based on Achievements
+    // ========================================================================
+    if (narratives.page2_gaps && hasAchievements) {
+      const achievementCount = pass1Achievements.achievements.length;
+      const currentGapScore = narratives.page2_gaps.gapScore || 6;
+      
+      // If they have 3+ achievements but score is very low, bump it up
+      // Gap score should reflect "how much work to close gaps" - achievements reduce this
+      if (achievementCount >= 4 && currentGapScore < 6) {
+        narratives.page2_gaps.gapScore = 6;
+        console.log('[Pass2] 📊 Calibrated gapScore up to 6 (strong achievements)');
+      } else if (achievementCount >= 3 && currentGapScore < 5) {
+        narratives.page2_gaps.gapScore = 5;
+        console.log('[Pass2] 📊 Calibrated gapScore up to 5 (good achievements)');
+      }
+      
+      // For clients with strong achievements but real gaps:
+      // 7/10 is appropriate - gaps exist but foundation is solid
+      if (achievementCount >= 3 && currentGapScore === 6 && hasExcellentMargin) {
+        narratives.page2_gaps.gapScore = 7;
+        console.log('[Pass2] 📊 Calibrated gapScore to 7 (strong foundation + margins)');
       }
     }
     
