@@ -1318,6 +1318,7 @@ function buildInvestmentBreakdown(analysis: any): string {
   const summary = analysis.investmentSummary || {};
   const rawPages = analysis._rawPages || {};
   const page4 = rawPages.page4 || {};
+  const comprehensiveAnalysis = analysis._comprehensiveAnalysis || {};
   
   if (investments.length === 0) {
     return '';
@@ -1329,10 +1330,19 @@ function buildInvestmentBreakdown(analysis: any): string {
   // ========================================================================
   const displayTotal = summary.totalFirstYearInvestment || '—';
   
+  // Extract valuation, hidden assets, gross margin from page4_numbers or comprehensiveAnalysis
+  const indicativeValuation = page4.indicativeValuation || null;
+  const hiddenAssets = page4.hiddenAssets || null;
+  const grossMarginStrength = page4.grossMarginStrength || comprehensiveAnalysis.grossMargin?.grossMarginPct ? 
+    `${comprehensiveAnalysis.grossMargin?.grossMarginPct?.toFixed(1)}% gross margin` : null;
+  
   console.log('[PDF Investment Table] Using PORTAL-IDENTICAL total:', {
     displayTotal,
     investmentCount: investments.length,
-    investments: investments.map((i: any) => `${i.service}: ${i.investment}`)
+    investments: investments.map((i: any) => `${i.service}: ${i.investment}`),
+    indicativeValuation,
+    hiddenAssets: hiddenAssets?.total,
+    grossMarginStrength
   });
   
   return `
@@ -1344,6 +1354,37 @@ function buildInvestmentBreakdown(analysis: any): string {
           Each service is selected based on your specific situation and goals.
         </p>
       </div>
+      
+      <!-- Valuation & Hidden Assets Section -->
+      ${(indicativeValuation || hiddenAssets || grossMarginStrength) ? `
+        <div style="background: linear-gradient(135deg, #f0f9ff, #e0f2fe); padding: 20px; border-radius: 12px; margin-bottom: 24px; border: 1px solid #7dd3fc;">
+          ${indicativeValuation ? `
+            <div style="margin-bottom: 16px;">
+              <div style="font-size: 10pt; color: #0369a1; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">
+                💰 Indicative Business Value
+              </div>
+              <div style="font-size: 24pt; font-weight: 700; color: #0c4a6e;">
+                ${indicativeValuation}
+              </div>
+              ${hiddenAssets ? `
+                <div style="font-size: 10pt; color: #0369a1; margin-top: 8px;">
+                  Plus <strong>${hiddenAssets.total}</strong> in hidden assets (${hiddenAssets.breakdown || 'freehold property + excess cash'})
+                </div>
+                <div style="font-size: 9pt; color: #64748b; font-style: italic; margin-top: 4px;">
+                  ${hiddenAssets.note || 'These assets sit OUTSIDE the earnings-based valuation'}
+                </div>
+              ` : ''}
+            </div>
+          ` : ''}
+          
+          ${grossMarginStrength ? `
+            <div style="display: flex; align-items: center; gap: 8px; ${indicativeValuation ? 'padding-top: 12px; border-top: 1px solid #7dd3fc;' : ''}">
+              <span style="color: #059669; font-size: 14pt;">✓</span>
+              <span style="font-size: 11pt; color: #047857; font-weight: 500;">${grossMarginStrength}</span>
+            </div>
+          ` : ''}
+        </div>
+      ` : ''}
       
       <table class="investment-table">
         <thead>
