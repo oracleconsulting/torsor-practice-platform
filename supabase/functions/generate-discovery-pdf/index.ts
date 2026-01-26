@@ -356,22 +356,34 @@ async function fetchReportData(
       });
       
       // ========================================================================
-      // USE PAGE2.GAPS with FULL narrative content
-      // Portal shows: gap.title, gap.pattern (quote), gap.costs, gap.shiftRequired
+      // USE PAGE2.GAPS with FULL narrative content - MATCHING CLIENT PORTAL EXACTLY
+      // Portal shows: gap.title, gap.pattern (quote), gap.timeImpact, gap.financialImpact, 
+      //               gap.emotionalImpact, gap.shiftRequired
       // ========================================================================
       const gaps = (page2.gaps || page2.primaryGaps || []).map((gap: any) => ({
-        severity: gap.severity || 'high',
+        severity: gap.severity || gap.priority || 'high',
         category: gap.category || '',
         title: gap.title || '',
         // PRESERVE FULL "pattern" (client's own words)
         pattern: gap.pattern || '',
-        // PRESERVE FULL "costs" array
-        costs: gap.costs || [],
+        // PRESERVE FULL impact fields - EXACTLY as client portal displays
+        timeImpact: gap.timeImpact || '',
+        financialImpact: gap.financialImpact || '',
+        emotionalImpact: gap.emotionalImpact || '',
         // PRESERVE FULL "shiftRequired" narrative
         shiftRequired: gap.shiftRequired || '',
+        // Legacy fields for backward compatibility
+        costs: gap.costs || [],
         description: gap.description || gap.pattern || '',
         cost: gap.cost || '',
       }));
+      
+      console.log('[PDF] 📊 Gaps extracted:', gaps.map((g: any) => ({
+        title: g.title,
+        hasFinancialImpact: !!g.financialImpact,
+        hasTimeImpact: !!g.timeImpact,
+        hasEmotionalImpact: !!g.emotionalImpact
+      })));
       
       // ========================================================================
       // USE PAGE5 for FULL closing narrative
@@ -429,14 +441,21 @@ async function fetchReportData(
         gapAnalysis: {
           headline: page2.headerLine || page2.headline || '',
           introduction: page2.openingLine || page2.introduction || '',
-          // PRESERVE FULL gap data
+          // PRESERVE FULL gap data with ALL impact fields
           primaryGaps: gaps,
-          costOfInaction: page4.costOfStaying || page2.costOfInaction || {},
+          // Cost of inaction - prioritize comprehensive_analysis (Pass 1 calculated)
+          costOfInaction: discoveryReport.comprehensive_analysis?.costOfInaction || 
+                          page4.costOfStaying || 
+                          page2.costOfInaction || {},
+          gapScore: page2.gapScore || discoveryReport.destination_clarity?.gapScore || '',
         },
         // PRESERVE FULL closing content
         closingMessage: closingMessage,
         // Store raw page data for full access
         _rawPages: { page1, page2, page3, page4, page5 },
+        // Store Pass 1 comprehensive analysis for correct figures
+        _comprehensiveAnalysis: discoveryReport.comprehensive_analysis || null,
+        _destinationClarity: discoveryReport.destination_clarity || null,
         _dataSource: dataSource,
         _reportId: discoveryReport.id,
       };
@@ -1409,20 +1428,62 @@ function buildGapAnalysis(analysis: any): string {
   const gaps = gapAnalysis.primaryGaps || [];
   const costOfInaction = gapAnalysis.costOfInaction || {};
   
-  // Use financialInsights from page4 if available (calculated figures)
+  // ========================================================================
+  // PRIORITIZE Pass 1 comprehensive_analysis for CORRECT figures
+  // This ensures PDF matches client portal exactly (£193k not £147k)
+  // ========================================================================
+  const comprehensiveAnalysis = analysis._comprehensiveAnalysis || {};
   const rawPages = analysis._rawPages || {};
   const page4 = rawPages.page4 || {};
-  const financialInsights = page4.financialInsights || {};
+  
+  // Build financialInsights from Pass 1 comprehensive_analysis
+  const financialInsights: any = {};
+  
+  // PAYROLL - Use Pass 1's calculated figures
+  if (comprehensiveAnalysis.payroll?.annualExcess && comprehensiveAnalysis.payroll.annualExcess > 0) {
+    const p = comprehensiveAnalysis.payroll;
+    financialInsights.payroll = {
+      staffCosts: p.staffCosts || 0,
+      turnover: p.turnover || 0,
+      actualPct: p.staffCostsPct || 0,
+      benchmarkPct: p.benchmark?.good || 28,
+      grossExcess: p.annualExcess || 0,
+      recoverableLow: Math.round(p.annualExcess * 0.35),
+      recoverableHigh: Math.round(p.annualExcess * 0.50),
+      summary: `£${Math.round(p.annualExcess / 1000)}k/year excess`,
+    };
+    console.log('[PDF] ✅ Using Pass 1 payroll data:', financialInsights.payroll);
+  } else if (page4.financialInsights?.payroll) {
+    // Fallback to page4.financialInsights
+    financialInsights.payroll = page4.financialInsights.payroll;
+    console.log('[PDF] ⚠️ Using page4 financialInsights (fallback)');
+  }
+  
+  // VALUATION - Use Pass 1's calculated figures
+  if (comprehensiveAnalysis.valuation?.conservativeValue) {
+    const v = comprehensiveAnalysis.valuation;
+    financialInsights.valuation = {
+      currentEbitda: v.operatingProfit || 0,
+      currentMultiple: v.adjustedMultipleLow || 3,
+      improvedMultiple: v.adjustedMultipleHigh || 4,
+      currentValuation: v.conservativeValue || 0,
+      improvedEbitda: (v.operatingProfit || 0) + (comprehensiveAnalysis.payroll?.annualExcess || 0) * 0.4,
+      uplift: (v.optimisticValue || 0) - (v.conservativeValue || 0),
+    };
+    console.log('[PDF] ✅ Using Pass 1 valuation data');
+  } else if (page4.financialInsights?.valuation) {
+    financialInsights.valuation = page4.financialInsights.valuation;
+  }
   
   // Prefer calculated values from financialInsights over LLM-generated text
   const labourInefficiency = financialInsights.payroll?.summary || costOfInaction.labourInefficiency;
   const valuationCost = financialInsights.valuation?.summary || costOfInaction.marginLeakage;
   
-  console.log('[PDF] Gap Analysis financialInsights:', {
-    hasPayroll: !!financialInsights.payroll,
-    hasValuation: !!financialInsights.valuation,
+  console.log('[PDF] Gap Analysis data sources:', {
+    hasPass1Payroll: !!comprehensiveAnalysis.payroll,
+    hasPass1Valuation: !!comprehensiveAnalysis.valuation,
+    hasCostOfInaction: !!costOfInaction.totalOverHorizon,
     labourInefficiency,
-    valuationCost
   });
   
   if (gaps.length === 0 && !costOfInaction.annualFinancialCost && !labourInefficiency) {
@@ -1441,59 +1502,114 @@ function buildGapAnalysis(analysis: any): string {
       
       ${gaps.length > 0 ? `
         <div style="margin: 30px 0;">
-          ${gaps.map((gap: any, idx: number) => `
-            <div class="gap-card ${gap.severity === 'critical' ? 'critical' : ''}">
-              <div class="gap-title" style="display: flex; align-items: center; gap: 8px;">
-                <span style="color: ${gap.severity === 'critical' ? '#dc2626' : '#f59e0b'};">⚠</span>
-                ${gap.title || gap.gap || `Gap ${idx + 1}`}
+          ${gaps.map((gap: any, idx: number) => {
+            // Determine severity badge
+            const severityColor = gap.severity === 'critical' ? '#dc2626' : gap.severity === 'high' ? '#f59e0b' : '#3b82f6';
+            const severityLabel = gap.severity === 'critical' ? 'CRITICAL' : gap.severity === 'high' ? 'HIGH' : 'MEDIUM';
+            const severityIcon = gap.severity === 'critical' ? '🔴' : gap.severity === 'high' ? '🟠' : '🟡';
+            
+            return `
+            <div class="gap-card" style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+              <!-- Header with severity and category -->
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <span style="font-size: 12pt;">${severityIcon}</span>
+                <span style="font-size: 9pt; font-weight: 600; color: ${severityColor}; text-transform: uppercase;">${severityLabel}</span>
+                ${gap.category ? `<span style="font-size: 9pt; color: #64748b;">|</span><span style="font-size: 9pt; color: #64748b; text-transform: lowercase;">${gap.category}</span>` : ''}
               </div>
               
+              <!-- Title -->
+              <div style="font-size: 13pt; font-weight: 600; color: #1e293b; margin-bottom: 12px;">
+                ${gap.title || `Gap ${idx + 1}`}
+              </div>
+              
+              <!-- Pattern (client quote) -->
               ${gap.pattern ? `
-                <div style="background: #f8fafc; padding: 12px 16px; border-radius: 8px; margin: 12px 0; border-left: 3px solid #64748b;">
-                  <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;">THE PATTERN:</div>
+                <div style="background: #f8fafc; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; border-left: 3px solid #64748b;">
                   <div style="font-style: italic; color: #475569;">"${gap.pattern}"</div>
                 </div>
               ` : ''}
               
-              ${gap.costs && gap.costs.length > 0 ? `
-                <div style="margin: 12px 0;">
-                  <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">WHAT THIS COSTS YOU:</div>
+              <!-- Impact Grid - MATCHING CLIENT PORTAL EXACTLY -->
+              ${(gap.timeImpact || gap.financialImpact || gap.emotionalImpact) ? `
+                <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+                  ${gap.timeImpact ? `
+                    <div style="display: flex; gap: 12px;">
+                      <div style="min-width: 100px; font-size: 9pt; color: #64748b; font-weight: 600; text-transform: uppercase;">Time Impact</div>
+                      <div style="font-size: 10pt; color: #475569;">${gap.timeImpact}</div>
+                    </div>
+                  ` : ''}
+                  ${gap.financialImpact ? `
+                    <div style="display: flex; gap: 12px;">
+                      <div style="min-width: 100px; font-size: 9pt; color: #64748b; font-weight: 600; text-transform: uppercase;">Financial Impact</div>
+                      <div style="font-size: 10pt; color: #dc2626; font-weight: 500;">${gap.financialImpact}</div>
+                    </div>
+                  ` : ''}
+                  ${gap.emotionalImpact ? `
+                    <div style="display: flex; gap: 12px;">
+                      <div style="min-width: 100px; font-size: 9pt; color: #64748b; font-weight: 600; text-transform: uppercase;">Emotional Impact</div>
+                      <div style="font-size: 10pt; color: #475569; font-style: italic;">${gap.emotionalImpact}</div>
+                    </div>
+                  ` : ''}
+                </div>
+              ` : ''}
+              
+              <!-- Legacy costs array (fallback) -->
+              ${(!gap.timeImpact && !gap.financialImpact && !gap.emotionalImpact && gap.costs && gap.costs.length > 0) ? `
+                <div style="margin-bottom: 16px;">
                   <ul style="list-style: none; padding: 0; margin: 0;">
                     ${gap.costs.map((cost: string) => `
-                      <li style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px; color: #dc2626;">
-                        <span style="color: #fca5a5;">•</span>
-                        <span style="color: #7f1d1d;">${cost}</span>
+                      <li style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px;">
+                        <span style="color: #dc2626;">•</span>
+                        <span style="font-size: 10pt; color: #475569;">${cost}</span>
                       </li>
                     `).join('')}
                   </ul>
                 </div>
               ` : ''}
               
+              <!-- Shift Required -->
               ${gap.shiftRequired ? `
-                <div style="background: #ecfdf5; padding: 12px 16px; border-radius: 8px; margin-top: 12px;">
-                  <div style="font-size: 9pt; color: #059669; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;">THE SHIFT REQUIRED:</div>
-                  <div style="color: #047857;">${gap.shiftRequired}</div>
-                </div>
-              ` : ''}
-              
-              ${!gap.pattern && !gap.shiftRequired && gap.description ? `
-                <div class="gap-description">${gap.description}</div>
-              ` : ''}
-              
-              ${gap.cost && !gap.costs ? `
-                <div class="gap-cost">
-                  <strong>Cost:</strong> ${gap.cost}
+                <div style="background: #ecfdf5; padding: 12px 16px; border-radius: 8px; border-left: 3px solid #10b981;">
+                  <div style="font-size: 9pt; color: #059669; font-weight: 600; margin-bottom: 4px;">Shift required:</div>
+                  <div style="font-size: 10pt; color: #047857;">${gap.shiftRequired}</div>
                 </div>
               ` : ''}
             </div>
-          `).join('')}
+          `}).join('')}
         </div>
       ` : ''}
       
+      <!-- Cost of Not Acting Box - MATCHES CLIENT PORTAL FORMAT EXACTLY -->
+      ${(costOfInaction.totalOverHorizon || costOfInaction.total || comprehensiveAnalysis?.costOfInaction?.totalOverHorizon) ? (() => {
+        const coiTotal = costOfInaction.totalOverHorizon || 
+                         costOfInaction.total || 
+                         comprehensiveAnalysis?.costOfInaction?.totalOverHorizon || 0;
+        const coiYears = costOfInaction.timeHorizon || 
+                         comprehensiveAnalysis?.costOfInaction?.timeHorizon || 2;
+        const coiTotalK = Math.round(coiTotal / 1000);
+        const coiNarrative = costOfInaction.narrative || 
+                            `Cost of inaction over ${coiYears}-year horizon: £${coiTotalK}k+. Breakdown: Payroll Excess: £${coiTotalK}k.`;
+        
+        return `
+          <div style="background: linear-gradient(135deg, #fef2f2, #fee2e2); padding: 24px; border-radius: 12px; border: 1px solid #fca5a5; margin-top: 24px; text-align: center;">
+            <div style="font-size: 9pt; color: #dc2626; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">
+              ⚠️ Cost of Not Acting
+            </div>
+            <div style="font-size: 28pt; font-weight: 700; color: #dc2626; margin-bottom: 8px;">
+              £${coiTotalK}k+ over ${coiYears} years
+            </div>
+            <div style="font-size: 10pt; color: #7f1d1d; line-height: 1.5;">
+              ${coiNarrative}
+            </div>
+          </div>
+        `;
+      })() : ''}
+      
+      <!-- Detailed Financial Breakdown (if available) -->
       ${(costOfInaction.annualFinancialCost || costOfInaction.annual || labourInefficiency || financialInsights.payroll) ? `
         <div style="background: linear-gradient(135deg, #fef2f2, #fee2e2); padding: 30px; border-radius: 16px; border: 1px solid #fca5a5; margin-top: 30px;">
           <div style="font-size: 10pt; color: #dc2626; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px;">
-            Cost of Staying Here
+            Detailed Breakdown
           </div>
           
           ${financialInsights.payroll ? `
