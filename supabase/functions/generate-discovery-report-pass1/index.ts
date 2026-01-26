@@ -2417,11 +2417,10 @@ serve(async (req) => {
         analysisVersion: '3.0-structured-phrases'
       },
       
-      // Pre-built prompt injection for Pass 2
-      pass2_prompt_injection: pass2PromptInjection,
-      
-      // Flattened phrase lookup for easy Pass 2 access (built from comprehensiveAnalysis)
-      prebuilt_phrases: prebuiltPhrases
+      // NOTE: These columns don't exist in discovery_reports table yet
+      // Add via migration if needed, then uncomment:
+      // pass2_prompt_injection: pass2PromptInjection,
+      // prebuilt_phrases: prebuiltPhrases
     };
 
     // DEBUG: Log exactly what comprehensive_analysis contains before saving
