@@ -2423,16 +2423,58 @@ serve(async (req) => {
       prebuilt_phrases: prebuiltPhrases
     };
 
+    // DEBUG: Log exactly what comprehensive_analysis contains before saving
+    console.log('[Pass1] 🔍 SAVING comprehensive_analysis:', {
+      hasValuation: !!reportData.comprehensive_analysis?.valuation,
+      valuationEnterpriseValueLow: reportData.comprehensive_analysis?.valuation?.enterpriseValueLow,
+      valuationEnterpriseValueHigh: reportData.comprehensive_analysis?.valuation?.enterpriseValueHigh,
+      hasHiddenAssets: !!reportData.comprehensive_analysis?.hiddenAssets,
+      hiddenAssetsTotal: reportData.comprehensive_analysis?.hiddenAssets?.totalHiddenAssets,
+      hasGrossMargin: !!reportData.comprehensive_analysis?.grossMargin,
+      grossMarginPct: reportData.comprehensive_analysis?.grossMargin?.grossMarginPct,
+      hasExitReadiness: !!reportData.comprehensive_analysis?.exitReadiness,
+      exitReadinessScore: reportData.comprehensive_analysis?.exitReadiness?.score,
+      reportId: existingReport?.id || 'NEW',
+    });
+
     if (existingReport) {
-      await supabase
+      const { error: updateError } = await supabase
         .from('discovery_reports')
         .update(reportData)
         .eq('id', existingReport.id);
+      
+      if (updateError) {
+        console.error('[Pass1] ❌ Database UPDATE error:', updateError);
+      } else {
+        console.log('[Pass1] ✅ Updated existing report:', existingReport.id);
+      }
     } else {
-      await supabase
+      const { error: insertError } = await supabase
         .from('discovery_reports')
         .insert(reportData);
+      
+      if (insertError) {
+        console.error('[Pass1] ❌ Database INSERT error:', insertError);
+      } else {
+        console.log('[Pass1] ✅ Inserted new report');
+      }
     }
+
+    // VERIFY: Read back the saved record to confirm comprehensive_analysis was persisted
+    const { data: verifyData } = await supabase
+      .from('discovery_reports')
+      .select('comprehensive_analysis')
+      .eq('engagement_id', engagementId)
+      .single();
+    
+    console.log('[Pass1] 🔍 VERIFY saved comprehensive_analysis:', {
+      hasValuation: !!verifyData?.comprehensive_analysis?.valuation,
+      valuationEnterpriseValueLow: verifyData?.comprehensive_analysis?.valuation?.enterpriseValueLow,
+      hasHiddenAssets: !!verifyData?.comprehensive_analysis?.hiddenAssets,
+      hiddenAssetsTotal: verifyData?.comprehensive_analysis?.hiddenAssets?.totalHiddenAssets,
+      hasGrossMargin: !!verifyData?.comprehensive_analysis?.grossMargin,
+      grossMarginPct: verifyData?.comprehensive_analysis?.grossMargin?.grossMarginPct,
+    });
 
     console.log('[Pass1] ✅ Complete in', processingTime, 'ms');
 
