@@ -2657,6 +2657,11 @@ function DiscoveryClientModal({
     const legacyGaps = analysis?.gapAnalysis?.primaryGaps || [];
     const gapsToRender = page2Gaps.length > 0 ? page2Gaps : legacyGaps;
     
+    // Cost of Inaction - Use Pass 1 comprehensive_analysis as primary source
+    const costOfInactionData = destinationReport?.comprehensive_analysis?.costOfInaction ||
+                               destinationReport?.page4_numbers?.costOfInaction ||
+                               analysis?.gapAnalysis?.costOfInaction;
+    
     const gapsHtml = gapsToRender.map((gap: any) => {
       // Handle both new (page2_gaps) and legacy (gapAnalysis) formats
       const severity = gap.priority || gap.severity || 'medium';
@@ -3410,16 +3415,18 @@ function DiscoveryClientModal({
           
           ${gapsHtml}
           
-          ${analysis.gapAnalysis?.costOfInaction ? `
+          ${costOfInactionData ? `
             <div class="cost-of-inaction">
               <div class="coi-left">
                 <span class="coi-icon">⚠️</span>
                 <div>
                   <p class="coi-label">Cost of Not Acting</p>
-                  <p class="coi-amount">${analysis.gapAnalysis.costOfInaction.annualFinancialCost || ''}</p>
+                  <p class="coi-amount">${costOfInactionData.totalOverHorizon 
+                    ? `£${Math.round(costOfInactionData.totalOverHorizon / 1000)}k+ over ${costOfInactionData.timeHorizon || 3} years`
+                    : costOfInactionData.annualFinancialCost || ''}</p>
                 </div>
               </div>
-              <p class="coi-personal">${analysis.gapAnalysis.costOfInaction.personalCost || ''}</p>
+              <p class="coi-personal">${costOfInactionData.narrative || costOfInactionData.personalCost || ''}</p>
             </div>
           ` : ''}
         </div>
@@ -4850,19 +4857,26 @@ function DiscoveryClientModal({
                                 </div>
                               )}
 
-                              {/* Cost of Not Acting */}
-                              {generatedReport?.analysis?.gapAnalysis?.costOfInaction && (
-                                <div className="bg-red-50 rounded-lg p-6">
-                                  <h3 className="text-lg font-semibold text-red-900 mb-2">The Cost of Waiting</h3>
-                                  <p className="text-2xl font-bold text-red-700 mb-2">
-                                    {generatedReport.analysis.gapAnalysis.costOfInaction.annualFinancialCost || 
-                                     generatedReport.analysis.gapAnalysis.costOfInaction.annual}
-                                  </p>
-                                  <p className="text-red-800">
-                                    {generatedReport.analysis.gapAnalysis.costOfInaction.description}
-                                  </p>
-                                </div>
-                              )}
+                              {/* Cost of Not Acting - Use Pass 1 data as primary source */}
+                              {(() => {
+                                const coi = destinationReport?.comprehensive_analysis?.costOfInaction ||
+                                           destinationReport?.page4_numbers?.costOfInaction ||
+                                           generatedReport?.analysis?.gapAnalysis?.costOfInaction;
+                                if (!coi) return null;
+                                return (
+                                  <div className="bg-red-50 rounded-lg p-6">
+                                    <h3 className="text-lg font-semibold text-red-900 mb-2">The Cost of Waiting</h3>
+                                    <p className="text-2xl font-bold text-red-700 mb-2">
+                                      {coi.totalOverHorizon 
+                                        ? `£${Math.round(coi.totalOverHorizon / 1000)}k+ over ${coi.timeHorizon || 3} years`
+                                        : coi.annualFinancialCost || coi.annual}
+                                    </p>
+                                    <p className="text-red-800">
+                                      {coi.narrative || coi.description}
+                                    </p>
+                                  </div>
+                                );
+                              })()}
 
                               {/* Next Steps */}
                               {generatedReport?.analysis?.nextSteps && (
@@ -4892,18 +4906,6 @@ function DiscoveryClientModal({
                   {/* ADMIN VIEW - Detailed Analysis (existing content) */}
                   {viewMode === 'admin' && generatedReport && (
                     <div className="space-y-6">
-                      {/* DEBUG: Log clarity score sources - Remove after fixing */}
-                      {console.log('[Admin Header Debug] Clarity Score Sources:', {
-                        'destinationReport exists': !!destinationReport,
-                        'destination_clarity.score': destinationReport?.destination_clarity?.score,
-                        'page1_destination.clarityScore': destinationReport?.page1_destination?.clarityScore,
-                        'page1_destination.destinationClarityScore': destinationReport?.page1_destination?.destinationClarityScore,
-                        'generatedReport.discoveryScores.clarityScore': generatedReport?.discoveryScores?.clarityScore,
-                        'FINAL VALUE': destinationReport?.destination_clarity?.score ||
-                          destinationReport?.page1_destination?.clarityScore ||
-                          destinationReport?.page1_destination?.destinationClarityScore ||
-                          generatedReport?.discoveryScores?.clarityScore || 0
-                      })}
                       {/* Executive Summary */}
                       <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-6 text-white">
                         <h3 className="text-lg font-bold mb-2">
