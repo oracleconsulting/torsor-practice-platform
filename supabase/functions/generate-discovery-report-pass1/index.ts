@@ -1947,7 +1947,39 @@ serve(async (req) => {
     let extractedFinancials: ExtractedFinancials = { source: 'none' };
     
     if (financialContext) {
-      const insights = financialContext.extracted_insights || {};
+      // ========================================================================
+      // PARSE extracted_insights - Handle double-encoded JSON strings
+      // The field can be: an object, a JSON string, or a double-encoded string
+      // ========================================================================
+      let insights: Record<string, any> = {};
+      const rawInsights = financialContext.extracted_insights;
+      
+      if (rawInsights) {
+        if (typeof rawInsights === 'object' && rawInsights !== null) {
+          insights = rawInsights;
+        } else if (typeof rawInsights === 'string') {
+          try {
+            let parsed = JSON.parse(rawInsights);
+            // Handle double-encoding (string contains another JSON string)
+            if (typeof parsed === 'string') {
+              parsed = JSON.parse(parsed);
+            }
+            insights = parsed || {};
+          } catch (e) {
+            console.log('[Pass1] ⚠️ Failed to parse extracted_insights:', e);
+            insights = {};
+          }
+        }
+      }
+      
+      console.log('[Pass1] 📊 Parsed extracted_insights:', {
+        hasOperatingProfit: !!insights.operating_profit,
+        operatingProfit: insights.operating_profit,
+        hasTurnover: !!insights.turnover,
+        hasNetAssets: !!insights.net_assets,
+        hasFixedAssets: !!insights.fixed_assets,
+        keys: Object.keys(insights).slice(0, 10)
+      });
       
       // Get prior year data if available (from separate record or insights)
       const { data: priorYearContext } = await supabase
@@ -1959,7 +1991,24 @@ serve(async (req) => {
         .limit(1)
         .single();
       
-      const priorInsights = priorYearContext?.extracted_insights || {};
+      // Parse prior year insights (same double-encoding handling)
+      let priorInsights: Record<string, any> = {};
+      const rawPriorInsights = priorYearContext?.extracted_insights;
+      if (rawPriorInsights) {
+        if (typeof rawPriorInsights === 'object' && rawPriorInsights !== null) {
+          priorInsights = rawPriorInsights;
+        } else if (typeof rawPriorInsights === 'string') {
+          try {
+            let parsed = JSON.parse(rawPriorInsights);
+            if (typeof parsed === 'string') {
+              parsed = JSON.parse(parsed);
+            }
+            priorInsights = parsed || {};
+          } catch (e) {
+            priorInsights = {};
+          }
+        }
+      }
       
       // === CORE P&L ===
       const turnover = financialContext.turnover || financialContext.revenue || insights.turnover || insights.revenue;
