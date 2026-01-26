@@ -4024,26 +4024,51 @@ function DiscoveryClientModal({
                       </div>
 
                       {/* Business Insights from Pass 1 Analysis - Valuation, Hidden Assets, Gross Margin */}
-                      {destinationReport?.comprehensive_analysis && (
+                      {destinationReport?.comprehensive_analysis && (() => {
+                        // Debug: Log what we have in comprehensive_analysis
+                        const ca = destinationReport.comprehensive_analysis;
+                        console.log('[Business Insights] comprehensive_analysis:', {
+                          hasValuation: !!ca?.valuation,
+                          valuationData: ca?.valuation,
+                          hasHiddenAssets: !!ca?.hiddenAssets,
+                          hiddenAssetsData: ca?.hiddenAssets,
+                          hasGrossMargin: !!ca?.grossMargin,
+                          grossMarginData: ca?.grossMargin,
+                          hasExitReadiness: !!ca?.exitReadiness,
+                          page4Numbers: destinationReport.page4_numbers
+                        });
+                        
+                        // Extract values with multiple fallback paths
+                        const valuation = ca?.valuation;
+                        const hasValuation = valuation && (
+                          valuation.enterpriseValueLow || valuation.enterpriseValueHigh ||
+                          valuation.conservativeValue || valuation.optimisticValue
+                        );
+                        
+                        const hiddenAssets = ca?.hiddenAssets;
+                        const hiddenAssetsTotal = hiddenAssets?.totalHiddenAssets || 0;
+                        const hasHiddenAssets = hiddenAssetsTotal > 50000;
+                        
+                        const grossMargin = ca?.grossMargin;
+                        const hasGrossMargin = grossMargin?.grossMarginPct && grossMargin.grossMarginPct > 0;
+                        
+                        return (
                         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100">
                           <h4 className="text-sm font-semibold text-blue-800 mb-4 flex items-center gap-2">
                             <span>📊</span> Business Insights (Pass 1 Analysis)
                           </h4>
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             {/* Indicative Valuation */}
-                            {(destinationReport.page4_numbers?.indicativeValuation || 
-                              (destinationReport.comprehensive_analysis?.valuation?.conservativeValue && 
-                               destinationReport.comprehensive_analysis?.valuation?.optimisticValue)) && (
+                            {(destinationReport.page4_numbers?.indicativeValuation || hasValuation) && (
                               <div className="bg-white rounded-lg p-3 shadow-sm">
                                 <p className="text-xs text-blue-600 font-medium">💰 Indicative Value</p>
                                 <p className="text-lg font-bold text-blue-900">
                                   {destinationReport.page4_numbers?.indicativeValuation || (() => {
-                                    const v = destinationReport.comprehensive_analysis?.valuation;
-                                    const h = destinationReport.comprehensive_analysis?.hiddenAssets?.totalHiddenAssets || 0;
-                                    if (v?.conservativeValue && v?.optimisticValue) {
-                                      const low = ((v.conservativeValue + h) / 1000000).toFixed(1);
-                                      const high = ((v.optimisticValue + h) / 1000000).toFixed(1);
-                                      return `£${low}M - £${high}M`;
+                                    // Try enterpriseValue first (includes hidden assets), then conservativeValue
+                                    const low = valuation?.enterpriseValueLow || valuation?.conservativeValue;
+                                    const high = valuation?.enterpriseValueHigh || valuation?.optimisticValue;
+                                    if (low && high) {
+                                      return `£${(low / 1000000).toFixed(1)}M - £${(high / 1000000).toFixed(1)}M`;
                                     }
                                     return '—';
                                   })()}
@@ -4052,64 +4077,56 @@ function DiscoveryClientModal({
                             )}
                             
                             {/* Hidden Assets */}
-                            {(destinationReport.page4_numbers?.hiddenAssets?.total || 
-                              (destinationReport.comprehensive_analysis?.hiddenAssets?.totalHiddenAssets && 
-                               destinationReport.comprehensive_analysis.hiddenAssets.totalHiddenAssets > 50000)) && (
+                            {(destinationReport.page4_numbers?.hiddenAssets?.total || hasHiddenAssets) && (
                               <div className="bg-white rounded-lg p-3 shadow-sm">
                                 <p className="text-xs text-purple-600 font-medium">💎 Hidden Assets</p>
                                 <p className="text-lg font-bold text-purple-900">
                                   {destinationReport.page4_numbers?.hiddenAssets?.total || 
-                                   `£${Math.round(destinationReport.comprehensive_analysis?.hiddenAssets?.totalHiddenAssets / 1000)}k`}
+                                   `£${Math.round(hiddenAssetsTotal / 1000)}k`}
                                 </p>
-                                {(destinationReport.page4_numbers?.hiddenAssets?.breakdown || 
-                                  destinationReport.comprehensive_analysis?.hiddenAssets) && (
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    {destinationReport.page4_numbers?.hiddenAssets?.breakdown || (() => {
-                                      const h = destinationReport.comprehensive_analysis?.hiddenAssets;
-                                      const parts = [];
-                                      if (h?.freeholdProperty) parts.push('Freehold');
-                                      if (h?.excessCash) parts.push('Excess Cash');
-                                      return parts.join(' + ') || 'Outside earnings valuation';
-                                    })()}
-                                  </p>
-                                )}
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {destinationReport.page4_numbers?.hiddenAssets?.breakdown || (() => {
+                                    const parts = [];
+                                    if (hiddenAssets?.freeholdProperty) parts.push('Freehold');
+                                    if (hiddenAssets?.excessCash) parts.push('Excess Cash');
+                                    return parts.join(' + ') || 'Outside earnings valuation';
+                                  })()}
+                                </p>
                               </div>
                             )}
                             
                             {/* Gross Margin */}
-                            {(destinationReport.page4_numbers?.grossMarginStrength || 
-                              destinationReport.comprehensive_analysis?.grossMargin?.grossMarginPct) && (
+                            {(destinationReport.page4_numbers?.grossMarginStrength || hasGrossMargin) && (
                               <div className="bg-white rounded-lg p-3 shadow-sm">
                                 <p className="text-xs text-emerald-600 font-medium">📈 Gross Margin</p>
                                 <p className="text-lg font-bold text-emerald-900">
                                   {destinationReport.page4_numbers?.grossMarginStrength || (() => {
-                                    const gm = destinationReport.comprehensive_analysis?.grossMargin;
-                                    if (gm?.grossMarginPct) {
-                                      const pct = typeof gm.grossMarginPct === 'number' ? gm.grossMarginPct.toFixed(1) : gm.grossMarginPct;
-                                      return `${pct}%`;
+                                    const pct = grossMargin?.grossMarginPct;
+                                    if (pct) {
+                                      return `${typeof pct === 'number' ? pct.toFixed(1) : pct}%`;
                                     }
                                     return '—';
                                   })()}
                                 </p>
-                                {destinationReport.comprehensive_analysis?.grossMargin?.assessment && (
+                                {grossMargin?.assessment && (
                                   <p className="text-xs text-gray-500 mt-1 capitalize">
-                                    {destinationReport.comprehensive_analysis.grossMargin.assessment} for industry
+                                    {grossMargin.assessment} for industry
                                   </p>
                                 )}
                               </div>
                             )}
                             
                             {/* Exit Readiness */}
-                            {destinationReport.comprehensive_analysis?.exitReadiness?.score && (
+                            {ca?.exitReadiness?.score && (
                               <div className="bg-white rounded-lg p-3 shadow-sm">
                                 <p className="text-xs text-orange-600 font-medium">🚪 Exit Readiness</p>
                                 <p className="text-lg font-bold text-orange-900">
-                                  {Math.round((destinationReport.comprehensive_analysis.exitReadiness.score / 
-                                              destinationReport.comprehensive_analysis.exitReadiness.maxScore) * 100)}%
+                                  {Math.round((ca.exitReadiness.score / 
+                                              ca.exitReadiness.maxScore) * 100)}%
                                 </p>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  {destinationReport.comprehensive_analysis.exitReadiness.readiness === 'ready' ? 'Ready to sell' :
-                                   destinationReport.comprehensive_analysis.exitReadiness.readiness === 'nearly' ? 'Nearly ready' : 'Work needed'}
+                                  {ca.exitReadiness.readiness === 'ready' ? 'Ready to sell' :
+                                   ca.exitReadiness.readiness === 'nearly' ? 'Nearly ready' : 'Work needed'}
                                 </p>
                               </div>
                             )}
@@ -4118,18 +4135,19 @@ function DiscoveryClientModal({
                           {/* Data Quality Indicator */}
                           <div className="mt-3 pt-3 border-t border-blue-100 flex items-center gap-2 text-xs text-gray-500">
                             <span className={`w-2 h-2 rounded-full ${
-                              destinationReport.comprehensive_analysis?.dataQuality === 'comprehensive' ? 'bg-green-500' :
-                              destinationReport.comprehensive_analysis?.dataQuality === 'partial' ? 'bg-yellow-500' : 'bg-red-500'
+                              ca?.dataQuality === 'comprehensive' ? 'bg-green-500' :
+                              ca?.dataQuality === 'partial' ? 'bg-yellow-500' : 'bg-red-500'
                             }`}></span>
-                            Data quality: {destinationReport.comprehensive_analysis?.dataQuality || 'unknown'}
-                            {destinationReport.comprehensive_analysis?.availableMetrics?.length > 0 && (
+                            Data quality: {ca?.dataQuality || 'unknown'}
+                            {ca?.availableMetrics?.length > 0 && (
                               <span className="ml-2">
-                                ({destinationReport.comprehensive_analysis.availableMetrics.length} metrics available)
+                                ({ca.availableMetrics.length} metrics available)
                               </span>
                             )}
                           </div>
                         </div>
-                      )}
+                        );
+                      })()}
 
                       {/* Full Questions & Answers by Section */}
                       {Object.entries(DISCOVERY_QUESTIONS).map(([sectionKey, section]) => {
