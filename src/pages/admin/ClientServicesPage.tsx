@@ -2647,10 +2647,14 @@ function DiscoveryClientModal({
           year: 'numeric' 
         });
 
-    // Check if we have the new Transformation Journey data
-    const hasTransformationJourney = analysis?.transformationJourney?.phases?.length > 0;
-    const destination = analysis?.transformationJourney?.destination || '';
-    const totalInvestment = analysis?.transformationJourney?.totalInvestment || analysis?.investmentSummary?.totalFirstYearInvestment || '';
+    // Check if we have journey data - prefer Pass 2 page3_journey
+    const hasTransformationJourney = destinationReport?.page3_journey?.phases?.length > 0 || 
+                                     analysis?.transformationJourney?.phases?.length > 0;
+    const destination = destinationReport?.page3_journey?.headerLine || 
+                       analysis?.transformationJourney?.destination || '';
+    const totalInvestment = destinationReport?.page4_numbers?.totalYear1 || 
+                           analysis?.transformationJourney?.totalInvestment || 
+                           analysis?.investmentSummary?.totalFirstYearInvestment || '';
 
     // Gap Analysis HTML - Use destinationReport.page2_gaps as primary, fallback to analysis.gapAnalysis
     const page2Gaps = destinationReport?.page2_gaps?.gaps || [];
@@ -2726,13 +2730,34 @@ function DiscoveryClientModal({
       `;
     }).join('');
 
-    // Closing Message - Elevated as hero section
-    const closingMessage = analysis.closingMessage;
-    const personalNote = typeof closingMessage === 'string' ? closingMessage : closingMessage?.personalNote || '';
-    const callToAction = typeof closingMessage === 'string' ? 'Let\'s talk this week.' : closingMessage?.callToAction || 'Let\'s talk this week.';
+    // Closing Message - Prefer Pass 2 page5_next_steps over Stage 3 closingMessage
+    const page5NextSteps = destinationReport?.page5_next_steps || destinationReport?.page5_nextSteps;
+    const legacyClosing = analysis?.closingMessage;
+    const personalNote = page5NextSteps?.theAsk || (typeof legacyClosing === 'string' ? legacyClosing : legacyClosing?.personalNote || '');
+    const callToAction = page5NextSteps?.closingLine || (typeof legacyClosing === 'string' ? 'Let\'s talk this week.' : legacyClosing?.callToAction || 'Let\'s talk this week.');
+
+    // Journey Phases - Prefer Pass 2 page3_journey over Stage 3 transformationJourney
+    const page3Journey = destinationReport?.page3_journey;
+    const legacyJourney = analysis?.transformationJourney;
+    
+    // Map page3_journey to Phase format if available
+    let journeyPhasesToRender = legacyJourney?.phases || [];
+    if (page3Journey?.phases?.length > 0) {
+      journeyPhasesToRender = page3Journey.phases.map((phase: any, idx: number) => ({
+        phase: idx + 1,
+        timeframe: phase.timeframe || `Month ${(idx * 3) + 1}-${(idx + 1) * 3}`,
+        title: phase.headline || phase.title || `Phase ${idx + 1}`,
+        youWillHave: phase.outcome || (Array.isArray(phase.whatChanges) ? phase.whatChanges.join('. ') : phase.whatChanges) || '',
+        whatChanges: phase.feelsLike || '',
+        enabledBy: phase.enabledBy || '',
+        investment: phase.price || ''
+      }));
+    }
+    
+    const hasJourneyPhases = journeyPhasesToRender.length > 0;
 
     // Journey Phases HTML - Improved timeline visualization
-    const journeyPhasesHtml = hasTransformationJourney ? analysis.transformationJourney.phases.map((phase: any) => `
+    const journeyPhasesHtml = hasJourneyPhases ? journeyPhasesToRender.map((phase: any) => `
       <div class="journey-phase">
         <div class="phase-header">
           <div class="phase-badge">${phase.phase}</div>
@@ -5063,17 +5088,45 @@ function DiscoveryClientModal({
                         );
                       })()}
 
-                      {/* Transformation Journey (new "travel agent" view) */}
-                      {generatedReport.analysis?.transformationJourney?.phases?.length > 0 && (
-                        <TransformationJourney 
-                          journey={generatedReport.analysis.transformationJourney}
-                          investmentSummary={generatedReport.analysis.investmentSummary || {
-                            totalFirstYearInvestment: generatedReport.analysis.transformationJourney.totalInvestment,
-                            projectedFirstYearReturn: '',
-                            paybackPeriod: ''
-                          }}
-                        />
-                      )}
+                      {/* Transformation Journey (new "travel agent" view) - Prefer Pass 1/2 data */}
+                      {(() => {
+                        // Prefer destinationReport.page3_journey (Pass 2) over transformationJourney (Stage 3)
+                        const page3Journey = destinationReport?.page3_journey;
+                        const legacyJourney = generatedReport?.analysis?.transformationJourney;
+                        
+                        // Map page3_journey to TransformationJourneyData format if available
+                        let journeyData = legacyJourney;
+                        if (page3Journey?.phases?.length > 0) {
+                          journeyData = {
+                            destination: page3Journey.headerLine || legacyJourney?.destination || '',
+                            totalInvestment: destinationReport?.page4_numbers?.totalYear1 || legacyJourney?.totalInvestment || '',
+                            totalTimeframe: '12 months',
+                            phases: page3Journey.phases.map((phase: any, idx: number) => ({
+                              phase: idx + 1,
+                              timeframe: phase.timeframe || `Month ${(idx * 3) + 1}-${(idx + 1) * 3}`,
+                              title: phase.headline || phase.title || `Phase ${idx + 1}`,
+                              youWillHave: phase.outcome || (Array.isArray(phase.whatChanges) ? phase.whatChanges.join('. ') : phase.whatChanges) || '',
+                              whatChanges: phase.feelsLike || '',
+                              enabledBy: phase.enabledBy || '',
+                              enabledByCode: phase.serviceCode || '',
+                              investment: phase.price || ''
+                            }))
+                          };
+                        }
+                        
+                        if (!journeyData?.phases?.length) return null;
+                        
+                        return (
+                          <TransformationJourney 
+                            journey={journeyData}
+                            investmentSummary={generatedReport?.analysis?.investmentSummary || {
+                              totalFirstYearInvestment: journeyData.totalInvestment,
+                              projectedFirstYearReturn: destinationReport?.page4_numbers?.returns?.realistic?.total || '',
+                              paybackPeriod: destinationReport?.page4_numbers?.paybackPeriod || ''
+                            }}
+                          />
+                        );
+                      })()}
 
                       {/* Recommended Investments (legacy view - shown if no transformationJourney) */}
                       {!generatedReport.analysis?.transformationJourney?.phases?.length && generatedReport.analysis?.recommendedInvestments && (
@@ -5244,32 +5297,40 @@ function DiscoveryClientModal({
                         </div>
                       )}
 
-                      {/* Closing Message */}
-                      {generatedReport.analysis?.closingMessage && (
-                        <div className="bg-slate-800 rounded-xl p-6 text-white">
-                          {typeof generatedReport.analysis.closingMessage === 'string' ? (
-                            <p className="text-lg text-center">{generatedReport.analysis.closingMessage}</p>
-                          ) : (
+                      {/* Closing Message - Prefer Pass 2 page5_next_steps over Stage 3 closingMessage */}
+                      {(() => {
+                        const page5 = destinationReport?.page5_next_steps || destinationReport?.page5_nextSteps;
+                        const legacyClosing = generatedReport?.analysis?.closingMessage;
+                        
+                        // Map Pass 2 fields to display format
+                        const theAsk = page5?.theAsk || (typeof legacyClosing === 'string' ? legacyClosing : legacyClosing?.personalNote);
+                        const closingLine = page5?.closingLine || (typeof legacyClosing === 'string' ? 'Let\'s talk this week.' : legacyClosing?.callToAction);
+                        const urgencyAnchor = page5?.urgencyAnchor || (typeof legacyClosing === 'object' ? legacyClosing?.urgencyReminder : null);
+                        
+                        if (!theAsk && !closingLine) return null;
+                        
+                        return (
+                          <div className="bg-slate-800 rounded-xl p-6 text-white">
                             <div className="space-y-4">
-                              {generatedReport.analysis.closingMessage.personalNote && (
+                              {theAsk && (
                                 <p className="text-lg text-center italic">
-                                  "{generatedReport.analysis.closingMessage.personalNote}"
+                                  "{theAsk}"
                                 </p>
                               )}
-                              {generatedReport.analysis.closingMessage.callToAction && (
+                              {closingLine && (
                                 <p className="text-center font-semibold text-emerald-300">
-                                  {generatedReport.analysis.closingMessage.callToAction}
+                                  {closingLine}
                                 </p>
                               )}
-                              {generatedReport.analysis.closingMessage.urgencyReminder && (
+                              {urgencyAnchor && (
                                 <p className="text-sm text-center text-gray-300">
-                                  {generatedReport.analysis.closingMessage.urgencyReminder}
+                                  {urgencyAnchor}
                                 </p>
                               )}
                             </div>
-                          )}
-                        </div>
-                      )}
+                          </div>
+                        );
+                      })()}
 
                       <div className="flex justify-end">
                         <button
