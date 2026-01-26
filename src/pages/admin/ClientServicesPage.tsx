@@ -3536,7 +3536,7 @@ function DiscoveryClientModal({
           <div class="document-footer">
             <img src="${RPGCC_LOGO_DARK}" alt="RPGCC" class="footer-logo" />
             <p class="footer-text">Discovery Analysis Report • Confidential</p>
-            <p class="footer-text">Prepared for ${clientName} by Oracle Consulting</p>
+            <p class="footer-text">Prepared for ${clientName}</p>
             <p class="footer-text">RPG Crouch Chapman LLP • Registered to carry on audit work by ICAEW</p>
           </div>
         </div>

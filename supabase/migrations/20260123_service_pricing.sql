@@ -244,7 +244,7 @@ END;
 $$;
 
 -- ============================================================================
--- SEED DATA: Default Oracle Consulting service pricing
+-- SEED DATA: Default service pricing
 -- This populates the initial pricing that was previously hardcoded
 -- ============================================================================
 
@@ -409,6 +409,6 @@ $$;
 COMMENT ON TABLE service_pricing IS 'Service line pricing configuration per practice. Replaces hardcoded pricing in edge functions.';
 COMMENT ON TABLE service_pricing_tiers IS 'Individual pricing tiers for each service. Multiple tiers per service allowed.';
 COMMENT ON FUNCTION get_service_pricing(UUID) IS 'Returns all active service pricing for a practice in the format expected by edge functions.';
-COMMENT ON FUNCTION seed_default_service_pricing(UUID, UUID) IS 'Seeds default Oracle Consulting pricing for a new practice.';
+COMMENT ON FUNCTION seed_default_service_pricing(UUID, UUID) IS 'Seeds default pricing for a new practice.';
 
 

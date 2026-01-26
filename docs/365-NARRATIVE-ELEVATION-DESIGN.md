@@ -3,7 +3,7 @@
 
 **Last Updated:** December 14, 2025  
 **Status:** Design Document - Ready for Implementation  
-**Author:** James Howard / Oracle Consulting AI
+**Author:** James Howard
 
 ---
 
