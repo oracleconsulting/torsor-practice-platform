@@ -4524,32 +4524,13 @@ function DiscoveryClientModal({
                         const page4 = dest?.page4_numbers || destinationReport?.page4_numbers;
                         const page5 = dest?.page5_nextSteps || dest?.page5_next_steps || destinationReport?.page5_next_steps;
                         
-                        // DEBUG: Log what data each page has
-                        console.log('[Client View] Page data:', {
-                          page1: { 
-                            exists: !!page1, 
-                            hasVisionVerbatim: !!page1?.visionVerbatim,
-                            visionVerbatim: page1?.visionVerbatim?.substring?.(0, 50),
-                            hasClarityScore: !!page1?.destinationClarityScore
-                          },
-                          page2: { 
-                            exists: !!page2, 
-                            hasGaps: !!page2?.gaps?.length,
-                            gapCount: page2?.gaps?.length 
-                          },
-                          page3: { 
-                            exists: !!page3, 
-                            hasPhases: !!page3?.phases?.length,
-                            phaseCount: page3?.phases?.length 
-                          },
-                          page5: { 
-                            exists: !!page5, 
-                            hasThisWeek: !!page5?.thisWeek,
-                            hasFirstStep: !!page5?.firstStep 
-                          },
-                          destReportKeys: dest ? Object.keys(dest) : 'none',
-                          topLevelKeys: destinationReport ? Object.keys(destinationReport).filter(k => k.startsWith('page')) : 'none'
-                        });
+                        // DEBUG: Log FULL page objects to see actual field names
+                        console.log('[Client View] FULL page1:', page1);
+                        console.log('[Client View] FULL page2:', page2);
+                        console.log('[Client View] FULL page5:', page5);
+                        console.log('[Client View] Page1 keys:', page1 ? Object.keys(page1) : 'none');
+                        console.log('[Client View] Page2 keys:', page2 ? Object.keys(page2) : 'none');
+                        console.log('[Client View] Page5 keys:', page5 ? Object.keys(page5) : 'none');
                         
                         // If we have destination-focused data, render new structure
                         if (page1 || page2 || page3 || page4 || page5) {
