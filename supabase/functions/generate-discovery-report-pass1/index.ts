@@ -13,6 +13,14 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+// NEW: Import structured calculator integration
+import { 
+  runStructuredCalculations, 
+  convertFinancialsFormat,
+  buildPass2PromptInjection 
+} from './calculators/integration.ts'
+import type { Pass1Output } from './types/pass1-output.ts'
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -1976,6 +1984,38 @@ serve(async (req) => {
     });
 
     // ========================================================================
+    // NEW: RUN STRUCTURED CALCULATIONS WITH PRE-BUILT PHRASES
+    // ========================================================================
+    
+    let structuredOutput: Pass1Output | null = null;
+    let pass2PromptInjection: string | null = null;
+    
+    try {
+      const convertedFinancials = convertFinancialsFormat(extractedFinancials);
+      
+      structuredOutput = runStructuredCalculations(
+        engagementId,
+        engagement.client_id,
+        engagement.client?.full_name || engagement.client?.client_name || 'Unknown',
+        engagement.client?.client_company || 'Unknown Company',
+        convertedFinancials,
+        discoveryResponses
+      );
+      
+      // Build the prompt injection for Pass 2
+      pass2PromptInjection = buildPass2PromptInjection(structuredOutput);
+      
+      console.log('[Pass1] ✅ Structured calculations complete:', {
+        dataQuality: structuredOutput.meta.dataQuality,
+        payrollPhrase: structuredOutput.payroll?.annualExcess?.phrases?.impact || 'N/A',
+        valuationRange: structuredOutput.valuation?.enterpriseValue?.formatted || 'N/A'
+      });
+    } catch (structuredError: any) {
+      console.error('[Pass1] ⚠️ Structured calculations failed (non-fatal):', structuredError.message);
+      // Continue with existing flow - structured output is enhancement, not requirement
+    }
+
+    // ========================================================================
     // RUN SERVICE SCORING
     // ========================================================================
 
@@ -2101,8 +2141,55 @@ serve(async (req) => {
         pass1CompletedAt: new Date().toISOString(),
         processingTimeMs: processingTime,
         financialDataSource: extractedFinancials.source,
-        analysisVersion: '2.0-enhanced'
-      }
+        analysisVersion: '3.0-structured-phrases'
+      },
+      
+      // NEW: Structured output with pre-built phrases
+      structured_output: structuredOutput,
+      
+      // NEW: Pre-built prompt injection for Pass 2
+      pass2_prompt_injection: pass2PromptInjection,
+      
+      // NEW: Flattened phrase lookup for easy Pass 2 access
+      prebuilt_phrases: structuredOutput ? {
+        payroll: {
+          headline: structuredOutput.payroll?.annualExcess?.phrases?.headline || null,
+          impact: structuredOutput.payroll?.annualExcess?.phrases?.impact || null,
+          monthly: structuredOutput.payroll?.monthlyExcess?.phrases?.impact || null,
+          twoYear: structuredOutput.payroll?.twoYearExcess?.phrases?.impact || null,
+          comparison: structuredOutput.payroll?.staffCostsPercent?.phrases?.comparison || null,
+          action: structuredOutput.payroll?.staffCostsPercent?.phrases?.actionRequired || null,
+          isOverstaffed: structuredOutput.payroll?.summary?.isOverstaffed || false
+        },
+        valuation: {
+          headline: structuredOutput.valuation?.enterpriseValue?.phrases?.headline || null,
+          range: structuredOutput.valuation?.enterpriseValue?.formatted || null,
+          multiple: structuredOutput.valuation?.multipleRange?.phrases?.headline || null
+        },
+        trajectory: {
+          headline: structuredOutput.trajectory?.revenueGrowthYoY?.phrases?.headline || null,
+          impact: structuredOutput.trajectory?.revenueGrowthYoY?.phrases?.impact || null,
+          trend: structuredOutput.trajectory?.trend?.classification || null
+        },
+        costOfInaction: {
+          headline: structuredOutput.costOfInaction?.totalCostOfInaction?.phrases?.headline || null,
+          breakdown: structuredOutput.costOfInaction?.totalCostOfInaction?.phrases?.breakdown || null,
+          urgency: structuredOutput.costOfInaction?.totalCostOfInaction?.phrases?.urgency || null
+        },
+        exitReadiness: {
+          headline: structuredOutput.exitReadiness?.overallScore?.phrases?.headline || null,
+          summary: structuredOutput.exitReadiness?.phrases?.summary || null,
+          topStrength: structuredOutput.exitReadiness?.phrases?.topStrength || null,
+          topBlocker: structuredOutput.exitReadiness?.phrases?.topBlocker || null
+        },
+        closing: {
+          openingLine: structuredOutput.narrativeBlocks?.executiveSummary?.openingLine || null,
+          situationStatement: structuredOutput.narrativeBlocks?.executiveSummary?.situationStatement || null,
+          theAsk: structuredOutput.narrativeBlocks?.closingPhrases?.theAsk || null,
+          urgencyAnchor: structuredOutput.narrativeBlocks?.closingPhrases?.urgencyAnchor || null,
+          neverHadBreak: structuredOutput.narrativeBlocks?.closingPhrases?.neverHadBreak || null
+        }
+      } : null
     };
 
     if (existingReport) {

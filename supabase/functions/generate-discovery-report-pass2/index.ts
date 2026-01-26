@@ -685,6 +685,10 @@ No validated financial data available. When discussing financial figures:
     const destinationClarity = report.destination_clarity as DestinationClarityAnalysis | null;
     const detectedIndustry = report.detected_industry || 'general_business';
     
+    // NEW: Extract pre-built phrases from structured calculations (v3.0+)
+    const prebuiltPhrases = report.prebuilt_phrases as Record<string, any> | null;
+    const pass2PromptInjection = report.pass2_prompt_injection as string | null;
+    
     console.log('[Pass2] 📊 Loaded 7-Dimension Analysis from Pass 1:', {
       dataQuality: comprehensiveAnalysis?.dataQuality,
       hasValuation: !!comprehensiveAnalysis?.valuation,
@@ -693,11 +697,19 @@ No validated financial data available. When discussing financial figures:
       hasProductivity: !!comprehensiveAnalysis?.productivity,
       hasExitReadiness: !!comprehensiveAnalysis?.exitReadiness,
       destinationClarityScore: destinationClarity?.score,
-      industry: detectedIndustry
+      industry: detectedIndustry,
+      hasPrebuiltPhrases: !!prebuiltPhrases,
+      hasPromptInjection: !!pass2PromptInjection
     });
     
+    // If we have pre-built prompt injection from structured calculations, log it
+    if (pass2PromptInjection) {
+      console.log('[Pass2] ✅ Using structured pre-built phrases from Pass 1 v3.0');
+    }
+    
     // Build mandatory dimensions prompt from Pass 1 analysis
-    const mandatoryDimensionsPrompt = buildMandatoryDimensionsPrompt(comprehensiveAnalysis, destinationClarity);
+    // Prefer the new structured prompt injection if available
+    const mandatoryDimensionsPrompt = pass2PromptInjection || buildMandatoryDimensionsPrompt(comprehensiveAnalysis, destinationClarity);
 
     // ========================================================================
     // ENHANCEMENT 2: Extract Hidden Assets & Valuation from Pass 1
@@ -1693,6 +1705,24 @@ Before returning, verify:
         narratives.page5_nextSteps.callToAction = narratives.page5_nextSteps.closingLine;
       }
       
+      // NEW: Apply prebuilt closing phrases if available and better
+      if (prebuiltPhrases?.closing) {
+        // Use prebuilt "never had break" anchor if available and not already present
+        if (prebuiltPhrases.closing.neverHadBreak && 
+            !narratives.page5_nextSteps.closingMessage?.toLowerCase().includes('never')) {
+          // Prepend the powerful anchor
+          narratives.page5_nextSteps.closingMessage = 
+            prebuiltPhrases.closing.neverHadBreak + ' ' + 
+            (narratives.page5_nextSteps.closingMessage || prebuiltPhrases.closing.theAsk || '');
+          console.log('[Pass2] ✅ Applied prebuilt "never had break" anchor to closing');
+        }
+        
+        // Use prebuilt urgency anchor if available
+        if (prebuiltPhrases.closing.urgencyAnchor && !narratives.page5_nextSteps.urgencyAnchor) {
+          narratives.page5_nextSteps.urgencyAnchor = prebuiltPhrases.closing.urgencyAnchor;
+        }
+      }
+      
       console.log('[Pass2] ✅ Page 5 field mapping applied:', {
         hasThisWeek: !!narratives.page5_nextSteps.thisWeek,
         hasFirstStep: !!narratives.page5_nextSteps.firstStep,
@@ -2058,6 +2088,20 @@ Before returning, verify:
           const allPayrollMatches = fixed.match(/£\d{2,3}(?:,\d{3})?(?:k|\/year)?/gi);
           if (allPayrollMatches) {
             console.log(`[Pass2] Found these payroll-like figures: ${[...new Set(allPayrollMatches)].join(', ')}`);
+          }
+        }
+        
+        // NEW: If we have prebuilt phrases, use them for gap financial impact
+        if (prebuiltPhrases?.payroll?.impact && narratives.page2_gaps?.gaps) {
+          const payrollImpact = prebuiltPhrases.payroll.impact;
+          for (const gap of narratives.page2_gaps.gaps) {
+            // Find payroll-related gaps and ensure they use the exact phrase
+            if (gap.title?.toLowerCase().includes('payroll') || 
+                gap.title?.toLowerCase().includes('staff') ||
+                gap.category?.toLowerCase() === 'payroll') {
+              gap.financialImpact = payrollImpact;
+              console.log(`[Pass2] ✅ Applied prebuilt payroll phrase to gap: "${gap.title}"`);
+            }
           }
         }
         
