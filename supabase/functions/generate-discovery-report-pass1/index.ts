@@ -2408,16 +2408,16 @@ serve(async (req) => {
               extractedFinancials.cash - extractedFinancials.cashPriorYear : null
           }
         }
-      },
-      
-      processing_metadata: {
-        pass1CompletedAt: new Date().toISOString(),
-        processingTimeMs: processingTime,
-        financialDataSource: extractedFinancials.source,
-        analysisVersion: '3.0-structured-phrases'
-      },
+      }
       
       // NOTE: These columns don't exist in discovery_reports table yet
+      // Add via migration if needed, then uncomment:
+      // processing_metadata: {
+      //   pass1CompletedAt: new Date().toISOString(),
+      //   processingTimeMs: processingTime,
+      //   financialDataSource: extractedFinancials.source,
+      //   analysisVersion: '3.0-structured-phrases'
+      // },
       // Add via migration if needed, then uncomment:
       // pass2_prompt_injection: pass2PromptInjection,
       // prebuilt_phrases: prebuiltPhrases
