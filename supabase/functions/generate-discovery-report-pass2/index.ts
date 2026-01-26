@@ -1915,28 +1915,67 @@ Before returning, verify:
       }
     }
     
-    // If we have validated payroll data, check for wrong figures and log warnings
+    // ========================================================================
+    // ENFORCEMENT: Replace LLM-calculated payroll with Pass 1's validated figures
+    // The LLM often ignores "USE THESE EXACT FIGURES" and calculates its own using 30% benchmark
+    // ========================================================================
     if (validatedPayroll.excessAmount && validatedPayroll.excessAmount > 0) {
-      const correctExcessK = Math.round(validatedPayroll.excessAmount / 1000);
-      const narrativesStr = JSON.stringify(narratives);
+      const correctExcess = validatedPayroll.excessAmount;
+      const correctBenchmark = validatedPayroll.benchmarkPct || 28;
+      const turnover = validatedPayroll.turnover;
+      const staffCostsPct = validatedPayroll.staffCostsPct;
       
-      const wrongFigurePatterns = [
-        /£(\d{3,})k.*(?:excess|payroll)/gi,
-        /(?:excess|payroll).*£(\d{3,})k/gi
-      ];
+      // Calculate what the LLM likely computed using generic 30% benchmark
+      const llmLikelyExcess = turnover && staffCostsPct ? Math.round((staffCostsPct - 30) / 100 * turnover) : null;
       
-      for (const pattern of wrongFigurePatterns) {
-        const matches = narrativesStr.match(pattern);
-        if (matches) {
-          for (const match of matches) {
-            const figureMatch = match.match(/£(\d{3,})k/i);
-            if (figureMatch) {
-              const foundK = parseInt(figureMatch[1], 10);
-              const difference = Math.abs(foundK - correctExcessK);
-              if (difference > 50) {
-                console.warn(`[Pass2] ⚠️ POSSIBLE WRONG PAYROLL FIGURE: Found £${foundK}k but validated excess is £${correctExcessK}k (difference: £${difference}k)`);
-              }
-            }
+      const correctK = Math.round(correctExcess / 1000);
+      const wrongK = llmLikelyExcess ? Math.round(llmLikelyExcess / 1000) : null;
+      
+      // Check if LLM used the wrong benchmark
+      if (wrongK && Math.abs(wrongK * 1000 - correctExcess) > 10000) {
+        console.log(`[Pass2] 🔧 LLM likely used 30% benchmark (£${wrongK}k), correcting to ${correctBenchmark}% (£${correctK}k)`);
+        
+        let fixed = JSON.stringify(narratives);
+        
+        // Replace the wrongly-calculated figure with correct one
+        // Handle various formats: £148k, £148,000, £147,723, etc.
+        const wrongVariations = [
+          wrongK.toString(),                           // "148"
+          (wrongK - 1).toString(),                     // "147" (rounding variations)
+          (wrongK + 1).toString(),                     // "149"
+          llmLikelyExcess?.toLocaleString() || '',     // "147,723"
+        ];
+        
+        for (const wrongVal of wrongVariations) {
+          if (!wrongVal) continue;
+          // Replace £XXXk format
+          fixed = fixed.replace(new RegExp(`£${wrongVal}k`, 'gi'), `£${correctK}k`);
+          // Replace £XXX,XXX format
+          fixed = fixed.replace(new RegExp(`£${wrongVal},\\d{3}`, 'g'), `£${correctExcess.toLocaleString()}`);
+          // Replace £XXX/year format
+          fixed = fixed.replace(new RegExp(`£${wrongVal}k/year`, 'gi'), `£${correctK}k/year`);
+        }
+        
+        // Also fix benchmark percentages if LLM used 30%
+        if (correctBenchmark !== 30) {
+          fixed = fixed.replace(/30%\s*benchmark/gi, `${correctBenchmark}% benchmark`);
+          fixed = fixed.replace(/benchmark\s*of\s*30%/gi, `benchmark of ${correctBenchmark}%`);
+          fixed = fixed.replace(/28-30%\s*benchmark/gi, `${correctBenchmark}-30% benchmark`);
+        }
+        
+        narratives = JSON.parse(fixed);
+        console.log('[Pass2] ✅ Payroll figures corrected in narratives');
+      } else {
+        // Still check for any mismatched figures
+        const narrativesStr = JSON.stringify(narratives);
+        const figureMatch = narrativesStr.match(/£(\d{2,3})k.*(?:excess|payroll)/i);
+        if (figureMatch) {
+          const foundK = parseInt(figureMatch[1], 10);
+          const difference = Math.abs(foundK - correctK);
+          if (difference > 10) {
+            console.warn(`[Pass2] ⚠️ PAYROLL MISMATCH: Found £${foundK}k but correct is £${correctK}k (diff: £${difference}k)`);
+          } else {
+            console.log(`[Pass2] ✅ Payroll figure looks correct: £${foundK}k (expected £${correctK}k)`);
           }
         }
       }
