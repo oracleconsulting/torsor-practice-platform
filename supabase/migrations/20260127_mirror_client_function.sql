@@ -61,7 +61,7 @@ BEGIN
     
     INSERT INTO destination_discovery (
       id, client_id, practice_id, responses, completed_at, 
-      assessment_version, started_at, created_at, updated_at
+      started_at, created_at, updated_at
     )
     VALUES (
       v_new_discovery_id,
@@ -69,7 +69,6 @@ BEGIN
       v_practice_id,
       v_source_discovery.responses,
       v_source_discovery.completed_at,
-      v_source_discovery.assessment_version,
       v_source_discovery.started_at,
       NOW(),
       NOW()
