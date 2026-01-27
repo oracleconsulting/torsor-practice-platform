@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, Calendar, ChevronRight, Sparkles, Target, TrendingUp, Heart, Clock, Shield, FileDown, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calendar, ChevronRight, Sparkles, Target, TrendingUp, Heart, Clock, Shield, FileDown, Loader2, Quote, AlertTriangle, CheckCircle2, DollarSign, Phone, ChevronDown, ChevronUp } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { TransformationJourney } from '../../components/discovery/TransformationJourney';
 import { DiscoveryMetricCard, MetricGrid, ROISummaryCard } from '../../components/discovery/DiscoveryMetricCard';
@@ -11,11 +11,22 @@ import { CostOfInactionCard } from '../../components/discovery/DiscoveryInsightC
 // ============================================================================
 // CLIENT-FRIENDLY DISCOVERY REPORT
 // ============================================================================
-// Sympathetic, encouraging, clear - not overwhelming
-// Shows the journey from where they are to where they want to be
+// Now supports BOTH:
+// 1. New 5-page Pass 1/2 format from discovery_reports
+// 2. Legacy Stage 3 format from client_reports (fallback)
 // ============================================================================
 
-interface DiscoveryReport {
+// Timeline dot component for new format
+const TimelineDot = ({ active, label }: { active?: boolean; label: string }) => (
+  <div className="flex flex-col items-center">
+    <div className={`w-4 h-4 rounded-full border-2 ${
+      active ? 'bg-emerald-500 border-emerald-500' : 'bg-white border-gray-300'
+    }`} />
+    <span className="text-xs text-gray-500 mt-1 whitespace-nowrap">{label}</span>
+  </div>
+);
+
+interface LegacyDiscoveryReport {
   id: string;
   report_data: {
     generatedAt: string;
@@ -83,9 +94,11 @@ export default function DiscoveryReportPage() {
   const { clientSession } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [report, setReport] = useState<DiscoveryReport | null>(null);
+  const [legacyReport, setLegacyReport] = useState<LegacyDiscoveryReport | null>(null);
+  const [newReport, setNewReport] = useState<any>(null);
   const [showCallToAction, setShowCallToAction] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
+  const [expandedPhase, setExpandedPhase] = useState<number>(0);
 
   useEffect(() => {
     loadReport();
@@ -93,14 +106,14 @@ export default function DiscoveryReportPage() {
 
   // PDF Export Handler
   const handleExportPDF = async () => {
-    if (!clientSession?.clientId || !report) return;
+    if (!clientSession?.clientId || (!legacyReport && !newReport)) return;
     
     setExportingPDF(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-discovery-pdf', {
         body: {
           clientId: clientSession.clientId,
-          reportId: report.id,
+          reportId: legacyReport?.id || newReport?.id,
         }
       });
 
@@ -136,6 +149,51 @@ export default function DiscoveryReportPage() {
     try {
       console.log('[Report] Loading report for client:', clientSession.clientId);
       
+      // ======================================================================
+      // PRIORITY 1: Try to load NEW discovery_reports format (Pass 1/2)
+      // ======================================================================
+      const { data: engagement } = await supabase
+        .from('discovery_engagements')
+        .select('id, status')
+        .eq('client_id', clientSession.clientId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      console.log('[Report] Found engagement:', engagement);
+
+      if (engagement?.id) {
+        // Look for discovery_reports - accept 'generated' or 'published' status
+        const { data: discoveryReport, error: drError } = await supabase
+          .from('discovery_reports')
+          .select('*')
+          .eq('engagement_id', engagement.id)
+          .in('status', ['generated', 'published', 'admin_review'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        console.log('[Report] Discovery report lookup:', { 
+          found: !!discoveryReport, 
+          error: drError,
+          hasPage1: !!discoveryReport?.page1_destination,
+          hasPage2: !!discoveryReport?.page2_gaps,
+          status: discoveryReport?.status
+        });
+
+        if (discoveryReport && (discoveryReport.page1_destination || discoveryReport.destination_report)) {
+          console.log('[Report] ✅ Using NEW Pass 1/2 format');
+          setNewReport(discoveryReport);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // ======================================================================
+      // PRIORITY 2: Fall back to legacy client_reports format
+      // ======================================================================
+      console.log('[Report] Falling back to legacy client_reports format');
+      
       // First, get the most recent completed discovery record for this client
       const { data: latestDiscovery } = await supabase
         .from('destination_discovery')
@@ -149,7 +207,6 @@ export default function DiscoveryReportPage() {
       console.log('[Report] Latest completed discovery:', latestDiscovery);
 
       // Load the client's shared discovery report
-      // Prefer reports that match the most recent completed discovery
       let report = null;
       let error = null;
 
@@ -169,8 +226,6 @@ export default function DiscoveryReportPage() {
         if (linkedReport) {
           console.log('[Report] Found report linked to latest discovery:', latestDiscovery.id);
           report = linkedReport;
-        } else {
-          console.log('[Report] No report found for discovery_id:', latestDiscovery.id);
         }
       }
 
@@ -190,41 +245,15 @@ export default function DiscoveryReportPage() {
         error = fallbackError;
       }
 
-      const data = report;
-
       if (error) {
         console.error('[Report] Error loading report:', error);
-        if (error.code !== 'PGRST116') {
-          // PGRST116 is "no rows returned" which is fine
-          console.error('[Report] Query error details:', {
-            code: error.code,
-            message: error.message,
-            details: error.details,
-            hint: error.hint
-          });
-        }
       }
 
-      if (data) {
-        console.log('[Report] Report loaded successfully:', {
-          id: data.id,
-          clientId: data.client_id,
-          isShared: data.is_shared_with_client,
-          sharedAt: data.shared_at,
-          createdAt: data.created_at
-        });
-        setReport(data);
+      if (report) {
+        console.log('[Report] ✅ Using LEGACY client_reports format');
+        setLegacyReport(report);
       } else {
-        console.log('[Report] No shared report found for client:', clientSession.clientId);
-        // Check if there are any reports (even unshared ones) for debugging
-        const { data: allReports } = await supabase
-          .from('client_reports')
-          .select('id, client_id, is_shared_with_client, created_at')
-          .eq('client_id', clientSession.clientId)
-          .eq('report_type', 'discovery_analysis')
-          .order('created_at', { ascending: false })
-          .limit(5);
-        console.log('[Report] All reports for client (for debugging):', allReports);
+        console.log('[Report] No report found for client');
       }
     } catch (err) {
       console.error('[Report] Exception loading report:', err);
@@ -235,11 +264,11 @@ export default function DiscoveryReportPage() {
 
   // Show CTA after 3 seconds
   useEffect(() => {
-    if (report) {
+    if (legacyReport || newReport) {
       const timer = setTimeout(() => setShowCallToAction(true), 3000);
       return () => clearTimeout(timer);
     }
-  }, [report]);
+  }, [legacyReport, newReport]);
 
   if (loading) {
     return (
@@ -252,7 +281,524 @@ export default function DiscoveryReportPage() {
     );
   }
 
-  if (!report) {
+  // ============================================================================
+  // RENDER NEW FORMAT (Pass 1/2 - 5 Page Structure)
+  // ============================================================================
+  if (newReport) {
+    const dest = newReport.destination_report || {};
+    const page1 = dest.page1_destination || newReport.page1_destination;
+    const page2 = dest.page2_gaps || newReport.page2_gaps;
+    const page3 = dest.page3_journey || newReport.page3_journey;
+    const page4 = dest.page4_numbers || newReport.page4_numbers;
+    const page5 = dest.page5_nextSteps || dest.page5_next_steps || newReport.page5_next_steps;
+
+    // Get clarity score from various sources
+    const clarityScore = page1?.clarityScore || page1?.destinationClarityScore || 
+                         newReport.destination_clarity?.score || 7;
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-stone-50">
+        {/* Header */}
+        <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-10">
+          <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+            <button
+              onClick={() => navigate('/portal')}
+              className="flex items-center gap-2 text-slate-300 hover:text-white"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </button>
+            <div className="flex items-center gap-3">
+              <Logo variant="dark" size="sm" />
+              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+              <span className="text-sm text-slate-300 hidden sm:inline">Your Discovery Report</span>
+            </div>
+            <button
+              onClick={handleExportPDF}
+              disabled={exportingPDF}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              {exportingPDF ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="hidden sm:inline">Generating...</span>
+                </>
+              ) : (
+                <>
+                  <FileDown className="w-4 h-4" />
+                  <span className="hidden sm:inline">Export PDF</span>
+                </>
+              )}
+            </button>
+          </div>
+        </header>
+
+        <main className="max-w-3xl mx-auto px-4 py-8">
+          
+          {/* ================================================================ */}
+          {/* PAGE 1: THE DESTINATION YOU DESCRIBED */}
+          {/* ================================================================ */}
+          {page1 && (
+            <section className="mb-16">
+              <div className="mb-8">
+                <p className="text-sm font-medium text-amber-600 uppercase tracking-widest mb-2">
+                  Your Vision
+                </p>
+                <h1 className="text-3xl md:text-4xl font-serif font-light text-slate-800 leading-tight">
+                  {page1.headerLine || "The Tuesday You're Building Towards"}
+                </h1>
+              </div>
+              
+              <div className="bg-gradient-to-br from-slate-50 to-stone-50 rounded-xl p-8 border border-slate-100">
+                <Quote className="h-8 w-8 text-amber-500 mb-4 opacity-60" />
+                <blockquote className="text-lg md:text-xl text-slate-700 leading-relaxed italic whitespace-pre-wrap">
+                  {page1.visionVerbatim || page1.visionNarrative || "Your vision for the future..."}
+                </blockquote>
+              </div>
+              
+              <div className="mt-6 flex items-center gap-4">
+                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-amber-400 to-emerald-500 rounded-full transition-all duration-1000"
+                    style={{ width: `${(clarityScore / 10) * 100}%` }}
+                  />
+                </div>
+                <div className="text-sm text-slate-600">
+                  <span className="font-semibold text-emerald-600">{clarityScore}/10</span>
+                  <span className="text-slate-400 ml-2">Destination Clarity</span>
+                </div>
+              </div>
+              {page1.clarityExplanation && (
+                <p className="mt-2 text-sm text-slate-500">{page1.clarityExplanation}</p>
+              )}
+            </section>
+          )}
+
+          {/* ================================================================ */}
+          {/* PAGE 2: WHAT'S IN THE WAY */}
+          {/* ================================================================ */}
+          {page2 && (
+            <section className="mb-16">
+              <div className="mb-8">
+                <p className="text-sm font-medium text-rose-600 uppercase tracking-widest mb-2">
+                  The Reality
+                </p>
+                <h2 className="text-2xl md:text-3xl font-serif font-light text-slate-800">
+                  {page2.headerLine || "The Gap Between Here and There"}
+                </h2>
+                {page2.openingLine && (
+                  <p className="mt-4 text-lg text-slate-600 font-light italic">
+                    {page2.openingLine}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-6">
+                {page2.gaps?.map((gap: any, index: number) => (
+                  <div 
+                    key={index}
+                    className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm"
+                  >
+                    <div className="p-6">
+                      <div className="flex items-start gap-3 mb-4">
+                        <AlertTriangle className="h-5 w-5 text-rose-500 flex-shrink-0 mt-0.5" />
+                        <h3 className="text-lg font-medium text-slate-800">{gap.title}</h3>
+                      </div>
+                      
+                      {/* The Pattern - Their Words */}
+                      {gap.pattern && (
+                        <div className="bg-slate-50 rounded-lg p-4 mb-4 border-l-4 border-slate-300">
+                          <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-2">
+                            The pattern:
+                          </p>
+                          <p className="text-slate-700 italic">"{gap.pattern}"</p>
+                        </div>
+                      )}
+                      
+                      {/* The Shift Required */}
+                      {gap.shiftRequired && (
+                        <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-100">
+                          <p className="text-sm font-medium text-emerald-700 uppercase tracking-wide mb-1">
+                            The shift required:
+                          </p>
+                          <p className="text-emerald-800">{gap.shiftRequired}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ================================================================ */}
+          {/* PAGE 3: THE JOURNEY */}
+          {/* ================================================================ */}
+          {page3 && page3.phases && page3.phases.length > 0 && (
+            <section className="mb-16">
+              <div className="mb-8">
+                <p className="text-sm font-medium text-blue-600 uppercase tracking-widest mb-2">
+                  The Path Forward
+                </p>
+                <h2 className="text-2xl md:text-3xl font-serif font-light text-slate-800">
+                  {page3.headerLine || page3.destinationLabel || "From Here to There"}
+                </h2>
+              </div>
+
+              {/* Timeline Visual */}
+              {page3.timelineLabel && (
+                <div className="mb-8 py-6 px-4 bg-slate-50 rounded-xl">
+                  <div className="flex items-center justify-between relative">
+                    <div className="absolute top-2 left-4 right-4 h-0.5 bg-slate-200" />
+                    <TimelineDot label={page3.timelineLabel.now || "Now"} />
+                    <div className="flex-1" />
+                    <TimelineDot label={page3.timelineLabel.month3 || "Month 3"} />
+                    <div className="flex-1" />
+                    <TimelineDot label={page3.timelineLabel.month6 || "Month 6"} />
+                    <div className="flex-1" />
+                    <TimelineDot active label={page3.timelineLabel.month12 || "Month 12"} />
+                  </div>
+                </div>
+              )}
+
+              {/* Journey Phases */}
+              <div className="space-y-4">
+                {page3.phases?.map((phase: any, index: number) => (
+                  <div 
+                    key={index}
+                    className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm"
+                  >
+                    <button
+                      onClick={() => setExpandedPhase(expandedPhase === index ? -1 : index)}
+                      className="w-full p-6 text-left hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full mb-2">
+                            {phase.timeframe}
+                          </span>
+                          <h3 className="text-xl font-medium text-slate-800">
+                            {phase.headline}
+                          </h3>
+                        </div>
+                        {expandedPhase === index ? (
+                          <ChevronUp className="h-5 w-5 text-slate-400" />
+                        ) : (
+                          <ChevronDown className="h-5 w-5 text-slate-400" />
+                        )}
+                      </div>
+                    </button>
+                    
+                    {expandedPhase === index && (
+                      <div className="px-6 pb-6 border-t border-slate-100">
+                        {phase.whatChanges && phase.whatChanges.length > 0 && (
+                          <div className="mt-4">
+                            <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-2">
+                              What changes:
+                            </p>
+                            <ul className="space-y-1">
+                              {phase.whatChanges.map((change: string, changeIdx: number) => (
+                                <li key={changeIdx} className="flex items-start gap-2 text-slate-700">
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                                  {change}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        
+                        {phase.feelsLike && (
+                          <div className="mt-4 bg-amber-50 rounded-lg p-4 border border-amber-100">
+                            <p className="text-sm font-medium text-amber-700 uppercase tracking-wide mb-1">
+                              What this feels like:
+                            </p>
+                            <p className="text-amber-900 italic">{phase.feelsLike}</p>
+                          </div>
+                        )}
+                        
+                        {phase.outcome && (
+                          <div className="mt-4">
+                            <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-1">
+                              The outcome:
+                            </p>
+                            <p className="text-slate-700 font-medium">{phase.outcome}</p>
+                          </div>
+                        )}
+                        
+                        {phase.enabledBy && (
+                          <p className="mt-4 text-sm text-slate-400">
+                            Enabled by: {phase.enabledBy} ({phase.price})
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ================================================================ */}
+          {/* PAGE 4: THE NUMBERS */}
+          {/* ================================================================ */}
+          {page4 && (
+            <section className="mb-16">
+              <div className="mb-8">
+                <p className="text-sm font-medium text-slate-500 uppercase tracking-widest mb-2">
+                  The Investment
+                </p>
+                <h2 className="text-2xl md:text-3xl font-serif font-light text-slate-800">
+                  {page4.headerLine || "The Investment in Your Future"}
+                </h2>
+              </div>
+
+              {/* Business Value Insights */}
+              {(page4.indicativeValuation || page4.hasIndicativeValuation) && (
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-6 mb-6 border border-emerald-200">
+                  <h3 className="text-lg font-medium text-emerald-800 mb-4 flex items-center gap-2">
+                    <Sparkles className="h-5 w-5" />
+                    💎 Business Value Insights
+                  </h3>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {page4.indicativeValuation && (
+                      <div className="bg-white/60 rounded-lg p-4">
+                        <p className="text-sm text-emerald-600 mb-1">💰 Indicative Business Value</p>
+                        <p className="text-2xl font-bold text-emerald-800">{page4.indicativeValuation}</p>
+                      </div>
+                    )}
+                    {page4.hiddenAssetsTotal && (
+                      <div className="bg-white/60 rounded-lg p-4">
+                        <p className="text-sm text-emerald-600 mb-1">💎 Hidden Assets</p>
+                        <p className="text-2xl font-bold text-emerald-800">{page4.hiddenAssetsTotal}</p>
+                      </div>
+                    )}
+                    {page4.grossMarginStrength && (
+                      <div className="bg-white/60 rounded-lg p-4 md:col-span-2">
+                        <p className="text-sm text-emerald-600 mb-1">✅ Margin Strength</p>
+                        <p className="text-lg font-medium text-emerald-800">{page4.grossMarginStrength}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Cost of Staying */}
+              {page4.costOfStaying && (
+                <div className="bg-rose-50 rounded-xl p-6 mb-6 border border-rose-100">
+                  <h3 className="text-lg font-medium text-rose-800 mb-4 flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5" />
+                    What Staying Here Costs
+                  </h3>
+                  <div className="space-y-2">
+                    {page4.costOfStaying.labourInefficiency && (
+                      <div className="flex justify-between text-rose-700">
+                        <span>Labour inefficiency</span>
+                        <span className="font-medium">{page4.costOfStaying.labourInefficiency}</span>
+                      </div>
+                    )}
+                    {page4.costOfStaying.marginLeakage && (
+                      <div className="flex justify-between text-rose-700">
+                        <span>Margin leakage</span>
+                        <span className="font-medium">{page4.costOfStaying.marginLeakage}</span>
+                      </div>
+                    )}
+                    {page4.costOfStaying.yourTimeWasted && (
+                      <div className="flex justify-between text-rose-700">
+                        <span>Your time</span>
+                        <span className="font-medium">{page4.costOfStaying.yourTimeWasted}</span>
+                      </div>
+                    )}
+                  </div>
+                  {page4.personalCost && (
+                    <div className="mt-4 pt-4 border-t border-rose-200">
+                      <p className="text-rose-800 italic">{page4.personalCost}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Investment Table */}
+              {page4.investment && page4.investment.length > 0 && (
+                <div className="bg-white rounded-xl p-6 mb-6 border border-slate-200">
+                  <h3 className="text-lg font-medium text-slate-800 mb-4 flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-slate-600" />
+                    What Moving Forward Costs
+                  </h3>
+                  
+                  <div className="divide-y divide-slate-100">
+                    {page4.investment.map((inv: any, idx: number) => (
+                      <div key={idx} className="flex justify-between py-3">
+                        <div>
+                          <span className="text-slate-700">{inv.phase}</span>
+                          {inv.whatYouGet && (
+                            <span className="text-slate-400 ml-2">— {inv.whatYouGet}</span>
+                          )}
+                        </div>
+                        <span className="font-semibold text-slate-800">{inv.amount}</span>
+                      </div>
+                    ))}
+                    
+                    {page4.totalYear1 && (
+                      <div className="flex justify-between py-3 bg-emerald-50 -mx-6 px-6 mt-2 rounded-b-lg">
+                        <span className="font-medium text-emerald-800">Total Year 1</span>
+                        <span className="font-bold text-emerald-800">{page4.totalYear1}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Returns */}
+              {page4.returns && (
+                <div className="bg-emerald-50 rounded-xl p-6 border border-emerald-100">
+                  <h3 className="text-lg font-medium text-emerald-800 mb-4 flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    The Return
+                  </h3>
+                  
+                  <div className="grid md:grid-cols-2 gap-4 mb-4">
+                    <div className="bg-white rounded-lg p-4">
+                      <p className="text-sm font-medium text-slate-500 mb-2">Conservative</p>
+                      <p className="text-2xl font-bold text-emerald-700">{page4.returns.conservative?.total || page4.returns.conservative}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4">
+                      <p className="text-sm font-medium text-emerald-600 mb-2">Realistic</p>
+                      <p className="text-2xl font-bold text-emerald-700">{page4.returns.realistic?.total || page4.returns.realistic}</p>
+                    </div>
+                  </div>
+                  
+                  {page4.paybackPeriod && (
+                    <p className="text-emerald-700 font-medium">
+                      Payback period: {page4.paybackPeriod}
+                    </p>
+                  )}
+                  
+                  {page4.realReturn && (
+                    <div className="mt-4 pt-4 border-t border-emerald-200">
+                      <p className="text-emerald-800 italic">
+                        But the real return? {page4.realReturn}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* ================================================================ */}
+          {/* PAGE 5: WHAT HAPPENS NEXT */}
+          {/* ================================================================ */}
+          {page5 && (
+            <section className="mb-8">
+              <div className="mb-8">
+                <p className="text-sm font-medium text-emerald-600 uppercase tracking-widest mb-2">
+                  Next Steps
+                </p>
+                <h2 className="text-2xl md:text-3xl font-serif font-light text-slate-800">
+                  {page5.headerLine || "Starting The Journey"}
+                </h2>
+              </div>
+
+              {/* This Week */}
+              {page5.thisWeek && (
+                <div className="bg-white rounded-xl p-6 mb-6 border border-slate-200">
+                  <h3 className="text-lg font-medium text-slate-800 mb-2 flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-slate-600" />
+                    This Week
+                  </h3>
+                  <p className="text-xl text-slate-700 font-medium mb-2">
+                    {page5.thisWeek.action}
+                  </p>
+                  {page5.thisWeek.tone && (
+                    <p className="text-slate-500">{page5.thisWeek.tone}</p>
+                  )}
+                </div>
+              )}
+
+              {/* First Step */}
+              {page5.firstStep && (
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 mb-6 border border-amber-200">
+                  <h3 className="text-lg font-medium text-amber-800 mb-2 flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Your First Step
+                  </h3>
+                  {page5.firstStep.headline && (
+                    <p className="text-xl text-amber-900 font-medium mb-2">
+                      {page5.firstStep.headline}
+                    </p>
+                  )}
+                  <p className="text-amber-800 mb-4">
+                    {page5.firstStep.recommendation}
+                  </p>
+                  {page5.firstStep.simpleCta && (
+                    <p className="text-lg font-semibold text-amber-900">
+                      {page5.firstStep.simpleCta}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Closing Message */}
+              {page5.closingMessage && (
+                <div className="bg-slate-800 rounded-xl p-8 mb-6">
+                  <p className="text-slate-100 text-lg leading-relaxed mb-6 whitespace-pre-wrap">
+                    {page5.closingMessage}
+                  </p>
+                  
+                  <button 
+                    onClick={() => navigate('/appointments')}
+                    className="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 px-8 py-4 rounded-lg font-semibold text-lg transition-colors inline-flex items-center justify-center gap-3"
+                  >
+                    <Phone className="h-5 w-5" />
+                    Book a Conversation
+                  </button>
+                  
+                  {page5.closingLine && (
+                    <p className="text-amber-400 font-medium text-lg text-center mt-4">
+                      {page5.closingLine}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* The Ask - fallback if no closingMessage */}
+              {!page5.closingMessage && page5.theAsk && (
+                <div className="bg-slate-800 rounded-xl p-8 text-center">
+                  <p className="text-slate-300 text-lg mb-6">
+                    {page5.theAsk}
+                  </p>
+                  
+                  <button 
+                    onClick={() => navigate('/appointments')}
+                    className="bg-amber-500 hover:bg-amber-400 text-slate-900 px-8 py-4 rounded-lg font-semibold text-lg transition-colors inline-flex items-center gap-3"
+                  >
+                    <Phone className="h-5 w-5" />
+                    Book a Conversation
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
+
+        </main>
+
+        {/* Footer */}
+        <footer className="bg-slate-800 border-t border-slate-700 mt-12">
+          <div className="max-w-4xl mx-auto px-4 py-6 text-center text-sm text-slate-300">
+            <p>This report was prepared specifically for you based on your discovery responses.</p>
+            <p className="mt-1 text-slate-400">Questions? Reach out to your advisor directly.</p>
+            <p className="mt-2 text-xs font-medium text-slate-300">RPGCC • London Chartered Accountants and Auditors</p>
+            <p className="mt-1 text-xs text-slate-500">RPGCC is a trading name of RPG Crouch Chapman LLP</p>
+          </div>
+        </footer>
+      </div>
+    );
+  }
+
+  // ============================================================================
+  // RENDER LEGACY FORMAT (Stage 3 - client_reports)
+  // ============================================================================
+  if (!legacyReport) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
         <div className="max-w-2xl mx-auto px-4 py-12">
@@ -285,6 +831,7 @@ export default function DiscoveryReportPage() {
     );
   }
 
+  const report = legacyReport;
   const analysis = report.report_data?.analysis || {};
   const scores = report.report_data?.discoveryScores || {};
   const summary = analysis.executiveSummary || {};
@@ -786,4 +1333,3 @@ export default function DiscoveryReportPage() {
     </div>
   );
 }
-
