@@ -7,6 +7,7 @@ import { Logo } from '@/components/Logo';
 import { TransformationJourney } from '../../components/discovery/TransformationJourney';
 import { DiscoveryMetricCard, MetricGrid, ROISummaryCard } from '../../components/discovery/DiscoveryMetricCard';
 import { CostOfInactionCard } from '../../components/discovery/DiscoveryInsightCard';
+import { ServiceDetailPopup } from '../../components/ServiceDetailPopup';
 
 // ============================================================================
 // CLIENT-FRIENDLY DISCOVERY REPORT
@@ -99,6 +100,7 @@ export default function DiscoveryReportPage() {
   const [showCallToAction, setShowCallToAction] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
   const [expandedPhase, setExpandedPhase] = useState<number>(0);
+  const [selectedService, setSelectedService] = useState<{ code: string; name: string } | null>(null);
 
   useEffect(() => {
     loadReport();
@@ -527,7 +529,29 @@ export default function DiscoveryReportPage() {
                         
                         {phase.enabledBy && (
                           <p className="mt-4 text-sm text-slate-400">
-                            Enabled by: {phase.enabledBy} ({phase.price})
+                            Enabled by:{' '}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Extract service code from enabledBy or use common mapping
+                                const serviceCodeMap: Record<string, string> = {
+                                  'Benchmarking & Hidden Value Analysis': 'benchmarking',
+                                  'Industry Benchmarking': 'benchmarking',
+                                  'Industry Benchmarking (Full Package)': 'benchmarking',
+                                  'Goal Alignment Programme': '365_method',
+                                  'Goal Alignment Programme (Growth)': '365_method',
+                                  'Hidden Value Audit': 'hidden_value_audit',
+                                  'Fractional CFO': 'fractional_cfo',
+                                  'Systems Audit': 'systems_audit',
+                                };
+                                const code = phase.enabledByCode || serviceCodeMap[phase.enabledBy] || 'benchmarking';
+                                setSelectedService({ code, name: phase.enabledBy });
+                              }}
+                              className="text-teal-600 hover:text-teal-700 underline underline-offset-2 hover:no-underline transition-colors"
+                            >
+                              {phase.enabledBy}
+                            </button>
+                            {' '}({phase.price})
                           </p>
                         )}
                       </div>
@@ -781,6 +805,15 @@ export default function DiscoveryReportPage() {
           )}
 
         </main>
+
+        {/* Service Detail Popup */}
+        {selectedService && (
+          <ServiceDetailPopup
+            serviceCode={selectedService.code}
+            serviceName={selectedService.name}
+            onClose={() => setSelectedService(null)}
+          />
+        )}
 
         {/* Footer */}
         <footer className="bg-slate-800 border-t border-slate-700 mt-12">
