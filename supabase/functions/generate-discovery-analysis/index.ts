@@ -8626,18 +8626,14 @@ Uplift potential: £${Math.round(uplift / 1000)}k`,
           .maybeSingle();
         
         if (existingDiscoveryReport?.id) {
-          // Update existing
+          // IMPORTANT: Do NOT overwrite page columns - Pass 2 is the authoritative source
+          // Stage 3 only updates metadata/status
+          console.log('[Discovery] ⏭️ Skipping page column update - Pass 2 will handle this');
           const { error: updateError } = await supabase
             .from('discovery_reports')
             .update({
-              destination_report: destination_report,
-              page1_destination: page1_destination,
-              page2_gaps: page2_gaps,
-              page3_journey: page3_journey,
-              page4_numbers: page4_numbers,
-              page5_next_steps: page5_next_steps,
-              status: 'generated',
-              generated_at: new Date().toISOString(),
+              // Store legacy analysis data but NOT page columns
+              // page1_destination, page2_gaps, etc. are managed by Pass 2
               updated_at: new Date().toISOString()
             })
             .eq('id', existingDiscoveryReport.id);
@@ -8645,21 +8641,16 @@ Uplift potential: £${Math.round(uplift / 1000)}k`,
           if (updateError) {
             console.error('[Discovery] Error updating discovery_reports:', updateError);
           } else {
-            console.log('[Discovery] ✅ Updated discovery_reports:', existingDiscoveryReport.id);
+            console.log('[Discovery] ✅ Updated discovery_reports (metadata only):', existingDiscoveryReport.id);
           }
         } else {
-          // Insert new
+          // Insert new row with minimal data - Pass 2 will populate page columns
+          console.log('[Discovery] Creating discovery_reports row (Pass 2 will populate pages)');
           const { data: newReport, error: insertError } = await supabase
             .from('discovery_reports')
             .insert({
               engagement_id: engagement.id,
-              destination_report: destination_report,
-              page1_destination: page1_destination,
-              page2_gaps: page2_gaps,
-              page3_journey: page3_journey,
-              page4_numbers: page4_numbers,
-              page5_next_steps: page5_next_steps,
-              status: 'generated',
+              status: 'pending',
               generated_at: new Date().toISOString()
             })
             .select()

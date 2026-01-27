@@ -2775,8 +2775,17 @@ Before returning, verify:
       hasPayrollAnalysis: !!narratives.page4_numbers?.payrollAnalysis,
     });
 
+    // Log exactly what we're saving for debugging
+    console.log('[Pass2] 💾 SAVING to database:', {
+      engagementId,
+      page1_keys: Object.keys(narratives.page1_destination || {}),
+      page1_hasVisionVerbatim: !!narratives.page1_destination?.visionVerbatim,
+      page2_gapsCount: narratives.page2_gaps?.gaps?.length,
+      page5_hasThisWeek: !!narratives.page5_nextSteps?.thisWeek
+    });
+
     // Update report with Pass 2 results
-    await supabase
+    const { error: updateError } = await supabase
       .from('discovery_reports')
       .update({
         status: reportStatus,
@@ -2805,6 +2814,12 @@ Before returning, verify:
         updated_at: new Date().toISOString(),
       })
       .eq('engagement_id', engagementId);
+
+    if (updateError) {
+      console.error('[Pass2] ❌ Database UPDATE FAILED:', updateError);
+      throw new Error(`Database update failed: ${updateError.message}`);
+    }
+    console.log('[Pass2] ✅ Database update successful');
 
     // Update engagement status
     await supabase
