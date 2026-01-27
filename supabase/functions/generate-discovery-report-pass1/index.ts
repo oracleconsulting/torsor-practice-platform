@@ -1467,14 +1467,39 @@ interface ServiceScore {
 }
 
 interface EmotionalAnchorsObject {
-  tuesdayTest?: string;
-  coreFrustration?: string;
-  avoidedConversation?: string;
-  magicFix?: string;
-  lastRealBreak?: string;
-  sacrifice?: string;
-  fiveYearVision?: string;
-  relationshipMirror?: string;
+  // Vision & Direction
+  tuesdayTest?: string;           // Their ideal Tuesday 5 years from now
+  fiveYearVision?: string;        // 5-year vision (may overlap with tuesdayTest)
+  successDefinition?: string;     // What success looks like to them
+  
+  // Pain Points
+  coreFrustration?: string;       // What frustrates them most
+  hardTruth?: string;             // Hard truth they've been avoiding
+  sleepThief?: string;            // What keeps them up at night
+  suspectedTruth?: string;        // What they suspect about the numbers
+  
+  // Personal Impact
+  sacrifice?: string;             // What they've sacrificed  
+  sacrificeList?: string;         // Alias for sacrifice
+  lastRealBreak?: string;         // When they last had a proper break
+  relationshipMirror?: string;    // How business relationship feels
+  hiddenFromTeam?: string;        // What they don't share with team
+  
+  // Actions & Conversations
+  avoidedConversation?: string;   // The conversation they're avoiding
+  magicFix?: string;              // What they'd change with a magic wand
+  unlimitedChange?: string;       // What they'd change with unlimited resources
+  
+  // Operations
+  emergencyLog?: string;          // What pulled them away recently
+  operationalFrustration?: string; // Day-to-day friction
+  
+  // Exit & Change
+  exitMindset?: string;           // Their exit mindset
+  changeReadiness?: string;       // How ready they are for change
+  
+  // Final Thoughts
+  finalInsight?: string;          // Anything else they shared
 }
 
 interface ScoringResult {
@@ -1516,71 +1541,198 @@ function scoreServicesFromDiscovery(responses: Record<string, any>): ScoringResu
   const isGrowthFocused = /grow|scale|expand|hire|revenue target/i.test(allText) && !isExitFocused;
   const isInCrisis = /crisis|urgent|emergency|critical|failing|cashflow problem/i.test(allText);
   
-  // Extract emotional anchors as OBJECT (for Pass 2 to access by key)
+  // ============================================================================
+  // EXTRACT ALL EMOTIONAL ANCHORS - Every field Pass 2 needs
+  // ============================================================================
   
-  // TUESDAY TEST - Check ALL possible field names for the vision question
-  const tuesdayTest = responses.dd_tuesday_test || responses.tuesday_test || 
-                      responses.dd_five_year_picture || responses.dd_five_year_vision ||
-                      responses.tuesdayTest || responses.five_year_vision || '';
-  if (tuesdayTest && tuesdayTest.length > 20) {
+  // Helper to get first non-empty value
+  const getFirst = (...vals: (string | undefined)[]): string => {
+    for (const v of vals) {
+      if (v && typeof v === 'string' && v.trim().length > 0) return v.trim();
+    }
+    return '';
+  };
+  
+  // TUESDAY TEST / FIVE YEAR VISION - The most important emotional anchor
+  const tuesdayTest = getFirst(
+    responses.dd_tuesday_test, responses.tuesday_test,
+    responses.dd_five_year_picture, responses.dd_five_year_vision,
+    responses.tuesdayTest, responses.five_year_vision, responses.fiveYearVision
+  );
+  if (tuesdayTest.length > 20) {
     emotionalAnchors.tuesdayTest = tuesdayTest;
+    emotionalAnchors.fiveYearVision = tuesdayTest; // Same content, different key
   }
   
-  // FIVE YEAR VISION (may be separate from Tuesday test)
-  const fiveYearVision = responses.dd_five_year_vision || responses.five_year_vision || 
-                         responses.fiveYearVision || tuesdayTest;
-  if (fiveYearVision && fiveYearVision.length > 20) {
-    emotionalAnchors.fiveYearVision = fiveYearVision;
+  // SUCCESS DEFINITION
+  const successDef = getFirst(
+    responses.dd_success_definition, responses.success_definition,
+    responses.successDefinition
+  );
+  if (successDef.length > 10) {
+    emotionalAnchors.successDefinition = successDef;
   }
   
   // CORE FRUSTRATION
-  const frustration = responses.rl_core_frustration || responses.dd_core_frustration || 
-                      responses.core_frustration || responses.coreFrustration || '';
-  if (frustration && frustration.length > 10) {
+  const frustration = getFirst(
+    responses.dd_core_frustration, responses.rl_core_frustration,
+    responses.core_frustration, responses.coreFrustration
+  );
+  if (frustration.length > 10) {
     emotionalAnchors.coreFrustration = frustration;
   }
   
-  // AVOIDED CONVERSATION
-  const avoidedConv = responses.ht_avoided_conversation || responses.dd_avoided_conversation || 
-                      responses.avoided_conversation || responses.avoidedConversation || '';
-  if (avoidedConv && avoidedConv.length > 10 && !/nothing|no|none/i.test(avoidedConv)) {
-    emotionalAnchors.avoidedConversation = avoidedConv;
+  // HARD TRUTH - What they've been avoiding
+  const hardTruth = getFirst(
+    responses.dd_hard_truth, responses.hard_truth,
+    responses.hardTruth, responses.ht_hard_truth
+  );
+  if (hardTruth.length > 10) {
+    emotionalAnchors.hardTruth = hardTruth;
   }
   
-  // MAGIC FIX
-  const magicFix = responses.dd_magic_fix || responses.magic_fix || responses.magicFix ||
-                   responses.dd_unlimited_change || responses.unlimited_change || '';
-  if (magicFix && magicFix.length > 10) {
-    emotionalAnchors.magicFix = magicFix;
+  // SLEEP THIEF - What keeps them up at night
+  const sleepThief = getFirst(
+    responses.dd_sleep_thief, responses.sleep_thief,
+    responses.sleepThief
+  );
+  if (sleepThief.length > 10) {
+    emotionalAnchors.sleepThief = sleepThief;
+  }
+  
+  // SUSPECTED TRUTH - What they suspect about the numbers
+  const suspectedTruth = getFirst(
+    responses.dd_suspected_truth, responses.suspected_truth,
+    responses.suspectedTruth
+  );
+  if (suspectedTruth.length > 10) {
+    emotionalAnchors.suspectedTruth = suspectedTruth;
+  }
+  
+  // SACRIFICE - What they've given up
+  const sacrifice = getFirst(
+    responses.dd_sacrifice_list, responses.sacrifice_list,
+    responses.sacrifice, responses.sacrificeList
+  );
+  if (sacrifice.length > 10) {
+    emotionalAnchors.sacrifice = sacrifice;
+    emotionalAnchors.sacrificeList = sacrifice; // Alias
   }
   
   // LAST REAL BREAK
-  const breakResponse = responses.rl_last_break || responses.dd_last_real_break || 
-                        responses.last_break || responses.lastBreak || '';
-  if (breakResponse && breakResponse.length > 5) {
-    emotionalAnchors.lastRealBreak = breakResponse;
+  const lastBreak = getFirst(
+    responses.dd_last_real_break, responses.rl_last_break,
+    responses.last_break, responses.lastBreak, responses.lastRealBreak
+  );
+  if (lastBreak.length > 5) {
+    emotionalAnchors.lastRealBreak = lastBreak;
   }
   
-  // SACRIFICE
-  const sacrifice = responses.dd_sacrifice_list || responses.sacrifice_list || 
-                    responses.sacrifice || responses.sacrificeList || '';
-  if (sacrifice && sacrifice.length > 10) {
-    emotionalAnchors.sacrifice = sacrifice;
-  }
-  
-  // RELATIONSHIP MIRROR
-  const relationshipMirror = responses.dd_relationship_mirror || responses.relationship_mirror ||
-                             responses.relationshipMirror || '';
-  if (relationshipMirror && relationshipMirror.length > 10) {
+  // RELATIONSHIP MIRROR - How the business relationship feels
+  const relationshipMirror = getFirst(
+    responses.dd_relationship_mirror, responses.relationship_mirror,
+    responses.relationshipMirror
+  );
+  if (relationshipMirror.length > 10) {
     emotionalAnchors.relationshipMirror = relationshipMirror;
   }
   
+  // HIDDEN FROM TEAM - What they don't share
+  const hiddenFromTeam = getFirst(
+    responses.dd_hidden_from_team, responses.hidden_from_team,
+    responses.hiddenFromTeam
+  );
+  if (hiddenFromTeam.length > 10) {
+    emotionalAnchors.hiddenFromTeam = hiddenFromTeam;
+  }
+  
+  // AVOIDED CONVERSATION
+  const avoidedConv = getFirst(
+    responses.dd_avoided_conversation, responses.ht_avoided_conversation,
+    responses.avoided_conversation, responses.avoidedConversation
+  );
+  if (avoidedConv.length > 10 && !/^(nothing|no|none|n\/a)$/i.test(avoidedConv)) {
+    emotionalAnchors.avoidedConversation = avoidedConv;
+  }
+  
+  // MAGIC FIX - What they'd change with a magic wand
+  const magicFix = getFirst(
+    responses.dd_magic_fix, responses.magic_fix, responses.magicFix
+  );
+  if (magicFix.length > 10) {
+    emotionalAnchors.magicFix = magicFix;
+  }
+  
+  // UNLIMITED CHANGE - What they'd change with unlimited resources
+  const unlimitedChange = getFirst(
+    responses.dd_unlimited_change, responses.unlimited_change,
+    responses.unlimitedChange
+  );
+  if (unlimitedChange.length > 10) {
+    emotionalAnchors.unlimitedChange = unlimitedChange;
+    // If magicFix wasn't set, use this as fallback
+    if (!emotionalAnchors.magicFix) {
+      emotionalAnchors.magicFix = unlimitedChange;
+    }
+  }
+  
+  // EMERGENCY LOG - What pulled them away
+  const emergencyLog = getFirst(
+    responses.dd_emergency_log, responses.emergency_log,
+    responses.emergencyLog
+  );
+  if (emergencyLog.length > 10) {
+    emotionalAnchors.emergencyLog = emergencyLog;
+  }
+  
+  // OPERATIONAL FRUSTRATION
+  const opFrustration = getFirst(
+    responses.sd_operational_frustration, responses.operational_frustration,
+    responses.operationalFrustration
+  );
+  if (opFrustration.length > 10) {
+    emotionalAnchors.operationalFrustration = opFrustration;
+  }
+  
+  // EXIT MINDSET
+  const exitMindset = getFirst(
+    responses.dd_exit_mindset, responses.exit_mindset,
+    responses.exitMindset
+  );
+  if (exitMindset.length > 5) {
+    emotionalAnchors.exitMindset = exitMindset;
+  }
+  
+  // CHANGE READINESS
+  const changeReadiness = getFirst(
+    responses.dd_change_readiness, responses.change_readiness,
+    responses.changeReadiness
+  );
+  if (changeReadiness.length > 5) {
+    emotionalAnchors.changeReadiness = changeReadiness;
+  }
+  
+  // FINAL INSIGHT - Anything else they shared
+  const finalInsight = getFirst(
+    responses.dd_final_insight, responses.final_insight,
+    responses.finalInsight
+  );
+  if (finalInsight.length > 10) {
+    emotionalAnchors.finalInsight = finalInsight;
+  }
+  
+  // Log what we extracted
+  const extractedCount = Object.keys(emotionalAnchors).filter(k => emotionalAnchors[k as keyof EmotionalAnchorsObject]).length;
   console.log('[Pass1] 📝 Extracted emotional anchors:', {
+    totalFields: extractedCount,
     hasTuesdayTest: !!emotionalAnchors.tuesdayTest,
     tuesdayTestLength: emotionalAnchors.tuesdayTest?.length || 0,
     hasCoreFrustration: !!emotionalAnchors.coreFrustration,
     hasMagicFix: !!emotionalAnchors.magicFix,
-    hasAvoidedConversation: !!emotionalAnchors.avoidedConversation
+    hasAvoidedConversation: !!emotionalAnchors.avoidedConversation,
+    hasHardTruth: !!emotionalAnchors.hardTruth,
+    hasSacrifice: !!emotionalAnchors.sacrifice,
+    hasFinalInsight: !!emotionalAnchors.finalInsight
   });
   
   // Score services based on patterns
@@ -1978,6 +2130,24 @@ serve(async (req) => {
     }
 
     console.log('[Pass1] Discovery responses loaded:', Object.keys(discoveryResponses).length, 'fields');
+    
+    // ========================================================================
+    // NORMALIZE RESPONSE VALUES - Handle any stringified JSON values
+    // Some responses (especially arrays) may be double-encoded as strings
+    // ========================================================================
+    for (const key of Object.keys(discoveryResponses)) {
+      const val = discoveryResponses[key];
+      if (typeof val === 'string') {
+        // Try to parse if it looks like JSON array or object
+        if ((val.startsWith('[') && val.endsWith(']')) || (val.startsWith('{') && val.endsWith('}'))) {
+          try {
+            discoveryResponses[key] = JSON.parse(val);
+          } catch {
+            // Keep as string if parse fails
+          }
+        }
+      }
+    }
 
     // ========================================================================
     // FETCH FINANCIAL CONTEXT
