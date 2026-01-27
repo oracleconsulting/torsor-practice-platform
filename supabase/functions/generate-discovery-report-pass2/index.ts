@@ -2759,8 +2759,10 @@ Before returning, verify:
     const tokensUsed = llmData.usage?.total_tokens || 0;
     const estimatedCost = (tokensUsed / 1000000) * 3;
 
-    const reportStatus = dataCompleteness.canGenerateClientReport ? 'generated' : 'admin_review';
-    const engagementStatus = dataCompleteness.canGenerateClientReport ? 'pass2_complete' : 'awaiting_admin_review';
+    // Use valid database status values (admin_review is NOT a valid status)
+    // Valid: pending, pass1_processing, pass1_complete, pass2_processing, generated, approved, published
+    const reportStatus = 'generated';  // Always 'generated' after Pass 2 completes
+    const engagementStatus = 'pass2_complete';  // Use ready_for_client flag to indicate review needed
 
     console.log(`[Pass2] Setting status to: ${reportStatus} (data completeness: ${dataCompleteness.score}%)`);
 
