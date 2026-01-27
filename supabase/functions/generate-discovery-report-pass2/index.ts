@@ -2078,6 +2078,13 @@ Before returning, verify:
     }
 
     // ========================================================================
+    // DEBUG: Log what the LLM ACTUALLY returned (before any mapping)
+    // ========================================================================
+    console.log('[Pass2] 📥 RAW LLM OUTPUT - page1_destination:', JSON.stringify(narratives.page1_destination, null, 2)?.substring(0, 500));
+    console.log('[Pass2] 📥 RAW LLM OUTPUT - page2_gaps.gaps count:', narratives.page2_gaps?.gaps?.length || 'NO GAPS ARRAY');
+    console.log('[Pass2] 📥 RAW LLM OUTPUT - page5_nextSteps:', JSON.stringify(narratives.page5_nextSteps, null, 2)?.substring(0, 500));
+
+    // ========================================================================
     // POST-PROCESSING: Fix common LLM output issues
     // ========================================================================
     
