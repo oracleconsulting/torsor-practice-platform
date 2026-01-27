@@ -4524,13 +4524,36 @@ function DiscoveryClientModal({
                         const page4 = dest?.page4_numbers || destinationReport?.page4_numbers;
                         const page5 = dest?.page5_nextSteps || dest?.page5_next_steps || destinationReport?.page5_next_steps;
                         
-                        // DEBUG: Log FULL page objects to see actual field names
-                        console.log('[Client View] FULL page1:', page1);
-                        console.log('[Client View] FULL page2:', page2);
-                        console.log('[Client View] FULL page5:', page5);
-                        console.log('[Client View] Page1 keys:', page1 ? Object.keys(page1) : 'none');
-                        console.log('[Client View] Page2 keys:', page2 ? Object.keys(page2) : 'none');
-                        console.log('[Client View] Page5 keys:', page5 ? Object.keys(page5) : 'none');
+                        // DEBUG: Log what data the frontend actually received
+                        console.log('[Client View] DATA SOURCE CHECK:', {
+                          hasDestinationReport: !!destinationReport,
+                          hasDestReport: !!dest,
+                          // Check both paths for page1
+                          destPage1: dest?.page1_destination ? 'EXISTS' : 'MISSING',
+                          topLevelPage1: destinationReport?.page1_destination ? 'EXISTS' : 'MISSING',
+                          // Check both paths for page2
+                          destPage2: dest?.page2_gaps ? 'EXISTS' : 'MISSING',
+                          topLevelPage2: destinationReport?.page2_gaps ? 'EXISTS' : 'MISSING',
+                          // Final resolved values
+                          finalPage1: page1 ? 'RESOLVED' : 'NULL',
+                          finalPage2: page2 ? 'RESOLVED' : 'NULL',
+                          finalPage5: page5 ? 'RESOLVED' : 'NULL',
+                        });
+                        console.log('[Client View] PAGE 1 CONTENT:', {
+                          visionVerbatim: page1?.visionVerbatim?.substring(0, 100),
+                          clarityScore: page1?.destinationClarityScore,
+                          headerLine: page1?.headerLine
+                        });
+                        console.log('[Client View] PAGE 2 CONTENT:', {
+                          gapsLength: page2?.gaps?.length,
+                          firstGapTitle: page2?.gaps?.[0]?.title,
+                          openingLine: page2?.openingLine?.substring(0, 50)
+                        });
+                        console.log('[Client View] PAGE 5 CONTENT:', {
+                          hasThisWeek: !!page5?.thisWeek,
+                          thisWeekAction: page5?.thisWeek?.action?.substring(0, 50),
+                          hasFirstStep: !!page5?.firstStep
+                        });
                         
                         // If we have destination-focused data, render new structure
                         if (page1 || page2 || page3 || page4 || page5) {
