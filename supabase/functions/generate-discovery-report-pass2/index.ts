@@ -2113,24 +2113,87 @@ Before returning, verify:
     // The LLM output uses different field names than the client components expect
     // ========================================================================
     
-    // PAGE 1: Map visionNarrative → visionVerbatim (client view reads visionVerbatim)
+    // DEBUG: Log what the LLM actually generated for each page
+    console.log('[Pass2] 🔍 LLM output structure:', {
+      page1_keys: narratives.page1_destination ? Object.keys(narratives.page1_destination) : 'MISSING',
+      page2_keys: narratives.page2_gaps ? Object.keys(narratives.page2_gaps) : 'MISSING',
+      page3_keys: narratives.page3_journey ? Object.keys(narratives.page3_journey) : 'MISSING',
+      page5_keys: narratives.page5_nextSteps ? Object.keys(narratives.page5_nextSteps) : 'MISSING',
+    });
+    
+    // PAGE 1: Comprehensive field mapping
     if (narratives.page1_destination) {
-      // If we have visionNarrative but not visionVerbatim, copy it
-      if (narratives.page1_destination.visionNarrative && !narratives.page1_destination.visionVerbatim) {
-        narratives.page1_destination.visionVerbatim = narratives.page1_destination.visionNarrative;
+      const p1 = narratives.page1_destination;
+      
+      // Map ANY vision-related field to visionVerbatim
+      if (!p1.visionVerbatim) {
+        p1.visionVerbatim = p1.visionNarrative || p1.vision || p1.tuesdayVision || 
+                           p1.tuesdayTest || p1.theirVision || p1.clientVision ||
+                           p1.narrative || p1.content || p1.text || null;
       }
-      // Also ensure tuesdayTest is populated from visionVerbatim if missing
-      if (!narratives.page1_destination.tuesdayTest && narratives.page1_destination.visionVerbatim) {
-        narratives.page1_destination.tuesdayTest = narratives.page1_destination.visionVerbatim;
+      
+      // Use emotional anchor as fallback for visionVerbatim
+      if (!p1.visionVerbatim && emotionalAnchors?.tuesdayTest) {
+        p1.visionVerbatim = emotionalAnchors.tuesdayTest;
+        console.log('[Pass2] 📝 Using emotionalAnchors.tuesdayTest as visionVerbatim fallback');
       }
-      // Ensure clarityScore is correct from destination_clarity
-      if (destinationClarity?.score) {
-        narratives.page1_destination.clarityScore = destinationClarity.score;
-        narratives.page1_destination.destinationClarityScore = destinationClarity.score;
+      
+      // Map clarity score from multiple sources
+      if (!p1.destinationClarityScore) {
+        p1.destinationClarityScore = p1.clarityScore || p1.clarity || 
+                                     destinationClarity?.score || 10;
       }
+      p1.clarityScore = p1.destinationClarityScore;
+      
+      // Ensure clarityExplanation exists
+      if (!p1.clarityExplanation && destinationClarity?.reasoning) {
+        p1.clarityExplanation = destinationClarity.reasoning;
+      }
+      
       console.log('[Pass2] ✅ Page 1 field mapping applied:', {
-        hasVisionVerbatim: !!narratives.page1_destination.visionVerbatim,
-        clarityScore: narratives.page1_destination.clarityScore
+        hasVisionVerbatim: !!p1.visionVerbatim,
+        visionSource: p1.visionVerbatim ? 'found' : 'missing',
+        clarityScore: p1.destinationClarityScore
+      });
+    }
+    
+    // PAGE 2: Comprehensive field mapping for gaps
+    if (narratives.page2_gaps) {
+      const p2 = narratives.page2_gaps;
+      
+      // Map ANY gaps array field to gaps
+      if (!p2.gaps || !Array.isArray(p2.gaps) || p2.gaps.length === 0) {
+        p2.gaps = p2.gapsList || p2.gapList || p2.primaryGaps || p2.allGaps || 
+                  p2.issues || p2.problems || p2.challenges || [];
+      }
+      
+      // Ensure gapScore exists
+      if (!p2.gapScore && p2.gaps?.length) {
+        p2.gapScore = Math.min(10, Math.max(1, Math.round(p2.gaps.length * 1.5)));
+      }
+      
+      // Normalize gap fields within the array
+      if (p2.gaps && Array.isArray(p2.gaps)) {
+        for (const gap of p2.gaps) {
+          // Map pattern field
+          if (!gap.pattern) {
+            gap.pattern = gap.evidence || gap.quote || gap.theirWords || gap.verbatim || '';
+          }
+          // Map title field
+          if (!gap.title) {
+            gap.title = gap.name || gap.headline || gap.issue || gap.gap || 'Gap identified';
+          }
+          // Map shiftRequired
+          if (!gap.shiftRequired) {
+            gap.shiftRequired = gap.shift || gap.recommendation || gap.action || gap.fix || '';
+          }
+        }
+      }
+      
+      console.log('[Pass2] ✅ Page 2 field mapping applied:', {
+        hasGaps: !!p2.gaps?.length,
+        gapCount: p2.gaps?.length || 0,
+        gapScore: p2.gapScore
       });
     }
     
@@ -2156,27 +2219,50 @@ Before returning, verify:
       });
     }
     
-    // PAGE 5: Ensure all expected fields are populated
+    // PAGE 5: Comprehensive field mapping for next steps
     if (narratives.page5_nextSteps) {
-      // Ensure thisWeek is properly structured (can be string or object)
-      if (typeof narratives.page5_nextSteps.thisWeek === 'object' && narratives.page5_nextSteps.thisWeek?.action) {
-        // Already correct format
-      } else if (typeof narratives.page5_nextSteps.thisWeek === 'string') {
-        // Convert string to expected format
-        narratives.page5_nextSteps.thisWeek = {
-          action: narratives.page5_nextSteps.thisWeek,
-          tone: ''
-        };
+      const p5 = narratives.page5_nextSteps;
+      
+      // Map thisWeek from various possible fields
+      if (!p5.thisWeek) {
+        // Try various field names
+        const thisWeekSource = p5.thisWeekAction || p5.callThisWeek || p5.weekAction || 
+                               p5.nextStep || p5.immediateAction || null;
+        if (thisWeekSource) {
+          p5.thisWeek = typeof thisWeekSource === 'string' 
+            ? { action: thisWeekSource, tone: '' }
+            : thisWeekSource;
+        } else {
+          // Create default thisWeek
+          p5.thisWeek = {
+            action: '30-minute call to discuss your situation and next steps',
+            tone: "This isn't a sales pitch. It's a conversation about where you are and where you want to be."
+          };
+        }
+      } else if (typeof p5.thisWeek === 'string') {
+        // Convert string to object format
+        p5.thisWeek = { action: p5.thisWeek, tone: '' };
+      }
+      
+      // Map firstStep from various possible fields
+      if (!p5.firstStep) {
+        const firstStepSource = p5.recommendedFirst || p5.startWith || p5.firstRecommendation ||
+                                p5.recommendation || null;
+        if (firstStepSource) {
+          p5.firstStep = typeof firstStepSource === 'string'
+            ? { headline: firstStepSource, recommendation: '', theirWordsEcho: '', simpleCta: '' }
+            : firstStepSource;
+        }
       }
       
       // Map theAsk → closingMessage if closingMessage is empty
-      if (narratives.page5_nextSteps.theAsk && !narratives.page5_nextSteps.closingMessage) {
-        narratives.page5_nextSteps.closingMessage = narratives.page5_nextSteps.theAsk;
+      if (!p5.closingMessage) {
+        p5.closingMessage = p5.theAsk || p5.closing || p5.personalNote || p5.message || '';
       }
       
       // Map closingLine → callToAction if callToAction is empty
-      if (narratives.page5_nextSteps.closingLine && !narratives.page5_nextSteps.callToAction) {
-        narratives.page5_nextSteps.callToAction = narratives.page5_nextSteps.closingLine;
+      if (!p5.callToAction) {
+        p5.callToAction = p5.closingLine || p5.cta || "Let's talk this week.";
       }
       
       // NEW: Apply prebuilt closing phrases if available and better
