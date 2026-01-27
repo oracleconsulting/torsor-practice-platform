@@ -1128,14 +1128,22 @@ USE THESE VERBATIM. THIS IS NOT OPTIONAL.
       
       if (preBuiltPhrases.hiddenAssetsTotal) {
         mandatoryPhrasesSection += `
-💎 HIDDEN ASSETS (MUST include in page4_numbers):
+💎 HIDDEN ASSETS (MUST include in page4_numbers AND explain in realReturn):
 ────────────────────────────────────────────────────────────────────────────
 ► Total: "${preBuiltPhrases.hiddenAssetsTotal}"
 ► Breakdown: "${preBuiltPhrases.hiddenAssetsBreakdown}"
 ► Note: "${preBuiltPhrases.hiddenAssetsNote || 'These assets sit OUTSIDE the earnings-based valuation'}"
 
-⛔ YOU MUST include hiddenAssets object in page4_numbers with total: "${preBuiltPhrases.hiddenAssetsTotal}"
-⛔ Mention in narrative: "Plus ${preBuiltPhrases.hiddenAssetsTotal} in hidden assets that sit outside the earnings valuation"
+⛔ YOU MUST include hiddenAssets object in page4_numbers:
+   { "total": "${preBuiltPhrases.hiddenAssetsTotal}", "breakdown": "${preBuiltPhrases.hiddenAssetsBreakdown}" }
+
+⛔ CRITICAL: In "realReturn" field, you MUST explain hidden assets with this detail:
+   "The business could be worth [valuation range]. Plus ${preBuiltPhrases.hiddenAssetsTotal} in hidden assets 
+   sitting outside the earnings valuation - ${preBuiltPhrases.hiddenAssetsBreakdown}. 
+   This is cash/property a buyer pays for SEPARATELY, on top of the earnings multiple. 
+   But the real return? [Their emotional goal - walking away on their terms, etc.]"
+
+⛔ DO NOT just say "hidden assets" without explaining what they are and why they matter.
 
 `;
       }
@@ -1963,7 +1971,7 @@ Return a JSON object with this exact structure:
       }
     },
     "paybackPeriod": "X-Y months",
-    "realReturn": "Their specific goal in their words - the emotional return"
+    "realReturn": "REQUIRED FORMAT: 'The business could be worth [valuation]. Plus [hidden assets total] in hidden assets sitting outside the earnings valuation - [breakdown, e.g. excess cash on the balance sheet]. This is value a buyer pays for SEPARATELY. But the real return? [Their emotional goal in their words].'"
   },
   
   "page5_nextSteps": {

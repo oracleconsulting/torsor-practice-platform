@@ -1466,6 +1466,17 @@ interface ServiceScore {
   priority: number;
 }
 
+interface EmotionalAnchorsObject {
+  tuesdayTest?: string;
+  coreFrustration?: string;
+  avoidedConversation?: string;
+  magicFix?: string;
+  lastRealBreak?: string;
+  sacrifice?: string;
+  fiveYearVision?: string;
+  relationshipMirror?: string;
+}
+
 interface ScoringResult {
   scores: Record<string, ServiceScore>;
   recommendations: { code: string; name: string; score: number; recommended: boolean }[];
@@ -1475,12 +1486,12 @@ interface ScoringResult {
     isInCrisis: boolean;
     urgencyMultiplier: number;
   };
-  emotionalAnchors: string[];
+  emotionalAnchors: EmotionalAnchorsObject;
 }
 
 function scoreServicesFromDiscovery(responses: Record<string, any>): ScoringResult {
   const scores: Record<string, ServiceScore> = {};
-  const emotionalAnchors: string[] = [];
+  const emotionalAnchors: EmotionalAnchorsObject = {};
   
   // Initialize all services
   const services = [
@@ -1505,31 +1516,72 @@ function scoreServicesFromDiscovery(responses: Record<string, any>): ScoringResu
   const isGrowthFocused = /grow|scale|expand|hire|revenue target/i.test(allText) && !isExitFocused;
   const isInCrisis = /crisis|urgent|emergency|critical|failing|cashflow problem/i.test(allText);
   
-  // Extract emotional anchors (ENHANCED)
-  const vision = responses.dd_five_year_picture || responses.dd_five_year_vision || '';
-  if (vision.length > 50) {
-    // Look for quotable phrases
-    const sentences = vision.split(/[.!?]+/).filter((s: string) => s.trim().length > 10);
-    if (sentences.length > 0) {
-      emotionalAnchors.push(sentences[0].trim());
-    }
+  // Extract emotional anchors as OBJECT (for Pass 2 to access by key)
+  
+  // TUESDAY TEST - Check ALL possible field names for the vision question
+  const tuesdayTest = responses.dd_tuesday_test || responses.tuesday_test || 
+                      responses.dd_five_year_picture || responses.dd_five_year_vision ||
+                      responses.tuesdayTest || responses.five_year_vision || '';
+  if (tuesdayTest && tuesdayTest.length > 20) {
+    emotionalAnchors.tuesdayTest = tuesdayTest;
   }
   
-  // "Never had a break" - POWERFUL anchor
-  const breakResponse = responses.rl_last_break || responses.dd_last_real_break || '';
-  if (/never|not once|haven't|can't remember/i.test(breakResponse)) {
-    emotionalAnchors.push("You've never had a proper break. Not once.");
+  // FIVE YEAR VISION (may be separate from Tuesday test)
+  const fiveYearVision = responses.dd_five_year_vision || responses.five_year_vision || 
+                         responses.fiveYearVision || tuesdayTest;
+  if (fiveYearVision && fiveYearVision.length > 20) {
+    emotionalAnchors.fiveYearVision = fiveYearVision;
   }
   
-  const avoidedConv = responses.ht_avoided_conversation || responses.dd_avoided_conversation || '';
-  if (avoidedConv.length > 10 && !/nothing|no|none/i.test(avoidedConv)) {
-    emotionalAnchors.push(`The avoided conversation: "${avoidedConv}"`);
+  // CORE FRUSTRATION
+  const frustration = responses.rl_core_frustration || responses.dd_core_frustration || 
+                      responses.core_frustration || responses.coreFrustration || '';
+  if (frustration && frustration.length > 10) {
+    emotionalAnchors.coreFrustration = frustration;
   }
   
-  const frustration = responses.rl_core_frustration || responses.dd_core_frustration || '';
-  if (frustration.length > 10) {
-    emotionalAnchors.push(`Core frustration: "${frustration}"`);
+  // AVOIDED CONVERSATION
+  const avoidedConv = responses.ht_avoided_conversation || responses.dd_avoided_conversation || 
+                      responses.avoided_conversation || responses.avoidedConversation || '';
+  if (avoidedConv && avoidedConv.length > 10 && !/nothing|no|none/i.test(avoidedConv)) {
+    emotionalAnchors.avoidedConversation = avoidedConv;
   }
+  
+  // MAGIC FIX
+  const magicFix = responses.dd_magic_fix || responses.magic_fix || responses.magicFix ||
+                   responses.dd_unlimited_change || responses.unlimited_change || '';
+  if (magicFix && magicFix.length > 10) {
+    emotionalAnchors.magicFix = magicFix;
+  }
+  
+  // LAST REAL BREAK
+  const breakResponse = responses.rl_last_break || responses.dd_last_real_break || 
+                        responses.last_break || responses.lastBreak || '';
+  if (breakResponse && breakResponse.length > 5) {
+    emotionalAnchors.lastRealBreak = breakResponse;
+  }
+  
+  // SACRIFICE
+  const sacrifice = responses.dd_sacrifice_list || responses.sacrifice_list || 
+                    responses.sacrifice || responses.sacrificeList || '';
+  if (sacrifice && sacrifice.length > 10) {
+    emotionalAnchors.sacrifice = sacrifice;
+  }
+  
+  // RELATIONSHIP MIRROR
+  const relationshipMirror = responses.dd_relationship_mirror || responses.relationship_mirror ||
+                             responses.relationshipMirror || '';
+  if (relationshipMirror && relationshipMirror.length > 10) {
+    emotionalAnchors.relationshipMirror = relationshipMirror;
+  }
+  
+  console.log('[Pass1] 📝 Extracted emotional anchors:', {
+    hasTuesdayTest: !!emotionalAnchors.tuesdayTest,
+    tuesdayTestLength: emotionalAnchors.tuesdayTest?.length || 0,
+    hasCoreFrustration: !!emotionalAnchors.coreFrustration,
+    hasMagicFix: !!emotionalAnchors.magicFix,
+    hasAvoidedConversation: !!emotionalAnchors.avoidedConversation
+  });
   
   // Score services based on patterns
   if (isExitFocused) {
