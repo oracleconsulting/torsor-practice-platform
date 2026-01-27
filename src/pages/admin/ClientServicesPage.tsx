@@ -4936,7 +4936,112 @@ function DiscoveryClientModal({
                                               </div>
                                             </div>
                                           )}
+                                          
+                                          {/* Exit Readiness */}
+                                          {destinationReport?.comprehensive_analysis?.exitReadiness?.score && (
+                                            <div className="flex items-start gap-3">
+                                              <span className="text-lg">🚪</span>
+                                              <div>
+                                                <p className="text-xs text-orange-600 font-medium">Exit Readiness</p>
+                                                <p className="text-lg font-bold text-orange-900">
+                                                  {Math.round((destinationReport.comprehensive_analysis.exitReadiness.score / 
+                                                    destinationReport.comprehensive_analysis.exitReadiness.maxScore) * 100)}%
+                                                </p>
+                                                <p className="text-xs text-orange-700 mt-1">
+                                                  {destinationReport.comprehensive_analysis.exitReadiness.readiness === 'ready' ? 'Ready to sell' :
+                                                   destinationReport.comprehensive_analysis.exitReadiness.readiness === 'nearly' ? 'Nearly ready' : 'Work needed'}
+                                                </p>
+                                              </div>
+                                            </div>
+                                          )}
+                                          
+                                          {/* Payroll Excess */}
+                                          {destinationReport?.comprehensive_analysis?.payroll?.annualExcess > 10000 && (
+                                            <div className="flex items-start gap-3">
+                                              <span className="text-lg">👥</span>
+                                              <div>
+                                                <p className="text-xs text-rose-600 font-medium">Payroll Excess</p>
+                                                <p className="text-lg font-bold text-rose-900">
+                                                  £{Math.round(destinationReport.comprehensive_analysis.payroll.annualExcess / 1000)}k/year
+                                                </p>
+                                                <p className="text-xs text-rose-700 mt-1">
+                                                  {destinationReport.comprehensive_analysis.payroll.payrollPct?.toFixed(1)}% vs {destinationReport.comprehensive_analysis.payroll.benchmarkPct?.toFixed(1)}% benchmark
+                                                </p>
+                                              </div>
+                                            </div>
+                                          )}
+                                          
+                                          {/* Revenue Trajectory */}
+                                          {destinationReport?.comprehensive_analysis?.trajectory?.hasData && (
+                                            <div className="flex items-start gap-3">
+                                              <span className="text-lg">
+                                                {destinationReport.comprehensive_analysis.trajectory.trend === 'growing' ? '📈' :
+                                                 destinationReport.comprehensive_analysis.trajectory.trend === 'stable' ? '➡️' : '📉'}
+                                              </span>
+                                              <div>
+                                                <p className="text-xs text-indigo-600 font-medium">Revenue Trend</p>
+                                                <p className="text-lg font-bold text-indigo-900">
+                                                  {destinationReport.comprehensive_analysis.trajectory.trend?.charAt(0).toUpperCase() + 
+                                                   destinationReport.comprehensive_analysis.trajectory.trend?.slice(1)}
+                                                </p>
+                                                {destinationReport.comprehensive_analysis.trajectory.changePercent && (
+                                                  <p className="text-xs text-indigo-700 mt-1">
+                                                    {destinationReport.comprehensive_analysis.trajectory.changePercent > 0 ? '+' : ''}
+                                                    {destinationReport.comprehensive_analysis.trajectory.changePercent.toFixed(1)}% YoY
+                                                  </p>
+                                                )}
+                                              </div>
+                                            </div>
+                                          )}
+                                          
+                                          {/* Productivity - Revenue per Head */}
+                                          {destinationReport?.comprehensive_analysis?.productivity?.hasData && (
+                                            <div className="flex items-start gap-3">
+                                              <span className="text-lg">⚡</span>
+                                              <div>
+                                                <p className="text-xs text-cyan-600 font-medium">Revenue per Head</p>
+                                                <p className="text-lg font-bold text-cyan-900">
+                                                  £{Math.round(destinationReport.comprehensive_analysis.productivity.revenuePerHead / 1000)}k
+                                                </p>
+                                                {destinationReport.comprehensive_analysis.productivity.benchmarkRPH && (
+                                                  <p className="text-xs text-cyan-700 mt-1">
+                                                    vs £{Math.round(destinationReport.comprehensive_analysis.productivity.benchmarkRPH / 1000)}k benchmark
+                                                  </p>
+                                                )}
+                                              </div>
+                                            </div>
+                                          )}
+                                          
+                                          {/* Cost of Inaction */}
+                                          {destinationReport?.comprehensive_analysis?.costOfInaction?.totalOverHorizon > 50000 && (
+                                            <div className="flex items-start gap-3">
+                                              <span className="text-lg">⏱️</span>
+                                              <div>
+                                                <p className="text-xs text-red-600 font-medium">Cost of Delay</p>
+                                                <p className="text-lg font-bold text-red-900">
+                                                  £{Math.round(destinationReport.comprehensive_analysis.costOfInaction.totalOverHorizon / 1000)}k+
+                                                </p>
+                                                <p className="text-xs text-red-700 mt-1">
+                                                  Over {destinationReport.comprehensive_analysis.costOfInaction.timeHorizon || 2} years
+                                                </p>
+                                              </div>
+                                            </div>
+                                          )}
                                         </div>
+                                        
+                                        {/* Data Quality Indicator */}
+                                        {destinationReport?.comprehensive_analysis?.dataQuality && (
+                                          <div className="mt-3 pt-3 border-t border-blue-100 flex items-center gap-2 text-xs text-gray-500">
+                                            <span className={`w-2 h-2 rounded-full ${
+                                              destinationReport.comprehensive_analysis.dataQuality === 'comprehensive' ? 'bg-green-500' :
+                                              destinationReport.comprehensive_analysis.dataQuality === 'partial' ? 'bg-yellow-500' : 'bg-red-500'
+                                            }`}></span>
+                                            Data quality: {destinationReport.comprehensive_analysis.dataQuality}
+                                            {destinationReport.comprehensive_analysis.availableMetrics?.length > 0 && (
+                                              <span className="ml-1">• {destinationReport.comprehensive_analysis.availableMetrics.length} dimensions</span>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
                                     )}
                                     
