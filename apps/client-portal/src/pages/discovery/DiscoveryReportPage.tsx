@@ -576,35 +576,150 @@ export default function DiscoveryReportPage() {
                 </h2>
               </div>
 
-              {/* Business Value Insights */}
-              {(page4.indicativeValuation || page4.hasIndicativeValuation) && (
+              {/* Business Value Insights - Full 8 Metrics */}
+              {(() => {
+                // Get comprehensive analysis from newReport (Pass 1/2 format)
+                const ca = newReport?.comprehensive_analysis;
+                
+                // Check if we have any metrics to show
+                const hasMetrics = page4.indicativeValuation || page4.hasIndicativeValuation ||
+                  ca?.valuation?.hasData || ca?.hiddenAssets?.hasData || ca?.grossMargin?.hasData ||
+                  ca?.exitReadiness?.score || ca?.payroll?.annualExcess || ca?.trajectory?.hasData ||
+                  ca?.productivity?.hasData || ca?.costOfInaction?.totalOverHorizon;
+                
+                if (!hasMetrics) return null;
+                
+                // Build metrics array
+                const metrics: { icon: string; label: string; value: string; subtext?: string; color: string }[] = [];
+                
+                // 1. Indicative Valuation
+                if (page4.indicativeValuation) {
+                  metrics.push({
+                    icon: '💰', label: 'Indicative Value', value: page4.indicativeValuation,
+                    subtext: 'Enterprise value range', color: 'emerald'
+                  });
+                } else if (ca?.valuation?.enterpriseValueLow && ca?.valuation?.enterpriseValueHigh) {
+                  metrics.push({
+                    icon: '💰', label: 'Indicative Value',
+                    value: `£${(ca.valuation.enterpriseValueLow / 1000000).toFixed(1)}M - £${(ca.valuation.enterpriseValueHigh / 1000000).toFixed(1)}M`,
+                    subtext: 'Enterprise value range', color: 'emerald'
+                  });
+                }
+                
+                // 2. Hidden Assets
+                if (page4.hiddenAssetsTotal || page4.hiddenAssets?.total) {
+                  metrics.push({
+                    icon: '💎', label: 'Hidden Assets',
+                    value: page4.hiddenAssetsTotal || page4.hiddenAssets?.total,
+                    subtext: page4.hiddenAssets?.breakdown || 'Outside earnings valuation', color: 'purple'
+                  });
+                } else if (ca?.hiddenAssets?.totalHiddenAssets > 50000) {
+                  metrics.push({
+                    icon: '💎', label: 'Hidden Assets',
+                    value: `£${Math.round(ca.hiddenAssets.totalHiddenAssets / 1000)}k`,
+                    subtext: ca.hiddenAssets.excessCash ? 'Excess cash' : 'Outside earnings valuation', color: 'purple'
+                  });
+                }
+                
+                // 3. Gross Margin
+                if (page4.grossMarginStrength) {
+                  metrics.push({
+                    icon: '📈', label: 'Gross Margin', value: page4.grossMarginStrength,
+                    subtext: ca?.grossMargin?.assessment ? `${ca.grossMargin.assessment} for industry` : undefined, color: 'blue'
+                  });
+                } else if (ca?.grossMargin?.grossMarginPct) {
+                  metrics.push({
+                    icon: '📈', label: 'Gross Margin', value: `${ca.grossMargin.grossMarginPct.toFixed(1)}%`,
+                    subtext: `${ca.grossMargin.assessment || 'Good'} for industry`, color: 'blue'
+                  });
+                }
+                
+                // 4. Exit Readiness
+                if (ca?.exitReadiness?.score) {
+                  const pct = Math.round((ca.exitReadiness.score / ca.exitReadiness.maxScore) * 100);
+                  metrics.push({
+                    icon: '🚪', label: 'Exit Readiness', value: `${pct}%`,
+                    subtext: ca.exitReadiness.readiness === 'ready' ? 'Ready to sell' :
+                             ca.exitReadiness.readiness === 'nearly' ? 'Nearly ready' : 'Work needed', color: 'orange'
+                  });
+                }
+                
+                // 5. Payroll Efficiency
+                if (ca?.payroll?.annualExcess && ca.payroll.annualExcess > 10000) {
+                  metrics.push({
+                    icon: '👥', label: 'Payroll Excess',
+                    value: `£${Math.round(ca.payroll.annualExcess / 1000)}k/year`,
+                    subtext: `${ca.payroll.payrollPct?.toFixed(1)}% vs ${ca.payroll.benchmarkPct?.toFixed(1)}% benchmark`, color: 'rose'
+                  });
+                }
+                
+                // 6. Revenue Trajectory
+                if (ca?.trajectory?.hasData && ca.trajectory.trend) {
+                  const trendEmoji = ca.trajectory.trend === 'growing' ? '📈' : 
+                                     ca.trajectory.trend === 'stable' ? '➡️' : '📉';
+                  metrics.push({
+                    icon: trendEmoji, label: 'Revenue Trend',
+                    value: ca.trajectory.trend.charAt(0).toUpperCase() + ca.trajectory.trend.slice(1),
+                    subtext: ca.trajectory.changePercent ? `${ca.trajectory.changePercent > 0 ? '+' : ''}${ca.trajectory.changePercent.toFixed(1)}% YoY` : undefined,
+                    color: ca.trajectory.trend === 'growing' ? 'green' : ca.trajectory.trend === 'stable' ? 'slate' : 'amber'
+                  });
+                }
+                
+                // 7. Productivity
+                if (ca?.productivity?.hasData && ca.productivity.revenuePerHead) {
+                  const gap = ca.productivity.benchmarkRPH ? 
+                    Math.round(((ca.productivity.benchmarkRPH - ca.productivity.revenuePerHead) / ca.productivity.benchmarkRPH) * 100) : null;
+                  metrics.push({
+                    icon: '⚡', label: 'Revenue per Head',
+                    value: `£${Math.round(ca.productivity.revenuePerHead / 1000)}k`,
+                    subtext: gap && gap > 5 ? `${gap}% below benchmark` : 'At or above benchmark', color: 'indigo'
+                  });
+                }
+                
+                // 8. Cost of Inaction
+                if (ca?.costOfInaction?.totalOverHorizon && ca.costOfInaction.totalOverHorizon > 50000) {
+                  metrics.push({
+                    icon: '⏱️', label: 'Cost of Delay',
+                    value: `£${Math.round(ca.costOfInaction.totalOverHorizon / 1000)}k+`,
+                    subtext: `Over ${ca.costOfInaction.timeHorizon || 2} years`, color: 'red'
+                  });
+                }
+                
+                if (metrics.length === 0) return null;
+                
+                return (
                 <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-6 mb-6 border border-emerald-200">
                   <h3 className="text-lg font-medium text-emerald-800 mb-4 flex items-center gap-2">
                     <Sparkles className="h-5 w-5" />
                     💎 Business Value Insights
+                    <span className="text-sm font-normal text-emerald-600 ml-2">({metrics.length} metrics)</span>
                   </h3>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {page4.indicativeValuation && (
-                      <div className="bg-white/60 rounded-lg p-4">
-                        <p className="text-sm text-emerald-600 mb-1">💰 Indicative Business Value</p>
-                        <p className="text-2xl font-bold text-emerald-800">{page4.indicativeValuation}</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {metrics.map((m, idx) => (
+                      <div key={idx} className="bg-white/60 rounded-lg p-4">
+                        <p className={`text-sm text-${m.color}-600 mb-1`}>{m.icon} {m.label}</p>
+                        <p className={`text-xl font-bold text-${m.color}-800`}>{m.value}</p>
+                        {m.subtext && <p className="text-xs text-gray-500 mt-1">{m.subtext}</p>}
                       </div>
-                    )}
-                    {page4.hiddenAssetsTotal && (
-                      <div className="bg-white/60 rounded-lg p-4">
-                        <p className="text-sm text-emerald-600 mb-1">💎 Hidden Assets</p>
-                        <p className="text-2xl font-bold text-emerald-800">{page4.hiddenAssetsTotal}</p>
-                      </div>
-                    )}
-                    {page4.grossMarginStrength && (
-                      <div className="bg-white/60 rounded-lg p-4 md:col-span-2">
-                        <p className="text-sm text-emerald-600 mb-1">✅ Margin Strength</p>
-                        <p className="text-lg font-medium text-emerald-800">{page4.grossMarginStrength}</p>
-                      </div>
-                    )}
+                    ))}
                   </div>
+                  
+                  {/* Data Quality Indicator */}
+                  {ca?.dataQuality && (
+                    <div className="mt-4 pt-3 border-t border-emerald-200 flex items-center gap-2 text-xs text-gray-500">
+                      <span className={`w-2 h-2 rounded-full ${
+                        ca.dataQuality === 'comprehensive' ? 'bg-green-500' :
+                        ca.dataQuality === 'partial' ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}></span>
+                      Data quality: {ca.dataQuality}
+                      {ca.availableMetrics?.length > 0 && (
+                        <span className="ml-1">• {ca.availableMetrics.length} dimensions analyzed</span>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
+                );
+              })()}
 
               {/* Cost of Staying */}
               {page4.costOfStaying && (
