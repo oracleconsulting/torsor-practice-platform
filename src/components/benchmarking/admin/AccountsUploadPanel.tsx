@@ -325,8 +325,8 @@ export const AccountsUploadPanel: React.FC<AccountsUploadPanelProps> = ({
           
           <div className="space-y-3">
             {existingUploads.map(upload => (
+              <div key={upload.id} className="space-y-1">
               <div 
-                key={upload.id}
                 className="flex items-center justify-between p-3 bg-slate-50 rounded-lg"
               >
                 <div className="flex items-center gap-3">
@@ -351,7 +351,7 @@ export const AccountsUploadPanel: React.FC<AccountsUploadPanelProps> = ({
                 <div className="flex items-center gap-3">
                   {getStatusBadge(upload.status)}
                   
-                  {upload.status === 'failed' && (
+                  {(upload.status === 'failed' || upload.status === 'processing') && (
                     <button
                       onClick={() => retryProcessing(upload.id)}
                       className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded"
@@ -369,6 +369,14 @@ export const AccountsUploadPanel: React.FC<AccountsUploadPanelProps> = ({
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
+              </div>
+              
+              {/* Show error message if failed */}
+              {upload.status === 'failed' && upload.error_message && (
+                <div className="ml-11 mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                  <strong>Error:</strong> {upload.error_message}
+                </div>
+              )}
               </div>
             ))}
           </div>
