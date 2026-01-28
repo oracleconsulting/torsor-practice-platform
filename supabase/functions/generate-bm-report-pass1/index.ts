@@ -969,6 +969,18 @@ function formatQuotesForPrompt(quotes: any[]): string {
  * Enrich benchmark data by calculating derived metrics from available raw data
  * Priority: Uploaded Accounts > Supplementary Data > Assessment Data
  */
+// Helper to parse money strings like "£63,000,000" or "63000000"
+function parseMoneyString(value: any): number | null {
+  if (!value) return null;
+  if (typeof value === 'number') return value;
+  if (typeof value !== 'string') return null;
+  
+  // Remove currency symbols, commas, spaces
+  const cleaned = value.replace(/[£$€,\s]/g, '');
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? null : num;
+}
+
 function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancialData?: any[]): any {
   const enriched = { ...assessmentData };
   const derivedFields: string[] = [];
@@ -1052,20 +1064,35 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
   // ==========================================================================
   
   // Extract revenue from multiple possible field names (only if not from accounts)
+  // Note: Assessment fields may use spaces OR underscores depending on source
   const revenue = enriched._enriched_revenue || 
-    parseFloat(assessmentData.responses?.bm_revenue_exact) ||
+    parseMoneyString(assessmentData.responses?.['bm revenue exact']) ||
+    parseMoneyString(assessmentData.responses?.['bm_revenue_exact']) ||
+    parseMoneyString(assessmentData.responses?.bm_revenue_exact) ||
     parseFloat(assessmentData.responses?.revenue) ||
     parseFloat(assessmentData.responses?.annual_revenue) ||
     parseFloat(assessmentData.responses?.turnover) ||
     assessmentData.revenue;
   
+  if (revenue && !enriched._enriched_revenue) {
+    enriched._enriched_revenue = revenue;
+    console.log(`[BM Enrich] Found revenue from assessment: £${revenue.toLocaleString()}`);
+  }
+  
   // Extract employee count from multiple possible field names (only if not from accounts)
   const employeeCount = enriched._enriched_employee_count ||
+    parseFloat(assessmentData.responses?.['bm employee count']) ||
+    parseFloat(assessmentData.responses?.['bm_employee_count']) ||
     parseFloat(assessmentData.responses?.bm_employee_count) ||
     parseFloat(assessmentData.responses?.employee_count) ||
     parseFloat(assessmentData.responses?.headcount) ||
     parseFloat(assessmentData.responses?.team_size) ||
     assessmentData.employee_count;
+  
+  if (employeeCount && !enriched._enriched_employee_count) {
+    enriched._enriched_employee_count = employeeCount;
+    console.log(`[BM Enrich] Found employee count from assessment: ${employeeCount}`);
+  }
   
   // Calculate Revenue per Employee
   if (revenue && employeeCount && !enriched.revenue_per_employee) {
@@ -1767,24 +1794,45 @@ serve(async (req) => {
       .eq('assessment_type', 'part3')
       .maybeSingle();
     
-    // Get uploaded financial data if available (confirmed accounts take precedence)
+    // Get uploaded financial data if available
+    // Priority: confirmed > extracted with high confidence > any extracted
     let uploadedFinancialData = null;
     try {
-      const { data: financialData, error: finError } = await supabaseClient
+      // First try confirmed data
+      const { data: confirmedData } = await supabaseClient
         .from('client_financial_data')
         .select('*')
         .eq('client_id', engagement.client_id)
-        .not('confirmed_at', 'is', null)  // Only use confirmed data
+        .not('confirmed_at', 'is', null)
         .order('fiscal_year', { ascending: false })
         .limit(3);
       
-      if (!finError && financialData && financialData.length > 0) {
-        uploadedFinancialData = financialData;
-        console.log('[BM Pass 1] Found uploaded accounts data:', {
-          years: financialData.map(f => f.fiscal_year),
-          latestRevenue: financialData[0].revenue,
-          dataSource: 'uploaded_accounts'
+      if (confirmedData && confirmedData.length > 0) {
+        uploadedFinancialData = confirmedData;
+        console.log('[BM Pass 1] Found CONFIRMED accounts data:', {
+          years: confirmedData.map(f => f.fiscal_year),
+          latestRevenue: confirmedData[0].revenue,
+          dataSource: 'confirmed_accounts'
         });
+      } else {
+        // Fall back to unconfirmed but high-confidence extracted data
+        const { data: extractedData } = await supabaseClient
+          .from('client_financial_data')
+          .select('*')
+          .eq('client_id', engagement.client_id)
+          .gte('confidence_score', 0.7)  // At least 70% confidence
+          .order('fiscal_year', { ascending: false })
+          .limit(3);
+        
+        if (extractedData && extractedData.length > 0) {
+          uploadedFinancialData = extractedData;
+          console.log('[BM Pass 1] Found EXTRACTED accounts data (unconfirmed, high confidence):', {
+            years: extractedData.map(f => f.fiscal_year),
+            latestRevenue: extractedData[0].revenue,
+            confidence: extractedData[0].confidence_score,
+            dataSource: 'extracted_accounts'
+          });
+        }
       }
     } catch (finErr) {
       console.log('[BM Pass 1] No uploaded accounts data (table may not exist yet)');
