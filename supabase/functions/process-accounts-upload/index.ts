@@ -281,7 +281,7 @@ async function extractFromPDFWithVision(
   console.log('[PDF Extract] Using pure text extraction (no external libraries)...');
   
   // Extract text using our custom methods that work in Deno
-  const extractedText = await extractTextFromPDFAdvanced(buffer);
+  const extractedText = extractTextFromPDFAdvanced(buffer);
   
   console.log(`[PDF Extract] Extracted ${extractedText?.length || 0} characters`);
   
@@ -290,120 +290,88 @@ async function extractFromPDFWithVision(
   }
   
   // Check if we got meaningful text
-  if (extractedText && extractedText.length > 100) {
-    // Check for financial terms to ensure it's not garbage
-    const hasFinancialTerms = /revenue|turnover|profit|loss|assets|debtors|creditors|£|\d{3},?\d{3}/i.test(extractedText);
-    
-    if (hasFinancialTerms || extractedText.length > 500) {
-      console.log('[PDF Extract] Sending extracted text to Claude for analysis...');
-      return await extractFinancialDataFromText(extractedText, hintYear, apiKey);
-    }
+  const hasFinancialTerms = extractedText && 
+    /revenue|turnover|profit|loss|assets|debtors|creditors|£|\d{3},?\d{3}/i.test(extractedText);
+  
+  console.log(`[PDF Extract] Text analysis: ${extractedText?.length || 0} chars, financial terms: ${hasFinancialTerms}`);
+  
+  if (extractedText && extractedText.length > 100 && hasFinancialTerms) {
+    console.log('[PDF Extract] Sending extracted text to Claude for analysis...');
+    console.log('[PDF Extract] Text preview:', extractedText.substring(0, 300));
+    return await extractFinancialDataFromText(extractedText, hintYear, apiKey);
   }
   
   // If text extraction failed, provide helpful error
-  console.log('[PDF Extract] Insufficient text extracted from PDF');
+  console.log('[PDF Extract] Insufficient readable text extracted from PDF');
+  console.log('[PDF Extract] Raw preview (first 200 chars):', extractedText?.substring(0, 200) || 'empty');
+  
   throw new Error(
-    'Unable to extract readable text from this PDF. The file may be scanned, image-based, or use complex encoding. ' +
-    'Please try: 1) Export your accounts as CSV or Excel instead, or 2) Enter the financial data manually using the review screen.'
+    'Unable to extract financial data from this PDF. Companies House PDFs often use complex encoding that cannot be parsed directly. ' +
+    'Please try one of these alternatives:\n' +
+    '1. Download your accounts as CSV from your accounting software (Xero, QuickBooks, etc.)\n' +
+    '2. Copy the key figures (revenue, costs, profit) into a simple spreadsheet and upload as CSV\n' +
+    '3. Use the Review screen to manually enter the financial data'
   );
 }
 
-// Advanced PDF text extraction - handles more PDF structures
-// Works in Deno edge functions without Node.js dependencies
-async function extractTextFromPDFAdvanced(bytes: Uint8Array): Promise<string> {
+// PDF text extraction for Deno edge functions
+// Note: Most PDFs from Companies House use encoding that can't be easily extracted
+// This function attempts basic extraction but may fail for complex PDFs
+function extractTextFromPDFAdvanced(bytes: Uint8Array): string {
   const decoder = new TextDecoder('latin1');
   const content = decoder.decode(bytes);
   
   const extractedParts: string[] = [];
   
-  console.log('[PDF Text] Scanning PDF structure...');
+  console.log('[PDF Text] Scanning PDF structure (simplified extraction)...');
   
-  // Method 1: Try to decompress FlateDecode streams (most common PDF compression)
-  const streamRegex = /\/FlateDecode[\s\S]*?stream\r?\n([\s\S]*?)\r?\nendstream/g;
-  let match;
-  let decompressedCount = 0;
-  
-  while ((match = streamRegex.exec(content)) !== null) {
-    try {
-      // Get raw bytes for this stream
-      const streamStart = match.index + match[0].indexOf('stream') + 7; // skip "stream\n"
-      const streamEnd = match.index + match[0].lastIndexOf('endstream') - 1;
-      const streamBytes = bytes.slice(streamStart, streamEnd);
-      
-      // Try to decompress using DecompressionStream (available in Deno)
-      const ds = new DecompressionStream('deflate-raw');
-      const writer = ds.writable.getWriter();
-      writer.write(streamBytes);
-      writer.close();
-      
-      const reader = ds.readable.getReader();
-      const chunks: Uint8Array[] = [];
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-      }
-      
-      // Combine and decode
-      const decompressed = new Uint8Array(chunks.reduce((acc, c) => acc + c.length, 0));
-      let offset = 0;
-      for (const chunk of chunks) {
-        decompressed.set(chunk, offset);
-        offset += chunk.length;
-      }
-      
-      const text = new TextDecoder('latin1').decode(decompressed);
-      
-      // Extract text from decompressed content
-      const textOps = text.match(/\((.*?)\)\s*Tj/g);
-      if (textOps) {
-        for (const op of textOps) {
-          const t = op.replace(/\((.*?)\)\s*Tj/, '$1');
-          if (t.length > 1) extractedParts.push(t);
-        }
-        decompressedCount++;
-      }
-      
-      // Also look for TJ arrays
-      const tjOps = text.match(/\[(.*?)\]\s*TJ/g);
-      if (tjOps) {
-        for (const op of tjOps) {
-          const strings = op.match(/\(([^)]*)\)/g);
-          if (strings) {
-            const combined = strings.map(s => s.slice(1, -1)).join('');
-            if (combined.length > 1) extractedParts.push(combined);
-          }
-        }
-      }
-    } catch {
-      // Decompression failed - stream may not be deflate or is corrupted
-    }
-  }
-  
-  console.log(`[PDF Text] Decompressed ${decompressedCount} streams`);
-  
-  // Method 2: Extract text objects directly (Tj operator)
+  // Method 1: Extract text objects directly (Tj operator) - uncompressed only
   const textMatches = content.match(/\((.*?)\)\s*Tj/g);
   if (textMatches) {
     for (const m of textMatches) {
       const text = m.replace(/\((.*?)\)\s*Tj/, '$1');
-      if (text.length > 1) extractedParts.push(text);
+      // Only keep readable ASCII text
+      if (text.length > 1 && /^[\x20-\x7E]+$/.test(text)) {
+        extractedParts.push(text);
+      }
     }
   }
   
-  // Method 3: Extract TJ arrays (multiple text strings)
+  // Method 2: Extract TJ arrays (multiple text strings)
   const tjArrays = content.match(/\[(.*?)\]\s*TJ/g);
   if (tjArrays) {
     for (const arr of tjArrays) {
       const strings = arr.match(/\((.*?)\)/g);
       if (strings) {
         const combined = strings.map(s => s.slice(1, -1)).join('');
-        if (combined.length > 1) extractedParts.push(combined);
+        if (combined.length > 1 && /^[\x20-\x7E]+$/.test(combined)) {
+          extractedParts.push(combined);
+        }
       }
     }
   }
   
-  // Method 4: Extract literal strings (useful for metadata and simple text)
+  // Method 3: Look for financial keywords in plain text regions
+  // Search for patterns that look like financial data
+  const financialPatterns = [
+    /(?:turnover|revenue|sales)[\s:£]*[\d,]+/gi,
+    /(?:profit|loss)[\s:£]*[\d,]+/gi,
+    /(?:gross profit)[\s:£]*[\d,]+/gi,
+    /(?:cost of sales)[\s:£]*[\d,]+/gi,
+    /(?:debtors|creditors)[\s:£]*[\d,]+/gi,
+    /(?:total assets)[\s:£]*[\d,]+/gi,
+    /(?:net assets)[\s:£]*[\d,]+/gi,
+    /£[\d,]+(?:\.\d{2})?/g
+  ];
+  
+  for (const pattern of financialPatterns) {
+    const matches = content.match(pattern);
+    if (matches) {
+      extractedParts.push(...matches.filter(m => /^[\x20-\x7E£]+$/.test(m)));
+    }
+  }
+  
+  // Method 4: Extract literal strings that contain financial keywords
   const stringMatches = content.match(/\(([^)]{3,100})\)/g);
   if (stringMatches) {
     for (const m of stringMatches) {
@@ -416,38 +384,21 @@ async function extractTextFromPDFAdvanced(bytes: Uint8Array): Promise<string> {
         .replace(/\\\(/g, '(')
         .replace(/\\\)/g, ')')
         .replace(/\\\\/g, '\\');
-      if (/[a-zA-Z]{2,}|[\d,]{3,}/.test(decoded) && !/^[\\x]/.test(decoded)) {
+      // Only keep if it's readable ASCII and contains meaningful content
+      if (/^[\x20-\x7E\r\n]+$/.test(decoded) && 
+          (/[a-zA-Z]{3,}/.test(decoded) || /[\d,]{4,}/.test(decoded))) {
         extractedParts.push(decoded);
       }
     }
   }
   
-  // Method 5: Look for readable text in uncompressed streams
-  const uncompressedStreams = content.match(/stream\r?\n([\s\S]{50,}?)\r?\nendstream/g);
-  if (uncompressedStreams) {
-    for (const stream of uncompressedStreams) {
-      const readable = stream
-        .replace(/stream\r?\n/, '')
-        .replace(/\r?\nendstream/, '')
-        .replace(/[^\x20-\x7E\r\n]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      
-      // Look for financial keywords
-      if (readable.length > 50 && 
-          /revenue|turnover|profit|loss|assets|liabilities|balance|cash|debtors|creditors|£|\d{3},\d{3}/i.test(readable)) {
-        extractedParts.push(readable);
-      }
-    }
-  }
+  console.log(`[PDF Text] Found ${extractedParts.length} readable text segments`);
   
-  console.log(`[PDF Text] Found ${extractedParts.length} text segments`);
-  
-  // Clean up and dedupe
-  const result = extractedParts.join('\n');
-  const lines = result.split('\n')
+  // Clean up and dedupe - filter out encoding garbage
+  const lines = extractedParts
     .map(l => l.trim())
     .filter(l => l.length > 2)
+    .filter(l => !/^[^a-zA-Z0-9£]+$/.test(l)) // Remove lines with only special chars
     .filter((l, i, arr) => arr.indexOf(l) === i);
   
   return lines.join('\n');
