@@ -426,7 +426,11 @@ export function BenchmarkingAdminView({
               founderRiskScore={founderRisk?.score || pass1Data?.founderRiskScore}
               founderRiskLevel={founderRisk?.level || pass1Data?.founderRiskLevel}
               valuationImpact={founderRisk?.valuationImpact || pass1Data?.valuationImpact}
-              dataGaps={pass1Data?.dataGaps?.map((g) => g.metric) || []}
+              dataGaps={pass1Data?.dataGaps?.map((g: any) => g.metric) || []}
+              balanceSheet={data.balance_sheet}
+              financialTrends={data.financial_trends}
+              investmentSignals={data.investment_signals}
+              cashMonths={data.cash_months}
             />
             
             {/* Recommendations Summary */}

@@ -64,6 +64,46 @@ ${gaps.map((g: any) => `- ${g.metric}: ${g.position} (£${g.annualImpact?.toLoca
 METRIC DETAILS:
 ${metrics.slice(0, 10).map((m: any) => `${m.metricName}: Client ${m.clientValue} vs Median ${m.p50} (${m.percentile}th percentile, £${m.annualImpact?.toLocaleString()} impact)`).join('\n')}
 
+${pass1Data.financial_trends && pass1Data.financial_trends.length > 0 ? `
+═══════════════════════════════════════════════════════════════════════════════
+⚠️ FINANCIAL TRENDS - CRITICAL CONTEXT (DO NOT IGNORE)
+═══════════════════════════════════════════════════════════════════════════════
+
+${pass1Data.financial_trends.map((t: any) => `
+📊 ${t.metric.toUpperCase()}:
+   ${t.narrative}
+   ${t.isRecovering ? '✅ THIS IS A RECOVERY PATTERN - interpret current metrics positively' : ''}
+`).join('')}
+
+${pass1Data.investment_signals?.likelyInvestmentYear ? `
+⚠️ INVESTMENT PATTERN DETECTED (Confidence: ${pass1Data.investment_signals.confidence})
+Indicators:
+${pass1Data.investment_signals.indicators.map((ind: string) => `  • ${ind}`).join('\n')}
+
+CRITICAL INSTRUCTION: Do NOT describe current margins as "crisis" or "alarming" if 
+this is an investment/recovery pattern. Instead, use language like:
+- "Margins recovering from strategic investment period"
+- "Strong trajectory following capacity building"
+- "Financial discipline restored after growth investment"
+` : ''}
+` : ''}
+
+${pass1Data.balance_sheet ? `
+═══════════════════════════════════════════════════════════════════════════════
+BALANCE SHEET CONTEXT (Financial Resilience Indicators)
+═══════════════════════════════════════════════════════════════════════════════
+
+${pass1Data.balance_sheet.cash ? `- Cash Position: £${(pass1Data.balance_sheet.cash / 1000000).toFixed(2)}M` : ''}
+${pass1Data.balance_sheet.net_assets ? `- Net Assets: £${(pass1Data.balance_sheet.net_assets / 1000000).toFixed(2)}M` : ''}
+${pass1Data.current_ratio ? `- Current Ratio: ${pass1Data.current_ratio}` : ''}
+${pass1Data.cash_months ? `- Cash Runway: ${pass1Data.cash_months} months of revenue` : ''}
+${pass1Data.balance_sheet.freehold_property ? `- Freehold Property: £${(pass1Data.balance_sheet.freehold_property / 1000).toFixed(0)}k (hidden value)` : ''}
+
+INTERPRETATION: If balance sheet is strong (high cash, positive net assets), 
+do NOT describe the business as "in crisis" even if margins are low. 
+Strong balance sheets indicate financial resilience and capacity to invest.
+` : ''}
+
 ═══════════════════════════════════════════════════════════════════════════════
 YOUR OUTPUT
 ═══════════════════════════════════════════════════════════════════════════════
@@ -198,7 +238,30 @@ serve(async (req) => {
     console.log('[BM Pass 2] Calling Opus for narrative generation...');
     const startTime = Date.now();
     
-    const prompt = buildPass2Prompt(report.pass1_data);
+    // Merge pass1_data with additional context from report (balance sheet, trends)
+    const enrichedPass1Data = {
+      ...report.pass1_data,
+      balance_sheet: report.balance_sheet,
+      financial_trends: report.financial_trends,
+      investment_signals: report.investment_signals,
+      historical_financials: report.historical_financials,
+      current_ratio: report.current_ratio,
+      quick_ratio: report.quick_ratio,
+      cash_months: report.cash_months
+    };
+    
+    // Log if we have trend/investment context
+    if (enrichedPass1Data.financial_trends?.length > 0) {
+      console.log('[BM Pass 2] Including financial trends in narrative context');
+    }
+    if (enrichedPass1Data.investment_signals?.likelyInvestmentYear) {
+      console.log('[BM Pass 2] ⚠️ Investment pattern detected - adjusting narrative tone');
+    }
+    if (enrichedPass1Data.balance_sheet) {
+      console.log('[BM Pass 2] Including balance sheet context in narrative');
+    }
+    
+    const prompt = buildPass2Prompt(enrichedPass1Data);
     
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',

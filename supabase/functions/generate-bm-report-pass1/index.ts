@@ -7,6 +7,280 @@ const corsHeaders = {
 };
 
 // =============================================================================
+// TYPE DEFINITIONS FOR FINANCIAL ANALYSIS
+// =============================================================================
+
+interface YearlyFinancials {
+  fiscal_year: number;
+  revenue: number | null;
+  gross_profit: number | null;
+  gross_margin: number | null;
+  operating_profit: number | null;
+  operating_margin: number | null;
+  net_profit: number | null;
+  net_margin: number | null;
+  cash: number | null;
+  net_assets: number | null;
+  debtors: number | null;
+  creditors: number | null;
+  employee_count: number | null;
+}
+
+interface BalanceSheet {
+  cash: number | null;
+  net_assets: number | null;
+  total_assets: number | null;
+  current_assets: number | null;
+  current_liabilities: number | null;
+  debtors: number | null;
+  creditors: number | null;
+  stock: number | null;
+  fixed_assets: number | null;
+  investments: number | null;
+  freehold_property: number | null;
+}
+
+interface TrendAnalysis {
+  metric: string;
+  direction: 'improving' | 'stable' | 'declining' | 'volatile';
+  currentValue: number;
+  priorValue: number;
+  change: number;
+  changePercent: number;
+  isRecovering: boolean;
+  narrative: string;
+}
+
+interface InvestmentSignals {
+  likelyInvestmentYear: boolean;
+  indicators: string[];
+  confidence: 'high' | 'medium' | 'low';
+  priorYearWasTrough: boolean;
+}
+
+// =============================================================================
+// TREND ANALYSIS FUNCTIONS
+// =============================================================================
+
+function analyseFinancialTrends(
+  current: Record<string, any>,
+  historical: YearlyFinancials[]
+): TrendAnalysis[] {
+  const trends: TrendAnalysis[] = [];
+  
+  if (!historical || historical.length === 0) return trends;
+  
+  // Gross margin trend
+  const currentGM = current.gross_margin;
+  const priorYears = historical.filter(h => h.gross_margin !== null);
+  
+  if (currentGM != null && priorYears.length >= 1) {
+    const priorGM = priorYears[0].gross_margin!;
+    const change = currentGM - priorGM;
+    const twoYearsAgoGM = priorYears[1]?.gross_margin;
+    
+    // Check if recovering from a trough
+    const isRecovering = twoYearsAgoGM != null && 
+                         priorGM < twoYearsAgoGM && 
+                         currentGM > priorGM;
+    
+    let direction: 'improving' | 'stable' | 'declining' | 'volatile';
+    if (Math.abs(change) < 1) direction = 'stable';
+    else if (change > 0) direction = 'improving';
+    else direction = 'declining';
+    
+    let narrative = '';
+    if (isRecovering) {
+      narrative = `Gross margin RECOVERING: ${priorGM.toFixed(1)}% → ${currentGM.toFixed(1)}% (was ${twoYearsAgoGM!.toFixed(1)}% before trough). This is positive trajectory.`;
+    } else if (direction === 'improving') {
+      narrative = `Gross margin improving: ${priorGM.toFixed(1)}% → ${currentGM.toFixed(1)}% (+${change.toFixed(1)}pp)`;
+    } else if (direction === 'declining') {
+      narrative = `Gross margin declining: ${priorGM.toFixed(1)}% → ${currentGM.toFixed(1)}% (${change.toFixed(1)}pp)`;
+    } else {
+      narrative = `Gross margin stable at ${currentGM.toFixed(1)}%`;
+    }
+    
+    trends.push({
+      metric: 'gross_margin',
+      direction: isRecovering ? 'improving' : direction,
+      currentValue: currentGM,
+      priorValue: priorGM,
+      change,
+      changePercent: priorGM !== 0 ? (change / priorGM) * 100 : 0,
+      isRecovering,
+      narrative
+    });
+  }
+  
+  // Revenue trend
+  const currentRevenue = current._enriched_revenue;
+  const priorRevenueYears = historical.filter(h => h.revenue !== null);
+  
+  if (currentRevenue && priorRevenueYears.length >= 1) {
+    const priorRevenue = priorRevenueYears[0].revenue!;
+    const change = currentRevenue - priorRevenue;
+    const changePercent = priorRevenue !== 0 ? (change / priorRevenue) * 100 : 0;
+    
+    let direction: 'improving' | 'stable' | 'declining' | 'volatile';
+    if (Math.abs(changePercent) < 3) direction = 'stable';
+    else if (changePercent > 0) direction = 'improving';
+    else direction = 'declining';
+    
+    let narrative = '';
+    if (direction === 'improving') {
+      narrative = `Revenue grew: £${(priorRevenue / 1000000).toFixed(1)}M → £${(currentRevenue / 1000000).toFixed(1)}M (+${changePercent.toFixed(1)}%)`;
+    } else if (direction === 'declining') {
+      narrative = `Revenue declined: £${(priorRevenue / 1000000).toFixed(1)}M → £${(currentRevenue / 1000000).toFixed(1)}M (${changePercent.toFixed(1)}%)`;
+    } else {
+      narrative = `Revenue stable at £${(currentRevenue / 1000000).toFixed(1)}M`;
+    }
+    
+    trends.push({
+      metric: 'revenue',
+      direction,
+      currentValue: currentRevenue,
+      priorValue: priorRevenue,
+      change,
+      changePercent,
+      isRecovering: false,
+      narrative
+    });
+  }
+  
+  // Net margin trend
+  const currentNM = current.net_margin;
+  const priorNetMarginYears = historical.filter(h => h.net_margin !== null);
+  
+  if (currentNM != null && priorNetMarginYears.length >= 1) {
+    const priorNM = priorNetMarginYears[0].net_margin!;
+    const change = currentNM - priorNM;
+    const twoYearsAgoNM = priorNetMarginYears[1]?.net_margin;
+    
+    const isRecovering = twoYearsAgoNM != null && 
+                         priorNM < twoYearsAgoNM && 
+                         currentNM > priorNM;
+    
+    let direction: 'improving' | 'stable' | 'declining' | 'volatile';
+    if (Math.abs(change) < 1) direction = 'stable';
+    else if (change > 0) direction = 'improving';
+    else direction = 'declining';
+    
+    let narrative = '';
+    if (isRecovering) {
+      narrative = `Net margin RECOVERING: ${priorNM.toFixed(1)}% → ${currentNM.toFixed(1)}% (bouncing back from investment trough)`;
+    } else if (direction === 'improving') {
+      narrative = `Net margin improving: ${priorNM.toFixed(1)}% → ${currentNM.toFixed(1)}%`;
+    } else if (direction === 'declining') {
+      narrative = `Net margin declining: ${priorNM.toFixed(1)}% → ${currentNM.toFixed(1)}%`;
+    } else {
+      narrative = `Net margin stable at ${currentNM.toFixed(1)}%`;
+    }
+    
+    trends.push({
+      metric: 'net_margin',
+      direction: isRecovering ? 'improving' : direction,
+      currentValue: currentNM,
+      priorValue: priorNM,
+      change,
+      changePercent: priorNM !== 0 ? (change / priorNM) * 100 : 0,
+      isRecovering,
+      narrative
+    });
+  }
+  
+  return trends;
+}
+
+// =============================================================================
+// INVESTMENT PATTERN DETECTION
+// =============================================================================
+
+function detectInvestmentPattern(
+  current: Record<string, any>,
+  historical: YearlyFinancials[],
+  assessmentResponses: Record<string, any>
+): InvestmentSignals {
+  const indicators: string[] = [];
+  let investmentScore = 0;
+  let priorYearWasTrough = false;
+  
+  if (historical && historical.length >= 1) {
+    const priorYear = historical[0];
+    
+    // Pattern 1: Revenue up + margin down = investment signature
+    if (current._enriched_revenue && priorYear.revenue && 
+        current._enriched_revenue > priorYear.revenue && 
+        current.gross_margin != null && priorYear.gross_margin != null &&
+        current.gross_margin < priorYear.gross_margin) {
+      indicators.push('Revenue grew while margin compressed (classic investment pattern)');
+      investmentScore += 2;
+    }
+    
+    // Pattern 2: Margin recovering from prior year trough
+    if (historical.length >= 2 && 
+        current.gross_margin != null && 
+        priorYear.gross_margin != null && 
+        historical[1].gross_margin != null) {
+      
+      if (current.gross_margin > priorYear.gross_margin && 
+          priorYear.gross_margin < historical[1].gross_margin) {
+        indicators.push(`Margin recovering from ${priorYear.fiscal_year} trough: ${priorYear.gross_margin.toFixed(1)}% → ${current.gross_margin.toFixed(1)}%`);
+        investmentScore += 3;
+        priorYearWasTrough = true;
+      }
+    }
+    
+    // Pattern 3: Revenue grew significantly in trough year (investment drove costs)
+    if (historical.length >= 2 && priorYear.revenue && historical[1].revenue) {
+      const troughYearGrowth = ((priorYear.revenue - historical[1].revenue) / historical[1].revenue) * 100;
+      if (troughYearGrowth > 15 && priorYear.gross_margin != null && 
+          historical[1].gross_margin != null &&
+          priorYear.gross_margin < historical[1].gross_margin) {
+        indicators.push(`High growth year (${troughYearGrowth.toFixed(0)}%) with compressed margins suggests capacity building`);
+        investmentScore += 2;
+      }
+    }
+  }
+  
+  // Check assessment responses for investment language
+  const suspectedIssue = assessmentResponses?.['bm suspected underperformance'] || 
+                         assessmentResponses?.['bm_suspected_underperformance'] || '';
+  const leavingMoney = assessmentResponses?.['bm leaving money'] || 
+                       assessmentResponses?.['bm_leaving_money'] || '';
+  const businessDesc = assessmentResponses?.['bm business description'] || 
+                       assessmentResponses?.['bm_business_description'] || '';
+  const combinedText = `${suspectedIssue} ${leavingMoney} ${businessDesc}`.toLowerCase();
+  
+  if (/invest|growth|building|capability|scaling|expansion|infrastructure/.test(combinedText)) {
+    indicators.push('Client mentions investment/growth/building in assessment');
+    investmentScore += 1;
+  }
+  
+  // Check for new assessment questions about investment context
+  const recentInvestment = assessmentResponses?.['bm recent investment'] || 
+                           assessmentResponses?.['bm_recent_investment'];
+  const marginContext = assessmentResponses?.['bm margin context'] || 
+                        assessmentResponses?.['bm_margin_context'];
+  
+  if (recentInvestment && !recentInvestment.includes('None')) {
+    indicators.push(`Client confirmed investment in: ${recentInvestment}`);
+    investmentScore += 2;
+  }
+  
+  if (marginContext === 'Planned investment in growth') {
+    indicators.push('Client explicitly states margins reflect planned investment');
+    investmentScore += 3;
+  }
+  
+  return {
+    likelyInvestmentYear: investmentScore >= 2,
+    indicators,
+    confidence: investmentScore >= 4 ? 'high' : investmentScore >= 2 ? 'medium' : 'low',
+    priorYearWasTrough
+  };
+}
+
+// =============================================================================
 // PASS 1: EXTRACTION & ANALYSIS (Sonnet)
 // Compares client metrics to industry benchmarks
 // Calculates percentile positions and annual £ impact
@@ -69,6 +343,82 @@ ${assessment.debtor_days ? `- Debtor Days: ${assessment.debtor_days} days` : ''}
 ${assessment.revenue_growth ? `- Revenue Growth: ${assessment.revenue_growth}% YoY` : ''}
 ` : '';
 
+  // ==========================================================================
+  // BALANCE SHEET CONTEXT (Critical for understanding financial health)
+  // ==========================================================================
+  
+  const balanceSheetText = assessment.balance_sheet ? `
+═══════════════════════════════════════════════════════════════════════════════
+BALANCE SHEET DATA (from uploaded accounts)
+═══════════════════════════════════════════════════════════════════════════════
+
+${assessment.balance_sheet.cash ? `- Cash Position: £${(assessment.balance_sheet.cash / 1000000).toFixed(2)}M` : ''}
+${assessment.balance_sheet.net_assets ? `- Net Assets: £${(assessment.balance_sheet.net_assets / 1000000).toFixed(2)}M` : ''}
+${assessment.current_ratio ? `- Current Ratio: ${assessment.current_ratio}` : ''}
+${assessment.quick_ratio ? `- Quick Ratio: ${assessment.quick_ratio}` : ''}
+${assessment.debtor_days ? `- Debtor Days: ${assessment.debtor_days} days` : ''}
+${assessment.creditor_days ? `- Creditor Days: ${assessment.creditor_days} days` : ''}
+${assessment.cash_months ? `- Cash Runway: ${assessment.cash_months} months of revenue` : ''}
+${assessment.balance_sheet.freehold_property ? `- Freehold Property: £${(assessment.balance_sheet.freehold_property / 1000).toFixed(0)}k` : ''}
+${assessment.balance_sheet.investments ? `- Investments: £${(assessment.balance_sheet.investments / 1000).toFixed(0)}k` : ''}
+
+INTERPRETATION GUIDANCE:
+- Strong cash position (2+ months revenue) = financially resilient
+- High net assets = accumulated value in business
+- Property ownership = hidden value on balance sheet
+` : '';
+
+  // ==========================================================================
+  // FINANCIAL TRENDS (Critical for context - DO NOT assess in isolation)
+  // ==========================================================================
+  
+  const trendsText = assessment.financial_trends && assessment.financial_trends.length > 0 ? `
+═══════════════════════════════════════════════════════════════════════════════
+⚠️ FINANCIAL TRENDS - CRITICAL CONTEXT (DO NOT IGNORE)
+═══════════════════════════════════════════════════════════════════════════════
+
+${assessment.financial_trends.map((t: TrendAnalysis) => `
+📊 ${t.metric.toUpperCase()}:
+   ${t.narrative}
+   ${t.isRecovering ? '✅ THIS IS A RECOVERY PATTERN - interpret current metrics positively' : ''}
+`).join('')}
+
+${assessment.investment_signals?.likelyInvestmentYear ? `
+⚠️ INVESTMENT PATTERN DETECTED (Confidence: ${assessment.investment_signals.confidence})
+Indicators:
+${assessment.investment_signals.indicators.map((ind: string) => `  • ${ind}`).join('\n')}
+
+CRITICAL INSTRUCTION: Do NOT describe current margins as "crisis" or "alarming" if 
+this is an investment/recovery pattern. Instead, note:
+- "Recent margin pressure reflects strategic investment"
+- "Current trajectory shows strong recovery"
+- "Margins recovering from [year] investment trough"
+` : ''}
+` : '';
+
+  // ==========================================================================
+  // HISTORICAL FINANCIALS (Multi-year context)
+  // ==========================================================================
+  
+  const historicalText = assessment.historical_financials && assessment.historical_financials.length > 0 ? `
+═══════════════════════════════════════════════════════════════════════════════
+HISTORICAL FINANCIAL DATA (${assessment.historical_financials.length} prior years)
+═══════════════════════════════════════════════════════════════════════════════
+
+${assessment.historical_financials.map((h: YearlyFinancials) => `
+FY${h.fiscal_year}:
+  ${h.revenue ? `Revenue: £${(h.revenue / 1000000).toFixed(1)}M` : ''}
+  ${h.gross_margin ? `Gross Margin: ${h.gross_margin.toFixed(1)}%` : ''}
+  ${h.net_margin ? `Net Margin: ${h.net_margin.toFixed(1)}%` : ''}
+`).join('')}
+
+Use this historical context to understand whether current performance is:
+- An improvement from past difficulties
+- A decline from previous highs
+- Part of an investment cycle
+- Stable and consistent
+` : '';
+
   return `
 You are a financial analyst preparing a benchmarking report for a UK business.
 
@@ -115,6 +465,12 @@ CLIENT'S ACTUAL METRICS (from MA data if available)
 ${maMetricsText}
 
 ${enrichedMetricsText}
+
+${balanceSheetText}
+
+${trendsText}
+
+${historicalText}
 
 ═══════════════════════════════════════════════════════════════════════════════
 INDUSTRY BENCHMARKS
@@ -989,13 +1345,17 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
   // UPLOADED ACCOUNTS DATA (Highest priority - actual verified figures)
   // ==========================================================================
   
+  // Build historical financials array for trend analysis
+  const historicalFinancials: YearlyFinancials[] = [];
+  
   if (uploadedFinancialData && uploadedFinancialData.length > 0) {
     const latest = uploadedFinancialData[0]; // Most recent confirmed year
     
     console.log('[BM Enrich] Using uploaded accounts data:', {
       fiscalYear: latest.fiscal_year,
       revenue: latest.revenue,
-      confidence: latest.confidence_score
+      confidence: latest.confidence_score,
+      yearsAvailable: uploadedFinancialData.length
     });
     
     // Use actual revenue from accounts
@@ -1039,6 +1399,93 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
     if (latest.revenue_per_employee) {
       enriched.revenue_per_employee = latest.revenue_per_employee;
       derivedFields.push('revenue_per_employee (from uploaded accounts)');
+    }
+    
+    // ==========================================================================
+    // BALANCE SHEET EXTRACTION (New - for context on financial health)
+    // ==========================================================================
+    
+    const balanceSheet: BalanceSheet = {
+      cash: latest.cash || latest.cash_at_bank || latest.cash_and_bank || null,
+      net_assets: latest.net_assets || latest.total_equity || latest.shareholders_funds || null,
+      total_assets: latest.total_assets || null,
+      current_assets: latest.current_assets || null,
+      current_liabilities: latest.current_liabilities || null,
+      debtors: latest.debtors || latest.trade_debtors || latest.accounts_receivable || null,
+      creditors: latest.creditors || latest.trade_creditors || latest.accounts_payable || null,
+      stock: latest.stock || latest.inventory || null,
+      fixed_assets: latest.fixed_assets || latest.tangible_assets || null,
+      investments: latest.investments || latest.fixed_asset_investments || null,
+      freehold_property: latest.freehold_property || latest.land_and_buildings || null
+    };
+    
+    // Only add balance sheet if we have meaningful data
+    const hasBalanceSheetData = Object.values(balanceSheet).some(v => v !== null);
+    if (hasBalanceSheetData) {
+      enriched.balance_sheet = balanceSheet;
+      derivedFields.push('balance_sheet (from uploaded accounts)');
+      console.log('[BM Enrich] Extracted balance sheet data:', {
+        cash: balanceSheet.cash,
+        net_assets: balanceSheet.net_assets,
+        debtors: balanceSheet.debtors
+      });
+      
+      // Calculate liquidity ratios
+      if (balanceSheet.current_assets && balanceSheet.current_liabilities && balanceSheet.current_liabilities > 0) {
+        enriched.current_ratio = Number((balanceSheet.current_assets / balanceSheet.current_liabilities).toFixed(2));
+        const quickAssets = balanceSheet.current_assets - (balanceSheet.stock || 0);
+        enriched.quick_ratio = Number((quickAssets / balanceSheet.current_liabilities).toFixed(2));
+        derivedFields.push('current_ratio', 'quick_ratio');
+      }
+      
+      // Calculate working capital days from balance sheet if not already set
+      if (!enriched.debtor_days && balanceSheet.debtors && enriched._enriched_revenue) {
+        enriched.debtor_days = Math.round((balanceSheet.debtors / enriched._enriched_revenue) * 365);
+        derivedFields.push('debtor_days (calculated from balance sheet)');
+      }
+      if (balanceSheet.creditors && enriched._enriched_revenue) {
+        enriched.creditor_days = Math.round((balanceSheet.creditors / enriched._enriched_revenue) * 365);
+        derivedFields.push('creditor_days (calculated from balance sheet)');
+      }
+      
+      // Cash months runway
+      if (balanceSheet.cash && enriched._enriched_revenue) {
+        enriched.cash_months = Number(((balanceSheet.cash / enriched._enriched_revenue) * 12).toFixed(1));
+        derivedFields.push('cash_months');
+      }
+    }
+    
+    // ==========================================================================
+    // MULTI-YEAR HISTORICAL DATA (for trend analysis)
+    // ==========================================================================
+    
+    // Build historical array from all uploaded years (excluding current)
+    for (let i = 1; i < uploadedFinancialData.length; i++) {
+      const yearData = uploadedFinancialData[i];
+      historicalFinancials.push({
+        fiscal_year: yearData.fiscal_year,
+        revenue: yearData.revenue || null,
+        gross_profit: yearData.gross_profit || null,
+        gross_margin: yearData.gross_margin_pct || null,
+        operating_profit: yearData.operating_profit || null,
+        operating_margin: yearData.operating_margin_pct || null,
+        net_profit: yearData.net_profit || null,
+        net_margin: yearData.net_margin_pct || null,
+        cash: yearData.cash || yearData.cash_at_bank || null,
+        net_assets: yearData.net_assets || yearData.total_equity || null,
+        debtors: yearData.debtors || yearData.trade_debtors || null,
+        creditors: yearData.creditors || yearData.trade_creditors || null,
+        employee_count: yearData.employee_count || null
+      });
+    }
+    
+    // Sort by year descending (most recent prior year first)
+    historicalFinancials.sort((a, b) => b.fiscal_year - a.fiscal_year);
+    
+    if (historicalFinancials.length > 0) {
+      enriched.historical_financials = historicalFinancials;
+      derivedFields.push(`historical_financials (${historicalFinancials.length} prior years)`);
+      console.log('[BM Enrich] Historical years available:', historicalFinancials.map(h => h.fiscal_year));
     }
     
     // Calculate YoY growth if we have 2+ years
@@ -1195,6 +1642,38 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
   enriched.derived_fields = derivedFields;
   enriched._enriched_revenue = revenue;
   enriched._enriched_employee_count = employeeCount;
+  
+  // ==========================================================================
+  // TREND ANALYSIS (requires historical data)
+  // ==========================================================================
+  
+  if (historicalFinancials.length > 0) {
+    const trends = analyseFinancialTrends(enriched, historicalFinancials);
+    if (trends.length > 0) {
+      enriched.financial_trends = trends;
+      derivedFields.push(`financial_trends (${trends.length} metrics analysed)`);
+      
+      // Log key findings
+      const grossMarginTrend = trends.find(t => t.metric === 'gross_margin');
+      if (grossMarginTrend) {
+        console.log(`[BM Enrich] Gross margin trend: ${grossMarginTrend.direction}${grossMarginTrend.isRecovering ? ' (RECOVERING)' : ''}`);
+        console.log(`[BM Enrich] ${grossMarginTrend.narrative}`);
+      }
+    }
+    
+    // ==========================================================================
+    // INVESTMENT PATTERN DETECTION
+    // ==========================================================================
+    
+    const investmentSignals = detectInvestmentPattern(enriched, historicalFinancials, responses);
+    enriched.investment_signals = investmentSignals;
+    
+    if (investmentSignals.likelyInvestmentYear) {
+      console.log(`[BM Enrich] ⚠️ INVESTMENT PATTERN DETECTED (confidence: ${investmentSignals.confidence})`);
+      investmentSignals.indicators.forEach(ind => console.log(`[BM Enrich]   - ${ind}`));
+      derivedFields.push(`investment_signals (${investmentSignals.confidence} confidence)`);
+    }
+  }
   
   return enriched;
 }
@@ -2272,6 +2751,15 @@ When writing narratives:
       benchmark_data_as_of: new Date().toISOString().split('T')[0],
       // Rich source information for transparency
       data_sources: buildRichSourceData(benchmarks || []),
+      // Balance sheet and trend data (new)
+      balance_sheet: assessmentData.balance_sheet || null,
+      financial_trends: assessmentData.financial_trends || null,
+      investment_signals: assessmentData.investment_signals || null,
+      historical_financials: assessmentData.historical_financials || null,
+      current_ratio: assessmentData.current_ratio || null,
+      quick_ratio: assessmentData.quick_ratio || null,
+      cash_months: assessmentData.cash_months || null,
+      creditor_days: assessmentData.creditor_days || null,
       benchmark_sources_detail: buildDetailedSourceData(benchmarks || [])
     };
     

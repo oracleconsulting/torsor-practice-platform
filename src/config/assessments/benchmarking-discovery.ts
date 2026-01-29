@@ -8,8 +8,8 @@ export const benchmarkingDiscoveryConfig: AssessmentConfig = {
   id: 'bm_discovery',
   name: 'Benchmarking Assessment',
   description: 'Industry Comparison Assessment - We use your Hidden Value Audit data to avoid asking duplicate questions',
-  estimatedMinutes: 15,
-  totalQuestions: 15,
+  estimatedMinutes: 18,
+  totalQuestions: 19, // Added 4 investment context questions
   aiAnchors: 5,
   
   sections: [
@@ -122,7 +122,73 @@ export const benchmarkingDiscoveryConfig: AssessmentConfig = {
     },
     
     // ═══════════════════════════════════════════════════════════════
-    // SECTION 3: PERCEPTION & TRACKING
+    // SECTION 3: INVESTMENT CONTEXT (NEW)
+    // ═══════════════════════════════════════════════════════════════
+    {
+      id: 'investment_context',
+      title: 'Investment Context',
+      description: 'Help us understand if recent performance reflects strategic choices',
+      questions: [
+        {
+          id: 'q3_invest_1',
+          field: 'recent_investment',
+          type: 'multiple_choice',
+          required: false,
+          label: 'In the last 2-3 years, did you deliberately invest in any of these?',
+          options: [
+            { value: 'systems', label: 'New systems or technology' },
+            { value: 'staff', label: 'Additional staff for future growth' },
+            { value: 'training', label: 'Training or capability building' },
+            { value: 'rnd', label: 'R&D or product development' },
+            { value: 'acquisitions', label: 'Acquisitions or new locations' },
+            { value: 'none', label: 'None — we\'ve been in steady-state' },
+          ],
+        },
+        {
+          id: 'q3_invest_2',
+          field: 'margin_context',
+          type: 'single_choice',
+          required: false,
+          label: 'If profits were lower than usual recently, was this:',
+          options: [
+            { value: 'unexpected', label: 'Unexpected/concerning' },
+            { value: 'planned', label: 'Planned investment in growth' },
+            { value: 'market', label: 'Response to market conditions' },
+            { value: 'oneoff', label: 'One-off costs (legal, restructuring)' },
+            { value: 'na', label: 'N/A — profits have been stable or growing' },
+          ],
+        },
+        {
+          id: 'q3_invest_3',
+          field: 'cash_position',
+          type: 'single_choice',
+          required: false,
+          label: 'How much cash does the business typically hold?',
+          options: [
+            { value: 'tight', label: 'Under £50k (tight cash management)' },
+            { value: 'normal', label: '£50k-£250k (normal buffer)' },
+            { value: 'comfortable', label: '£250k-£1M (comfortable reserve)' },
+            { value: 'significant', label: 'Over £1M (significant cash holdings)' },
+            { value: 'unknown', label: 'I don\'t know' },
+          ],
+        },
+        {
+          id: 'q3_invest_4',
+          field: 'property_ownership',
+          type: 'single_choice',
+          required: false,
+          label: 'Do you own the freehold of your premises or any other property?',
+          options: [
+            { value: 'own', label: 'Yes — own freehold(s)' },
+            { value: 'rent', label: 'No — fully rented/leased' },
+            { value: 'partial', label: 'Partial — some owned, some leased' },
+          ],
+        },
+      ],
+    },
+    
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 4: PERCEPTION & TRACKING
     // ═══════════════════════════════════════════════════════════════
     {
       id: 'perception',
@@ -175,7 +241,7 @@ export const benchmarkingDiscoveryConfig: AssessmentConfig = {
     },
     
     // ═══════════════════════════════════════════════════════════════
-    // SECTION 4: PRIORITY AREAS
+    // SECTION 5: PRIORITY AREAS
     // ═══════════════════════════════════════════════════════════════
     {
       id: 'priorities',
@@ -223,7 +289,7 @@ export const benchmarkingDiscoveryConfig: AssessmentConfig = {
     },
     
     // ═══════════════════════════════════════════════════════════════
-    // SECTION 5: MAGIC FIX
+    // SECTION 6: MAGIC FIX
     // ═══════════════════════════════════════════════════════════════
     {
       id: 'magic_action',
