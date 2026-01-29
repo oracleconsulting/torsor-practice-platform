@@ -10549,10 +10549,20 @@ function BenchmarkingClientModal({
                           // Calculate founder risk from HVA data
                           const founderRisk = hvaStatus ? calculateFounderRisk(hvaStatus) : null;
                           
-                          // Resolve industry code from SIC code
+                          // Use industry code from report (set by backend) - only fallback to SIC mapping if report has no industry_code
+                          // The backend performs sophisticated industry detection including business description analysis
                           const sicCode = responses.bm_sic_code || responses.sic_code;
                           const subSector = responses.bm_sub_sector || responses.sub_sector;
-                          const industryMapping = resolveIndustryCode(sicCode, subSector);
+                          const fallbackMapping = resolveIndustryCode(sicCode, subSector);
+                          
+                          // Prefer report's industry_code (from backend's intelligent detection) over frontend SIC mapping
+                          const industryMapping = report.industry_code 
+                            ? { 
+                                code: report.industry_code, 
+                                name: report.pass1_data?.classification?.industryName || report.industry_code,
+                                confidence: report.pass1_data?.classification?.industryConfidence || 95
+                              }
+                            : fallbackMapping;
                           
                           // Extract ALL supplementary data from responses (saved via Data Collection panel)
                           // Dynamically extracts any key with bm_supp_ prefix

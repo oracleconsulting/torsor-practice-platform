@@ -7,7 +7,9 @@ const SIC_TO_INDUSTRY: Record<string, { code: string; name: string }> = {
   '62012': { code: 'SOFTWARE_AGENCY', name: 'Software Development Agency' },
   '62020': { code: 'SOFTWARE_AGENCY', name: 'Software Development Agency' },
   '62030': { code: 'MSP', name: 'IT Services / MSP' },
-  '62090': { code: 'SOFTWARE_AGENCY', name: 'Software Development Agency' },
+  // Note: 62090 is "Other IT service activities" - too ambiguous to map directly
+  // Backend uses business description analysis for 62090; frontend falls back to ITSERV
+  '62090': { code: 'ITSERV', name: 'IT Services' },
   
   // Professional Services
   '69201': { code: 'ACCT', name: 'Accountancy' },
