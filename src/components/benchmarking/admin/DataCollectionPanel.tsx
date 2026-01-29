@@ -137,16 +137,32 @@ const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
     code: 'debtor_days',
     name: 'Debtor Days',
     unit: 'days',
-    description: 'Average number of days to collect payment from clients',
-    conversationScript: `"Cash flow efficiency matters. How long does it typically take your clients to pay you? Do you track your debtor days, or can you estimate from recent experience?"`,
+    description: 'Average number of days to collect payment from clients. Enter here to override calculated values.',
+    conversationScript: `"Cash flow efficiency matters. How long does it typically take your clients to pay you? Do you track your debtor days, or can you estimate from recent experience? Note: If the calculated figure from accounts doesn't match reality, you can override it here."`,
     followUpQuestions: [
       'Do you have standard payment terms?',
       'Are there clients who consistently pay late?',
-      'Do you use milestone billing or bill on completion?'
+      'Do you use milestone billing or bill on completion?',
+      'Does the calculated figure from the accounts look right, or is there timing distortion?'
     ],
     benchmark: { p25: 30, p50: 45, p75: 60 },
     inputPlaceholder: 'e.g., 45',
-    inputHelp: 'Average days to collect payment (industry median: 45 days)'
+    inputHelp: 'Average days to collect payment (industry median: 45 days). Overrides calculated value.'
+  },
+  'Creditor Days': {
+    code: 'creditor_days',
+    name: 'Creditor Days',
+    unit: 'days',
+    description: 'Average number of days to pay suppliers. Enter here to override calculated values.',
+    conversationScript: `"How quickly do you typically pay your suppliers? This helps us understand your cash cycle. Note: If the calculated figure from accounts doesn't match your actual payment terms, you can override it here."`,
+    followUpQuestions: [
+      'What are your standard supplier payment terms?',
+      'Do you take advantage of early payment discounts?',
+      'Are there key suppliers with different terms?'
+    ],
+    benchmark: { p25: 20, p50: 30, p75: 45 },
+    inputPlaceholder: 'e.g., 30',
+    inputHelp: 'Average days to pay suppliers (industry median: 30 days). Overrides calculated value.'
   },
   'Gross Margin': {
     code: 'gross_margin',

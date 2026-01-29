@@ -1407,11 +1407,12 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
       }
       
       // Calculate working capital days from balance sheet if not already set
+      // Note: These can be overridden by supplementary data later in the function
       if (!enriched.debtor_days && balanceSheet.debtors && enriched._enriched_revenue) {
         enriched.debtor_days = Math.round((balanceSheet.debtors / enriched._enriched_revenue) * 365);
         derivedFields.push('debtor_days (calculated from balance sheet)');
       }
-      if (balanceSheet.creditors && enriched._enriched_revenue) {
+      if (!enriched.creditor_days && balanceSheet.creditors && enriched._enriched_revenue) {
         enriched.creditor_days = Math.round((balanceSheet.creditors / enriched._enriched_revenue) * 365);
         derivedFields.push('creditor_days (calculated from balance sheet)');
       }
@@ -1591,12 +1592,20 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
     console.log(`[BM Pass 1] Supplementary: ebitda_margin = ${ebitdaMargin}%`);
   }
   
-  // Debtor Days
+  // Debtor Days (override from manual entry takes priority over calculated)
   const debtorDays = parseFloat(responses['Debtor Days']) || parseFloat(responses['bm_supp_Debtor Days']);
   if (debtorDays) {
     enriched.debtor_days = debtorDays;
-    derivedFields.push('debtor_days (supplementary)');
-    console.log(`[BM Pass 1] Supplementary: debtor_days = ${debtorDays} days`);
+    derivedFields.push('debtor_days (supplementary override)');
+    console.log(`[BM Pass 1] Supplementary OVERRIDE: debtor_days = ${debtorDays} days`);
+  }
+  
+  // Creditor Days (override from manual entry takes priority over calculated)
+  const creditorDays = parseFloat(responses['Creditor Days']) || parseFloat(responses['bm_supp_Creditor Days']);
+  if (creditorDays) {
+    enriched.creditor_days = creditorDays;
+    derivedFields.push('creditor_days (supplementary override)');
+    console.log(`[BM Pass 1] Supplementary OVERRIDE: creditor_days = ${creditorDays} days`);
   }
   
   // Revenue Growth
