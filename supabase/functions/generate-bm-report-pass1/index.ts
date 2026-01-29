@@ -1201,14 +1201,68 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
 
 /**
  * Map SIC code to industry code with fallbacks
+ * IMPORTANT: Some SIC codes (like 62090) are too broad and need description-based disambiguation
  */
 function resolveIndustryFromSIC(sicCode: string, subSectorHint?: string, businessDescription?: string): string | null {
+  
+  // FIRST: Handle ambiguous SIC codes that need description-based classification
+  const ambiguousSICs = ['62090']; // "Other IT service activities" covers too many business types
+  
+  if (ambiguousSICs.includes(sicCode) && businessDescription) {
+    const desc = businessDescription.toLowerCase();
+    
+    // Telecoms / Network Infrastructure (NOT software agencies)
+    if (desc.includes('network infrastructure') || 
+        desc.includes('wireless') || 
+        desc.includes('telephony') ||
+        desc.includes('telecoms') ||
+        desc.includes('connectivity') ||
+        desc.includes('data solutions') ||
+        desc.includes('cabling') ||
+        desc.includes('broadband')) {
+      console.log(`[BM Pass 1] SIC 62090 + description suggests TELECOMS/INFRASTRUCTURE business`);
+      return 'ITSERV'; // IT Services - closer fit than software agency
+    }
+    
+    // Systems Integration
+    if (desc.includes('systems integrat') || 
+        desc.includes('system integration') ||
+        desc.includes('erp') ||
+        desc.includes('implementation')) {
+      console.log(`[BM Pass 1] SIC 62090 + description suggests SYSTEMS INTEGRATION business`);
+      return 'CONSULT'; // Consulting - systems integrators are consultancies
+    }
+    
+    // Hardware / Infrastructure
+    if (desc.includes('hardware') ||
+        desc.includes('infrastructure') ||
+        desc.includes('server') ||
+        desc.includes('data centre')) {
+      console.log(`[BM Pass 1] SIC 62090 + description suggests IT INFRASTRUCTURE business`);
+      return 'ITSERV';
+    }
+    
+    // Only map to AGENCY_DEV if clearly software/digital
+    if (desc.includes('software') || 
+        desc.includes('app development') ||
+        desc.includes('web development') ||
+        desc.includes('digital agency') ||
+        desc.includes('mobile app')) {
+      console.log(`[BM Pass 1] SIC 62090 + description confirms SOFTWARE AGENCY`);
+      return 'AGENCY_DEV';
+    }
+    
+    // Default for 62090 when unclear - don't assume software agency
+    console.log(`[BM Pass 1] SIC 62090 with unclear description - defaulting to ITSERV`);
+    return 'ITSERV';
+  }
+  
   const sicMap: Record<string, string> = {
     // Technology - CRITICAL FIX (SIC 62020 = IT consultancy = Software Development Agency)
     '62020': 'AGENCY_DEV', // IT consultancy activities - maps to Software Development Agency (AGENCY_DEV in database)
     '62012': 'AGENCY_DEV', // Business software development
     '62011': 'SAAS', // Ready-made software (SaaS products)
-    '62090': 'AGENCY_DEV', // Other IT service activities
+    // '62090' is handled above via description-based classification (too broad to map directly)
     '62030': 'ITSERV', // Computer facilities management
     
     // Professional Services
@@ -1661,16 +1715,29 @@ serve(async (req) => {
       const businessDescription = 
         assessment.business_description || 
         assessment.responses?.business_description ||
+        assessment.responses?.['bm business description'] ||
         assessment.responses?.bm_business_description;
       
       console.log('[BM Pass 1] Business description found:', !!businessDescription);
       
-      // Get SIC codes - check multiple locations
+      // Check if client explicitly said standard categories don't fit
+      const industryHint = assessment.responses?.['bm industry suggestion'] || 
+                           assessment.responses?.bm_industry_suggestion;
+      const clientSaysOther = industryHint === 'Other';
+      
+      if (clientSaysOther) {
+        console.log('[BM Pass 1] Client selected "Other" industry - will use AI classification with description');
+      }
+      
+      // Get SIC codes - check multiple locations (with space-separated keys too)
       let sicCodes: string[] | null = null;
       
-      // First check assessment responses (with bm_ prefix)
-      const sicCodeFromAssessment = assessment.responses?.bm_sic_code || assessment.responses?.sic_code;
-      const subSectorHint = assessment.responses?.bm_sub_sector;
+      // First check assessment responses (with bm_ prefix and both space/underscore variants)
+      const sicCodeFromAssessment = assessment.responses?.['bm sic code'] ||
+                                     assessment.responses?.bm_sic_code || 
+                                     assessment.responses?.sic_code;
+      const subSectorHint = assessment.responses?.['bm sub sector'] ||
+                            assessment.responses?.bm_sub_sector;
       
       // Try SIC code mapping first (faster and more accurate)
       if (sicCodeFromAssessment) {
