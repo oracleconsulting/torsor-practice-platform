@@ -1703,25 +1703,14 @@ serve(async (req) => {
       assessment.responses?.['bm business description'] ||
       assessment.responses?.bm_business_description;
     
-    console.log('[BM Pass 1] ===== INDUSTRY DETECTION START =====');
-    console.log('[BM Pass 1] Business description:', businessDescription?.substring(0, 100));
+    console.log('[BM Pass 1] Industry detection start. Description:', businessDescription ? businessDescription.substring(0, 100) : 'none');
     
-    // BULLETPROOF CHECK: If description clearly indicates network/telecoms, force ITSERV
-    // This overrides any stored industry_code or SIC mapping issues
+    // Check if description indicates network/telecoms business
     let forceIndustryCode: string | null = null;
-    
     if (businessDescription) {
-      const descLower = businessDescription.toLowerCase();
-      const isNetworkInfrastructure = 
-        descLower.includes('network infrastructure') ||
-        descLower.includes('wireless telephony') ||
-        (descLower.includes('network') && descLower.includes('solutions')) ||
-        descLower.includes('telecoms') ||
-        descLower.includes('telecommunications') ||
-        (descLower.includes('connectivity') && descLower.includes('data solutions'));
-      
-      if (isNetworkInfrastructure) {
-        console.log('[BM Pass 1] DETECTED: Network/Telecoms/Infrastructure business');
+      const desc = businessDescription.toLowerCase();
+      if (desc.includes('network infrastructure') || desc.includes('wireless telephony') || desc.includes('telecoms')) {
+        console.log('[BM Pass 1] Network/infrastructure business detected');
         forceIndustryCode = 'ITSERV';
       }
     }
