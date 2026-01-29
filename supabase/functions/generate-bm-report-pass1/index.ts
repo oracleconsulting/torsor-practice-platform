@@ -1703,6 +1703,29 @@ serve(async (req) => {
       assessment.responses?.['bm business description'] ||
       assessment.responses?.bm_business_description;
     
+    console.log('[BM Pass 1] ===== INDUSTRY DETECTION START =====');
+    console.log('[BM Pass 1] Business description:', businessDescription?.substring(0, 100));
+    
+    // BULLETPROOF CHECK: If description clearly indicates network/telecoms, force ITSERV
+    // This overrides any stored industry_code or SIC mapping issues
+    let forceIndustryCode: string | null = null;
+    
+    if (businessDescription) {
+      const descLower = businessDescription.toLowerCase();
+      const isNetworkInfrastructure = 
+        descLower.includes('network infrastructure') ||
+        descLower.includes('wireless telephony') ||
+        (descLower.includes('network') && descLower.includes('solutions')) ||
+        descLower.includes('telecoms') ||
+        descLower.includes('telecommunications') ||
+        (descLower.includes('connectivity') && descLower.includes('data solutions'));
+      
+      if (isNetworkInfrastructure) {
+        console.log('[BM Pass 1] DETECTED: Network/Telecoms/Infrastructure business');
+        forceIndustryCode = 'ITSERV';
+      }
+    }
+    
     // Check if client explicitly said standard categories don't fit
     const industryHint = assessment.responses?.['bm industry suggestion'] || 
                          assessment.responses?.bm_industry_suggestion;
@@ -1732,7 +1755,11 @@ serve(async (req) => {
     
     let industryCode: string | null = null;
     
-    if (shouldReevaluate) {
+    // Use forced industry code if we detected a specific business type from description
+    if (forceIndustryCode) {
+      console.log('[BM Pass 1] Using FORCED industry code from description analysis:', forceIndustryCode);
+      industryCode = forceIndustryCode;
+    } else if (shouldReevaluate) {
       console.log('[BM Pass 1] Re-evaluating industry (client says Other OR ambiguous SIC code)...');
       // Force re-evaluation - don't use stored industry_code
     } else if (storedIndustryCode && storedIndustryCode !== 'undefined' && storedIndustryCode !== 'null') {
@@ -1756,6 +1783,8 @@ serve(async (req) => {
           businessDescription
         );
         
+        console.log(`[BM Pass 1] SIC mapping returned: ${mappedIndustry} for SIC ${sicCodeFromAssessment}`);
+        
         if (mappedIndustry) {
           // Verify the industry exists in database
           const { data: verifiedIndustry } = await supabaseClient
@@ -1766,8 +1795,33 @@ serve(async (req) => {
             .maybeSingle();
           
           if (verifiedIndustry) {
-            console.log(`[BM Pass 1] Mapped SIC ${sicCodeFromAssessment} to industry: ${mappedIndustry} (${verifiedIndustry.name})`);
+            console.log(`[BM Pass 1] Verified industry exists: ${mappedIndustry} (${verifiedIndustry.name})`);
             industryCode = mappedIndustry;
+          } else {
+            console.log(`[BM Pass 1] WARNING: Industry ${mappedIndustry} not found in database! Checking fallbacks...`);
+            
+            // Try fallback industries if the mapped one doesn't exist
+            const fallbackIndustries = ['CONSULT', 'AGENCY_DEV']; // Common industries that should exist
+            for (const fallback of fallbackIndustries) {
+              if (fallback === 'AGENCY_DEV' && businessDescription?.toLowerCase().includes('network')) {
+                // Don't fall back to AGENCY_DEV for network businesses
+                console.log(`[BM Pass 1] Skipping AGENCY_DEV fallback for network infrastructure business`);
+                continue;
+              }
+              
+              const { data: fallbackIndustry } = await supabaseClient
+                .from('industries')
+                .select('code, name')
+                .eq('code', fallback)
+                .eq('is_active', true)
+                .maybeSingle();
+              
+              if (fallbackIndustry) {
+                console.log(`[BM Pass 1] Using fallback industry: ${fallback} (${fallbackIndustry.name})`);
+                industryCode = fallback;
+                break;
+              }
+            }
           }
         }
       }
