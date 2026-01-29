@@ -44,6 +44,33 @@ interface BenchmarkAnalysis {
     marketContext?: string;
     lastRefreshed?: string;
   };
+  // Balance sheet and trend analysis data
+  balance_sheet?: {
+    cash?: number | null;
+    net_assets?: number | null;
+    freehold_property?: number | null;
+  } | null;
+  financial_trends?: Array<{
+    metric: string;
+    direction: 'improving' | 'stable' | 'declining' | 'volatile';
+    isRecovering: boolean;
+    narrative: string;
+  }> | null;
+  investment_signals?: {
+    likelyInvestmentYear: boolean;
+    confidence: 'high' | 'medium' | 'low';
+    indicators: string[];
+  } | null;
+  historical_financials?: Array<{
+    fiscal_year: number;
+    revenue?: number | null;
+    gross_margin?: number | null;
+    net_margin?: number | null;
+  }> | null;
+  current_ratio?: number | null;
+  quick_ratio?: number | null;
+  cash_months?: number | null;
+  creditor_days?: number | null;
 }
 
 interface BenchmarkingAdminViewProps {
