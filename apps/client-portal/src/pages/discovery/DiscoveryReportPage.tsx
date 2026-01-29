@@ -1439,8 +1439,8 @@ export default function DiscoveryReportPage() {
               value: `£${(ca.valuation.enterpriseValueLow / 1000000).toFixed(1)}M - £${(ca.valuation.enterpriseValueHigh / 1000000).toFixed(1)}M`,
               subtext: 'Enterprise value range'
             });
-          } else if (summary?.valuationRange) {
-            metrics.push({ icon: '💰', label: 'Indicative Value', value: summary.valuationRange });
+          } else if ((summary as Record<string, unknown>)?.valuationRange) {
+            metrics.push({ icon: '💰', label: 'Indicative Value', value: String((summary as Record<string, unknown>).valuationRange) });
           }
           
           // 2. Hidden Assets
