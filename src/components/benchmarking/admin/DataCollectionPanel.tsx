@@ -28,31 +28,27 @@ interface MetricDefinition {
 }
 
 // Helper to detect if a metric needs complex input (not just a number)
+// Default to text for most metrics since answers often need narrative context
 function needsTextInput(metricName: string): boolean {
-  const textPatterns = [
-    /breakdown/i,
-    /by\s+(service|type|role|seniority|level)/i,
-    /rate\s+card/i,
-    /describe/i,
-    /explain/i,
-    /list/i,
-    /details/i,
-    /structure/i,
-    /process/i,
-    /approach/i,
-    // Catch "service-specific" or "role-specific" or similar
-    /\w+-specific/i,
-    // Catch plural rates that aren't "utilisation rate" etc.
-    /^(?!.*utilisation)(?!.*hourly)(?!.*blended).*rates$/i,
-    // Individual anything suggests multiple items
-    /individual/i,
-    // Per-person or per-service breakdowns
-    /per\s+(person|service|client|project)/i,
-    // Pricing tiers or structures
-    /pricing/i,
-    /tiers?$/i,
+  // These specific metrics are NUMERIC ONLY (simple numbers)
+  const numericOnlyPatterns = [
+    /^debtor days$/i,
+    /^creditor days$/i,
+    /^utilisation rate$/i,
+    /^hourly rate$/i,
+    /^blended rate$/i,
+    /^headcount$/i,
+    /^employee count$/i,
+    /^fte$/i,
   ];
-  return textPatterns.some(pattern => pattern.test(metricName));
+  
+  // If it matches a numeric-only pattern, return false (use number input)
+  if (numericOnlyPatterns.some(pattern => pattern.test(metricName))) {
+    return false;
+  }
+  
+  // All other metrics use text input (textarea) for richer answers
+  return true;
 }
 
 // Define all collectible metrics with conversation scripts
