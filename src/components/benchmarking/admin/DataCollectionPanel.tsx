@@ -428,6 +428,45 @@ export function DataCollectionPanel({
           </p>
         </div>
       )}
+      
+      {/* Override Calculated Values - Always show key metrics that can be manually overridden */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Target className="w-4 h-4 text-amber-600" />
+          <span className="text-sm font-semibold text-amber-800">Override Calculated Values</span>
+        </div>
+        <p className="text-xs text-amber-700 mb-3">
+          These values are calculated from uploaded accounts. Enter values here to override if the calculated figures don't reflect actual payment terms.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              Debtor Days (actual)
+            </label>
+            <input
+              type="number"
+              value={collectedData['Debtor Days'] || ''}
+              onChange={(e) => setCollectedData(prev => ({ ...prev, 'Debtor Days': e.target.value }))}
+              placeholder="e.g., 30"
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+            />
+            <p className="text-xs text-slate-500 mt-1">Industry median: 45 days</p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              Creditor Days (actual)
+            </label>
+            <input
+              type="number"
+              value={collectedData['Creditor Days'] || ''}
+              onChange={(e) => setCollectedData(prev => ({ ...prev, 'Creditor Days': e.target.value }))}
+              placeholder="e.g., 30"
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+            />
+            <p className="text-xs text-slate-500 mt-1">Industry median: 30 days</p>
+          </div>
+        </div>
+      </div>
 
       {/* Metric Collection Cards */}
       <div className="space-y-3">
