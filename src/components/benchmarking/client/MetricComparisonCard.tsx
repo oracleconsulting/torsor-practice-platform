@@ -24,21 +24,29 @@ export function MetricComparisonCard({
   annualImpact
 }: MetricComparisonProps) {
   
-  const formatValue = (val: number) => {
+  const formatValue = (val: number | null | undefined) => {
+    // Defensive null check
+    const safeVal = val ?? 0;
     switch (format) {
       case 'currency':
-        return `£${val.toLocaleString()}`;
+        return `£${safeVal.toLocaleString()}`;
       case 'percent':
-        return `${val}%`;
+        return `${safeVal}%`;
       case 'days':
-        return `${val} days`;
+        return `${safeVal} days`;
       default:
-        return val.toLocaleString();
+        return safeVal.toLocaleString();
     }
   };
   
-  const isGap = higherIsBetter ? clientValue < medianValue : clientValue > medianValue;
-  const gapAmount = Math.abs(clientValue - medianValue);
+  // Defensive null checks for calculations
+  const safeClientValue = clientValue ?? 0;
+  const safeMedianValue = medianValue ?? 0;
+  const safeP25 = p25 ?? 0;
+  const safeP75 = p75 ?? 0;
+  
+  const isGap = higherIsBetter ? safeClientValue < safeMedianValue : safeClientValue > safeMedianValue;
+  const gapAmount = Math.abs(safeClientValue - safeMedianValue);
   
   // Calculate position on scale with clean rounding based on format
   const calculateScale = (clientVal: number, p25Val: number, p75Val: number, fmt: string) => {
@@ -76,13 +84,13 @@ export function MetricComparisonCard({
     return { scaleMin, scaleMax };
   };
   
-  const { scaleMin, scaleMax } = calculateScale(clientValue, p25, p75, format);
-  const scaleRange = scaleMax - scaleMin;
+  const { scaleMin, scaleMax } = calculateScale(safeClientValue, safeP25, safeP75, format);
+  const scaleRange = scaleMax - scaleMin || 1; // Prevent division by zero
   
-  const clientPosition = ((clientValue - scaleMin) / scaleRange) * 100;
-  const medianPosition = ((medianValue - scaleMin) / scaleRange) * 100;
-  const p25Position = ((p25 - scaleMin) / scaleRange) * 100;
-  const p75Position = ((p75 - scaleMin) / scaleRange) * 100;
+  const clientPosition = ((safeClientValue - scaleMin) / scaleRange) * 100;
+  const medianPosition = ((safeMedianValue - scaleMin) / scaleRange) * 100;
+  const p25Position = ((safeP25 - scaleMin) / scaleRange) * 100;
+  const p75Position = ((safeP75 - scaleMin) / scaleRange) * 100;
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
@@ -94,11 +102,11 @@ export function MetricComparisonCard({
             {percentile}th percentile
           </p>
         </div>
-        {isGap && annualImpact && annualImpact > 0 && (
+        {isGap && annualImpact != null && annualImpact > 0 && (
           <div className="text-right">
             <p className="text-xs text-slate-500 uppercase tracking-wide">Impact</p>
             <p className="text-lg font-semibold text-rose-600">
-              £{annualImpact.toLocaleString()}
+              £{(annualImpact ?? 0).toLocaleString()}
             </p>
           </div>
         )}
@@ -143,9 +151,9 @@ export function MetricComparisonCard({
         {/* Scale Labels */}
         <div className="flex justify-between mt-2 text-xs text-slate-500">
           <span>{formatValue(Math.round(scaleMin))}</span>
-          <span>P25: {formatValue(p25)}</span>
-          <span>Median: {formatValue(medianValue)}</span>
-          <span>P75: {formatValue(p75)}</span>
+          <span>P25: {formatValue(safeP25)}</span>
+          <span>Median: {formatValue(safeMedianValue)}</span>
+          <span>P75: {formatValue(safeP75)}</span>
           <span>{formatValue(Math.round(scaleMax))}</span>
         </div>
       </div>
@@ -153,14 +161,14 @@ export function MetricComparisonCard({
       {/* Comparison Text */}
       <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
         <div className="text-center">
-          <p className="text-2xl font-bold text-slate-900">{formatValue(clientValue)}</p>
+          <p className="text-2xl font-bold text-slate-900">{formatValue(safeClientValue)}</p>
           <p className="text-xs text-slate-500 uppercase tracking-wide">Your Value</p>
         </div>
         
         <ArrowRight className="w-6 h-6 text-slate-400" />
         
         <div className="text-center">
-          <p className="text-2xl font-bold text-slate-600">{formatValue(medianValue)}</p>
+          <p className="text-2xl font-bold text-slate-600">{formatValue(safeMedianValue)}</p>
           <p className="text-xs text-slate-500 uppercase tracking-wide">Median</p>
         </div>
         

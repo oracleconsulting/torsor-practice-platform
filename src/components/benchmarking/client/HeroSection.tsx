@@ -11,6 +11,10 @@ export function HeroSection({
   headline
 }: HeroSectionProps) {
   
+  // Defensive null checks
+  const safeOpportunity = totalOpportunity ?? 0;
+  const safePercentile = percentile ?? 50;
+  
   const getPercentileColor = (p: number) => {
     if (p >= 75) return 'text-emerald-600';
     if (p >= 50) return 'text-blue-600';
@@ -46,7 +50,7 @@ export function HeroSection({
             Annual Opportunity Identified
           </p>
           <h1 className="text-5xl md:text-7xl font-bold text-white mb-4">
-            £{totalOpportunity.toLocaleString()}
+            £{safeOpportunity.toLocaleString()}
           </h1>
           <p className="text-slate-300 text-lg max-w-2xl mx-auto">
             {headline}
@@ -69,13 +73,13 @@ export function HeroSection({
               {/* Position Indicator */}
               <div 
                 className="absolute inset-y-0 left-0 bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-500 rounded-full transition-all duration-1000"
-                style={{ width: `${percentile}%` }}
+                style={{ width: `${safePercentile}%` }}
               />
               
               {/* Current Position Marker */}
               <div 
                 className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 transition-all duration-1000"
-                style={{ left: `${percentile}%` }}
+                style={{ left: `${safePercentile}%` }}
               >
                 <div className="w-5 h-5 bg-white rounded-full shadow-lg border-2 border-slate-900" />
               </div>
@@ -92,11 +96,11 @@ export function HeroSection({
             
             {/* Current Position Label */}
             <div className="text-center mt-4">
-              <span className={`text-lg font-semibold ${getPercentileColor(percentile)}`}>
-                {percentile}th Percentile
+              <span className={`text-lg font-semibold ${getPercentileColor(safePercentile)}`}>
+                {safePercentile}th Percentile
               </span>
               <span className="text-slate-400 ml-2">
-                · {getPercentileLabel(percentile)}
+                · {getPercentileLabel(safePercentile)}
               </span>
             </div>
           </div>

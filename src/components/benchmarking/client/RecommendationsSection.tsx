@@ -34,8 +34,12 @@ export function RecommendationsSection({
   totalOpportunity 
 }: RecommendationsSectionProps) {
   
+  // Defensive null checks
+  const safeTotalOpportunity = totalOpportunity ?? 0;
+  const safeRecommendations = recommendations ?? [];
+  
   // Sort by priority
-  const sorted = [...recommendations].sort((a, b) => a.priority - b.priority);
+  const sorted = [...safeRecommendations].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
   
   return (
     <div className="space-y-6">
@@ -49,7 +53,7 @@ export function RecommendationsSection({
         <div className="text-right">
           <p className="text-sm text-slate-500">Total Opportunity</p>
           <p className="text-3xl font-bold text-emerald-600">
-            £{totalOpportunity.toLocaleString()}
+            £{safeTotalOpportunity.toLocaleString()}
           </p>
         </div>
       </div>
@@ -58,20 +62,23 @@ export function RecommendationsSection({
       <div className="bg-slate-50 rounded-xl p-6">
         <div className="flex items-end gap-2 h-32">
           {sorted.map((rec, i) => {
-            const heightPercent = (rec.annualValue / totalOpportunity) * 100;
-            const config = difficultyConfig[rec.difficulty];
+            const safeAnnualValue = rec.annualValue ?? 0;
+            const heightPercent = safeTotalOpportunity > 0 
+              ? (safeAnnualValue / safeTotalOpportunity) * 100 
+              : 0;
+            const config = difficultyConfig[rec.difficulty] ?? difficultyConfig.medium;
             
             return (
               <div
                 key={i}
                 className={`flex-1 rounded-t-lg bg-${config.color}-500 relative group cursor-pointer transition-all duration-500`}
-                style={{ height: `${heightPercent}%` }}
-                title={`${rec.title}: £${rec.annualValue.toLocaleString()}`}
+                style={{ height: `${heightPercent}%`, minHeight: '4px' }}
+                title={`${rec.title}: £${safeAnnualValue.toLocaleString()}`}
               >
                 {/* Tooltip */}
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                   <div className="bg-slate-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap">
-                    {rec.title}: £{rec.annualValue.toLocaleString()}
+                    {rec.title}: £{safeAnnualValue.toLocaleString()}
                   </div>
                 </div>
               </div>
@@ -93,8 +100,9 @@ export function RecommendationsSection({
       {/* Recommendation Cards */}
       <div className="space-y-4">
         {sorted.map((rec, i) => {
-          const config = difficultyConfig[rec.difficulty];
+          const config = difficultyConfig[rec.difficulty] ?? difficultyConfig.medium;
           const Icon = config.icon;
+          const safeAnnualValue = rec.annualValue ?? 0;
           
           return (
             <div
@@ -104,7 +112,7 @@ export function RecommendationsSection({
               <div className="flex items-start gap-4">
                 {/* Priority Number */}
                 <div className="flex-shrink-0 w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
-                  <span className="text-lg font-bold text-slate-600">{rec.priority}</span>
+                  <span className="text-lg font-bold text-slate-600">{rec.priority ?? i + 1}</span>
                 </div>
                 
                 <div className="flex-1 min-w-0">
@@ -115,7 +123,7 @@ export function RecommendationsSection({
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-2xl font-bold text-emerald-600">
-                        £{rec.annualValue.toLocaleString()}
+                        £{safeAnnualValue.toLocaleString()}
                       </p>
                       <p className="text-xs text-slate-500">annual value</p>
                     </div>
