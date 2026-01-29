@@ -347,76 +347,44 @@ ${assessment.revenue_growth ? `- Revenue Growth: ${assessment.revenue_growth}% Y
   // BALANCE SHEET CONTEXT (Critical for understanding financial health)
   // ==========================================================================
   
-  const balanceSheetText = assessment.balance_sheet ? `
-═══════════════════════════════════════════════════════════════════════════════
-BALANCE SHEET DATA (from uploaded accounts)
-═══════════════════════════════════════════════════════════════════════════════
-
-${assessment.balance_sheet.cash ? `- Cash Position: £${(assessment.balance_sheet.cash / 1000000).toFixed(2)}M` : ''}
-${assessment.balance_sheet.net_assets ? `- Net Assets: £${(assessment.balance_sheet.net_assets / 1000000).toFixed(2)}M` : ''}
-${assessment.current_ratio ? `- Current Ratio: ${assessment.current_ratio}` : ''}
-${assessment.quick_ratio ? `- Quick Ratio: ${assessment.quick_ratio}` : ''}
-${assessment.debtor_days ? `- Debtor Days: ${assessment.debtor_days} days` : ''}
-${assessment.creditor_days ? `- Creditor Days: ${assessment.creditor_days} days` : ''}
-${assessment.cash_months ? `- Cash Runway: ${assessment.cash_months} months of revenue` : ''}
-${assessment.balance_sheet.freehold_property ? `- Freehold Property: £${(assessment.balance_sheet.freehold_property / 1000).toFixed(0)}k` : ''}
-${assessment.balance_sheet.investments ? `- Investments: £${(assessment.balance_sheet.investments / 1000).toFixed(0)}k` : ''}
-
-INTERPRETATION GUIDANCE:
-- Strong cash position (2+ months revenue) = financially resilient
-- High net assets = accumulated value in business
-- Property ownership = hidden value on balance sheet
+  // Build balance sheet summary (concise)
+  const bsItems: string[] = [];
+  if (assessment.balance_sheet?.cash) bsItems.push(`Cash: £${(assessment.balance_sheet.cash / 1000000).toFixed(1)}M`);
+  if (assessment.balance_sheet?.net_assets) bsItems.push(`Net Assets: £${(assessment.balance_sheet.net_assets / 1000000).toFixed(1)}M`);
+  if (assessment.cash_months) bsItems.push(`${assessment.cash_months}mo runway`);
+  
+  const balanceSheetText = bsItems.length > 0 ? `
+BALANCE SHEET: ${bsItems.join(' | ')}
+${assessment.cash_months && assessment.cash_months >= 2 ? '→ Strong cash = financially resilient' : ''}
 ` : '';
 
-  // ==========================================================================
-  // FINANCIAL TRENDS (Critical for context - DO NOT assess in isolation)
-  // ==========================================================================
+  // Build trend summary (concise - only include if recovering or investing)
+  const trendSummary: string[] = [];
+  if (assessment.financial_trends) {
+    const gmTrend = assessment.financial_trends.find((t: TrendAnalysis) => t.metric === 'gross_margin');
+    if (gmTrend?.isRecovering) {
+      trendSummary.push(`⚠️ MARGIN RECOVERING: ${gmTrend.narrative}`);
+    }
+  }
+  if (assessment.investment_signals?.likelyInvestmentYear) {
+    trendSummary.push(`⚠️ INVESTMENT PATTERN (${assessment.investment_signals.confidence}): ${assessment.investment_signals.indicators[0] || 'Recovery from investment'}`);
+  }
   
-  const trendsText = assessment.financial_trends && assessment.financial_trends.length > 0 ? `
+  const trendsText = trendSummary.length > 0 ? `
 ═══════════════════════════════════════════════════════════════════════════════
-⚠️ FINANCIAL TRENDS - CRITICAL CONTEXT (DO NOT IGNORE)
+⚠️ CRITICAL CONTEXT - DO NOT IGNORE
 ═══════════════════════════════════════════════════════════════════════════════
+${trendSummary.join('\n')}
 
-${assessment.financial_trends.map((t: TrendAnalysis) => `
-📊 ${t.metric.toUpperCase()}:
-   ${t.narrative}
-   ${t.isRecovering ? '✅ THIS IS A RECOVERY PATTERN - interpret current metrics positively' : ''}
-`).join('')}
-
-${assessment.investment_signals?.likelyInvestmentYear ? `
-⚠️ INVESTMENT PATTERN DETECTED (Confidence: ${assessment.investment_signals.confidence})
-Indicators:
-${assessment.investment_signals.indicators.map((ind: string) => `  • ${ind}`).join('\n')}
-
-CRITICAL INSTRUCTION: Do NOT describe current margins as "crisis" or "alarming" if 
-this is an investment/recovery pattern. Instead, note:
-- "Recent margin pressure reflects strategic investment"
-- "Current trajectory shows strong recovery"
-- "Margins recovering from [year] investment trough"
-` : ''}
+RULE: If margin is RECOVERING, do NOT flag as "crisis" or "insolvent risk".
+Instead: "Margins recovering strongly from investment period"
 ` : '';
 
-  // ==========================================================================
-  // HISTORICAL FINANCIALS (Multi-year context)
-  // ==========================================================================
-  
+  // Historical data - just show the trend, not all years
   const historicalText = assessment.historical_financials && assessment.historical_financials.length > 0 ? `
-═══════════════════════════════════════════════════════════════════════════════
-HISTORICAL FINANCIAL DATA (${assessment.historical_financials.length} prior years)
-═══════════════════════════════════════════════════════════════════════════════
-
-${assessment.historical_financials.map((h: YearlyFinancials) => `
-FY${h.fiscal_year}:
-  ${h.revenue ? `Revenue: £${(h.revenue / 1000000).toFixed(1)}M` : ''}
-  ${h.gross_margin ? `Gross Margin: ${h.gross_margin.toFixed(1)}%` : ''}
-  ${h.net_margin ? `Net Margin: ${h.net_margin.toFixed(1)}%` : ''}
-`).join('')}
-
-Use this historical context to understand whether current performance is:
-- An improvement from past difficulties
-- A decline from previous highs
-- Part of an investment cycle
-- Stable and consistent
+HISTORICAL: ${assessment.historical_financials.map((h: YearlyFinancials) => 
+  `FY${h.fiscal_year}: ${h.gross_margin?.toFixed(1) || '?'}% GM`
+).join(' → ')}
 ` : '';
 
   return `
