@@ -582,54 +582,23 @@ export function DataCollectionPanel({
                     </div>
                   )}
 
-                  {/* Input Field */}
+                  {/* Input Field - Always textarea for narrative answers */}
                   <div>
                     <label className="text-xs font-semibold text-slate-500 uppercase block mb-1.5">
-                      Client's Value
+                      Client's Response
                     </label>
-                    {definition.inputType === 'textarea' || definition.unit === 'text' ? (
-                      // Textarea for complex/descriptive metrics
-                      <div>
-                        <textarea
-                          value={collectedData[metricName] || ''}
-                          onChange={(e) => handleInputChange(metricName, e.target.value)}
-                          placeholder={definition.inputPlaceholder}
-                          rows={4}
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                        />
-                        <p className="text-xs text-slate-500 mt-1.5">
-                          {definition.inputHelp}
-                        </p>
-                      </div>
-                    ) : (
-                      // Number input for numeric metrics
-                      <div className="flex items-center gap-2">
-                        {definition.unit === 'currency' && (
-                          <span className="text-slate-400">£</span>
-                        )}
-                        <input
-                          type="number"
-                          value={collectedData[metricName] || ''}
-                          onChange={(e) => handleInputChange(metricName, e.target.value)}
-                          placeholder={definition.inputPlaceholder}
-                          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                        {definition.unit === 'percent' && (
-                          <span className="text-slate-400">%</span>
-                        )}
-                        {definition.unit === 'days' && (
-                          <span className="text-slate-400">days</span>
-                        )}
-                      </div>
-                    )}
-                    {/* Only show help text for number inputs (textarea has its own) */}
-                    {definition.inputType !== 'textarea' && definition.unit !== 'text' && (
-                      <p className="text-xs text-slate-400 mt-1">{definition.inputHelp}</p>
-                    )}
+                    <textarea
+                      value={collectedData[metricName] || ''}
+                      onChange={(e) => handleInputChange(metricName, e.target.value)}
+                      placeholder={`Enter response... ${definition.benchmark ? `(Industry: ${definition.benchmark.p25}-${definition.benchmark.p75}${definition.unit === 'percent' ? '%' : definition.unit === 'days' ? ' days' : ''})` : ''}`}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">{definition.inputHelp}</p>
                   </div>
 
                   {/* Quick Actions */}
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-2 flex gap-2">
                     <button
                       type="button"
                       onClick={() => handleInputChange(metricName, 'N/A')}
@@ -644,23 +613,6 @@ export function DataCollectionPanel({
                     >
                       Will follow up
                     </button>
-                  </div>
-
-                  {/* Additional Context - always show for all metrics */}
-                  <div className="mt-4 pt-4 border-t border-slate-100">
-                    <label className="text-xs font-semibold text-slate-500 uppercase block mb-1.5">
-                      Additional Context <span className="font-normal text-slate-400">(optional)</span>
-                    </label>
-                    <textarea
-                      value={collectedData[`${metricName}_context`] || ''}
-                      onChange={(e) => handleInputChange(`${metricName}_context`, e.target.value)}
-                      placeholder="Add any relevant context, explanation, or notes about this metric..."
-                      rows={2}
-                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none bg-slate-50"
-                    />
-                    <p className="text-xs text-slate-400 mt-1">
-                      E.g., "Improved from 70% last year", "Main client on 3-year contract", "Changed since assessment"
-                    </p>
                   </div>
                 </div>
               )}
