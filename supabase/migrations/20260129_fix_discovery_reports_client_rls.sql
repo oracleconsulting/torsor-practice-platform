@@ -66,7 +66,7 @@ WHERE engagement_id IN (
   SELECT de.id 
   FROM discovery_engagements de
   JOIN practice_members pm ON pm.id = de.client_id
-  WHERE LOWER(pm.contact_name) LIKE '%james%howard%'
+  WHERE LOWER(pm.name) LIKE '%james%howard%'
      OR LOWER(pm.client_company) LIKE '%james%'
 );
 
@@ -79,7 +79,7 @@ BEGIN
   FROM discovery_reports dr
   JOIN discovery_engagements de ON de.id = dr.engagement_id
   JOIN practice_members pm ON pm.id = de.client_id
-  WHERE (LOWER(pm.contact_name) LIKE '%james%howard%' OR LOWER(pm.client_company) LIKE '%james%')
+  WHERE (LOWER(pm.name) LIKE '%james%howard%' OR LOWER(pm.client_company) LIKE '%james%')
     AND dr.status = 'published';
   
   RAISE NOTICE 'Updated % reports to published status for test client', v_count;

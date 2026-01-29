@@ -87,7 +87,8 @@ export function ServiceDetailPopup({ serviceCode, serviceName, onClose }: Servic
       'systems_audit': 'Systems Audit',
       'fractional_cfo': 'Fractional CFO',
       'hidden_value_audit': 'Hidden Value Audit',
-      'benchmarking': 'Business Benchmarking',
+      'benchmarking': 'Benchmarking & Hidden Value Analysis',
+      'industry_benchmarking': 'Benchmarking & Hidden Value Analysis',
       'automation': 'Automation & Integration',
       'exit_planning': 'Exit Planning',
     };
