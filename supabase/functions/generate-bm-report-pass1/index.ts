@@ -1696,46 +1696,55 @@ serve(async (req) => {
       throw new Error(`Failed to fetch assessment: ${assessmentError?.message || 'Not found'}`);
     }
     
-    // Extract industry_code from assessment responses (could be in responses JSONB or individual column)
-    let industryCode = assessment.industry_code || assessment.responses?.industry_code;
+    // Get business description - check both top level and responses with bm_ prefix
+    const businessDescription = 
+      assessment.business_description || 
+      assessment.responses?.business_description ||
+      assessment.responses?.['bm business description'] ||
+      assessment.responses?.bm_business_description;
     
-    console.log('[BM Pass 1] Extracted industry_code from assessment:', industryCode);
-    console.log('[BM Pass 1] Assessment structure:', {
-      has_industry_code: !!assessment.industry_code,
-      has_responses: !!assessment.responses,
-      responses_industry_code: assessment.responses?.industry_code,
-      responses_keys: assessment.responses ? Object.keys(assessment.responses) : []
+    // Check if client explicitly said standard categories don't fit
+    const industryHint = assessment.responses?.['bm industry suggestion'] || 
+                         assessment.responses?.bm_industry_suggestion;
+    const clientSaysOther = industryHint === 'Other';
+    
+    // Get SIC code from assessment
+    const sicCodeFromAssessment = assessment.responses?.['bm sic code'] ||
+                                   assessment.responses?.bm_sic_code || 
+                                   assessment.responses?.sic_code;
+    
+    // Extract stored industry_code from assessment
+    let storedIndustryCode = assessment.industry_code || assessment.responses?.industry_code;
+    
+    console.log('[BM Pass 1] Assessment data:', {
+      stored_industry_code: storedIndustryCode,
+      sic_code: sicCodeFromAssessment,
+      industry_suggestion: industryHint,
+      client_says_other: clientSaysOther,
+      has_business_description: !!businessDescription
     });
     
-    // If industry_code is missing, try to detect it from SIC codes and business description
-    if (!industryCode || industryCode === 'undefined' || industryCode === 'null') {
-      console.log('[BM Pass 1] Industry code not found in assessment. Attempting dynamic detection from context...');
+    // CRITICAL: If client selected "Other" OR we have an ambiguous SIC code,
+    // we should re-evaluate industry based on SIC + description, not use stored value
+    const ambiguousSICs = ['62090']; // SIC codes that are too broad to map directly
+    const shouldReevaluate = clientSaysOther || 
+                             (sicCodeFromAssessment && ambiguousSICs.includes(sicCodeFromAssessment));
+    
+    let industryCode: string | null = null;
+    
+    if (shouldReevaluate) {
+      console.log('[BM Pass 1] Re-evaluating industry (client says Other OR ambiguous SIC code)...');
+      // Force re-evaluation - don't use stored industry_code
+    } else if (storedIndustryCode && storedIndustryCode !== 'undefined' && storedIndustryCode !== 'null') {
+      // Use stored industry code if we have one and don't need to re-evaluate
+      industryCode = storedIndustryCode;
+      console.log('[BM Pass 1] Using stored industry_code:', industryCode);
+    }
+    
+    // If industry_code is missing OR we're re-evaluating, detect from SIC codes and business description
+    if (!industryCode) {
+      console.log('[BM Pass 1] Detecting industry from SIC code and business description...');
       
-      // Get business description - check both top level and responses with bm_ prefix
-      const businessDescription = 
-        assessment.business_description || 
-        assessment.responses?.business_description ||
-        assessment.responses?.['bm business description'] ||
-        assessment.responses?.bm_business_description;
-      
-      console.log('[BM Pass 1] Business description found:', !!businessDescription);
-      
-      // Check if client explicitly said standard categories don't fit
-      const industryHint = assessment.responses?.['bm industry suggestion'] || 
-                           assessment.responses?.bm_industry_suggestion;
-      const clientSaysOther = industryHint === 'Other';
-      
-      if (clientSaysOther) {
-        console.log('[BM Pass 1] Client selected "Other" industry - will use AI classification with description');
-      }
-      
-      // Get SIC codes - check multiple locations (with space-separated keys too)
-      let sicCodes: string[] | null = null;
-      
-      // First check assessment responses (with bm_ prefix and both space/underscore variants)
-      const sicCodeFromAssessment = assessment.responses?.['bm sic code'] ||
-                                     assessment.responses?.bm_sic_code || 
-                                     assessment.responses?.sic_code;
       const subSectorHint = assessment.responses?.['bm sub sector'] ||
                             assessment.responses?.bm_sub_sector;
       
