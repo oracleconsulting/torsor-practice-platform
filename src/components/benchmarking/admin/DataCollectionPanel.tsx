@@ -27,6 +27,58 @@ interface MetricDefinition {
   inputHelp: string;
 }
 
+// Normalize metric names for fuzzy matching
+// Maps various forms of metric names to a canonical key
+function normalizeMetricName(name: string): string {
+  const normalized = name.toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '') // Remove special chars
+    .replace(/\s+/g, '_')        // Spaces to underscores
+    .replace(/_+/g, '_')         // Multiple underscores to single
+    .trim();
+  
+  // Map common variations to canonical names
+  const aliases: Record<string, string> = {
+    'customer_concentration': 'client_concentration',
+    'client_concentration': 'client_concentration',
+    'top_3_client_concentration': 'client_concentration',
+    'recurring_revenue': 'recurring_revenue_percentage',
+    'recurring_revenue_percentage': 'recurring_revenue_percentage',
+    'recurring_rev_percentage': 'recurring_revenue_percentage',
+    'project_margins': 'project_margins',
+    'project_level_margins': 'project_margins',
+    'projectlevel_margins': 'project_margins',
+    'avg_project_margin': 'project_margins',
+    'revenue_by_sector': 'revenue_by_sector',
+    'sector_revenue': 'revenue_by_sector',
+    'service_vs_hardware': 'service_vs_hardware_revenue_split',
+    'service_vs_hardware_revenue_split': 'service_vs_hardware_revenue_split',
+    'equipment_vs_services': 'service_vs_hardware_revenue_split',
+    'equipment_vs_services_revenue_split': 'service_vs_hardware_revenue_split',
+    'utilisation_rate': 'utilisation_rate',
+    'utilization_rate': 'utilisation_rate',
+    'utilization_rates': 'utilisation_rate',
+    'utilisation_rates': 'utilisation_rate',
+    'contract_terms': 'contract_terms',
+    'hourly_rates': 'hourly_rates',
+    'debtor_days': 'debtor_days',
+    'creditor_days': 'creditor_days',
+  };
+  
+  return aliases[normalized] || normalized;
+}
+
+// Find if a metric has been collected (fuzzy match)
+function findCollectedValue(metricName: string, collectedData: Record<string, string>): string | null {
+  const normalizedTarget = normalizeMetricName(metricName);
+  
+  for (const [key, value] of Object.entries(collectedData)) {
+    if (normalizeMetricName(key) === normalizedTarget) {
+      return value;
+    }
+  }
+  return null;
+}
+
 // Helper to detect if a metric needs complex input (not just a number)
 // Default to text for most metrics since answers often need narrative context
 function needsTextInput(metricName: string): boolean {
@@ -302,9 +354,14 @@ export function DataCollectionPanel({
     }
   };
 
-  // Only count items that are CURRENTLY missing AND have a value collected
+  // Only count items that are CURRENTLY missing AND have a value collected (using fuzzy matching)
   const collectedCount = missingData.filter(metric => {
-    const value = collectedData[metric];
+    // First try exact match
+    let value = collectedData[metric];
+    // If not found, try fuzzy match
+    if (!value || value.trim() === '') {
+      value = findCollectedValue(metric, collectedData) || '';
+    }
     return value && value.trim() !== '';
   }).length;
   const totalMissing = missingData.length;
@@ -472,7 +529,11 @@ export function DataCollectionPanel({
         {missingData.map((metricName) => {
           const definition = getMetricDefinition(metricName);
           const isExpanded = expandedMetric === metricName;
-          const hasValue = collectedData[metricName] && collectedData[metricName].trim() !== '';
+          // Check for value using fuzzy matching
+          const directValue = collectedData[metricName];
+          const fuzzyValue = findCollectedValue(metricName, collectedData);
+          const currentValue = (directValue && directValue.trim() !== '') ? directValue : (fuzzyValue || '');
+          const hasValue = currentValue.trim() !== '';
           
           return (
             <div 
@@ -506,7 +567,7 @@ export function DataCollectionPanel({
                 <div className="flex items-center gap-3">
                   {hasValue && (
                     <span className="text-sm font-semibold text-emerald-600">
-                      {collectedData[metricName]}
+                      {currentValue.length > 50 ? currentValue.substring(0, 50) + '...' : currentValue}
                       {definition?.unit === 'percent' && '%'}
                       {definition?.unit === 'currency' && ' £/hr'}
                       {definition?.unit === 'days' && ' days'}
@@ -588,7 +649,7 @@ export function DataCollectionPanel({
                       Client's Response
                     </label>
                     <textarea
-                      value={collectedData[metricName] || ''}
+                      value={currentValue}
                       onChange={(e) => handleInputChange(metricName, e.target.value)}
                       placeholder={`Enter response... ${definition.benchmark ? `(Industry: ${definition.benchmark.p25}-${definition.benchmark.p75}${definition.unit === 'percent' ? '%' : definition.unit === 'days' ? ' days' : ''})` : ''}`}
                       rows={3}
