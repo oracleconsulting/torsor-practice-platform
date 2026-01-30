@@ -173,7 +173,15 @@ export function ClientDataReference({
                 </span>
               </div>
             )}
-            {cashMonths && (
+            {/* Show Surplus Cash if available, otherwise Cash Runway */}
+            {surplusCash?.hasData && surplusCash.surplusCash && surplusCash.surplusCash > 100000 ? (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Surplus Cash</span>
+                <span className="font-semibold text-emerald-600">
+                  £{(surplusCash.surplusCash / 1000000).toFixed(1)}M
+                </span>
+              </div>
+            ) : cashMonths ? (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-500">Cash Runway</span>
                 <span className={`font-semibold ${
@@ -183,7 +191,7 @@ export function ClientDataReference({
                   {cashMonths.toFixed(1)} months
                 </span>
               </div>
-            )}
+            ) : null}
             {balanceSheet.freehold_property && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-500">Property</span>

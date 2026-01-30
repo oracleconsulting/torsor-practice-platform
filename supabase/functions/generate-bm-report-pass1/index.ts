@@ -2948,7 +2948,9 @@ When writing narratives:
       quick_ratio: assessmentData.quick_ratio || null,
       cash_months: assessmentData.cash_months || null,
       creditor_days: assessmentData.creditor_days || null,
-      benchmark_sources_detail: buildDetailedSourceData(benchmarks || [])
+      benchmark_sources_detail: buildDetailedSourceData(benchmarks || []),
+      // Surplus cash analysis (new)
+      surplus_cash: assessmentData.surplus_cash || null
     };
     
     // Add founder risk data if available
@@ -2993,6 +2995,117 @@ When writing narratives:
         is_primary: metric.isPrimary,
         display_order: index
       });
+    }
+    
+    // ==========================================================================
+    // INSERT SUPPLEMENTARY METRICS (from Data Collection tab)
+    // ==========================================================================
+    const supplementaryMetrics: any[] = [];
+    const revenue = assessmentData._enriched_revenue || 0;
+    
+    // Client Concentration (Top 3)
+    // Check assessmentData (already enriched from responses) and also raw responses
+    const clientConcentration = assessmentData.client_concentration_top3;
+    if (clientConcentration) {
+      // Parse numeric value from string if needed (e.g., "99%" or "99% - Boldyn, Capita, GSTT")
+      const concentrationValue = typeof clientConcentration === 'string' 
+        ? parseFloat(clientConcentration.replace(/[^0-9.]/g, '')) 
+        : clientConcentration;
+      
+      if (concentrationValue && !isNaN(concentrationValue)) {
+        const percentile = concentrationValue >= 90 ? 2 : concentrationValue >= 75 ? 10 : concentrationValue >= 50 ? 35 : 75;
+        const atRisk = concentrationValue >= 75 ? (revenue * concentrationValue / 100 / 3) : 0;
+        
+        supplementaryMetrics.push({
+          engagement_id: engagementId,
+          metric_code: 'client_concentration_top3',
+          metric_name: 'Client Concentration (Top 3)',
+          client_value: concentrationValue,
+          client_value_source: 'collected',
+          p25: 60, p50: 40, p75: 20,  // Lower is better for concentration
+          percentile: percentile,
+          assessment: concentrationValue >= 75 ? 'bottom_10' : concentrationValue >= 50 ? 'below_median' : 'above_median',
+          vs_median: concentrationValue - 40,
+          vs_top_quartile: concentrationValue - 20,
+          annual_impact: atRisk,
+          impact_calculation: concentrationValue >= 75 
+            ? `${concentrationValue}% from top 3 clients. Loss of one = £${(atRisk / 1000000).toFixed(1)}M at risk`
+            : `${concentrationValue}% concentration is acceptable`,
+          display_order: 50,
+          is_primary: concentrationValue >= 75  // Flag as critical if high concentration
+        });
+        console.log(`[BM Pass 1] Added client concentration metric: ${concentrationValue}%`);
+      }
+    }
+    
+    // Project Margin
+    const projectMargin = assessmentData.project_margin;
+    if (projectMargin) {
+      const marginValue = typeof projectMargin === 'string' 
+        ? parseFloat(projectMargin.replace(/[^0-9.]/g, '')) 
+        : projectMargin;
+      
+      if (marginValue && !isNaN(marginValue)) {
+        supplementaryMetrics.push({
+          engagement_id: engagementId,
+          metric_code: 'project_margin',
+          metric_name: 'Project Margin',
+          client_value: marginValue,
+          client_value_source: 'collected',
+          p25: 15, p50: 25, p75: 40,
+          percentile: marginValue < 15 ? 10 : marginValue < 25 ? 35 : marginValue < 40 ? 60 : 85,
+          assessment: marginValue < 25 ? 'below_median' : 'above_median',
+          vs_median: marginValue - 25,
+          vs_top_quartile: marginValue - 40,
+          annual_impact: 0,
+          impact_calculation: `${marginValue}% project margin`,
+          display_order: 51,
+          is_primary: false
+        });
+        console.log(`[BM Pass 1] Added project margin metric: ${marginValue}%`);
+      }
+    }
+    
+    // Recurring Revenue Percentage
+    const recurringRevenue = assessmentData.recurring_revenue_percentage;
+    if (recurringRevenue) {
+      const rrValue = typeof recurringRevenue === 'string' 
+        ? parseFloat(recurringRevenue.replace(/[^0-9.]/g, '')) 
+        : recurringRevenue;
+      
+      if (rrValue && !isNaN(rrValue)) {
+        supplementaryMetrics.push({
+          engagement_id: engagementId,
+          metric_code: 'recurring_revenue_pct',
+          metric_name: 'Recurring Revenue %',
+          client_value: rrValue,
+          client_value_source: 'collected',
+          p25: 20, p50: 40, p75: 65,
+          percentile: rrValue < 20 ? 15 : rrValue < 40 ? 35 : rrValue < 65 ? 60 : 85,
+          assessment: rrValue < 40 ? 'below_median' : 'above_median',
+          vs_median: rrValue - 40,
+          vs_top_quartile: rrValue - 65,
+          annual_impact: 0,
+          impact_calculation: `${rrValue}% recurring revenue`,
+          display_order: 52,
+          is_primary: false
+        });
+        console.log(`[BM Pass 1] Added recurring revenue metric: ${rrValue}%`);
+      }
+    }
+    
+    // Insert supplementary metrics
+    if (supplementaryMetrics.length > 0) {
+      for (const metric of supplementaryMetrics) {
+        const { error: suppError } = await supabaseClient
+          .from('bm_metric_comparisons')
+          .upsert(metric, { onConflict: 'engagement_id,metric_code' });
+        
+        if (suppError) {
+          console.error('[BM Pass 1] Supplementary metric insert error:', suppError);
+        }
+      }
+      console.log(`[BM Pass 1] Inserted ${supplementaryMetrics.length} supplementary metrics`);
     }
     
     // Update engagement status
