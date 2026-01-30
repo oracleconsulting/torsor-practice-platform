@@ -1591,8 +1591,8 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
       
       // Cash months runway (based on monthly fixed costs, not revenue)
       if (balanceSheet.cash) {
-        const staffCosts = financialData.staff_costs || financialData.administrative_expenses?.staff_costs || 0;
-        const adminExpenses = financialData.admin_expenses || financialData.administrative_expenses?.total || 0;
+        const staffCosts = latest.staff_costs || latest.total_staff_costs || latest.wages_and_salaries || 0;
+        const adminExpenses = latest.admin_expenses || latest.administrative_expenses || latest.other_operating_charges || 0;
         const monthlyFixedCosts = (staffCosts + adminExpenses) / 12;
         
         if (monthlyFixedCosts > 0) {
