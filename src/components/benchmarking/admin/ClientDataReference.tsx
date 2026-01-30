@@ -31,6 +31,22 @@ interface InvestmentSignals {
   indicators: string[];
 }
 
+interface SurplusCashAnalysis {
+  hasData: boolean;
+  actualCash: number | null;
+  requiredCash: number | null;
+  surplusCash: number | null;
+  surplusAsPercentOfRevenue: number | null;
+  components: {
+    operatingBuffer: number | null;
+    workingCapitalRequirement: number | null;
+    netWorkingCapital: number | null;
+  };
+  methodology: string;
+  narrative: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
 interface ClientDataReferenceProps {
   revenue: number;
   employees: number;
@@ -48,6 +64,7 @@ interface ClientDataReferenceProps {
   financialTrends?: TrendAnalysis[] | null;
   investmentSignals?: InvestmentSignals | null;
   cashMonths?: number | null;
+  surplusCash?: SurplusCashAnalysis | null;
 }
 
 export function ClientDataReference({
@@ -65,7 +82,8 @@ export function ClientDataReference({
   balanceSheet,
   financialTrends,
   investmentSignals,
-  cashMonths
+  cashMonths,
+  surplusCash
 }: ClientDataReferenceProps) {
   return (
     <div className="bg-slate-50 rounded-lg p-4 space-y-4">
@@ -178,6 +196,45 @@ export function ClientDataReference({
         </div>
       )}
       
+      {/* Surplus Cash Analysis */}
+      {surplusCash?.hasData && surplusCash.surplusCash && surplusCash.surplusCash > 100000 && (
+        <div className="pt-3 border-t border-slate-200">
+          <p className="text-xs text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1">
+            <PiggyBank className="w-3 h-3" />
+            Surplus Cash
+          </p>
+          <div className={`p-2 rounded text-xs ${
+            surplusCash.surplusAsPercentOfRevenue && surplusCash.surplusAsPercentOfRevenue > 5 
+              ? 'bg-emerald-50 border border-emerald-200' 
+              : 'bg-slate-50 border border-slate-200'
+          }`}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-slate-600">Surplus</span>
+              <span className="font-bold text-emerald-600">
+                £{(surplusCash.surplusCash / 1000000).toFixed(1)}M
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-slate-500">
+              <span>vs Required</span>
+              <span>£{surplusCash.requiredCash ? (surplusCash.requiredCash / 1000000).toFixed(1) : '?'}M</span>
+            </div>
+            {surplusCash.surplusAsPercentOfRevenue && (
+              <div className="mt-1 pt-1 border-t border-slate-200 text-slate-600">
+                {surplusCash.surplusAsPercentOfRevenue.toFixed(1)}% of revenue
+              </div>
+            )}
+            {surplusCash.components.netWorkingCapital && surplusCash.components.netWorkingCapital < 0 && (
+              <div className="mt-1 pt-1 border-t border-slate-200 text-blue-600">
+                📊 Suppliers fund £{(Math.abs(surplusCash.components.netWorkingCapital) / 1000000).toFixed(1)}M WC
+              </div>
+            )}
+            <div className="mt-1 text-slate-400">
+              Confidence: {surplusCash.confidence}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Financial Trends */}
       {financialTrends && financialTrends.length > 0 && (
         <div className="pt-3 border-t border-slate-200">

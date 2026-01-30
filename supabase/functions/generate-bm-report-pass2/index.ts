@@ -104,6 +104,33 @@ do NOT describe the business as "in crisis" even if margins are low.
 Strong balance sheets indicate financial resilience and capacity to invest.
 ` : ''}
 
+${pass1Data.surplus_cash?.hasData ? `
+═══════════════════════════════════════════════════════════════════════════════
+SURPLUS CASH ANALYSIS (Hidden Value)
+═══════════════════════════════════════════════════════════════════════════════
+
+${pass1Data.surplus_cash.narrative}
+
+| Component | Value |
+|-----------|-------|
+| Actual Cash | £${pass1Data.surplus_cash.actualCash ? (pass1Data.surplus_cash.actualCash / 1000000).toFixed(2) : '?'}M |
+| Required Cash (3-mo buffer + WC) | £${pass1Data.surplus_cash.requiredCash ? (pass1Data.surplus_cash.requiredCash / 1000000).toFixed(2) : '?'}M |
+| **SURPLUS CASH** | **£${pass1Data.surplus_cash.surplusCash ? (pass1Data.surplus_cash.surplusCash / 1000000).toFixed(2) : '0.00'}M** |
+
+Breakdown:
+- Operating Buffer (3 months): £${pass1Data.surplus_cash.components.operatingBuffer ? (pass1Data.surplus_cash.components.operatingBuffer / 1000000).toFixed(2) : '?'}M
+- Working Capital Requirement: £${pass1Data.surplus_cash.components.workingCapitalRequirement ? (pass1Data.surplus_cash.components.workingCapitalRequirement / 1000).toFixed(0) : '0'}k
+${pass1Data.surplus_cash.components.netWorkingCapital && pass1Data.surplus_cash.components.netWorkingCapital < 0 ? `- Note: Negative working capital (£${(Math.abs(pass1Data.surplus_cash.components.netWorkingCapital) / 1000000).toFixed(2)}M) = suppliers fund operations` : ''}
+
+Methodology: ${pass1Data.surplus_cash.methodology}
+Confidence: ${pass1Data.surplus_cash.confidence}
+
+⚠️ IMPORTANT FOR NARRATIVE:
+- If surplus cash is material (>${pass1Data.surplus_cash.surplusAsPercentOfRevenue && pass1Data.surplus_cash.surplusAsPercentOfRevenue > 5 ? 'YES, ' + pass1Data.surplus_cash.surplusAsPercentOfRevenue.toFixed(1) + '% of revenue' : '5% of revenue'}), mention this as a STRENGTH
+- State the actual surplus figure (£${pass1Data.surplus_cash.surplusCash ? (pass1Data.surplus_cash.surplusCash / 1000000).toFixed(1) : '0'}M), NOT generic phrases like "healthy cash"
+- This surplus sits OUTSIDE normal earnings-based valuations - it's hidden value
+` : ''}
+
 ═══════════════════════════════════════════════════════════════════════════════
 YOUR OUTPUT
 ═══════════════════════════════════════════════════════════════════════════════

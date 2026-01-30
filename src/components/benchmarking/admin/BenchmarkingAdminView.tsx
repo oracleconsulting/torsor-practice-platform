@@ -71,6 +71,21 @@ interface BenchmarkAnalysis {
   quick_ratio?: number | null;
   cash_months?: number | null;
   creditor_days?: number | null;
+  surplus_cash?: {
+    hasData: boolean;
+    actualCash: number | null;
+    requiredCash: number | null;
+    surplusCash: number | null;
+    surplusAsPercentOfRevenue: number | null;
+    components: {
+      operatingBuffer: number | null;
+      workingCapitalRequirement: number | null;
+      netWorkingCapital: number | null;
+    };
+    methodology: string;
+    narrative: string;
+    confidence: 'high' | 'medium' | 'low';
+  } | null;
 }
 
 interface BenchmarkingAdminViewProps {
@@ -458,6 +473,7 @@ export function BenchmarkingAdminView({
               financialTrends={data.financial_trends}
               investmentSignals={data.investment_signals}
               cashMonths={data.cash_months}
+              surplusCash={data.surplus_cash}
             />
             
             {/* Recommendations Summary */}

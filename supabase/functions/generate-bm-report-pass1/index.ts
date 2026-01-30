@@ -58,6 +58,178 @@ interface InvestmentSignals {
   priorYearWasTrough: boolean;
 }
 
+interface SurplusCashAnalysis {
+  hasData: boolean;
+  actualCash: number | null;
+  requiredCash: number | null;
+  surplusCash: number | null;
+  surplusAsPercentOfRevenue: number | null;
+  components: {
+    operatingBuffer: number | null;
+    workingCapitalRequirement: number | null;
+    staffCostsQuarterly: number | null;
+    adminExpensesQuarterly: number | null;
+    debtors: number | null;
+    creditors: number | null;
+    stock: number | null;
+    netWorkingCapital: number | null;
+  };
+  methodology: string;
+  narrative: string;
+  confidence: 'high' | 'medium' | 'low';
+  missingFields: string[];
+}
+
+// =============================================================================
+// SURPLUS CASH CALCULATION
+// =============================================================================
+
+function calculateSurplusCash(financials: Record<string, any>, revenue: number | null): SurplusCashAnalysis {
+  const missingFields: string[] = [];
+  
+  // Extract values with multiple field name variations
+  const actualCash = financials.cash || financials.cash_at_bank || financials.cash_at_bank_and_in_hand || null;
+  const staffCosts = financials.staff_costs || financials.total_staff_costs || financials.wages_and_salaries || null;
+  const adminExpenses = financials.admin_expenses || financials.administrative_expenses || financials.other_operating_charges || null;
+  const debtors = financials.debtors || financials.trade_debtors || financials.debtors_due_within_one_year || null;
+  const creditors = financials.creditors || financials.trade_creditors || 
+                    financials.amounts_falling_due_within_one_year || financials.current_liabilities || null;
+  const stock = financials.stock || financials.stocks || financials.inventory || 0;
+  
+  // Track missing fields
+  if (!actualCash) missingFields.push('cash');
+  if (!staffCosts) missingFields.push('staffCosts');
+  if (!adminExpenses) missingFields.push('adminExpenses');
+  if (!debtors) missingFields.push('debtors');
+  if (!creditors) missingFields.push('creditors');
+  
+  // If we don't have cash, we can't calculate anything
+  if (!actualCash) {
+    return {
+      hasData: false,
+      actualCash: null,
+      requiredCash: null,
+      surplusCash: null,
+      surplusAsPercentOfRevenue: null,
+      components: {
+        operatingBuffer: null,
+        workingCapitalRequirement: null,
+        staffCostsQuarterly: null,
+        adminExpensesQuarterly: null,
+        debtors: null,
+        creditors: null,
+        stock: null,
+        netWorkingCapital: null
+      },
+      methodology: 'Unable to calculate - missing cash position',
+      narrative: 'Insufficient data to calculate surplus cash position.',
+      confidence: 'low',
+      missingFields
+    };
+  }
+  
+  // Calculate operating buffer (3 months fixed costs)
+  let operatingBuffer: number | null = null;
+  let staffCostsQuarterly: number | null = null;
+  let adminExpensesQuarterly: number | null = null;
+  
+  if (staffCosts && adminExpenses) {
+    staffCostsQuarterly = staffCosts / 4;
+    adminExpensesQuarterly = adminExpenses / 4;
+    operatingBuffer = staffCostsQuarterly + adminExpensesQuarterly;
+  } else if (staffCosts) {
+    // If we only have staff costs, use 1.5x as proxy for total fixed costs
+    staffCostsQuarterly = staffCosts / 4;
+    operatingBuffer = staffCostsQuarterly * 1.5;
+  } else if (revenue) {
+    // Fallback: assume fixed costs are ~25% of revenue for service businesses
+    operatingBuffer = (revenue * 0.25) / 4;
+  }
+  
+  // Calculate working capital requirement
+  let netWorkingCapital: number | null = null;
+  let workingCapitalRequirement: number | null = null;
+  
+  if (debtors !== null && creditors !== null) {
+    netWorkingCapital = (debtors || 0) + (stock || 0) - (creditors || 0);
+    workingCapitalRequirement = Math.max(0, netWorkingCapital);
+  }
+  
+  // Calculate required cash
+  let requiredCash: number | null = null;
+  if (operatingBuffer !== null) {
+    requiredCash = operatingBuffer + (workingCapitalRequirement || 0);
+  }
+  
+  // Calculate surplus
+  let surplusCash: number | null = null;
+  if (requiredCash !== null) {
+    surplusCash = Math.max(0, actualCash - requiredCash);
+  }
+  
+  // Calculate as percentage of revenue
+  let surplusAsPercentOfRevenue: number | null = null;
+  if (surplusCash !== null && revenue) {
+    surplusAsPercentOfRevenue = (surplusCash / revenue) * 100;
+  }
+  
+  // Determine confidence
+  let confidence: 'high' | 'medium' | 'low' = 'low';
+  if (missingFields.length === 0) {
+    confidence = 'high';
+  } else if (missingFields.length <= 2 && actualCash && (staffCosts || revenue)) {
+    confidence = 'medium';
+  }
+  
+  // Build methodology explanation
+  const methodology = `Operating buffer = 3 months fixed costs (${staffCosts && adminExpenses ? 'staff + admin' : staffCosts ? 'estimated from staff costs' : 'estimated from revenue'}). ` +
+    `Working capital requirement = MAX(0, debtors + stock - creditors)${netWorkingCapital && netWorkingCapital < 0 ? ' — negative means suppliers fund the business' : ''}.`;
+  
+  // Build narrative
+  let narrative = '';
+  if (surplusCash && surplusCash > 100000) {
+    const surplusFormatted = surplusCash >= 1000000 
+      ? `£${(surplusCash / 1000000).toFixed(1)}M` 
+      : `£${(surplusCash / 1000).toFixed(0)}k`;
+    
+    narrative = `Surplus cash of ${surplusFormatted} identified above operating requirements. `;
+    
+    if (netWorkingCapital && netWorkingCapital < 0) {
+      narrative += `Supplier payment terms provide additional £${(Math.abs(netWorkingCapital) / 1000).toFixed(0)}k of free working capital. `;
+    }
+    
+    if (surplusAsPercentOfRevenue) {
+      narrative += `This represents ${surplusAsPercentOfRevenue.toFixed(1)}% of annual revenue.`;
+    }
+  } else if (surplusCash !== null) {
+    narrative = 'Cash position is in line with operating requirements — no material surplus identified.';
+  } else {
+    narrative = 'Unable to calculate surplus cash from available data.';
+  }
+  
+  return {
+    hasData: surplusCash !== null,
+    actualCash,
+    requiredCash,
+    surplusCash,
+    surplusAsPercentOfRevenue,
+    components: {
+      operatingBuffer,
+      workingCapitalRequirement,
+      staffCostsQuarterly,
+      adminExpensesQuarterly,
+      debtors,
+      creditors,
+      stock,
+      netWorkingCapital
+    },
+    methodology,
+    narrative,
+    confidence,
+    missingFields
+  };
+}
+
 // =============================================================================
 // TREND ANALYSIS FUNCTIONS
 // =============================================================================
@@ -1421,6 +1593,45 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
       if (balanceSheet.cash && enriched._enriched_revenue) {
         enriched.cash_months = Number(((balanceSheet.cash / enriched._enriched_revenue) * 12).toFixed(1));
         derivedFields.push('cash_months');
+      }
+      
+      // ==========================================================================
+      // SURPLUS CASH CALCULATION
+      // ==========================================================================
+      // Calculate surplus cash using proper methodology:
+      // Surplus = Actual Cash - (3-month Operating Buffer + Working Capital Requirement)
+      
+      const surplusCashData = {
+        ...balanceSheet,
+        // Add P&L items for operating buffer calculation
+        staff_costs: latest.staff_costs || latest.total_staff_costs || latest.wages_and_salaries,
+        admin_expenses: latest.admin_expenses || latest.administrative_expenses || latest.other_operating_charges
+      };
+      
+      const surplusCashAnalysis = calculateSurplusCash(surplusCashData, enriched._enriched_revenue);
+      
+      if (surplusCashAnalysis.hasData) {
+        enriched.surplus_cash = surplusCashAnalysis;
+        derivedFields.push(`surplus_cash (${surplusCashAnalysis.confidence} confidence)`);
+        
+        console.log('[BM Enrich] Surplus cash analysis:', {
+          actualCash: surplusCashAnalysis.actualCash,
+          requiredCash: surplusCashAnalysis.requiredCash,
+          surplusCash: surplusCashAnalysis.surplusCash,
+          surplusPercent: surplusCashAnalysis.surplusAsPercentOfRevenue?.toFixed(1) + '%',
+          confidence: surplusCashAnalysis.confidence,
+          netWorkingCapital: surplusCashAnalysis.components.netWorkingCapital
+        });
+        
+        // Log if material surplus found
+        if (surplusCashAnalysis.surplusCash && surplusCashAnalysis.surplusCash >= 500000) {
+          console.log(`[BM Enrich] 💰 MATERIAL SURPLUS CASH: £${(surplusCashAnalysis.surplusCash / 1000000).toFixed(1)}M`);
+        }
+        
+        // Log if suppliers are funding working capital
+        if (surplusCashAnalysis.components.netWorkingCapital && surplusCashAnalysis.components.netWorkingCapital < 0) {
+          console.log(`[BM Enrich] 📊 Negative working capital: suppliers fund £${(Math.abs(surplusCashAnalysis.components.netWorkingCapital) / 1000).toFixed(0)}k`);
+        }
       }
     }
     
