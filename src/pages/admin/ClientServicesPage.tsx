@@ -10630,14 +10630,23 @@ function BenchmarkingClientModal({
                           onClick={async () => {
                             if (!confirm('This will cancel the current generation and allow you to start fresh. Continue?')) return;
                             try {
-                              // Reset the report status to allow regeneration
-                              const { error } = await supabase
+                              // Reset BOTH report and engagement status to allow regeneration
+                              const { error: reportError } = await supabase
                                 .from('bm_reports')
                                 .update({ status: 'cancelled' })
                                 .eq('engagement_id', report.engagement_id);
-                              if (error) throw error;
+                              if (reportError) throw reportError;
+                              
+                              // Also reset engagement status
+                              const { error: engError } = await supabase
+                                .from('bm_engagements')
+                                .update({ status: 'assessment_complete' })
+                                .eq('id', report.engagement_id);
+                              if (engError) console.warn('Could not reset engagement status:', engError);
+                              
                               alert('Generation cancelled. You can now regenerate the report.');
-                              fetchData();
+                              // Force full page data refresh
+                              window.location.reload();
                             } catch (err) {
                               console.error('Failed to cancel:', err);
                               alert('Failed to cancel generation. Please try again.');
