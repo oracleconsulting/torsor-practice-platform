@@ -10633,7 +10633,7 @@ function BenchmarkingClientModal({
                               const { error } = await supabase
                                 .from('bm_reports')
                                 .update({ status: 'cancelled' })
-                                .eq('engagement_id', selectedEngagement.id);
+                                .eq('engagement_id', report.engagement_id);
                               if (error) throw error;
                               alert('Generation cancelled. You can now regenerate the report.');
                               fetchData();
