@@ -131,6 +131,68 @@ Confidence: ${pass1Data.surplus_cash.confidence}
 - This surplus sits OUTSIDE normal earnings-based valuations - it's hidden value
 ` : ''}
 
+${pass1Data.collectedData ? `
+═══════════════════════════════════════════════════════════════════════════════
+COLLECTED DATA - USE THIS TO MAKE RECOMMENDATIONS SPECIFIC
+═══════════════════════════════════════════════════════════════════════════════
+
+${pass1Data.client_concentration_top3 ? `
+CLIENT CONCENTRATION (CRITICAL):
+- Top 3 concentration: ${pass1Data.client_concentration_top3}%
+${pass1Data.client_concentration_details ? `- Details: ${pass1Data.client_concentration_details}` : ''}
+
+⚠️ USE THIS: Do NOT suggest generic "diversification". Instead:
+- Reference specific clients if known
+- Acknowledge relationship lengths
+- Suggest specific actions for their situation
+- If concentration is above 75%, this is a CRITICAL risk that MUST be addressed prominently
+` : ''}
+
+${pass1Data.project_margin ? `
+PROJECT MARGINS: ${pass1Data.project_margin}%
+
+⚠️ USE THIS: Reference their actual margin:
+- If low (< 20%), connect to pricing or efficiency opportunities
+- If decent (20-35%), acknowledge as structural to their model
+- Don't compare to irrelevant benchmarks (e.g., pure software vs infrastructure)
+` : ''}
+
+${pass1Data.hourly_rate ? `
+PRICING DATA:
+Average hourly rate: £${pass1Data.hourly_rate}
+
+⚠️ USE THIS: Reference their actual rate in recommendations.
+- Compare to industry medians for context
+- If below median, discuss pricing power
+- If above median, acknowledge their premium positioning
+` : ''}
+
+${pass1Data.utilisation_rate ? `
+UTILISATION: ${pass1Data.utilisation_rate}%
+
+⚠️ USE THIS: Reference actual utilisation figure in gap analysis.
+` : ''}
+` : ''}
+
+${pass1Data.industryMismatch ? `
+═══════════════════════════════════════════════════════════════════════════════
+⚠️ INDUSTRY CONTEXT - HONEST BENCHMARKING
+═══════════════════════════════════════════════════════════════════════════════
+
+${pass1Data.industryMismatch.description}
+
+${pass1Data.industryMismatch.acknowledgment || `
+IMPORTANT: When discussing gaps, acknowledge where comparisons may not be apples-to-apples.
+Example: "While we're benchmarking against [industry median X], your business model 
+naturally operates differently. Your [metric] is more aligned with [relevant comparison]."
+`}
+
+DO NOT:
+- Describe their margins as "alarming" if they match their actual business model
+- Compare infrastructure/project businesses to pure services
+- Ignore their business description when interpreting benchmarks
+` : ''}
+
 ═══════════════════════════════════════════════════════════════════════════════
 YOUR OUTPUT
 ═══════════════════════════════════════════════════════════════════════════════
@@ -265,7 +327,7 @@ serve(async (req) => {
     console.log('[BM Pass 2] Calling Opus for narrative generation...');
     const startTime = Date.now();
     
-    // Merge pass1_data with additional context from report (balance sheet, trends)
+    // Merge pass1_data with additional context from report (balance sheet, trends, surplus cash, collected data)
     const enrichedPass1Data = {
       ...report.pass1_data,
       balance_sheet: report.balance_sheet,
@@ -274,7 +336,16 @@ serve(async (req) => {
       historical_financials: report.historical_financials,
       current_ratio: report.current_ratio,
       quick_ratio: report.quick_ratio,
-      cash_months: report.cash_months
+      cash_months: report.cash_months,
+      surplus_cash: report.surplus_cash,
+      // Flag that we have collected data
+      collectedData: true,
+      // These should already be in pass1_data from enrichment, but ensure they're present
+      client_concentration_top3: report.pass1_data?.client_concentration_top3,
+      client_concentration_details: report.pass1_data?.client_concentration_details,
+      project_margin: report.pass1_data?.project_margin,
+      hourly_rate: report.pass1_data?.hourly_rate,
+      utilisation_rate: report.pass1_data?.utilisation_rate
     };
     
     // Log if we have trend/investment context
@@ -286,6 +357,12 @@ serve(async (req) => {
     }
     if (enrichedPass1Data.balance_sheet) {
       console.log('[BM Pass 2] Including balance sheet context in narrative');
+    }
+    if (enrichedPass1Data.surplus_cash?.hasData) {
+      console.log(`[BM Pass 2] Including surplus cash (£${(enrichedPass1Data.surplus_cash.surplusCash / 1000000).toFixed(1)}M) in narrative`);
+    }
+    if (enrichedPass1Data.client_concentration_top3) {
+      console.log(`[BM Pass 2] Including client concentration (${enrichedPass1Data.client_concentration_top3}%) in narrative`);
     }
     
     const prompt = buildPass2Prompt(enrichedPass1Data);

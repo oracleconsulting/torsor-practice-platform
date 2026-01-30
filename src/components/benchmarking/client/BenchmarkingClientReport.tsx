@@ -2,6 +2,30 @@ import { HeroSection } from './HeroSection';
 import { MetricComparisonCard } from './MetricComparisonCard';
 import { NarrativeSection } from './NarrativeSection';
 import { RecommendationsSection } from './RecommendationsSection';
+import { AlertTriangle, Gem, Shield, CheckCircle } from 'lucide-react';
+
+interface SurplusCashAnalysis {
+  hasData: boolean;
+  actualCash: number;
+  requiredCash: number;
+  surplusCash: number;
+  surplusAsPercentOfRevenue: number;
+  components: {
+    operatingBuffer: number;
+    workingCapitalRequirement: number;
+    netWorkingCapital: number;
+    staffCostsQuarterly?: number;
+    adminExpensesQuarterly?: number;
+  };
+}
+
+interface BalanceSheet {
+  cash: number;
+  net_assets: number;
+  freehold_property?: number;
+  investments?: number;
+  total_assets?: number;
+}
 
 interface BenchmarkAnalysis {
   headline: string;
@@ -19,6 +43,20 @@ interface BenchmarkAnalysis {
   created_at?: string;
   data_sources?: string[];
   benchmark_data_as_of?: string;
+  // Hidden value fields
+  surplus_cash?: SurplusCashAnalysis;
+  balance_sheet?: BalanceSheet;
+  // Concentration fields
+  client_concentration?: number;
+  client_concentration_top3?: number;
+  top_customers?: Array<{ name: string; percentage?: number }>;
+  revenue?: number;
+  // HVA fields for competitive moat
+  hva_data?: {
+    competitive_moat?: string[];
+    unique_methods?: string;
+    reputation_build_time?: string;
+  };
 }
 
 interface BenchmarkingClientReportProps {
@@ -123,6 +161,156 @@ export function BenchmarkingClientReport({ data }: BenchmarkingClientReportProps
           <h2 className="text-xl font-semibold text-slate-900 mb-4">Executive Summary</h2>
           <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{data.executive_summary}</p>
         </div>
+        
+        {/* HIDDEN VALUE SECTION */}
+        {((data.surplus_cash?.surplusCash && data.surplus_cash.surplusCash > 0) || 
+          (data.balance_sheet?.freehold_property && data.balance_sheet.freehold_property > 0) ||
+          (data.balance_sheet?.investments && data.balance_sheet.investments > 0)) && (
+          <section className="p-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
+            <h2 className="text-xl font-semibold text-green-800 mb-4 flex items-center gap-2">
+              <Gem className="h-5 w-5" />
+              Hidden Value Identified
+            </h2>
+            
+            <p className="text-gray-700 mb-4">
+              Beyond your operating performance, we've identified assets that sit 
+              outside normal earnings-based valuations:
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {data.surplus_cash?.surplusCash && data.surplus_cash.surplusCash > 0 && (
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                  <div className="text-2xl font-bold text-green-700">
+                    £{(data.surplus_cash.surplusCash / 1000000).toFixed(1)}M
+                  </div>
+                  <div className="text-sm text-gray-600">Surplus Cash</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Above operating requirements
+                  </div>
+                </div>
+              )}
+              
+              {data.balance_sheet?.freehold_property && data.balance_sheet.freehold_property > 0 && (
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                  <div className="text-2xl font-bold text-green-700">
+                    £{(data.balance_sheet.freehold_property / 1000).toFixed(0)}k
+                  </div>
+                  <div className="text-sm text-gray-600">Property Value</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    At book value (market may be higher)
+                  </div>
+                </div>
+              )}
+              
+              {data.balance_sheet?.investments && data.balance_sheet.investments > 0 && (
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                  <div className="text-2xl font-bold text-green-700">
+                    £{(data.balance_sheet.investments / 1000).toFixed(0)}k
+                  </div>
+                  <div className="text-sm text-gray-600">Investments</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Fixed asset investments
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {data.surplus_cash?.components?.netWorkingCapital && data.surplus_cash.components.netWorkingCapital < 0 && (
+              <div className="mt-4 p-3 bg-white rounded border border-green-200">
+                <span className="text-green-700 font-medium">Bonus: </span>
+                <span className="text-gray-700">
+                  Your supplier payment terms mean you operate with 
+                  £{(Math.abs(data.surplus_cash.components.netWorkingCapital) / 1000000).toFixed(1)}M 
+                  of free working capital — suppliers fund your operations, not you.
+                </span>
+              </div>
+            )}
+          </section>
+        )}
+        
+        {/* CONCENTRATION RISK SECTION */}
+        {(data.client_concentration || data.client_concentration_top3) && 
+         (data.client_concentration || data.client_concentration_top3 || 0) > 75 && (
+          <section className="p-6 bg-red-50 rounded-xl border border-red-200">
+            <h2 className="text-xl font-semibold text-red-800 mb-4 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Customer Concentration Risk
+            </h2>
+            
+            <div className="flex items-center gap-4 mb-4">
+              <div className="text-4xl font-bold text-red-700">
+                {data.client_concentration || data.client_concentration_top3}%
+              </div>
+              <div className="text-gray-700">
+                of your revenue comes from just 3 customers
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="bg-white p-4 rounded-lg">
+                <div className="text-sm text-gray-600 mb-1">If you lost your largest customer:</div>
+                <div className="text-xl font-semibold text-red-600">
+                  £{(((data.revenue || 0) * (data.client_concentration || data.client_concentration_top3 || 0) / 100) / 3 / 1000000).toFixed(1)}M+ at risk
+                </div>
+              </div>
+              
+              <div className="bg-white p-4 rounded-lg">
+                <div className="text-sm text-gray-600 mb-1">Industry benchmark:</div>
+                <div className="text-xl font-semibold">
+                  Top 3 customers &lt; 40%
+                </div>
+              </div>
+            </div>
+            
+            <div className="text-gray-700">
+              <p className="mb-2">
+                <strong>Why this matters:</strong> Acquirers typically apply a 20-30% valuation 
+                discount for businesses with this level of concentration. More importantly, your 
+                business is vulnerable to decisions made by people outside your control.
+              </p>
+              <p>
+                <strong>The question:</strong> What would happen to your business if 
+                {data.top_customers?.[0]?.name ? ` ${data.top_customers[0].name}` : ' your largest client'} 
+                changed supplier, was acquired, or cut budgets?
+              </p>
+            </div>
+          </section>
+        )}
+        
+        {/* COMPETITIVE STRENGTHS SECTION */}
+        {data.hva_data?.competitive_moat && data.hva_data.competitive_moat.length > 0 && (
+          <section className="p-6 bg-blue-50 rounded-xl border border-blue-200">
+            <h2 className="text-xl font-semibold text-blue-800 mb-4 flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Your Competitive Moat
+            </h2>
+            
+            <p className="text-gray-700 mb-4">
+              These are barriers that protect your business from competitors:
+            </p>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {data.hva_data.competitive_moat.map((moat, i) => (
+                <div key={i} className="bg-white p-3 rounded-lg flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                  <span className="text-sm">{moat}</span>
+                </div>
+              ))}
+            </div>
+            
+            {data.hva_data.unique_methods && (
+              <div className="mt-4 p-4 bg-white rounded-lg">
+                <div className="text-sm font-medium text-blue-800 mb-2">Your Unique Advantage:</div>
+                <p className="text-gray-700 italic">"{data.hva_data.unique_methods}"</p>
+                {data.hva_data.reputation_build_time && (
+                  <p className="text-sm text-gray-600 mt-2">
+                    Time to replicate: {data.hva_data.reputation_build_time}
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+        )}
         
         {/* Metrics Grid */}
         {metrics.length > 0 && (
