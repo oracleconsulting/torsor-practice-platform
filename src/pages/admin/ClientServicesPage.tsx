@@ -10194,9 +10194,10 @@ function BenchmarkingClientModal({
     }
   };
 
-  const canGenerate = engagement?.status === 'assessment_complete' || engagement?.status === 'pass1_complete';
-  // Report exists if we have report data OR if engagement status indicates a report was generated
-  const hasReport = !!report || engagement?.status === 'pass1_complete' || engagement?.status === 'generated' || engagement?.status === 'approved';
+  const canGenerate = engagement?.status === 'assessment_complete' || engagement?.status === 'pass1_complete' || engagement?.status === 'cancelled';
+  // Report exists if we have report data (but not if cancelled) OR if engagement status indicates a report was generated
+  // Treat 'cancelled' status as "no report" so user can regenerate
+  const hasReport = (!!report && report.status !== 'cancelled') || engagement?.status === 'pass1_complete' || engagement?.status === 'generated' || engagement?.status === 'approved';
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
