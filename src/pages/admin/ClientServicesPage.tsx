@@ -46,7 +46,8 @@ import {
   Save,
   BarChart3,
   Quote,
-  Phone
+  Phone,
+  XCircle
 } from 'lucide-react';
 import { SAAdminReportView } from '../../components/systems-audit/SAAdminReportView';
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
@@ -10616,13 +10617,40 @@ function BenchmarkingClientModal({
                       <p className="text-blue-800 mb-4">
                         Pass 1 (data extraction) is complete. Narrative generation (Pass 2) is in progress...
                       </p>
-                      <button
-                        onClick={fetchData}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                        <span>Refresh Status</span>
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={fetchData}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                          <span>Refresh Status</span>
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!confirm('This will cancel the current generation and allow you to start fresh. Continue?')) return;
+                            try {
+                              // Reset the report status to allow regeneration
+                              const { error } = await supabase
+                                .from('bm_reports')
+                                .update({ status: 'cancelled' })
+                                .eq('engagement_id', selectedEngagement.id);
+                              if (error) throw error;
+                              alert('Generation cancelled. You can now regenerate the report.');
+                              fetchData();
+                            } catch (err) {
+                              console.error('Failed to cancel:', err);
+                              alert('Failed to cancel generation. Please try again.');
+                            }
+                          }}
+                          className="px-4 py-2 border border-red-300 bg-white hover:bg-red-50 text-red-600 rounded-lg flex items-center gap-2"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          <span>Cancel & Reset</span>
+                        </button>
+                      </div>
+                      <p className="text-xs text-blue-600 mt-3">
+                        If Pass 2 has failed (e.g., API timeout or credits), click "Cancel & Reset" to restart.
+                      </p>
                     </div>
                   ) : (
                     <div className="space-y-6">
