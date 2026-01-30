@@ -1589,10 +1589,22 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
         derivedFields.push('creditor_days (calculated from balance sheet)');
       }
       
-      // Cash months runway
-      if (balanceSheet.cash && enriched._enriched_revenue) {
-        enriched.cash_months = Number(((balanceSheet.cash / enriched._enriched_revenue) * 12).toFixed(1));
-        derivedFields.push('cash_months');
+      // Cash months runway (based on monthly fixed costs, not revenue)
+      if (balanceSheet.cash) {
+        const staffCosts = financialData.staff_costs || financialData.administrative_expenses?.staff_costs || 0;
+        const adminExpenses = financialData.admin_expenses || financialData.administrative_expenses?.total || 0;
+        const monthlyFixedCosts = (staffCosts + adminExpenses) / 12;
+        
+        if (monthlyFixedCosts > 0) {
+          enriched.cash_months = Number((balanceSheet.cash / monthlyFixedCosts).toFixed(1));
+          derivedFields.push('cash_months (based on monthly fixed costs)');
+          console.log(`[BM Pass 1] Cash runway: £${(balanceSheet.cash/1000000).toFixed(1)}M / £${(monthlyFixedCosts/1000000).toFixed(2)}M monthly = ${enriched.cash_months} months`);
+        } else if (enriched._enriched_revenue) {
+          // Fallback: assume fixed costs are 25% of revenue
+          const estimatedMonthlyFixedCosts = (enriched._enriched_revenue * 0.25) / 12;
+          enriched.cash_months = Number((balanceSheet.cash / estimatedMonthlyFixedCosts).toFixed(1));
+          derivedFields.push('cash_months (estimated from 25% of revenue)');
+        }
       }
       
       // ==========================================================================
@@ -2905,6 +2917,52 @@ When writing narratives:
     // Double-check it's valid (should never happen given validation above, but safety check)
     if (!finalIndustryCode || typeof finalIndustryCode !== 'string' || finalIndustryCode.trim() === '') {
       throw new Error(`Invalid industry_code: ${finalIndustryCode}. This should have been caught earlier.`);
+    }
+    
+    // ==========================================================================
+    // INJECT ADDITIONAL RISK FLAGS (concentration, founder risk)
+    // ==========================================================================
+    const additionalRiskFlags: any[] = [];
+    
+    // Client Concentration Risk
+    const concentration = assessmentData.client_concentration_top3;
+    if (concentration && concentration >= 75) {
+      const revenue = assessmentData._enriched_revenue || 0;
+      const riskAtStake = revenue * (concentration / 100) / 3;
+      
+      additionalRiskFlags.push({
+        flag: `CRITICAL: ${concentration}% customer concentration`,
+        severity: concentration >= 90 ? 'critical' : 'high',
+        mitigation: 'Urgent diversification strategy needed. This concentration significantly impacts business value and exit options.',
+        warningSignsInConversation: 'Any mention of client contract renewals, relationship changes, or budget pressures from major clients',
+        annualRiskValue: riskAtStake,
+        valuationImpact: concentration >= 90 ? '30-40% valuation discount' : '20-30% valuation discount',
+        details: `Loss of one major client = £${(riskAtStake / 1000000).toFixed(1)}M at risk`
+      });
+      console.log(`[BM Pass 1] Added concentration risk flag: ${concentration}%, £${(riskAtStake / 1000000).toFixed(1)}M at risk`);
+    }
+    
+    // Founder Dependency Risk (from HVA)
+    if (founderRisk && (founderRisk.riskLevel === 'CRITICAL' || founderRisk.riskLevel === 'HIGH')) {
+      additionalRiskFlags.push({
+        flag: `Founder dependency: ${founderRisk.riskLevel}`,
+        severity: founderRisk.riskLevel === 'CRITICAL' ? 'critical' : 'high',
+        mitigation: 'Succession planning and knowledge transfer needed before any exit consideration.',
+        warningSignsInConversation: 'Client mentions being essential to operations, key relationships, or institutional knowledge',
+        valuationImpact: founderRisk.valuationImpact,
+        details: founderRisk.riskFactors?.join('; ') || 'High founder dependency detected'
+      });
+      console.log(`[BM Pass 1] Added founder risk flag: ${founderRisk.riskLevel}`);
+    }
+    
+    // Merge additional flags into LLM-generated flags
+    if (additionalRiskFlags.length > 0) {
+      pass1Data.adminGuidance = pass1Data.adminGuidance || {};
+      pass1Data.adminGuidance.riskFlags = [
+        ...additionalRiskFlags,
+        ...(pass1Data.adminGuidance.riskFlags || [])
+      ];
+      console.log(`[BM Pass 1] Total risk flags: ${pass1Data.adminGuidance.riskFlags.length}`);
     }
     
     // Save to database (including founder risk data if available)
