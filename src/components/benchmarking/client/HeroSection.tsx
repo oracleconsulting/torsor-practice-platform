@@ -1,6 +1,6 @@
 interface HeroSectionProps {
   totalOpportunity: number;
-  percentile: number;
+  percentile: number | null | undefined;
   headline: string;
   trend?: 'up' | 'down' | 'neutral';
 }
@@ -14,6 +14,7 @@ export function HeroSection({
   // Defensive null checks
   const safeOpportunity = totalOpportunity ?? 0;
   const safePercentile = percentile ?? 50;
+  const hasValidPercentile = percentile != null && percentile > 0;
   
   const getPercentileColor = (p: number) => {
     if (p >= 75) return 'text-emerald-600';
@@ -96,12 +97,20 @@ export function HeroSection({
             
             {/* Current Position Label */}
             <div className="text-center mt-4">
-              <span className={`text-lg font-semibold ${getPercentileColor(safePercentile)}`}>
-                {safePercentile}th Percentile
-              </span>
-              <span className="text-slate-400 ml-2">
-                · {getPercentileLabel(safePercentile)}
-              </span>
+              {hasValidPercentile ? (
+                <>
+                  <span className={`text-lg font-semibold ${getPercentileColor(safePercentile)}`}>
+                    {Math.round(safePercentile)}th Percentile
+                  </span>
+                  <span className="text-slate-400 ml-2">
+                    · {getPercentileLabel(safePercentile)}
+                  </span>
+                </>
+              ) : (
+                <span className="text-lg text-slate-400">
+                  Percentile data not available
+                </span>
+              )}
             </div>
           </div>
         </div>

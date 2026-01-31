@@ -193,6 +193,56 @@ DO NOT:
 - Ignore their business description when interpreting benchmarks
 ` : ''}
 
+${pass1Data.industry_code === 'TELECOM_INFRA' ? `
+═══════════════════════════════════════════════════════════════════════════════
+🏗️ TELECOM INFRASTRUCTURE CONTRACTOR - CRITICAL CONTEXT
+═══════════════════════════════════════════════════════════════════════════════
+
+This client is a TELECOM INFRASTRUCTURE CONTRACTOR, NOT an IT services/MSP business.
+They install physical network infrastructure (fibre, 4G/5G, DAS systems).
+
+⚠️ CRITICAL INTERPRETATION GUIDANCE:
+
+1. GROSS MARGIN (expect 12-25%):
+   - 16% gross margin is HEALTHY for infrastructure - NOT a gap
+   - Hardware pass-through and subcontractor costs compress margins structurally
+   - Do NOT compare to 45% MSP benchmarks - that's apples to oranges
+   - Frame as: "Your 16% gross margin is solid for infrastructure delivery"
+
+2. REVENUE PER EMPLOYEE (expect £250k-500k):
+   - £400k+ per employee is TOP QUARTILE for this sector
+   - Field engineers command premium rates but pass through costs
+   - This is a STRENGTH, not just "good" - it's exceptional
+
+3. CLIENT CONCENTRATION (expect 60-90%):
+   - Infrastructure contractors typically have 60-90% from top 3 clients
+   - This is NORMAL for B2B project-based businesses
+   - Still a risk worth managing, but don't alarm them unnecessarily
+   - Frame as: "Concentration is typical for your sector, but worth de-risking over time"
+
+4. DEBTOR DAYS (expect 45-75):
+   - Construction industry has longer payment cycles
+   - Certification-based billing creates natural delays
+   - 30-45 days is actually EXCELLENT for this sector
+
+5. REVENUE VOLATILITY:
+   - Project-based businesses have naturally lumpy revenue
+   - -25% decline may reflect project timing, not business problem
+   - Look at multi-year trends, not single year comparisons
+
+DO NOT:
+- Compare their margins to MSP/IT services benchmarks
+- Describe their 16% gross margin as "bottom quartile" or "crisis"
+- Suggest they should achieve 40%+ gross margins (structurally impossible)
+- Ignore that high revenue per employee is their core strength
+
+INSTEAD:
+- Focus on operational metrics (utilisation, project efficiency)
+- Acknowledge their concentration risk appropriately (not panic-inducing)
+- Highlight their efficiency (revenue/employee) as the standout strength
+- Discuss cash management and working capital as key levers
+` : ''}
+
 ═══════════════════════════════════════════════════════════════════════════════
 YOUR OUTPUT
 ═══════════════════════════════════════════════════════════════════════════════
@@ -330,6 +380,8 @@ serve(async (req) => {
     // Merge pass1_data with additional context from report (balance sheet, trends, surplus cash, collected data)
     const enrichedPass1Data = {
       ...report.pass1_data,
+      // Industry code is critical for proper narrative context
+      industry_code: report.industry_code,
       balance_sheet: report.balance_sheet,
       financial_trends: report.financial_trends,
       investment_signals: report.investment_signals,
@@ -347,6 +399,9 @@ serve(async (req) => {
       hourly_rate: report.pass1_data?.hourly_rate,
       utilisation_rate: report.pass1_data?.utilisation_rate
     };
+    
+    // Log industry code for debugging
+    console.log(`[BM Pass 2] Industry code: ${enrichedPass1Data.industry_code}`);
     
     // Log if we have trend/investment context
     if (enrichedPass1Data.financial_trends?.length > 0) {

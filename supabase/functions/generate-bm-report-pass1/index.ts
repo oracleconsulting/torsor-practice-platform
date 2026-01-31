@@ -2528,10 +2528,15 @@ serve(async (req) => {
                                    assessment.responses?.bm_sic_code || 
                                    assessment.responses?.sic_code;
     
+    // Check for admin industry override (highest priority)
+    const industryOverride = assessment.responses?.industry_override ||
+                             assessment.responses?.['industry_override'];
+    
     // Extract stored industry_code from assessment
     let storedIndustryCode = assessment.industry_code || assessment.responses?.industry_code;
     
     console.log('[BM Pass 1] Assessment data:', {
+      industry_override: industryOverride,
       stored_industry_code: storedIndustryCode,
       sic_code: sicCodeFromAssessment,
       industry_suggestion: industryHint,
@@ -2547,8 +2552,13 @@ serve(async (req) => {
     
     let industryCode: string | null = null;
     
-    // Use forced industry code if we detected a specific business type from description
-    if (forceIndustryCode) {
+    // PRIORITY 1: Use admin industry override if set (highest priority)
+    if (industryOverride && industryOverride !== 'undefined' && industryOverride !== 'null') {
+      console.log('[BM Pass 1] ✅ Using ADMIN INDUSTRY OVERRIDE:', industryOverride);
+      industryCode = industryOverride;
+    }
+    // PRIORITY 2: Use forced industry code if we detected a specific business type from description
+    else if (forceIndustryCode) {
       console.log('[BM Pass 1] Using FORCED industry code from description analysis:', forceIndustryCode);
       industryCode = forceIndustryCode;
     } else if (shouldReevaluate) {

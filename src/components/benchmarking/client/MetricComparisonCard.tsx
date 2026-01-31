@@ -3,13 +3,13 @@ import { ArrowRight, TrendingUp, TrendingDown } from 'lucide-react';
 interface MetricComparisonProps {
   metricName: string;
   clientValue: number;
-  medianValue: number;
-  p25: number;
-  p75: number;
-  percentile: number;
+  medianValue: number | null | undefined;
+  p25: number | null | undefined;
+  p75: number | null | undefined;
+  percentile: number | null | undefined;
   format: 'currency' | 'percent' | 'number' | 'days';
   higherIsBetter: boolean;
-  annualImpact?: number;
+  annualImpact?: number | null;
 }
 
 export function MetricComparisonCard({
@@ -38,6 +38,10 @@ export function MetricComparisonCard({
         return safeVal.toLocaleString();
     }
   };
+  
+  // Check if we have valid benchmark data
+  const hasValidBenchmark = medianValue != null && medianValue !== 0 && p25 != null && p75 != null;
+  const hasValidPercentile = percentile != null && percentile !== 0;
   
   // Defensive null checks for calculations
   const safeClientValue = clientValue ?? 0;
@@ -84,13 +88,16 @@ export function MetricComparisonCard({
     return { scaleMin, scaleMax };
   };
   
-  const { scaleMin, scaleMax } = calculateScale(safeClientValue, safeP25, safeP75, format);
+  // Only calculate positions if we have valid benchmark data
+  const { scaleMin, scaleMax } = hasValidBenchmark 
+    ? calculateScale(safeClientValue, safeP25, safeP75, format)
+    : { scaleMin: 0, scaleMax: 100 };
   const scaleRange = scaleMax - scaleMin || 1; // Prevent division by zero
   
-  const clientPosition = ((safeClientValue - scaleMin) / scaleRange) * 100;
-  const medianPosition = ((safeMedianValue - scaleMin) / scaleRange) * 100;
-  const p25Position = ((safeP25 - scaleMin) / scaleRange) * 100;
-  const p75Position = ((safeP75 - scaleMin) / scaleRange) * 100;
+  const clientPosition = hasValidBenchmark ? ((safeClientValue - scaleMin) / scaleRange) * 100 : 50;
+  const medianPosition = hasValidBenchmark ? ((safeMedianValue - scaleMin) / scaleRange) * 100 : 50;
+  const p25Position = hasValidBenchmark ? ((safeP25 - scaleMin) / scaleRange) * 100 : 25;
+  const p75Position = hasValidBenchmark ? ((safeP75 - scaleMin) / scaleRange) * 100 : 75;
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
@@ -99,10 +106,14 @@ export function MetricComparisonCard({
         <div>
           <h3 className="text-lg font-semibold text-slate-900">{metricName}</h3>
           <p className="text-sm text-slate-500">
-            {percentile}th percentile
+            {hasValidPercentile ? (
+              `${Math.round(percentile!)}th percentile`
+            ) : (
+              <span className="text-slate-400 italic">Benchmark data limited</span>
+            )}
           </p>
         </div>
-        {isGap && annualImpact != null && annualImpact > 0 && (
+        {hasValidBenchmark && isGap && annualImpact != null && annualImpact > 0 && (
           <div className="text-right">
             <p className="text-xs text-slate-500 uppercase tracking-wide">Impact</p>
             <p className="text-lg font-semibold text-rose-600">
@@ -112,77 +123,96 @@ export function MetricComparisonCard({
         )}
       </div>
       
-      {/* Visual Comparison */}
-      <div className="relative mb-6">
-        {/* Scale Background */}
-        <div className="h-12 bg-slate-100 rounded-lg relative overflow-hidden">
-          {/* Interquartile Range (P25-P75) */}
-          <div 
-            className="absolute inset-y-0 bg-slate-200"
-            style={{ 
-              left: `${p25Position}%`, 
-              width: `${p75Position - p25Position}%` 
-            }}
-          />
+      {/* Visual Comparison - Only show if we have valid benchmark data */}
+      {hasValidBenchmark ? (
+        <>
+          <div className="relative mb-6">
+            {/* Scale Background */}
+            <div className="h-12 bg-slate-100 rounded-lg relative overflow-hidden">
+              {/* Interquartile Range (P25-P75) */}
+              <div 
+                className="absolute inset-y-0 bg-slate-200"
+                style={{ 
+                  left: `${p25Position}%`, 
+                  width: `${p75Position - p25Position}%` 
+                }}
+              />
+              
+              {/* Median Line */}
+              <div 
+                className="absolute inset-y-0 w-0.5 bg-slate-400"
+                style={{ left: `${medianPosition}%` }}
+              />
+              
+              {/* Client Value Marker */}
+              <div 
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 transition-all duration-500"
+                style={{ left: `${clientPosition}%` }}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg ${
+                  isGap ? 'bg-rose-500' : 'bg-emerald-500'
+                }`}>
+                  {isGap ? (
+                    <TrendingDown className="w-5 h-5 text-white" />
+                  ) : (
+                    <TrendingUp className="w-5 h-5 text-white" />
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* Scale Labels */}
+            <div className="flex justify-between mt-2 text-xs text-slate-500">
+              <span>{formatValue(Math.round(scaleMin))}</span>
+              <span>P25: {formatValue(safeP25)}</span>
+              <span>Median: {formatValue(safeMedianValue)}</span>
+              <span>P75: {formatValue(safeP75)}</span>
+              <span>{formatValue(Math.round(scaleMax))}</span>
+            </div>
+          </div>
           
-          {/* Median Line */}
-          <div 
-            className="absolute inset-y-0 w-0.5 bg-slate-400"
-            style={{ left: `${medianPosition}%` }}
-          />
-          
-          {/* Client Value Marker */}
-          <div 
-            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 transition-all duration-500"
-            style={{ left: `${clientPosition}%` }}
-          >
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg ${
-              isGap ? 'bg-rose-500' : 'bg-emerald-500'
-            }`}>
-              {isGap ? (
-                <TrendingDown className="w-5 h-5 text-white" />
-              ) : (
-                <TrendingUp className="w-5 h-5 text-white" />
-              )}
+          {/* Comparison Text */}
+          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-slate-900">{formatValue(safeClientValue)}</p>
+              <p className="text-xs text-slate-500 uppercase tracking-wide">Your Value</p>
+            </div>
+            
+            <ArrowRight className="w-6 h-6 text-slate-400" />
+            
+            <div className="text-center">
+              <p className="text-2xl font-bold text-slate-600">{formatValue(safeMedianValue)}</p>
+              <p className="text-xs text-slate-500 uppercase tracking-wide">Median</p>
+            </div>
+            
+            <ArrowRight className="w-6 h-6 text-slate-400" />
+            
+            <div className="text-center">
+              <p className={`text-2xl font-bold ${isGap ? 'text-rose-600' : 'text-emerald-600'}`}>
+                {isGap ? '-' : '+'}{formatValue(gapAmount)}
+              </p>
+              <p className="text-xs text-slate-500 uppercase tracking-wide">
+                {isGap ? 'Gap' : 'Advantage'}
+              </p>
+            </div>
+          </div>
+        </>
+      ) : (
+        /* No benchmark data available - show simplified view */
+        <div className="p-4 bg-slate-50 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="text-center flex-1">
+              <p className="text-2xl font-bold text-slate-900">{formatValue(safeClientValue)}</p>
+              <p className="text-xs text-slate-500 uppercase tracking-wide">Your Value</p>
+            </div>
+            <div className="flex-1 text-center">
+              <p className="text-sm text-slate-400 italic">
+                No industry benchmark available for this metric
+              </p>
             </div>
           </div>
         </div>
-        
-        {/* Scale Labels */}
-        <div className="flex justify-between mt-2 text-xs text-slate-500">
-          <span>{formatValue(Math.round(scaleMin))}</span>
-          <span>P25: {formatValue(safeP25)}</span>
-          <span>Median: {formatValue(safeMedianValue)}</span>
-          <span>P75: {formatValue(safeP75)}</span>
-          <span>{formatValue(Math.round(scaleMax))}</span>
-        </div>
-      </div>
-      
-      {/* Comparison Text */}
-      <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-        <div className="text-center">
-          <p className="text-2xl font-bold text-slate-900">{formatValue(safeClientValue)}</p>
-          <p className="text-xs text-slate-500 uppercase tracking-wide">Your Value</p>
-        </div>
-        
-        <ArrowRight className="w-6 h-6 text-slate-400" />
-        
-        <div className="text-center">
-          <p className="text-2xl font-bold text-slate-600">{formatValue(safeMedianValue)}</p>
-          <p className="text-xs text-slate-500 uppercase tracking-wide">Median</p>
-        </div>
-        
-        <ArrowRight className="w-6 h-6 text-slate-400" />
-        
-        <div className="text-center">
-          <p className={`text-2xl font-bold ${isGap ? 'text-rose-600' : 'text-emerald-600'}`}>
-            {isGap ? '-' : '+'}{formatValue(gapAmount)}
-          </p>
-          <p className="text-xs text-slate-500 uppercase tracking-wide">
-            {isGap ? 'Gap' : 'Advantage'}
-          </p>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

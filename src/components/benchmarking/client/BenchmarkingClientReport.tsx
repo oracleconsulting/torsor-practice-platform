@@ -317,31 +317,42 @@ export function BenchmarkingClientReport({ data }: BenchmarkingClientReportProps
           <div>
             <h2 className="text-xl font-semibold text-slate-900 mb-4">Key Metrics</h2>
             <div className="grid gap-6 md:grid-cols-2">
-              {metrics.map((metric: any, i: number) => {
-                const metricCode = metric.metricCode?.toLowerCase() || '';
-                // For most metrics, higher is better. But for days (debtor/creditor) and concentration, lower is better.
-                const higherIsBetter = !(
-                  metricCode.includes('days') || 
-                  metricCode.includes('debtor') || 
-                  metricCode.includes('creditor') ||
-                  metricCode.includes('concentration')
-                );
-                
-                return (
-                  <MetricComparisonCard
-                    key={i}
-                    metricName={metric.metricName || metric.metric}
-                    clientValue={metric.clientValue}
-                    medianValue={metric.p50}
-                    p25={metric.p25}
-                    p75={metric.p75}
-                    percentile={metric.percentile}
-                    format={getMetricFormat(metric.metricCode)}
-                    higherIsBetter={higherIsBetter}
-                    annualImpact={metric.annualImpact}
-                  />
-                );
-              })}
+              {metrics
+                // Filter out concentration metrics - they're displayed in the dedicated risk section
+                .filter((metric: any) => {
+                  const metricCode = (metric.metricCode || metric.metric_code || '').toLowerCase();
+                  return !metricCode.includes('concentration');
+                })
+                // Filter out metrics without valid benchmark data (p50 must be non-null and non-zero)
+                .filter((metric: any) => {
+                  // Keep metric if it has valid benchmark data
+                  return metric.p50 != null && metric.p50 !== 0;
+                })
+                .map((metric: any, i: number) => {
+                  const metricCode = (metric.metricCode || metric.metric_code || '').toLowerCase();
+                  // For most metrics, higher is better. But for days (debtor/creditor), lower is better.
+                  const higherIsBetter = !(
+                    metricCode.includes('days') || 
+                    metricCode.includes('debtor') || 
+                    metricCode.includes('creditor') ||
+                    metricCode.includes('turnover')
+                  );
+                  
+                  return (
+                    <MetricComparisonCard
+                      key={i}
+                      metricName={metric.metricName || metric.metric_name || metric.metric}
+                      clientValue={metric.clientValue ?? metric.client_value}
+                      medianValue={metric.p50}
+                      p25={metric.p25}
+                      p75={metric.p75}
+                      percentile={metric.percentile}
+                      format={getMetricFormat(metric.metricCode || metric.metric_code)}
+                      higherIsBetter={higherIsBetter}
+                      annualImpact={metric.annualImpact ?? metric.annual_impact}
+                    />
+                  );
+                })}
             </div>
           </div>
         )}
