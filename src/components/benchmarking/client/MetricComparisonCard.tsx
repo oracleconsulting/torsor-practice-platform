@@ -24,7 +24,7 @@ export function MetricComparisonCard({
   annualImpact
 }: MetricComparisonProps) {
   
-  const formatValue = (val: number | null | undefined, isGapValue: boolean = false) => {
+  const formatValue = (val: number | null | undefined) => {
     // Defensive null check
     const safeVal = val ?? 0;
     // Round to 1 decimal place to avoid floating point precision issues
