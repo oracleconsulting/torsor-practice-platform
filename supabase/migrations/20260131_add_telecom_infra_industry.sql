@@ -6,7 +6,7 @@
 -- Comparing them to MSP gross margins (45%) was incorrect.
 -- ============================================================================
 
--- 1. Create the industry
+-- 1. Create the industry (ON CONFLICT works here because industries has unique code)
 INSERT INTO industries (code, name, category, description, sic_codes, keywords, is_active)
 VALUES (
   'TELECOM_INFRA', 
@@ -26,7 +26,10 @@ ON CONFLICT (code) DO UPDATE SET
   is_active = EXCLUDED.is_active,
   updated_at = NOW();
 
--- 2. Add appropriate benchmarks (very different from MSP!)
+-- 2. Delete any existing TELECOM_INFRA benchmarks (clean slate)
+DELETE FROM benchmark_data WHERE industry_code = 'TELECOM_INFRA';
+
+-- 3. Insert appropriate benchmarks (very different from MSP!)
 -- Source: UK infrastructure contractor sector analysis, CECA benchmarking, ECA reports
 
 INSERT INTO benchmark_data (
@@ -85,24 +88,15 @@ VALUES
   -- Utilisation rate (field engineers should be highly utilised)
   ('TELECOM_INFRA', 'utilisation_rate', 'all', 'all', 70, 80, 90,
    150, 2024, 'Field services industry benchmarks',
-   NULL, 'medium', '2024-03-01', true)
-   
-ON CONFLICT (industry_code, metric_code, revenue_band, employee_band) DO UPDATE SET
-  p25 = EXCLUDED.p25,
-  p50 = EXCLUDED.p50,
-  p75 = EXCLUDED.p75,
-  sample_size = EXCLUDED.sample_size,
-  data_year = EXCLUDED.data_year,
-  data_source = EXCLUDED.data_source,
-  source_url = EXCLUDED.source_url,
-  confidence_level = EXCLUDED.confidence_level,
-  is_current = true,
-  updated_at = NOW();
+   NULL, 'medium', '2024-03-01', true);
 
--- 3. Verify the inserts
-DO $$
-BEGIN
-  RAISE NOTICE 'TELECOM_INFRA industry and benchmarks created/updated';
-  RAISE NOTICE 'Run: SELECT * FROM benchmark_data WHERE industry_code = ''TELECOM_INFRA'';';
-END $$;
-
+-- 4. Verify the inserts
+SELECT 
+  metric_code, 
+  p25, 
+  p50 as median, 
+  p75,
+  data_source
+FROM benchmark_data 
+WHERE industry_code = 'TELECOM_INFRA'
+ORDER BY metric_code;
