@@ -2888,13 +2888,22 @@ When writing narratives:
       .limit(1)
       .maybeSingle();
     
+    // Try direct OpenAI first (better routing), fallback to OpenRouter
+    const openaiKey = Deno.env.get('OPENAI_API_KEY');
     const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
-    if (!openRouterKey) {
-      throw new Error('OPENROUTER_API_KEY not configured');
+    
+    if (!openaiKey && !openRouterKey) {
+      throw new Error('Neither OPENAI_API_KEY nor OPENROUTER_API_KEY configured');
     }
     
+    const useDirectOpenAI = !!openaiKey;
+    const apiKey = openaiKey || openRouterKey;
+    const apiUrl = useDirectOpenAI 
+      ? 'https://api.openai.com/v1/chat/completions'
+      : 'https://openrouter.ai/api/v1/chat/completions';
+    
     // Build and send prompt
-    console.log('[BM Pass 1] Calling GPT-4o-mini for extraction...');
+    console.log(`[BM Pass 1] Calling GPT-4o-mini via ${useDirectOpenAI ? 'direct OpenAI' : 'OpenRouter'}...`);
     const startTime = Date.now();
     
     const prompt = buildPass1Prompt(
@@ -2906,34 +2915,39 @@ When writing narratives:
       industry || {}
     );
     
-    // Single attempt with timeout - retries eat into the 30s function limit
-    console.log(`[BM Pass 1] Calling Claude API (25s timeout)...`);
+    // Single attempt with timeout
+    console.log(`[BM Pass 1] Calling API (55s timeout)...`);
     
     // Create abort controller for timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
-      console.log('[BM Pass 1] ⏰ Claude API timeout - aborting...');
+      console.log('[BM Pass 1] ⏰ API timeout - aborting...');
       controller.abort();
-    }, 25000); // 25s timeout
+    }, 55000); // 55s timeout (increased)
     
     let result: any = null;
     
     try {
-      console.log('[BM Pass 1] Sending request to OpenRouter...');
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      console.log(`[BM Pass 1] Sending request to ${useDirectOpenAI ? 'OpenAI' : 'OpenRouter'}...`);
+      const headers: Record<string, string> = {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      };
+      
+      // Add OpenRouter-specific headers if using OpenRouter
+      if (!useDirectOpenAI) {
+        headers['HTTP-Referer'] = 'https://torsor.co.uk';
+        headers['X-Title'] = 'Torsor Benchmarking';
+      }
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openRouterKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://torsor.co.uk',  // OpenRouter recommends this for better routing
-          'X-Title': 'Torsor Benchmarking',
-        },
+        headers,
         body: JSON.stringify({
-          model: 'openai/gpt-4o-mini',  // Faster model to avoid timeout issues
+          model: 'gpt-4o-mini',  // Model name (works for both)
           messages: [{ role: 'user', content: prompt }],
           response_format: { type: 'json_object' },
           temperature: 0.3,
-          stream: false,
         }),
         signal: controller.signal,
       });
@@ -2957,7 +2971,7 @@ When writing narratives:
       const chunks: Uint8Array[] = [];
       let totalBytes = 0;
       const bodyStartTime = Date.now();
-      const MAX_BODY_READ_TIME = 45000; // 45 seconds max for body read
+      const MAX_BODY_READ_TIME = 60000; // 60 seconds max for body read
       
       try {
         while (true) {
