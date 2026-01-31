@@ -878,76 +878,65 @@ OUTPUT FORMAT (JSON):
   ],
   
   "adminGuidance": {
-    "openingStatement": "A 2-3 sentence opening statement the practitioner should use. Reference the £ opportunity and percentile position. Connect to their stated concern. Example: 'Based on our benchmarking analysis, we've identified a £410,000 annual opportunity. Your revenue per employee of £93,750 places you at the 15th percentile - meaning 85% of comparable firms are generating more revenue per head.'",
+    "openingStatement": "2-3 sentence opening referencing £ opportunity and percentile position.",
     
     "talkingPoints": [
       {
-        "topic": "string - The main subject area (e.g., 'Revenue efficiency gap', 'Founder dependency risk')",
-        "point": "string - The specific insight to communicate to the client",
-        "clientQuoteToReference": "string - Exact quote from their assessment to reference back",
-        "dataPoint": "string - The specific numbers to cite (e.g., '£93,750 vs £145,000 median')",
+        "topic": "string - Main subject (e.g., 'Margin Gap')",
         "importance": "critical" | "high" | "medium",
-        "conversationScript": "string - FULL script of exactly what to say to the client, including: 1) How to introduce this topic, 2) How to present the data, 3) How to connect to their stated concern, 4) What questions this should prompt",
-        "whatToListenFor": "string - Signs and signals to look for in client's response",
-        "potentialPushback": "string - How clients might resist this finding and how to respond"
+        "dataPoint": "string - Key numbers (e.g., '16% vs 45% median')",
+        "clientQuote": "string or null - Their relevant quote",
+        "script": "string - 2-3 sentence talking point",
+        "listenFor": "string - What response indicates",
+        "pushback": "string - How to handle resistance"
       }
     ],
     
     "questionsToAsk": [
       {
-        "question": "string - The actual question to ask",
-        "purpose": "string - What you're trying to learn",
-        "expectedInsight": "string - What a good answer would reveal",
-        "followUp": "string - Follow-up question if they don't fully answer",
-        "probeDeeper": ["string - Additional probing questions to dig deeper"],
-        "dataThisReveals": "string - What metric or insight this question helps collect"
+        "question": "string - The question",
+        "purpose": "string - Why asking",
+        "followUp": "string - If unclear",
+        "dataRevealed": "string - What this reveals"
       }
     ],
     
     "dataCollectionScript": [
       {
-        "metricNeeded": "string - e.g., 'Utilisation Rate', 'Hourly Rates', 'Project Margins'",
-        "whyNeeded": "string - Why this data matters for the analysis",
-        "howToAsk": "string - Exactly how to phrase the request",
-        "industryContext": "string - Industry benchmark to provide context (e.g., 'Most agencies run 65-75% utilisation')",
-        "followUpIfUnsure": "string - What to ask if they don't know the number",
-        "howToRecord": "string - What format/unit to capture the answer"
+        "metric": "string - e.g., 'Utilisation Rate'",
+        "howToAsk": "string - How to phrase",
+        "benchmark": "string - Industry context",
+        "recordAs": "string - Format"
       }
     ],
     
     "nextSteps": [
       {
-        "action": "string - Specific action to take",
+        "action": "string - Action",
         "owner": "practice" | "client" | "joint",
-        "timing": "string - When this should happen",
-        "outcome": "string - What success looks like",
-        "priority": number,
-        "scriptToAgree": "string - Exact words to use when agreeing this action with the client"
+        "timing": "string - When"
       }
     ],
     
     "tasks": [
       {
-        "task": "string - Specific internal task that ADDS VALUE beyond what this report already provides",
-        "assignTo": "string - Role that should handle this",
-        "dueDate": "string - Relative timing (e.g., '3 days', '1 week')",
-        "deliverable": "string - What artifact this produces",
-        "dependsOn": "string or null - What needs to happen first"
+        "task": "string - Internal task (ADDITIVE value only)",
+        "assignTo": "string - Role",
+        "dueDate": "string - Timing",
+        "deliverable": "string - Output"
       }
     ],
-    
-    "TASK_RULES": "NEVER suggest tasks like 'research industry benchmarks' or 'analyse benchmarking data' - WE JUST DID THAT. Tasks should be ADDITIVE value: 1) Client-specific deliverables (time tracking templates, rate cards), 2) Implementation support (process documentation, training materials), 3) Follow-up analysis (deep dives into specific areas). If a task duplicates what this benchmarking report provides, DELETE IT.",
     
     "riskFlags": [
       {
-        "flag": "string - The risk or concern",
-        "mitigation": "string - How to address it",
+        "flag": "string - Risk",
         "severity": "high" | "medium" | "low",
-        "warningSignsInConversation": "string - What the client might say that confirms this risk"
+        "mitigation": "string - How to address",
+        "watchFor": "string - Warning signs"
       }
     ],
     
-    "closingScript": "string - How to wrap up the conversation. Should include: 1) Summary of key findings, 2) Confirmation of agreed next steps, 3) Timeline for follow-up, 4) Any homework for the client"
+    "closingScript": "string - 2-3 sentence wrap-up"
   },
   
   "dataGaps": [
@@ -2888,22 +2877,13 @@ When writing narratives:
       .limit(1)
       .maybeSingle();
     
-    // Try direct OpenAI first (better routing), fallback to OpenRouter
-    const openaiKey = Deno.env.get('OPENAI_API_KEY');
     const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
-    
-    if (!openaiKey && !openRouterKey) {
-      throw new Error('Neither OPENAI_API_KEY nor OPENROUTER_API_KEY configured');
+    if (!openRouterKey) {
+      throw new Error('OPENROUTER_API_KEY not configured');
     }
     
-    const useDirectOpenAI = !!openaiKey;
-    const apiKey = openaiKey || openRouterKey;
-    const apiUrl = useDirectOpenAI 
-      ? 'https://api.openai.com/v1/chat/completions'
-      : 'https://openrouter.ai/api/v1/chat/completions';
-    
     // Build and send prompt
-    console.log(`[BM Pass 1] Calling GPT-4o-mini via ${useDirectOpenAI ? 'direct OpenAI' : 'OpenRouter'}...`);
+    console.log('[BM Pass 1] Calling GPT-4o-mini via OpenRouter (simplified schema)...');
     const startTime = Date.now();
     
     const prompt = buildPass1Prompt(
@@ -2916,35 +2896,29 @@ When writing narratives:
     );
     
     // Single attempt with timeout
-    console.log(`[BM Pass 1] Calling API (55s timeout)...`);
+    console.log('[BM Pass 1] Calling OpenRouter API (45s timeout)...');
     
     // Create abort controller for timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       console.log('[BM Pass 1] ⏰ API timeout - aborting...');
       controller.abort();
-    }, 55000); // 55s timeout (increased)
+    }, 45000); // 45s timeout
     
     let result: any = null;
     
     try {
-      console.log(`[BM Pass 1] Sending request to ${useDirectOpenAI ? 'OpenAI' : 'OpenRouter'}...`);
-      const headers: Record<string, string> = {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      };
-      
-      // Add OpenRouter-specific headers if using OpenRouter
-      if (!useDirectOpenAI) {
-        headers['HTTP-Referer'] = 'https://torsor.co.uk';
-        headers['X-Title'] = 'Torsor Benchmarking';
-      }
-      
-      const response = await fetch(apiUrl, {
+      console.log('[BM Pass 1] Sending request to OpenRouter...');
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
-        headers,
+        headers: {
+          'Authorization': `Bearer ${openRouterKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://torsor.co.uk',
+          'X-Title': 'Torsor Benchmarking',
+        },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',  // Model name (works for both)
+          model: 'openai/gpt-4o-mini',
           messages: [{ role: 'user', content: prompt }],
           response_format: { type: 'json_object' },
           temperature: 0.3,
@@ -2971,7 +2945,7 @@ When writing narratives:
       const chunks: Uint8Array[] = [];
       let totalBytes = 0;
       const bodyStartTime = Date.now();
-      const MAX_BODY_READ_TIME = 60000; // 60 seconds max for body read
+      const MAX_BODY_READ_TIME = 45000; // 45 seconds max for body read
       
       try {
         while (true) {
