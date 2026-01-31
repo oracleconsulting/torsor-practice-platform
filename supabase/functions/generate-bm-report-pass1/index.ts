@@ -81,6 +81,51 @@ interface SurplusCashAnalysis {
 }
 
 // =============================================================================
+// HELPER: Extract numeric value from text (handles "99%" or "What percentage... 99%")
+// =============================================================================
+function extractNumericFromText(text: string | number | null | undefined): number | null {
+  if (text === null || text === undefined) return null;
+  
+  // If already a number, return it
+  if (typeof text === 'number') return text;
+  
+  // Convert to string and trim
+  const str = String(text).trim();
+  
+  // Try direct parseFloat first (for "99" or "99.5")
+  const directParse = parseFloat(str);
+  if (!isNaN(directParse) && str.match(/^[\d.]+%?$/)) {
+    return directParse;
+  }
+  
+  // Look for percentages first (e.g., "99%", "99.5%")
+  const percentMatch = str.match(/(\d+(?:\.\d+)?)\s*%/);
+  if (percentMatch) {
+    return parseFloat(percentMatch[1]);
+  }
+  
+  // Look for standalone numbers with context like "is 99" or ": 99"
+  const contextMatch = str.match(/(?:is|:|=)\s*(\d+(?:\.\d+)?)/i);
+  if (contextMatch) {
+    return parseFloat(contextMatch[1]);
+  }
+  
+  // Look for any number at the start of a line or after common separators
+  const numberMatch = str.match(/(?:^|\n|;|,)\s*(\d+(?:\.\d+)?)/);
+  if (numberMatch) {
+    return parseFloat(numberMatch[1]);
+  }
+  
+  // Fallback: find any number in the string
+  const anyNumber = str.match(/(\d+(?:\.\d+)?)/);
+  if (anyNumber) {
+    return parseFloat(anyNumber[1]);
+  }
+  
+  return null;
+}
+
+// =============================================================================
 // SURPLUS CASH CALCULATION
 // =============================================================================
 
@@ -1776,7 +1821,8 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
   const responses = assessmentData.responses || {};
   
   // Utilisation Rate - percentage of billable time
-  const utilisationRate = parseFloat(responses['Utilisation Rate']) || parseFloat(responses['bm_supp_Utilisation Rate']);
+  const utilisationRateRaw = responses['Utilisation Rate'] || responses['bm_supp_Utilisation Rate'];
+  const utilisationRate = extractNumericFromText(utilisationRateRaw);
   if (utilisationRate) {
     enriched.utilisation_rate = utilisationRate;
     derivedFields.push('utilisation_rate (supplementary)');
@@ -1784,15 +1830,21 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
   }
   
   // Hourly Rates - average blended rate
-  const hourlyRates = parseFloat(responses['Hourly Rates']) || parseFloat(responses['bm_supp_Hourly Rates']);
+  const hourlyRatesRaw = responses['Hourly Rates'] || responses['bm_supp_Hourly Rates'];
+  const hourlyRates = extractNumericFromText(hourlyRatesRaw);
   if (hourlyRates) {
     enriched.hourly_rate = hourlyRates;
+    // Store full context
+    if (typeof hourlyRatesRaw === 'string' && hourlyRatesRaw.length > 10) {
+      enriched.hourly_rate_details = hourlyRatesRaw;
+    }
     derivedFields.push('hourly_rate (supplementary)');
     console.log(`[BM Pass 1] Supplementary: hourly_rate = £${hourlyRates}/hr`);
   }
   
   // Project Margins - gross margin on projects
-  const projectMargins = parseFloat(responses['Project Margins']) || parseFloat(responses['bm_supp_Project Margins']);
+  const projectMarginsRaw = responses['Project Margins'] || responses['bm_supp_Project Margins'];
+  const projectMargins = extractNumericFromText(projectMarginsRaw);
   if (projectMargins) {
     enriched.project_margin = projectMargins;
     derivedFields.push('project_margin (supplementary)');
@@ -1800,15 +1852,22 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
   }
   
   // Client Concentration - from supplementary (overrides HVA if present)
-  const clientConcentration = parseFloat(responses['Client Concentration']) || parseFloat(responses['bm_supp_Client Concentration']);
+  // The text might be like "What percentage... 99% Who are..." so we need to extract the number
+  const clientConcentrationRaw = responses['Client Concentration'] || responses['bm_supp_Client Concentration'];
+  const clientConcentration = extractNumericFromText(clientConcentrationRaw);
   if (clientConcentration) {
     enriched.client_concentration_top3 = clientConcentration;
+    // Also store the full details for narrative context
+    if (typeof clientConcentrationRaw === 'string' && clientConcentrationRaw.length > 10) {
+      enriched.client_concentration_details = clientConcentrationRaw;
+    }
     derivedFields.push('client_concentration_top3 (supplementary)');
-    console.log(`[BM Pass 1] Supplementary: client_concentration = ${clientConcentration}%`);
+    console.log(`[BM Pass 1] Supplementary: client_concentration = ${clientConcentration}% (extracted from: "${String(clientConcentrationRaw).substring(0, 50)}...")`);
   }
   
   // EBITDA Margin
-  const ebitdaMargin = parseFloat(responses['EBITDA Margin']) || parseFloat(responses['bm_supp_EBITDA Margin']);
+  const ebitdaMarginRaw = responses['EBITDA Margin'] || responses['bm_supp_EBITDA Margin'];
+  const ebitdaMargin = extractNumericFromText(ebitdaMarginRaw);
   if (ebitdaMargin) {
     enriched.ebitda_margin = ebitdaMargin;
     derivedFields.push('ebitda_margin (supplementary)');
@@ -1816,7 +1875,8 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
   }
   
   // Debtor Days (override from manual entry takes priority over calculated)
-  const debtorDays = parseFloat(responses['Debtor Days']) || parseFloat(responses['bm_supp_Debtor Days']);
+  const debtorDaysRaw = responses['Debtor Days'] || responses['bm_supp_Debtor Days'];
+  const debtorDays = extractNumericFromText(debtorDaysRaw);
   if (debtorDays) {
     enriched.debtor_days = debtorDays;
     derivedFields.push('debtor_days (supplementary override)');
@@ -1824,7 +1884,8 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
   }
   
   // Creditor Days (override from manual entry takes priority over calculated)
-  const creditorDays = parseFloat(responses['Creditor Days']) || parseFloat(responses['bm_supp_Creditor Days']);
+  const creditorDaysRaw = responses['Creditor Days'] || responses['bm_supp_Creditor Days'];
+  const creditorDays = extractNumericFromText(creditorDaysRaw);
   if (creditorDays) {
     enriched.creditor_days = creditorDays;
     derivedFields.push('creditor_days (supplementary override)');
@@ -1832,7 +1893,8 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
   }
   
   // Revenue Growth
-  const revenueGrowth = parseFloat(responses['Revenue Growth']) || parseFloat(responses['bm_supp_Revenue Growth']);
+  const revenueGrowthRaw = responses['Revenue Growth'] || responses['bm_supp_Revenue Growth'];
+  const revenueGrowth = extractNumericFromText(revenueGrowthRaw);
   if (revenueGrowth) {
     enriched.revenue_growth = revenueGrowth;
     derivedFields.push('revenue_growth (supplementary)');
@@ -3025,6 +3087,44 @@ When writing narratives:
         ...(pass1Data.adminGuidance.riskFlags || [])
       ];
       console.log(`[BM Pass 1] Total risk flags: ${pass1Data.adminGuidance.riskFlags.length}`);
+    }
+    
+    // ==========================================================================
+    // MERGE COLLECTED/ENRICHED DATA INTO pass1Data FOR PASS 2
+    // ==========================================================================
+    // Pass 2 needs access to this data to write specific narratives
+    if (assessmentData.client_concentration_top3) {
+      pass1Data.client_concentration_top3 = assessmentData.client_concentration_top3;
+    }
+    if (assessmentData.client_concentration_details) {
+      pass1Data.client_concentration_details = assessmentData.client_concentration_details;
+    }
+    if (assessmentData.project_margin) {
+      pass1Data.project_margin = assessmentData.project_margin;
+    }
+    if (assessmentData.hourly_rate) {
+      pass1Data.hourly_rate = assessmentData.hourly_rate;
+    }
+    if (assessmentData.hourly_rate_details) {
+      pass1Data.hourly_rate_details = assessmentData.hourly_rate_details;
+    }
+    if (assessmentData.utilisation_rate) {
+      pass1Data.utilisation_rate = assessmentData.utilisation_rate;
+    }
+    if (assessmentData.debtor_days) {
+      pass1Data.debtor_days = assessmentData.debtor_days;
+    }
+    if (assessmentData.creditor_days) {
+      pass1Data.creditor_days = assessmentData.creditor_days;
+    }
+    // Flag that collected data is present
+    if (assessmentData.client_concentration_top3 || assessmentData.project_margin || assessmentData.hourly_rate) {
+      pass1Data.collectedData = true;
+      console.log('[BM Pass 1] Merged collected data into pass1Data:', {
+        client_concentration_top3: assessmentData.client_concentration_top3,
+        project_margin: assessmentData.project_margin,
+        hourly_rate: assessmentData.hourly_rate
+      });
     }
     
     // Save to database (including founder risk data if available)
