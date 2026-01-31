@@ -2867,16 +2867,11 @@ When writing narratives:
           'X-Title': 'Torsor Benchmarking',
         },
         body: JSON.stringify({
-          model: 'anthropic/claude-3.5-haiku',  // Faster model for extraction
+          model: 'openai/gpt-4o',  // Try OpenAI to test if it's Anthropic-specific
           messages: [{ role: 'user', content: prompt }],
           response_format: { type: 'json_object' },
           temperature: 0.3,
           stream: false,
-          // Provider routing preferences
-          provider: {
-            order: ['anthropic'],  // Prefer direct Anthropic
-            allow_fallbacks: true
-          }
         }),
         signal: controller.signal,
       });
