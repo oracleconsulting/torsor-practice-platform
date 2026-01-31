@@ -2183,7 +2183,7 @@ async function detectIndustryFromContext(
           'HTTP-Referer': Deno.env.get('OPENROUTER_REFERRER_URL') || '',
         },
         body: JSON.stringify({
-          model: 'anthropic/claude-sonnet-4-20250514',
+          model: 'openai/gpt-4o-mini',  // Faster model for simple classification
           messages: [{
             role: 'user',
             content: `Based on this business description, determine the most appropriate industry code from the list below.
@@ -2894,7 +2894,7 @@ When writing narratives:
     }
     
     // Build and send prompt
-    console.log('[BM Pass 1] Calling Sonnet for extraction...');
+    console.log('[BM Pass 1] Calling GPT-4o-mini for extraction...');
     const startTime = Date.now();
     
     const prompt = buildPass1Prompt(
@@ -2929,7 +2929,7 @@ When writing narratives:
           'X-Title': 'Torsor Benchmarking',
         },
         body: JSON.stringify({
-          model: 'openai/gpt-4o',  // Try OpenAI to test if it's Anthropic-specific
+          model: 'openai/gpt-4o-mini',  // Faster model to avoid timeout issues
           messages: [{ role: 'user', content: prompt }],
           response_format: { type: 'json_object' },
           temperature: 0.3,
@@ -3152,7 +3152,7 @@ When writing narratives:
       admin_risk_flags: pass1Data.adminGuidance.riskFlags,
       admin_closing_script: pass1Data.adminGuidance.closingScript,
       pass1_data: pass1Data,
-      llm_model: 'claude-sonnet-4',
+      llm_model: 'gpt-4o-mini',
       llm_tokens_used: tokensUsed,
       llm_cost: cost,
       generation_time_ms: generationTime,
