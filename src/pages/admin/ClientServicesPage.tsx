@@ -10513,14 +10513,29 @@ function BenchmarkingClientModal({
 
                       {/* Report Content - New Components */}
                       {viewMode === 'client' ? (
-                        <BenchmarkingClientReport 
-                          data={{
-                            ...report,
-                            created_at: report?.created_at
-                          }}
-                        />
+                        report ? (
+                          <BenchmarkingClientReport 
+                            data={{
+                              ...report,
+                              created_at: report?.created_at
+                            }}
+                          />
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            Loading report...
+                          </div>
+                        )
                       ) : (
                         (() => {
+                          // Guard: If report is null, show loading state
+                          if (!report) {
+                            return (
+                              <div className="text-center py-8 text-gray-500">
+                                Loading report data...
+                              </div>
+                            );
+                          }
+                          
                           // Helper to safely parse JSON
                           const safeJsonParse = <T,>(value: string | T | null | undefined, fallback: T): T => {
                             if (!value) return fallback;
@@ -10540,7 +10555,7 @@ function BenchmarkingClientModal({
                           const employees = responses.bm_employee_count || responses.bm_employee_count_exact || 0;
                           
                           // Get revenue per employee from metrics_comparison (where it was calculated) or calculate it
-                          const metrics = safeJsonParse(report?.metrics_comparison, []);
+                          const metrics = safeJsonParse(report.metrics_comparison, []);
                           const revPerEmployeeMetric = metrics.find((m: any) => 
                             m.metricCode === 'revenue_per_consultant' || 
                             m.metricCode === 'revenue_per_employee'
