@@ -1941,17 +1941,42 @@ function resolveIndustryFromSIC(sicCode: string, subSectorHint?: string, busines
   if (ambiguousSICs.includes(sicCode) && businessDescription) {
     const desc = businessDescription.toLowerCase();
     
-    // Telecoms / Network Infrastructure (NOT software agencies)
+    // FIRST: Check for TELECOM INFRASTRUCTURE CONTRACTOR
+    // These companies INSTALL physical networks - very different from MSPs
+    const infraSignals = [
+      /install(ation|ing|ed)/i,
+      /field.*engineer/i,
+      /physical.*network/i,
+      /underground|tunnel|railway/i,
+      /4g|5g/i,
+      /DAS|distributed.*antenna/i,
+      /cabling.*(?:contractor|company)/i
+    ];
+    const infraMatches = infraSignals.filter(p => p.test(desc)).length;
+    
+    if (infraMatches >= 2 || 
+        (desc.includes('installation') && (desc.includes('network') || desc.includes('telecom') || desc.includes('infrastructure')))) {
+      console.log(`[BM Pass 1] SIC 62090 + description suggests TELECOM INFRASTRUCTURE CONTRACTOR`);
+      return 'TELECOM_INFRA';
+    }
+    
+    // Telecoms / Network Infrastructure (MSP style, not installation)
+    if (desc.includes('managed service') || desc.includes('msp') || 
+        desc.includes('helpdesk') || desc.includes('it support')) {
+      console.log(`[BM Pass 1] SIC 62090 + description suggests IT SERVICES / MSP`);
+      return 'ITSERV';
+    }
+    
+    // Generic network/telecoms (unclear if installation or MSP)
     if (desc.includes('network infrastructure') || 
         desc.includes('wireless') || 
         desc.includes('telephony') ||
         desc.includes('telecoms') ||
         desc.includes('connectivity') ||
         desc.includes('data solutions') ||
-        desc.includes('cabling') ||
         desc.includes('broadband')) {
-      console.log(`[BM Pass 1] SIC 62090 + description suggests TELECOMS/INFRASTRUCTURE business`);
-      return 'ITSERV'; // IT Services - closer fit than software agency
+      console.log(`[BM Pass 1] SIC 62090 + description suggests TELECOMS business (defaulting to ITSERV)`);
+      return 'ITSERV';
     }
     
     // Systems Integration
@@ -1963,9 +1988,8 @@ function resolveIndustryFromSIC(sicCode: string, subSectorHint?: string, busines
       return 'CONSULT'; // Consulting - systems integrators are consultancies
     }
     
-    // Hardware / Infrastructure
+    // Hardware / Infrastructure (but not installation)
     if (desc.includes('hardware') ||
-        desc.includes('infrastructure') ||
         desc.includes('server') ||
         desc.includes('data centre')) {
       console.log(`[BM Pass 1] SIC 62090 + description suggests IT INFRASTRUCTURE business`);
@@ -1994,6 +2018,12 @@ function resolveIndustryFromSIC(sicCode: string, subSectorHint?: string, busines
     '62011': 'SAAS', // Ready-made software (SaaS products)
     // '62090' is handled above via description-based classification (too broad to map directly)
     '62030': 'ITSERV', // Computer facilities management
+    
+    // Telecommunications Infrastructure (new)
+    '42220': 'TELECOM_INFRA', // Construction of utility projects for electricity and telecommunications
+    '61100': 'TELECOM_INFRA', // Wired telecommunications activities
+    '61200': 'TELECOM_INFRA', // Wireless telecommunications activities
+    '43210': 'TELECOM_INFRA', // Electrical installation (often used for cabling contractors)
     
     // Professional Services
     '69201': 'ACCT',
@@ -2435,12 +2465,55 @@ serve(async (req) => {
     
     console.log('[BM Pass 1] Industry detection start. Description:', businessDescription ? businessDescription.substring(0, 100) : 'none');
     
-    // Check if description indicates network/telecoms business
+    // Check if description indicates specific business type
     let forceIndustryCode: string | null = null;
     if (businessDescription) {
       const desc = businessDescription.toLowerCase();
-      if (desc.includes('network infrastructure') || desc.includes('wireless telephony') || desc.includes('telecoms')) {
-        console.log('[BM Pass 1] Network/infrastructure business detected');
+      
+      // FIRST: Check for telecommunications INFRASTRUCTURE contractor
+      // These are NOT MSPs - they install physical networks, cabling, etc.
+      const infraSignals = [
+        /install(ation|ing|ed).*(?:network|infrastructure|telecom|fibre|fiber|cable)/i,
+        /(?:network|telecom|fibre|fiber).*install(ation|ing|ed)/i,
+        /infrastructure.*contractor/i,
+        /field.*engineer/i,
+        /physical.*network/i,
+        /underground|tunnel|railway/i,
+        /4g|5g.*(?:deploy|install|infrastructure)/i,
+        /DAS|distributed.*antenna/i,
+        /cabling.*(?:contractor|company|provider)/i,
+        /wireless.*(?:install|deploy|infrastructure)/i
+      ];
+      
+      const infraMatchCount = infraSignals.filter(pattern => pattern.test(desc)).length;
+      
+      // Also check financial signature: low gross margin + high revenue per employee
+      // This is the classic infrastructure contractor profile
+      // (We check assessment responses since assessmentData isn't enriched yet)
+      const grossMargin = assessment.responses?.gross_margin || 
+                          parseFloat(assessment.responses?.['Gross Margin']) ||
+                          null;
+      const revenuePerEmployee = assessment.responses?.revenue_per_employee ||
+                                  parseFloat(assessment.responses?.['Revenue per Employee']) ||
+                                  null;
+      const hasInfraFinancials = (grossMargin && grossMargin < 25) && 
+                                  (revenuePerEmployee && revenuePerEmployee > 300000);
+      
+      if (infraMatchCount >= 2 || (infraMatchCount >= 1 && hasInfraFinancials)) {
+        console.log('[BM Pass 1] 🏗️ TELECOM INFRASTRUCTURE CONTRACTOR detected');
+        console.log(`[BM Pass 1] Signals: ${infraMatchCount} keyword matches, financials match: ${hasInfraFinancials}`);
+        forceIndustryCode = 'TELECOM_INFRA';
+      }
+      // SECOND: Check for standard IT Services / MSP
+      else if (desc.includes('managed service') || desc.includes('msp') || 
+               desc.includes('helpdesk') || desc.includes('it support') ||
+               desc.includes('cloud service')) {
+        console.log('[BM Pass 1] IT Services / MSP detected');
+        forceIndustryCode = 'ITSERV';
+      }
+      // THIRD: Generic network/telecoms (less specific - defaults to ITSERV)
+      else if (desc.includes('network infrastructure') || desc.includes('wireless telephony') || desc.includes('telecoms')) {
+        console.log('[BM Pass 1] Network/telecoms business detected (defaulting to ITSERV)');
         forceIndustryCode = 'ITSERV';
       }
     }
