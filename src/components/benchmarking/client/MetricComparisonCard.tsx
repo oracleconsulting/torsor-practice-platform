@@ -1,5 +1,19 @@
 import { ArrowRight, TrendingUp, TrendingDown } from 'lucide-react';
 
+// Utility to get correct ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
+const getOrdinalSuffix = (n: number): string => {
+  const num = Math.round(n);
+  if (num % 100 >= 11 && num % 100 <= 13) {
+    return num + 'th';
+  }
+  switch (num % 10) {
+    case 1: return num + 'st';
+    case 2: return num + 'nd';
+    case 3: return num + 'rd';
+    default: return num + 'th';
+  }
+};
+
 interface MetricComparisonProps {
   metricName: string;
   clientValue: number;
@@ -138,7 +152,7 @@ export function MetricComparisonCard({
           <h3 className="text-lg font-semibold text-slate-900">{metricName}</h3>
           <p className="text-sm text-slate-500">
             {hasValidPercentile ? (
-              `${Math.round(percentile!)}th percentile`
+              `${getOrdinalSuffix(percentile!)} percentile`
             ) : (
               <span className="text-slate-400 italic">Benchmark data limited</span>
             )}

@@ -11,6 +11,20 @@ import { FinancialDataReviewModal } from './FinancialDataReviewModal';
 import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 
+// Utility to get correct ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
+const getOrdinalSuffix = (n: number): string => {
+  const num = Math.round(n);
+  if (num % 100 >= 11 && num % 100 <= 13) {
+    return num + 'th';
+  }
+  switch (num % 10) {
+    case 1: return num + 'st';
+    case 2: return num + 'nd';
+    case 3: return num + 'rd';
+    default: return num + 'th';
+  }
+};
+
 interface BenchmarkAnalysis {
   headline: string;
   executive_summary: string;
@@ -237,7 +251,7 @@ export function BenchmarkingAdminView({
   const revPerEmployee = revPerEmployeeMetric?.clientValue || clientData.revenuePerEmployee || 0;
   
   // Use admin opening statement from data if available, otherwise generate a default
-  const defaultOpeningStatement = `Based on our benchmarking analysis, we've identified a £${parseFloat(data.total_annual_opportunity || '0').toLocaleString()} annual opportunity. Your revenue per employee of £${revPerEmployee.toLocaleString()} places you at the ${data.overall_percentile || 0}th percentile - meaning ${100 - (data.overall_percentile || 0)}% of comparable firms are generating more revenue per head. Let me walk you through what we've found and what it means for your business.`;
+  const defaultOpeningStatement = `Based on our benchmarking analysis, we've identified a £${parseFloat(data.total_annual_opportunity || '0').toLocaleString()} annual opportunity. Your revenue per employee of £${revPerEmployee.toLocaleString()} places you at the ${getOrdinalSuffix(data.overall_percentile || 0)} percentile - meaning ${100 - (data.overall_percentile || 0)}% of comparable firms are generating more revenue per head. Let me walk you through what we've found and what it means for your business.`;
   const openingStatement = data.admin_opening_statement || defaultOpeningStatement;
 
   return (

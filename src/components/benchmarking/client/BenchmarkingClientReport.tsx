@@ -4,6 +4,20 @@ import { NarrativeSection } from './NarrativeSection';
 import { RecommendationsSection } from './RecommendationsSection';
 import { AlertTriangle, Gem, Shield, CheckCircle } from 'lucide-react';
 
+// Utility to get correct ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
+const getOrdinalSuffix = (n: number): string => {
+  const num = Math.round(n);
+  if (num % 100 >= 11 && num % 100 <= 13) {
+    return num + 'th';
+  }
+  switch (num % 10) {
+    case 1: return num + 'st';
+    case 2: return num + 'nd';
+    case 3: return num + 'rd';
+    default: return num + 'th';
+  }
+};
+
 interface SurplusCashAnalysis {
   hasData: boolean;
   actualCash: number;
@@ -363,7 +377,7 @@ export function BenchmarkingClientReport({ data }: BenchmarkingClientReportProps
             type="position"
             title="Where You Stand"
             content={data.position_narrative}
-            highlights={[`${data.overall_percentile || 0}th percentile`]}
+            highlights={[`${getOrdinalSuffix(data.overall_percentile || 0)} percentile`]}
           />
           <NarrativeSection
             type="strengths"
