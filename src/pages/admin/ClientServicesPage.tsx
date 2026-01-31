@@ -10094,12 +10094,35 @@ function BenchmarkingClientModal({
         body: { engagementId: engagement.id }
       });
 
-      if (error) throw error;
+      if (error) {
+        // Check if it's a timeout/connection error - the function may still be running
+        if (error.message?.includes('timeout') || 
+            error.message?.includes('connection closed') ||
+            error.message?.includes('aborted') ||
+            error.message?.includes('Failed to send') ||
+            error.message?.includes('Edge Function')) {
+          console.log('[Benchmarking] Request timed out, but generation may still be in progress. Polling...');
+          // Start polling anyway - the function is likely still running
+          pollForReport(engagement.id, 0);
+          return;
+        }
+        throw error;
+      }
       
       // Start polling for report completion
       pollForReport(engagement.id, 0);
     } catch (error: any) {
       console.error('[Benchmarking] Error generating report:', error);
+      // Check if it's a timeout/connection error
+      if (error.message?.includes('timeout') || 
+          error.message?.includes('connection closed') ||
+          error.message?.includes('aborted') ||
+          error.message?.includes('Failed to send') ||
+          error.message?.includes('Edge Function')) {
+        console.log('[Benchmarking] Connection failed, but generation may still be in progress. Polling...');
+        pollForReport(engagement.id, 0);
+        return;
+      }
       alert(`Error: ${error.message || 'Unknown error'}`);
       setGenerating(false);
     }
@@ -10155,16 +10178,37 @@ function BenchmarkingClientModal({
         }
       });
       
-      if (error) throw error;
+      if (error) {
+        // Check if it's a timeout/connection error - the function may still be running
+        if (error.message?.includes('timeout') || 
+            error.message?.includes('connection closed') ||
+            error.message?.includes('aborted') ||
+            error.message?.includes('Failed to send') ||
+            error.message?.includes('Edge Function')) {
+          console.log('[Benchmarking] Regeneration request timed out, but may still be in progress. Polling...');
+          pollForReport(engagement.id, 0);
+          return;
+        }
+        throw error;
+      }
       
       console.log('[Benchmarking] Regeneration result:', result);
       
-      // Refresh the data
-      await fetchData();
+      // Start polling for report completion instead of just refreshing
+      pollForReport(engagement.id, 0);
     } catch (error: any) {
       console.error('[Benchmarking] Error regenerating report:', error);
+      // Check if it's a timeout/connection error
+      if (error.message?.includes('timeout') || 
+          error.message?.includes('connection closed') ||
+          error.message?.includes('aborted') ||
+          error.message?.includes('Failed to send') ||
+          error.message?.includes('Edge Function')) {
+        console.log('[Benchmarking] Connection failed during regeneration, but may still be in progress. Polling...');
+        pollForReport(engagement.id, 0);
+        return;
+      }
       alert(`Error: ${error.message || 'Unknown error'}`);
-    } finally {
       setGenerating(false);
     }
   };
