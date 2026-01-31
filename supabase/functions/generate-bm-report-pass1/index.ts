@@ -2881,9 +2881,32 @@ When writing narratives:
         throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
       }
       
-      // Read response as text first (faster than streaming JSON parse)
-      console.log('[BM Pass 1] Reading response body...');
-      const responseText = await response.text();
+      // Read response as text with timeout (OpenRouter sometimes streams slowly)
+      console.log('[BM Pass 1] Reading response body (30s timeout)...');
+      
+      const bodyController = new AbortController();
+      const bodyTimeoutId = setTimeout(() => {
+        console.log('[BM Pass 1] ⏰ Body read timeout - aborting...');
+        bodyController.abort();
+      }, 30000); // 30s timeout for body read
+      
+      let responseText: string;
+      try {
+        // Create a promise race between reading the body and timeout
+        responseText = await Promise.race([
+          response.text(),
+          new Promise<never>((_, reject) => {
+            bodyController.signal.addEventListener('abort', () => {
+              reject(new Error('Body read timeout after 30s'));
+            });
+          })
+        ]);
+        clearTimeout(bodyTimeoutId);
+      } catch (bodyError) {
+        clearTimeout(bodyTimeoutId);
+        throw new Error(`Failed to read response body: ${bodyError instanceof Error ? bodyError.message : 'Unknown'}`);
+      }
+      
       console.log(`[BM Pass 1] Response body received: ${responseText.length} chars`);
       
       console.log('[BM Pass 1] Parsing JSON...');
