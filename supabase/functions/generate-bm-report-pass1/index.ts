@@ -2863,6 +2863,8 @@ When writing narratives:
         headers: {
           'Authorization': `Bearer ${openRouterKey}`,
           'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://torsor.co.uk',  // OpenRouter recommends this for better routing
+          'X-Title': 'Torsor Benchmarking',
         },
         body: JSON.stringify({
           model: 'anthropic/claude-sonnet-4',
