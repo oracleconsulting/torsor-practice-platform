@@ -2881,33 +2881,47 @@ When writing narratives:
         throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
       }
       
-      // Read response as text with timeout (OpenRouter sometimes streams slowly)
-      console.log('[BM Pass 1] Reading response body (30s timeout)...');
+      // Read response body using chunked reader with timeout
+      console.log('[BM Pass 1] Reading response body...');
       
-      const bodyController = new AbortController();
-      const bodyTimeoutId = setTimeout(() => {
-        console.log('[BM Pass 1] ⏰ Body read timeout - aborting...');
-        bodyController.abort();
-      }, 30000); // 30s timeout for body read
-      
-      let responseText: string;
-      try {
-        // Create a promise race between reading the body and timeout
-        responseText = await Promise.race([
-          response.text(),
-          new Promise<never>((_, reject) => {
-            bodyController.signal.addEventListener('abort', () => {
-              reject(new Error('Body read timeout after 30s'));
-            });
-          })
-        ]);
-        clearTimeout(bodyTimeoutId);
-      } catch (bodyError) {
-        clearTimeout(bodyTimeoutId);
-        throw new Error(`Failed to read response body: ${bodyError instanceof Error ? bodyError.message : 'Unknown'}`);
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body reader available');
       }
       
-      console.log(`[BM Pass 1] Response body received: ${responseText.length} chars`);
+      const chunks: Uint8Array[] = [];
+      let totalBytes = 0;
+      const bodyStartTime = Date.now();
+      const MAX_BODY_READ_TIME = 45000; // 45 seconds max for body read
+      
+      try {
+        while (true) {
+          // Check if we've exceeded max read time
+          if (Date.now() - bodyStartTime > MAX_BODY_READ_TIME) {
+            reader.cancel();
+            throw new Error(`Body read timeout after ${MAX_BODY_READ_TIME/1000}s (received ${totalBytes} bytes)`);
+          }
+          
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          chunks.push(value);
+          totalBytes += value.length;
+          
+          // Log progress every 10KB
+          if (totalBytes % 10000 < value.length) {
+            console.log(`[BM Pass 1] Reading... ${(totalBytes/1024).toFixed(1)}KB received`);
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      
+      // Combine chunks into string
+      const decoder = new TextDecoder();
+      const responseText = chunks.map(chunk => decoder.decode(chunk, { stream: true })).join('') + decoder.decode();
+      
+      console.log(`[BM Pass 1] Response body complete: ${responseText.length} chars (${(totalBytes/1024).toFixed(1)}KB)`);
       
       console.log('[BM Pass 1] Parsing JSON...');
       result = JSON.parse(responseText);
