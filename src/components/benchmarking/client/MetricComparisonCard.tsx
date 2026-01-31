@@ -24,19 +24,49 @@ export function MetricComparisonCard({
   annualImpact
 }: MetricComparisonProps) {
   
-  const formatValue = (val: number | null | undefined) => {
+  const formatValue = (val: number | null | undefined, isGapValue: boolean = false) => {
     // Defensive null check
     const safeVal = val ?? 0;
+    // Round to 1 decimal place to avoid floating point precision issues
+    const rounded = Math.round(safeVal * 10) / 10;
+    
     switch (format) {
       case 'currency':
-        return `£${safeVal.toLocaleString()}`;
+        // For currency, show whole numbers for large values
+        if (Math.abs(safeVal) >= 1000) {
+          return `£${Math.round(safeVal).toLocaleString()}`;
+        }
+        return `£${rounded.toLocaleString()}`;
       case 'percent':
-        return `${safeVal}%`;
+        return `${rounded}%`;
       case 'days':
-        return `${safeVal} days`;
+        return `${Math.round(safeVal)} days`;
       default:
-        return safeVal.toLocaleString();
+        return rounded.toLocaleString();
     }
+  };
+  
+  // Format impact value with proper scaling
+  // If value seems too small (< 100) but there's a meaningful gap, it might be in millions
+  const formatImpact = (val: number | null | undefined) => {
+    if (val == null || val === 0) return null;
+    let absVal = Math.abs(val);
+    
+    // Sanity check: if impact is very small but gap is significant, LLM might have
+    // returned value in millions or as a simple number
+    // E.g., LLM returns "1" meaning "£1M" or just "1.07" meaning "£1,070,000"
+    if (absVal < 100 && absVal > 0) {
+      // Likely in millions - multiply by 1,000,000
+      absVal = absVal * 1000000;
+    }
+    
+    if (absVal >= 1000000) {
+      return `£${(absVal / 1000000).toFixed(1)}M`;
+    }
+    if (absVal >= 1000) {
+      return `£${Math.round(absVal).toLocaleString()}`;
+    }
+    return `£${Math.round(absVal)}`;
   };
   
   // Check if we have valid benchmark data
@@ -50,7 +80,8 @@ export function MetricComparisonCard({
   const safeP75 = p75 ?? 0;
   
   const isGap = higherIsBetter ? safeClientValue < safeMedianValue : safeClientValue > safeMedianValue;
-  const gapAmount = Math.abs(safeClientValue - safeMedianValue);
+  // Round gap to 1 decimal place to avoid floating point precision issues
+  const gapAmount = Math.round(Math.abs(safeClientValue - safeMedianValue) * 10) / 10;
   
   // Calculate position on scale with clean rounding based on format
   const calculateScale = (clientVal: number, p25Val: number, p75Val: number, fmt: string) => {
@@ -113,11 +144,11 @@ export function MetricComparisonCard({
             )}
           </p>
         </div>
-        {hasValidBenchmark && isGap && annualImpact != null && annualImpact > 0 && (
+        {hasValidBenchmark && isGap && annualImpact != null && annualImpact > 1 && (
           <div className="text-right">
             <p className="text-xs text-slate-500 uppercase tracking-wide">Impact</p>
             <p className="text-lg font-semibold text-rose-600">
-              £{(annualImpact ?? 0).toLocaleString()}
+              {formatImpact(annualImpact)}
             </p>
           </div>
         )}

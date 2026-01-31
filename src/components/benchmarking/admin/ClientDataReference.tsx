@@ -139,11 +139,20 @@ export function ClientDataReference({
       <div className="pt-3 border-t border-slate-200">
         <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Industry</p>
         <p className="text-sm font-medium text-slate-800">{industryName || industryCode}</p>
-        {industryConfidence && (
-          <p className="text-xs text-slate-500">
-            {industryCode} · {industryConfidence}% confidence
-          </p>
-        )}
+        <p className="text-xs text-slate-500">
+          {industryCode}
+          {industryConfidence != null && (
+            industryConfidence >= 80 ? (
+              <span className="text-emerald-600"> · {industryConfidence}% confidence</span>
+            ) : industryConfidence >= 50 ? (
+              <span className="text-amber-600"> · {industryConfidence}% confidence</span>
+            ) : industryConfidence <= 20 ? (
+              <span className="text-blue-600"> · Manually assigned</span>
+            ) : (
+              <span className="text-slate-400"> · {industryConfidence}% confidence</span>
+            )
+          )}
+        </p>
       </div>
       
       {/* Balance Sheet */}
