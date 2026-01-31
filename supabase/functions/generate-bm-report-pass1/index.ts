@@ -3152,18 +3152,26 @@ When writing narratives:
       }
     }
     
-    // Insert supplementary metrics
+    // Insert supplementary metrics (delete existing first, then insert)
     if (supplementaryMetrics.length > 0) {
-      for (const metric of supplementaryMetrics) {
-        const { error: suppError } = await supabaseClient
-          .from('bm_metric_comparisons')
-          .upsert(metric, { onConflict: 'engagement_id,metric_code' });
-        
-        if (suppError) {
-          console.error('[BM Pass 1] Supplementary metric insert error:', suppError);
-        }
+      // Delete any existing supplementary metrics for this engagement
+      const metricCodes = supplementaryMetrics.map(m => m.metric_code);
+      await supabaseClient
+        .from('bm_metric_comparisons')
+        .delete()
+        .eq('engagement_id', engagementId)
+        .in('metric_code', metricCodes);
+      
+      // Insert the new supplementary metrics
+      const { error: suppError } = await supabaseClient
+        .from('bm_metric_comparisons')
+        .insert(supplementaryMetrics);
+      
+      if (suppError) {
+        console.error('[BM Pass 1] Supplementary metrics insert error:', suppError);
+      } else {
+        console.log(`[BM Pass 1] Inserted ${supplementaryMetrics.length} supplementary metrics`);
       }
-      console.log(`[BM Pass 1] Inserted ${supplementaryMetrics.length} supplementary metrics`);
     }
     
     // Update engagement status
@@ -3172,40 +3180,40 @@ When writing narratives:
       .update({ status: 'pass1_complete' })
       .eq('id', engagementId);
     
-    console.log('[BM Pass 1] Saved. Triggering Pass 2...');
+    console.log('[BM Pass 1] ✅ Report saved to database. Now triggering Pass 2...');
     
     // Trigger Pass 2 - fire and forget (don't await completion)
     // IMPORTANT: Must trigger BEFORE returning response, setTimeout is unreliable in edge functions
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
-    if (supabaseUrl && serviceRoleKey) {
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error('[BM Pass 1] ❌ Missing SUPABASE_URL or SERVICE_ROLE_KEY - cannot trigger Pass 2!');
+    } else {
       // Fire-and-forget: Start the request but don't wait for response
       // This ensures the request is sent before the function returns
-      console.log('[BM Pass 1] Calling Pass 2 function (fire-and-forget)...');
+      const pass2Url = `${supabaseUrl}/functions/v1/generate-bm-report-pass2`;
+      console.log(`[BM Pass 1] Calling Pass 2 at: ${pass2Url}`);
       
-      fetch(`${supabaseUrl}/functions/v1/generate-bm-report-pass2`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${serviceRoleKey}`
-        },
-        body: JSON.stringify({ engagementId })
-      })
-        .then(async (pass2Response) => {
-          if (!pass2Response.ok) {
-            const errorText = await pass2Response.text();
-            console.error('[BM Pass 1] Pass 2 trigger failed:', pass2Response.status, errorText);
-          } else {
-            console.log('[BM Pass 1] Pass 2 triggered successfully');
-          }
-        })
-        .catch((err) => {
-          console.error('[BM Pass 1] Failed to trigger Pass 2:', err);
+      try {
+        const pass2Response = await fetch(pass2Url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${serviceRoleKey}`
+          },
+          body: JSON.stringify({ engagementId })
         });
-      
-      // Small delay to ensure fetch is initiated before returning
-      await new Promise(resolve => setTimeout(resolve, 100));
+        
+        if (!pass2Response.ok) {
+          const errorText = await pass2Response.text();
+          console.error('[BM Pass 1] ❌ Pass 2 trigger failed:', pass2Response.status, errorText);
+        } else {
+          console.log('[BM Pass 1] ✅ Pass 2 triggered successfully (response received)');
+        }
+      } catch (pass2Err) {
+        console.error('[BM Pass 1] ❌ Failed to trigger Pass 2:', pass2Err);
+      }
     }
     
     return new Response(
