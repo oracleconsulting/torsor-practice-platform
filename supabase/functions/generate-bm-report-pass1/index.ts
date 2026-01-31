@@ -2845,15 +2845,19 @@ When writing narratives:
     );
     
     // Single attempt with timeout - retries eat into the 30s function limit
-    console.log(`[BM Pass 1] Calling Claude API...`);
+    console.log(`[BM Pass 1] Calling Claude API (25s timeout)...`);
     
     // Create abort controller for timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout
+    const timeoutId = setTimeout(() => {
+      console.log('[BM Pass 1] ⏰ Claude API timeout - aborting...');
+      controller.abort();
+    }, 25000); // 25s timeout
     
     let result: any = null;
     
     try {
+      console.log('[BM Pass 1] Sending request to OpenRouter...');
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -2870,22 +2874,25 @@ When writing narratives:
       });
       
       clearTimeout(timeoutId);
+      console.log(`[BM Pass 1] Response received: ${response.status}`);
       
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
       }
       
+      console.log('[BM Pass 1] Parsing JSON response...');
       result = await response.json();
-      console.log(`[BM Pass 1] Claude API response received`);
+      console.log(`[BM Pass 1] ✅ Claude API response parsed successfully`);
       
     } catch (error) {
       clearTimeout(timeoutId);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`[BM Pass 1] Claude API failed:`, errorMessage);
+      console.error(`[BM Pass 1] ❌ Claude API failed:`, errorMessage);
       throw new Error(`Failed to get response from Claude: ${errorMessage}`);
     }
     
+    console.log('[BM Pass 1] Extracting content from response...');
     let content = result.choices[0].message.content;
     
     // Strip markdown code blocks if present (```json ... ```)
@@ -2898,12 +2905,22 @@ When writing narratives:
       content = content.trim();
     }
     
-    const pass1Data = JSON.parse(content);
+    console.log('[BM Pass 1] Parsing LLM output as JSON...');
+    let pass1Data;
+    try {
+      pass1Data = JSON.parse(content);
+      console.log('[BM Pass 1] ✅ JSON parsed successfully');
+    } catch (parseError) {
+      console.error('[BM Pass 1] ❌ JSON parse failed:', parseError);
+      console.error('[BM Pass 1] Content preview:', content.substring(0, 500));
+      throw new Error('Failed to parse LLM response as JSON');
+    }
+    
     const tokensUsed = result.usage?.total_tokens || 0;
     const cost = (tokensUsed / 1000) * 0.003; // Approximate cost for Sonnet 4
     const generationTime = Date.now() - startTime;
     
-    console.log('[BM Pass 1] Extraction complete. Tokens:', tokensUsed, 'Cost: £', cost.toFixed(4));
+    console.log('[BM Pass 1] ✅ Extraction complete. Tokens:', tokensUsed, 'Cost: £', cost.toFixed(4));
     
     // Calculate employee band
     const calculatedEmployeeBand = calculateEmployeeBand(assessmentData.employee_count || 0);
