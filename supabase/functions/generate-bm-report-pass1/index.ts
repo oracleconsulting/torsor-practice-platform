@@ -2881,8 +2881,13 @@ When writing narratives:
         throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
       }
       
-      console.log('[BM Pass 1] Parsing JSON response...');
-      result = await response.json();
+      // Read response as text first (faster than streaming JSON parse)
+      console.log('[BM Pass 1] Reading response body...');
+      const responseText = await response.text();
+      console.log(`[BM Pass 1] Response body received: ${responseText.length} chars`);
+      
+      console.log('[BM Pass 1] Parsing JSON...');
+      result = JSON.parse(responseText);
       console.log(`[BM Pass 1] ✅ Claude API response parsed successfully`);
       
     } catch (error) {
