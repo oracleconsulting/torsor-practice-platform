@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { QuickStatsBar } from './QuickStatsBar';
 import { ConversationScript } from './ConversationScript';
 import { RiskFlagsPanel } from './RiskFlagsPanel';
@@ -8,8 +8,10 @@ import { DataCollectionPanel } from './DataCollectionPanel';
 import { BenchmarkSourcesPanel } from './BenchmarkSourcesPanel';
 import { AccountsUploadPanel } from './AccountsUploadPanel';
 import { FinancialDataReviewModal } from './FinancialDataReviewModal';
-import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload } from 'lucide-react';
+import { ServicePathwayPanel } from './ServicePathwayPanel';
+import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
+import { detectIssues, getPriorityServices, type IssueMetrics } from '../../../lib/issue-service-mapping';
 
 // Utility to get correct ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
 const getOrdinalSuffix = (n: number): string => {
@@ -108,6 +110,12 @@ interface BenchmarkingAdminViewProps {
     revenue: number;
     employees: number;
     revenuePerEmployee: number;
+    grossMargin?: number;
+    netMargin?: number;
+    ebitdaMargin?: number;
+    debtorDays?: number;
+    creditorDays?: number;
+    clientConcentration?: number;
   };
   hvaData?: any;
   founderRisk?: {
@@ -122,6 +130,7 @@ interface BenchmarkingAdminViewProps {
     confidence: number;
   };
   clientId?: string;
+  clientName?: string;
   practiceId?: string;
   engagementId?: string;
   supplementaryData?: Record<string, number | string>;
@@ -188,6 +197,7 @@ export function BenchmarkingAdminView({
   founderRisk, 
   industryMapping, 
   clientId,
+  clientName,
   practiceId,
   engagementId,
   supplementaryData = {},
@@ -196,7 +206,7 @@ export function BenchmarkingAdminView({
   onSaveSupplementaryData,
   isRegenerating = false
 }: BenchmarkingAdminViewProps) {
-  const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'actions' | 'collect' | 'accounts' | 'sources' | 'raw'>('script');
+  const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'services' | 'actions' | 'collect' | 'accounts' | 'sources' | 'raw'>('script');
   
   // Accounts upload state
   const [accountUploads, setAccountUploads] = useState<AccountUpload[]>([]);
@@ -246,7 +256,41 @@ export function BenchmarkingAdminView({
   const closingScript = data.admin_closing_script || '';
   
   // Get revenue per employee from metrics comparison (where it was calculated) or fallback to clientData
-  const metrics = safeJsonParse<Array<{ metricCode?: string; clientValue?: number }>>(data.metrics_comparison, []);
+  const metrics = safeJsonParse<Array<{ metricCode?: string; clientValue?: number; p50?: number }>>(data.metrics_comparison, []);
+  
+  // Extract benchmark medians from metrics comparison
+  const getBenchmarkMedian = (code: string): number | undefined => {
+    const metric = metrics.find(m => m.metricCode?.toLowerCase().includes(code.toLowerCase()));
+    return metric?.p50 ?? undefined;
+  };
+  
+  // Detect issues for service pathway
+  const detectedIssues = useMemo(() => {
+    const issueMetrics: IssueMetrics = {
+      grossMargin: clientData.grossMargin,
+      netMargin: clientData.netMargin,
+      ebitdaMargin: clientData.ebitdaMargin,
+      revenuePerEmployee: clientData.revenuePerEmployee,
+      debtorDays: clientData.debtorDays || data.creditor_days || undefined,
+      creditorDays: clientData.creditorDays || data.creditor_days || undefined,
+      clientConcentration: clientData.clientConcentration,
+      founderRiskScore: founderRisk?.score || pass1Data?.founderRiskScore,
+      founderRiskLevel: founderRisk?.level || pass1Data?.founderRiskLevel,
+      surplusCash: data.surplus_cash?.surplusCash || 0,
+      revenue: clientData.revenue,
+      employeeCount: clientData.employees,
+      industryCode: industryMapping?.code || data.industry_code,
+      benchmarks: {
+        grossMargin: getBenchmarkMedian('gross_margin'),
+        revenuePerEmployee: getBenchmarkMedian('revenue_per_employee'),
+        debtorDays: getBenchmarkMedian('debtor'),
+      }
+    };
+    
+    return detectIssues(issueMetrics);
+  }, [clientData, founderRisk, pass1Data, data, industryMapping, metrics]);
+  
+  const priorityServices = useMemo(() => getPriorityServices(detectedIssues), [detectedIssues]);
   const revPerEmployeeMetric = metrics.find((m) => m.metricCode === 'revenue_per_consultant' || m.metricCode === 'revenue_per_employee');
   const revPerEmployee = revPerEmployeeMetric?.clientValue || clientData.revenuePerEmployee || 0;
   
@@ -319,6 +363,22 @@ export function BenchmarkingAdminView({
                 >
                   <AlertTriangle className="w-4 h-4" />
                   Risk Flags
+                </button>
+                <button
+                  onClick={() => setActiveTab('services')}
+                  className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative ${
+                    activeTab === 'services'
+                      ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <Target className="w-4 h-4" />
+                  Services
+                  {detectedIssues.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-indigo-500 text-white text-xs rounded-full flex items-center justify-center">
+                      {detectedIssues.length}
+                    </span>
+                  )}
                 </button>
                 <button
                   onClick={() => setActiveTab('actions')}
@@ -402,6 +462,14 @@ export function BenchmarkingAdminView({
                 
                 {activeTab === 'risks' && (
                   <RiskFlagsPanel flags={riskFlags} />
+                )}
+                
+                {activeTab === 'services' && (
+                  <ServicePathwayPanel
+                    issues={detectedIssues}
+                    priorityServices={priorityServices}
+                    clientName={clientName}
+                  />
                 )}
                 
                 {activeTab === 'actions' && (

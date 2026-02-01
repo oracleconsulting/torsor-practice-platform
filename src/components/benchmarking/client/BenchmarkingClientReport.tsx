@@ -4,8 +4,10 @@ import { MetricComparisonCard } from './MetricComparisonCard';
 import { NarrativeSection } from './NarrativeSection';
 import { RecommendationsSection } from './RecommendationsSection';
 import { ScenarioExplorer } from './ScenarioExplorer';
+import { ServiceRecommendationsSection } from './ServiceRecommendationsSection';
 import { AlertTriangle, Gem, Shield, CheckCircle } from 'lucide-react';
 import type { BaselineMetrics } from '../../../lib/scenario-calculator';
+import { detectIssues, getPriorityServices, type IssueMetrics } from '../../../lib/issue-service-mapping';
 
 // Utility to get correct ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
 const getOrdinalSuffix = (n: number): string => {
@@ -94,10 +96,16 @@ interface BenchmarkAnalysis {
     unique_methods?: string;
     reputation_build_time?: string;
   };
+  // Founder risk fields
+  founder_risk_level?: string;
+  founder_risk_score?: number;
 }
 
 interface BenchmarkingClientReportProps {
   data: BenchmarkAnalysis;
+  practitionerName?: string;
+  practitionerEmail?: string;
+  clientName?: string;
 }
 
 // Helper to safely parse JSON (handles both string and already-parsed objects)
@@ -161,13 +169,36 @@ const getMetricFormat = (metricCode: string | undefined): 'currency' | 'percent'
   return 'number';
 };
 
-export function BenchmarkingClientReport({ data }: BenchmarkingClientReportProps) {
-  const metrics = safeJsonParse(data.metrics_comparison, []);
+interface MetricComparison {
+  metricCode?: string;
+  metric_code?: string;
+  metricName?: string;
+  metric_name?: string;
+  metric?: string;
+  clientValue?: number;
+  client_value?: number;
+  p10?: number;
+  p25?: number;
+  p50?: number;
+  p75?: number;
+  p90?: number;
+  percentile?: number;
+  annualImpact?: number;
+  annual_impact?: number;
+}
+
+export function BenchmarkingClientReport({ 
+  data, 
+  practitionerName,
+  practitionerEmail,
+  clientName 
+}: BenchmarkingClientReportProps) {
+  const metrics = safeJsonParse<MetricComparison[]>(data.metrics_comparison, []);
   const recommendations = safeJsonParse(data.recommendations, []);
   
   // Helper to get metric value from metrics array
   const getMetricValue = (code: string): number | undefined => {
-    const metric = metrics.find((m: any) => {
+    const metric = metrics.find((m) => {
       const metricCode = (m.metricCode || m.metric_code || '').toLowerCase();
       return metricCode === code.toLowerCase() || metricCode.includes(code.toLowerCase());
     });
@@ -176,12 +207,12 @@ export function BenchmarkingClientReport({ data }: BenchmarkingClientReportProps
   
   // Helper to get benchmark data for a metric
   const getBenchmarkForMetric = (code: string): { p25: number; p50: number; p75: number } | undefined => {
-    const metric = metrics.find((m: any) => {
+    const metric = metrics.find((m) => {
       const metricCode = (m.metricCode || m.metric_code || '').toLowerCase();
       return metricCode === code.toLowerCase() || metricCode.includes(code.toLowerCase());
     });
     if (!metric || metric.p50 == null) return undefined;
-    return { p25: metric.p25, p50: metric.p50, p75: metric.p75 };
+    return { p25: metric.p25 || 0, p50: metric.p50, p75: metric.p75 || 0 };
   };
   
   // Build baseline metrics for scenario calculations
@@ -261,6 +292,34 @@ export function BenchmarkingClientReport({ data }: BenchmarkingClientReportProps
     debtorDays: getBenchmarkForMetric('debtor_days'),
     clientConcentration: getBenchmarkForMetric('concentration'),
   }), [metrics]);
+  
+  // Detect issues for ACT phase service recommendations
+  const detectedIssues = useMemo(() => {
+    const issueMetrics: IssueMetrics = {
+      grossMargin: baselineMetrics?.grossMargin || data.gross_margin || data.pass1_data?.gross_margin,
+      netMargin: baselineMetrics?.netMargin || data.net_margin || data.pass1_data?.net_margin,
+      ebitdaMargin: baselineMetrics?.ebitdaMargin || data.ebitda_margin || data.pass1_data?.ebitda_margin,
+      revenuePerEmployee: baselineMetrics?.revenuePerEmployee || data.pass1_data?.revenue_per_employee,
+      debtorDays: baselineMetrics?.debtorDays || data.debtor_days || data.pass1_data?.debtor_days,
+      creditorDays: baselineMetrics?.creditorDays || data.creditor_days || data.pass1_data?.creditor_days,
+      clientConcentration: data.client_concentration_top3 || data.client_concentration || data.pass1_data?.client_concentration_top3,
+      founderRiskScore: data.founder_risk_score,
+      founderRiskLevel: data.founder_risk_level,
+      cashMonths: undefined, // Could add from balance_sheet data
+      surplusCash: data.surplus_cash?.surplusCash || 0,
+      revenue: baselineMetrics?.revenue || data.revenue || data.pass1_data?._enriched_revenue,
+      employeeCount: baselineMetrics?.employeeCount || data.employee_count || data.pass1_data?._enriched_employee_count,
+      benchmarks: {
+        grossMargin: industryBenchmarks.grossMargin?.p50,
+        revenuePerEmployee: industryBenchmarks.revenuePerEmployee?.p50,
+        debtorDays: industryBenchmarks.debtorDays?.p50,
+      }
+    };
+    
+    return detectIssues(issueMetrics);
+  }, [baselineMetrics, data, industryBenchmarks]);
+  
+  const priorityServices = useMemo(() => getPriorityServices(detectedIssues), [detectedIssues]);
   
   return (
     <div className="min-h-screen bg-slate-50">
@@ -534,18 +593,16 @@ export function BenchmarkingClientReport({ data }: BenchmarkingClientReportProps
           />
         )}
         
-        {/* Call to Action */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-8 text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">
-            Ready to capture this opportunity?
-          </h2>
-          <p className="text-blue-100 mb-6">
-            Let's discuss how to turn these insights into action.
-          </p>
-          <button className="px-6 py-3 bg-white text-blue-600 font-semibold rounded-lg hover:bg-blue-50 transition-colors">
-            Schedule a Discussion
-          </button>
-        </div>
+        {/* Service Recommendations - ACT Phase */}
+        {detectedIssues.length > 0 && (
+          <ServiceRecommendationsSection
+            issues={detectedIssues}
+            priorityServices={priorityServices}
+            practitionerName={practitionerName}
+            practitionerEmail={practitionerEmail}
+            clientName={clientName}
+          />
+        )}
         
         {/* Data Sources / Methodology */}
         {data.data_sources && data.data_sources.length > 0 && (
