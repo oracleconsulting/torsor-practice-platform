@@ -234,132 +234,244 @@ function parseValuePercentage(value: string | number | undefined | null): number
   return 0;
 }
 
-function mapValueHVAToSuppressors(hva: ValueHVAResponses, baseValue: number, concentrationFromAssessment?: number): ValueSuppressor[] {
+function mapValueHVAToSuppressors(hva: ValueHVAResponses, baseValue: number, concentrationFromAssessment?: number, supplementaryData?: any): ValueSuppressor[] {
   const suppressors: ValueSuppressor[] = [];
   
+  // Log all input data for debugging
+  console.log('[Value Suppressors] Input data:', {
+    baseValue,
+    concentrationFromAssessment,
+    hvaKeys: Object.keys(hva || {}),
+    supplementaryKeys: Object.keys(supplementaryData || {}),
+  });
+  console.log('[Value Suppressors] Raw HVA values:', {
+    knowledge_dependency_percentage: hva.knowledge_dependency_percentage,
+    personal_brand_percentage: hva.personal_brand_percentage,
+    top3_customer_revenue_percentage: hva.top3_customer_revenue_percentage,
+    client_concentration_top3: hva.client_concentration_top3,
+    succession_your_role: hva.succession_your_role,
+    autonomy_strategy: hva.autonomy_strategy,
+    unique_methods_protection: hva.unique_methods_protection,
+    recurring_revenue_percentage: hva.recurring_revenue_percentage,
+  });
+  
+  // ==========================================================================
+  // SUPPRESSOR 1: FOUNDER DEPENDENCY (knowledge + personal brand)
+  // ==========================================================================
   const knowledgeDep = parseValuePercentage(hva.knowledge_dependency_percentage);
   const personalBrand = parseValuePercentage(hva.personal_brand_percentage);
+  console.log(`[Value Suppressors] Founder dependency: knowledge=${knowledgeDep}%, personalBrand=${personalBrand}%`);
   
   if (knowledgeDep > 40 || personalBrand > 40) {
     const maxDep = Math.max(knowledgeDep, personalBrand);
-    const severity: 'critical' | 'high' | 'medium' | 'low' = maxDep > 70 ? 'critical' : maxDep > 50 ? 'high' : 'medium';
-    const discountLow = maxDep > 70 ? 20 : maxDep > 50 ? 12 : 8;
-    const discountHigh = maxDep > 70 ? 35 : maxDep > 50 ? 22 : 15;
+    // Higher thresholds for more severe discounts
+    const severity: 'critical' | 'high' | 'medium' | 'low' = maxDep >= 70 ? 'critical' : maxDep >= 50 ? 'high' : 'medium';
+    const discountLow = maxDep >= 70 ? 25 : maxDep >= 50 ? 15 : 10;
+    const discountHigh = maxDep >= 70 ? 35 : maxDep >= 50 ? 25 : 18;
+    
+    console.log(`[Value Suppressors] ✅ Adding FOUNDER_DEPENDENCY: severity=${severity}, discount=${discountLow}-${discountHigh}%`);
     
     suppressors.push({
       id: 'founder_dependency',
       name: 'Founder Dependency',
       category: 'founder_dependency',
       hvaField: 'knowledge_dependency_percentage + personal_brand_percentage',
-      hvaValue: `${knowledgeDep}% knowledge, ${personalBrand}% revenue`,
-      evidence: `${knowledgeDep}% of operational knowledge concentrated in founder. ${personalBrand}% of revenue tied to personal relationships.`,
+      hvaValue: `${knowledgeDep}% knowledge, ${personalBrand}% personal brand`,
+      evidence: `${knowledgeDep}% of operational knowledge concentrated in founder's head. ${personalBrand}% of customers buy from you personally, not the business.`,
       discountPercent: { low: discountLow, high: discountHigh },
       impactAmount: { low: baseValue * discountLow / 100, high: baseValue * discountHigh / 100 },
       severity,
       remediable: true,
       remediationService: 'Goal Alignment Programme + Succession Planning',
       remediationTimeMonths: 18,
-      talkingPoint: knowledgeDep > 60 
-        ? `"Right now, you ARE the business. If you stepped away, ${knowledgeDep}% of the knowledge walks out. That's a 20-35% hit to what someone would pay."`
-        : `"There's work to do on reducing your day-to-day involvement. Buyers will see you as a risk."`,
+      talkingPoint: maxDep >= 70 
+        ? `"Right now, you ARE the business. ${knowledgeDep}% of knowledge walks out if you do, and ${personalBrand}% of clients are buying YOU. That's a 25-35% hit to what someone would pay."`
+        : `"There's founder dependency to address - buyers will see you as a risk that needs mitigating."`,
       questionToAsk: 'If you had to take 3 months off tomorrow, what would fail first?',
     });
+  } else {
+    console.log(`[Value Suppressors] ❌ Skipping founder_dependency: knowledge=${knowledgeDep}%, personalBrand=${personalBrand}% (both under 40%)`);
   }
   
-  const concentration = concentrationFromAssessment || parseValuePercentage(hva.top3_customer_revenue_percentage) || parseValuePercentage(hva.client_concentration_top3);
+  // ==========================================================================
+  // SUPPRESSOR 2: CUSTOMER CONCENTRATION (CRITICAL for high values)
+  // ==========================================================================
+  // Try multiple sources for concentration
+  let concentration = concentrationFromAssessment || 0;
+  if (!concentration) {
+    concentration = parseValuePercentage(hva.top3_customer_revenue_percentage);
+  }
+  if (!concentration) {
+    concentration = parseValuePercentage(hva.client_concentration_top3);
+  }
+  // Also try supplementary data
+  if (!concentration && supplementaryData) {
+    const suppConc = supplementaryData['Client Concentration'] || supplementaryData['bm_supp_Client Concentration'] || supplementaryData.client_concentration;
+    if (suppConc) {
+      concentration = parseValuePercentage(suppConc);
+    }
+  }
   
-  if (concentration > 40) {
-    const severity: 'critical' | 'high' | 'medium' | 'low' = concentration > 80 ? 'critical' : concentration > 60 ? 'high' : 'medium';
-    const discountLow = concentration > 80 ? 20 : concentration > 60 ? 12 : 6;
-    const discountHigh = concentration > 90 ? 40 : concentration > 80 ? 30 : concentration > 60 ? 20 : 12;
+  console.log(`[Value Suppressors] Customer concentration: ${concentration}% (from assessment: ${concentrationFromAssessment}, from HVA: ${parseValuePercentage(hva.top3_customer_revenue_percentage)})`);
+  
+  if (concentration >= 50) {
+    // Use stricter thresholds for concentration risk
+    const severity: 'critical' | 'high' | 'medium' | 'low' = concentration >= 90 ? 'critical' : concentration >= 75 ? 'high' : 'medium';
+    
+    // Higher discounts for severe concentration
+    let discountLow: number, discountHigh: number;
+    if (concentration >= 90) {
+      discountLow = 25; discountHigh = 40;  // 99% concentration is existential
+    } else if (concentration >= 75) {
+      discountLow = 18; discountHigh = 30;
+    } else {
+      discountLow = 10; discountHigh = 18;
+    }
+    
+    console.log(`[Value Suppressors] ✅ Adding CUSTOMER_CONCENTRATION: ${concentration}%, severity=${severity}, discount=${discountLow}-${discountHigh}%`);
     
     suppressors.push({
       id: 'customer_concentration',
-      name: 'Customer Concentration',
+      name: 'Customer Concentration Risk',
       category: 'concentration',
       hvaField: 'top3_customer_revenue_percentage',
-      hvaValue: concentration,
-      evidence: `${concentration}% of revenue from top 3 clients. ${concentration > 80 ? 'Single client loss would be existential.' : 'Buyer will see this as high risk.'}`,
+      hvaValue: `${concentration}%`,
+      evidence: concentration >= 90 
+        ? `${concentration}% of revenue from top 3 clients. This is an EXISTENTIAL risk - losing one major client would be catastrophic.`
+        : `${concentration}% of revenue from top 3 clients. This concentration creates significant buyer risk.`,
       discountPercent: { low: discountLow, high: discountHigh },
       impactAmount: { low: baseValue * discountLow / 100, high: baseValue * discountHigh / 100 },
       severity,
       remediable: true,
       remediationService: 'Revenue Diversification Programme',
-      remediationTimeMonths: 24,
-      talkingPoint: concentration > 80 
-        ? `"${concentration}% from three clients isn't a customer base - it's a dependency."`
-        : `"Your top 3 clients at ${concentration}% is above the comfort zone for most buyers."`,
-      questionToAsk: 'When do your major contracts come up for renewal?',
+      remediationTimeMonths: concentration >= 90 ? 36 : 24,
+      talkingPoint: concentration >= 90 
+        ? `"${concentration}% from three clients isn't a customer base - it's a dependency. A buyer would discount your value 25-40% just for this risk, or walk away entirely."`
+        : `"Your top 3 clients at ${concentration}% is above the comfort zone for most buyers. They'll want to see diversification progress."`,
+      questionToAsk: concentration >= 90
+        ? '"If your biggest client gave you 6 months notice tomorrow, what would happen to the business?"'
+        : '"When do your major contracts come up for renewal, and what\'s your win-back rate?"',
     });
+  } else if (concentration > 0) {
+    console.log(`[Value Suppressors] ❌ Skipping customer_concentration: ${concentration}% (under 50%)`);
   }
   
-  const ipUnprotected = hva.unique_methods_protection === 'Not formally protected' || hva.unique_methods_protection === 'In my head';
-  const hasUndocumentedProcesses = hva.critical_processes_undocumented && Array.isArray(hva.critical_processes_undocumented) && hva.critical_processes_undocumented.length > 2;
+  // ==========================================================================
+  // SUPPRESSOR 3: UNDOCUMENTED IP & PROCESSES
+  // ==========================================================================
+  const ipUnprotected = hva.unique_methods_protection === 'Not formally protected' || 
+                        hva.unique_methods_protection === "Don't know" ||
+                        hva.unique_methods_protection === 'In my head';
+  const undocProcesses = hva.critical_processes_undocumented;
+  const hasUndocumentedProcesses = (Array.isArray(undocProcesses) && undocProcesses.length >= 3) ||
+                                    (typeof undocProcesses === 'string' && undocProcesses.includes('decision'));
   const documentationScore = parseValuePercentage(hva.documentation_score);
   
-  if (ipUnprotected || hasUndocumentedProcesses || documentationScore < 40) {
+  console.log(`[Value Suppressors] IP/Documentation: protection="${hva.unique_methods_protection}", undocProcesses=${Array.isArray(undocProcesses) ? undocProcesses.length : 0}, docScore=${documentationScore}`);
+  
+  if (ipUnprotected || hasUndocumentedProcesses || (documentationScore > 0 && documentationScore < 40)) {
+    console.log(`[Value Suppressors] ✅ Adding UNDOCUMENTED_IP`);
+    
     suppressors.push({
       id: 'undocumented_ip',
       name: 'Undocumented IP & Processes',
       category: 'documentation',
       hvaField: 'unique_methods_protection + critical_processes_undocumented',
-      hvaValue: hva.unique_methods_protection || `${hva.critical_processes_undocumented?.length || 0} undocumented processes`,
-      evidence: 'Competitive advantages and key processes not formally documented or protected.',
+      hvaValue: hva.unique_methods_protection || `${Array.isArray(undocProcesses) ? undocProcesses.length : 0} undocumented processes`,
+      evidence: 'Competitive advantages and key processes not formally documented or protected. Buyers pay premiums for documented, transferable IP.',
       discountPercent: { low: 5, high: 15 },
       impactAmount: { low: baseValue * 0.05, high: baseValue * 0.15 },
       severity: 'high',
       remediable: true,
       remediationService: 'Systems Audit + Process Documentation',
       remediationTimeMonths: 6,
-      talkingPoint: '"When a buyer asks how the magic happens, you need a playbook, not someone\'s head."',
+      talkingPoint: '"When a buyer asks how the magic happens, you need a playbook, not \'ask Ian\'. Undocumented IP is invisible IP—they won\'t pay for what they can\'t see or transfer."',
       questionToAsk: 'If you had to train someone to do your top 3 money-making activities, what would you hand them?',
     });
   }
   
-  const noSuccessor = hva.succession_your_role === 'Nobody' || hva.succession_your_role === 'Need to hire';
+  // ==========================================================================
+  // SUPPRESSOR 4: NO SUCCESSION PLAN
+  // ==========================================================================
+  const successionRole = String(hva.succession_your_role || '').trim();
+  const noSuccessor = successionRole === 'Nobody' || 
+                      successionRole === 'Need to hire' ||
+                      successionRole.toLowerCase().includes('nobody') ||
+                      successionRole.toLowerCase().includes('need to hire');
   const strategyFails = hva.autonomy_strategy === 'Would fail';
   const salesFails = hva.autonomy_sales === 'Would fail';
+  const financeOK = hva.autonomy_finance !== 'Would fail';
+  
+  console.log(`[Value Suppressors] Succession: your_role="${successionRole}", noSuccessor=${noSuccessor}, strategyFails=${strategyFails}, salesFails=${salesFails}`);
+  
+  // Only add succession suppressor if we don't already have a critical founder dependency
+  const hasFounderDependency = suppressors.some(s => s.id === 'founder_dependency');
   
   if (noSuccessor || (strategyFails && salesFails)) {
+    // Reduce discount if founder dependency already captured the main issue
+    const discountLow = hasFounderDependency ? 5 : 10;
+    const discountHigh = hasFounderDependency ? 12 : 20;
+    const severity: 'critical' | 'high' | 'medium' | 'low' = noSuccessor && !hasFounderDependency ? 'critical' : 'high';
+    
+    console.log(`[Value Suppressors] ✅ Adding SUCCESSION_GAP: severity=${severity}, discount=${discountLow}-${discountHigh}%`);
+    
     suppressors.push({
       id: 'succession_gap',
       name: 'No Succession Plan',
       category: 'succession',
       hvaField: 'succession_your_role + autonomy_strategy + autonomy_sales',
-      hvaValue: hva.succession_your_role || 'Key functions fail without owner',
-      evidence: 'No clear successor identified. Business cannot function strategically without owner.',
-      discountPercent: { low: 8, high: 18 },
-      impactAmount: { low: baseValue * 0.08, high: baseValue * 0.18 },
-      severity: noSuccessor ? 'critical' : 'high',
+      hvaValue: successionRole || 'Key functions fail without owner',
+      evidence: noSuccessor 
+        ? `Succession status for your role: "${successionRole}". No clear successor identified means the business cannot be sold without you.`
+        : 'Multiple key functions would fail without owner involvement.',
+      discountPercent: { low: discountLow, high: discountHigh },
+      impactAmount: { low: baseValue * discountLow / 100, high: baseValue * discountHigh / 100 },
+      severity,
       remediable: true,
       remediationService: 'Exit Readiness Programme',
       remediationTimeMonths: 24,
-      talkingPoint: '"Right now, you can\'t sell this business - you\'d have to sell yourself with it."',
-      questionToAsk: 'If you had to step back to 2 days a week in 12 months, what would need to change?',
+      talkingPoint: noSuccessor 
+        ? `"You said succession is '${successionRole}'. That means if something happened to you, your family wouldn't inherit a business—they'd inherit a crisis."`
+        : '"Multiple critical functions fail without you. Right now, you can\'t sell this business—you\'d have to sell yourself with it."',
+      questionToAsk: '"Who would you trust to run this business for 3 months if you couldn\'t? What would they need to know that only you know?"',
     });
+  } else {
+    console.log(`[Value Suppressors] ❌ Skipping succession_gap: role="${successionRole}", strategy=${strategyFails}, sales=${salesFails}`);
   }
   
+  // ==========================================================================
+  // SUPPRESSOR 5: LOW RECURRING REVENUE
+  // ==========================================================================
   const recurring = parseValuePercentage(hva.recurring_revenue_percentage);
   const backlog = hva.contract_backlog_months || 0;
   
-  if (recurring < 30 && backlog < 6) {
+  console.log(`[Value Suppressors] Revenue predictability: recurring=${recurring}%, backlog=${backlog}mo`);
+  
+  if (recurring < 25 && backlog < 6) {
+    console.log(`[Value Suppressors] ✅ Adding LOW_RECURRING`);
+    
     suppressors.push({
       id: 'low_recurring',
       name: 'Low Revenue Predictability',
       category: 'recurring_revenue',
       hvaField: 'recurring_revenue_percentage + contract_backlog_months',
       hvaValue: `${recurring}% recurring, ${backlog}mo backlog`,
-      evidence: `Only ${recurring}% recurring revenue. High dependency on winning new business.`,
+      evidence: `Only ${recurring}% recurring revenue and ${backlog} months of contract backlog. Business starts from near-zero each year.`,
       discountPercent: { low: 5, high: 12 },
       impactAmount: { low: baseValue * 0.05, high: baseValue * 0.12 },
       severity: 'medium',
       remediable: true,
       remediationService: 'Revenue Model Optimisation',
       remediationTimeMonths: 12,
-      talkingPoint: `"${recurring}% recurring means starting from zero each year. Buyers pay premiums for predictability."`,
-      questionToAsk: 'What would it take to get 30% of your revenue on annual retainers?',
+      talkingPoint: `"${recurring}% recurring means starting from near-zero each year. Buyers pay 2-3x more for predictable revenue."`,
+      questionToAsk: '"What would it take to get 30% of your revenue on annual retainers or contracts?"',
     });
+  } else {
+    console.log(`[Value Suppressors] ❌ Skipping low_recurring: ${recurring}% recurring (threshold 25%), ${backlog}mo backlog (threshold 6mo)`);
   }
+  
+  console.log(`[Value Suppressors] TOTAL SUPPRESSORS FOUND: ${suppressors.length}`);
+  suppressors.forEach(s => console.log(`  - [${s.severity.toUpperCase()}] ${s.name}: ${s.discountPercent.low}-${s.discountPercent.high}% (£${(s.impactAmount.low/1000000).toFixed(1)}M-£${(s.impactAmount.high/1000000).toFixed(1)}M)`));
   
   return suppressors;
 }
@@ -369,27 +481,49 @@ function calculateValueAggregateDiscount(suppressors: ValueSuppressor[]): { perc
     return { percentRange: { low: 0, mid: 0, high: 0 }, methodology: 'No significant value suppressors identified' };
   }
   
-  const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-  const sorted = [...suppressors].sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
-  
-  let baseLow = sorted[0].discountPercent.low;
-  let baseHigh = sorted[0].discountPercent.high;
-  let additionalLow = 0;
-  let additionalHigh = 0;
-  
-  for (let i = 1; i < sorted.length; i++) {
-    const weight = 1 / (i + 1);
-    additionalLow += sorted[i].discountPercent.low * weight;
-    additionalHigh += sorted[i].discountPercent.high * weight;
+  // Group suppressors by category to avoid double-counting overlapping issues
+  const byCategory: Record<string, ValueSuppressor[]> = {};
+  for (const s of suppressors) {
+    const cat = s.category;
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(s);
   }
   
-  const totalLow = Math.min(baseLow + additionalLow, 60);
-  const totalHigh = Math.min(baseHigh + additionalHigh, 75);
+  console.log('[Value Calculator] Aggregating discounts by category:', Object.keys(byCategory));
+  
+  // For each category, take the MAXIMUM discount (not sum) - avoid double-counting
+  let totalLow = 0;
+  let totalHigh = 0;
+  const categoryContributions: string[] = [];
+  
+  for (const [category, items] of Object.entries(byCategory)) {
+    // Within a category, take the worst case (highest discount)
+    const maxLow = Math.max(...items.map(i => i.discountPercent.low));
+    const maxHigh = Math.max(...items.map(i => i.discountPercent.high));
+    
+    totalLow += maxLow;
+    totalHigh += maxHigh;
+    
+    categoryContributions.push(`${category}: ${maxLow}-${maxHigh}%`);
+    console.log(`  - ${category}: ${maxLow}-${maxHigh}% (from ${items.length} items)`);
+  }
+  
+  // Cap at realistic levels - even very troubled businesses rarely trade at >70% discount
+  totalLow = Math.min(totalLow, 55);   // Cap low end at 55%
+  totalHigh = Math.min(totalHigh, 70); // Cap high end at 70%
+  
   const critical = suppressors.filter(s => s.severity === 'critical').length;
+  const high = suppressors.filter(s => s.severity === 'high').length;
+  
+  console.log(`[Value Calculator] Final discount: ${totalLow}-${totalHigh}% (${critical} critical, ${high} high severity)`);
   
   return {
-    percentRange: { low: Math.round(totalLow), mid: Math.round((totalLow + totalHigh) / 2), high: Math.round(totalHigh) },
-    methodology: `Primary discount from ${sorted[0].name}${critical > 0 ? ` (${critical} critical)` : ''}, with incremental adjustments for ${suppressors.length - 1} additional factors.`,
+    percentRange: { 
+      low: Math.round(totalLow), 
+      mid: Math.round((totalLow + totalHigh) / 2), 
+      high: Math.round(totalHigh) 
+    },
+    methodology: `Aggregated by category (max per category, sum across ${Object.keys(byCategory).length} categories): ${categoryContributions.join(', ')}. ${critical > 0 ? `${critical} critical issues. ` : ''}Capped at 55-70% maximum.`,
   };
 }
 
@@ -469,7 +603,7 @@ function calculateValueAnalysis(financials: ValueFinancialInputs, hvaResponses: 
   
   console.log('[Value Calculator] Enterprise value (mid):', enterpriseValue.mid);
   
-  const suppressors = mapValueHVAToSuppressors(hvaResponses, enterpriseValue.mid, concentrationFromAssessment);
+  const suppressors = mapValueHVAToSuppressors(hvaResponses, enterpriseValue.mid, concentrationFromAssessment, null);
   console.log('[Value Calculator] Identified suppressors:', suppressors.length);
   
   const aggregateDiscount = calculateValueAggregateDiscount(suppressors);
@@ -2175,6 +2309,21 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
       
       // Extract HVA responses for value calculation
       const hvaResponses = hvaData?.responses || {};
+      
+      // Log HVA data for debugging value suppressor mapping
+      console.log('[BM Enrich] HVA data for value analysis:', {
+        hasHvaData: !!hvaData,
+        hasResponses: !!hvaData?.responses,
+        responseKeys: Object.keys(hvaResponses).slice(0, 20),
+        knowledge_dependency_percentage: hvaResponses.knowledge_dependency_percentage,
+        personal_brand_percentage: hvaResponses.personal_brand_percentage,
+        top3_customer_revenue_percentage: hvaResponses.top3_customer_revenue_percentage,
+        succession_your_role: hvaResponses.succession_your_role,
+        autonomy_strategy: hvaResponses.autonomy_strategy,
+        unique_methods_protection: hvaResponses.unique_methods_protection,
+        recurring_revenue_percentage: hvaResponses.recurring_revenue_percentage,
+      });
+      console.log('[BM Enrich] Concentration from enriched:', enriched.client_concentration_top3);
       
       // Get industry code
       const industryCode = enriched.industry_code || assessmentData.industry_code || 'DEFAULT';

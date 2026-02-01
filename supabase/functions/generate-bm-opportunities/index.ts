@@ -62,10 +62,19 @@ serve(async (req) => {
 
     // 4. Build and call LLM for analysis
     const startTime = Date.now();
-    const analysis = await analyseWithLLM(clientData, services || [], existingConcepts || []);
+    let analysis = await analyseWithLLM(clientData, services || [], existingConcepts || []);
     const analysisTime = Date.now() - startTime;
     
-    console.log(`[Pass 3] Opus 4.5 identified ${analysis.opportunities?.length || 0} opportunities in ${analysisTime}ms`);
+    console.log(`[Pass 3] Opus 4.5 identified ${analysis.opportunities?.length || 0} RAW opportunities in ${analysisTime}ms`);
+    
+    // 4a. POST-PROCESSING: Consolidate and sanitize opportunities
+    const revenue = clientData.pass1Data?.enrichedData?.revenue || 
+                    clientData.pass1Data?._enriched?.revenue || 
+                    clientData.pass1Data?.revenue || 0;
+    
+    analysis = postProcessOpportunities(analysis, revenue);
+    
+    console.log(`[Pass 3] After consolidation: ${analysis.opportunities?.length || 0} opportunities (revenue: £${(revenue/1000000).toFixed(1)}M)`);
 
     // 5. Store results
     await storeOpportunities(supabase, engagementId, clientData.clientId, analysis);
@@ -573,7 +582,22 @@ ${existingConcepts.length > 0
 
 Analyse this client thoroughly. Identify every opportunity where we could help them - whether through existing services or new ones we should consider building.
 
-**Aim for 8-12 opportunities.** Don't just find the obvious ones. What would a buyer worry about? What's the founder not seeing? What's limiting their ability to step back or sell?
+**CRITICAL: 8-12 opportunities MAXIMUM.** Quality over quantity. One concentrated, impactful opportunity is better than three variations of the same theme.
+
+**CONSOLIDATION RULES - FOLLOW STRICTLY:**
+- ONE opportunity for customer concentration (even if it affects multiple things)
+- ONE opportunity for founder dependency (knowledge AND personal brand combined)
+- ONE opportunity for succession gap
+- ONE opportunity for pricing/margin
+- ONE opportunity for working capital
+- Do NOT create separate opportunities for the same issue viewed from different angles
+
+**FINANCIAL IMPACT RULES:**
+- Do NOT conflate "revenue at risk" with "opportunity value"
+- If 99% concentration puts £63M at risk, the OPPORTUNITY is NOT £63M
+- The opportunity value is the cost of ADDRESSING it, typically 10-20% of the risk
+- Example: "99% Concentration" opportunity value = diversification investment + consulting = £500k-£2M, NOT £63M
+- Cap individual opportunities at 30% of revenue maximum for critical issues, 15% for high, 10% for medium
 
 **Aim for 3-5 new service concepts.** We WANT these. Don't force-fit every opportunity to existing services. If something needs a new approach, describe it specifically.
 
@@ -824,4 +848,233 @@ async function storeOpportunities(
   }
   
   console.log(`[Pass 3] Stored ${opportunities.length} opportunities`);
+}
+
+// ============================================================================
+// POST-PROCESSING: Consolidate and Sanitize Opportunities
+// ============================================================================
+
+interface OpportunityAnalysis {
+  opportunities: any[];
+  scenarioSuggestions: any[];
+  overallAssessment: any;
+}
+
+function postProcessOpportunities(analysis: OpportunityAnalysis, revenue: number): OpportunityAnalysis {
+  const rawOpps = analysis.opportunities || [];
+  
+  if (rawOpps.length === 0) {
+    return analysis;
+  }
+  
+  console.log(`[Post-Process] Starting with ${rawOpps.length} raw opportunities, revenue £${(revenue/1000000).toFixed(1)}M`);
+  
+  // Step 1: Consolidate duplicate themes
+  const consolidated = consolidateOpportunities(rawOpps);
+  console.log(`[Post-Process] After consolidation: ${consolidated.length} opportunities`);
+  
+  // Step 2: Sanitize financial impacts (cap at sensible % of revenue)
+  const sanitized = consolidated.map(opp => sanitizeFinancialImpact(opp, revenue));
+  
+  // Step 3: Sort by severity and impact
+  const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, opportunity: 4 };
+  sanitized.sort((a, b) => {
+    const sevDiff = (severityOrder[a.severity] || 5) - (severityOrder[b.severity] || 5);
+    if (sevDiff !== 0) return sevDiff;
+    return (b.financialImpact?.amount || 0) - (a.financialImpact?.amount || 0);
+  });
+  
+  // Step 4: Cap at 12 opportunities
+  const capped = sanitized.slice(0, 12);
+  console.log(`[Post-Process] Final count: ${capped.length} opportunities`);
+  
+  // Recalculate total opportunity value
+  const totalValue = capped.reduce((sum, opp) => sum + (opp.financialImpact?.amount || 0), 0);
+  console.log(`[Post-Process] Total opportunity value: £${(totalValue/1000000).toFixed(1)}M`);
+  
+  return {
+    ...analysis,
+    opportunities: capped,
+    overallAssessment: {
+      ...analysis.overallAssessment,
+      totalOpportunityValue: totalValue,
+    }
+  };
+}
+
+// Consolidation themes - opportunities with similar themes get merged
+const CONSOLIDATION_THEMES: Record<string, string[]> = {
+  'concentration_risk': [
+    'concentration', 'customer concentration', 'client concentration',
+    'revenue concentration', 'single point of failure', 'top 3 clients',
+    '99%', '90%', '80%', 'existential risk', 'dependency'
+  ],
+  'founder_dependency': [
+    'founder dependency', 'founder revenue', 'personal brand',
+    'knowledge dependency', 'key person', 'owner dependency',
+    'founder knowledge', 'hit by a bus', 'unsellable', 'exit blocker'
+  ],
+  'succession_gap': [
+    'succession', 'no succession', 'leadership gap', 'leadership vacuum',
+    'need to hire', 'step-back', 'would fail', 'successor', 'exit readiness'
+  ],
+  'documentation_ip': [
+    'undocumented', 'ip', 'intellectual property', 'processes',
+    'cradle to grave', 'methodology', 'not protected', 'documentation'
+  ],
+  'pricing_margin': [
+    'price increase', 'pricing', 'underpriced', 'margin improvement',
+    'margin recovery', 'margin erosion', 'rate card', 'charge rate'
+  ],
+  'revenue_model': [
+    'recurring', 'predictability', 'revenue model', 'retainer', 
+    'contract backlog', 'one-time', 'project-based'
+  ],
+  'surplus_cash': [
+    'surplus cash', 'cash sitting', 'idle cash', 'excess cash',
+    'underdeployed capital', 'cash drag'
+  ],
+  'working_capital': [
+    'debtor days', 'creditor days', 'cash collection', 'working capital',
+    'cash conversion', 'payment terms'
+  ],
+  'operational_efficiency': [
+    'utilisation', 'productivity', 'efficiency', 'revenue per employee',
+    'capacity', 'overhead'
+  ],
+  'contract_risk': [
+    'contract renewal', 'contract terms', 'renewal risk', 'contract expiry'
+  ],
+  'valuation_readiness': [
+    'valuation', 'sale ready', 'exit value', 'acquisition target'
+  ],
+};
+
+function consolidateOpportunities(opportunities: any[]): any[] {
+  // Score each opportunity against themes
+  const scored = opportunities.map(opp => {
+    const textToMatch = `${opp.title || ''} ${opp.code || ''} ${opp.dataEvidence || ''}`.toLowerCase();
+    let matchedTheme = 'other';
+    let maxScore = 0;
+
+    for (const [theme, keywords] of Object.entries(CONSOLIDATION_THEMES)) {
+      const score = keywords.filter(kw => textToMatch.includes(kw.toLowerCase())).length;
+      if (score > maxScore) {
+        maxScore = score;
+        matchedTheme = theme;
+      }
+    }
+
+    return { ...opp, _theme: matchedTheme, _themeScore: maxScore };
+  });
+
+  // Group by theme
+  const byTheme: Record<string, any[]> = {};
+  for (const opp of scored) {
+    const theme = opp._theme;
+    if (!byTheme[theme]) byTheme[theme] = [];
+    byTheme[theme].push(opp);
+  }
+
+  console.log(`[Post-Process] Theme distribution:`, Object.entries(byTheme).map(([k, v]) => `${k}:${v.length}`).join(', '));
+
+  // For each theme, keep only the best representative
+  const consolidated: any[] = [];
+
+  for (const [theme, opps] of Object.entries(byTheme)) {
+    if (opps.length === 1) {
+      const { _theme, _themeScore, ...cleanOpp } = opps[0];
+      consolidated.push(cleanOpp);
+    } else {
+      // Sort by severity (critical > high > medium > low) then by impact
+      const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, opportunity: 4 };
+      opps.sort((a, b) => {
+        const sevDiff = (severityOrder[a.severity] || 5) - (severityOrder[b.severity] || 5);
+        if (sevDiff !== 0) return sevDiff;
+        return (b.financialImpact?.amount || 0) - (a.financialImpact?.amount || 0);
+      });
+
+      // Take the best one, but aggregate some data
+      const { _theme, _themeScore, ...best } = opps[0];
+      
+      // If multiple opportunities were consolidated, note it
+      if (opps.length > 1) {
+        // Keep the highest financial impact (don't sum - that inflates)
+        const maxImpact = Math.max(...opps.map(o => o.financialImpact?.amount || 0));
+        best.financialImpact = {
+          ...best.financialImpact,
+          amount: maxImpact,
+          _consolidatedFrom: opps.length,
+        };
+        
+        // Note consolidation in title if significantly merged
+        if (opps.length >= 3) {
+          best.title = `${best.title} (${opps.length} related issues)`;
+        }
+        
+        console.log(`[Post-Process] Consolidated ${opps.length} "${theme}" items → "${best.title}"`);
+      }
+      
+      consolidated.push(best);
+    }
+  }
+
+  return consolidated;
+}
+
+function sanitizeFinancialImpact(opp: any, revenue: number): any {
+  const impact = opp.financialImpact?.amount || 0;
+  const category = opp.category || 'other';
+  const type = opp.financialImpact?.type || 'risk';
+  
+  // Maximum impact by category as % of revenue
+  const MAX_IMPACT_PERCENT: Record<string, number> = {
+    'risk': 0.30,        // Risk mitigation value capped at 30% of revenue
+    'efficiency': 0.15,   // Efficiency gains capped at 15% of revenue
+    'growth': 0.25,       // Growth opportunity capped at 25% of revenue
+    'value': 0.40,        // Value creation capped at 40% of revenue
+    'governance': 0.15,   // Governance issues capped at 15%
+    'other': 0.20,        // Default cap at 20%
+  };
+
+  // Additional cap based on severity
+  const SEVERITY_CAP: Record<string, number> = {
+    'critical': 0.30,
+    'high': 0.20,
+    'medium': 0.12,
+    'low': 0.08,
+    'opportunity': 0.15,
+  };
+
+  const categoryCap = MAX_IMPACT_PERCENT[category] || 0.20;
+  const severityCap = SEVERITY_CAP[opp.severity] || 0.15;
+  
+  // Use the lower of the two caps
+  const effectiveCap = Math.min(categoryCap, severityCap);
+  const maxImpact = revenue * effectiveCap;
+  
+  // For "risk" type, the opportunity is the value of MITIGATING the risk, not the risk itself
+  let adjustedImpact = impact;
+  if (type === 'risk' && impact > maxImpact) {
+    // Risk mitigation value is typically 15-25% of the risk exposure
+    adjustedImpact = Math.min(impact * 0.20, maxImpact);
+  } else {
+    adjustedImpact = Math.min(impact, maxImpact);
+  }
+  
+  const wasCapped = adjustedImpact < impact;
+  
+  if (wasCapped) {
+    console.log(`[Post-Process] Capped "${opp.title}" impact: £${(impact/1000000).toFixed(1)}M → £${(adjustedImpact/1000000).toFixed(1)}M (${(effectiveCap*100).toFixed(0)}% of revenue)`);
+  }
+  
+  return {
+    ...opp,
+    financialImpact: {
+      ...opp.financialImpact,
+      amount: Math.round(adjustedImpact),
+      _originalAmount: wasCapped ? impact : undefined,
+      _wasCapped: wasCapped,
+    },
+  };
 }
