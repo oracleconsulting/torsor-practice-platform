@@ -337,7 +337,50 @@ When you identify an opportunity, decide:
 
 3. **Gap identified** - Nothing we offer really fits. Describe what would help this client. Be specific: name it, describe deliverables, estimate pricing, identify skills needed. These gaps, aggregated across clients, tell us what services to build.
 
-Don't force a match. A weak recommendation damages trust more than saying "this is a gap in our offering."
+**Don't force a match.** A weak recommendation damages trust more than saying "this is a gap in our offering."
+
+**We WANT new service concepts.** The goal is not to sell existing services - it's to identify what this client actually needs. If that's something we don't offer yet, that's valuable intelligence. Aim to identify at least 3-5 new service concepts per client.
+
+## LOOK BEYOND THE OBVIOUS
+
+Don't just analyse the summary metrics. Dig into:
+
+**Second-order effects:**
+- If revenue dropped 25%, WHY? What does that tell us about market position, sales capability, or operational issues?
+- If margin crashed then recovered, what happened? Is the cause fixed or could it recur?
+- If subcontractor costs are 50%+ of revenue, that's a strategic dependency worth examining.
+
+**The cost structure:**
+- Where does the money actually go? 
+- What's changed year-on-year and why?
+- Are there cost lines that seem unusual?
+
+**Contract and relationship intelligence:**
+- Long-term relationships are great, but when do they renew?
+- What's the actual contractual exposure?
+- What upsell or cross-sell opportunities exist?
+
+**Pipeline and growth capacity:**
+- For project businesses: bid pipeline, win rate?
+- What's constraining growth - capacity, sales, market?
+
+**What would a buyer ask?**
+- If someone wanted to acquire this business, what would concern them?
+- What due diligence questions would be hard to answer?
+- What's NOT documented that should be?
+
+## NEW SERVICE CONCEPTS TO CONSIDER
+
+When you identify gaps, think creatively. Some patterns:
+
+- **Diagnostic/Audit services:** Intensive review of contracts, suppliers, systems, pipeline
+- **Accelerator programmes:** 90-day focused sprints on a specific outcome
+- **Workshop formats:** Half-day or full-day intensive for specific decisions
+- **Monitoring services:** Ongoing tracking of key risks or metrics
+- **Implementation support:** Helping them DO something, not just plan it
+- **Fractional expertise:** Beyond CFO/COO - Commercial Director? HR Director? 
+
+Name them specifically. "Revenue Diversification Programme" beats "business development support".
 
 ## OUTPUT QUALITY
 
@@ -529,6 +572,10 @@ ${existingConcepts.length > 0
 ## YOUR TASK
 
 Analyse this client thoroughly. Identify every opportunity where we could help them - whether through existing services or new ones we should consider building.
+
+**Aim for 8-12 opportunities.** Don't just find the obvious ones. What would a buyer worry about? What's the founder not seeing? What's limiting their ability to step back or sell?
+
+**Aim for 3-5 new service concepts.** We WANT these. Don't force-fit every opportunity to existing services. If something needs a new approach, describe it specifically.
 
 For each opportunity:
 1. What's the issue? (grounded in specific data above)
