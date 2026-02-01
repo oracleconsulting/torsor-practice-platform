@@ -366,32 +366,32 @@ export function BenchmarkingAdminView({
           <div className="lg:col-span-2 space-y-6">
             {/* Tabs */}
             <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-              <div className="flex border-b border-slate-200">
+              <div className="flex border-b border-slate-200 overflow-x-auto">
                 <button
                   onClick={() => setActiveTab('script')}
-                  className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
+                  className={`px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors whitespace-nowrap ${
                     activeTab === 'script'
                       ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
                       : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   <MessageSquare className="w-4 h-4" />
-                  Conversation Script
+                  Script
                 </button>
                 <button
                   onClick={() => setActiveTab('risks')}
-                  className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
+                  className={`px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors whitespace-nowrap ${
                     activeTab === 'risks'
                       ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
                       : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   <AlertTriangle className="w-4 h-4" />
-                  Risk Flags
+                  Risks
                 </button>
                 <button
                   onClick={() => setActiveTab('services')}
-                  className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative ${
+                  className={`px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative whitespace-nowrap ${
                     activeTab === 'services'
                       ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
                       : 'text-slate-500 hover:text-slate-700'
@@ -407,50 +407,50 @@ export function BenchmarkingAdminView({
                 </button>
                 <button
                   onClick={() => setActiveTab('opportunities')}
-                  className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative ${
+                  className={`px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative whitespace-nowrap ${
                     activeTab === 'opportunities'
                       ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
                       : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   <Sparkles className="w-4 h-4" />
-                  Opportunities
+                  Opps
                 </button>
                 <button
                   onClick={() => setActiveTab('valuation')}
-                  className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative ${
+                  className={`px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative whitespace-nowrap ${
                     activeTab === 'valuation'
                       ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
                       : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   <DollarSign className="w-4 h-4" />
-                  Valuation
+                  Value
                   {data.value_analysis && (
                     <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full" />
                   )}
                 </button>
                 <button
                   onClick={() => setActiveTab('actions')}
-                  className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
+                  className={`px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors whitespace-nowrap ${
                     activeTab === 'actions'
                       ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
                       : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   <ListTodo className="w-4 h-4" />
-                  Next Steps
+                  Actions
                 </button>
                 <button
                   onClick={() => setActiveTab('collect')}
-                  className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative ${
+                  className={`px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative whitespace-nowrap ${
                     activeTab === 'collect'
                       ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
                       : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   <ClipboardList className="w-4 h-4" />
-                  Collect Data
+                  Collect
                   {(pass1Data?.dataGaps?.length || 0) > 0 && (
                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 text-white text-xs rounded-full flex items-center justify-center">
                       {pass1Data?.dataGaps?.length}
@@ -459,7 +459,7 @@ export function BenchmarkingAdminView({
                 </button>
                 <button
                   onClick={() => setActiveTab('accounts')}
-                  className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative ${
+                  className={`px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative whitespace-nowrap ${
                     activeTab === 'accounts'
                       ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
                       : 'text-slate-500 hover:text-slate-700'
@@ -475,7 +475,7 @@ export function BenchmarkingAdminView({
                 </button>
                 <button
                   onClick={() => setActiveTab('sources')}
-                  className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
+                  className={`px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors whitespace-nowrap ${
                     activeTab === 'sources'
                       ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
                       : 'text-slate-500 hover:text-slate-700'
@@ -486,14 +486,14 @@ export function BenchmarkingAdminView({
                 </button>
                 <button
                   onClick={() => setActiveTab('raw')}
-                  className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
+                  className={`px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors whitespace-nowrap ${
                     activeTab === 'raw'
                       ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
                       : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   <FileText className="w-4 h-4" />
-                  Raw Data
+                  Raw
                 </button>
               </div>
               
