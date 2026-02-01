@@ -128,14 +128,34 @@ interface ClientData {
 
 async function gatherAllClientData(supabase: any, engagementId: string): Promise<ClientData> {
   // Get engagement with client info
-  const { data: engagement } = await supabase
+  const { data: engagement, error: engError } = await supabase
     .from('bm_engagements')
-    .select('*, client:practice_members(id, name)')
+    .select('*')
     .eq('id', engagementId)
     .single();
   
-  const clientId = engagement?.client_id || '';
-  const clientName = engagement?.client?.name || 'Client';
+  if (engError) {
+    console.error('[Pass 3] Error fetching engagement:', engError);
+  }
+  
+  // Get client_id - try multiple sources
+  let clientId = engagement?.client_id || '';
+  let clientName = 'Client';
+  
+  // If we have a client_id, try to get the client name
+  if (clientId) {
+    const { data: client } = await supabase
+      .from('practice_members')
+      .select('id, name')
+      .eq('id', clientId)
+      .single();
+    
+    if (client) {
+      clientName = client.name || 'Client';
+    }
+  }
+  
+  console.log(`[Pass 3] Engagement data: client_id=${clientId}, clientName=${clientName}`);
   
   // Get report (Pass 1 & 2 data)
   const { data: report } = await supabase
@@ -609,6 +629,14 @@ async function storeOpportunities(
 ): Promise<void> {
   const opportunities = analysis.opportunities || [];
   
+  // Validate clientId - must be a valid UUID or we use null
+  const isValidUUID = clientId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId);
+  const safeClientId = isValidUUID ? clientId : null;
+  
+  if (!safeClientId) {
+    console.warn('[Pass 3] Warning: No valid client_id found, opportunities will have null client_id');
+  }
+  
   for (const opp of opportunities) {
     let serviceId: string | null = null;
     let conceptId: string | null = null;
@@ -651,7 +679,9 @@ async function storeOpportunities(
       
       if (existing) {
         // Update existing concept - increment frequency
-        const newClientIds = [...new Set([...(existing.client_ids || []), clientId])];
+        const newClientIds = safeClientId 
+          ? [...new Set([...(existing.client_ids || []), safeClientId])]
+          : (existing.client_ids || []);
         
         await supabase
           .from('service_concepts')
@@ -677,9 +707,9 @@ async function storeOpportunities(
             suggested_deliverables: concept.suggestedDeliverables || [],
             suggested_pricing: concept.suggestedPricing,
             suggested_duration: concept.suggestedDuration,
-            first_client_id: clientId,
+            first_client_id: safeClientId,
             first_engagement_id: engagementId,
-            client_ids: [clientId],
+            client_ids: safeClientId ? [safeClientId] : [],
             total_opportunity_value: opp.financialImpact?.amount || 0,
             market_size_estimate: concept.marketSize,
             skills_likely_required: concept.skillsRequired || [],
@@ -705,12 +735,17 @@ async function storeOpportunities(
       ? `${serviceFitRationale}. Note: ${serviceLimitation}`
       : serviceFitRationale;
     
-    // Insert/update the client opportunity
+    // Insert/update the client opportunity (requires valid client_id)
+    if (!safeClientId) {
+      console.warn(`[Pass 3] Skipping opportunity ${opp.code} - no valid client_id`);
+      continue;
+    }
+    
     const { error: oppError } = await supabase
       .from('client_opportunities')
       .upsert({
         engagement_id: engagementId,
-        client_id: clientId,
+        client_id: safeClientId,
         opportunity_code: opp.code,
         title: opp.title,
         category: opp.category,
