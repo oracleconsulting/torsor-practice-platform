@@ -9,7 +9,7 @@ import { BenchmarkSourcesPanel } from './BenchmarkSourcesPanel';
 import { AccountsUploadPanel } from './AccountsUploadPanel';
 import { FinancialDataReviewModal } from './FinancialDataReviewModal';
 import { ServicePathwayPanel } from './ServicePathwayPanel';
-import { OpportunityDashboard } from './OpportunityDashboard';
+import { OpportunityPanel } from './OpportunityPanel';
 import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target, Sparkles } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { detectIssues, getPriorityServices, type IssueMetrics } from '../../../lib/issue-service-mapping';
@@ -484,45 +484,16 @@ export function BenchmarkingAdminView({
                   />
                 )}
                 
-                {activeTab === 'opportunities' && (
-                  <OpportunityDashboard
-                    reportData={{
-                      revenue: clientData.revenue,
-                      revenueGrowth: (pass1Data as any)?.revenueGrowth,
-                      grossMargin: clientData.grossMargin,
-                      grossMarginTrend: (pass1Data as any)?.grossMarginTrend,
-                      netMargin: clientData.netMargin,
-                      ebitdaMargin: clientData.ebitdaMargin,
-                      employeeCount: clientData.employees,
-                      revenuePerEmployee: clientData.revenuePerEmployee,
-                      debtorDays: clientData.debtorDays,
-                      creditorDays: clientData.creditorDays,
-                      currentRatio: (pass1Data as any)?.currentRatio,
-                      cashPosition: data.balance_sheet?.cash,
-                      surplusCash: data.surplus_cash?.surplusCash,
-                    }}
-                    hvaData={(pass1Data as any)?.hvaData}
-                    supplementaryData={{
-                      client_concentration_top3: clientData.clientConcentration,
-                      ...supplementaryData
-                    }}
-                    industryData={{
-                      code: industryMapping?.code || data.industry_code || '',
-                      name: industryMapping?.name || 'Unknown',
-                      benchmarks: {
-                        gross_margin: {
-                          p25: getBenchmarkMedian('gross_margin') ? getBenchmarkMedian('gross_margin')! * 0.75 : 15,
-                          p50: getBenchmarkMedian('gross_margin') || 18,
-                          p75: getBenchmarkMedian('gross_margin') ? getBenchmarkMedian('gross_margin')! * 1.25 : 25
-                        },
-                        revenue_per_employee: {
-                          p25: getBenchmarkMedian('revenue_per_employee') ? getBenchmarkMedian('revenue_per_employee')! * 0.75 : 100000,
-                          p50: getBenchmarkMedian('revenue_per_employee') || 150000,
-                          p75: getBenchmarkMedian('revenue_per_employee') ? getBenchmarkMedian('revenue_per_employee')! * 1.25 : 200000
-                        }
-                      }
-                    }}
-                  />
+                {activeTab === 'opportunities' && engagementId && (
+                  <OpportunityPanel engagementId={engagementId} />
+                )}
+                
+                {activeTab === 'opportunities' && !engagementId && (
+                  <div className="text-center py-8 text-slate-500">
+                    <Sparkles className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p>Engagement context not available</p>
+                    <p className="text-sm mt-1">Cannot load opportunities without engagement information</p>
+                  </div>
                 )}
                 
                 {activeTab === 'actions' && (

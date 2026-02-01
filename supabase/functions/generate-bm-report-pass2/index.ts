@@ -494,6 +494,29 @@ serve(async (req) => {
     
     console.log('[BM Pass 2] Report complete!');
     
+    // Trigger opportunity analysis (async, don't wait)
+    try {
+      const baseUrl = Deno.env.get('SUPABASE_URL');
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      
+      // Fire and forget - opportunity analysis runs in background
+      fetch(`${baseUrl}/functions/v1/generate-bm-opportunities`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ engagementId }),
+      }).then(() => {
+        console.log('[BM Pass 2] Triggered opportunity analysis');
+      }).catch((err) => {
+        console.error('[BM Pass 2] Failed to trigger opportunity analysis:', err);
+      });
+    } catch (triggerErr) {
+      // Don't fail Pass 2 if opportunity trigger fails
+      console.error('[BM Pass 2] Error triggering opportunity analysis:', triggerErr);
+    }
+    
     return new Response(
       JSON.stringify({ 
         success: true, 
