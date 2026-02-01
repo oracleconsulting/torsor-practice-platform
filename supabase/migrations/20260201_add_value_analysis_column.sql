@@ -17,8 +17,9 @@ BEGIN
   END IF;
 END $$;
 
--- Index for querying reports with value analysis
-CREATE INDEX IF NOT EXISTS idx_bm_reports_has_value_analysis 
-ON bm_reports (id)
+-- Create an index for querying by exit readiness verdict
+-- Note: -> returns JSONB, ->> returns TEXT (can't chain ->> twice)
+CREATE INDEX IF NOT EXISTS idx_bm_reports_exit_readiness 
+ON bm_reports ((value_analysis->'exitReadiness'->>'verdict'))
 WHERE value_analysis IS NOT NULL;
 
