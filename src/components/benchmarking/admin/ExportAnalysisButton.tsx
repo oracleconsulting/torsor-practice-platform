@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download, FileText, Loader2 } from 'lucide-react';
+import { Download, Loader2 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import type { ValueAnalysis } from '../../../types/benchmarking';
 
@@ -72,18 +72,14 @@ export function ExportAnalysisButton({
       // Fetch additional data from Supabase
       const [
         { data: opportunities },
-        { data: services },
         { data: serviceConcepts },
         { data: financialData },
-        { data: accountUploads },
         { data: scenarios },
         { data: assessmentData }
       ] = await Promise.all([
         supabase.from('client_opportunities').select('*, service:services(*), concept:service_concepts(*)').eq('engagement_id', engagementId),
-        supabase.from('services').select('*').eq('status', 'active'),
         supabase.from('service_concepts').select('*').order('times_identified', { ascending: false }),
         supabase.from('client_financial_data').select('*').eq('client_id', clientId).order('fiscal_year', { ascending: false }),
-        supabase.from('client_accounts_uploads').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
         supabase.from('bm_client_scenarios').select('*').eq('engagement_id', engagementId),
         supabase.from('bm_assessment_responses').select('*').eq('client_id', clientId).single()
       ]);

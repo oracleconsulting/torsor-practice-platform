@@ -90,9 +90,17 @@ export async function exportBenchmarkingData(engagementId: string): Promise<Expo
     const clientId = engagement.client_id;
     console.log('👤 Client ID:', clientId);
     
+    // First fetch the report to get industry_code
+    const { data: report } = await supabase
+      .from('bm_reports')
+      .select('*')
+      .eq('engagement_id', engagementId)
+      .single();
+    
+    const industryCode = report?.industry_code || engagement.industry_code || 'DEFAULT';
+    
     // Fetch all related data in parallel
     const [
-      { data: report },
       { data: assessmentResponses },
       { data: metricComparisons },
       { data: clientOpportunities },
@@ -105,7 +113,6 @@ export async function exportBenchmarkingData(engagementId: string): Promise<Expo
       { data: serviceConcepts },
       { data: industryBenchmarks }
     ] = await Promise.all([
-      supabase.from('bm_reports').select('*').eq('engagement_id', engagementId).single(),
       supabase.from('bm_assessment_responses').select('*').eq('client_id', clientId).single(),
       supabase.from('bm_metric_comparisons').select('*').eq('engagement_id', engagementId),
       supabase.from('client_opportunities').select('*, service:services(*), concept:service_concepts(*)').eq('engagement_id', engagementId),
@@ -116,7 +123,7 @@ export async function exportBenchmarkingData(engagementId: string): Promise<Expo
       supabase.from('clients').select('*').eq('id', clientId).single(),
       supabase.from('services').select('*').eq('status', 'active'),
       supabase.from('service_concepts').select('*'),
-      supabase.from('industry_benchmarks').select('*').eq('industry_code', report?.industry_code || engagement.industry_code)
+      supabase.from('industry_benchmarks').select('*').eq('industry_code', industryCode)
     ]);
     
     const result: ExportResult = {
