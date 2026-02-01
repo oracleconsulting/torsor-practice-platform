@@ -708,6 +708,22 @@ async function storeOpportunities(
     console.warn('[Pass 3] Warning: No valid client_id found, opportunities will have null client_id');
   }
   
+  // =========================================================================
+  // CRITICAL: Delete existing opportunities for this engagement FIRST
+  // This prevents accumulation of old opportunities on each regeneration
+  // =========================================================================
+  const { error: deleteError, count: deletedCount } = await supabase
+    .from('client_opportunities')
+    .delete()
+    .eq('engagement_id', engagementId)
+    .select('id', { count: 'exact' });
+  
+  if (deleteError) {
+    console.error(`[Pass 3] Failed to delete old opportunities: ${deleteError.message}`);
+  } else {
+    console.log(`[Pass 3] Deleted ${deletedCount || 0} existing opportunities for engagement ${engagementId}`);
+  }
+  
   for (const opp of opportunities) {
     let serviceId: string | null = null;
     let conceptId: string | null = null;
@@ -812,9 +828,10 @@ async function storeOpportunities(
       continue;
     }
     
+    // Use INSERT (not upsert) since we deleted existing opportunities above
     const { error: oppError } = await supabase
       .from('client_opportunities')
-      .upsert({
+      .insert({
         engagement_id: engagementId,
         client_id: safeClientId,
         opportunity_code: opp.code,
@@ -838,8 +855,6 @@ async function storeOpportunities(
         life_impact: opp.lifeImpact,
         llm_model: MODEL_CONFIG.model,
         generated_at: new Date().toISOString(),
-      }, {
-        onConflict: 'engagement_id,opportunity_code'
       });
     
     if (oppError) {
