@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { calculateValueAnalysis, ValueAnalysis } from './value-calculator.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -1682,6 +1683,76 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
     }
     
     // ==========================================================================
+    // VALUE ANALYSIS CALCULATION
+    // ==========================================================================
+    // Only calculate if we have sufficient financial data
+    if (enriched._enriched_revenue > 0 && (enriched.net_profit || enriched.operating_profit || enriched.gross_profit)) {
+      console.log('[BM Enrich] Starting value analysis calculation...');
+      
+      // Prepare financial inputs
+      const financialInputs = {
+        revenue: enriched._enriched_revenue || 0,
+        grossProfit: enriched.gross_profit || (enriched._enriched_revenue * (enriched.gross_margin || 0) / 100),
+        operatingProfit: enriched.operating_profit || (enriched._enriched_revenue * (enriched.operating_margin || enriched.net_margin || 0) / 100),
+        netProfit: enriched.net_profit || (enriched._enriched_revenue * (enriched.net_margin || 0) / 100),
+        ebitda: enriched.ebitda || enriched.operating_profit || 0,
+        cash: balanceSheet.cash || 0,
+        employees: enriched._enriched_employee_count || 0,
+        revenueGrowth: enriched.revenue_growth || 0,
+      };
+      
+      // Extract HVA responses for value calculation
+      const hvaResponses = hvaData?.responses || {};
+      
+      // Get industry code
+      const industryCode = enriched.industry_code || assessmentData.industry_code || 'DEFAULT';
+      
+      // Prepare surplus cash data
+      const surplusCashData = surplusCashAnalysis?.hasData ? {
+        surplusCash: surplusCashAnalysis.surplusCash || 0,
+        supplierFundedWorkingCapital: surplusCashAnalysis.components?.netWorkingCapital 
+          ? Math.abs(Math.min(0, surplusCashAnalysis.components.netWorkingCapital))
+          : 0,
+      } : null;
+      
+      // Get concentration from multiple sources
+      const concentrationFromAssessment = enriched.client_concentration_top3;
+      
+      try {
+        const valueAnalysisResult = calculateValueAnalysis(
+          financialInputs,
+          hvaResponses,
+          industryCode,
+          surplusCashData,
+          concentrationFromAssessment
+        );
+        
+        enriched.value_analysis = valueAnalysisResult;
+        derivedFields.push('value_analysis');
+        
+        console.log('[BM Enrich] 💰 VALUE ANALYSIS COMPLETE:');
+        console.log(`  Enterprise Value (mid): £${(valueAnalysisResult.baseline.enterpriseValue.mid / 1000000).toFixed(1)}M`);
+        console.log(`  Suppressors Found: ${valueAnalysisResult.suppressors.length}`);
+        console.log(`  Aggregate Discount: ${valueAnalysisResult.aggregateDiscount.percentRange.mid}%`);
+        console.log(`  Current Market Value (mid): £${(valueAnalysisResult.currentMarketValue.mid / 1000000).toFixed(1)}M`);
+        console.log(`  Value Gap: £${(valueAnalysisResult.valueGap.mid / 1000000).toFixed(1)}M (${valueAnalysisResult.valueGapPercent.toFixed(0)}%)`);
+        console.log(`  Exit Readiness: ${valueAnalysisResult.exitReadiness.score}/100 (${valueAnalysisResult.exitReadiness.verdict})`);
+        
+        if (valueAnalysisResult.suppressors.length > 0) {
+          console.log('[BM Enrich] Value Suppressors:');
+          valueAnalysisResult.suppressors.forEach(s => {
+            console.log(`  - [${s.severity.toUpperCase()}] ${s.name}: ${s.discountPercent.low}-${s.discountPercent.high}% discount`);
+          });
+        }
+      } catch (valueError) {
+        console.error('[BM Enrich] Value analysis failed:', valueError);
+        // Non-fatal - continue without value analysis
+      }
+    } else {
+      console.log('[BM Enrich] Skipping value analysis - insufficient financial data');
+    }
+    
+    // ==========================================================================
     // MULTI-YEAR HISTORICAL DATA (for trend analysis)
     // ==========================================================================
     
@@ -3161,6 +3232,30 @@ When writing narratives:
       });
     }
     
+    // Add value analysis to pass1Data for Pass 2 access
+    if (assessmentData.value_analysis) {
+      pass1Data.valueAnalysis = assessmentData.value_analysis;
+      console.log('[BM Pass 1] Added value analysis to pass1Data');
+    }
+    
+    // Add founder risk in standardized format
+    if (founderRisk) {
+      pass1Data.founderRisk = {
+        level: founderRisk.riskLevel,
+        score: founderRisk.overallScore,
+        factors: founderRisk.riskFactors?.map((f: any) => f.signal || f) || [],
+        valuationImpact: founderRisk.valuationImpact,
+      };
+    }
+    
+    // Add balance sheet and surplus cash for easy access
+    if (assessmentData.balance_sheet) {
+      pass1Data.balanceSheet = assessmentData.balance_sheet;
+    }
+    if (assessmentData.surplus_cash) {
+      pass1Data.surplusCash = assessmentData.surplus_cash;
+    }
+    
     // Save to database (including founder risk data if available)
     const reportData: any = {
       engagement_id: engagementId,
@@ -3203,8 +3298,10 @@ When writing narratives:
       cash_months: assessmentData.cash_months || null,
       creditor_days: assessmentData.creditor_days || null,
       benchmark_sources_detail: buildDetailedSourceData(benchmarks || []),
-      // Surplus cash analysis (new)
-      surplus_cash: assessmentData.surplus_cash || null
+      // Surplus cash analysis
+      surplus_cash: assessmentData.surplus_cash || null,
+      // Value analysis (business valuation with HVA suppressors)
+      value_analysis: assessmentData.value_analysis || null
     };
     
     // Add founder risk data if available

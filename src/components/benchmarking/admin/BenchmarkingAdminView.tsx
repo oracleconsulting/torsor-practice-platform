@@ -10,8 +10,10 @@ import { AccountsUploadPanel } from './AccountsUploadPanel';
 import { FinancialDataReviewModal } from './FinancialDataReviewModal';
 import { ServicePathwayPanel } from './ServicePathwayPanel';
 import { OpportunityPanel } from './OpportunityPanel';
-import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target, Sparkles } from 'lucide-react';
+import { ValueAnalysisPanel } from './ValueAnalysisPanel';
+import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target, Sparkles, DollarSign } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
+import type { ValueAnalysis } from '../../../types/benchmarking';
 import { detectIssues, getPriorityServices, type IssueMetrics } from '../../../lib/issue-service-mapping';
 
 // Utility to get correct ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
@@ -103,6 +105,8 @@ interface BenchmarkAnalysis {
     narrative: string;
     confidence: 'high' | 'medium' | 'low';
   } | null;
+  // Business valuation analysis
+  value_analysis?: ValueAnalysis | null;
 }
 
 interface BenchmarkingAdminViewProps {
@@ -207,7 +211,7 @@ export function BenchmarkingAdminView({
   onSaveSupplementaryData,
   isRegenerating = false
 }: BenchmarkingAdminViewProps) {
-  const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'services' | 'opportunities' | 'actions' | 'collect' | 'accounts' | 'sources' | 'raw'>('script');
+  const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'services' | 'opportunities' | 'valuation' | 'actions' | 'collect' | 'accounts' | 'sources' | 'raw'>('script');
   
   // Accounts upload state
   const [accountUploads, setAccountUploads] = useState<AccountUpload[]>([]);
@@ -393,6 +397,20 @@ export function BenchmarkingAdminView({
                   Opportunities
                 </button>
                 <button
+                  onClick={() => setActiveTab('valuation')}
+                  className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative ${
+                    activeTab === 'valuation'
+                      ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <DollarSign className="w-4 h-4" />
+                  Valuation
+                  {data.value_analysis && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full" />
+                  )}
+                </button>
+                <button
                   onClick={() => setActiveTab('actions')}
                   className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
                     activeTab === 'actions'
@@ -493,6 +511,31 @@ export function BenchmarkingAdminView({
                     <Sparkles className="w-12 h-12 mx-auto mb-3 opacity-30" />
                     <p>Engagement context not available</p>
                     <p className="text-sm mt-1">Cannot load opportunities without engagement information</p>
+                  </div>
+                )}
+                
+                {activeTab === 'valuation' && data.value_analysis && (
+                  <ValueAnalysisPanel 
+                    valueAnalysis={data.value_analysis}
+                    clientName={clientName}
+                  />
+                )}
+                
+                {activeTab === 'valuation' && !data.value_analysis && (
+                  <div className="text-center py-12 text-slate-500">
+                    <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">Valuation Analysis Not Available</p>
+                    <p className="text-sm mt-2">
+                      The value analysis requires:
+                    </p>
+                    <ul className="text-sm mt-2 space-y-1">
+                      <li>• Financial data (revenue, profit)</li>
+                      <li>• Hidden Value Assessment (Part 3) responses</li>
+                      <li>• Report regeneration with the latest code</li>
+                    </ul>
+                    <p className="text-xs mt-4 text-slate-400">
+                      Try regenerating the report to calculate valuation
+                    </p>
                   </div>
                 )}
                 

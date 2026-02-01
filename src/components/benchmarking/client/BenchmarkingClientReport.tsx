@@ -5,7 +5,9 @@ import { NarrativeSection } from './NarrativeSection';
 import { RecommendationsSection } from './RecommendationsSection';
 import { ScenarioExplorer } from './ScenarioExplorer';
 import { ServiceRecommendationsSection } from './ServiceRecommendationsSection';
+import { ValueBridgeSection } from './ValueBridgeSection';
 import { AlertTriangle, Gem, Shield, CheckCircle } from 'lucide-react';
+import type { ValueAnalysis } from '../../../types/benchmarking';
 import type { BaselineMetrics } from '../../../lib/scenario-calculator';
 import { detectIssues, getPriorityServices, type IssueMetrics } from '../../../lib/issue-service-mapping';
 
@@ -99,6 +101,8 @@ interface BenchmarkAnalysis {
   // Founder risk fields
   founder_risk_level?: string;
   founder_risk_score?: number;
+  // Value analysis
+  value_analysis?: ValueAnalysis;
 }
 
 interface BenchmarkingClientReportProps {
@@ -627,6 +631,14 @@ export function BenchmarkingClientReport({
           <ScenarioExplorer 
             baseline={baselineMetrics}
             industryBenchmarks={industryBenchmarks}
+          />
+        )}
+        
+        {/* Business Valuation Analysis */}
+        {data.value_analysis && (
+          <ValueBridgeSection 
+            valueAnalysis={data.value_analysis}
+            clientName={clientName}
           />
         )}
         
