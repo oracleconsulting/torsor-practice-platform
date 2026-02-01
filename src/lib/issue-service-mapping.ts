@@ -137,8 +137,10 @@ export const ISSUE_MAPPINGS: IssueMapping[] = [
   {
     issueType: 'low_gross_margin',
     triggerConditions: (m) => {
+      // Only trigger if we have actual gross margin data
+      if (!m.grossMargin || m.grossMargin <= 0) return false;
       const benchmark = m.benchmarks?.grossMargin || 35;
-      return (m.grossMargin || 0) < benchmark * 0.7; // More than 30% below median
+      return m.grossMargin < benchmark * 0.7; // More than 30% below median
     },
     severity: 'high',
     headline: 'Gross margin significantly below industry',
@@ -162,8 +164,10 @@ export const ISSUE_MAPPINGS: IssueMapping[] = [
   {
     issueType: 'margin_below_median',
     triggerConditions: (m) => {
+      // Only trigger if we have actual gross margin data
+      if (!m.grossMargin || m.grossMargin <= 0) return false;
       const benchmark = m.benchmarks?.grossMargin || 35;
-      return (m.grossMargin || 0) < benchmark && (m.grossMargin || 0) >= benchmark * 0.7;
+      return m.grossMargin < benchmark && m.grossMargin >= benchmark * 0.7;
     },
     severity: 'medium',
     headline: 'Gross margin below industry median',
@@ -313,8 +317,10 @@ export const ISSUE_MAPPINGS: IssueMapping[] = [
   {
     issueType: 'low_revenue_per_employee',
     triggerConditions: (m) => {
+      // Only trigger if we have actual data - don't flag missing data as a problem
+      if (!m.revenuePerEmployee || m.revenuePerEmployee <= 0) return false;
       const benchmark = m.benchmarks?.revenuePerEmployee || 120000;
-      return (m.revenuePerEmployee || 0) < benchmark * 0.75;
+      return m.revenuePerEmployee < benchmark * 0.75;
     },
     severity: 'high',
     headline: 'Low revenue per employee',

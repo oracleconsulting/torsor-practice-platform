@@ -602,8 +602,10 @@ function calculateValueAnalysis(financials: ValueFinancialInputs, hvaResponses: 
   const enterpriseValue = { low: baseValue.low + surplus, mid: baseValue.mid + surplus, high: baseValue.high + surplus };
   
   console.log('[Value Calculator] Enterprise value (mid):', enterpriseValue.mid);
+  console.log('[Value Calculator] Concentration from assessment:', concentrationFromAssessment);
   
-  const suppressors = mapValueHVAToSuppressors(hvaResponses, enterpriseValue.mid, concentrationFromAssessment, null);
+  // Pass HVA responses as supplementary data as well (for fallback extraction)
+  const suppressors = mapValueHVAToSuppressors(hvaResponses, enterpriseValue.mid, concentrationFromAssessment, hvaResponses);
   console.log('[Value Calculator] Identified suppressors:', suppressors.length);
   
   const aggregateDiscount = calculateValueAggregateDiscount(suppressors);

@@ -894,6 +894,7 @@ function adjustPrioritiesForDirection(
     // Find matching boost
     let boost = 0;
     const oppText = `${opp.code || ''} ${opp.title || ''} ${opp.category || ''}`.toLowerCase();
+    const dataText = `${opp.dataEvidence || ''} ${JSON.stringify(opp.dataValues || {})}`.toLowerCase();
     
     for (const [keyword, value] of Object.entries(boosts)) {
       if (oppText.includes(keyword)) {
@@ -901,26 +902,64 @@ function adjustPrioritiesForDirection(
       }
     }
     
+    // =======================================================================
+    // FORCE CRITICAL SEVERITY for existential risks
+    // Override LLM classification if the data shows extreme risk
+    // =======================================================================
+    let effectiveSeverity = opp.severity;
+    let severityOverridden = false;
+    
+    // Check for extreme concentration (>=80%)
+    if (oppText.includes('concentration') || oppText.includes('customer') || oppText.includes('client dependency')) {
+      const concMatch = dataText.match(/(\d{2,3})%/) || oppText.match(/(\d{2,3})%/);
+      const concentration = concMatch ? parseInt(concMatch[1]) : 0;
+      if (concentration >= 80) {
+        effectiveSeverity = 'critical';
+        severityOverridden = true;
+        console.log(`[Priority] Overriding severity to CRITICAL for ${concentration}% concentration`);
+      }
+    }
+    
+    // Check for extreme founder dependency (>=70%)
+    if (oppText.includes('founder') || oppText.includes('key person') || oppText.includes('dependency')) {
+      const depMatch = dataText.match(/(\d{2,3})%\s*(founder|knowledge|personal|brand)/i) || 
+                       oppText.match(/(\d{2,3})%\s*(founder|knowledge|personal|brand)/i);
+      const dependency = depMatch ? parseInt(depMatch[1]) : 0;
+      if (dependency >= 70) {
+        effectiveSeverity = 'critical';
+        severityOverridden = true;
+        console.log(`[Priority] Overriding severity to CRITICAL for ${dependency}% founder dependency`);
+      }
+    }
+    
     // Determine priority based on severity and boost
     let priority = 'next_12_months';
+    let priorityRationale = '';
     
-    if (opp.severity === 'critical' || boost >= 2) {
+    if (effectiveSeverity === 'critical' || boost >= 2) {
       priority = 'must_address_now';
-    } else if (opp.severity === 'high' && boost >= 1) {
+      priorityRationale = effectiveSeverity === 'critical' 
+        ? 'Existential risk - must address immediately'
+        : `Priority boosted for "${direction}" direction`;
+    } else if (effectiveSeverity === 'high' && boost >= 1) {
       priority = 'must_address_now';
-    } else if (opp.severity === 'low' || boost <= -1) {
+      priorityRationale = `High priority boosted for "${direction}" direction`;
+    } else if (effectiveSeverity === 'low' || boost <= -1) {
       priority = 'when_ready';
-    } else if (opp.severity === 'opportunity' || boost <= -2) {
+      priorityRationale = 'Lower priority - address when ready';
+    } else if (effectiveSeverity === 'opportunity' || boost <= -2) {
       priority = 'when_ready';
+      priorityRationale = 'Optimisation opportunity';
+    } else {
+      priorityRationale = `Standard priority for ${effectiveSeverity} severity`;
     }
     
     return {
       ...opp,
+      severity: effectiveSeverity,  // Update severity if overridden
       priority,
-      priorityRationale: boost !== 0 
-        ? `Priority adjusted for "${direction}" business direction (boost: ${boost > 0 ? '+' : ''}${boost})`
-        : `Standard priority for ${opp.severity} severity`,
-      priorityAdjusted: boost !== 0,
+      priorityRationale,
+      priorityAdjusted: boost !== 0 || severityOverridden,
     };
   });
 }
@@ -1119,6 +1158,7 @@ interface OpportunityAnalysis {
   opportunities: any[];
   scenarioSuggestions: any[];
   overallAssessment: any;
+  blockedServices?: { serviceCode: string; reason: string }[];
 }
 
 function postProcessOpportunities(
