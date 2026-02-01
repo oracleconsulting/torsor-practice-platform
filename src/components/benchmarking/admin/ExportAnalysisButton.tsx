@@ -434,7 +434,7 @@ ${reportData.admin_closing_script || 'Not generated'}
 ${nextSteps.length > 0 ? nextSteps.map((n: any, i: number) => `${i + 1}. ${n.step || n.action || n.title || n}`).join('\n') : 'None'}
 
 ### Tasks
-${tasks.length > 0 ? tasks.map((t: any, i: number) => `- [ ] ${t.task || t.description || t.title || t}`).join('\n') : 'None'}
+${tasks.length > 0 ? tasks.map((t: any) => `- [ ] ${t.task || t.description || t.title || t}`).join('\n') : 'None'}
 
 ---
 
