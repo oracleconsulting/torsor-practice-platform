@@ -17,12 +17,8 @@ BEGIN
   END IF;
 END $$;
 
--- Create an index for querying by exit readiness verdict
-CREATE INDEX IF NOT EXISTS idx_bm_reports_exit_readiness 
-ON bm_reports ((value_analysis->>'exitReadiness'->>'verdict'))
+-- Index for querying reports with value analysis
+CREATE INDEX IF NOT EXISTS idx_bm_reports_has_value_analysis 
+ON bm_reports (id)
 WHERE value_analysis IS NOT NULL;
-
--- Add useful computed column for quick filtering (optional)
--- This allows queries like: WHERE value_gap_percent > 30
--- Note: Requires the value_analysis to have consistent structure
 
