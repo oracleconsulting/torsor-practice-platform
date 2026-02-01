@@ -197,11 +197,25 @@ export function BenchmarkingClientReport({
   const recommendations = safeJsonParse(data.recommendations, []);
   
   // Helper to get metric value from metrics array
+  // NOTE: Uses exact match first, then prefix match to avoid 'revenue' matching 'revenue_per_employee'
   const getMetricValue = (code: string): number | undefined => {
-    const metric = metrics.find((m) => {
+    const lowerCode = code.toLowerCase();
+    
+    // First try exact match
+    let metric = metrics.find((m) => {
       const metricCode = (m.metricCode || m.metric_code || '').toLowerCase();
-      return metricCode === code.toLowerCase() || metricCode.includes(code.toLowerCase());
+      return metricCode === lowerCode;
     });
+    
+    // If no exact match, try prefix match (but NOT includes, to avoid 'revenue' matching 'revenue_per_employee')
+    if (!metric) {
+      metric = metrics.find((m) => {
+        const metricCode = (m.metricCode || m.metric_code || '').toLowerCase();
+        // Only match if it starts with our code or our code starts with it
+        return metricCode.startsWith(lowerCode) || lowerCode.startsWith(metricCode);
+      });
+    }
+    
     return metric?.clientValue ?? metric?.client_value;
   };
   
@@ -217,11 +231,34 @@ export function BenchmarkingClientReport({
   
   // Build baseline metrics for scenario calculations
   const baselineMetrics = useMemo((): BaselineMetrics | null => {
-    // Try to get revenue from multiple sources
+    // Try to get TOTAL revenue from multiple sources
+    // IMPORTANT: Do NOT use getMetricValue('revenue') - it may match revenue_per_employee
+    // Also: if employee count and rev/employee are available, calculate total revenue
+    const employeeCountRaw = data.employee_count || data.pass1_data?._enriched_employee_count;
+    const revPerEmployeeRaw = data.pass1_data?.revenue_per_employee || getMetricValue('revenue_per_employee');
+    
+    // Calculate revenue from employees × rev/employee as a fallback
+    const calculatedRevenue = (employeeCountRaw && revPerEmployeeRaw && employeeCountRaw > 0) 
+      ? employeeCountRaw * revPerEmployeeRaw 
+      : 0;
+    
+    // Priority: explicit revenue > pass1 enriched revenue > calculated from employees
     const revenue = data.revenue || 
                     data.pass1_data?._enriched_revenue || 
-                    getMetricValue('revenue') || 
+                    calculatedRevenue ||
                     0;
+    
+    // Debug logging to help diagnose issues
+    if (typeof window !== 'undefined' && revenue < 1000000) {
+      console.warn('[ScenarioExplorer] Revenue seems low:', {
+        'data.revenue': data.revenue,
+        'pass1._enriched_revenue': data.pass1_data?._enriched_revenue,
+        'calculated (emp × rev/emp)': calculatedRevenue,
+        'employee_count': employeeCountRaw,
+        'rev_per_employee': revPerEmployeeRaw,
+        'final revenue': revenue,
+      });
+    }
     
     if (revenue <= 0) return null;
     

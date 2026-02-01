@@ -387,6 +387,17 @@ export const ISSUE_MAPPINGS: IssueMapping[] = [
 export function detectIssues(metrics: IssueMetrics): DetectedIssue[] {
   const issues: DetectedIssue[] = [];
   
+  // Helper to safely format numbers
+  const formatPercent = (value: number | undefined): string => {
+    if (value === undefined || value === null || isNaN(value)) return 'N/A';
+    return value.toFixed(1);
+  };
+  
+  const formatNumber = (value: number | undefined): string => {
+    if (value === undefined || value === null || isNaN(value)) return 'N/A';
+    return String(Math.round(value));
+  };
+  
   for (const mapping of ISSUE_MAPPINGS) {
     try {
       if (mapping.triggerConditions(metrics)) {
@@ -395,19 +406,19 @@ export function detectIssues(metrics: IssueMetrics): DetectedIssue[] {
         switch (mapping.issueType) {
           case 'low_gross_margin':
           case 'margin_below_median':
-            dataPoint = `${metrics.grossMargin?.toFixed(1)}% gross margin vs ${metrics.benchmarks?.grossMargin || 35}% median`;
+            dataPoint = `${formatPercent(metrics.grossMargin)}% gross margin vs ${formatPercent(metrics.benchmarks?.grossMargin) || '35'}% median`;
             break;
           case 'critical_concentration':
           case 'high_concentration':
-            dataPoint = `${metrics.clientConcentration}% from top 3 clients`;
+            dataPoint = `${formatNumber(metrics.clientConcentration)}% from top 3 clients`;
             break;
           case 'critical_founder_risk':
           case 'high_founder_risk':
-            dataPoint = `Founder risk score: ${metrics.founderRiskScore}/100`;
+            dataPoint = `Founder risk score: ${formatNumber(metrics.founderRiskScore)}/100`;
             break;
           case 'poor_cash_collection':
           case 'elevated_debtor_days':
-            dataPoint = `${metrics.debtorDays} days vs 45 day benchmark`;
+            dataPoint = `${formatNumber(metrics.debtorDays)} days vs 45 day benchmark`;
             break;
           case 'low_revenue_per_employee':
             dataPoint = `£${Math.round((metrics.revenuePerEmployee || 0) / 1000)}k vs £${Math.round((metrics.benchmarks?.revenuePerEmployee || 120000) / 1000)}k median`;
