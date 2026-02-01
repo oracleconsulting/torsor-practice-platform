@@ -1007,6 +1007,57 @@ function adjustPrioritiesForDirection(
 }
 
 // ============================================================================
+// FORCE MUST ADDRESS NOW FOR EXISTENTIAL RISKS
+// ============================================================================
+
+function forceMustAddressNow(opportunities: any[]): any[] {
+  // Patterns that indicate existential risk - ALWAYS must_address_now
+  const existentialPatterns = [
+    // Concentration
+    '99%', '99 percent', '90%', 'existential risk', 'catastrophic',
+    'one contract loss', 'single client loss', 'three clients', '3 clients',
+    // Founder dependency  
+    '80% founder', '80% knowledge', '70% knowledge', 'exit blocker', 
+    'unsellable', 'would fail', 'hit by a bus',
+    // Succession
+    'no succession', 'need to hire', 'trapped', 'leadership vacuum',
+  ];
+  
+  return opportunities.map(opp => {
+    // Already must_address_now? Keep it
+    if (opp.priority === 'must_address_now') {
+      return opp;
+    }
+    
+    // Check if this is an existential risk
+    const combinedText = `${opp.title || ''} ${opp.dataEvidence || ''} ${opp.talkingPoint || ''} ${opp.forTheOwner || ''}`.toLowerCase();
+    const isExistential = existentialPatterns.some(pattern => 
+      combinedText.includes(pattern.toLowerCase())
+    );
+    
+    // Check if severity is critical
+    const isCritical = opp.severity === 'critical';
+    
+    // Check if it's a protected theme (set during consolidation)
+    const isProtected = opp._isProtectedTheme === true;
+    
+    // Force must_address_now if any of these conditions are met
+    if (isExistential || isCritical || isProtected) {
+      console.log(`[Force Priority] Forcing must_address_now for: ${opp.title} (existential=${isExistential}, critical=${isCritical}, protected=${isProtected})`);
+      return {
+        ...opp,
+        severity: 'critical',
+        priority: 'must_address_now',
+        priorityRationale: opp.priorityRationale || 'Existential risk requiring immediate strategic attention',
+        _forcedPriority: true,
+      };
+    }
+    
+    return opp;
+  });
+}
+
+// ============================================================================
 // STORAGE
 // ============================================================================
 
@@ -1231,10 +1282,13 @@ function postProcessOpportunities(
   // Step 4: Apply direction-aware priority adjustment
   const prioritised = adjustPrioritiesForDirection(allowed, directionContext.businessDirection);
   
+  // Step 4b: FORCE must_address_now for existential risks
+  const forcedPriority = forceMustAddressNow(prioritised);
+  
   // Step 5: Sort by priority, then severity, then impact
   const priorityOrder: Record<string, number> = { must_address_now: 0, next_12_months: 1, when_ready: 2 };
   const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, opportunity: 4 };
-  prioritised.sort((a, b) => {
+  forcedPriority.sort((a, b) => {
     const priDiff = (priorityOrder[a.priority] || 3) - (priorityOrder[b.priority] || 3);
     if (priDiff !== 0) return priDiff;
     const sevDiff = (severityOrder[a.severity] || 5) - (severityOrder[b.severity] || 5);
@@ -1243,7 +1297,7 @@ function postProcessOpportunities(
   });
   
   // Step 6: Cap at 12 opportunities
-  const capped = prioritised.slice(0, 12);
+  const capped = forcedPriority.slice(0, 12);
   console.log(`[Post-Process] Final count: ${capped.length} opportunities`);
   
   // Recalculate total opportunity value
@@ -1268,104 +1322,228 @@ function postProcessOpportunities(
   };
 }
 
-// Consolidation themes - opportunities with similar themes get merged
-const CONSOLIDATION_THEMES: Record<string, string[]> = {
-  'concentration_risk': [
-    'concentration', 'customer concentration', 'client concentration',
-    'revenue concentration', 'single point of failure', 'top 3 clients',
-    '99%', '90%', '80%', 'existential risk', 'dependency'
-  ],
-  'founder_dependency': [
-    'founder dependency', 'founder revenue', 'personal brand',
-    'knowledge dependency', 'key person', 'owner dependency',
-    'founder knowledge', 'hit by a bus', 'unsellable', 'exit blocker'
-  ],
-  'succession_gap': [
-    'succession', 'no succession', 'leadership gap', 'leadership vacuum',
-    'need to hire', 'step-back', 'would fail', 'successor', 'exit readiness'
-  ],
-  'documentation_ip': [
-    'undocumented', 'ip', 'intellectual property', 'processes',
-    'cradle to grave', 'methodology', 'not protected', 'documentation'
-  ],
-  'pricing_margin': [
-    'price increase', 'pricing', 'underpriced', 'margin improvement',
-    'margin recovery', 'margin erosion', 'rate card', 'charge rate'
-  ],
-  'revenue_model': [
-    'recurring', 'predictability', 'revenue model', 'retainer', 
-    'contract backlog', 'one-time', 'project-based'
-  ],
-  'surplus_cash': [
-    'surplus cash', 'cash sitting', 'idle cash', 'excess cash',
-    'underdeployed capital', 'cash drag'
-  ],
-  'working_capital': [
-    'debtor days', 'creditor days', 'cash collection', 'working capital',
-    'cash conversion', 'payment terms'
-  ],
-  'operational_efficiency': [
-    'utilisation', 'productivity', 'efficiency', 'revenue per employee',
-    'capacity', 'overhead'
-  ],
-  'contract_risk': [
-    'contract renewal', 'contract terms', 'renewal risk', 'contract expiry'
-  ],
-  'valuation_readiness': [
-    'valuation', 'sale ready', 'exit value', 'acquisition target'
-  ],
+// =============================================================================
+// THEME CONFIGURATION - With protected themes that never get merged
+// =============================================================================
+
+interface ThemeConfig {
+  keywords: string[];
+  excludeKeywords: string[];  // If these appear, don't match this theme
+  protected: boolean;         // Protected themes never get merged
+  forceSeverity?: 'critical' | 'high';  // Force this severity for protected themes
+  forcePriority?: 'must_address_now';   // Force this priority for protected themes
+}
+
+const THEME_CONFIG: Record<string, ThemeConfig> = {
+  // ==========================================================================
+  // PROTECTED THEMES - These are existential and should NEVER be merged
+  // ==========================================================================
+  'concentration_risk': {
+    keywords: [
+      'customer concentration', 'client concentration', 'revenue concentration',
+      'top 3 clients', 'top three clients', '99%', '99% of revenue', '90%+ revenue',
+      'single point of failure', 'existential risk', 'one contract loss',
+      'client diversification', 'revenue from 3', 'three clients'
+    ],
+    excludeKeywords: ['contract terms', 'renewal date', 'notice period', 'contract intelligence', 'contract blind'],
+    protected: true,
+    forceSeverity: 'critical',
+    forcePriority: 'must_address_now',
+  },
+  'founder_dependency': {
+    keywords: [
+      'founder dependency', 'founder revenue', 'personal brand revenue',
+      'knowledge dependency', 'key person risk', 'owner dependency',
+      'founder knowledge', 'hit by a bus', 'unsellable', 'exit blocker',
+      '80% knowledge', '70% knowledge', 'owner trapped'
+    ],
+    excludeKeywords: ['succession plan', 'hire successor'],
+    protected: true,
+    forceSeverity: 'critical',
+    forcePriority: 'must_address_now',
+  },
+  'succession_gap': {
+    keywords: [
+      'succession plan', 'no succession', 'leadership gap', 'leadership vacuum',
+      'need to hire successor', 'would fail without owner', 'exit readiness',
+      'successor identified', 'no one to take over'
+    ],
+    excludeKeywords: [],
+    protected: true,  // Protected but not always critical
+  },
+
+  // ==========================================================================
+  // NON-PROTECTED THEMES - These CAN be merged
+  // ==========================================================================
+  'contract_visibility': {
+    keywords: [
+      'contract terms', 'renewal dates', 'notice period', 'termination clause',
+      'contract intelligence', 'contract blind spot', 'contract visibility',
+      'contract expiry', 'renewal risk', 'contract audit'
+    ],
+    excludeKeywords: ['concentration'],
+    protected: false,
+  },
+  'documentation_ip': {
+    keywords: [
+      'undocumented', 'intellectual property', 'ip protection', 'processes not documented',
+      'cradle to grave', 'methodology', 'not protected', 'documentation gap'
+    ],
+    excludeKeywords: [],
+    protected: false,
+  },
+  'pricing_margin': {
+    keywords: [
+      'price increase', 'pricing power', 'underpriced', 'margin improvement',
+      'margin recovery', 'margin erosion', 'rate card', 'charge rate',
+      'no price increase', '2 years without'
+    ],
+    excludeKeywords: [],
+    protected: false,
+  },
+  'surplus_cash': {
+    keywords: [
+      'surplus cash', 'cash sitting', 'idle cash', 'excess cash',
+      'underdeployed capital', 'cash drag', 'opportunity cost', '£7.7m', '£7.7M'
+    ],
+    excludeKeywords: [],
+    protected: false,
+  },
+  'revenue_model': {
+    keywords: [
+      'recurring revenue', 'predictability', 'revenue model', 'retainer',
+      'contract backlog', 'one-time revenue', 'project-based', '0% recurring'
+    ],
+    excludeKeywords: [],
+    protected: false,
+  },
+  'working_capital': {
+    keywords: [
+      'debtor days', 'creditor days', 'cash collection', 'working capital',
+      'cash conversion', 'payment terms'
+    ],
+    excludeKeywords: [],
+    protected: false,
+  },
+  'operational_efficiency': {
+    keywords: [
+      'utilisation', 'productivity', 'efficiency', 'revenue per employee',
+      'capacity', 'overhead', 'team advocacy'
+    ],
+    excludeKeywords: [],
+    protected: false,
+  },
+  'valuation_readiness': {
+    keywords: [
+      'valuation discount', 'sale ready', 'exit value', 'acquisition target'
+    ],
+    excludeKeywords: [],
+    protected: false,
+  },
 };
 
-function consolidateOpportunities(opportunities: any[]): any[] {
-  // Score each opportunity against themes
-  const scored = opportunities.map(opp => {
-    const textToMatch = `${opp.title || ''} ${opp.code || ''} ${opp.dataEvidence || ''}`.toLowerCase();
-    let matchedTheme = 'other';
-    let maxScore = 0;
+// =============================================================================
+// IMPROVED THEME ASSIGNMENT - With exclusion keywords
+// =============================================================================
 
-    for (const [theme, keywords] of Object.entries(CONSOLIDATION_THEMES)) {
-      const score = keywords.filter(kw => textToMatch.includes(kw.toLowerCase())).length;
-      if (score > maxScore) {
-        maxScore = score;
-        matchedTheme = theme;
-      }
+function assignTheme(opp: any): { theme: string; score: number } {
+  const textToMatch = `${opp.title || ''} ${opp.code || ''} ${opp.dataEvidence || ''} ${opp.talkingPoint || ''}`.toLowerCase();
+  
+  let bestTheme = 'other';
+  let bestScore = 0;
+  
+  for (const [themeName, config] of Object.entries(THEME_CONFIG)) {
+    // Check if any exclude keywords match - if so, skip this theme
+    const hasExclude = config.excludeKeywords.some(kw => textToMatch.includes(kw.toLowerCase()));
+    if (hasExclude) continue;
+    
+    // Score based on keyword matches
+    const score = config.keywords.filter(kw => textToMatch.includes(kw.toLowerCase())).length;
+    
+    if (score > bestScore) {
+      bestScore = score;
+      bestTheme = themeName;
     }
-
-    return { ...opp, _theme: matchedTheme, _themeScore: maxScore };
-  });
-
-  // Group by theme
-  const byTheme: Record<string, any[]> = {};
-  for (const opp of scored) {
-    const theme = opp._theme;
-    if (!byTheme[theme]) byTheme[theme] = [];
-    byTheme[theme].push(opp);
   }
+  
+  return { theme: bestTheme, score: bestScore };
+}
 
-  console.log(`[Post-Process] Theme distribution:`, Object.entries(byTheme).map(([k, v]) => `${k}:${v.length}`).join(', '));
+// =============================================================================
+// IMPROVED CONSOLIDATION - Respects protected themes
+// =============================================================================
 
-  // For each theme, keep only the best representative
+function consolidateOpportunities(opportunities: any[]): any[] {
+  console.log(`[Consolidation] Starting with ${opportunities.length} opportunities`);
+  
+  // Step 1: Assign themes
+  const withThemes = opportunities.map(opp => {
+    const { theme, score } = assignTheme(opp);
+    return { ...opp, _theme: theme, _themeScore: score };
+  });
+  
+  // Step 2: Group by theme
+  const byTheme: Record<string, any[]> = {};
+  for (const opp of withThemes) {
+    if (!byTheme[opp._theme]) byTheme[opp._theme] = [];
+    byTheme[opp._theme].push(opp);
+  }
+  
+  console.log(`[Consolidation] Theme distribution:`, Object.entries(byTheme).map(([k, v]) => `${k}:${v.length}`).join(', '));
+  
+  // Step 3: Process each theme
   const consolidated: any[] = [];
-
+  const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, opportunity: 4 };
+  
   for (const [theme, opps] of Object.entries(byTheme)) {
-    if (opps.length === 1) {
-      const { _theme, _themeScore, ...cleanOpp } = opps[0];
-      consolidated.push(cleanOpp);
-    } else {
-      // Sort by severity (critical > high > medium > low) then by impact
-      const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, opportunity: 4 };
+    const config = THEME_CONFIG[theme];
+    const isProtected = config?.protected || false;
+    
+    if (isProtected) {
+      // =======================================================================
+      // PROTECTED THEME: Keep the best representative, don't merge
+      // =======================================================================
       opps.sort((a, b) => {
         const sevDiff = (severityOrder[a.severity] || 5) - (severityOrder[b.severity] || 5);
         if (sevDiff !== 0) return sevDiff;
         return (b.financialImpact?.amount || 0) - (a.financialImpact?.amount || 0);
       });
-
-      // Take the best one, but aggregate some data
+      
       const { _theme, _themeScore, ...best } = opps[0];
       
-      // If multiple opportunities were consolidated, note it
-      if (opps.length > 1) {
-        // Keep the highest financial impact (don't sum - that inflates)
+      // Force severity and priority for protected themes
+      if (config.forceSeverity) {
+        best.severity = config.forceSeverity;
+      }
+      if (config.forcePriority) {
+        best.priority = config.forcePriority;
+        best.priorityRationale = 'Existential risk requiring immediate strategic attention';
+      }
+      
+      best._isProtectedTheme = true;
+      best._consolidatedCount = opps.length;
+      
+      consolidated.push(best);
+      console.log(`[Consolidation] Protected theme "${theme}": kept as separate ${best.severity} item`);
+      
+    } else {
+      // =======================================================================
+      // NON-PROTECTED THEME: Merge if multiple items
+      // =======================================================================
+      if (opps.length === 1) {
+        const { _theme, _themeScore, ...cleanOpp } = opps[0];
+        consolidated.push(cleanOpp);
+      } else {
+        // Sort by severity then impact
+        opps.sort((a, b) => {
+          const sevDiff = (severityOrder[a.severity] || 5) - (severityOrder[b.severity] || 5);
+          if (sevDiff !== 0) return sevDiff;
+          return (b.financialImpact?.amount || 0) - (a.financialImpact?.amount || 0);
+        });
+        
+        const { _theme, _themeScore, ...best } = opps[0];
+        
+        // Keep the highest financial impact
         const maxImpact = Math.max(...opps.map(o => o.financialImpact?.amount || 0));
         best.financialImpact = {
           ...best.financialImpact,
@@ -1378,13 +1556,18 @@ function consolidateOpportunities(opportunities: any[]): any[] {
           best.title = `${best.title} (${opps.length} related issues)`;
         }
         
-        console.log(`[Post-Process] Consolidated ${opps.length} "${theme}" items → "${best.title}"`);
+        best._consolidatedCount = opps.length;
+        consolidated.push(best);
+        console.log(`[Consolidation] Theme "${theme}": merged ${opps.length} items → "${best.title}"`);
       }
-      
-      consolidated.push(best);
     }
   }
-
+  
+  // Step 4: Log final distribution
+  console.log(`[Consolidation] Final: ${consolidated.length} opportunities`);
+  const protectedCount = consolidated.filter(o => o._isProtectedTheme).length;
+  console.log(`[Consolidation] Protected themes: ${protectedCount}`);
+  
   return consolidated;
 }
 
@@ -1392,6 +1575,20 @@ function sanitizeFinancialImpact(opp: any, revenue: number): any {
   const impact = opp.financialImpact?.amount || 0;
   const category = opp.category || 'other';
   const type = opp.financialImpact?.type || 'risk';
+  
+  // If revenue is 0 or missing, DON'T cap impacts - keep the LLM's estimates
+  // This preserves meaningful financial impact even when revenue extraction failed
+  if (!revenue || revenue <= 0) {
+    console.log(`[Post-Process] Revenue unknown, keeping LLM impact for "${opp.title}": £${(impact/1000000).toFixed(1)}M`);
+    return {
+      ...opp,
+      financialImpact: {
+        ...opp.financialImpact,
+        amount: Math.round(impact),
+        _revenueUnknown: true,
+      },
+    };
+  }
   
   // Maximum impact by category as % of revenue
   const MAX_IMPACT_PERCENT: Record<string, number> = {
