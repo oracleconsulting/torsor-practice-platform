@@ -27,9 +27,12 @@ import {
   Target,
   DollarSign,
   MessageSquare,
-  Zap
+  Zap,
+  Plus,
+  Loader2
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
+import { ServiceCreationModal } from './ServiceCreationModal';
 
 // ============================================================================
 // Types
@@ -79,6 +82,9 @@ interface Opportunity {
 
 interface Props {
   engagementId: string;
+  clientId?: string;
+  practiceId?: string;
+  userId?: string;
 }
 
 // ============================================================================
@@ -141,7 +147,7 @@ const categoryLabels: Record<string, string> = {
 // Component
 // ============================================================================
 
-export function OpportunityPanel({ engagementId }: Props) {
+export function OpportunityPanel({ engagementId, clientId, practiceId, userId: propUserId }: Props) {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
@@ -149,6 +155,25 @@ export function OpportunityPanel({ engagementId }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // Service creation state
+  const [creatingServiceFor, setCreatingServiceFor] = useState<string | null>(null);
+  const [serviceCreationRequestId, setServiceCreationRequestId] = useState<string | null>(null);
+  const [showCreationModal, setShowCreationModal] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(propUserId || null);
+  
+  // Get current user if not provided
+  useEffect(() => {
+    if (!propUserId) {
+      supabase.auth.getUser().then(({ data }) => {
+        if (data?.user?.id) {
+          setCurrentUserId(data.user.id);
+        }
+      });
+    }
+  }, [propUserId]);
+  
+  const userId = propUserId || currentUserId;
   
   // Timer for regeneration progress
   useEffect(() => {
@@ -170,6 +195,61 @@ export function OpportunityPanel({ engagementId }: Props) {
       loadOpportunities();
     }
   }, [engagementId]);
+
+  // Handle creating a service from an opportunity
+  const handleCreateService = async (opportunityId: string, conceptId?: string) => {
+    if (!practiceId || !userId) {
+      alert('Missing practice or user information');
+      return;
+    }
+    
+    setCreatingServiceFor(opportunityId);
+    
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/create-service-from-opportunity`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          opportunityId: conceptId ? undefined : opportunityId,
+          conceptId: conceptId || undefined,
+          engagementId,
+          clientId,
+          practiceId,
+          requestedBy: userId,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create service proposal');
+      }
+      
+      const result = await response.json();
+      
+      if (result.success && result.requestId) {
+        setServiceCreationRequestId(result.requestId);
+        setShowCreationModal(true);
+      }
+    } catch (err: any) {
+      console.error('Failed to create service:', err);
+      alert(`Error: ${err.message}`);
+    }
+    
+    setCreatingServiceFor(null);
+  };
+  
+  const handleServiceApproved = () => {
+    setShowCreationModal(false);
+    setServiceCreationRequestId(null);
+    // Reload opportunities to see updated data
+    loadOpportunities();
+  };
 
   const loadOpportunities = async () => {
     setLoading(true);
@@ -586,15 +666,34 @@ export function OpportunityPanel({ engagementId }: Props) {
                     {/* New concept suggestion */}
                     {opp.concept && (
                       <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Sparkles className="w-4 h-4 text-purple-600" />
-                          <span className="text-xs font-semibold text-purple-800">
-                            NEW SERVICE CONCEPT
-                          </span>
-                          {opp.concept.times_identified > 1 && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-200 text-purple-800">
-                              Seen {opp.concept.times_identified}× across clients
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-purple-600" />
+                            <span className="text-xs font-semibold text-purple-800">
+                              NEW SERVICE CONCEPT
                             </span>
+                            {opp.concept.times_identified > 1 && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-200 text-purple-800">
+                                Seen {opp.concept.times_identified}× across clients
+                              </span>
+                            )}
+                          </div>
+                          {practiceId && userId && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCreateService(opp.id, opp.concept?.id);
+                              }}
+                              disabled={creatingServiceFor === opp.id}
+                              className="flex items-center gap-1 px-3 py-1 text-xs font-medium bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                            >
+                              {creatingServiceFor === opp.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Plus className="w-3 h-3" />
+                              )}
+                              Create Service
+                            </button>
                           )}
                         </div>
                         <div className="font-medium text-purple-900">{opp.concept.suggested_name}</div>
@@ -606,6 +705,30 @@ export function OpportunityPanel({ engagementId }: Props) {
                         )}
                       </div>
                     )}
+                    
+                    {/* Create service button when no existing service matches */}
+                    {!opp.service && !opp.concept && practiceId && userId && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCreateService(opp.id);
+                        }}
+                        disabled={creatingServiceFor === opp.id}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 border border-indigo-200 disabled:opacity-50"
+                      >
+                        {creatingServiceFor === opp.id ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Generating service proposal...
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-4 h-4" />
+                            Create New Service for This Opportunity
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -613,6 +736,18 @@ export function OpportunityPanel({ engagementId }: Props) {
           </div>
         );
       })}
+      
+      {/* Service Creation Modal */}
+      {showCreationModal && serviceCreationRequestId && (
+        <ServiceCreationModal
+          requestId={serviceCreationRequestId}
+          onClose={() => {
+            setShowCreationModal(false);
+            setServiceCreationRequestId(null);
+          }}
+          onApproved={handleServiceApproved}
+        />
+      )}
     </div>
   );
 }

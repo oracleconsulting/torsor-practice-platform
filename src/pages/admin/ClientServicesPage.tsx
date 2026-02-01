@@ -127,20 +127,10 @@ const SERVICE_LINES = [
     status: 'ready'
   },
   { 
-    id: 'hidden_value_audit', 
-    code: 'hidden_value_audit',
-    name: 'Hidden Value Audit',
-    description: 'Identify hidden assets, risks, and opportunities to maximize business value',
-    icon: Award,
-    color: 'amber',
-    monthlyRevenue: 0,
-    status: 'ready'
-  },
-  { 
     id: 'benchmarking', 
     code: 'benchmarking',
     name: 'Benchmarking',
-    description: 'Compare your business performance to industry leaders and identify improvement opportunities',
+    description: 'Performance benchmarking with hidden value analysis, business valuation, and improvement opportunities',
     icon: BarChart3,
     color: 'teal',
     monthlyRevenue: 0,

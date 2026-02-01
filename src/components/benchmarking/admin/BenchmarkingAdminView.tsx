@@ -523,7 +523,11 @@ export function BenchmarkingAdminView({
                 )}
                 
                 {activeTab === 'opportunities' && engagementId && (
-                  <OpportunityPanel engagementId={engagementId} />
+                  <OpportunityPanel 
+                    engagementId={engagementId}
+                    clientId={clientId}
+                    practiceId={practiceId}
+                  />
                 )}
                 
                 {activeTab === 'opportunities' && !engagementId && (
