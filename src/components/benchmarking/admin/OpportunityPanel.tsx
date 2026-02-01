@@ -468,19 +468,8 @@ export function OpportunityPanel({ engagementId, clientId, practiceId, userId: p
 
   const priorityOrder = ['must_address_now', 'next_12_months', 'when_ready'] as const;
 
-  // Also group by severity for the summary cards
-  const grouped = opportunities.reduce((acc, opp) => {
-    const sev = opp.severity || 'low';
-    if (!acc[sev]) acc[sev] = [];
-    acc[sev].push(opp);
-    return acc;
-  }, {} as Record<string, Opportunity[]>);
-
-  const severityOrder = ['critical', 'high', 'medium', 'low', 'opportunity'];
-  
   // Calculate totals
   const totalValue = opportunities.reduce((sum, o) => sum + (o.financial_impact_amount || 0), 0);
-  const criticalCount = (grouped['critical']?.length || 0) + (grouped['high']?.length || 0);
   const mustAddressCount = groupedByPriority['must_address_now']?.length || 0;
   const quickWins = opportunities.filter(o => o.quick_win).slice(0, 3);
   const newConceptCount = opportunities.filter(o => o.concept).length;
