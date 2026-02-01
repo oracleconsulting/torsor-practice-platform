@@ -47,26 +47,49 @@ ALTER TABLE services ADD COLUMN IF NOT EXISTS times_sold INTEGER DEFAULT 0;
 ALTER TABLE services ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
 ALTER TABLE services ADD COLUMN IF NOT EXISTS created_by UUID;
 
--- Older schema compatibility
+-- Older schema compatibility (from 20260201_add_services_catalog.sql)
 ALTER TABLE services ADD COLUMN IF NOT EXISTS typical_roi TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS tier TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS short_description TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS what_we_do JSONB;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS price_display TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS price_period TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS best_for TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS cta_text TEXT DEFAULT 'Learn More';
+ALTER TABLE services ADD COLUMN IF NOT EXISTS cta_url TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 
--- Drop NOT NULL constraint on price_amount if it exists (older schema)
--- This is a bit tricky in Postgres - we need to alter the column
+-- Drop NOT NULL constraints on columns from older schema
 DO $$ 
 BEGIN
   ALTER TABLE services ALTER COLUMN price_amount DROP NOT NULL;
-EXCEPTION
-  WHEN others THEN NULL;
+EXCEPTION WHEN others THEN NULL;
+END $$;
+
+DO $$ 
+BEGIN
+  ALTER TABLE services ALTER COLUMN price_period DROP NOT NULL;
+EXCEPTION WHEN others THEN NULL;
+END $$;
+
+DO $$ 
+BEGIN
+  ALTER TABLE services ALTER COLUMN category DROP NOT NULL;
+EXCEPTION WHEN others THEN NULL;
 END $$;
 
 -- Set NOT NULL constraints where needed (only if column has data or default)
 -- We can't easily add NOT NULL to existing columns, so we handle it in application layer
 
--- Update category to have a default for existing rows
+-- Update columns to have defaults for existing rows
 UPDATE services SET category = 'uncategorized' WHERE category IS NULL;
 UPDATE services SET headline = name WHERE headline IS NULL;
 UPDATE services SET pricing_model = 'monthly' WHERE pricing_model IS NULL;
 UPDATE services SET price_amount = price_from WHERE price_amount IS NULL AND price_from IS NOT NULL;
+UPDATE services SET price_period = 'month' WHERE price_period IS NULL AND pricing_model = 'monthly';
+UPDATE services SET price_period = 'one-off' WHERE price_period IS NULL AND pricing_model = 'fixed';
+UPDATE services SET price_period = 'month' WHERE price_period IS NULL; -- default fallback
 
 -- Create indexes (IF NOT EXISTS)
 CREATE INDEX IF NOT EXISTS idx_services_code ON services(code);
@@ -84,71 +107,71 @@ CREATE POLICY "services_read_all" ON services FOR SELECT USING (true);
 -- SEED DATA: BSG Core Services
 -- ============================================================================
 
-INSERT INTO services (code, name, category, headline, description, deliverables, pricing_model, price_from, price_to, price_unit, price_amount, typical_duration, time_to_first_value, status, originated_from) VALUES
+INSERT INTO services (code, name, category, headline, description, deliverables, pricing_model, price_from, price_to, price_unit, price_amount, price_period, typical_duration, time_to_first_value, status, originated_from) VALUES
 -- Management Accounts Tiers
 ('MA_BRONZE', 'Management Accounts - Bronze', 'financial_clarity', 
  'Essential monthly financial visibility', 
  'Monthly management accounts with core KPIs and commentary. Perfect for businesses wanting basic financial visibility.',
  '["Monthly P&L", "Balance sheet", "Cash flow statement", "KPI dashboard", "Brief commentary"]'::jsonb, 
- 'monthly', 750, 750, '/month', 750, 'Ongoing', '14 days', 'active', 'founding'),
+ 'monthly', 750, 750, '/month', 750, 'month', 'Ongoing', '14 days', 'active', 'founding'),
 
 ('MA_SILVER', 'Management Accounts - Silver', 'financial_clarity', 
  'Enhanced financial intelligence', 
  'Everything in Bronze plus deeper analysis, forecasting, and regular review calls.',
  '["Bronze deliverables", "13-week cash forecast", "Variance analysis", "Monthly review call", "Budget vs actual"]'::jsonb, 
- 'monthly', 1250, 1250, '/month', 1250, 'Ongoing', '14 days', 'active', 'founding'),
+ 'monthly', 1250, 1250, '/month', 1250, 'month', 'Ongoing', '14 days', 'active', 'founding'),
 
 ('MA_GOLD', 'Management Accounts - Gold', 'financial_clarity', 
  'Complete financial partnership', 
  'Full management accounting with strategic insights and board-ready reporting.',
  '["Silver deliverables", "Board pack", "Scenario modelling", "Strategic recommendations", "Quarterly deep-dive"]'::jsonb, 
- 'monthly', 1750, 1750, '/month', 1750, 'Ongoing', '14 days', 'active', 'founding'),
+ 'monthly', 1750, 1750, '/month', 1750, 'month', 'Ongoing', '14 days', 'active', 'founding'),
 
 ('MA_PLATINUM', 'Management Accounts - Platinum', 'financial_clarity', 
  'Virtual FD service', 
  'Comprehensive finance function support with unlimited advisory access.',
  '["Gold deliverables", "Unlimited advisory", "Board attendance", "Investor relations support", "M&A support"]'::jsonb, 
- 'monthly', 3000, 5000, '/month', 3000, 'Ongoing', '7 days', 'active', 'founding'),
+ 'monthly', 3000, 5000, '/month', 3000, 'month', 'Ongoing', '7 days', 'active', 'founding'),
 
 -- Strategic Planning
 ('GOAL_ALIGNMENT', 'Goal Alignment Programme', 'strategic_planning', 
  '12-month business transformation', 
  'Life-first strategic planning with accountability. Align business goals with personal aspirations.',
  '["5-year vision development", "6-month shift planning", "12-week sprints", "Weekly check-ins", "Quarterly reviews", "Annual reset"]'::jsonb, 
- 'monthly', 1500, 4500, '/month', 1500, '12 months', '90 days', 'active', 'founding'),
+ 'monthly', 1500, 4500, '/month', 1500, 'month', '12 months', '90 days', 'active', 'founding'),
 
 ('BENCHMARKING', 'Hidden Value & Benchmarking', 'strategic_planning', 
  'Industry comparison and hidden value discovery', 
  'Comprehensive benchmarking against industry peers with opportunity quantification.',
  '["Industry comparison", "Percentile positioning", "Gap analysis", "Opportunity quantification", "Scenario modelling", "Action plan"]'::jsonb, 
- 'fixed', 2000, 2000, '/project', 2000, '2 weeks', '7 days', 'active', 'founding'),
+ 'fixed', 2000, 2000, '/project', 2000, 'one-off', '2 weeks', '7 days', 'active', 'founding'),
 
 -- Operational
 ('SYSTEMS_AUDIT', 'Systems Audit', 'operational', 
  'Comprehensive systems review', 
  'Full review of financial and operational systems with improvement roadmap.',
  '["Current state mapping", "Gap analysis", "Recommendations", "Implementation roadmap", "Vendor shortlist", "ROI projections"]'::jsonb, 
- 'fixed', 2000, 5000, '/project', 2000, '2-4 weeks', '14 days', 'active', 'founding'),
+ 'fixed', 2000, 5000, '/project', 2000, 'one-off', '2-4 weeks', '14 days', 'active', 'founding'),
 
 -- Tax Efficiency
 ('PROFIT_EXTRACTION', 'Profit Extraction Strategy', 'tax_efficiency', 
  'Tax-efficient value extraction', 
  'Strategies for extracting value from your business tax-efficiently.',
  '["Current structure review", "Options analysis", "Implementation plan", "Tax modelling", "Ongoing optimisation"]'::jsonb, 
- 'fixed', 1500, 3000, '/project', 1500, '1-2 weeks', '7 days', 'active', 'founding'),
+ 'fixed', 1500, 3000, '/project', 1500, 'one-off', '1-2 weeks', '7 days', 'active', 'founding'),
 
 -- Leadership
 ('FRACTIONAL_CFO', 'Fractional CFO', 'leadership', 
  'Part-time finance leadership', 
  'Strategic finance leadership on a fractional basis for growing businesses.',
  '["Board-level input", "Strategic planning", "Investor relations", "Team development", "Finance function design"]'::jsonb, 
- 'monthly', 2500, 5000, '/month', 2500, 'Ongoing', '30 days', 'active', 'founding'),
+ 'monthly', 2500, 5000, '/month', 2500, 'month', 'Ongoing', '30 days', 'active', 'founding'),
 
 ('FRACTIONAL_COO', 'Fractional COO', 'leadership', 
  'Part-time operational leadership', 
  'Operational excellence on a fractional basis.',
  '["Process optimisation", "Team structure", "Systems implementation", "Performance management", "Operational metrics"]'::jsonb, 
- 'monthly', 2500, 5000, '/month', 2500, 'Ongoing', '30 days', 'active', 'founding')
+ 'monthly', 2500, 5000, '/month', 2500, 'month', 'Ongoing', '30 days', 'active', 'founding')
 
 ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
@@ -161,6 +184,7 @@ ON CONFLICT (code) DO UPDATE SET
   price_to = EXCLUDED.price_to,
   price_unit = EXCLUDED.price_unit,
   price_amount = EXCLUDED.price_amount,
+  price_period = EXCLUDED.price_period,
   typical_duration = EXCLUDED.typical_duration,
   time_to_first_value = EXCLUDED.time_to_first_value,
   status = EXCLUDED.status,
