@@ -68,9 +68,13 @@ serve(async (req) => {
     console.log(`[Pass 3] Opus 4.5 identified ${analysis.opportunities?.length || 0} RAW opportunities in ${analysisTime}ms`);
     
     // 4a. POST-PROCESSING: Consolidate and sanitize opportunities
-    const revenue = clientData.pass1Data?.enrichedData?.revenue || 
-                    clientData.pass1Data?._enriched?.revenue || 
-                    clientData.pass1Data?.revenue || 0;
+    // Revenue is stored as _enriched_revenue in pass1_data (not nested)
+    const revenue = clientData.pass1Data?._enriched_revenue || 
+                    clientData.pass1Data?.enrichedData?.revenue || 
+                    clientData.pass1Data?.revenue || 
+                    clientData.assessment?._enriched_revenue || 0;
+    
+    console.log(`[Pass 3] Revenue extraction: _enriched_revenue=${clientData.pass1Data?._enriched_revenue}, fallback=${revenue}`);
     
     analysis = postProcessOpportunities(analysis, revenue, clientData.directionContext);
     
@@ -475,9 +479,9 @@ Respond with valid JSON only. No markdown code blocks, no explanations outside t
 function buildUserPrompt(clientData: ClientData, services: any[], existingConcepts: any[]): string {
   const { clientName, industryCode, pass1Data, pass2Narratives, assessment, hva, metrics, founderRisk, supplementary } = clientData;
   
-  // Extract enriched data with fallbacks
+  // Extract enriched data with fallbacks - pass1_data stores flat fields with _enriched_ prefix
   const enriched = pass1Data?.enrichedData || pass1Data?._enriched || {};
-  const revenue = enriched.revenue || pass1Data?.revenue || 0;
+  const revenue = pass1Data?._enriched_revenue || enriched.revenue || pass1Data?.revenue || 0;
   const grossMargin = enriched.grossMargin || enriched.gross_margin || pass1Data?.grossMargin || 0;
   const netMargin = enriched.netMargin || enriched.net_margin || pass1Data?.netMargin || 0;
   const ebitdaMargin = enriched.ebitdaMargin || enriched.ebitda_margin || pass1Data?.ebitdaMargin || 0;
@@ -893,8 +897,18 @@ function adjustPrioritiesForDirection(
   return opportunities.map(opp => {
     // Find matching boost
     let boost = 0;
-    const oppText = `${opp.code || ''} ${opp.title || ''} ${opp.category || ''}`.toLowerCase();
-    const dataText = `${opp.dataEvidence || ''} ${JSON.stringify(opp.dataValues || {})}`.toLowerCase();
+    const oppText = `${opp.code || ''} ${opp.title || ''} ${opp.category || ''} ${opp.talkingPoint || ''}`.toLowerCase();
+    // Include ALL possible fields where percentage data might appear
+    const fullDataText = JSON.stringify({
+      dataEvidence: opp.dataEvidence,
+      dataValues: opp.dataValues,
+      talkingPoint: opp.talkingPoint,
+      financialImpact: opp.financialImpact,
+      watchOuts: opp.watchOuts,
+      drivers: opp.financialImpact?.drivers,
+      context: opp.context,
+      limitation: opp.limitation,
+    }).toLowerCase();
     
     for (const [keyword, value] of Object.entries(boosts)) {
       if (oppText.includes(keyword)) {
@@ -909,27 +923,55 @@ function adjustPrioritiesForDirection(
     let effectiveSeverity = opp.severity;
     let severityOverridden = false;
     
-    // Check for extreme concentration (>=80%)
-    if (oppText.includes('concentration') || oppText.includes('customer') || oppText.includes('client dependency')) {
-      const concMatch = dataText.match(/(\d{2,3})%/) || oppText.match(/(\d{2,3})%/);
-      const concentration = concMatch ? parseInt(concMatch[1]) : 0;
-      if (concentration >= 80) {
+    // If already critical from LLM, keep it critical
+    if (effectiveSeverity === 'critical') {
+      // No override needed, already critical
+      console.log(`[Priority] Keeping CRITICAL severity for: ${opp.title}`);
+    }
+    
+    // Check for extreme concentration keywords + high percentages
+    const isConcentrationRelated = oppText.includes('concentration') || 
+                                    oppText.includes('customer') || 
+                                    oppText.includes('client') ||
+                                    oppText.includes('single point') ||
+                                    oppText.includes('dependency') ||
+                                    oppText.includes('one client') ||
+                                    oppText.includes('top 3');
+    
+    if (isConcentrationRelated) {
+      // Look for percentages anywhere in the opportunity data
+      const percentMatches = fullDataText.match(/(\d{2,3})%/g) || [];
+      const highPercentage = percentMatches.find(p => parseInt(p) >= 75);
+      if (highPercentage) {
         effectiveSeverity = 'critical';
         severityOverridden = true;
-        console.log(`[Priority] Overriding severity to CRITICAL for ${concentration}% concentration`);
+        console.log(`[Priority] Overriding severity to CRITICAL for concentration ${highPercentage} in "${opp.title}"`);
       }
     }
     
-    // Check for extreme founder dependency (>=70%)
-    if (oppText.includes('founder') || oppText.includes('key person') || oppText.includes('dependency')) {
-      const depMatch = dataText.match(/(\d{2,3})%\s*(founder|knowledge|personal|brand)/i) || 
-                       oppText.match(/(\d{2,3})%\s*(founder|knowledge|personal|brand)/i);
-      const dependency = depMatch ? parseInt(depMatch[1]) : 0;
-      if (dependency >= 70) {
+    // Check for founder/key person dependency
+    const isFounderRelated = oppText.includes('founder') || 
+                              oppText.includes('key person') || 
+                              oppText.includes('owner') ||
+                              oppText.includes('succession') ||
+                              oppText.includes('knowledge dependency') ||
+                              oppText.includes('personal brand');
+    
+    if (isFounderRelated) {
+      const percentMatches = fullDataText.match(/(\d{2,3})%/g) || [];
+      const highPercentage = percentMatches.find(p => parseInt(p) >= 60);
+      if (highPercentage) {
         effectiveSeverity = 'critical';
         severityOverridden = true;
-        console.log(`[Priority] Overriding severity to CRITICAL for ${dependency}% founder dependency`);
+        console.log(`[Priority] Overriding severity to CRITICAL for founder dependency ${highPercentage} in "${opp.title}"`);
       }
+    }
+    
+    // Check for exit blockers explicitly mentioned
+    if (oppText.includes('exit blocker') || oppText.includes('valuation discount') || oppText.includes('existential')) {
+      effectiveSeverity = 'critical';
+      severityOverridden = true;
+      console.log(`[Priority] Overriding severity to CRITICAL for exit blocker: "${opp.title}"`);
     }
     
     // Determine priority based on severity and boost
