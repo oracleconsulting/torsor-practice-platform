@@ -5,35 +5,58 @@
 -- Official services we can offer - replaces hardcoded TypeScript
 -- This is a living catalogue that grows from client insights
 
--- Create table if it doesn't exist
+-- Create table if it doesn't exist (minimal schema)
 CREATE TABLE IF NOT EXISTS services (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   code TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
-  category TEXT NOT NULL,
-  headline TEXT NOT NULL,
-  description TEXT,
-  deliverables JSONB DEFAULT '[]',
-  pricing_model TEXT NOT NULL DEFAULT 'monthly',
-  price_from DECIMAL(10,2),
-  price_to DECIMAL(10,2),
-  price_unit TEXT DEFAULT '/month',
-  typical_duration TEXT,
-  time_to_first_value TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Add columns that might be missing from earlier schema
+-- Add ALL columns that might be missing from earlier/different schema
+-- Core fields
+ALTER TABLE services ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS headline TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS deliverables JSONB DEFAULT '[]';
+
+-- Pricing
+ALTER TABLE services ADD COLUMN IF NOT EXISTS pricing_model TEXT DEFAULT 'monthly';
+ALTER TABLE services ADD COLUMN IF NOT EXISTS price_from DECIMAL(10,2);
+ALTER TABLE services ADD COLUMN IF NOT EXISTS price_to DECIMAL(10,2);
+ALTER TABLE services ADD COLUMN IF NOT EXISTS price_unit TEXT DEFAULT '/month';
+ALTER TABLE services ADD COLUMN IF NOT EXISTS price_amount DECIMAL(10,2); -- from older schema
+
+-- Delivery
+ALTER TABLE services ADD COLUMN IF NOT EXISTS typical_duration TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS time_to_first_value TEXT;
 ALTER TABLE services ADD COLUMN IF NOT EXISTS delivery_complexity TEXT DEFAULT 'medium';
+
+-- Skills
 ALTER TABLE services ADD COLUMN IF NOT EXISTS required_skills JSONB DEFAULT '[]';
 ALTER TABLE services ADD COLUMN IF NOT EXISTS recommended_seniority TEXT[] DEFAULT '{}';
+
+-- Lifecycle
 ALTER TABLE services ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 ALTER TABLE services ADD COLUMN IF NOT EXISTS originated_from TEXT DEFAULT 'manual';
 ALTER TABLE services ADD COLUMN IF NOT EXISTS first_delivered_at DATE;
 ALTER TABLE services ADD COLUMN IF NOT EXISTS times_recommended INTEGER DEFAULT 0;
 ALTER TABLE services ADD COLUMN IF NOT EXISTS times_sold INTEGER DEFAULT 0;
+
+-- Metadata
+ALTER TABLE services ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
 ALTER TABLE services ADD COLUMN IF NOT EXISTS created_by UUID;
+
+-- Older schema compatibility
+ALTER TABLE services ADD COLUMN IF NOT EXISTS typical_roi TEXT;
+
+-- Set NOT NULL constraints where needed (only if column has data or default)
+-- We can't easily add NOT NULL to existing columns, so we handle it in application layer
+
+-- Update category to have a default for existing rows
+UPDATE services SET category = 'uncategorized' WHERE category IS NULL;
+UPDATE services SET headline = name WHERE headline IS NULL;
+UPDATE services SET pricing_model = 'monthly' WHERE pricing_model IS NULL;
 
 -- Create indexes (IF NOT EXISTS)
 CREATE INDEX IF NOT EXISTS idx_services_code ON services(code);
@@ -129,4 +152,6 @@ ON CONFLICT (code) DO UPDATE SET
   price_unit = EXCLUDED.price_unit,
   typical_duration = EXCLUDED.typical_duration,
   time_to_first_value = EXCLUDED.time_to_first_value,
+  status = EXCLUDED.status,
+  originated_from = EXCLUDED.originated_from,
   updated_at = now();
