@@ -145,9 +145,24 @@ export function OpportunityPanel({ engagementId }: Props) {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
+  const [regenerateSeconds, setRegenerateSeconds] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // Timer for regeneration progress
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | undefined;
+    if (regenerating) {
+      setRegenerateSeconds(0);
+      interval = setInterval(() => {
+        setRegenerateSeconds(s => s + 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [regenerating]);
 
   // Load opportunities on mount and when engagementId changes
   useEffect(() => {
@@ -187,19 +202,42 @@ export function OpportunityPanel({ engagementId }: Props) {
     setError(null);
     
     try {
-      const response = await supabase.functions.invoke('generate-bm-opportunities', {
-        body: { engagementId }
-      });
+      // Use fetch directly with 3-minute timeout (Opus 4.5 can take ~2 minutes)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes
       
-      if (response.error) {
-        throw new Error(response.error.message || 'Failed to generate opportunities');
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      const response = await fetch(
+        `${supabaseUrl}/functions/v1/generate-bm-opportunities`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseKey}`,
+          },
+          body: JSON.stringify({ engagementId }),
+          signal: controller.signal,
+        }
+      );
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
       }
       
       // Reload after generation
       await loadOpportunities();
     } catch (err) {
       console.error('Failed to regenerate:', err);
-      setError(err instanceof Error ? err.message : 'Failed to regenerate analysis');
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Analysis timed out. The AI is still processing - try refreshing in a minute.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to regenerate analysis');
+      }
     }
     
     setRegenerating(false);
@@ -254,11 +292,21 @@ export function OpportunityPanel({ engagementId }: Props) {
   if (opportunities.length === 0) {
     return (
       <div className="text-center py-12">
-        <Sparkles className="w-12 h-12 mx-auto text-slate-300 mb-4" />
-        <h3 className="text-lg font-medium text-slate-700">Analysis Not Yet Run</h3>
+        <Sparkles className={`w-12 h-12 mx-auto mb-4 ${regenerating ? 'text-blue-500 animate-pulse' : 'text-slate-300'}`} />
+        <h3 className="text-lg font-medium text-slate-700">
+          {regenerating ? 'Analysing with Claude Opus...' : 'Analysis Not Yet Run'}
+        </h3>
         <p className="text-slate-500 mt-1 mb-4">
-          Run the opportunity analysis to identify where we can help this client.
+          {regenerating 
+            ? `Deep analysis in progress. This typically takes 1-2 minutes. (${regenerateSeconds}s)`
+            : 'Run the opportunity analysis to identify where we can help this client.'
+          }
         </p>
+        {regenerating && regenerateSeconds > 60 && (
+          <p className="text-xs text-slate-400 mb-4">
+            Still working... Opus is thorough. Nearly there.
+          </p>
+        )}
         <button
           onClick={regenerateAnalysis}
           disabled={regenerating}
@@ -269,7 +317,7 @@ export function OpportunityPanel({ engagementId }: Props) {
           ) : (
             <Sparkles className="w-4 h-4" />
           )}
-          {regenerating ? 'Analysing...' : 'Run Analysis'}
+          {regenerating ? `Analysing... (${regenerateSeconds}s)` : 'Run Analysis'}
         </button>
       </div>
     );
@@ -335,7 +383,7 @@ export function OpportunityPanel({ engagementId }: Props) {
           className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
         >
           <RefreshCw className={`w-4 h-4 ${regenerating ? 'animate-spin' : ''}`} />
-          {regenerating ? 'Analysing...' : 'Regenerate'}
+          {regenerating ? `Analysing... (${regenerateSeconds}s)` : 'Regenerate'}
         </button>
       </div>
 
