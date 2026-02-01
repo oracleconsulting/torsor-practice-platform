@@ -4,6 +4,7 @@ import { MetricComparisonCard } from './MetricComparisonCard';
 import { NarrativeSection } from './NarrativeSection';
 import { RecommendationsSection } from './RecommendationsSection';
 import { ScenarioExplorer } from './ScenarioExplorer';
+import { ScenarioPlanningSection } from './ScenarioPlanningSection';
 import { ServiceRecommendationsSection } from './ServiceRecommendationsSection';
 import { ValueBridgeSection } from './ValueBridgeSection';
 import { AlertTriangle, Gem, Shield, CheckCircle } from 'lucide-react';
@@ -654,6 +655,18 @@ export function BenchmarkingClientReport({
           <ValueBridgeSection 
             valueAnalysis={data.value_analysis}
             clientName={clientName}
+          />
+        )}
+        
+        {/* Scenario Planning - What If Projections */}
+        {baselineMetrics && baselineMetrics.revenue > 0 && (
+          <ScenarioPlanningSection 
+            revenue={baselineMetrics.revenue}
+            currentValue={data.value_analysis?.currentMarketValue?.mid}
+            baselineValue={data.value_analysis?.baseline?.totalBaseline || data.value_analysis?.baseline?.enterpriseValue?.mid}
+            concentration={data.pass1_data?.client_concentration_top3 || data.client_concentration_top3 || 50}
+            surplusCash={data.pass1_data?.surplus_cash?.surplusCash || data.value_analysis?.baseline?.surplusCash || 0}
+            exitReadinessScore={data.value_analysis?.exitReadiness?.score}
           />
         )}
         
