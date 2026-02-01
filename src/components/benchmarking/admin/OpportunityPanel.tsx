@@ -364,8 +364,35 @@ export function OpportunityPanel({ engagementId, clientId, practiceId, userId: p
       await loadOpportunities();
     } catch (err) {
       console.error('Failed to regenerate:', err);
-      if (err instanceof Error && err.name === 'AbortError') {
-        setError('Analysis timed out. The AI is still processing - try refreshing in a minute.');
+      
+      // =========================================================================
+      // IMPORTANT: The Edge Function often completes successfully but the HTTP
+      // connection times out. Check if opportunities were actually saved.
+      // =========================================================================
+      console.log('Checking if opportunities were saved despite error...');
+      
+      // Wait a moment then check database
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const { data: savedOpps } = await supabase
+        .from('client_opportunities')
+        .select('id, created_at')
+        .eq('engagement_id', engagementId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      // Check if there are recent opportunities (created in the last 5 minutes)
+      const recentOpp = savedOpps?.[0];
+      const isRecent = recentOpp && 
+        (Date.now() - new Date(recentOpp.created_at).getTime()) < 5 * 60 * 1000;
+      
+      if (isRecent) {
+        // Success! The function completed, just the HTTP response failed
+        console.log('Opportunities WERE saved! Loading them now...');
+        await loadOpportunities();
+        setError(null);
+      } else if (err instanceof Error && err.name === 'AbortError') {
+        setError('Analysis timed out. The AI may still be processing - try refreshing in a minute.');
       } else {
         setError(err instanceof Error ? err.message : 'Failed to regenerate analysis');
       }
@@ -403,19 +430,42 @@ export function OpportunityPanel({ engagementId, clientId, practiceId, userId: p
   }
 
   if (error) {
+    const isTimeout = error.includes('timed out') || error.includes('processing');
+    
     return (
       <div className="text-center py-12">
-        <AlertTriangle className="w-12 h-12 mx-auto text-red-400 mb-4" />
-        <h3 className="text-lg font-medium text-slate-700">Error</h3>
+        <AlertTriangle className={`w-12 h-12 mx-auto mb-4 ${isTimeout ? 'text-amber-400' : 'text-red-400'}`} />
+        <h3 className="text-lg font-medium text-slate-700">
+          {isTimeout ? 'Processing...' : 'Error'}
+        </h3>
         <p className="text-slate-500 mt-1 mb-4">{error}</p>
-        <button
-          onClick={regenerateAnalysis}
-          disabled={regenerating}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 mx-auto"
-        >
-          <RefreshCw className={`w-4 h-4 ${regenerating ? 'animate-spin' : ''}`} />
-          Try Again
-        </button>
+        <div className="flex gap-3 justify-center">
+          {isTimeout && (
+            <button
+              onClick={async () => {
+                setLoading(true);
+                await loadOpportunities();
+                if (opportunities.length > 0) {
+                  setError(null);
+                }
+                setLoading(false);
+              }}
+              disabled={loading}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Check for Results
+            </button>
+          )}
+          <button
+            onClick={regenerateAnalysis}
+            disabled={regenerating}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${regenerating ? 'animate-spin' : ''}`} />
+            {isTimeout ? 'Start New Analysis' : 'Try Again'}
+          </button>
+        </div>
       </div>
     );
   }
