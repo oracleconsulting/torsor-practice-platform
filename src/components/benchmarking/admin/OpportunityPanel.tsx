@@ -71,6 +71,7 @@ interface Opportunity {
   talking_point?: string;
   question_to_ask?: string;
   quick_win?: string;
+  life_impact?: string;
   service?: Service;
   concept?: Concept;
   generated_at?: string;
@@ -443,6 +444,14 @@ export function OpportunityPanel({ engagementId }: Props) {
                         </p>
                       )}
                     </div>
+                    
+                    {/* Life Impact - what this means for the owner */}
+                    {opp.life_impact && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <span className="text-xs font-semibold text-amber-700">FOR THE OWNER: </span>
+                        <span className="text-sm text-amber-800">{opp.life_impact}</span>
+                      </div>
+                    )}
                     
                     {/* Talking point - copyable */}
                     {opp.talking_point && (
