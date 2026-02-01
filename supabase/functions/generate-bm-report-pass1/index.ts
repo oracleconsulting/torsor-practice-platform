@@ -2179,11 +2179,11 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
       // Get industry code
       const industryCode = enriched.industry_code || assessmentData.industry_code || 'DEFAULT';
       
-      // Prepare surplus cash data
-      const surplusCashData = surplusCashAnalysis?.hasData ? {
-        surplusCash: surplusCashAnalysis.surplusCash || 0,
-        supplierFundedWorkingCapital: surplusCashAnalysis.components?.netWorkingCapital 
-          ? Math.abs(Math.min(0, surplusCashAnalysis.components.netWorkingCapital))
+      // Prepare surplus cash data (use enriched.surplus_cash which was stored earlier)
+      const surplusCashForValue = enriched.surplus_cash?.hasData ? {
+        surplusCash: enriched.surplus_cash.surplusCash || 0,
+        supplierFundedWorkingCapital: enriched.surplus_cash.components?.netWorkingCapital 
+          ? Math.abs(Math.min(0, enriched.surplus_cash.components.netWorkingCapital))
           : 0,
       } : null;
       
@@ -2195,7 +2195,7 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
           financialInputs,
           hvaResponses,
           industryCode,
-          surplusCashData,
+          surplusCashForValue,
           concentrationFromAssessment
         );
         
