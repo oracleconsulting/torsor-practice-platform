@@ -10656,6 +10656,7 @@ function BenchmarkingClientModal({
                               founderRisk={founderRisk}
                               industryMapping={industryMapping}
                               clientId={clientId}
+                              clientName={clientName}
                               practiceId={currentMember?.practice_id}
                               engagementId={engagement?.id}
                               supplementaryData={supplementaryData}
