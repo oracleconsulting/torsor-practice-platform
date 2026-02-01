@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './pages/LoginPage';
 import { SkillsHeatmapPage } from './pages/admin/SkillsHeatmapPage';
+// Load debug utilities into window for console access
+import './lib/export-benchmarking-data';
 import { SkillsManagementPage } from './pages/admin/SkillsManagementPage';
 import { ServiceReadinessPage } from './pages/admin/ServiceReadinessPage';
 import { TeamAnalyticsPage } from './pages/admin/TeamAnalyticsPage';

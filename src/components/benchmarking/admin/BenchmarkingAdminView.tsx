@@ -11,6 +11,7 @@ import { FinancialDataReviewModal } from './FinancialDataReviewModal';
 import { ServicePathwayPanel } from './ServicePathwayPanel';
 import { OpportunityPanel } from './OpportunityPanel';
 import { ValueAnalysisPanel } from './ValueAnalysisPanel';
+import { ExportAnalysisButton } from './ExportAnalysisButton';
 import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target, Sparkles, DollarSign } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import type { ValueAnalysis } from '../../../types/benchmarking';
@@ -122,7 +123,10 @@ interface BenchmarkingAdminViewProps {
     creditorDays?: number;
     clientConcentration?: number;
   };
-  hvaData?: any;
+  hvaData?: {
+    responses?: Record<string, any>;
+    [key: string]: any;
+  };
   founderRisk?: {
     score: number;
     level: 'low' | 'medium' | 'high' | 'critical';
@@ -199,6 +203,7 @@ interface Pass1Data {
 export function BenchmarkingAdminView({ 
   data, 
   clientData, 
+  hvaData,
   founderRisk, 
   industryMapping, 
   clientId,
@@ -317,14 +322,29 @@ export function BenchmarkingAdminView({
                 Conversation guide and action tracker
               </p>
             </div>
-            {onSwitchToClient && (
-              <button 
-                onClick={onSwitchToClient}
-                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
-              >
-                Switch to Client View
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {engagementId && clientId && clientName && (
+                <ExportAnalysisButton
+                  engagementId={engagementId}
+                  clientId={clientId}
+                  clientName={clientName}
+                  reportData={data}
+                  clientData={clientData}
+                  founderRisk={founderRisk}
+                  industryMapping={industryMapping}
+                  hvaData={hvaData}
+                  supplementaryData={supplementaryData}
+                />
+              )}
+              {onSwitchToClient && (
+                <button 
+                  onClick={onSwitchToClient}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+                >
+                  Switch to Client View
+                </button>
+              )}
+            </div>
           </div>
           
           {/* Quick Stats */}
