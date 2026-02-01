@@ -2755,7 +2755,7 @@ function resolveIndustryFromSIC(sicCode: string, subSectorHint?: string, busines
     '41100': 'CONST_MAIN',
     '41201': 'CONST_MAIN',
     '41202': 'CONST_MAIN',
-    '43210': 'TRADES',
+    // Note: '43210' is mapped to TELECOM_INFRA above (electrical/cabling contractors)
     '43220': 'TRADES',
     '43310': 'CONST_SPEC',
     '68310': 'ESTATE',
@@ -3903,7 +3903,31 @@ When writing narratives:
       admin_tasks: pass1Data.adminGuidance.tasks,
       admin_risk_flags: pass1Data.adminGuidance.riskFlags,
       admin_closing_script: pass1Data.adminGuidance.closingScript,
-      pass1_data: pass1Data,
+      // =========================================================================
+      // IMPORTANT: Merge enriched assessment data into pass1_data
+      // This ensures _enriched_revenue, _enriched_employee_count, etc. are available
+      // to client-side components (ScenarioExplorer, OpportunityPanel, etc.)
+      // =========================================================================
+      pass1_data: {
+        ...pass1Data,
+        // Enriched financial data
+        _enriched_revenue: assessmentData._enriched_revenue,
+        _enriched_employee_count: assessmentData._enriched_employee_count,
+        revenue_per_employee: assessmentData.revenue_per_employee,
+        gross_margin: assessmentData.gross_margin,
+        net_margin: assessmentData.net_margin,
+        ebitda_margin: assessmentData.ebitda_margin,
+        debtor_days: assessmentData.debtor_days,
+        creditor_days: assessmentData.creditor_days,
+        client_concentration_top3: assessmentData.client_concentration_top3,
+        // Balance sheet and trends
+        balance_sheet: assessmentData.balance_sheet,
+        surplus_cash: assessmentData.surplus_cash,
+        financial_trends: assessmentData.financial_trends,
+        investment_signals: assessmentData.investment_signals,
+        // Value analysis
+        value_analysis: assessmentData.value_analysis,
+      },
       llm_model: 'gpt-4o-mini',
       llm_tokens_used: tokensUsed,
       llm_cost: cost,
@@ -3920,11 +3944,19 @@ When writing narratives:
       quick_ratio: assessmentData.quick_ratio || null,
       cash_months: assessmentData.cash_months || null,
       creditor_days: assessmentData.creditor_days || null,
+      debtor_days: assessmentData.debtor_days || null,
       benchmark_sources_detail: buildDetailedSourceData(benchmarks || []),
       // Surplus cash analysis
       surplus_cash: assessmentData.surplus_cash || null,
       // Value analysis (business valuation with HVA suppressors)
-      value_analysis: assessmentData.value_analysis || null
+      value_analysis: assessmentData.value_analysis || null,
+      // Enriched financial data (top-level for easy access)
+      revenue: assessmentData._enriched_revenue || null,
+      employee_count: assessmentData._enriched_employee_count || null,
+      gross_margin: assessmentData.gross_margin || null,
+      net_margin: assessmentData.net_margin || null,
+      ebitda_margin: assessmentData.ebitda_margin || null,
+      client_concentration_top3: assessmentData.client_concentration_top3 || null,
     };
     
     // Add founder risk data if available
