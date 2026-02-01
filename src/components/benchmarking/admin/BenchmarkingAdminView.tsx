@@ -9,7 +9,8 @@ import { BenchmarkSourcesPanel } from './BenchmarkSourcesPanel';
 import { AccountsUploadPanel } from './AccountsUploadPanel';
 import { FinancialDataReviewModal } from './FinancialDataReviewModal';
 import { ServicePathwayPanel } from './ServicePathwayPanel';
-import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target } from 'lucide-react';
+import { OpportunityDashboard } from './OpportunityDashboard';
+import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target, Sparkles } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { detectIssues, getPriorityServices, type IssueMetrics } from '../../../lib/issue-service-mapping';
 
@@ -206,7 +207,7 @@ export function BenchmarkingAdminView({
   onSaveSupplementaryData,
   isRegenerating = false
 }: BenchmarkingAdminViewProps) {
-  const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'services' | 'actions' | 'collect' | 'accounts' | 'sources' | 'raw'>('script');
+  const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'services' | 'opportunities' | 'actions' | 'collect' | 'accounts' | 'sources' | 'raw'>('script');
   
   // Accounts upload state
   const [accountUploads, setAccountUploads] = useState<AccountUpload[]>([]);
@@ -381,6 +382,17 @@ export function BenchmarkingAdminView({
                   )}
                 </button>
                 <button
+                  onClick={() => setActiveTab('opportunities')}
+                  className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative ${
+                    activeTab === 'opportunities'
+                      ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Opportunities
+                </button>
+                <button
                   onClick={() => setActiveTab('actions')}
                   className={`flex-1 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
                     activeTab === 'actions'
@@ -469,6 +481,47 @@ export function BenchmarkingAdminView({
                     issues={detectedIssues}
                     priorityServices={priorityServices}
                     clientName={clientName}
+                  />
+                )}
+                
+                {activeTab === 'opportunities' && (
+                  <OpportunityDashboard
+                    reportData={{
+                      revenue: clientData.revenue,
+                      revenueGrowth: (pass1Data as any)?.revenueGrowth,
+                      grossMargin: clientData.grossMargin,
+                      grossMarginTrend: (pass1Data as any)?.grossMarginTrend,
+                      netMargin: clientData.netMargin,
+                      ebitdaMargin: clientData.ebitdaMargin,
+                      employeeCount: clientData.employees,
+                      revenuePerEmployee: clientData.revenuePerEmployee,
+                      debtorDays: clientData.debtorDays,
+                      creditorDays: clientData.creditorDays,
+                      currentRatio: (pass1Data as any)?.currentRatio,
+                      cashPosition: data.balance_sheet?.cash,
+                      surplusCash: data.surplus_cash?.surplusCash,
+                    }}
+                    hvaData={(pass1Data as any)?.hvaData}
+                    supplementaryData={{
+                      client_concentration_top3: clientData.clientConcentration,
+                      ...supplementaryData
+                    }}
+                    industryData={{
+                      code: industryMapping?.code || data.industry_code || '',
+                      name: industryMapping?.name || 'Unknown',
+                      benchmarks: {
+                        gross_margin: {
+                          p25: getBenchmarkMedian('gross_margin') ? getBenchmarkMedian('gross_margin')! * 0.75 : 15,
+                          p50: getBenchmarkMedian('gross_margin') || 18,
+                          p75: getBenchmarkMedian('gross_margin') ? getBenchmarkMedian('gross_margin')! * 1.25 : 25
+                        },
+                        revenue_per_employee: {
+                          p25: getBenchmarkMedian('revenue_per_employee') ? getBenchmarkMedian('revenue_per_employee')! * 0.75 : 100000,
+                          p50: getBenchmarkMedian('revenue_per_employee') || 150000,
+                          p75: getBenchmarkMedian('revenue_per_employee') ? getBenchmarkMedian('revenue_per_employee')! * 1.25 : 200000
+                        }
+                      }
+                    }}
                   />
                 )}
                 
