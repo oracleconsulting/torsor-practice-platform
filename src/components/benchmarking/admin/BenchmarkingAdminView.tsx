@@ -323,11 +323,11 @@ export function BenchmarkingAdminView({
               </p>
             </div>
             <div className="flex items-center gap-3">
-              {engagementId && clientId && clientName && (
+              {engagementId && clientId && (
                 <ExportAnalysisButton
                   engagementId={engagementId}
                   clientId={clientId}
-                  clientName={clientName}
+                  clientName={clientName || 'Client'}
                   reportData={data}
                   clientData={clientData}
                   founderRisk={founderRisk}
