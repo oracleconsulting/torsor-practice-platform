@@ -1,8 +1,11 @@
+import { useMemo } from 'react';
 import { HeroSection } from './HeroSection';
 import { MetricComparisonCard } from './MetricComparisonCard';
 import { NarrativeSection } from './NarrativeSection';
 import { RecommendationsSection } from './RecommendationsSection';
+import { ScenarioExplorer } from './ScenarioExplorer';
 import { AlertTriangle, Gem, Shield, CheckCircle } from 'lucide-react';
+import type { BaselineMetrics } from '../../../lib/scenario-calculator';
 
 // Utility to get correct ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
 const getOrdinalSuffix = (n: number): string => {
@@ -65,6 +68,26 @@ interface BenchmarkAnalysis {
   client_concentration_top3?: number;
   top_customers?: Array<{ name: string; percentage?: number }>;
   revenue?: number;
+  // Additional financial fields for scenarios
+  employee_count?: number;
+  gross_margin?: number;
+  net_margin?: number;
+  ebitda?: number;
+  ebitda_margin?: number;
+  debtor_days?: number;
+  creditor_days?: number;
+  // Pass 1 data for additional metrics
+  pass1_data?: {
+    _enriched_revenue?: number;
+    _enriched_employee_count?: number;
+    gross_margin?: number;
+    net_margin?: number;
+    ebitda_margin?: number;
+    debtor_days?: number;
+    creditor_days?: number;
+    revenue_per_employee?: number;
+    client_concentration_top3?: number;
+  };
   // HVA fields for competitive moat
   hva_data?: {
     competitive_moat?: string[];
@@ -141,6 +164,103 @@ const getMetricFormat = (metricCode: string | undefined): 'currency' | 'percent'
 export function BenchmarkingClientReport({ data }: BenchmarkingClientReportProps) {
   const metrics = safeJsonParse(data.metrics_comparison, []);
   const recommendations = safeJsonParse(data.recommendations, []);
+  
+  // Helper to get metric value from metrics array
+  const getMetricValue = (code: string): number | undefined => {
+    const metric = metrics.find((m: any) => {
+      const metricCode = (m.metricCode || m.metric_code || '').toLowerCase();
+      return metricCode === code.toLowerCase() || metricCode.includes(code.toLowerCase());
+    });
+    return metric?.clientValue ?? metric?.client_value;
+  };
+  
+  // Helper to get benchmark data for a metric
+  const getBenchmarkForMetric = (code: string): { p25: number; p50: number; p75: number } | undefined => {
+    const metric = metrics.find((m: any) => {
+      const metricCode = (m.metricCode || m.metric_code || '').toLowerCase();
+      return metricCode === code.toLowerCase() || metricCode.includes(code.toLowerCase());
+    });
+    if (!metric || metric.p50 == null) return undefined;
+    return { p25: metric.p25, p50: metric.p50, p75: metric.p75 };
+  };
+  
+  // Build baseline metrics for scenario calculations
+  const baselineMetrics = useMemo((): BaselineMetrics | null => {
+    // Try to get revenue from multiple sources
+    const revenue = data.revenue || 
+                    data.pass1_data?._enriched_revenue || 
+                    getMetricValue('revenue') || 
+                    0;
+    
+    if (revenue <= 0) return null;
+    
+    // Get gross margin
+    const grossMargin = data.gross_margin || 
+                        data.pass1_data?.gross_margin || 
+                        getMetricValue('gross_margin') || 
+                        0;
+    
+    // Get net margin
+    const netMargin = data.net_margin || 
+                      data.pass1_data?.net_margin || 
+                      getMetricValue('net_margin') || 
+                      0;
+    
+    // Get employee count
+    const employeeCount = data.employee_count || 
+                          data.pass1_data?._enriched_employee_count || 
+                          1;
+    
+    // Get revenue per employee
+    const revenuePerEmployee = data.pass1_data?.revenue_per_employee || 
+                               getMetricValue('revenue_per_employee') || 
+                               (revenue / employeeCount);
+    
+    // Get EBITDA margin
+    const ebitdaMargin = data.ebitda_margin || 
+                         data.pass1_data?.ebitda_margin || 
+                         getMetricValue('ebitda_margin') || 
+                         netMargin * 1.2; // Rough estimate if not available
+    
+    // Get debtor/creditor days
+    const debtorDays = data.debtor_days || 
+                       data.pass1_data?.debtor_days || 
+                       getMetricValue('debtor_days') || 
+                       45;
+    
+    const creditorDays = data.creditor_days || 
+                         data.pass1_data?.creditor_days || 
+                         getMetricValue('creditor_days') || 
+                         30;
+    
+    // Get concentration
+    const clientConcentration = data.client_concentration_top3 || 
+                                data.client_concentration || 
+                                data.pass1_data?.client_concentration_top3;
+    
+    return {
+      revenue,
+      grossMargin,
+      grossProfit: revenue * (grossMargin / 100),
+      netMargin,
+      netProfit: revenue * (netMargin / 100),
+      ebitda: revenue * (ebitdaMargin / 100),
+      ebitdaMargin,
+      employeeCount,
+      revenuePerEmployee,
+      debtorDays,
+      creditorDays,
+      clientConcentration,
+    };
+  }, [data, metrics]);
+  
+  // Build industry benchmarks for scenario explorer
+  const industryBenchmarks = useMemo(() => ({
+    grossMargin: getBenchmarkForMetric('gross_margin'),
+    revenuePerEmployee: getBenchmarkForMetric('revenue_per_employee'),
+    debtorDays: getBenchmarkForMetric('debtor_days'),
+    clientConcentration: getBenchmarkForMetric('concentration'),
+  }), [metrics]);
   
   return (
     <div className="min-h-screen bg-slate-50">
@@ -403,6 +523,14 @@ export function BenchmarkingClientReport({ data }: BenchmarkingClientReportProps
           <RecommendationsSection
             recommendations={recommendations}
             totalOpportunity={parseFloat(data.total_annual_opportunity) || 0}
+          />
+        )}
+        
+        {/* Scenario Explorer */}
+        {baselineMetrics && baselineMetrics.revenue > 0 && (
+          <ScenarioExplorer 
+            baseline={baselineMetrics}
+            industryBenchmarks={industryBenchmarks}
           />
         )}
         
