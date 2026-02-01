@@ -7,8 +7,13 @@
 -- - Pricing history → Identify quick wins
 -- ============================================================================
 
--- Temporarily disable audit trigger
-ALTER TABLE assessment_questions DISABLE TRIGGER IF EXISTS audit_assessment_questions;
+-- Temporarily disable audit trigger (if it exists)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'audit_assessment_questions') THEN
+    ALTER TABLE assessment_questions DISABLE TRIGGER audit_assessment_questions;
+  END IF;
+END $$;
 
 -- ============================================================================
 -- SECTION: LEADERSHIP & DIRECTION (insert after classification, before size_context)
@@ -111,8 +116,13 @@ ON CONFLICT (service_line_code, question_id) DO UPDATE SET
   helper_text = EXCLUDED.helper_text,
   updated_at = now();
 
--- Re-enable audit trigger
-ALTER TABLE assessment_questions ENABLE TRIGGER IF EXISTS audit_assessment_questions;
+-- Re-enable audit trigger (if it exists)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'audit_assessment_questions') THEN
+    ALTER TABLE assessment_questions ENABLE TRIGGER audit_assessment_questions;
+  END IF;
+END $$;
 
 -- ============================================================================
 -- UPDATE SECTION ORDER: Insert 'leadership_direction' as second section
