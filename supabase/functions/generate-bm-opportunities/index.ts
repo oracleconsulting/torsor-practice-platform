@@ -72,22 +72,38 @@ serve(async (req) => {
                     clientData.pass1Data?._enriched?.revenue || 
                     clientData.pass1Data?.revenue || 0;
     
-    analysis = postProcessOpportunities(analysis, revenue);
+    analysis = postProcessOpportunities(analysis, revenue, clientData.directionContext);
     
     console.log(`[Pass 3] After consolidation: ${analysis.opportunities?.length || 0} opportunities (revenue: £${(revenue/1000000).toFixed(1)}M)`);
+    console.log(`[Pass 3] Priorities: ${analysis.opportunities?.filter(o => o.priority === 'must_address_now').length || 0} must address, ${analysis.opportunities?.filter(o => o.priority === 'next_12_months').length || 0} next 12m, ${analysis.opportunities?.filter(o => o.priority === 'when_ready').length || 0} when ready`);
 
     // 5. Store results
     await storeOpportunities(supabase, engagementId, clientData.clientId, analysis);
     
-    // 6. Update report with assessment
+    // 6. Update report with assessment (including blocked services and synthesis)
     await supabase
       .from('bm_reports')
       .update({
         opportunity_assessment: analysis.overallAssessment,
         scenario_suggestions: analysis.scenarioSuggestions,
         opportunities_generated_at: new Date().toISOString(),
+        not_recommended_services: analysis.blockedServices || [],
+        client_direction_at_generation: clientData.directionContext.businessDirection,
       })
       .eq('engagement_id', engagementId);
+    
+    // 7. Update engagement with direction context (for filtering/queries)
+    await supabase
+      .from('bm_engagements')
+      .update({
+        client_direction: clientData.directionContext.businessDirection,
+        leadership_structure: clientData.directionContext.leadershipStructure,
+        has_cfo: clientData.directionContext.hasCFO,
+        has_coo: clientData.directionContext.hasCOO,
+        client_exit_timeline: clientData.directionContext.exitTimeline,
+        existing_roles: clientData.directionContext.existingRoles,
+      })
+      .eq('id', engagementId);
 
     const newConceptCount = (analysis.opportunities || []).filter(
       (o: any) => o.serviceMapping?.newConceptNeeded
@@ -133,6 +149,23 @@ interface ClientData {
   metrics: any[];
   founderRisk: any;
   supplementary: any;
+  // Direction context for smart prioritisation
+  directionContext: DirectionContext;
+}
+
+interface DirectionContext {
+  leadershipStructure: string;
+  existingRoles: string[];
+  hasCFO: boolean;
+  hasCOO: boolean;
+  hasNED: boolean;
+  businessDirection: string;
+  exitTimeline: string | null;
+  investmentPlans: string[];
+  lastPriceIncrease: string;
+  pricingConfidence: string | null;
+  leadershipEffectiveness: string;
+  recentConversations: string[];
 }
 
 async function gatherAllClientData(supabase: any, engagementId: string): Promise<ClientData> {
@@ -204,6 +237,32 @@ async function gatherAllClientData(supabase: any, engagementId: string): Promise
     console.log('[Pass 3] Could not parse pass1_data');
   }
 
+  // Extract direction context from assessment responses
+  const responses = assessment?.responses || assessment || {};
+  const existingRoles = responses.bm_existing_roles || [];
+  
+  const directionContext: DirectionContext = {
+    leadershipStructure: responses.bm_leadership_structure || 'solo',
+    existingRoles: existingRoles,
+    hasCFO: existingRoles.includes('Finance Director / CFO') || existingRoles.includes('fd_cfo'),
+    hasCOO: existingRoles.includes('Operations Director / COO') || existingRoles.includes('od_coo'),
+    hasNED: existingRoles.includes('Non-executive Director(s)') || existingRoles.includes('ned'),
+    businessDirection: responses.bm_business_direction || 'unsure',
+    exitTimeline: responses.bm_exit_timeline || null,
+    investmentPlans: responses.bm_investment_plans || [],
+    lastPriceIncrease: responses.bm_last_price_increase || 'unknown',
+    pricingConfidence: responses.bm_pricing_confidence || null,
+    leadershipEffectiveness: responses.bm_leadership_effectiveness || 'unknown',
+    recentConversations: responses.bm_recent_conversations || [],
+  };
+  
+  console.log('[Pass 3] Direction context:', {
+    direction: directionContext.businessDirection,
+    hasCFO: directionContext.hasCFO,
+    hasCOO: directionContext.hasCOO,
+    lastPriceIncrease: directionContext.lastPriceIncrease,
+  });
+
   return {
     engagementId,
     clientId,
@@ -217,7 +276,7 @@ async function gatherAllClientData(supabase: any, engagementId: string): Promise
       gapNarrative: report?.gap_narrative,
       opportunityNarrative: report?.opportunity_narrative,
     },
-    assessment: assessment?.responses || assessment || {},
+    assessment: responses,
     hva: hva?.responses || {},
     metrics: metrics || [],
     founderRisk: {
@@ -226,7 +285,8 @@ async function gatherAllClientData(supabase: any, engagementId: string): Promise
       factors: report?.founder_risk_factors || [],
       valuationImpact: report?.valuation_impact,
     },
-    supplementary: report?.supplementary_data || assessment?.responses || {},
+    supplementary: report?.supplementary_data || responses || {},
+    directionContext,
   };
 }
 
@@ -689,6 +749,183 @@ Important notes:
 }
 
 // ============================================================================
+// SERVICE FILTERING RULES
+// ============================================================================
+
+interface ServiceBlockRule {
+  serviceCode: string;
+  blockIf: (ctx: DirectionContext) => boolean;
+  blockReason: (ctx: DirectionContext) => string;
+}
+
+const SERVICE_BLOCK_RULES: ServiceBlockRule[] = [
+  // Don't recommend Fractional CFO if they have one
+  {
+    serviceCode: 'FRACTIONAL_CFO',
+    blockIf: (ctx) => ctx.hasCFO,
+    blockReason: () => 'Client already has a Finance Director. Consider CFO support services instead.',
+  },
+  // Don't recommend Fractional COO if they have one
+  {
+    serviceCode: 'FRACTIONAL_COO',
+    blockIf: (ctx) => ctx.hasCOO,
+    blockReason: () => 'Client already has an Operations Director. Consider operational excellence programme instead.',
+  },
+  // Don't recommend exit services for aggressive growth focus
+  {
+    serviceCode: 'EXIT_READINESS',
+    blockIf: (ctx) => ctx.businessDirection === 'grow_aggressive' || ctx.businessDirection === 'Grow aggressively - acquisitions, new markets, scale significantly',
+    blockReason: () => 'Client focused on aggressive growth, not exit. Focus on growth enablement.',
+  },
+  // Don't recommend aggressive growth for step-back focus
+  {
+    serviceCode: 'GROWTH_ACCELERATOR',
+    blockIf: (ctx) => ctx.businessDirection === 'step_back' || ctx.businessDirection === 'Step back - reduce my involvement, more lifestyle-focused',
+    blockReason: () => 'Client wants to step back, not grow aggressively.',
+  },
+];
+
+function filterBlockedServices(
+  opportunities: any[],
+  context: DirectionContext
+): { allowed: any[]; blocked: { serviceCode: string; reason: string }[] } {
+  const blocked: { serviceCode: string; reason: string }[] = [];
+  
+  const allowed = opportunities.filter(opp => {
+    const serviceCode = opp.serviceMapping?.existingService?.code;
+    if (!serviceCode) return true;
+    
+    const matchingRules = SERVICE_BLOCK_RULES.filter(r => 
+      r.serviceCode === serviceCode && r.blockIf(context)
+    );
+    
+    if (matchingRules.length > 0) {
+      blocked.push({
+        serviceCode,
+        reason: matchingRules[0].blockReason(context),
+      });
+      return false;
+    }
+    
+    return true;
+  });
+  
+  if (blocked.length > 0) {
+    console.log('[Pass 3] Blocked services:', blocked);
+  }
+  
+  return { allowed, blocked };
+}
+
+// ============================================================================
+// DIRECTION-AWARE PRIORITY ADJUSTMENT
+// ============================================================================
+
+const PRIORITY_BOOSTS: Record<string, Record<string, number>> = {
+  'prepare_exit': {
+    'concentration': 2,      // Must fix for exit
+    'founder': 2,            // Must fix for exit
+    'succession': 2,         // Must fix for exit
+    'documentation': 1,      // Important for exit
+    'valuation': 1,          // Important for exit
+    'growth': -1,            // Less urgent for exit
+  },
+  'Prepare for exit - sale, succession, retirement': {
+    'concentration': 2,
+    'founder': 2,
+    'succession': 2,
+    'documentation': 1,
+    'valuation': 1,
+    'growth': -1,
+  },
+  'grow_aggressive': {
+    'growth': 2,             // Core focus
+    'systems': 1,            // Need to scale
+    'hiring': 1,             // Need to grow team
+    'concentration': 0,      // Still matters but less urgent
+    'succession': -1,        // Not priority
+    'exit': -2,              // Not relevant
+  },
+  'Grow aggressively - acquisitions, new markets, scale significantly': {
+    'growth': 2,
+    'systems': 1,
+    'hiring': 1,
+    'concentration': 0,
+    'succession': -1,
+    'exit': -2,
+  },
+  'step_back': {
+    'succession': 2,         // Core focus
+    'founder': 2,            // Core focus
+    'documentation': 1,      // Need to hand over
+    'systems': 1,            // Need to run without you
+    'growth': -1,            // Not priority
+  },
+  'Step back - reduce my involvement, more lifestyle-focused': {
+    'succession': 2,
+    'founder': 2,
+    'documentation': 1,
+    'systems': 1,
+    'growth': -1,
+  },
+  'maintain_optimise': {
+    'efficiency': 2,         // Core focus
+    'margin': 2,             // Core focus
+    'pricing': 1,            // Quick wins
+    'cash': 1,               // Optimisation
+    'growth': -1,            // Not priority
+  },
+  'Maintain and optimise - protect position, improve margins': {
+    'efficiency': 2,
+    'margin': 2,
+    'pricing': 1,
+    'cash': 1,
+    'growth': -1,
+  },
+};
+
+function adjustPrioritiesForDirection(
+  opportunities: any[],
+  direction: string
+): any[] {
+  const boosts = PRIORITY_BOOSTS[direction] || {};
+  
+  return opportunities.map(opp => {
+    // Find matching boost
+    let boost = 0;
+    const oppText = `${opp.code || ''} ${opp.title || ''} ${opp.category || ''}`.toLowerCase();
+    
+    for (const [keyword, value] of Object.entries(boosts)) {
+      if (oppText.includes(keyword)) {
+        boost = Math.max(boost, value);
+      }
+    }
+    
+    // Determine priority based on severity and boost
+    let priority = 'next_12_months';
+    
+    if (opp.severity === 'critical' || boost >= 2) {
+      priority = 'must_address_now';
+    } else if (opp.severity === 'high' && boost >= 1) {
+      priority = 'must_address_now';
+    } else if (opp.severity === 'low' || boost <= -1) {
+      priority = 'when_ready';
+    } else if (opp.severity === 'opportunity' || boost <= -2) {
+      priority = 'when_ready';
+    }
+    
+    return {
+      ...opp,
+      priority,
+      priorityRationale: boost !== 0 
+        ? `Priority adjusted for "${direction}" business direction (boost: ${boost > 0 ? '+' : ''}${boost})`
+        : `Standard priority for ${opp.severity} severity`,
+      priorityAdjusted: boost !== 0,
+    };
+  });
+}
+
+// ============================================================================
 // STORAGE
 // ============================================================================
 
@@ -724,7 +961,8 @@ async function storeOpportunities(
     console.log(`[Pass 3] Deleted ${deletedCount || 0} existing opportunities for engagement ${engagementId}`);
   }
   
-  for (const opp of opportunities) {
+  for (let index = 0; index < opportunities.length; index++) {
+    const opp = opportunities[index];
     let serviceId: string | null = null;
     let conceptId: string | null = null;
     
@@ -838,6 +1076,14 @@ async function storeOpportunities(
         title: opp.title,
         category: opp.category,
         severity: opp.severity,
+        // NEW: Priority fields from direction-aware processing
+        priority: opp.priority || 'next_12_months',
+        priority_rationale: opp.priorityRationale,
+        priority_adjusted: opp.priorityAdjusted || false,
+        consolidated_from: opp.consolidatedFrom,
+        for_the_owner: opp.forTheOwner,
+        display_order: index,
+        // End new fields
         data_evidence: opp.dataEvidence,
         data_values: opp.dataValues || {},
         benchmark_comparison: opp.benchmarkComparison,
@@ -875,7 +1121,11 @@ interface OpportunityAnalysis {
   overallAssessment: any;
 }
 
-function postProcessOpportunities(analysis: OpportunityAnalysis, revenue: number): OpportunityAnalysis {
+function postProcessOpportunities(
+  analysis: OpportunityAnalysis, 
+  revenue: number,
+  directionContext: DirectionContext
+): OpportunityAnalysis {
   const rawOpps = analysis.opportunities || [];
   
   if (rawOpps.length === 0) {
@@ -883,6 +1133,7 @@ function postProcessOpportunities(analysis: OpportunityAnalysis, revenue: number
   }
   
   console.log(`[Post-Process] Starting with ${rawOpps.length} raw opportunities, revenue £${(revenue/1000000).toFixed(1)}M`);
+  console.log(`[Post-Process] Client direction: ${directionContext.businessDirection}`);
   
   // Step 1: Consolidate duplicate themes
   const consolidated = consolidateOpportunities(rawOpps);
@@ -891,28 +1142,46 @@ function postProcessOpportunities(analysis: OpportunityAnalysis, revenue: number
   // Step 2: Sanitize financial impacts (cap at sensible % of revenue)
   const sanitized = consolidated.map(opp => sanitizeFinancialImpact(opp, revenue));
   
-  // Step 3: Sort by severity and impact
+  // Step 3: Filter blocked services based on client context
+  const { allowed, blocked } = filterBlockedServices(sanitized, directionContext);
+  console.log(`[Post-Process] After service filtering: ${allowed.length} allowed, ${blocked.length} blocked`);
+  
+  // Step 4: Apply direction-aware priority adjustment
+  const prioritised = adjustPrioritiesForDirection(allowed, directionContext.businessDirection);
+  
+  // Step 5: Sort by priority, then severity, then impact
+  const priorityOrder: Record<string, number> = { must_address_now: 0, next_12_months: 1, when_ready: 2 };
   const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, opportunity: 4 };
-  sanitized.sort((a, b) => {
+  prioritised.sort((a, b) => {
+    const priDiff = (priorityOrder[a.priority] || 3) - (priorityOrder[b.priority] || 3);
+    if (priDiff !== 0) return priDiff;
     const sevDiff = (severityOrder[a.severity] || 5) - (severityOrder[b.severity] || 5);
     if (sevDiff !== 0) return sevDiff;
     return (b.financialImpact?.amount || 0) - (a.financialImpact?.amount || 0);
   });
   
-  // Step 4: Cap at 12 opportunities
-  const capped = sanitized.slice(0, 12);
+  // Step 6: Cap at 12 opportunities
+  const capped = prioritised.slice(0, 12);
   console.log(`[Post-Process] Final count: ${capped.length} opportunities`);
   
   // Recalculate total opportunity value
   const totalValue = capped.reduce((sum, opp) => sum + (opp.financialImpact?.amount || 0), 0);
   console.log(`[Post-Process] Total opportunity value: £${(totalValue/1000000).toFixed(1)}M`);
   
+  // Count by priority
+  const mustAddress = capped.filter(o => o.priority === 'must_address_now').length;
+  const next12 = capped.filter(o => o.priority === 'next_12_months').length;
+  const whenReady = capped.filter(o => o.priority === 'when_ready').length;
+  console.log(`[Post-Process] Priority distribution: ${mustAddress} must-address, ${next12} next-12m, ${whenReady} when-ready`);
+  
   return {
     ...analysis,
     opportunities: capped,
+    blockedServices: blocked,
     overallAssessment: {
       ...analysis.overallAssessment,
       totalOpportunityValue: totalValue,
+      clientDirection: directionContext.businessDirection,
     }
   };
 }

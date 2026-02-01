@@ -60,6 +60,14 @@ interface Opportunity {
   title: string;
   category: string;
   severity: 'critical' | 'high' | 'medium' | 'low' | 'opportunity';
+  // NEW: Priority fields from direction-aware processing
+  priority?: 'must_address_now' | 'next_12_months' | 'when_ready';
+  priority_rationale?: string;
+  priority_adjusted?: boolean;
+  consolidated_from?: string[];
+  for_the_owner?: string;
+  display_order?: number;
+  // End new fields
   data_evidence: string;
   data_values: Record<string, number>;
   benchmark_comparison?: string;
@@ -141,6 +149,49 @@ const categoryLabels: Record<string, string> = {
   value: '💎 Value',
   governance: '📋 Governance',
   strategic: '🎯 Strategic',
+};
+
+// Priority-based styling (new grouping for direction-aware display)
+const priorityConfig = {
+  must_address_now: {
+    bg: 'bg-red-50',
+    border: 'border-red-200',
+    headerBg: 'bg-red-100',
+    title: '🚨 Must Address Now',
+    subtitle: 'These block your stated goal',
+    textColor: 'text-red-800',
+  },
+  next_12_months: {
+    bg: 'bg-amber-50',
+    border: 'border-amber-200',
+    headerBg: 'bg-amber-100',
+    title: '📅 Address in Next 12 Months',
+    subtitle: 'Important but not blocking',
+    textColor: 'text-amber-800',
+  },
+  when_ready: {
+    bg: 'bg-green-50',
+    border: 'border-green-200',
+    headerBg: 'bg-green-100',
+    title: '💡 Consider When Ready',
+    subtitle: 'Optimisation opportunities',
+    textColor: 'text-green-800',
+  },
+};
+
+const directionLabels: Record<string, string> = {
+  'grow_aggressive': '🚀 Aggressive Growth',
+  'Grow aggressively - acquisitions, new markets, scale significantly': '🚀 Aggressive Growth',
+  'grow_steady': '📈 Steady Growth',
+  'Grow steadily - organic growth, same market, manageable pace': '📈 Steady Growth',
+  'maintain_optimise': '⚙️ Maintain & Optimise',
+  'Maintain and optimise - protect position, improve margins': '⚙️ Maintain & Optimise',
+  'step_back': '🏖️ Step Back',
+  'Step back - reduce my involvement, more lifestyle-focused': '🏖️ Step Back',
+  'prepare_exit': '🎯 Prepare for Exit',
+  'Prepare for exit - sale, succession, retirement': '🎯 Prepare for Exit',
+  'unsure': '🤔 Exploring Options',
+  "Unsure - I'm exploring my options": '🤔 Exploring Options',
 };
 
 // ============================================================================
@@ -264,7 +315,7 @@ export function OpportunityPanel({ engagementId, clientId, practiceId, userId: p
           concept:service_concepts(id, suggested_name, suggested_pricing, problem_it_solves, times_identified)
         `)
         .eq('engagement_id', engagementId)
-        .order('severity');
+        .order('display_order', { ascending: true });
       
       if (fetchError) throw fetchError;
       
@@ -407,7 +458,17 @@ export function OpportunityPanel({ engagementId, clientId, practiceId, userId: p
   // Group and Calculate
   // ============================================================================
 
-  // Group by severity
+  // Group by priority (new direction-aware grouping)
+  const groupedByPriority = opportunities.reduce((acc, opp) => {
+    const pri = opp.priority || 'next_12_months';
+    if (!acc[pri]) acc[pri] = [];
+    acc[pri].push(opp);
+    return acc;
+  }, {} as Record<string, Opportunity[]>);
+
+  const priorityOrder = ['must_address_now', 'next_12_months', 'when_ready'] as const;
+
+  // Also group by severity for the summary cards
   const grouped = opportunities.reduce((acc, opp) => {
     const sev = opp.severity || 'low';
     if (!acc[sev]) acc[sev] = [];
@@ -420,8 +481,12 @@ export function OpportunityPanel({ engagementId, clientId, practiceId, userId: p
   // Calculate totals
   const totalValue = opportunities.reduce((sum, o) => sum + (o.financial_impact_amount || 0), 0);
   const criticalCount = (grouped['critical']?.length || 0) + (grouped['high']?.length || 0);
+  const mustAddressCount = groupedByPriority['must_address_now']?.length || 0;
   const quickWins = opportunities.filter(o => o.quick_win).slice(0, 3);
   const newConceptCount = opportunities.filter(o => o.concept).length;
+  
+  // Get client direction from the first opportunity (they all have the same context)
+  const clientDirection = opportunities[0]?.priority_rationale?.match(/"([^"]+)" business direction/)?.[1] || null;
 
   // ============================================================================
   // Main Render
@@ -429,6 +494,20 @@ export function OpportunityPanel({ engagementId, clientId, practiceId, userId: p
 
   return (
     <div className="space-y-6">
+      {/* Direction Context Banner */}
+      {clientDirection && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+          <div>
+            <span className="text-sm font-medium text-blue-800">
+              Client Direction: {directionLabels[clientDirection] || clientDirection}
+            </span>
+            <p className="text-xs text-blue-600 mt-0.5">
+              Priorities automatically adjusted based on stated business direction
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header with stats and regenerate */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-6">
@@ -437,10 +516,10 @@ export function OpportunityPanel({ engagementId, clientId, practiceId, userId: p
             <span className="text-sm text-slate-500 ml-1">opportunities</span>
           </div>
           
-          {criticalCount > 0 && (
+          {mustAddressCount > 0 && (
             <div className="flex items-center gap-1 px-3 py-1 bg-red-100 rounded-full">
               <AlertTriangle className="w-4 h-4 text-red-600" />
-              <span className="text-sm font-medium text-red-700">{criticalCount} critical/high</span>
+              <span className="text-sm font-medium text-red-700">{mustAddressCount} must address now</span>
             </div>
           )}
           
@@ -487,58 +566,75 @@ export function OpportunityPanel({ engagementId, clientId, practiceId, userId: p
         </div>
       )}
 
-      {/* Summary cards by severity */}
-      <div className="grid grid-cols-5 gap-3">
-        {severityOrder.map(sev => {
-          const config = severityConfig[sev as keyof typeof severityConfig];
-          const count = grouped[sev]?.length || 0;
+      {/* Summary cards by priority (new direction-aware display) */}
+      <div className="grid grid-cols-3 gap-3">
+        {priorityOrder.map(pri => {
+          const config = priorityConfig[pri];
+          const count = groupedByPriority[pri]?.length || 0;
+          const value = (groupedByPriority[pri] || []).reduce((sum, o) => sum + (o.financial_impact_amount || 0), 0);
           return (
-            <div key={sev} className={`${config.bg} rounded-lg p-3 text-center border ${config.border}`}>
-              <div className="text-2xl font-bold text-slate-800">{count}</div>
-              <div className={`text-xs font-medium ${config.badge.split(' ')[1]}`}>
-                {config.badgeLabel}
+            <div key={pri} className={`${config.bg} rounded-lg p-4 border ${config.border}`}>
+              <div className="flex items-center justify-between">
+                <div className="text-3xl font-bold text-slate-800">{count}</div>
+                {value > 0 && (
+                  <div className="text-sm font-medium text-slate-600">{formatCurrency(value)}</div>
+                )}
               </div>
+              <div className={`text-sm font-medium ${config.textColor} mt-1`}>
+                {config.title.replace(/^[^\s]+\s/, '')}
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5">{config.subtitle}</div>
             </div>
           );
         })}
       </div>
 
-      {/* Opportunities list grouped by severity */}
-      {severityOrder.map(severity => {
-        const opps = grouped[severity];
+      {/* Opportunities list grouped by priority */}
+      {priorityOrder.map(priority => {
+        const opps = groupedByPriority[priority];
         if (!opps?.length) return null;
         
-        const config = severityConfig[severity as keyof typeof severityConfig];
-        const IconComponent = config.icon;
+        const config = priorityConfig[priority];
         
         return (
-          <div key={severity} className="space-y-2">
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-2">
-              <IconComponent className={`w-4 h-4 ${config.iconColor}`} />
-              {severity === 'opportunity' ? 'Opportunities' : `${severity} Priority`}
-              <span className="text-slate-400">({opps.length})</span>
-            </h3>
+          <div key={priority} className={`rounded-lg border ${config.border} overflow-hidden`}>
+            {/* Priority Group Header */}
+            <div className={`${config.headerBg} px-4 py-3 border-b ${config.border}`}>
+              <h3 className={`font-semibold ${config.textColor}`}>{config.title}</h3>
+              <p className="text-sm text-slate-600">{config.subtitle}</p>
+            </div>
             
-            {opps.map(opp => (
+            {/* Opportunities in this priority group */}
+            <div className="divide-y divide-slate-100">
+            {opps.map(opp => {
+              const sevConfig = severityConfig[opp.severity as keyof typeof severityConfig];
+              const IconComponent = sevConfig.icon;
+              
+              return (
               <div
                 key={opp.id}
-                className={`rounded-lg border ${config.border} ${config.bg} overflow-hidden transition-all`}
+                className="bg-white overflow-hidden transition-all"
               >
                 {/* Header row - always visible */}
                 <button
                   onClick={() => setExpandedId(expandedId === opp.id ? null : opp.id)}
-                  className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-white/30 transition-colors"
+                  className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-50 transition-colors"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <IconComponent className={`w-5 h-5 ${config.iconColor} flex-shrink-0`} />
+                    <IconComponent className={`w-5 h-5 ${sevConfig.iconColor} flex-shrink-0`} />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${config.badge}`}>
-                          {config.badgeLabel}
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${sevConfig.badge}`}>
+                          {sevConfig.badgeLabel}
                         </span>
                         <span className="text-xs text-slate-500">
                           {categoryLabels[opp.category] || opp.category}
                         </span>
+                        {opp.priority_adjusted && (
+                          <span className="text-xs text-blue-500" title={opp.priority_rationale}>
+                            ⚡ Priority adjusted
+                          </span>
+                        )}
                       </div>
                       <span className="font-medium text-slate-900 block truncate">{opp.title}</span>
                     </div>
@@ -732,7 +828,9 @@ export function OpportunityPanel({ engagementId, clientId, practiceId, userId: p
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
+            </div>
           </div>
         );
       })}
