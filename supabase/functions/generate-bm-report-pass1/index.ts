@@ -2137,20 +2137,41 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
     // VALUE ANALYSIS CALCULATION
     // ==========================================================================
     // Only calculate if we have sufficient financial data
-    if (enriched._enriched_revenue > 0 && (enriched.net_profit || enriched.operating_profit || enriched.gross_profit)) {
+    // Check for either absolute profits OR margin percentages (which we can use to calculate profits)
+    const hasFinancialData = enriched._enriched_revenue > 0 && (
+      enriched.net_profit || enriched.operating_profit || enriched.gross_profit ||
+      enriched.net_margin || enriched.ebitda_margin || enriched.gross_margin
+    );
+    
+    if (hasFinancialData) {
       console.log('[BM Enrich] Starting value analysis calculation...');
       
-      // Prepare financial inputs
+      // Prepare financial inputs - calculate from margins if absolute values not available
+      const revenue = enriched._enriched_revenue || 0;
+      const grossProfit = enriched.gross_profit || (revenue * (enriched.gross_margin || 0) / 100);
+      const operatingProfit = enriched.operating_profit || (revenue * (enriched.ebitda_margin || enriched.net_margin || 0) / 100);
+      const netProfit = enriched.net_profit || (revenue * (enriched.net_margin || 0) / 100);
+      const ebitda = enriched.ebitda || (revenue * (enriched.ebitda_margin || 0) / 100) || operatingProfit;
+      
       const financialInputs = {
-        revenue: enriched._enriched_revenue || 0,
-        grossProfit: enriched.gross_profit || (enriched._enriched_revenue * (enriched.gross_margin || 0) / 100),
-        operatingProfit: enriched.operating_profit || (enriched._enriched_revenue * (enriched.operating_margin || enriched.net_margin || 0) / 100),
-        netProfit: enriched.net_profit || (enriched._enriched_revenue * (enriched.net_margin || 0) / 100),
-        ebitda: enriched.ebitda || enriched.operating_profit || 0,
+        revenue,
+        grossProfit,
+        operatingProfit,
+        netProfit,
+        ebitda,
         cash: balanceSheet.cash || 0,
         employees: enriched._enriched_employee_count || 0,
         revenueGrowth: enriched.revenue_growth || 0,
       };
+      
+      console.log('[BM Enrich] Financial inputs for value analysis:', {
+        revenue,
+        grossProfit: grossProfit.toFixed(0),
+        operatingProfit: operatingProfit.toFixed(0),
+        netProfit: netProfit.toFixed(0),
+        ebitda: ebitda.toFixed(0),
+        employees: financialInputs.employees,
+      });
       
       // Extract HVA responses for value calculation
       const hvaResponses = hvaData?.responses || {};
