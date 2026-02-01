@@ -38,18 +38,22 @@ const safeJsonParse = <T,>(value: string | T | null | undefined, fallback: T): T
   return value as T;
 };
 
-// Format currency
-const formatCurrency = (value: number | null | undefined): string => {
-  if (value == null) return 'N/A';
-  if (Math.abs(value) >= 1_000_000) return `£${(value / 1_000_000).toFixed(2)}M`;
-  if (Math.abs(value) >= 1_000) return `£${(value / 1_000).toFixed(0)}k`;
-  return `£${value.toFixed(0)}`;
+// Format currency - handles strings and numbers
+const formatCurrency = (value: number | string | null | undefined): string => {
+  if (value == null || value === '') return 'N/A';
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (isNaN(num)) return 'N/A';
+  if (Math.abs(num) >= 1_000_000) return `£${(num / 1_000_000).toFixed(2)}M`;
+  if (Math.abs(num) >= 1_000) return `£${(num / 1_000).toFixed(0)}k`;
+  return `£${num.toFixed(0)}`;
 };
 
-// Format percentage
-const formatPercent = (value: number | null | undefined): string => {
-  if (value == null) return 'N/A';
-  return `${value.toFixed(1)}%`;
+// Format percentage - handles strings and numbers
+const formatPercent = (value: number | string | null | undefined): string => {
+  if (value == null || value === '') return 'N/A';
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (isNaN(num)) return 'N/A';
+  return `${num.toFixed(1)}%`;
 };
 
 export function ExportAnalysisButton({
