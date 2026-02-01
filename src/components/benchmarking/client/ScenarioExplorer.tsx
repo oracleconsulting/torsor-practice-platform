@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   Sliders, 
   TrendingUp, 
@@ -7,7 +7,11 @@ import {
   DollarSign, 
   Users,
   Target,
-  Sparkles
+  Sparkles,
+  Save,
+  Star,
+  History,
+  Check
 } from 'lucide-react';
 import { 
   calculateMarginScenario, 
@@ -21,6 +25,12 @@ import {
   type ScenarioResult,
   type ScenarioType,
 } from '../../../lib/scenario-calculator';
+import { 
+  saveScenario, 
+  getEngagementScenarios, 
+  toggleScenarioStar,
+  type SavedScenario 
+} from '../../../lib/services/scenario-service';
 
 interface IndustryBenchmarks {
   grossMargin?: { p25: number; p50: number; p75: number };
@@ -32,6 +42,9 @@ interface IndustryBenchmarks {
 interface ScenarioExplorerProps {
   baseline: BaselineMetrics;
   industryBenchmarks?: IndustryBenchmarks;
+  engagementId?: string;
+  clientId?: string;
+  practiceId?: string;
 }
 
 interface ScenarioConfig {
@@ -90,8 +103,25 @@ const SCENARIO_CONFIGS: Record<ScenarioType, ScenarioConfig> = {
 // Only show relevant scenarios
 const ACTIVE_SCENARIOS: ScenarioType[] = ['margin', 'pricing', 'cash', 'efficiency', 'diversification'];
 
-export function ScenarioExplorer({ baseline, industryBenchmarks }: ScenarioExplorerProps) {
+export function ScenarioExplorer({ 
+  baseline, 
+  industryBenchmarks,
+  engagementId,
+  clientId,
+  practiceId,
+}: ScenarioExplorerProps) {
   const [activeScenario, setActiveScenario] = useState<ScenarioType>('margin');
+  const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showSavedTab, setShowSavedTab] = useState(false);
+  
+  // Load saved scenarios
+  useEffect(() => {
+    if (engagementId) {
+      getEngagementScenarios(engagementId).then(setSavedScenarios);
+    }
+  }, [engagementId]);
   
   // Scenario-specific state with sensible defaults
   const [targetGrossMargin, setTargetGrossMargin] = useState(() => {
@@ -155,6 +185,59 @@ export function ScenarioExplorer({ baseline, industryBenchmarks }: ScenarioExplo
   const config = SCENARIO_CONFIGS[activeScenario];
   const Icon = config.icon;
   
+  // Build current inputs for saving
+  const currentInputs = useMemo(() => {
+    switch (activeScenario) {
+      case 'margin':
+        return { targetGrossMargin };
+      case 'pricing':
+        return { rateIncrease, volumeRetention };
+      case 'cash':
+        return { targetDebtorDays };
+      case 'efficiency':
+        return { targetRevenuePerEmployee: targetRPE };
+      case 'diversification':
+        return { targetConcentration };
+      default:
+        return {};
+    }
+  }, [activeScenario, targetGrossMargin, rateIncrease, volumeRetention, targetDebtorDays, targetRPE, targetConcentration]);
+  
+  // Handle save
+  const handleSaveScenario = async () => {
+    if (!engagementId || !result) return;
+    
+    setIsSaving(true);
+    setSaveSuccess(false);
+    
+    const saved = await saveScenario({
+      engagementId,
+      clientId,
+      practiceId,
+      scenarioType: activeScenario,
+      inputs: currentInputs,
+      result,
+    });
+    
+    setIsSaving(false);
+    
+    if (saved) {
+      setSaveSuccess(true);
+      setSavedScenarios(prev => [saved, ...prev]);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    }
+  };
+  
+  // Handle star toggle
+  const handleToggleStar = async (scenarioId: string) => {
+    const success = await toggleScenarioStar(scenarioId);
+    if (success) {
+      setSavedScenarios(prev => 
+        prev.map(s => s.id === scenarioId ? { ...s, isStarred: !s.isStarred } : s)
+      );
+    }
+  };
+  
   // Check if we have enough data to show this section
   if (!baseline.revenue || baseline.revenue <= 0) {
     return null;
@@ -183,12 +266,15 @@ export function ScenarioExplorer({ baseline, industryBenchmarks }: ScenarioExplo
           {ACTIVE_SCENARIOS.map((key) => {
             const scenarioConfig = SCENARIO_CONFIGS[key];
             const ScenarioIcon = scenarioConfig.icon;
-            const isActive = activeScenario === key;
+            const isActive = activeScenario === key && !showSavedTab;
             
             return (
               <button
                 key={key}
-                onClick={() => setActiveScenario(key)}
+                onClick={() => {
+                  setActiveScenario(key);
+                  setShowSavedTab(false);
+                }}
                 className={`
                   px-4 py-3 text-sm font-medium transition-all border-b-2 whitespace-nowrap
                   ${isActive
@@ -202,10 +288,96 @@ export function ScenarioExplorer({ baseline, industryBenchmarks }: ScenarioExplo
               </button>
             );
           })}
+          
+          {/* Saved Scenarios Tab */}
+          {engagementId && savedScenarios.length > 0 && (
+            <button
+              onClick={() => setShowSavedTab(true)}
+              className={`
+                px-4 py-3 text-sm font-medium transition-all border-b-2 whitespace-nowrap
+                ${showSavedTab
+                  ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                }
+              `}
+            >
+              <History className="w-4 h-4 inline mr-2" />
+              Saved ({savedScenarios.length})
+            </button>
+          )}
         </div>
       </div>
       
       <div className="p-6">
+        {/* Saved Scenarios View */}
+        {showSavedTab && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <h3 className="font-semibold text-slate-900 mb-4">Saved Scenarios</h3>
+            {savedScenarios.length === 0 ? (
+              <p className="text-slate-500 text-sm">No saved scenarios yet. Explore scenarios and save the ones you want to compare.</p>
+            ) : (
+              <div className="space-y-3">
+                {savedScenarios.map((scenario) => (
+                  <div 
+                    key={scenario.id}
+                    className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`
+                          w-2 h-2 rounded-full
+                          ${scenario.scenarioType === 'margin' ? 'bg-emerald-500' :
+                            scenario.scenarioType === 'pricing' ? 'bg-amber-500' :
+                            scenario.scenarioType === 'cash' ? 'bg-blue-500' :
+                            scenario.scenarioType === 'efficiency' ? 'bg-purple-500' :
+                            'bg-rose-500'}
+                        `} />
+                        <span className="font-medium text-slate-800">
+                          {scenario.scenarioName || SCENARIO_CONFIGS[scenario.scenarioType]?.label}
+                        </span>
+                        {scenario.isStarred && (
+                          <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                        )}
+                      </div>
+                      <p className="text-sm text-slate-600 mt-1 line-clamp-1">
+                        {scenario.outputs.summary}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Saved {new Date(scenario.createdAt).toLocaleDateString('en-GB', {
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4 ml-4">
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-emerald-600">
+                          £{formatCurrency(scenario.outputs.primaryImpact)}
+                        </div>
+                        <div className="text-xs text-slate-500">impact/year</div>
+                      </div>
+                      <button
+                        onClick={() => handleToggleStar(scenario.id)}
+                        className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
+                      >
+                        <Star className={`w-5 h-5 ${
+                          scenario.isStarred 
+                            ? 'text-amber-500 fill-amber-500' 
+                            : 'text-slate-400'
+                        }`} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Scenario Builder */}
+        {!showSavedTab && (
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Input Panel */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -473,6 +645,42 @@ export function ScenarioExplorer({ baseline, industryBenchmarks }: ScenarioExplo
                     ))}
                   </ul>
                 </div>
+                
+                {/* Save Button */}
+                {engagementId && (
+                  <div className="pt-4 border-t border-slate-200">
+                    <button
+                      onClick={handleSaveScenario}
+                      disabled={isSaving}
+                      className={`
+                        w-full py-2.5 px-4 rounded-lg text-sm font-medium transition-all
+                        flex items-center justify-center gap-2
+                        ${saveSuccess
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                        }
+                        disabled:opacity-50
+                      `}
+                    >
+                      {saveSuccess ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Saved!
+                        </>
+                      ) : isSaving ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4" />
+                          Save This Scenario
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -486,6 +694,7 @@ export function ScenarioExplorer({ baseline, industryBenchmarks }: ScenarioExplo
             </div>
           )}
         </div>
+        )}
       </div>
     </section>
   );
