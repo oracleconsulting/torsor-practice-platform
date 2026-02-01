@@ -5,56 +5,46 @@
 -- Official services we can offer - replaces hardcoded TypeScript
 -- This is a living catalogue that grows from client insights
 
+-- Create table if it doesn't exist
 CREATE TABLE IF NOT EXISTS services (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  
-  -- Identity
-  code TEXT UNIQUE NOT NULL,           -- 'MA_GOLD', 'SYSTEMS_AUDIT', 'PRICING_WORKSHOP'
-  name TEXT NOT NULL,                   -- 'Management Accounts - Gold'
-  category TEXT NOT NULL,               -- 'financial_clarity', 'strategic_planning', 'operational'
-  
-  -- Description
-  headline TEXT NOT NULL,               -- One-liner
-  description TEXT,                     -- Full description
-  deliverables JSONB DEFAULT '[]',      -- ["Monthly management pack", "KPI dashboard", ...]
-  
-  -- Pricing
-  pricing_model TEXT NOT NULL DEFAULT 'monthly',  -- 'monthly', 'fixed', 'hourly', 'value_based'
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  headline TEXT NOT NULL,
+  description TEXT,
+  deliverables JSONB DEFAULT '[]',
+  pricing_model TEXT NOT NULL DEFAULT 'monthly',
   price_from DECIMAL(10,2),
   price_to DECIMAL(10,2),
-  price_unit TEXT DEFAULT '/month',     -- '/month', '/project', '/hour'
-  
-  -- Delivery
-  typical_duration TEXT,                -- '12 months', '2-4 weeks', 'Ongoing'
-  time_to_first_value TEXT,             -- '14 days', '30 days'
-  delivery_complexity TEXT DEFAULT 'medium',  -- 'low', 'medium', 'high'
-  
-  -- Skills required (for future skills table integration)
-  required_skills JSONB DEFAULT '[]',   -- [{skill_id, min_level, ideal_level, critical}]
-  recommended_seniority TEXT[] DEFAULT '{}',  -- ['Director', 'Senior Manager']
-  
-  -- Lifecycle
-  status TEXT DEFAULT 'active',         -- 'draft', 'active', 'retired'
-  originated_from TEXT DEFAULT 'manual', -- 'founding', 'client_insight', 'market_research'
-  first_delivered_at DATE,
-  times_recommended INTEGER DEFAULT 0,
-  times_sold INTEGER DEFAULT 0,
-  
-  -- Metadata
+  price_unit TEXT DEFAULT '/month',
+  typical_duration TEXT,
+  time_to_first_value TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  created_by UUID
+  updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Create indexes
+-- Add columns that might be missing from earlier schema
+ALTER TABLE services ADD COLUMN IF NOT EXISTS delivery_complexity TEXT DEFAULT 'medium';
+ALTER TABLE services ADD COLUMN IF NOT EXISTS required_skills JSONB DEFAULT '[]';
+ALTER TABLE services ADD COLUMN IF NOT EXISTS recommended_seniority TEXT[] DEFAULT '{}';
+ALTER TABLE services ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+ALTER TABLE services ADD COLUMN IF NOT EXISTS originated_from TEXT DEFAULT 'manual';
+ALTER TABLE services ADD COLUMN IF NOT EXISTS first_delivered_at DATE;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS times_recommended INTEGER DEFAULT 0;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS times_sold INTEGER DEFAULT 0;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS created_by UUID;
+
+-- Create indexes (IF NOT EXISTS)
 CREATE INDEX IF NOT EXISTS idx_services_code ON services(code);
 CREATE INDEX IF NOT EXISTS idx_services_category ON services(category);
 CREATE INDEX IF NOT EXISTS idx_services_status ON services(status);
 
--- Enable RLS
+-- Enable RLS (safe to run multiple times)
 ALTER TABLE services ENABLE ROW LEVEL SECURITY;
 
--- Allow read access to all authenticated users
+-- Drop and recreate policy to ensure it exists
+DROP POLICY IF EXISTS "services_read_all" ON services;
 CREATE POLICY "services_read_all" ON services FOR SELECT USING (true);
 
 -- ============================================================================
@@ -140,4 +130,3 @@ ON CONFLICT (code) DO UPDATE SET
   typical_duration = EXCLUDED.typical_duration,
   time_to_first_value = EXCLUDED.time_to_first_value,
   updated_at = now();
-
