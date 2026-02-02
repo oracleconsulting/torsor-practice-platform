@@ -143,17 +143,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('Client session set successfully');
 
       // Update last login (don't await, fire and forget)
+      // Use userId parameter (not user.id state) to ensure we have the correct value
       supabase
         .from('practice_members')
         .update({ last_portal_login: new Date().toISOString() })
         .eq('id', data.id)
-        .eq('user_id', user.id) // Ensure RLS policy passes
+        .eq('user_id', userId) // Match RLS policy: user_id = auth.uid()
         .then(
           (result) => {
             if (result.error) {
-              console.error('Failed to update last login:', result.error);
+              console.error('Failed to update last login:', result.error, { 
+                practiceMemeberId: data.id, 
+                userId,
+                timestamp: new Date().toISOString()
+              });
             } else {
-              console.log('Updated last login successfully');
+              console.log('Updated last login successfully for', data.id);
             }
           },
           (err) => console.error('Last login update exception:', err)
