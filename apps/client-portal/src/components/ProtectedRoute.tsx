@@ -3,10 +3,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 
 export function ProtectedRoute() {
-  const { user, clientSession, loading } = useAuth();
+  const { user, clientSession, loading, clientSessionLoading } = useAuth();
   const location = useLocation();
 
-  if (loading) {
+  // Show loading while auth is initializing OR while client session is being fetched
+  if (loading || clientSessionLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
@@ -21,6 +22,7 @@ export function ProtectedRoute() {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Only show "Access Not Configured" if we're done loading and there's genuinely no client session
   if (!clientSession) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -32,7 +34,7 @@ export function ProtectedRoute() {
             Access Not Configured
           </h1>
           <p className="text-slate-600 mb-4">
-            Your account exists but isn't linked to the 365 Alignment Program yet.
+            Your account exists but isn't linked to the client portal yet.
             Please contact your advisor to get set up.
           </p>
         </div>

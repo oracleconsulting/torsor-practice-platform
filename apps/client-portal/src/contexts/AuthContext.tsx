@@ -8,6 +8,7 @@ interface AuthContextType {
   session: Session | null;
   clientSession: ClientSession | null;
   loading: boolean;
+  clientSessionLoading: boolean; // True while fetching client session from DB
   signIn: (email: string) => Promise<{ error: Error | null }>;
   signInWithPassword: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -21,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [clientSession, setClientSession] = useState<ClientSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [clientSessionLoading, setClientSessionLoading] = useState(false);
   
   // Track if we've successfully loaded the session to avoid re-querying on token refresh
   const sessionLoadedRef = useRef(false);
@@ -41,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     loadingRef.current = true;
+    setClientSessionLoading(true);
     console.log('Loading client session for user:', userId);
 
     try {
@@ -168,6 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     } finally {
       loadingRef.current = false;
+      setClientSessionLoading(false);
     }
   };
 
@@ -298,6 +302,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         clientSession,
         loading,
+        clientSessionLoading,
         signIn,
         signInWithPassword,
         signOut,
