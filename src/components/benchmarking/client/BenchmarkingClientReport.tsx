@@ -81,6 +81,8 @@ interface BenchmarkAnalysis {
   ebitda_margin?: number;
   debtor_days?: number;
   creditor_days?: number;
+  // Employee classification
+  employee_band?: string;
   // Pass 1 data for additional metrics
   pass1_data?: {
     _enriched_revenue?: number;
@@ -92,6 +94,12 @@ interface BenchmarkAnalysis {
     creditor_days?: number;
     revenue_per_employee?: number;
     client_concentration_top3?: number;
+    classification?: {
+      employeeBand?: string;
+    };
+    surplus_cash?: {
+      surplusCash?: number;
+    };
   };
   // HVA fields for competitive moat
   hva_data?: {

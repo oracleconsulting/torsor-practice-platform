@@ -20,6 +20,7 @@ export interface ValueAnalysis {
     surplusCash: number;
     enterpriseValue: { low: number; mid: number; high: number };
     multipleJustification: string;
+    totalBaseline?: number; // Added for value bridge calculation
   };
   
   // Value suppressors from HVA

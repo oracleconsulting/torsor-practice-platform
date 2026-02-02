@@ -1,4 +1,3 @@
-import React from 'react';
 import { Building2, Users, LogOut, FileText, HelpCircle } from 'lucide-react';
 
 interface AdditionalQuestionsProps {

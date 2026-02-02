@@ -1,4 +1,3 @@
-import React from 'react';
 import { Check, X, Star, Zap, Building2 } from 'lucide-react';
 
 interface TierConfig {
