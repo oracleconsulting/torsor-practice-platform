@@ -1405,18 +1405,27 @@ async function syncValueAnalysisWithOpportunities(
   console.log(`[Value Sync] Calculated current value: £${(currentValue/1000000).toFixed(1)}M (${totalDiscount.toFixed(0)}% discount)`);
   console.log(`[Value Sync] Exit readiness: ${exitReadinessScore}/100 - ${exitReadinessLabel}`);
   
-  // Update the report with synced value analysis
+  // Calculate discounted multiple
+  const baselineMultiple = 5.0;
+  const discountedMultiple = baselineMultiple * (1 - totalDiscount / 100);
+  
+  // Update the report with synced value analysis AND dedicated columns
   const { error: updateError } = await supabase
     .from('bm_reports')
     .update({
       value_analysis: updatedValueAnalysis,
+      // Also write to dedicated columns for easier querying
+      value_suppressors: syncedSuppressors,
+      total_value_discount: totalDiscount,
+      baseline_multiple: baselineMultiple,
+      discounted_multiple: Math.round(discountedMultiple * 10) / 10,
     })
     .eq('engagement_id', engagementId);
   
   if (updateError) {
     console.error('[Value Sync] Failed to update value_analysis:', updateError);
   } else {
-    console.log('[Value Sync] Successfully updated value_analysis');
+    console.log(`[Value Sync] Successfully updated value_analysis with ${syncedSuppressors.length} suppressors, ${totalDiscount.toFixed(1)}% total discount`);
   }
 }
 
