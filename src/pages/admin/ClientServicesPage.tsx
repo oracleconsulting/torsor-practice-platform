@@ -486,9 +486,10 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
       // Special handling for Discovery clients
       if (serviceLineCode === 'discovery') {
         // First, get all clients who have a destination_discovery record
+        // Include responses to calculate actual progress
         const { data: discoveries } = await supabase
           .from('destination_discovery')
-          .select('client_id, completed_at, practice_id')
+          .select('client_id, completed_at, practice_id, responses')
           .eq('practice_id', practiceId);
 
         const discoveryClientIds = discoveries?.map(d => d.client_id) || [];
@@ -520,6 +521,22 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         const enrichedClients: Client[] = (discoveryClients || []).map((client: any) => {
           const discovery = discoveryMap.get(client.id);
           const isComplete = discovery?.completed_at || client.program_status === 'discovery_complete';
+          
+          // Calculate actual progress based on responses
+          // Discovery has ~40 questions total across all sections
+          const TOTAL_DISCOVERY_QUESTIONS = 40;
+          let progress = 0;
+          if (isComplete) {
+            progress = 100;
+          } else if (discovery?.responses) {
+            const responseCount = Object.keys(discovery.responses || {}).length;
+            progress = Math.min(95, Math.round((responseCount / TOTAL_DISCOVERY_QUESTIONS) * 100));
+          } else if (client.last_portal_login) {
+            // Logged in but no responses yet
+            progress = 5;
+          }
+          // If no login and no responses, progress stays at 0
+          
           return {
             id: client.id,
             name: client.name,
@@ -527,7 +544,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             company: client.client_company,
             service_line: 'discovery',
             status: isComplete ? 'completed' : 'active',
-            progress: isComplete ? 100 : 50,
+            progress,
             lastActivity: client.last_portal_login,
             hasRoadmap: isComplete,
             client_owner_id: client.client_owner_id,

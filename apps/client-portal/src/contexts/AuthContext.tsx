@@ -144,9 +144,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('practice_members')
         .update({ last_portal_login: new Date().toISOString() })
         .eq('id', data.id)
+        .eq('user_id', user.id) // Ensure RLS policy passes
         .then(
-          () => console.log('Updated last login'),
-          () => {} // Ignore errors
+          (result) => {
+            if (result.error) {
+              console.error('Failed to update last login:', result.error);
+            } else {
+              console.log('Updated last login successfully');
+            }
+          },
+          (err) => console.error('Last login update exception:', err)
         );
 
       return true;
