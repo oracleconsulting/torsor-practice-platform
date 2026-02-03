@@ -8,6 +8,12 @@
 -- - Urgent decision support
 -- ============================================================================
 
+-- First, add the ideal_client_type column if it doesn't exist
+ALTER TABLE services ADD COLUMN IF NOT EXISTS ideal_client_type JSONB DEFAULT '[]';
+
+COMMENT ON COLUMN services.ideal_client_type IS 
+'JSON array of client types this service is appropriate for: trading_product, trading_agency, professional_practice, investment_vehicle, funded_startup, lifestyle_business';
+
 -- ============================================================================
 -- 1. WEALTH & SUCCESSION SERVICES (for Investment Vehicles)
 -- ============================================================================
@@ -15,7 +21,7 @@
 -- IHT Planning Workshop
 INSERT INTO services (
   code, name, short_description, description, category, 
-  pricing_model, base_price, typical_duration, 
+  pricing_model, price_amount, price_period, typical_duration, 
   deliverables, ideal_client_type, status
 ) VALUES (
   'iht_planning',
@@ -25,6 +31,7 @@ INSERT INTO services (
   'wealth',
   'fixed',
   2500,
+  'one-off',
   '4-6 hours + follow-up',
   '["Current IHT liability calculation", "Structure options comparison", "Action plan for solicitor", "Tax advisor introduction where needed", "Follow-up review call"]',
   '["investment_vehicle", "lifestyle_business"]',
@@ -32,13 +39,13 @@ INSERT INTO services (
 ) ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
-  base_price = EXCLUDED.base_price,
+  price_amount = EXCLUDED.price_amount,
   ideal_client_type = EXCLUDED.ideal_client_type;
 
 -- Property Portfolio Health Check
 INSERT INTO services (
   code, name, short_description, description, category, 
-  pricing_model, base_price, typical_duration, 
+  pricing_model, price_amount, price_period, typical_duration, 
   deliverables, ideal_client_type, status
 ) VALUES (
   'property_health_check',
@@ -48,6 +55,7 @@ INSERT INTO services (
   'wealth',
   'fixed',
   3500,
+  'one-off',
   '2-3 weeks',
   '["Yield analysis by property", "LTV and equity position", "Maintenance cost trends", "Tenant quality assessment", "Rationalisation recommendations", "5-year portfolio projection"]',
   '["investment_vehicle"]',
@@ -55,12 +63,12 @@ INSERT INTO services (
 ) ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
-  base_price = EXCLUDED.base_price;
+  price_amount = EXCLUDED.price_amount;
 
 -- Family Wealth Transfer Strategy
 INSERT INTO services (
   code, name, short_description, description, category, 
-  pricing_model, base_price, typical_duration, 
+  pricing_model, price_amount, price_period, typical_duration, 
   deliverables, ideal_client_type, status
 ) VALUES (
   'wealth_transfer_strategy',
@@ -70,6 +78,7 @@ INSERT INTO services (
   'wealth',
   'fixed',
   5500,
+  'one-off',
   '6-8 weeks',
   '["Family governance framework", "Next-gen readiness assessment", "Trust structure recommendations", "Management succession plan", "Family meeting facilitation", "Advisor coordination"]',
   '["investment_vehicle"]',
@@ -77,12 +86,12 @@ INSERT INTO services (
 ) ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
-  base_price = EXCLUDED.base_price;
+  price_amount = EXCLUDED.price_amount;
 
 -- Property Management Sourcing
 INSERT INTO services (
   code, name, short_description, description, category, 
-  pricing_model, base_price, typical_duration, 
+  pricing_model, price_amount, price_period, typical_duration, 
   deliverables, ideal_client_type, status
 ) VALUES (
   'property_management_sourcing',
@@ -92,6 +101,7 @@ INSERT INTO services (
   'operational',
   'fixed',
   1500,
+  'one-off',
   '3-4 weeks',
   '["Property manager brief", "3-5 vetted candidates", "Reference checks", "Interview support", "Contract review support", "90-day check-in"]',
   '["investment_vehicle"]',
@@ -99,7 +109,7 @@ INSERT INTO services (
 ) ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
-  base_price = EXCLUDED.base_price;
+  price_amount = EXCLUDED.price_amount;
 
 -- ============================================================================
 -- 2. STARTUP SERVICES (for Funded Startups)
@@ -108,7 +118,7 @@ INSERT INTO services (
 -- Founder Financial Foundations
 INSERT INTO services (
   code, name, short_description, description, category, 
-  pricing_model, base_price, typical_duration, 
+  pricing_model, price_amount, price_period, typical_duration, 
   deliverables, ideal_client_type, status
 ) VALUES (
   'founder_financial_foundations',
@@ -118,6 +128,7 @@ INSERT INTO services (
   'financial',
   'fixed',
   2500,
+  'one-off',
   '4-6 weeks',
   '["Runway analysis model", "Monthly burn tracking", "Board deck template", "Investor update template", "Financial literacy workshop", "Next-raise readiness checklist"]',
   '["funded_startup"]',
@@ -125,12 +136,12 @@ INSERT INTO services (
 ) ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
-  base_price = EXCLUDED.base_price;
+  price_amount = EXCLUDED.price_amount;
 
 -- Post-Launch Operations Setup
 INSERT INTO services (
   code, name, short_description, description, category, 
-  pricing_model, base_price, typical_duration, 
+  pricing_model, price_amount, price_period, typical_duration, 
   deliverables, ideal_client_type, status
 ) VALUES (
   'post_launch_ops',
@@ -140,6 +151,7 @@ INSERT INTO services (
   'operational',
   'fixed',
   3500,
+  'one-off',
   '4-6 weeks',
   '["Customer onboarding process", "Support triage system", "Weekly financial rhythm", "Team standup structure", "Key metrics dashboard", "Escalation framework"]',
   '["funded_startup"]',
@@ -147,7 +159,7 @@ INSERT INTO services (
 ) ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
-  base_price = EXCLUDED.base_price;
+  price_amount = EXCLUDED.price_amount;
 
 -- ============================================================================
 -- 3. AGENCY SERVICES (for Creative/Digital Agencies)
@@ -156,7 +168,7 @@ INSERT INTO services (
 -- Agency Profitability Audit
 INSERT INTO services (
   code, name, short_description, description, category, 
-  pricing_model, base_price, typical_duration, 
+  pricing_model, price_amount, price_period, typical_duration, 
   deliverables, ideal_client_type, status
 ) VALUES (
   'agency_profitability_audit',
@@ -166,6 +178,7 @@ INSERT INTO services (
   'financial',
   'fixed',
   2000,
+  'one-off',
   '2-3 weeks',
   '["Client profitability matrix", "Utilisation rate analysis", "Rate card benchmarking", "Contractor vs permanent comparison", "Margin improvement roadmap", "Pricing recommendations"]',
   '["trading_agency"]',
@@ -173,12 +186,12 @@ INSERT INTO services (
 ) ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
-  base_price = EXCLUDED.base_price;
+  price_amount = EXCLUDED.price_amount;
 
 -- Agency Cash Flow Navigator
 INSERT INTO services (
   code, name, short_description, description, category, 
-  pricing_model, base_price, typical_duration, 
+  pricing_model, price_amount, price_period, typical_duration, 
   deliverables, ideal_client_type, status
 ) VALUES (
   'agency_cash_navigator',
@@ -188,6 +201,7 @@ INSERT INTO services (
   'financial',
   'monthly',
   1200,
+  'month',
   'Ongoing monthly',
   '["Weekly cash position report", "13-week rolling forecast", "Project billing calendar", "Contractor payment schedule", "Early warning alerts", "Monthly cash strategy call"]',
   '["trading_agency"]',
@@ -195,7 +209,7 @@ INSERT INTO services (
 ) ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
-  base_price = EXCLUDED.base_price;
+  price_amount = EXCLUDED.price_amount;
 
 -- ============================================================================
 -- 4. UNIVERSAL SERVICES (for All Client Types)
@@ -204,7 +218,7 @@ INSERT INTO services (
 -- Rapid Decision Support
 INSERT INTO services (
   code, name, short_description, description, category, 
-  pricing_model, base_price, typical_duration, 
+  pricing_model, price_amount, price_period, typical_duration, 
   deliverables, ideal_client_type, status
 ) VALUES (
   'rapid_decision_support',
@@ -214,6 +228,7 @@ INSERT INTO services (
   'financial',
   'fixed',
   750,
+  'one-off',
   '48 hours',
   '["Decision-specific P&L model", "Scenario comparison (2-3 options)", "Risk assessment", "Recommendation with supporting numbers", "30-min discussion call"]',
   '["trading_product", "trading_agency", "professional_practice"]',
@@ -221,12 +236,12 @@ INSERT INTO services (
 ) ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
-  base_price = EXCLUDED.base_price;
+  price_amount = EXCLUDED.price_amount;
 
 -- Restructuring Support Programme
 INSERT INTO services (
   code, name, short_description, description, category, 
-  pricing_model, base_price, typical_duration, 
+  pricing_model, price_amount, price_period, typical_duration, 
   deliverables, ideal_client_type, status
 ) VALUES (
   'restructuring_support',
@@ -236,6 +251,7 @@ INSERT INTO services (
   'operational',
   'fixed',
   3500,
+  'one-off',
   '4-8 weeks',
   '["Redundancy process design", "Financial impact model", "Key staff retention plan", "HR/legal framework guidance", "Communication templates", "Weekly support calls during execution"]',
   '["trading_product", "trading_agency"]',
@@ -243,17 +259,10 @@ INSERT INTO services (
 ) ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
-  base_price = EXCLUDED.base_price;
+  price_amount = EXCLUDED.price_amount;
 
 -- ============================================================================
--- 5. ADD WEALTH CATEGORY IF NOT EXISTS
--- ============================================================================
-
--- Create enum value for wealth category if using check constraint
--- This depends on your existing category structure
-
--- ============================================================================
--- 6. UPDATE SERVICE_LINE_METADATA FOR NEW SERVICES
+-- 5. UPDATE SERVICE_LINE_METADATA FOR NEW SERVICES
 -- ============================================================================
 
 INSERT INTO service_line_metadata (
@@ -314,11 +323,3 @@ ON CONFLICT (code) DO UPDATE SET
   core_function = EXCLUDED.core_function,
   problems_addressed = EXCLUDED.problems_addressed,
   pricing = EXCLUDED.pricing;
-
--- ============================================================================
--- 7. COMMENTS
--- ============================================================================
-
-COMMENT ON COLUMN services.ideal_client_type IS 
-'JSON array of client types this service is appropriate for: trading_product, trading_agency, professional_practice, investment_vehicle, funded_startup, lifestyle_business';
-
