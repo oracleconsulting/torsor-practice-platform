@@ -259,10 +259,33 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         if (error) {
           console.error('Error fetching additional services:', error);
         } else {
-          // Filter out services that match main service line codes
-          const additional = (data || []).filter(
-            service => !mainServiceCodes.includes(service.code)
-          );
+          // Filter out services that match main service line codes OR names
+          // This catches duplicates even if codes differ slightly
+          const excludePatterns = [
+            'fractional_cfo', 'fractional_coo', '365_method', 'goal_alignment',
+            'management_accounts', 'systems_audit', 'benchmarking', 'discovery',
+            'business_intelligence', 'automation', 'combined_advisory'
+          ];
+          const excludeNamePatterns = [
+            'fractional cfo', 'fractional coo', 'goal alignment', '365',
+            'management accounts', 'systems audit', 'benchmark', 'business intelligence'
+          ];
+          
+          const additional = (data || []).filter(service => {
+            const code = (service.code || '').toLowerCase();
+            const name = (service.name || '').toLowerCase();
+            
+            // Exclude if code matches main service codes
+            if (mainServiceCodes.includes(service.code)) return false;
+            
+            // Exclude if code matches exclude patterns
+            if (excludePatterns.some(p => code.includes(p))) return false;
+            
+            // Exclude if name matches exclude patterns
+            if (excludeNamePatterns.some(p => name.includes(p))) return false;
+            
+            return true;
+          });
           setAdditionalServices(additional);
         }
       } catch (err) {
@@ -298,17 +321,27 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           .eq('secondary_service_code', service.code);
       }
       
-      // Clear discovery_opportunities references (uses service ID)
+      // Clear ALL opportunity table references (uses service ID)
+      // discovery_opportunities
       await supabase
         .from('discovery_opportunities')
         .update({ recommended_service_id: null })
         .eq('recommended_service_id', serviceId);
       
-      // Clear client_opportunities references if they exist
+      // client_opportunities
       await supabase
         .from('client_opportunities')
         .update({ recommended_service_id: null })
         .eq('recommended_service_id', serviceId);
+      
+      // Also try deleting by code if service has one (some tables use code)
+      if (service?.code) {
+        // client_opportunities might use service_code
+        await supabase
+          .from('client_opportunities')
+          .update({ recommended_service_id: null })
+          .eq('service_code', service.code);
+      }
       
       // Now delete the service
       const { error } = await supabase
