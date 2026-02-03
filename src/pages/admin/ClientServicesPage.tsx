@@ -2252,6 +2252,9 @@ function DiscoveryClientModal({
   const [destinationReport, setDestinationReport] = useState<any>(null);
   const [discoveryEngagement, setDiscoveryEngagement] = useState<any>(null);
   
+  // Specialist service opportunities (from Pass 3)
+  const [specialistOpportunities, setSpecialistOpportunities] = useState<any[]>([]);
+  
   // Service assignment state
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [assigningServices, setAssigningServices] = useState(false);
@@ -2507,6 +2510,21 @@ function DiscoveryClientModal({
             hasComprehensiveAnalysis: !!destReportData.comprehensive_analysis
           });
           setDestinationReport(destReportData);
+        }
+        
+        // Fetch specialist opportunities from Pass 3
+        const { data: opportunitiesData } = await supabase
+          .from('discovery_opportunities')
+          .select(`
+            *,
+            service:services(id, code, name, short_description, price_amount, price_period)
+          `)
+          .eq('engagement_id', discoveryEngagementData.id)
+          .order('financial_impact_amount', { ascending: false, nullsFirst: false });
+        
+        if (opportunitiesData && opportunitiesData.length > 0) {
+          console.log('[Report] Found specialist opportunities:', opportunitiesData.length);
+          setSpecialistOpportunities(opportunitiesData);
         }
       }
 
@@ -5132,6 +5150,82 @@ function DiscoveryClientModal({
                                         existingComments={analysisComments}
                                         onCommentAdded={refetchComments}
                                       />
+                                    )}
+                                  </div>
+                                </section>
+                              )}
+
+                              {/* ============================================= */}
+                              {/* SPECIALIST SERVICES (from Pass 3 opportunities) */}
+                              {/* ============================================= */}
+                              {specialistOpportunities.length > 0 && (
+                                <section className="bg-white rounded-xl shadow-sm overflow-hidden">
+                                  <div className="bg-gradient-to-r from-violet-50 to-purple-50 p-6 border-b border-violet-200">
+                                    <span className="text-xs font-medium text-violet-600 uppercase tracking-widest">
+                                      Deep Dive Recommendations
+                                    </span>
+                                    <h2 className="text-2xl font-serif text-violet-800 mt-2">
+                                      Specialist Services For Your Situation
+                                    </h2>
+                                    <p className="text-sm text-violet-600 mt-1">
+                                      Based on your specific needs, these specialist services may accelerate your journey
+                                    </p>
+                                  </div>
+                                  <div className="p-6 space-y-4">
+                                    {specialistOpportunities
+                                      .filter(opp => opp.service) // Only show those with linked services
+                                      .slice(0, 5) // Show top 5
+                                      .map((opp: any) => (
+                                      <div key={opp.id} className="border border-gray-200 rounded-lg p-4 hover:border-violet-300 transition-colors">
+                                        <div className="flex items-start justify-between">
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <span className="text-xs font-medium text-violet-600 bg-violet-100 px-2 py-0.5 rounded-full">
+                                                {opp.category}
+                                              </span>
+                                              {opp.severity === 'critical' && (
+                                                <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
+                                                  High Priority
+                                                </span>
+                                              )}
+                                            </div>
+                                            <h4 className="font-semibold text-gray-900">{opp.title}</h4>
+                                            <p className="text-sm text-gray-600 mt-1">{opp.description}</p>
+                                            {opp.life_impact && (
+                                              <p className="text-sm text-amber-700 mt-2 italic">
+                                                "{opp.life_impact}"
+                                              </p>
+                                            )}
+                                          </div>
+                                          {opp.service && (
+                                            <div className="ml-4 text-right">
+                                              <p className="font-semibold text-gray-900">{opp.service.name}</p>
+                                              {opp.service.price_amount && (
+                                                <p className="text-sm text-emerald-600 font-medium">
+                                                  £{Number(opp.service.price_amount).toLocaleString()}
+                                                  {opp.service.price_period === 'month' ? '/mo' : ''}
+                                                </p>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                        {opp.financial_impact_amount && (
+                                          <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
+                                            <TrendingUp className="w-4 h-4 text-emerald-500" />
+                                            <span className="text-sm text-gray-600">
+                                              Potential impact: <strong className="text-emerald-600">£{Number(opp.financial_impact_amount).toLocaleString()}</strong>
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                    {specialistOpportunities.filter(o => !o.service).length > 0 && (
+                                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                        <p className="text-sm text-amber-800">
+                                          <strong>{specialistOpportunities.filter(o => !o.service).length} additional opportunities</strong> identified 
+                                          that may require new service offerings. Your advisor will discuss these with you.
+                                        </p>
+                                      </div>
                                     )}
                                   </div>
                                 </section>
