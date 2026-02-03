@@ -14,7 +14,6 @@
 
 import { useState, useEffect } from 'react';
 import { 
-  TrendingUp, 
   Lightbulb, 
   ChevronDown,
   ChevronRight,
@@ -23,7 +22,6 @@ import {
   Sparkles,
   Target,
   DollarSign,
-  MessageSquare,
   Plus,
   Loader2,
   Eye,
@@ -86,7 +84,7 @@ interface Props {
 // Component
 // ============================================================================
 
-export function DiscoveryOpportunityPanel({ engagementId, clientId, practiceId }: Props) {
+export function DiscoveryOpportunityPanel({ engagementId }: Props) {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);

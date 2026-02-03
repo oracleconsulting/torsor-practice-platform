@@ -32,7 +32,7 @@ interface LegacyDiscoveryReport {
   report_data: {
     generatedAt: string;
     clientName: string;
-      analysis: {
+    analysis: {
       executiveSummary?: {
         headline?: string;
         destinationVision?: string;
@@ -226,14 +226,14 @@ export default function DiscoveryReportPage() {
       if (latestDiscovery?.id) {
         // Try to find report linked to the latest discovery
         const { data: linkedReport, error: linkedError } = await supabase
-          .from('client_reports')
-          .select('*')
-          .eq('client_id', clientSession.clientId)
-          .eq('report_type', 'discovery_analysis')
-          .eq('is_shared_with_client', true)
+        .from('client_reports')
+        .select('*')
+        .eq('client_id', clientSession.clientId)
+        .eq('report_type', 'discovery_analysis')
+        .eq('is_shared_with_client', true)
           .eq('discovery_id', latestDiscovery.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
+        .order('created_at', { ascending: false })
+        .limit(1)
           .maybeSingle();
 
         if (linkedReport) {
@@ -1338,7 +1338,7 @@ export default function DiscoveryReportPage() {
                   <p className="text-xs text-slate-400 uppercase tracking-wide mt-1">
                     Payback
                   </p>
-                </div>
+              </div>
               </div>
               
               {investmentSummary.investmentAsPercentOfRevenue && (
@@ -1358,7 +1358,7 @@ export default function DiscoveryReportPage() {
                   <p className="text-xs text-slate-400 text-center">
                     {investmentSummary.roiCalculation}
                   </p>
-                </div>
+                  </div>
               )}
             </div>
           )}
@@ -1420,9 +1420,9 @@ export default function DiscoveryReportPage() {
                 </div>
                 <p className="text-sm text-emerald-800 leading-relaxed">
                   {investmentSummary.roiCalculation}
-                </p>
-              </div>
-            )}
+                  </p>
+                </div>
+              )}
           </section>
         )}
 
@@ -1548,9 +1548,9 @@ export default function DiscoveryReportPage() {
                   {ca.availableMetrics?.length > 0 && (
                     <span className="ml-1">• {ca.availableMetrics.length} dimensions analyzed</span>
                   )}
-                </div>
-              )}
-            </section>
+            </div>
+          )}
+        </section>
           );
         })()}
 

@@ -236,6 +236,11 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   // Additional services from database (editable, no assessments)
   const [additionalServices, setAdditionalServices] = useState<any[]>([]);
   const [loadingServices, setLoadingServices] = useState(false);
+  
+  // Service editing/deleting state
+  const [editingService, setEditingService] = useState<any | null>(null);
+  const [deletingService, setDeletingService] = useState<string | null>(null);
+  const [savingService, setSavingService] = useState(false);
 
   // Fetch additional services from database
   useEffect(() => {
@@ -269,6 +274,63 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
     
     fetchAdditionalServices();
   }, []);
+
+  // Delete a service from the catalogue
+  const handleDeleteService = async (serviceId: string) => {
+    if (!confirm('Are you sure you want to delete this service? This cannot be undone.')) {
+      return;
+    }
+    
+    setDeletingService(serviceId);
+    try {
+      const { error } = await supabase
+        .from('services')
+        .delete()
+        .eq('id', serviceId);
+      
+      if (error) throw error;
+      
+      // Remove from local state
+      setAdditionalServices(prev => prev.filter(s => s.id !== serviceId));
+    } catch (error: any) {
+      console.error('Error deleting service:', error);
+      alert(`Failed to delete service: ${error.message}`);
+    } finally {
+      setDeletingService(null);
+    }
+  };
+
+  // Save edited service
+  const handleSaveService = async (service: any) => {
+    setSavingService(true);
+    try {
+      const { error } = await supabase
+        .from('services')
+        .update({
+          name: service.name,
+          short_description: service.short_description,
+          description: service.description,
+          price_amount: service.price_amount,
+          price_period: service.price_period,
+          status: service.status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', service.id);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setAdditionalServices(prev => prev.map(s => 
+        s.id === service.id ? { ...s, ...service } : s
+      ));
+      setEditingService(null);
+    } catch (error: any) {
+      console.error('Error saving service:', error);
+      alert(`Failed to save service: ${error.message}`);
+    } finally {
+      setSavingService(false);
+    }
+  };
 
   // Fetch clients when service line is selected
   useEffect(() => {
@@ -1063,26 +1125,39 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                     const priceDisplay = service.price_amount 
                       ? `£${parseFloat(service.price_amount).toLocaleString()}${service.price_period === 'month' ? '/mo' : service.price_period === 'one-off' ? ' one-off' : ''}`
                       : 'Price on request';
+                    const isDeleting = deletingService === service.id;
                     
                     return (
                       <div
                         key={service.id}
-                        className="bg-white rounded-xl border border-gray-200 p-6 hover:border-indigo-300 hover:shadow-md transition-all"
+                        className={`bg-white rounded-xl border border-gray-200 p-6 hover:border-indigo-300 hover:shadow-md transition-all ${isDeleting ? 'opacity-50' : ''}`}
                       >
                         <div className="flex items-start justify-between mb-4">
                           <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center">
                             <FileText className="w-6 h-6 text-gray-600" />
                           </div>
-                          <button
-                            onClick={() => {
-                              // TODO: Open edit modal or navigate to service config
-                              alert(`Edit service: ${service.name}\n\nThis will open the service editor where you can edit approach, pricing, etc.`);
-                            }}
-                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                            title="Edit service"
-                          >
-                            <Settings className="w-4 h-4 text-gray-400 hover:text-indigo-600" />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setEditingService(service)}
+                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                              title="Edit service"
+                              disabled={isDeleting}
+                            >
+                              <Settings className="w-4 h-4 text-gray-400 hover:text-indigo-600" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteService(service.id)}
+                              className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Delete service"
+                              disabled={isDeleting}
+                            >
+                              {isDeleting ? (
+                                <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-600" />
+                              )}
+                            </button>
+                          </div>
                         </div>
                         <h3 className="text-lg font-semibold text-gray-900 mb-1">
                           {service.name}
@@ -1957,6 +2032,131 @@ Jeremy Baron	jeremy@baronsec.com	Baron Securities"
                     Done
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Service Edit Modal */}
+        {editingService && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold">Edit Service</h2>
+                  <button 
+                    onClick={() => setEditingService(null)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Service Name</label>
+                  <input
+                    type="text"
+                    value={editingService.name || ''}
+                    onChange={(e) => setEditingService({ ...editingService, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Short Description</label>
+                  <input
+                    type="text"
+                    value={editingService.short_description || ''}
+                    onChange={(e) => setEditingService({ ...editingService, short_description: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Description</label>
+                  <textarea
+                    rows={3}
+                    value={editingService.description || ''}
+                    onChange={(e) => setEditingService({ ...editingService, description: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price (£)</label>
+                    <input
+                      type="number"
+                      value={editingService.price_amount || ''}
+                      onChange={(e) => setEditingService({ ...editingService, price_amount: parseFloat(e.target.value) || null })}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price Period</label>
+                    <select
+                      value={editingService.price_period || 'one-off'}
+                      onChange={(e) => setEditingService({ ...editingService, price_period: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      <option value="one-off">One-off</option>
+                      <option value="month">Monthly</option>
+                      <option value="year">Annual</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    value={editingService.status || 'active'}
+                    onChange={(e) => setEditingService({ ...editingService, status: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  >
+                    <option value="active">Active</option>
+                    <option value="draft">Draft</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="p-6 border-t border-gray-200 flex items-center justify-between">
+                <button
+                  onClick={() => handleDeleteService(editingService.id)}
+                  disabled={savingService}
+                  className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setEditingService(null)}
+                    className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleSaveService(editingService)}
+                    disabled={savingService}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                  >
+                    {savingService ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save Changes
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

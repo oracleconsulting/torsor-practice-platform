@@ -107,14 +107,14 @@ export default function RoadmapPage() {
           setRoadmapStatus('published');
         } else {
           // Fallback to old table
-          const { data: roadmapData } = await supabase
-            .from('client_roadmaps')
-            .select('status')
-            .eq('client_id', clientSession.clientId)
-            .eq('is_active', true)
-            .maybeSingle();
-          
-          setRoadmapStatus(roadmapData?.status || null);
+        const { data: roadmapData } = await supabase
+          .from('client_roadmaps')
+          .select('status')
+          .eq('client_id', clientSession.clientId)
+          .eq('is_active', true)
+          .maybeSingle();
+        
+        setRoadmapStatus(roadmapData?.status || null);
         }
       }
       setIsInitialized(true);
@@ -658,7 +658,7 @@ export default function RoadmapPage() {
                   </div>
                 );
               })}
-            </div>
+              </div>
             )}
 
             {/* Danger Mitigation */}
@@ -1295,8 +1295,8 @@ function WeekCard({
                   <div className="flex items-start gap-3">
                     <button
                       onClick={async () => {
-                        const nextStatus = status === 'pending' ? 'in_progress' :
-                                         status === 'in_progress' ? 'completed' : 'pending';
+                          const nextStatus = status === 'pending' ? 'in_progress' :
+                                           status === 'in_progress' ? 'completed' : 'pending';
                         
                         if (dbTask) {
                           // Existing task - update status
