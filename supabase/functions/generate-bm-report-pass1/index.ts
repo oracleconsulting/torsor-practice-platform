@@ -1,6 +1,20 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// Enhanced calculations for transparency
+import {
+  calculateMarginOpportunity,
+  calculateEnhancedSuppressors,
+  calculateExitReadinessBreakdown,
+  generateTwoPathsNarrative,
+  formatSurplusCashBreakdown,
+  type OpportunityCalculation,
+  type EnhancedValueSuppressor,
+  type ExitReadinessBreakdown,
+  type TwoPathsNarrative,
+  type SurplusCashBreakdown
+} from './enhanced-calculations.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -2367,6 +2381,79 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
             console.log(`  - [${s.severity.toUpperCase()}] ${s.name}: ${s.discountPercent.low}-${s.discountPercent.high}% discount`);
           });
         }
+        
+        // ====================================================================
+        // ENHANCED CALCULATIONS FOR TRANSPARENCY
+        // ====================================================================
+        console.log('[BM Enrich] Generating enhanced calculations for transparency...');
+        
+        // Prepare inputs for enhanced suppressors
+        const parseValuePct = (v: any): number => {
+          if (typeof v === 'number') return v;
+          if (typeof v === 'string') {
+            const match = v.match(/(\d+(?:\.\d+)?)/);
+            return match ? parseFloat(match[1]) : 0;
+          }
+          return 0;
+        };
+        
+        const enhancedSuppressorInputs = {
+          knowledgeDependency: parseValuePct(hvaResponses.knowledge_dependency_percentage),
+          personalBrand: parseValuePct(hvaResponses.personal_brand_percentage),
+          customerConcentration: concentrationFromAssessment || parseValuePct(hvaResponses.top3_customer_revenue_percentage),
+          successionPlan: String(hvaResponses.succession_your_role || ''),
+          recurringRevenue: parseValuePct(hvaResponses.recurring_revenue_percentage),
+          contractBacklog: hvaResponses.contract_backlog_months || 0,
+          documentationScore: parseValuePct(hvaResponses.documentation_score),
+        };
+        
+        const baselineValue = valueAnalysisResult.baseline.enterpriseValue.mid;
+        
+        // Generate enhanced suppressors
+        enriched.enhanced_suppressors = calculateEnhancedSuppressors(
+          enhancedSuppressorInputs,
+          baselineValue,
+          revenue,
+          industryCode
+        );
+        derivedFields.push('enhanced_suppressors');
+        
+        // Generate exit readiness breakdown
+        enriched.exit_readiness_breakdown = calculateExitReadinessBreakdown(
+          enriched.enhanced_suppressors,
+          enhancedSuppressorInputs,
+          baselineValue
+        );
+        derivedFields.push('exit_readiness_breakdown');
+        
+        // Format surplus cash breakdown for transparency
+        enriched.surplus_cash_breakdown = formatSurplusCashBreakdown(
+          enriched.surplus_cash,
+          revenue
+        );
+        if (enriched.surplus_cash_breakdown) {
+          derivedFields.push('surplus_cash_breakdown');
+        }
+        
+        // Generate two paths narrative
+        const marginOpportunity = enriched.enhanced_suppressors.reduce(
+          (sum: number, s: EnhancedValueSuppressor) => sum + s.recovery.valueRecoverable, 0
+        ) * 0.15; // Approximate margin opportunity as 15% of recoverable value
+        
+        enriched.two_paths_narrative = generateTwoPathsNarrative(
+          marginOpportunity,
+          valueAnalysisResult.valueGap.mid,
+          'Owner', // Will be replaced with actual owner name in report
+          enriched.exit_readiness_breakdown.totalScore,
+          valueAnalysisResult.currentMarketValue.mid + valueAnalysisResult.valueGap.mid * 0.7
+        );
+        derivedFields.push('two_paths_narrative');
+        
+        console.log('[BM Enrich] Enhanced calculations complete:');
+        console.log(`  - Enhanced suppressors: ${enriched.enhanced_suppressors.length}`);
+        console.log(`  - Exit readiness breakdown: ${enriched.exit_readiness_breakdown.totalScore}/${enriched.exit_readiness_breakdown.maxScore}`);
+        console.log(`  - Two paths narrative generated`);
+        
       } catch (valueError) {
         console.error('[BM Enrich] Value analysis failed:', valueError);
         // Non-fatal - continue without value analysis
@@ -3927,6 +4014,11 @@ When writing narratives:
         investment_signals: assessmentData.investment_signals,
         // Value analysis
         value_analysis: assessmentData.value_analysis,
+        // Enhanced transparency data
+        enhanced_suppressors: assessmentData.enhanced_suppressors,
+        exit_readiness_breakdown: assessmentData.exit_readiness_breakdown,
+        surplus_cash_breakdown: assessmentData.surplus_cash_breakdown,
+        two_paths_narrative: assessmentData.two_paths_narrative,
       },
       llm_model: 'gpt-4o-mini',
       llm_tokens_used: tokensUsed,
@@ -3957,6 +4049,13 @@ When writing narratives:
       net_margin: assessmentData.net_margin || null,
       ebitda_margin: assessmentData.ebitda_margin || null,
       client_concentration_top3: assessmentData.client_concentration_top3 || null,
+      // ====================================================================
+      // ENHANCED TRANSPARENCY DATA (new fields for calculation breakdown)
+      // ====================================================================
+      enhanced_suppressors: assessmentData.enhanced_suppressors || null,
+      exit_readiness_breakdown: assessmentData.exit_readiness_breakdown || null,
+      surplus_cash_breakdown: assessmentData.surplus_cash_breakdown || null,
+      two_paths_narrative: assessmentData.two_paths_narrative || null,
     };
     
     // Add founder risk data if available

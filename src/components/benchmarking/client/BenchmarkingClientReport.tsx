@@ -11,6 +11,17 @@ import { AlertTriangle, Gem, Shield, CheckCircle } from 'lucide-react';
 import type { ValueAnalysis } from '../../../types/benchmarking';
 import type { BaselineMetrics } from '../../../lib/scenario-calculator';
 import { detectIssues, getPriorityServices, type IssueMetrics } from '../../../lib/issue-service-mapping';
+// Enhanced transparency components
+import { SurplusCashBreakdown } from '../SurplusCashBreakdown';
+import { EnhancedSuppressorCard } from '../EnhancedSuppressorCard';
+import { ExitReadinessBreakdown } from '../ExitReadinessBreakdown';
+import { TwoPathsSection } from '../TwoPathsSection';
+import type { 
+  EnhancedValueSuppressor, 
+  ExitReadinessScore, 
+  TwoPathsNarrative,
+  SurplusCashData
+} from '../../../types/opportunity-calculations';
 
 // Utility to get correct ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
 const getOrdinalSuffix = (n: number): string => {
@@ -100,6 +111,11 @@ interface BenchmarkAnalysis {
     surplus_cash?: {
       surplusCash?: number;
     };
+    // Enhanced transparency data
+    enhanced_suppressors?: EnhancedValueSuppressor[];
+    exit_readiness_breakdown?: ExitReadinessScore;
+    surplus_cash_breakdown?: SurplusCashData;
+    two_paths_narrative?: TwoPathsNarrative;
   };
   // HVA fields for competitive moat
   hva_data?: {
@@ -658,11 +674,53 @@ export function BenchmarkingClientReport({
           />
         )}
         
+        {/* Surplus Cash Breakdown - Enhanced Transparency */}
+        {data.pass1_data?.surplus_cash_breakdown && (
+          <SurplusCashBreakdown 
+            data={data.pass1_data.surplus_cash_breakdown}
+            revenue={baselineMetrics?.revenue || data.revenue || 0}
+          />
+        )}
+        
         {/* Business Valuation Analysis */}
         {data.value_analysis && (
           <ValueBridgeSection 
             valueAnalysis={data.value_analysis}
             clientName={clientName}
+          />
+        )}
+        
+        {/* Enhanced Value Suppressors - Where Your Value Is Going */}
+        {data.pass1_data?.enhanced_suppressors && data.pass1_data.enhanced_suppressors.length > 0 && (
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold text-slate-900">Where Your Value Is Going</h2>
+            <p className="text-slate-600 text-sm">
+              These factors are reducing what buyers would pay. Each card shows the current discount, 
+              target state, and the value you could recover.
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              {data.pass1_data.enhanced_suppressors.map((suppressor) => (
+                <EnhancedSuppressorCard 
+                  key={suppressor.code}
+                  suppressor={suppressor}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Exit Readiness Breakdown - Component Scoring */}
+        {data.pass1_data?.exit_readiness_breakdown && (
+          <ExitReadinessBreakdown data={data.pass1_data.exit_readiness_breakdown} />
+        )}
+        
+        {/* Two Paths Section - Connecting Operational and Strategic */}
+        {data.pass1_data?.two_paths_narrative && baselineMetrics && (
+          <TwoPathsSection
+            marginOpportunity={parseFloat(data.total_annual_opportunity) || 0}
+            valueGap={data.value_analysis?.valueGap?.mid || 0}
+            ownerName={clientName || 'You'}
+            narrative={data.pass1_data.two_paths_narrative}
           />
         )}
         
