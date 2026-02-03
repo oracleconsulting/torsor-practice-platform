@@ -90,7 +90,10 @@ CREATE INDEX IF NOT EXISTS idx_discovery_opps_category ON discovery_opportunitie
 -- Enable RLS
 ALTER TABLE discovery_opportunities ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies
+-- RLS Policies (drop and recreate to avoid conflicts)
+DROP POLICY IF EXISTS "discovery_opportunities_read" ON discovery_opportunities;
+DROP POLICY IF EXISTS "discovery_opportunities_write" ON discovery_opportunities;
+
 CREATE POLICY "discovery_opportunities_read" ON discovery_opportunities
   FOR SELECT TO authenticated USING (true);
 

@@ -87,7 +87,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
   const [clientName, setClientName] = useState('');
   
   const [generating, setGenerating] = useState(false);
-  const [generatingPass, setGeneratingPass] = useState<1 | 2 | null>(null);
+  const [generatingPass, setGeneratingPass] = useState<1 | 2 | 3 | null>(null);
   const [viewMode, setViewMode] = useState<'admin' | 'script' | 'client'>('admin');
   const [publishing, setPublishing] = useState(false);
   
@@ -231,6 +231,22 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
       if (error) throw error;
       
       console.log('Pass 2 complete:', data);
+      
+      // Automatically run Pass 3 (Opportunities) after Pass 2 succeeds
+      setGeneratingPass(3);
+      console.log('Starting Pass 3 (Opportunities)...');
+      
+      const { data: pass3Data, error: pass3Error } = await supabase.functions.invoke('generate-discovery-opportunities', {
+        body: { engagementId: engagement.id }
+      });
+      
+      if (pass3Error) {
+        console.warn('Pass 3 warning (non-fatal):', pass3Error);
+        // Pass 3 failure is non-fatal - report is still valid
+      } else {
+        console.log('Pass 3 complete:', pass3Data);
+      }
+      
       await fetchData();
     } catch (error: any) {
       console.error('Pass 2 error:', error);
@@ -529,6 +545,8 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
       'adding_context': { color: 'amber', label: 'Adding Context' },
       'pass2_processing': { color: 'purple', label: 'Generating Report...' },
       'pass2_complete': { color: 'emerald', label: 'Report Ready' },
+      'pass3_processing': { color: 'violet', label: 'Finding Opportunities...' },
+      'pass3_complete': { color: 'emerald', label: 'Opportunities Ready' },
       'approved': { color: 'green', label: 'Approved' },
       'published': { color: 'green', label: 'Published' },
     };
@@ -1737,18 +1755,18 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                       {report?.service_scores ? 'Re-run Analysis' : 'Run Analysis'}
                     </button>
                     
-                    {/* Pass 2 Button */}
+                    {/* Pass 2 + 3 Button */}
                     <button
                       onClick={handleRunPass2}
                       disabled={generating || !report?.service_scores}
                       className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
                     >
-                      {generatingPass === 2 ? (
+                      {(generatingPass === 2 || generatingPass === 3) ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <Sparkles className="h-4 w-4" />
                       )}
-                      Generate Report
+                      {generatingPass === 3 ? 'Finding Opportunities...' : 'Generate Report'}
                     </button>
                     
                     {/* Publish Button */}
