@@ -103,7 +103,8 @@ CREATE POLICY "discovery_opportunities_write" ON discovery_opportunities
 
 ALTER TABLE discovery_reports
 ADD COLUMN IF NOT EXISTS opportunities_generated_at TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS opportunity_count INTEGER DEFAULT 0;
+ADD COLUMN IF NOT EXISTS opportunity_count INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS opportunity_assessment JSONB;
 
 -- ============================================================================
 -- ADD INVESTMENT PROPERTY TO CLIENT_FINANCIAL_CONTEXT
