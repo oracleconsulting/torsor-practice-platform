@@ -2546,17 +2546,25 @@ function DiscoveryClientModal({
         }
         
         // Fetch specialist opportunities from Pass 3
-        const { data: opportunitiesData } = await supabase
+        const { data: opportunitiesData, error: oppsError } = await supabase
           .from('discovery_opportunities')
           .select(`
             *,
-            service:services(id, code, name, short_description, price_amount, price_period)
+            service:services(id, code, name, short_description, price_amount, price_period),
+            concept:service_concepts(id, suggested_name, problem_it_solves)
           `)
           .eq('engagement_id', discoveryEngagementData.id)
-          .order('financial_impact_amount', { ascending: false, nullsFirst: false });
+          .order('severity', { ascending: true });
+        
+        console.log('[Report] Opportunities fetch for engagement:', discoveryEngagementData.id, {
+          found: opportunitiesData?.length || 0,
+          error: oppsError?.message
+        });
         
         if (opportunitiesData && opportunitiesData.length > 0) {
-          console.log('[Report] Found specialist opportunities:', opportunitiesData.length);
+          console.log('[Report] Found specialist opportunities:', opportunitiesData.length, 
+            'with services:', opportunitiesData.filter(o => o.service).length,
+            'with concepts:', opportunitiesData.filter(o => o.concept).length);
           setSpecialistOpportunities(opportunitiesData);
         }
       }
@@ -2981,6 +2989,22 @@ function DiscoveryClientModal({
                     hasPage2Gaps: !!destReport.page2_gaps,
                     hasComprehensiveAnalysis: !!destReport.comprehensive_analysis
                   });
+                }
+                
+                // Fetch the opportunities created by Pass 3
+                const { data: newOpportunities } = await supabase
+                  .from('discovery_opportunities')
+                  .select(`
+                    *,
+                    service:services(id, code, name, short_description, price_amount, price_period),
+                    concept:service_concepts(id, suggested_name, problem_it_solves)
+                  `)
+                  .eq('engagement_id', engagementId)
+                  .order('severity', { ascending: true });
+                
+                if (newOpportunities && newOpportunities.length > 0) {
+                  console.log('✅ Loaded', newOpportunities.length, 'specialist opportunities after Pass 3');
+                  setSpecialistOpportunities(newOpportunities);
                 }
               }
             }
@@ -5206,8 +5230,8 @@ function DiscoveryClientModal({
                                   </div>
                                   <div className="p-6 space-y-4">
                                     {specialistOpportunities
-                                      .filter(opp => opp.service) // Only show those with linked services
-                                      .slice(0, 5) // Show top 5
+                                      .filter(opp => opp.service || opp.concept) // Show those with services OR concepts
+                                      .slice(0, 6) // Show top 6
                                       .map((opp: any) => (
                                       <div key={opp.id} className="border border-gray-200 rounded-lg p-4 hover:border-violet-300 transition-colors">
                                         <div className="flex items-start justify-between">
@@ -5230,7 +5254,7 @@ function DiscoveryClientModal({
                                               </p>
                                             )}
                                           </div>
-                                          {opp.service && (
+                                          {opp.service ? (
                                             <div className="ml-4 text-right">
                                               <p className="font-semibold text-gray-900">{opp.service.name}</p>
                                               {opp.service.price_amount && (
@@ -5240,7 +5264,12 @@ function DiscoveryClientModal({
                                                 </p>
                                               )}
                                             </div>
-                                          )}
+                                          ) : opp.concept ? (
+                                            <div className="ml-4 text-right">
+                                              <p className="font-semibold text-purple-700">{opp.concept.suggested_name}</p>
+                                              <p className="text-xs text-purple-600">New Service Concept</p>
+                                            </div>
+                                          ) : null}
                                         </div>
                                         {opp.financial_impact_amount && (
                                           <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
@@ -5252,11 +5281,11 @@ function DiscoveryClientModal({
                                         )}
                                       </div>
                                     ))}
-                                    {specialistOpportunities.filter(o => !o.service).length > 0 && (
+                                    {specialistOpportunities.filter(o => !o.service && !o.concept).length > 0 && (
                                       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                                         <p className="text-sm text-amber-800">
-                                          <strong>{specialistOpportunities.filter(o => !o.service).length} additional opportunities</strong> identified 
-                                          that may require new service offerings. Your advisor will discuss these with you.
+                                          <strong>{specialistOpportunities.filter(o => !o.service && !o.concept).length} additional opportunities</strong> identified 
+                                          that your advisor will discuss with you.
                                         </p>
                                       </div>
                                     )}
