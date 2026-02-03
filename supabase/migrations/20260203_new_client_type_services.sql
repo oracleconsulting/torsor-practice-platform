@@ -264,59 +264,60 @@ INSERT INTO services (
 -- ============================================================================
 -- 5. UPDATE SERVICE_LINE_METADATA FOR NEW SERVICES
 -- ============================================================================
+-- Note: service_line_metadata uses TEXT[] for problems_addressed, not JSONB
 
 INSERT INTO service_line_metadata (
-  code, name, category, core_function, problems_addressed, pricing
+  code, name, core_function, problems_addressed, pricing
 ) VALUES 
-  ('iht_planning', 'IHT Planning Workshop', 'wealth', 
+  ('iht_planning', 'IHT Planning Workshop',
    'Map inheritance tax exposure and create action plan for wealth protection.',
-   '["Unknown IHT liability", "No succession structure", "Family wealth transfer concerns"]',
-   '{"standard": 2500}'
+   ARRAY['Unknown IHT liability', 'No succession structure', 'Family wealth transfer concerns'],
+   '{"standard": 2500}'::jsonb
   ),
-  ('property_health_check', 'Property Portfolio Health Check', 'wealth',
+  ('property_health_check', 'Property Portfolio Health Check',
    'Analyse property portfolio performance and identify rationalisation opportunities.',
-   '["Unknown property yields", "No portfolio strategy", "Property management challenges"]',
-   '{"standard": 3500}'
+   ARRAY['Unknown property yields', 'No portfolio strategy', 'Property management challenges'],
+   '{"standard": 3500}'::jsonb
   ),
-  ('wealth_transfer_strategy', 'Family Wealth Transfer Strategy', 'wealth',
+  ('wealth_transfer_strategy', 'Family Wealth Transfer Strategy',
    'Comprehensive succession planning for investment portfolios.',
-   '["No succession plan", "Next-generation readiness", "Complex family dynamics"]',
-   '{"standard": 5500}'
+   ARRAY['No succession plan', 'Next-generation readiness', 'Complex family dynamics'],
+   '{"standard": 5500}'::jsonb
   ),
-  ('property_management_sourcing', 'Property Management Sourcing', 'operational',
+  ('property_management_sourcing', 'Property Management Sourcing',
    'Find and vet property management companies.',
-   '["Poor property management", "Need to delegate", "Unreliable current providers"]',
-   '{"standard": 1500}'
+   ARRAY['Poor property management', 'Need to delegate', 'Unreliable current providers'],
+   '{"standard": 1500}'::jsonb
   ),
-  ('founder_financial_foundations', 'Founder Financial Foundations', 'financial',
+  ('founder_financial_foundations', 'Founder Financial Foundations',
    'Build financial infrastructure for funded startups.',
-   '["No runway visibility", "Poor board reporting", "Financial literacy gaps"]',
-   '{"standard": 2500}'
+   ARRAY['No runway visibility', 'Poor board reporting', 'Financial literacy gaps'],
+   '{"standard": 2500}'::jsonb
   ),
-  ('post_launch_ops', 'Post-Launch Operations Setup', 'operational',
+  ('post_launch_ops', 'Post-Launch Operations Setup',
    'Operational foundations for startups going live.',
-   '["No onboarding process", "Chaos at launch", "No operational rhythms"]',
-   '{"standard": 3500}'
+   ARRAY['No onboarding process', 'Chaos at launch', 'No operational rhythms'],
+   '{"standard": 3500}'::jsonb
   ),
-  ('agency_profitability_audit', 'Agency Profitability Audit', 'financial',
+  ('agency_profitability_audit', 'Agency Profitability Audit',
    'Deep dive into agency economics and profitability.',
-   '["Unknown client profitability", "Low utilisation", "Margin compression"]',
-   '{"standard": 2000}'
+   ARRAY['Unknown client profitability', 'Low utilisation', 'Margin compression'],
+   '{"standard": 2000}'::jsonb
   ),
-  ('agency_cash_navigator', 'Agency Cash Flow Navigator', 'financial',
+  ('agency_cash_navigator', 'Agency Cash Flow Navigator',
    'Weekly cash visibility for project-based businesses.',
-   '["Cash flow anxiety", "Lumpy project revenue", "Payroll stress"]',
-   '{"monthly": 1200}'
+   ARRAY['Cash flow anxiety', 'Lumpy project revenue', 'Payroll stress'],
+   '{"monthly": 1200}'::jsonb
   ),
-  ('rapid_decision_support', 'Rapid Decision Support', 'financial',
+  ('rapid_decision_support', 'Rapid Decision Support',
    '48-hour analysis for urgent business decisions.',
-   '["Urgent hire decision", "Time-sensitive opportunity", "Contract negotiation"]',
-   '{"standard": 750}'
+   ARRAY['Urgent hire decision', 'Time-sensitive opportunity', 'Contract negotiation'],
+   '{"standard": 750}'::jsonb
   ),
-  ('restructuring_support', 'Restructuring Support Programme', 'operational',
+  ('restructuring_support', 'Restructuring Support Programme',
    'Navigate redundancy and restructuring with confidence.',
-   '["Avoided redundancy conversation", "Team right-sizing", "Difficult people decisions"]',
-   '{"standard": 3500}'
+   ARRAY['Avoided redundancy conversation', 'Team right-sizing', 'Difficult people decisions'],
+   '{"standard": 3500}'::jsonb
   )
 ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
