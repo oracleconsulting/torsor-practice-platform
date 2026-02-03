@@ -287,7 +287,6 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
       
       if (service?.code) {
         // Remove issue_service_mappings that reference this service by code
-        // The table uses service CODE as foreign key, not ID
         await supabase
           .from('issue_service_mappings')
           .update({ primary_service_code: null })
@@ -298,6 +297,18 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           .update({ secondary_service_code: null })
           .eq('secondary_service_code', service.code);
       }
+      
+      // Clear discovery_opportunities references (uses service ID)
+      await supabase
+        .from('discovery_opportunities')
+        .update({ recommended_service_id: null })
+        .eq('recommended_service_id', serviceId);
+      
+      // Clear client_opportunities references if they exist
+      await supabase
+        .from('client_opportunities')
+        .update({ recommended_service_id: null })
+        .eq('recommended_service_id', serviceId);
       
       // Now delete the service
       const { error } = await supabase
