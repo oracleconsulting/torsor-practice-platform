@@ -277,25 +277,26 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
 
   // Delete a service from the catalogue
   const handleDeleteService = async (serviceId: string) => {
-    if (!confirm('Are you sure you want to delete this service? This cannot be undone.')) {
+    if (!confirm('Are you sure you want to delete this service? This cannot be undone.\n\nNote: Use "Archive" instead if you want to keep the data but hide the service.')) {
       return;
     }
     
     setDeletingService(serviceId);
     try {
-      // First, remove any issue_service_mappings that reference this service
-      await supabase
-        .from('issue_service_mappings')
-        .delete()
-        .eq('service_id', serviceId);
-      
-      // Also check for primary_service_code references (uses code, not id)
       const service = additionalServices.find(s => s.id === serviceId);
+      
       if (service?.code) {
+        // Remove issue_service_mappings that reference this service by code
+        // The table uses service CODE as foreign key, not ID
         await supabase
           .from('issue_service_mappings')
-          .delete()
+          .update({ primary_service_code: null })
           .eq('primary_service_code', service.code);
+        
+        await supabase
+          .from('issue_service_mappings')
+          .update({ secondary_service_code: null })
+          .eq('secondary_service_code', service.code);
       }
       
       // Now delete the service
@@ -313,7 +314,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
       console.error('Error deleting service:', error);
       // Provide more helpful error message
       if (error.message?.includes('foreign key') || error.code === '23503') {
-        alert('This service cannot be deleted because it is currently being used by client recommendations or mappings. Please remove those references first.');
+        alert('This service cannot be deleted because it is still referenced elsewhere.\n\nTry using "Archive" instead - this hides the service without breaking references.');
       } else {
         alert(`Failed to delete service: ${error.message}`);
       }
