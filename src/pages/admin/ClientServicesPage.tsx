@@ -283,6 +283,22 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
     
     setDeletingService(serviceId);
     try {
+      // First, remove any issue_service_mappings that reference this service
+      await supabase
+        .from('issue_service_mappings')
+        .delete()
+        .eq('service_id', serviceId);
+      
+      // Also check for primary_service_code references (uses code, not id)
+      const service = additionalServices.find(s => s.id === serviceId);
+      if (service?.code) {
+        await supabase
+          .from('issue_service_mappings')
+          .delete()
+          .eq('primary_service_code', service.code);
+      }
+      
+      // Now delete the service
       const { error } = await supabase
         .from('services')
         .delete()
@@ -292,9 +308,15 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
       
       // Remove from local state
       setAdditionalServices(prev => prev.filter(s => s.id !== serviceId));
+      setEditingService(null); // Close edit modal if open
     } catch (error: any) {
       console.error('Error deleting service:', error);
-      alert(`Failed to delete service: ${error.message}`);
+      // Provide more helpful error message
+      if (error.message?.includes('foreign key') || error.code === '23503') {
+        alert('This service cannot be deleted because it is currently being used by client recommendations or mappings. Please remove those references first.');
+      } else {
+        alert(`Failed to delete service: ${error.message}`);
+      }
     } finally {
       setDeletingService(null);
     }
@@ -2124,14 +2146,29 @@ Jeremy Baron	jeremy@baronsec.com	Baron Securities"
               </div>
               
               <div className="p-6 border-t border-gray-200 flex items-center justify-between">
-                <button
-                  onClick={() => handleDeleteService(editingService.id)}
-                  disabled={savingService}
-                  className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-2"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      // Archive instead of delete (safer)
+                      handleSaveService({ ...editingService, status: 'archived' });
+                    }}
+                    disabled={savingService}
+                    className="px-4 py-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors flex items-center gap-2"
+                    title="Archive service (keeps data but hides from list)"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Archive
+                  </button>
+                  <button
+                    onClick={() => handleDeleteService(editingService.id)}
+                    disabled={savingService}
+                    className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-2"
+                    title="Permanently delete (may fail if in use)"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </button>
+                </div>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setEditingService(null)}
