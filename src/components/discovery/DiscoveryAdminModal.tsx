@@ -45,6 +45,7 @@ import {
   LearningReviewPanel, 
   useAnalysisComments 
 } from './AnalysisCommentSystem';
+import { DiscoveryOpportunityPanel } from './DiscoveryOpportunityPanel';
 
 interface DiscoveryAdminModalProps {
   clientId: string;
@@ -77,7 +78,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   
-  const [activeTab, setActiveTab] = useState<'responses' | 'context' | 'report' | 'learning'>('responses');
+  const [activeTab, setActiveTab] = useState<'responses' | 'context' | 'report' | 'opportunities' | 'learning'>('responses');
   const [loading, setLoading] = useState(true);
   const [engagement, setEngagement] = useState<any>(null);
   const [discovery, setDiscovery] = useState<any>(null);
@@ -1421,6 +1422,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
               { id: 'responses', label: 'Responses', icon: FileText },
               { id: 'context', label: 'Context & Docs', icon: MessageSquare },
               { id: 'report', label: 'Report', icon: Sparkles },
+              { id: 'opportunities', label: 'Opportunities', icon: Target, badge: report?.opportunity_count || 0 },
               { id: 'learning', label: 'Learning', icon: BookOpen, badge: analysisComments.filter(c => c.status === 'pending').length },
             ].map((tab) => (
               <button
@@ -1959,6 +1961,26 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                     {renderClientPreview()}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Opportunities Tab */}
+            {activeTab === 'opportunities' && engagement?.id && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">Identified Opportunities</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Review and manage opportunities identified by Pass 3. Mark which ones to show in client view.
+                    </p>
+                  </div>
+                </div>
+                
+                <DiscoveryOpportunityPanel 
+                  engagementId={engagement.id}
+                  clientId={clientId}
+                  practiceId={currentMember?.practice_id}
+                />
               </div>
             )}
 
