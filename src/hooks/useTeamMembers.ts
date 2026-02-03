@@ -75,4 +75,3 @@ export function useClientMembers(practiceId: string | null) {
     enabled: !!practiceId,
   });
 }
-

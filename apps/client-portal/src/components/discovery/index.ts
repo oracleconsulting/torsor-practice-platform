@@ -19,4 +19,3 @@ export {
 } from './DiscoveryInsightCard';
 export type { InsightPriority } from './DiscoveryInsightCard';
 
-

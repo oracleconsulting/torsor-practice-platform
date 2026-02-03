@@ -113,4 +113,3 @@ COMMENT ON COLUMN discovery_reports.detected_industry IS
 --   "factors": ["Specific exit timeline (1-3 years)", "Concrete exit outcome defined", "Stakeholder consideration"]
 -- }
 -- ============================================================================
-

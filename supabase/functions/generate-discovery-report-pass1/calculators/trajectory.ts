@@ -334,4 +334,3 @@ export function buildTrajectoryGapPhrase(
     shiftRequired: 'Stabilise or explain the decline before going to market'
   };
 }
-

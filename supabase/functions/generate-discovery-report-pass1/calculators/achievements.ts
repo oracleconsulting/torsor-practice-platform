@@ -268,4 +268,3 @@ export function buildAchievementsPhrase(
   
   return achievements.phrases.foundationStatement;
 }
-

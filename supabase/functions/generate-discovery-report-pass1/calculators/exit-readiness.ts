@@ -296,4 +296,3 @@ export function extractExitReadinessSignals(
                              allText.includes('customers know me')
   };
 }
-

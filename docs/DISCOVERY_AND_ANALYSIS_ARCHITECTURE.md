@@ -667,4 +667,3 @@ const VALUE_INDUSTRY_MULTIPLES = {
 ---
 
 *This document is auto-maintained. Last code review: February 2026*
-

@@ -509,4 +509,3 @@ export function getStatus(
   if (variance >= -thresholds.concern) return 'concern';
   return 'critical';
 }
-

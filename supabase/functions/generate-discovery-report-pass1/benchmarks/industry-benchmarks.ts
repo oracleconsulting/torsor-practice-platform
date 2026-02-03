@@ -392,4 +392,3 @@ export function getRevenuePerHeadStatus(
   if (revenuePerHead >= benchmark.revenuePerHead.low) return 'typical';
   return 'concerning';
 }
-

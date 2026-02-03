@@ -221,4 +221,3 @@ ORDER BY parent.relname, child.relname;
 --    SELECT * FROM pg_tables WHERE tablename LIKE '%_20%' ORDER BY tablename;
 --
 -- ============================================================================
-

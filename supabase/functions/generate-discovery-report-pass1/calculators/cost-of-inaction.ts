@@ -226,4 +226,3 @@ export function buildCostOfInactionPhrase(
   
   return `The cost of inaction: £${totalK}k+ over ${total.timeHorizon} years. ${total.phrases.breakdown}`;
 }
-

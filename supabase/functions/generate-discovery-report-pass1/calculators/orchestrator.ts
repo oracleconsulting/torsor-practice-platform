@@ -610,4 +610,3 @@ function createEmptyValuationMetrics(): any {
     pricePerShare: null
   };
 }
-

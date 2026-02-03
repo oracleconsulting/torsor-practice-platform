@@ -2538,6 +2538,19 @@ function DiscoveryClientModal({
               } else {
                 console.log('Stage 4b: Pass 2 complete:', pass2Data);
                 
+                // Automatically run Pass 3 (Opportunities) after Pass 2 succeeds
+                console.log('Stage 4c: Running Pass 3 (opportunities)...');
+                const { data: pass3Data, error: pass3Error } = await supabase.functions.invoke('generate-discovery-opportunities', {
+                  body: { engagementId }
+                });
+                
+                if (pass3Error) {
+                  console.warn('Stage 4c: Pass 3 warning (non-fatal):', pass3Error);
+                  // Pass 3 failure is non-fatal - report is still valid
+                } else {
+                  console.log('Stage 4c: Pass 3 complete:', pass3Data);
+                }
+                
                 // Fetch the updated destination report
                 const { data: destReport } = await supabase
                   .from('discovery_reports')

@@ -279,4 +279,3 @@ export function buildPayrollGapPhrase(
     shiftRequired: payroll.staffCostsPercent.phrases.actionRequired || 'Right-size the team before exit'
   };
 }
-

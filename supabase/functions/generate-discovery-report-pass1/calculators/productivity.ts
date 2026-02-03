@@ -264,4 +264,3 @@ export function buildProductivityGapPhrase(
     shiftRequired: productivity.excessHeadcount.phrases.actionRequired || 'Address before exit'
   };
 }
-

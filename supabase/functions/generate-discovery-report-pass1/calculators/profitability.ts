@@ -251,4 +251,3 @@ function buildGrossMarginPhrases(
     context: 'Pricing or cost issues may be compressing margin'
   };
 }
-

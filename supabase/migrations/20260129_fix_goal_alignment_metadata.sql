@@ -59,4 +59,3 @@ WHERE service_code = '365_method'
 SELECT code, name, display_name, roi_calculation_method 
 FROM service_line_metadata 
 WHERE code = '365_method';
-

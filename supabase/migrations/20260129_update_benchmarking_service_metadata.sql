@@ -56,4 +56,3 @@ WHERE service_pricing_id IN (
 SELECT code, name, display_name, pricing, typical_timeline 
 FROM service_line_metadata 
 WHERE code = 'benchmarking';
-

@@ -555,4 +555,3 @@ Please return the completed questionnaire to your advisor.
 RPGCC • London Chartered Accountants and Auditors
 This assessment is confidential and will only be used for your analysis.
 ───────────────────────────────────────────────────────────────────────────────
-
