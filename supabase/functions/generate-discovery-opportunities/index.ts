@@ -80,6 +80,9 @@ serve(async (req) => {
       .eq('status', 'active');
     
     console.log(`[Discovery Pass 3] Loaded ${services?.length || 0} active services`);
+    
+    // 2a. Load service pricing for correct display
+    const servicePricing = await loadServicePricing(supabase);
 
     // 3. Get existing concepts (to avoid duplicates)
     const { data: existingConcepts } = await supabase
@@ -91,15 +94,15 @@ serve(async (req) => {
 
     // 4. Build and call LLM for analysis
     const startTime = Date.now();
-    let analysis = await analyseWithLLM(clientData, services || [], existingConcepts || []);
+    let analysis = await analyseWithLLM(clientData, services || [], existingConcepts || [], servicePricing);
     const analysisTime = Date.now() - startTime;
     
     console.log(`[Discovery Pass 3] Opus 4.5 identified ${analysis.opportunities?.length || 0} RAW opportunities in ${analysisTime}ms`);
     
-    // 4a. POST-PROCESSING: Filter inappropriate services and consolidate
-    analysis = postProcessOpportunities(analysis, clientData);
+    // 4a. POST-PROCESSING: Filter inappropriate services, deduplicate, and apply correct pricing
+    analysis = postProcessOpportunities(analysis, clientData, servicePricing);
     
-    console.log(`[Discovery Pass 3] After post-processing: ${analysis.opportunities?.length || 0} opportunities`);
+    console.log(`[Discovery Pass 3] After post-processing: ${analysis.opportunities?.length || 0} opportunities (deduplicated)`);
 
     // 5. Store results
     await storeOpportunities(supabase, engagementId, clientData.clientId, analysis);
@@ -246,7 +249,8 @@ async function gatherAllClientData(supabase: any, engagementId: string): Promise
 async function analyseWithLLM(
   clientData: ClientData, 
   services: any[], 
-  existingConcepts: any[]
+  existingConcepts: any[],
+  servicePricing: Map<string, ServicePricing>
 ): Promise<any> {
   const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
   
@@ -255,7 +259,7 @@ async function analyseWithLLM(
   }
 
   const systemPrompt = buildSystemPrompt();
-  const userPrompt = buildUserPrompt(clientData, services, existingConcepts);
+  const userPrompt = buildUserPrompt(clientData, services, existingConcepts, servicePricing);
   
   console.log(`[Discovery Pass 3] Calling ${MODEL_CONFIG.model}...`);
   
@@ -314,10 +318,19 @@ Use UK English. Ground every insight in the client's actual data and words.`;
 function buildUserPrompt(
   clientData: ClientData,
   services: any[],
-  existingConcepts: any[]
+  existingConcepts: any[],
+  servicePricing: Map<string, ServicePricing>
 ): string {
   const responses = clientData.discoveryResponses;
   const analysis = clientData.comprehensiveAnalysis;
+  
+  // Format services with correct pricing
+  const formattedServices = services.map(s => {
+    const pricing = servicePricing.get(s.code);
+    const priceDisplay = pricing?.displayPrice || `£${s.price_amount || 'varies'}`;
+    const model = pricing?.pricingModel || 'fixed';
+    return `- **${s.code}**: ${s.name} - ${s.short_description || s.description?.substring(0, 100) || 'No description'} (${priceDisplay}, ${model})`;
+  }).join('\n');
   
   return `
 ## DISCOVERY OPPORTUNITY ANALYSIS
@@ -380,6 +393,10 @@ ${getClientTypeRules(clientData.clientType, clientData.frameworkOverrides)}
 
 ${formatFinancials(analysis, clientData.financials, clientData.assetValuation)}
 
+## BENCHMARK COMPARISONS (for grounded ROI calculations)
+
+${formatBenchmarkData(analysis?.lightweightBenchmark)}
+
 ## COMPREHENSIVE ANALYSIS (from Pass 1)
 
 ${formatAnalysis(analysis)}
@@ -388,9 +405,9 @@ ${formatAnalysis(analysis)}
 
 ${clientData.contextNotes.length > 0 ? clientData.contextNotes.join('\n\n') : 'No adviser notes'}
 
-## OUR EXISTING SERVICES
+## OUR EXISTING SERVICES (with correct pricing)
 
-${services.map(s => `- **${s.code}**: ${s.name} - ${s.short_description || s.description?.substring(0, 100) || 'No description'} (£${s.price_amount || 'varies'})`).join('\n')}
+${formattedServices}
 
 ## SERVICE CONCEPTS IN PIPELINE
 
@@ -416,6 +433,31 @@ Identify 6-12 opportunities. For EACH opportunity:
 - We WANT new service concepts - don't force-fit to existing services
 - Use their EXACT words where possible
 
+⚠️ SERVICE DEDUPLICATION RULE - CRITICAL:
+
+Each service can only be recommended ONCE, even if it solves multiple problems.
+
+If multiple opportunities would be solved by the same service:
+- Pick the PRIMARY opportunity for that service
+- List other solved problems in the "alsoAddresses" array
+- Combine the financial impact
+
+Example:
+- "Founder Dependency" recommends Fractional COO
+- "Team Readiness Unknown" also fits Fractional COO
+→ Recommend Fractional COO ONCE for "Founder Dependency", note it "alsoAddresses: ['Team Readiness']"
+
+⛔ NEVER output the same service code twice in recommendations
+
+⚠️ PRICING RULES:
+
+Use the EXACT pricing shown above. Note the pricing model:
+- "monthly" = recurring monthly fee (show as £X/mo)  
+- "annual" = one-time annual engagement (show as £X)
+- "fixed" = one-time project fee (show as £X)
+
+Do NOT convert annual prices to monthly or vice versa.
+
 ## OUTPUT FORMAT (JSON)
 
 {
@@ -432,15 +474,19 @@ Identify 6-12 opportunities. For EACH opportunity:
         "type": "risk|upside|cost_saving|value_creation|unknown",
         "amount": 50000,
         "confidence": "high|medium|low",
-        "calculation": "Show working"
+        "calculation": "REQUIRED: Show working using benchmark data. Format: 'X% gap on £Yk revenue = £Zk. Conservative (30%): £Ak'"
       },
       "lifeImpact": "What this means for them personally",
       "serviceMapping": {
         "existingService": {
           "code": "SERVICE_CODE",
+          "name": "Service Name",
+          "displayPrice": "£X/mo or £X",
+          "pricingModel": "monthly|annual|fixed",
           "fitScore": 85,
           "rationale": "Why this service helps",
-          "limitation": "What it won't fully solve"
+          "limitation": "What it won't fully solve",
+          "alsoAddresses": ["Other opportunity title if this service solves multiple problems"]
         },
         "newConceptNeeded": null
       },
@@ -593,6 +639,35 @@ function formatFinancials(analysis: any, financials: any, assetValuation: any): 
   return lines.length > 0 ? lines.join('\n') : 'Limited financial data available';
 }
 
+function formatBenchmarkData(benchmark: any): string {
+  if (!benchmark?.hasData) {
+    return 'No benchmark data available - use qualitative impact only.';
+  }
+  
+  const lines: string[] = [];
+  lines.push(`**Industry:** ${benchmark.industry}`);
+  lines.push(`**Total Quantified Opportunity:** £${((benchmark.totalOpportunityValue || 0)/1000).toFixed(0)}k/year`);
+  lines.push(`**Summary:** ${benchmark.summaryNarrative}`);
+  lines.push('');
+  lines.push('**Metric Comparisons:**');
+  
+  for (const comp of (benchmark.comparisons || [])) {
+    const status = comp.gapType === 'above' ? '✓ ABOVE' : 
+                   comp.gapType === 'below' ? '⚠️ BELOW' : '≈ AT';
+    lines.push(`- **${comp.metric}**: Client ${comp.clientValue?.toFixed(1)} vs Median ${comp.benchmarkMedian?.toFixed(1)} (${status} benchmark)`);
+    if (comp.annualImpact && comp.calculation) {
+      lines.push(`  → Opportunity: £${(comp.annualImpact/1000).toFixed(0)}k/year (${comp.calculation})`);
+    }
+  }
+  
+  lines.push('');
+  lines.push('⚠️ CRITICAL: Use these benchmark figures to ground your "financialImpact" calculations.');
+  lines.push('Apply conservative factor (30-50% achievable) to raw opportunity values.');
+  lines.push('If client is ABOVE benchmarks, focus on scaling/founder dependency, not efficiency.');
+  
+  return lines.join('\n');
+}
+
 function formatAnalysis(analysis: any): string {
   if (!analysis || Object.keys(analysis).length === 0) {
     return 'No comprehensive analysis available';
@@ -614,10 +689,132 @@ function formatAnalysis(analysis: any): string {
 }
 
 // ============================================================================
+// SERVICE PRICING TYPES
+// ============================================================================
+
+interface ServicePricing {
+  code: string;
+  name: string;
+  pricingModel: 'monthly' | 'annual' | 'fixed' | 'project';
+  price: number;
+  displayPrice: string;
+}
+
+// ============================================================================
+// SERVICE DEDUPLICATION
+// ============================================================================
+
+function deduplicateServiceRecommendations(opportunities: any[], servicePricing: Map<string, ServicePricing>): any[] {
+  const seenServices = new Map<string, any>();
+  const deduplicated: any[] = [];
+  
+  for (const opp of opportunities) {
+    const serviceCode = opp.serviceMapping?.existingService?.code;
+    
+    if (!serviceCode) {
+      // No service mapped - keep the opportunity
+      deduplicated.push(opp);
+      continue;
+    }
+    
+    if (seenServices.has(serviceCode)) {
+      // Service already recommended - merge the opportunities
+      const existing = seenServices.get(serviceCode);
+      
+      // Combine the rationales
+      if (existing.serviceMapping?.existingService) {
+        existing.serviceMapping.existingService.rationale = 
+          `${existing.serviceMapping.existingService.rationale}\n\nAlso addresses: ${opp.title}`;
+        
+        // Track merged opportunities
+        existing.serviceMapping.existingService.alsoAddresses = 
+          existing.serviceMapping.existingService.alsoAddresses || [];
+        existing.serviceMapping.existingService.alsoAddresses.push(opp.title);
+      }
+      
+      // Keep the higher severity
+      const severityOrder: Record<string, number> = { 'critical': 0, 'high': 1, 'medium': 2, 'opportunity': 3 };
+      if ((severityOrder[opp.severity] || 4) < (severityOrder[existing.severity] || 4)) {
+        existing.severity = opp.severity;
+      }
+      
+      // Keep the higher priority
+      const priorityOrder: Record<string, number> = { 'must_address_now': 0, 'next_3_months': 1, 'next_12_months': 2, 'when_ready': 3 };
+      if ((priorityOrder[opp.priority] || 4) < (priorityOrder[existing.priority] || 4)) {
+        existing.priority = opp.priority;
+        existing.priorityRationale = opp.priorityRationale;
+      }
+      
+      // Combine financial impacts if both exist
+      if (opp.financialImpact?.amount && existing.financialImpact?.amount) {
+        existing.financialImpact.amount += opp.financialImpact.amount;
+        existing.financialImpact.calculation = `${existing.financialImpact.calculation || ''}\n+ ${opp.title}: £${opp.financialImpact.amount.toLocaleString()}`;
+      } else if (opp.financialImpact?.amount && !existing.financialImpact?.amount) {
+        existing.financialImpact = opp.financialImpact;
+      }
+      
+      console.log(`[Opportunities] Merged duplicate service: ${serviceCode} (${opp.title} into ${existing.title})`);
+    } else {
+      // First time seeing this service - apply correct pricing
+      const pricing = servicePricing.get(serviceCode);
+      if (pricing && opp.serviceMapping?.existingService) {
+        opp.serviceMapping.existingService.name = pricing.name;
+        opp.serviceMapping.existingService.price = pricing.price;
+        opp.serviceMapping.existingService.displayPrice = pricing.displayPrice;
+        opp.serviceMapping.existingService.pricingModel = pricing.pricingModel;
+      }
+      
+      seenServices.set(serviceCode, opp);
+      deduplicated.push(opp);
+    }
+  }
+  
+  console.log(`[Opportunities] Deduplication: ${opportunities.length} → ${deduplicated.length} opportunities`);
+  return deduplicated;
+}
+
+// ============================================================================
+// SERVICE PRICING LOADER
+// ============================================================================
+
+async function loadServicePricing(supabase: any): Promise<Map<string, ServicePricing>> {
+  const { data: services } = await supabase
+    .from('services')
+    .select('code, name, pricing_model, price_amount, price_display')
+    .eq('status', 'active');
+  
+  const pricingMap = new Map<string, ServicePricing>();
+  
+  for (const s of services || []) {
+    const isMonthly = s.pricing_model === 'monthly' || s.pricing_model === 'retainer';
+    const price = s.price_amount || 0;
+    
+    // Use price_display if set, otherwise format based on model
+    let displayPrice = s.price_display;
+    if (!displayPrice) {
+      displayPrice = isMonthly 
+        ? `£${price.toLocaleString()}/mo` 
+        : `£${price.toLocaleString()}`;
+    }
+    
+    pricingMap.set(s.code, {
+      code: s.code,
+      name: s.name,
+      pricingModel: s.pricing_model || 'fixed',
+      price: price,
+      displayPrice: displayPrice
+    });
+  }
+  
+  console.log(`[Opportunities] Loaded pricing for ${pricingMap.size} services`);
+  return pricingMap;
+}
+
+// ============================================================================
 // POST-PROCESSING
 // ============================================================================
 
-function postProcessOpportunities(analysis: any, clientData: ClientData): any {
+function postProcessOpportunities(analysis: any, clientData: ClientData, servicePricing: Map<string, ServicePricing>): any {
   const inappropriateServices = clientData.frameworkOverrides?.inappropriateServices || [];
   const maxInvestment = clientData.frameworkOverrides?.maxRecommendedInvestment;
   
@@ -643,6 +840,9 @@ function postProcessOpportunities(analysis: any, clientData: ClientData): any {
     }
     return true;
   });
+  
+  // CRITICAL: Deduplicate services (same service shouldn't appear twice)
+  opportunities = deduplicateServiceRecommendations(opportunities, servicePricing);
   
   // Sort by priority
   const priorityOrder: Record<string, number> = {

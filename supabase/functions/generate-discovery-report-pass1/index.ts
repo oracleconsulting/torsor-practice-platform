@@ -171,6 +171,26 @@ interface ValuationSignals {
   neverHadBreak: boolean;  // NEW: Powerful emotional anchor
 }
 
+// NEW: Lightweight benchmark for ROI grounding in Pass 3
+interface BenchmarkComparison {
+  metric: string;
+  clientValue: number;
+  benchmarkMedian: number;
+  benchmarkTop25: number;
+  gap: number;
+  gapType: 'above' | 'below' | 'at';
+  annualImpact: number | null;
+  calculation: string | null;
+}
+
+interface LightweightBenchmark {
+  hasData: boolean;
+  industry: string;
+  comparisons: BenchmarkComparison[];
+  totalOpportunityValue: number;
+  summaryNarrative: string;
+}
+
 interface ComprehensiveAnalysis {
   dataQuality: 'comprehensive' | 'partial' | 'limited';
   availableMetrics: string[];
@@ -179,12 +199,13 @@ interface ComprehensiveAnalysis {
   trajectory: TrajectoryAnalysis | null;
   payroll: PayrollAnalysis | null;
   productivity: ProductivityAnalysis | null;
-  grossMargin: GrossMarginAnalysis | null;  // NEW
+  grossMargin: GrossMarginAnalysis | null;
   workingCapital: WorkingCapitalAnalysis | null;
-  hiddenAssets: HiddenAssetsAnalysis | null;  // NEW
+  hiddenAssets: HiddenAssetsAnalysis | null;
   exitReadiness: ExitReadinessAnalysis | null;
   costOfInaction: CostOfInactionAnalysis | null;
-  achievements: AchievementAnalysis | null;  // NEW
+  achievements: AchievementAnalysis | null;
+  lightweightBenchmark: LightweightBenchmark | null;  // NEW: For grounded ROI in Pass 3
 }
 
 interface ExtractedFinancials {
@@ -1757,6 +1778,148 @@ function calculateDestinationClarity(responses: Record<string, any>): Destinatio
 // MASTER ORCHESTRATOR
 // ============================================================================
 
+// ============================================================================
+// LIGHTWEIGHT BENCHMARK FOR ROI GROUNDING (Pass 3 uses this)
+// ============================================================================
+
+function runLightweightBenchmark(
+  financials: ExtractedFinancials,
+  payroll: PayrollAnalysis | null,
+  grossMargin: GrossMarginAnalysis | null,
+  productivity: ProductivityAnalysis | null,
+  industry: string
+): LightweightBenchmark {
+  const comparisons: BenchmarkComparison[] = [];
+  let totalOpportunity = 0;
+  const turnover = financials.turnover || 0;
+  
+  if (!turnover) {
+    return {
+      hasData: false,
+      industry,
+      comparisons: [],
+      totalOpportunityValue: 0,
+      summaryNarrative: 'Insufficient revenue data for benchmarking'
+    };
+  }
+  
+  // 1. Gross Margin Comparison
+  if (grossMargin?.hasData && grossMargin.grossMarginPct !== null) {
+    const clientGrossMargin = grossMargin.grossMarginPct;
+    const benchmarkMedian = grossMargin.industryBenchmark?.low || 50;
+    const benchmarkTop25 = grossMargin.industryBenchmark?.high || 60;
+    const gap = benchmarkMedian - clientGrossMargin;
+    
+    let annualImpact: number | null = null;
+    let calculation: string | null = null;
+    
+    if (gap > 2) {
+      // Below median - opportunity to improve
+      annualImpact = (gap / 100) * turnover;
+      calculation = `${gap.toFixed(1)}% margin improvement on £${(turnover/1000).toFixed(0)}k = £${(annualImpact/1000).toFixed(0)}k`;
+      totalOpportunity += annualImpact;
+    }
+    
+    comparisons.push({
+      metric: 'Gross Margin',
+      clientValue: clientGrossMargin,
+      benchmarkMedian,
+      benchmarkTop25,
+      gap,
+      gapType: gap > 2 ? 'below' : gap < -2 ? 'above' : 'at',
+      annualImpact,
+      calculation
+    });
+  }
+  
+  // 2. Operating Margin / Payroll Efficiency
+  if (payroll && payroll.staffCostsPct > 0) {
+    const clientStaffPct = payroll.staffCostsPct;
+    const benchmarkMedian = payroll.benchmark?.typical || 30;
+    const benchmarkTop25 = payroll.benchmark?.good || 25;
+    const gap = clientStaffPct - benchmarkMedian; // Positive = overspending
+    
+    let annualImpact: number | null = null;
+    let calculation: string | null = null;
+    
+    if (gap > 3 && payroll.annualExcess > 0) {
+      annualImpact = payroll.annualExcess;
+      calculation = `${gap.toFixed(1)}% excess staff cost on £${(turnover/1000).toFixed(0)}k = £${(annualImpact/1000).toFixed(0)}k`;
+      totalOpportunity += annualImpact;
+    }
+    
+    comparisons.push({
+      metric: 'Staff Costs (% Revenue)',
+      clientValue: clientStaffPct,
+      benchmarkMedian,
+      benchmarkTop25,
+      gap,
+      gapType: gap > 3 ? 'below' : gap < -3 ? 'above' : 'at',
+      annualImpact,
+      calculation
+    });
+  }
+  
+  // 3. Revenue per Employee (Productivity)
+  if (productivity?.hasData && productivity.revenuePerHead > 0) {
+    const clientRevPerHead = productivity.revenuePerHead;
+    const benchmarkMedian = productivity.benchmarkLow || 80000;
+    const benchmarkTop25 = productivity.benchmarkHigh || 120000;
+    const gap = benchmarkMedian - clientRevPerHead;
+    
+    let annualImpact: number | null = null;
+    let calculation: string | null = null;
+    
+    if (gap > 10000 && productivity.excessHeadcount && productivity.excessHeadcount > 0) {
+      // Below median productivity - implies excess headcount
+      const avgSalary = (financials.totalStaffCosts || 50000) / (productivity.employeeCount || 1);
+      annualImpact = productivity.excessHeadcount * avgSalary;
+      calculation = `£${(gap/1000).toFixed(0)}k below median × ${productivity.employeeCount} heads = £${(annualImpact/1000).toFixed(0)}k opportunity`;
+      totalOpportunity += annualImpact;
+    }
+    
+    comparisons.push({
+      metric: 'Revenue per Employee',
+      clientValue: clientRevPerHead,
+      benchmarkMedian,
+      benchmarkTop25,
+      gap,
+      gapType: gap > 10000 ? 'below' : gap < -10000 ? 'above' : 'at',
+      annualImpact,
+      calculation
+    });
+  }
+  
+  // Build narrative
+  const belowBenchmarks = comparisons.filter(c => c.gapType === 'below' && c.annualImpact);
+  const aboveBenchmarks = comparisons.filter(c => c.gapType === 'above');
+  
+  let narrative = '';
+  if (belowBenchmarks.length > 0) {
+    narrative = `Benchmarking shows potential improvements in: ${belowBenchmarks.map(b => b.metric).join(', ')}. `;
+    narrative += `Total quantified opportunity: £${(totalOpportunity/1000).toFixed(0)}k/year.`;
+  } else if (aboveBenchmarks.length > 0) {
+    narrative = `Performing above industry median on: ${aboveBenchmarks.map(b => b.metric).join(', ')}. Focus on scaling/founder dependency.`;
+  } else {
+    narrative = 'Performance broadly in line with industry benchmarks.';
+  }
+  
+  console.log('[Pass1] Lightweight Benchmark:', { 
+    comparisons: comparisons.length, 
+    totalOpportunity, 
+    aboveBenchmarks: aboveBenchmarks.length,
+    belowBenchmarks: belowBenchmarks.length
+  });
+  
+  return {
+    hasData: comparisons.length > 0,
+    industry,
+    comparisons,
+    totalOpportunityValue: totalOpportunity,
+    summaryNarrative: narrative
+  };
+}
+
 function performComprehensiveAnalysis(
   financials: ExtractedFinancials,
   responses: Record<string, any>,
@@ -1776,6 +1939,9 @@ function performComprehensiveAnalysis(
   const costOfInaction = calculateCostOfInaction(payroll, trajectory, valuation, responses);
   const achievements = analyseAchievements(responses, financials, payroll, grossMargin, exitReadiness);
   
+  // NEW: Run lightweight benchmark for Pass 3 ROI grounding
+  const lightweightBenchmark = runLightweightBenchmark(financials, payroll, grossMargin, productivity, industry);
+  
   // Track data quality
   const availableMetrics: string[] = [];
   const missingMetrics: string[] = [];
@@ -1788,6 +1954,7 @@ function performComprehensiveAnalysis(
   if (workingCapital?.hasData) availableMetrics.push('workingCapital'); else missingMetrics.push('workingCapital');
   if (hiddenAssets?.hasData) availableMetrics.push('hiddenAssets'); else missingMetrics.push('hiddenAssets');
   if (exitReadiness) availableMetrics.push('exitReadiness');
+  if (lightweightBenchmark?.hasData) availableMetrics.push('lightweightBenchmark');
   
   const dataQuality = availableMetrics.length >= 6 ? 'comprehensive' :
                       availableMetrics.length >= 4 ? 'partial' : 'limited';
@@ -1795,13 +1962,15 @@ function performComprehensiveAnalysis(
   console.log('[Pass1] Comprehensive Analysis complete:', { 
     dataQuality, 
     availableMetrics,
-    achievements: achievements.achievements.length
+    achievements: achievements.achievements.length,
+    benchmarkOpportunity: lightweightBenchmark?.totalOpportunityValue || 0
   });
   
   return {
     dataQuality, availableMetrics, missingMetrics,
     valuation, trajectory, payroll, productivity, grossMargin, 
-    workingCapital, hiddenAssets, exitReadiness, costOfInaction, achievements
+    workingCapital, hiddenAssets, exitReadiness, costOfInaction, achievements,
+    lightweightBenchmark
   };
 }
 
