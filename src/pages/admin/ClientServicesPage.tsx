@@ -2638,6 +2638,7 @@ function DiscoveryClientModal({
                 console.warn('Stage 4b: Pass 2 error:', pass2Error.message);
               } else {
                 console.log('Stage 4b: Pass 2 complete:', pass2Data);
+                console.log('🔍 About to run Pass 3 - engagementId:', engagementId);
                 
                 // Automatically run Pass 3 (Opportunities) after Pass 2 succeeds
                 try {
