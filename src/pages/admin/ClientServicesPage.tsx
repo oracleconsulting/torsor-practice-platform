@@ -232,6 +232,43 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   const [bulkSendEmails, setBulkSendEmails] = useState(false); // Default: NO auto emails
   const [deletingClient, setDeletingClient] = useState<string | null>(null);
   const [clientToDelete, setClientToDelete] = useState<{ id: string; name: string; email: string } | null>(null);
+  
+  // Additional services from database (editable, no assessments)
+  const [additionalServices, setAdditionalServices] = useState<any[]>([]);
+  const [loadingServices, setLoadingServices] = useState(false);
+
+  // Fetch additional services from database
+  useEffect(() => {
+    const fetchAdditionalServices = async () => {
+      setLoadingServices(true);
+      try {
+        // Get codes of main service lines to exclude them
+        const mainServiceCodes = SERVICE_LINES.map(s => s.code);
+        
+        const { data, error } = await supabase
+          .from('services')
+          .select('*')
+          .eq('status', 'active')
+          .order('name');
+        
+        if (error) {
+          console.error('Error fetching additional services:', error);
+        } else {
+          // Filter out services that match main service line codes
+          const additional = (data || []).filter(
+            service => !mainServiceCodes.includes(service.code)
+          );
+          setAdditionalServices(additional);
+        }
+      } catch (err) {
+        console.error('Error fetching additional services:', err);
+      } finally {
+        setLoadingServices(false);
+      }
+    };
+    
+    fetchAdditionalServices();
+  }, []);
 
   // Fetch clients when service line is selected
   useEffect(() => {
@@ -1009,6 +1046,70 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                 );
               })}
             </div>
+            
+            {/* Additional Services from Database (Editable, No Assessments) */}
+            {additionalServices.length > 0 && (
+              <div className="space-y-4 mt-12 pt-8 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Additional Services</h2>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Editable services from catalogue (no linked assessments)
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {additionalServices.map((service) => {
+                    const priceDisplay = service.price_amount 
+                      ? `£${parseFloat(service.price_amount).toLocaleString()}${service.price_period === 'month' ? '/mo' : service.price_period === 'one-off' ? ' one-off' : ''}`
+                      : 'Price on request';
+                    
+                    return (
+                      <div
+                        key={service.id}
+                        className="bg-white rounded-xl border border-gray-200 p-6 hover:border-indigo-300 hover:shadow-md transition-all"
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center">
+                            <FileText className="w-6 h-6 text-gray-600" />
+                          </div>
+                          <button
+                            onClick={() => {
+                              // TODO: Open edit modal or navigate to service config
+                              alert(`Edit service: ${service.name}\n\nThis will open the service editor where you can edit approach, pricing, etc.`);
+                            }}
+                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            title="Edit service"
+                          >
+                            <Settings className="w-4 h-4 text-gray-400 hover:text-indigo-600" />
+                          </button>
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                          {service.name}
+                        </h3>
+                        <p className="text-sm text-gray-500 mb-3 line-clamp-2">
+                          {service.short_description || service.description || 'No description'}
+                        </p>
+                        <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                          <span className="text-sm font-medium text-green-600">
+                            ✓ Active
+                          </span>
+                          <span className="text-sm text-gray-600">
+                            {priceDisplay}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            
+            {loadingServices && (
+              <div className="text-center py-8 text-gray-500">
+                Loading additional services...
+              </div>
+            )}
           </div>
         ) : (
           // Client List for Selected Service Line
