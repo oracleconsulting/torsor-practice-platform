@@ -56,7 +56,7 @@ export async function fetchServices(): Promise<Service[]> {
     const { data, error } = await supabase
       .from('services')
       .select('*')
-      .eq('is_active', true)
+      .eq('status', 'active')
       .order('display_order');
 
     if (error) {
