@@ -76,8 +76,8 @@ serve(async (req) => {
     
     console.log(`[Pass 3] Revenue extraction: _enriched_revenue=${clientData.pass1Data?._enriched_revenue}, fallback=${revenue}`);
     
-    // Pass full clientData for context-aware filtering
-    analysis = postProcessOpportunities(analysis, revenue, clientData);
+    // Pass full clientData for context-aware filtering, plus services for pinned lookup
+    analysis = postProcessOpportunities(analysis, revenue, clientData, services);
     
     console.log(`[Pass 3] After consolidation: ${analysis.opportunities?.length || 0} opportunities (revenue: £${(revenue/1000000).toFixed(1)}M)`);
     console.log(`[Pass 3] Priorities: ${analysis.opportunities?.filter(o => o.priority === 'must_address_now').length || 0} must address, ${analysis.opportunities?.filter(o => o.priority === 'next_12_months').length || 0} next 12m, ${analysis.opportunities?.filter(o => o.priority === 'when_ready').length || 0} when ready`);
@@ -113,6 +113,9 @@ serve(async (req) => {
         client_preferences: clientData.clientPreferences,
         recommended_services: recommendedServices,  // AUTHORITATIVE - frontend reads this ONLY
         active_service_codes: activeServiceCodes,
+        // NEW: Advisor service selections (for record-keeping)
+        pinned_services: clientData.pinnedServices || [],
+        blocked_services_manual: clientData.manuallyBlockedServices || [],
       })
       .eq('engagement_id', engagementId);
     
@@ -123,7 +126,8 @@ serve(async (req) => {
       engagementId,
       analysis.opportunities || [],
       clientData.pass1Data,
-      clientData.hva
+      clientData.hva,
+      clientData.clientPreferences  // Pass context preferences for context-aware remediation
     );
     
     // 7. Update engagement with direction context (for filtering/queries)
@@ -213,6 +217,9 @@ interface ClientData {
   contextNotes: ContextNote[];
   // NEW: Parsed preferences from context notes
   clientPreferences: ClientPreferences;
+  // NEW: Advisor service selections
+  pinnedServices: string[];
+  manuallyBlockedServices: string[];
 }
 
 interface DirectionContext {
@@ -484,6 +491,38 @@ async function gatherAllClientData(supabase: any, engagementId: string): Promise
     });
   }
 
+  // ============================================================================
+  // FETCH ADVISOR SERVICE SELECTIONS (Pinned / Blocked)
+  // ============================================================================
+  let pinnedServices: string[] = [];
+  let manuallyBlockedServices: string[] = [];
+  
+  try {
+    const { data: serviceSelections, error: selectionsError } = await supabase
+      .from('bm_engagement_services')
+      .select('service_code, selection_type, reason')
+      .eq('engagement_id', engagementId);
+    
+    if (selectionsError) {
+      console.log('[Pass 3] Error fetching service selections:', selectionsError.message);
+    } else if (serviceSelections && serviceSelections.length > 0) {
+      pinnedServices = serviceSelections
+        .filter((s: any) => s.selection_type === 'pinned')
+        .map((s: any) => s.service_code);
+      
+      manuallyBlockedServices = serviceSelections
+        .filter((s: any) => s.selection_type === 'blocked')
+        .map((s: any) => s.service_code);
+      
+      console.log('[Pass 3] 📌 Advisor service selections:', {
+        pinned: pinnedServices,
+        blocked: manuallyBlockedServices,
+      });
+    }
+  } catch (err) {
+    console.log('[Pass 3] Could not fetch service selections:', err);
+  }
+
   return {
     engagementId,
     clientId,
@@ -511,6 +550,9 @@ async function gatherAllClientData(supabase: any, engagementId: string): Promise
     // NEW: Context notes and parsed preferences
     contextNotes,
     clientPreferences,
+    // NEW: Advisor service selections
+    pinnedServices,
+    manuallyBlockedServices,
   };
 }
 
@@ -1087,13 +1129,24 @@ const ENHANCED_BLOCK_RULES: EnhancedBlockRule[] = [
 function filterBlockedServices(
   opportunities: any[],
   context: DirectionContext,
-  preferences: ClientPreferences  // NEW: Accept preferences
+  preferences: ClientPreferences,  // Accept preferences
+  manuallyBlockedServices: string[] = []  // NEW: Manually blocked by advisor
 ): { allowed: any[]; blocked: { serviceCode: string; reason: string }[] } {
   const blocked: { serviceCode: string; reason: string }[] = [];
   
   const allowed = opportunities.filter(opp => {
     const serviceCode = opp.serviceMapping?.existingService?.code;
     if (!serviceCode) return true;
+    
+    // NEW: Check if manually blocked by advisor (highest priority)
+    if (manuallyBlockedServices.includes(serviceCode)) {
+      blocked.push({
+        serviceCode,
+        reason: 'Manually blocked by advisor',
+      });
+      console.log(`[Pass 3] ❌ ADVISOR BLOCKED: ${serviceCode}`);
+      return false;
+    }
     
     // Check enhanced rules that use both context AND preferences
     const matchingRules = ENHANCED_BLOCK_RULES.filter(r => 
@@ -1663,9 +1716,15 @@ async function syncValueAnalysisWithOpportunities(
   engagementId: string,
   opportunities: any[],
   pass1Data: any,
-  hvaData: any
+  hvaData: any,
+  clientPreferences?: ClientPreferences
 ): Promise<void> {
   console.log('[Value Sync] Starting value analysis sync with opportunities');
+  console.log('[Value Sync] Client preferences:', {
+    avoidsInternalHires: clientPreferences?.avoidsInternalHires,
+    prefersExternalSupport: clientPreferences?.prefersExternalSupport,
+    needsSystemsAudit: clientPreferences?.needsSystemsAudit,
+  });
   
   // Get existing value analysis
   const { data: report } = await supabase
@@ -1744,6 +1803,26 @@ async function syncValueAnalysisWithOpportunities(
     const discountLow = hasConc ? 12 : 20;
     const discountHigh = hasConc ? 20 : 30;
     
+    // =========================================================================
+    // CONTEXT-AWARE REMEDIATION SERVICE for founder dependency
+    // If client prefers external support or avoids internal hires, suggest
+    // Systems Audit + Strategic Advisory instead of Fractional COO
+    // =========================================================================
+    let founderRemediationService = 'IP Documentation & Fractional COO';  // Default
+    
+    if (clientPreferences?.avoidsInternalHires || clientPreferences?.prefersExternalSupport) {
+      // Client explicitly prefers external/project-based support
+      if (clientPreferences?.needsSystemsAudit || clientPreferences?.needsDocumentation) {
+        founderRemediationService = 'Systems Audit + Strategic Advisory';
+      } else {
+        founderRemediationService = 'IP Documentation + Strategic Advisory';
+      }
+      console.log(`[Value Sync] Context-aware remediation: ${founderRemediationService} (client prefers external support)`);
+    } else if (clientPreferences?.prefersProjectBasis) {
+      founderRemediationService = 'Systems Audit + Process Documentation';
+      console.log(`[Value Sync] Context-aware remediation: ${founderRemediationService} (client prefers project basis)`);
+    }
+    
     syncedSuppressors.push({
       id: 'founder_dependency',
       name: 'Founder/Knowledge Dependency',
@@ -1758,7 +1837,7 @@ async function syncValueAnalysisWithOpportunities(
         high: baselineValue * (discountHigh / 100),
       },
       remediable: true,
-      remediationService: 'IP Documentation & Fractional COO',
+      remediationService: founderRemediationService,  // CONTEXT-AWARE
       remediationTimeMonths: 18,
       talkingPoint: founderOpp.talkingPoint,
       questionToAsk: founderOpp.questionToAsk,
@@ -2181,9 +2260,10 @@ interface OpportunityAnalysis {
 function postProcessOpportunities(
   analysis: OpportunityAnalysis, 
   revenue: number,
-  clientData: ClientData  // Now accepts full clientData for preferences
+  clientData: ClientData,  // Now accepts full clientData for preferences
+  services: any[] = []  // NEW: Pass services for pinned service lookup
 ): OpportunityAnalysis {
-  const { directionContext, clientPreferences } = clientData;
+  const { directionContext, clientPreferences, pinnedServices, manuallyBlockedServices } = clientData;
   const rawOpps = analysis.opportunities || [];
   
   // Even if no raw opportunities, we might add context-driven ones
@@ -2194,6 +2274,14 @@ function postProcessOpportunities(
     console.log(`[Post-Process] 📝 Context notes available: ${clientData.contextNotes.length}`);
   }
   
+  if (pinnedServices?.length > 0) {
+    console.log(`[Post-Process] 📌 Pinned services: ${pinnedServices.join(', ')}`);
+  }
+  
+  if (manuallyBlockedServices?.length > 0) {
+    console.log(`[Post-Process] 🚫 Manually blocked services: ${manuallyBlockedServices.join(', ')}`);
+  }
+  
   // Step 1: Consolidate duplicate themes
   const consolidated = consolidateOpportunities(rawOpps);
   console.log(`[Post-Process] After consolidation: ${consolidated.length} opportunities`);
@@ -2201,8 +2289,13 @@ function postProcessOpportunities(
   // Step 2: Sanitize financial impacts (cap at sensible % of revenue)
   const sanitized = consolidated.map(opp => sanitizeFinancialImpact(opp, revenue));
   
-  // Step 3: Filter blocked services based on client context AND preferences
-  const { allowed, blocked } = filterBlockedServices(sanitized, directionContext, clientPreferences);
+  // Step 3: Filter blocked services based on client context, preferences, AND manual blocks
+  const { allowed, blocked } = filterBlockedServices(
+    sanitized, 
+    directionContext, 
+    clientPreferences,
+    manuallyBlockedServices || []  // Pass manually blocked services
+  );
   console.log(`[Post-Process] After service filtering: ${allowed.length} allowed, ${blocked.length} blocked`);
   
   // Step 3b: ADD context-driven suggestions (services we should recommend based on notes)
@@ -2218,6 +2311,57 @@ function postProcessOpportunities(
     console.log(`[Post-Process] ✅ Adding ${contextOpps.length} context-driven opportunities:`, 
       contextOpps.map(o => o.title));
     allowed.push(...contextOpps);
+  }
+  
+  // Step 3c: ADD PINNED SERVICES (manually selected by advisor)
+  if (pinnedServices && pinnedServices.length > 0 && services.length > 0) {
+    const existingServiceCodes = new Set(
+      allowed
+        .map(o => o.serviceMapping?.existingService?.code)
+        .filter(Boolean)
+    );
+    
+    for (const pinnedCode of pinnedServices) {
+      // Skip if already in opportunities
+      if (existingServiceCodes.has(pinnedCode)) {
+        console.log(`[Post-Process] ⏭️ Pinned service ${pinnedCode} already in opportunities`);
+        continue;
+      }
+      
+      const service = services.find((s: any) => s.code === pinnedCode);
+      if (service) {
+        allowed.push({
+          code: `pinned-${pinnedCode.toLowerCase()}`,
+          title: service.name || service.code,
+          category: service.category || 'governance',
+          severity: 'high',
+          priority: 'next_12_months',
+          dataEvidence: 'Service selected by advisor based on client conversations and context.',
+          forTheOwner: service.headline || service.description,
+          talkingPoint: `Your advisor has specifically recommended ${service.name} based on your situation.`,
+          financialImpact: service.price_from ? {
+            amount: (service.price_from + (service.price_to || service.price_from)) / 2,
+            type: 'investment',
+            basis: 'Typical service cost',
+          } : undefined,
+          serviceMapping: {
+            matchType: 'advisor_pinned',
+            existingService: {
+              code: service.code,
+              name: service.name,
+              headline: service.headline,
+              priceRange: service.price_from && service.price_to 
+                ? `£${service.price_from.toLocaleString()}-£${service.price_to.toLocaleString()}`
+                : undefined,
+              fitRationale: 'Specifically selected by your advisor',
+            },
+          },
+          _pinnedByAdvisor: true,
+        });
+        
+        console.log(`[Post-Process] 📌 Added pinned service: ${service.name}`);
+      }
+    }
   }
   
   // Step 4: Apply direction-aware priority adjustment

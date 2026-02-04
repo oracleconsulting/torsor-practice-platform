@@ -159,10 +159,16 @@ function calculateEnhancedSuppressors(
   inputs: ValueSuppressorInput,
   baselineValue: number,
   _revenue: number,
-  industryCode: string
+  industryCode: string,
+  clientPreferences?: NarrativePreferences
 ): EnhancedValueSuppressor[] {
   
   const suppressors: EnhancedValueSuppressor[] = [];
+  
+  // Log context preferences for debugging
+  if (clientPreferences?.avoidsInternalHires || clientPreferences?.prefersExternalSupport) {
+    console.log('[EnhancedSuppressors] Context-aware mode: client prefers external support');
+  }
   
   // CONCENTRATION SUPPRESSOR
   const concentration = inputs.customerConcentration || 0;
@@ -259,15 +265,26 @@ function calculateEnhancedSuppressors(
       industryContext: "Common in founder-led businesses. The fix isn't about the founder leaving, it's about creating options.",
       pathToFix: {
         summary: 'Document critical knowledge and transition key relationships',
-        steps: [
-          'Hire or promote #2 (COO/GM role)',
-          'Document top 20 critical processes',
-          'Introduce #2 to key client relationships',
-          'Gradually reduce founder involvement in operations',
-          'Build management meeting cadence that runs without founder'
-        ],
+        // CONTEXT-AWARE: Adjust steps based on client preferences
+        steps: clientPreferences?.avoidsInternalHires || clientPreferences?.prefersExternalSupport
+          ? [
+              'Engage external strategic advisor to support leadership transition',
+              'Run systems audit to document critical knowledge',
+              'Identify internal successor candidate (if available) or develop succession pathway',
+              'Gradually transfer key client relationships',
+              'Build management meeting cadence that runs without founder'
+            ]
+          : [
+              'Hire or promote #2 (COO/GM role)',
+              'Document top 20 critical processes',
+              'Introduce #2 to key client relationships',
+              'Gradually reduce founder involvement in operations',
+              'Build management meeting cadence that runs without founder'
+            ],
         investment: 75000,
-        dependencies: ['Finding right successor candidate', 'Client acceptance of transition']
+        dependencies: clientPreferences?.avoidsInternalHires 
+          ? ['Finding right advisor/consultant', 'Client acceptance of transition']
+          : ['Finding right successor candidate', 'Client acceptance of transition']
       },
       fixable: true,
       category: 'founder'
@@ -391,10 +408,16 @@ function calculateEnhancedSuppressors(
 function calculateExitReadinessBreakdown(
   enhancedSuppressors: EnhancedValueSuppressor[],
   inputs: ValueSuppressorInput,
-  _baselineValue: number
+  _baselineValue: number,
+  clientPreferences?: NarrativePreferences
 ): ExitReadinessBreakdownType {
   
   const components: ExitReadinessComponent[] = [];
+  
+  // Log context preferences for debugging
+  if (clientPreferences?.avoidsInternalHires || clientPreferences?.prefersExternalSupport) {
+    console.log('[ExitReadiness] Context-aware mode: client prefers external support');
+  }
   
   // 1. Customer Concentration (25 points)
   const concentration = inputs.customerConcentration || 0;
@@ -414,12 +437,15 @@ function calculateExitReadinessBreakdown(
     improvementActions: ['Identify 10 target prospects', 'Hire BD resource', 'Develop framework bid pipeline']
   });
   
-  // 2. Founder Dependency (25 points)
+  // 2. Founder Dependency (25 points) - CONTEXT-AWARE
   const founderDep = Math.max(inputs.knowledgeDependency || 0, inputs.personalBrand || 0);
   let founderScore = 25;
   if (founderDep >= 70) founderScore = 5;
   else if (founderDep >= 50) founderScore = 10;
   else if (founderDep >= 30) founderScore = 18;
+  
+  // CONTEXT-AWARE: Adjust gap text and improvement actions based on client preferences
+  const prefersExternal = clientPreferences?.avoidsInternalHires || clientPreferences?.prefersExternalSupport;
   
   components.push({
     id: 'founder',
@@ -427,8 +453,12 @@ function calculateExitReadinessBreakdown(
     currentScore: founderScore,
     maxScore: 25,
     targetScore: 15,
-    gap: founderDep >= 50 ? 'Hire #2, document processes' : 'Continue transition',
-    improvementActions: ['Hire or promote COO/GM', 'Document top 20 processes', 'Transition key relationships']
+    gap: founderDep >= 50 
+      ? (prefersExternal ? 'Engage advisor, document processes' : 'Hire #2, document processes')
+      : 'Continue transition',
+    improvementActions: prefersExternal
+      ? ['Engage strategic advisor', 'Document top 20 processes', 'Transition key relationships']
+      : ['Hire or promote COO/GM', 'Document top 20 processes', 'Transition key relationships']
   });
   
   // 3. Revenue Predictability (20 points)
@@ -3010,20 +3040,22 @@ function enrichBenchmarkData(
         
         const baselineValue = valueAnalysisResult.baseline.enterpriseValue.mid;
         
-        // Generate enhanced suppressors
+        // Generate enhanced suppressors (CONTEXT-AWARE)
         enriched.enhanced_suppressors = calculateEnhancedSuppressors(
           enhancedSuppressorInputs,
           baselineValue,
           revenue,
-          industryCode
+          industryCode,
+          narrativePreferences  // Pass preferences for context-aware pathToFix
         );
         derivedFields.push('enhanced_suppressors');
         
-        // Generate exit readiness breakdown
+        // Generate exit readiness breakdown (CONTEXT-AWARE)
         enriched.exit_readiness_breakdown = calculateExitReadinessBreakdown(
           enriched.enhanced_suppressors,
           enhancedSuppressorInputs,
-          baselineValue
+          baselineValue,
+          narrativePreferences  // Pass preferences for context-aware action text
         );
         derivedFields.push('exit_readiness_breakdown');
         

@@ -27,6 +27,13 @@ interface Scenario {
   risks: string[];
 }
 
+interface ClientPreferences {
+  avoidsInternalHires?: boolean;
+  prefersExternalSupport?: boolean;
+  prefersProjectBasis?: boolean;
+  needsSystemsAudit?: boolean;
+}
+
 interface ScenarioPlanningProps {
   scenarios?: Scenario[];
   // Fallback data from pass1_data to generate scenarios dynamically
@@ -37,6 +44,7 @@ interface ScenarioPlanningProps {
   surplusCash?: number;
   exitReadinessScore?: number;
   forceExpanded?: boolean; // For PDF export - shows all scenarios
+  clientPreferences?: ClientPreferences; // Context preferences for context-aware scenarios
 }
 
 // Generate default scenarios if none provided
@@ -47,6 +55,11 @@ function generateDefaultScenarios(props: ScenarioPlanningProps): Scenario[] {
   const concentration = props.concentration || 99;
   const surplusCash = props.surplusCash || 7700000;
   const exitReadiness = props.exitReadinessScore || 28;
+  
+  // CONTEXT-AWARE: Determine if client prefers external support
+  const prefersExternal = props.clientPreferences?.avoidsInternalHires || 
+                          props.clientPreferences?.prefersExternalSupport;
+  const needsSystemsAudit = props.clientPreferences?.needsSystemsAudit;
   
   return [
     // SCENARIO 1: DO NOTHING
@@ -179,17 +192,35 @@ function generateDefaultScenarios(props: ScenarioPlanningProps): Scenario[] {
           isPositive: true,
         },
       ],
-      requirements: [
-        'Document core methodology and IP',
-        'Hire and develop MD/COO successor (2-3 year runway)',
-        'Build client relationships beyond founder',
-        'Formalise contract terms with all majors',
-      ],
-      risks: [
-        'Concentration still impacts valuation even with other fixes',
-        'Successor recruitment in specialist sectors is challenging',
-        'Requires 2-3 years minimum commitment',
-      ],
+      // CONTEXT-AWARE: Adjust requirements based on client preferences
+      requirements: prefersExternal
+        ? [
+            'Document core methodology and IP',
+            needsSystemsAudit 
+              ? 'Run systems audit to identify and document critical processes'
+              : 'Map and document key business processes',
+            'Identify successor pathway (internal development or structured transition)',
+            'Engage strategic advisor to support leadership transition',
+            'Build client relationships beyond founder',
+            'Formalise contract terms with all majors',
+          ]
+        : [
+            'Document core methodology and IP',
+            'Hire and develop MD/COO successor (2-3 year runway)',
+            'Build client relationships beyond founder',
+            'Formalise contract terms with all majors',
+          ],
+      risks: prefersExternal
+        ? [
+            'Concentration still impacts valuation even with other fixes',
+            'Internal succession pathway requires right candidate',
+            'Requires 2-3 years minimum commitment',
+          ]
+        : [
+            'Concentration still impacts valuation even with other fixes',
+            'Successor recruitment in specialist sectors is challenging',
+            'Requires 2-3 years minimum commitment',
+          ],
     },
   ];
 }

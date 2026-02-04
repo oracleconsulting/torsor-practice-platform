@@ -824,6 +824,7 @@ export function BenchmarkingClientReport({
             surplusCash={data.pass1_data?.surplus_cash?.surplusCash || data.value_analysis?.baseline?.surplusCash || 0}
             exitReadinessScore={data.value_analysis?.exitReadiness?.score}
             forceExpanded={printMode}
+            clientPreferences={data.client_preferences}
           />
         )}
         

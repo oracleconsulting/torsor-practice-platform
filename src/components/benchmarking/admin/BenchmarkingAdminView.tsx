@@ -9,10 +9,11 @@ import { BenchmarkSourcesPanel } from './BenchmarkSourcesPanel';
 import { AccountsUploadPanel } from './AccountsUploadPanel';
 import { FinancialDataReviewModal } from './FinancialDataReviewModal';
 import { ServicePathwayPanel } from './ServicePathwayPanel';
+import { ServiceSelectionPanel } from './ServiceSelectionPanel';
 import { OpportunityPanel } from './OpportunityPanel';
 import { ValueAnalysisPanel } from './ValueAnalysisPanel';
 import { ExportAnalysisButton } from './ExportAnalysisButton';
-import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target, Sparkles, DollarSign, Share2, EyeOff, Loader2 } from 'lucide-react';
+import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target, Sparkles, DollarSign, Share2, EyeOff, Loader2, Pin } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import type { ValueAnalysis } from '../../../types/benchmarking';
 import type { DetectedIssue, ServiceRecommendation } from '../../../lib/issue-service-mapping';
@@ -230,7 +231,7 @@ export function BenchmarkingAdminView({
   onToggleShare,
   isTogglingShare = false
 }: BenchmarkingAdminViewProps) {
-  const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'services' | 'opportunities' | 'valuation' | 'actions' | 'collect' | 'accounts' | 'sources' | 'raw'>('script');
+  const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'services' | 'pin_services' | 'opportunities' | 'valuation' | 'actions' | 'collect' | 'accounts' | 'sources' | 'raw'>('script');
   
   // Accounts upload state
   const [accountUploads, setAccountUploads] = useState<AccountUpload[]>([]);
@@ -479,6 +480,17 @@ export function BenchmarkingAdminView({
                   )}
                 </button>
                 <button
+                  onClick={() => setActiveTab('pin_services')}
+                  className={`px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative whitespace-nowrap ${
+                    activeTab === 'pin_services'
+                      ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <Pin className="w-4 h-4" />
+                  Pin
+                </button>
+                <button
                   onClick={() => setActiveTab('opportunities')}
                   className={`px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors relative whitespace-nowrap ${
                     activeTab === 'opportunities'
@@ -593,6 +605,26 @@ export function BenchmarkingAdminView({
                     priorityServices={priorityServices}
                     clientName={clientName}
                   />
+                )}
+                
+                {activeTab === 'pin_services' && engagementId && (
+                  <ServiceSelectionPanel
+                    engagementId={engagementId}
+                    clientName={clientName}
+                    clientPreferences={data.client_preferences}
+                    onSelectionChange={() => {
+                      // Could trigger refresh or show notification
+                      console.log('Service selection changed - regenerate analysis to apply');
+                    }}
+                  />
+                )}
+                
+                {activeTab === 'pin_services' && !engagementId && (
+                  <div className="text-center py-8 text-slate-500">
+                    <Pin className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p>Engagement context not available</p>
+                    <p className="text-sm mt-1">Cannot manage service pins without engagement information</p>
+                  </div>
                 )}
                 
                 {activeTab === 'opportunities' && engagementId && (
