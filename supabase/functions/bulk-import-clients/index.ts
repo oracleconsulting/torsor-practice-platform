@@ -233,7 +233,10 @@ serve(async (req) => {
           continue;
         }
 
-        // Create auth user
+        // Try to create auth user first
+        let userId: string;
+        let userPassword = password;
+        
         const { data: authData, error: authError } = await supabase.auth.admin.createUser({
           email,
           password,
@@ -244,12 +247,32 @@ serve(async (req) => {
         if (authError) {
           // Handle case where auth user exists but not in this practice
           if (authError.message?.includes('already been registered')) {
-            results.push({
-              email,
-              name,
-              success: false,
-              error: 'Email already registered in auth system'
-            });
+            console.log(`[Bulk Import] Auth user exists for ${email}, trying to find and reuse...`);
+            
+            // Try to find the existing user
+            const { data: listData } = await supabase.auth.admin.listUsers();
+            const existingUser = listData?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
+            
+            if (existingUser) {
+              console.log(`[Bulk Import] Found existing auth user: ${existingUser.id}`);
+              userId = existingUser.id;
+              
+              // Update their password so they can log in with the new one
+              await supabase.auth.admin.updateUserById(userId, {
+                password,
+                email_confirm: true,
+                user_metadata: { name, company }
+              });
+            } else {
+              // User exists in Auth but we can't find them - might be a different project
+              results.push({
+                email,
+                name,
+                success: false,
+                error: 'Email already registered in auth system (user not found - may need manual cleanup)'
+              });
+              continue;
+            }
           } else {
             results.push({
               email,
@@ -257,11 +280,9 @@ serve(async (req) => {
               success: false,
               error: authError.message
             });
+            continue;
           }
-          continue;
-        }
-
-        if (!authData.user) {
+        } else if (!authData.user) {
           results.push({
             email,
             name,
@@ -269,6 +290,8 @@ serve(async (req) => {
             error: 'Failed to create auth user'
           });
           continue;
+        } else {
+          userId = authData.user.id;
         }
 
         // Create practice member
@@ -276,7 +299,7 @@ serve(async (req) => {
           .from('practice_members')
           .insert({
             practice_id: practiceId,
-            user_id: authData.user.id,
+            user_id: userId,
             name,
             email,
             role: 'Client',
@@ -288,8 +311,10 @@ serve(async (req) => {
           .single();
 
         if (memberError) {
-          // Rollback: delete auth user
-          await supabase.auth.admin.deleteUser(authData.user.id);
+          // Rollback: delete auth user (only if we just created it)
+          if (authData?.user) {
+            await supabase.auth.admin.deleteUser(userId);
+          }
           results.push({
             email,
             name,
