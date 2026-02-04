@@ -16,10 +16,14 @@ import type { ValueAnalysis, ValueSuppressor, ValueEnhancer } from '../../../typ
 interface Props {
   valueAnalysis: ValueAnalysis;
   clientName?: string;
+  forceExpanded?: boolean; // For PDF export - shows all details
 }
 
-export function ValueBridgeSection({ valueAnalysis, clientName = 'Your Business' }: Props) {
+export function ValueBridgeSection({ valueAnalysis, clientName = 'Your Business', forceExpanded = false }: Props) {
   const [showDetails, setShowDetails] = useState(false);
+  
+  // If forceExpanded (for PDF), always show details
+  const isShowingDetails = forceExpanded || showDetails;
   
   const formatCurrency = (value: number) => {
     if (value >= 1000000) return `£${(value / 1000000).toFixed(1)}M`;
@@ -99,13 +103,16 @@ export function ValueBridgeSection({ valueAnalysis, clientName = 'Your Business'
       <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-slate-900">Where Your Value Is Going</h3>
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
-          >
-            {showDetails ? 'Hide' : 'Show'} details
-            {showDetails ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
+          {!forceExpanded && (
+            <button
+              onClick={() => setShowDetails(!showDetails)}
+              className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+              data-no-print
+            >
+              {isShowingDetails ? 'Hide' : 'Show'} details
+              {isShowingDetails ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+          )}
         </div>
         
         <div className="space-y-3">
@@ -156,7 +163,7 @@ export function ValueBridgeSection({ valueAnalysis, clientName = 'Your Business'
                           {s.severity.toUpperCase()}
                         </span>
                       </div>
-                      {showDetails && (
+                      {isShowingDetails && (
                         <p className="text-xs mt-1 opacity-80">{s.evidence}</p>
                       )}
                     </div>
@@ -165,7 +172,7 @@ export function ValueBridgeSection({ valueAnalysis, clientName = 'Your Business'
                     -{formatCurrency(avgImpact)}
                   </span>
                 </div>
-                {showDetails && s.remediable && (
+                {isShowingDetails && s.remediable && (
                   <div className="mt-2 pt-2 border-t border-dashed border-current/20 text-xs flex items-center gap-2">
                     <Clock className="w-3 h-3" />
                     <span>Fixable in ~{s.remediationTimeMonths}mo via {s.remediationService}</span>

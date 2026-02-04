@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { HeroSection } from './HeroSection';
 import { MetricComparisonCard } from './MetricComparisonCard';
 import { NarrativeSection } from './NarrativeSection';
@@ -7,7 +7,8 @@ import { ScenarioExplorer } from './ScenarioExplorer';
 import { ScenarioPlanningSection } from './ScenarioPlanningSection';
 import { ServiceRecommendationsSection } from './ServiceRecommendationsSection';
 import { ValueBridgeSection } from './ValueBridgeSection';
-import { AlertTriangle, Gem, Shield, CheckCircle } from 'lucide-react';
+import { AlertTriangle, Gem, Shield, CheckCircle, Download, Loader2 } from 'lucide-react';
+import { exportToPDF } from '../../../lib/pdf-export';
 import type { ValueAnalysis } from '../../../types/benchmarking';
 import type { BaselineMetrics } from '../../../lib/scenario-calculator';
 import type { DetectedIssue, ServiceRecommendation } from '../../../lib/issue-service-mapping';
@@ -229,8 +230,37 @@ export function BenchmarkingClientReport({
   practitionerEmail,
   clientName 
 }: BenchmarkingClientReportProps) {
+  const reportRef = useRef<HTMLDivElement>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [printMode, setPrintMode] = useState(false);
+  
   const metrics = safeJsonParse<MetricComparison[]>(data.metrics_comparison, []);
   const recommendations = safeJsonParse(data.recommendations, []);
+  
+  // Handle PDF export
+  const handleExportPDF = async () => {
+    if (!reportRef.current) return;
+    
+    setIsExporting(true);
+    setPrintMode(true); // This will cause components to re-render expanded
+    
+    // Wait for re-render with expanded content
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    try {
+      await exportToPDF(reportRef.current, {
+        filename: `${clientName || 'Company'}-Benchmarking-Report.pdf`,
+        title: 'Benchmarking Analysis Report',
+        subtitle: `Prepared for ${clientName || 'Client'} | Generated ${new Date().toLocaleDateString('en-GB')}`
+      });
+    } catch (error) {
+      console.error('PDF export failed:', error);
+      alert('Failed to export PDF. Please try again.');
+    } finally {
+      setIsExporting(false);
+      setPrintMode(false);
+    }
+  };
   
   // Helper to get metric value from metrics array
   // NOTE: Uses exact match first, then prefix match to avoid 'revenue' matching 'revenue_per_employee'
@@ -456,9 +486,9 @@ export function BenchmarkingClientReport({
   }, [data.recommended_services, data.opportunities, data.not_recommended_services]);
   
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50" ref={reportRef} data-pdf-content>
       {/* Header */}
-      <div className="bg-white border-b border-slate-200">
+      <div className="bg-white border-b border-slate-200" data-no-print>
         <div className="max-w-5xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -467,8 +497,22 @@ export function BenchmarkingClientReport({
                 Generated {data.created_at ? new Date(data.created_at).toLocaleDateString('en-GB') : 'Recently'}
               </p>
             </div>
-            <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-              Download PDF
+            <button 
+              onClick={handleExportPDF}
+              disabled={isExporting}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isExporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Generating PDF...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  Download PDF
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -691,23 +735,27 @@ export function BenchmarkingClientReport({
             title="Where You Stand"
             content={data.position_narrative}
             highlights={[`${getOrdinalSuffix(data.overall_percentile || 0)} percentile`]}
+            forceExpanded={printMode}
           />
           <NarrativeSection
             type="strengths"
             title="Your Strengths"
             content={data.strength_narrative}
+            forceExpanded={printMode}
           />
           <NarrativeSection
             type="gaps"
             title="Performance Gaps"
             content={data.gap_narrative}
             highlights={[`${data.gap_count || 0} gaps identified`]}
+            forceExpanded={printMode}
           />
           <NarrativeSection
             type="opportunity"
             title="The Opportunity"
             content={data.opportunity_narrative}
             highlights={[`£${parseFloat(data.total_annual_opportunity || '0').toLocaleString()} potential`]}
+            forceExpanded={printMode}
           />
         </div>
         
@@ -740,6 +788,7 @@ export function BenchmarkingClientReport({
           <ValueBridgeSection 
             valueAnalysis={data.value_analysis}
             clientName={clientName}
+            forceExpanded={printMode}
           />
         )}
         
@@ -786,6 +835,7 @@ export function BenchmarkingClientReport({
             concentration={data.pass1_data?.client_concentration_top3 || data.client_concentration_top3 || 50}
             surplusCash={data.pass1_data?.surplus_cash?.surplusCash || data.value_analysis?.baseline?.surplusCash || 0}
             exitReadinessScore={data.value_analysis?.exitReadiness?.score}
+            forceExpanded={printMode}
           />
         )}
         

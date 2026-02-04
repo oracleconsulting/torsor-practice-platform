@@ -14,6 +14,7 @@ interface NarrativeSectionProps {
   content: string;
   highlights?: string[];
   expandable?: boolean;
+  forceExpanded?: boolean; // For PDF export - forces all content to show
 }
 
 const sectionConfig = {
@@ -56,11 +57,15 @@ export function NarrativeSection({
   title,
   content,
   highlights,
-  expandable = true
+  expandable = true,
+  forceExpanded = false
 }: NarrativeSectionProps) {
   const [expanded, setExpanded] = useState(!expandable);
   const config = sectionConfig[type];
   const Icon = config.icon;
+  
+  // If forceExpanded (for PDF), always show all content
+  const isExpanded = forceExpanded || expanded;
   
   // Split content into paragraphs
   const paragraphs = content.split('\n\n').filter(p => p.trim());
@@ -101,7 +106,10 @@ export function NarrativeSection({
       {/* Expandable Content */}
       {expandable && rest.length > 0 && (
         <>
-          <div className={`overflow-hidden transition-all duration-300 ${expanded ? 'max-h-[2000px]' : 'max-h-0'}`}>
+          <div 
+            className={`overflow-hidden transition-all duration-300 ${isExpanded ? 'max-h-[2000px]' : 'max-h-0'}`}
+            data-expandable
+          >
             <div className="p-6 pt-0 space-y-4">
               {rest.map((paragraph, i) => (
                 <p key={i} className="text-slate-600 leading-relaxed">
@@ -111,22 +119,26 @@ export function NarrativeSection({
             </div>
           </div>
           
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="w-full py-3 flex items-center justify-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100"
-          >
-            {expanded ? (
-              <>
-                <ChevronUp className="w-4 h-4" />
-                Show less
-              </>
-            ) : (
-              <>
-                <ChevronDown className="w-4 h-4" />
-                Read more
-              </>
-            )}
-          </button>
+          {/* Hide toggle button when forceExpanded (PDF mode) */}
+          {!forceExpanded && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="w-full py-3 flex items-center justify-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100"
+              data-no-print
+            >
+              {isExpanded ? (
+                <>
+                  <ChevronUp className="w-4 h-4" />
+                  Show less
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-4 h-4" />
+                  Read more
+                </>
+              )}
+            </button>
+          )}
         </>
       )}
     </div>

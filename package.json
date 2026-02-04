@@ -27,6 +27,8 @@
     "db:types": "supabase gen types typescript --local > packages/shared/src/types/database.ts"
   },
   "dependencies": {
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.1.0",
     "serve": "^14.2.4"
   },
   "devDependencies": {

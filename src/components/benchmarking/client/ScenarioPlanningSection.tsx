@@ -36,6 +36,7 @@ interface ScenarioPlanningProps {
   concentration?: number;
   surplusCash?: number;
   exitReadinessScore?: number;
+  forceExpanded?: boolean; // For PDF export - shows all scenarios
 }
 
 // Generate default scenarios if none provided
@@ -205,7 +206,143 @@ const SCENARIO_COLORS: Record<string, string> = {
   exit_prep: 'blue',
 };
 
+// Render a single scenario content block (reusable for tabs and expanded mode)
+function ScenarioContent({ scenario }: { scenario: Scenario }) {
+  const Icon = SCENARIO_ICONS[scenario.id] || TrendingUp;
+  const color = SCENARIO_COLORS[scenario.id] || 'blue';
+  
+  return (
+    <div className="p-6">
+      {/* Scenario Header */}
+      <div className={`rounded-lg p-4 mb-6 ${
+        color === 'red' ? 'bg-red-50 border border-red-200' : 
+        color === 'emerald' ? 'bg-emerald-50 border border-emerald-200' : 
+        'bg-blue-50 border border-blue-200'
+      }`}>
+        <div className="flex items-start gap-3">
+          <Icon className={`w-6 h-6 mt-0.5 ${
+            color === 'red' ? 'text-red-500' : 
+            color === 'emerald' ? 'text-emerald-500' : 
+            'text-blue-500'
+          }`} />
+          <div>
+            <p className={`font-semibold text-lg ${
+              color === 'red' ? 'text-red-800' : 
+              color === 'emerald' ? 'text-emerald-800' : 
+              'text-blue-800'
+            }`}>
+              {scenario.title}
+            </p>
+            <p className={`font-medium ${
+              color === 'red' ? 'text-red-700' : 
+              color === 'emerald' ? 'text-emerald-700' : 
+              'text-blue-700'
+            }`}>
+              {scenario.subtitle}
+            </p>
+            <p className={`text-sm mt-1 ${
+              color === 'red' ? 'text-red-600' : 
+              color === 'emerald' ? 'text-emerald-600' : 
+              'text-blue-600'
+            }`}>
+              Timeframe: {scenario.timeframe}
+            </p>
+          </div>
+        </div>
+      </div>
+      
+      {/* Outcomes Table */}
+      <div className="border rounded-lg overflow-hidden mb-6">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b">
+            <tr>
+              <th className="text-left px-4 py-3 font-medium text-gray-700">Metric</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-700">Today</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-700">
+                <ChevronRight className="w-4 h-4 inline mr-1" />
+                Projected
+              </th>
+              <th className="text-left px-4 py-3 font-medium text-gray-700">Impact</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {scenario.outcomes.map((outcome, i) => (
+              <tr key={i} className={outcome.isPositive ? '' : 'bg-red-50/30'}>
+                <td className="px-4 py-3 font-medium text-gray-900">{outcome.metric}</td>
+                <td className="px-4 py-3 text-gray-600">{outcome.current}</td>
+                <td className="px-4 py-3 text-gray-900">{outcome.projected}</td>
+                <td className="px-4 py-3">
+                  <span className={`text-sm flex items-center gap-1 ${
+                    outcome.isPositive ? 'text-emerald-600' : 'text-red-600'
+                  }`}>
+                    {outcome.isPositive ? (
+                      <Check className="w-3.5 h-3.5 flex-shrink-0" />
+                    ) : (
+                      <X className="w-3.5 h-3.5 flex-shrink-0" />
+                    )}
+                    {outcome.change}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Requirements (if any) */}
+        {scenario.requirements.length > 0 && (
+          <div>
+            <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-500" />
+              What This Requires
+            </h3>
+            <ul className="space-y-2">
+              {scenario.requirements.map((req, i) => (
+                <li key={i} className="flex items-start gap-2 text-gray-700 text-sm">
+                  <span className="text-emerald-500 mt-0.5 flex-shrink-0">✓</span>
+                  {req}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        
+        {/* Risks */}
+        <div>
+          <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+            {scenario.id === 'do_nothing' ? (
+              <>
+                <AlertTriangle className="w-4 h-4 text-red-500" />
+                What You Risk
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                Considerations
+              </>
+            )}
+          </h3>
+          <ul className="space-y-2">
+            {scenario.risks.map((risk, i) => (
+              <li key={i} className="flex items-start gap-2 text-gray-700 text-sm">
+                <span className={`mt-0.5 flex-shrink-0 ${
+                  scenario.id === 'do_nothing' ? 'text-red-500' : 'text-amber-500'
+                }`}>
+                  {scenario.id === 'do_nothing' ? '⚠' : '•'}
+                </span>
+                {risk}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ScenarioPlanningSection(props: ScenarioPlanningProps) {
+  const { forceExpanded = false } = props;
   const scenarios = props.scenarios && props.scenarios.length > 0 
     ? props.scenarios 
     : generateDefaultScenarios(props);
@@ -217,6 +354,33 @@ export function ScenarioPlanningSection(props: ScenarioPlanningProps) {
   const active = scenarios.find(s => s.id === activeId) || scenarios[0];
   const Icon = SCENARIO_ICONS[active.id] || TrendingUp;
   const color = SCENARIO_COLORS[active.id] || 'blue';
+  
+  // If forceExpanded (PDF mode), render all scenarios
+  if (forceExpanded) {
+    return (
+      <section className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-8">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4">
+          <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+            <Clock className="w-5 h-5 text-slate-300" />
+            Scenario Planning
+          </h2>
+          <p className="text-slate-300 text-sm mt-1">
+            What happens depending on the path you choose
+          </p>
+        </div>
+        
+        {/* All Scenarios (for PDF) */}
+        <div className="divide-y">
+          {scenarios.map(scenario => (
+            <div key={scenario.id} className="avoid-break">
+              <ScenarioContent scenario={scenario} />
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
   
   return (
     <section className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-8">
