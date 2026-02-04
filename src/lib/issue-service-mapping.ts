@@ -4,7 +4,8 @@
  */
 
 export interface ServiceRecommendation {
-  serviceId: string;
+  serviceId?: string;      // Legacy field
+  serviceCode?: string;    // New field from database
   serviceName: string;
   description: string;
   priceRange: string;
@@ -12,6 +13,9 @@ export interface ServiceRecommendation {
   expectedOutcome: string;
   timeToValue: string;
   priority: 'immediate' | 'short-term' | 'medium-term';
+  // Context intelligence fields (from Pass 3)
+  contextReason?: string;   // Why this was recommended (from context notes)
+  alternativeTo?: string;   // If this replaced a blocked service
 }
 
 export interface IssueMapping {
@@ -48,12 +52,15 @@ export interface IssueMetrics {
 }
 
 export interface DetectedIssue {
-  issueType: string;
+  issueType?: string;       // Legacy field
+  code?: string;            // New field from database opportunities
   severity: 'critical' | 'high' | 'medium' | 'low';
   headline: string;
   description: string;
   dataPoint: string;
-  services: ServiceRecommendation[];
+  services?: ServiceRecommendation[];  // Optional - may come from DB
+  category?: string;         // Issue category (operational, governance, etc.)
+  serviceMapping?: string | null;  // Direct service code mapping
 }
 
 // =============================================================================

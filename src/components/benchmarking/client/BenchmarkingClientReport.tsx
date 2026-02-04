@@ -10,7 +10,9 @@ import { ValueBridgeSection } from './ValueBridgeSection';
 import { AlertTriangle, Gem, Shield, CheckCircle } from 'lucide-react';
 import type { ValueAnalysis } from '../../../types/benchmarking';
 import type { BaselineMetrics } from '../../../lib/scenario-calculator';
-import { detectIssues, getPriorityServices, type IssueMetrics } from '../../../lib/issue-service-mapping';
+import type { DetectedIssue, ServiceRecommendation } from '../../../lib/issue-service-mapping';
+// NOTE: We NO LONGER call detectIssues/getPriorityServices here!
+// Service recommendations come from the database (Pass 3 is the single source of truth)
 // Enhanced transparency components
 import { SurplusCashBreakdown } from '../SurplusCashBreakdown';
 import { EnhancedSuppressorCard } from '../EnhancedSuppressorCard';
@@ -374,33 +376,79 @@ export function BenchmarkingClientReport({
     clientConcentration: getBenchmarkForMetric('concentration'),
   }), [metrics]);
   
-  // Detect issues for ACT phase service recommendations
-  const detectedIssues = useMemo(() => {
-    const issueMetrics: IssueMetrics = {
-      grossMargin: baselineMetrics?.grossMargin || data.gross_margin || data.pass1_data?.gross_margin,
-      netMargin: baselineMetrics?.netMargin || data.net_margin || data.pass1_data?.net_margin,
-      ebitdaMargin: baselineMetrics?.ebitdaMargin || data.ebitda_margin || data.pass1_data?.ebitda_margin,
-      revenuePerEmployee: baselineMetrics?.revenuePerEmployee || data.pass1_data?.revenue_per_employee,
-      debtorDays: baselineMetrics?.debtorDays || data.debtor_days || data.pass1_data?.debtor_days,
-      creditorDays: baselineMetrics?.creditorDays || data.creditor_days || data.pass1_data?.creditor_days,
-      clientConcentration: data.client_concentration_top3 || data.client_concentration || data.pass1_data?.client_concentration_top3,
-      founderRiskScore: data.founder_risk_score,
-      founderRiskLevel: data.founder_risk_level,
-      cashMonths: undefined, // Could add from balance_sheet data
-      surplusCash: data.surplus_cash?.surplusCash || 0,
-      revenue: baselineMetrics?.revenue || data.revenue || data.pass1_data?._enriched_revenue,
-      employeeCount: baselineMetrics?.employeeCount || data.employee_count || data.pass1_data?._enriched_employee_count,
-      benchmarks: {
-        grossMargin: industryBenchmarks.grossMargin?.p50,
-        revenuePerEmployee: industryBenchmarks.revenuePerEmployee?.p50,
-        debtorDays: industryBenchmarks.debtorDays?.p50,
-      }
-    };
-    
-    return detectIssues(issueMetrics);
-  }, [baselineMetrics, data, industryBenchmarks]);
+  // ============================================================================
+  // SERVICE RECOMMENDATIONS - FROM DATABASE (SINGLE SOURCE OF TRUTH)
+  // Pass 3 generates these with context awareness. We do NOT calculate here.
+  // ============================================================================
   
-  const priorityServices = useMemo(() => getPriorityServices(detectedIssues), [detectedIssues]);
+  // Issues come from opportunities in database (critical/high severity)
+  const detectedIssues = useMemo((): DetectedIssue[] => {
+    // Get opportunities from database
+    const opportunities = data.opportunities || [];
+    
+    // Convert high-priority opportunities to DetectedIssue format
+    return opportunities
+      .filter((o: any) => o.severity === 'critical' || o.severity === 'high' || o.severity === 'medium')
+      .slice(0, 6)  // Cap at 6 issues
+      .map((o: any): DetectedIssue => ({
+        code: o.code || o.id || 'unknown',
+        headline: o.title || 'Issue Identified',
+        description: o.description || o.dataEvidence || '',
+        dataPoint: o.dataEvidence || o.benchmarkComparison || '',
+        severity: o.severity || 'medium',
+        category: o.category || 'operational',
+        serviceMapping: o.serviceMapping?.existingService?.code || null,
+      }));
+  }, [data.opportunities]);
+  
+  // Service recommendations come ONLY from database (context-aware, Pass 3 authoritative)
+  const priorityServices = useMemo((): ServiceRecommendation[] => {
+    // First try the new recommended_services column (context-aware)
+    const dbRecommendations = data.recommended_services || [];
+    
+    if (dbRecommendations.length > 0) {
+      // Convert database format to component's expected format
+      return dbRecommendations.map((r: any): ServiceRecommendation => ({
+        serviceCode: r.code,
+        serviceName: r.name,
+        description: r.headline || r.howItHelps,
+        priceRange: r.priceRange,
+        priority: r.priority,
+        howItHelps: r.howItHelps,
+        expectedOutcome: r.expectedOutcome,
+        timeToValue: r.timeToValue || r.timeframe,
+        contextReason: r.contextReason,  // Why this was recommended (from context notes)
+        alternativeTo: r.alternativeTo,   // If this replaced a blocked service
+      }));
+    }
+    
+    // Fallback: derive from opportunities if recommended_services not populated yet
+    const opportunities = data.opportunities || [];
+    const seenCodes = new Set<string>();
+    const blockedCodes = (data.not_recommended_services || []).map((b: any) => b.serviceCode);
+    
+    return opportunities
+      .filter((o: any) => {
+        const code = o.serviceMapping?.existingService?.code;
+        if (!code || seenCodes.has(code) || blockedCodes.includes(code)) return false;
+        seenCodes.add(code);
+        return true;
+      })
+      .slice(0, 3)
+      .map((o: any): ServiceRecommendation => ({
+        serviceCode: o.serviceMapping.existingService.code,
+        serviceName: o.serviceMapping.existingService.name || o.title,
+        description: o.description || '',
+        priceRange: 'Contact for pricing',
+        priority: o.priority === 'must_address_now' ? 'immediate' : 
+                  o.priority === 'next_12_months' ? 'short-term' : 'medium-term',
+        howItHelps: o.adviserTools?.talkingPoint || o.description,
+        expectedOutcome: o.financialImpact?.amount 
+          ? `Up to £${o.financialImpact.amount.toLocaleString()} potential impact`
+          : 'Improved operational efficiency',
+        timeToValue: '1-3 months',
+      }));
+  }, [data.recommended_services, data.opportunities, data.not_recommended_services]);
   
   return (
     <div className="min-h-screen bg-slate-50">

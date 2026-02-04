@@ -15,7 +15,8 @@ import { ExportAnalysisButton } from './ExportAnalysisButton';
 import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target, Sparkles, DollarSign } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import type { ValueAnalysis } from '../../../types/benchmarking';
-import { detectIssues, getPriorityServices, type IssueMetrics } from '../../../lib/issue-service-mapping';
+import type { DetectedIssue, ServiceRecommendation } from '../../../lib/issue-service-mapping';
+// NOTE: detectIssues/getPriorityServices DEPRECATED - use database-sourced recommendations
 
 // Utility to get correct ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
 const getOrdinalSuffix = (n: number): string => {
@@ -274,33 +275,74 @@ export function BenchmarkingAdminView({
     return metric?.p50 ?? undefined;
   };
   
-  // Detect issues for service pathway
-  const detectedIssues = useMemo(() => {
-    const issueMetrics: IssueMetrics = {
-      grossMargin: clientData.grossMargin,
-      netMargin: clientData.netMargin,
-      ebitdaMargin: clientData.ebitdaMargin,
-      revenuePerEmployee: clientData.revenuePerEmployee,
-      debtorDays: clientData.debtorDays || data.creditor_days || undefined,
-      creditorDays: clientData.creditorDays || data.creditor_days || undefined,
-      clientConcentration: clientData.clientConcentration,
-      founderRiskScore: founderRisk?.score || pass1Data?.founderRiskScore,
-      founderRiskLevel: founderRisk?.level || pass1Data?.founderRiskLevel,
-      surplusCash: data.surplus_cash?.surplusCash || 0,
-      revenue: clientData.revenue,
-      employeeCount: clientData.employees,
-      industryCode: industryMapping?.code || data.industry_code,
-      benchmarks: {
-        grossMargin: getBenchmarkMedian('gross_margin'),
-        revenuePerEmployee: getBenchmarkMedian('revenue_per_employee'),
-        debtorDays: getBenchmarkMedian('debtor'),
-      }
-    };
-    
-    return detectIssues(issueMetrics);
-  }, [clientData, founderRisk, pass1Data, data, industryMapping, metrics]);
+  // ============================================================================
+  // SERVICE RECOMMENDATIONS - FROM DATABASE (SINGLE SOURCE OF TRUTH)
+  // Pass 3 generates these with context awareness. We do NOT calculate here.
+  // ============================================================================
   
-  const priorityServices = useMemo(() => getPriorityServices(detectedIssues), [detectedIssues]);
+  // Issues come from opportunities in database
+  const detectedIssues = useMemo((): DetectedIssue[] => {
+    const opportunities = data.opportunities || [];
+    return opportunities
+      .filter((o: any) => o.severity === 'critical' || o.severity === 'high' || o.severity === 'medium')
+      .slice(0, 6)
+      .map((o: any): DetectedIssue => ({
+        code: o.code || o.id,
+        headline: o.title || 'Issue Identified',
+        description: o.description || o.dataEvidence || '',
+        dataPoint: o.dataEvidence || o.benchmarkComparison || '',
+        severity: o.severity || 'medium',
+        category: o.category,
+        serviceMapping: o.serviceMapping?.existingService?.code || null,
+      }));
+  }, [data.opportunities]);
+  
+  // Service recommendations come ONLY from database (context-aware, Pass 3 authoritative)
+  const priorityServices = useMemo((): ServiceRecommendation[] => {
+    const dbRecommendations = data.recommended_services || [];
+    
+    if (dbRecommendations.length > 0) {
+      return dbRecommendations.map((r: any): ServiceRecommendation => ({
+        serviceCode: r.code,
+        serviceName: r.name,
+        description: r.headline || r.howItHelps,
+        priceRange: r.priceRange,
+        priority: r.priority,
+        howItHelps: r.howItHelps,
+        expectedOutcome: r.expectedOutcome,
+        timeToValue: r.timeToValue || r.timeframe,
+        contextReason: r.contextReason,
+        alternativeTo: r.alternativeTo,
+      }));
+    }
+    
+    // Fallback: derive from opportunities
+    const opportunities = data.opportunities || [];
+    const seenCodes = new Set<string>();
+    const blockedCodes = (data.not_recommended_services || []).map((b: any) => b.serviceCode);
+    
+    return opportunities
+      .filter((o: any) => {
+        const code = o.serviceMapping?.existingService?.code;
+        if (!code || seenCodes.has(code) || blockedCodes.includes(code)) return false;
+        seenCodes.add(code);
+        return true;
+      })
+      .slice(0, 3)
+      .map((o: any): ServiceRecommendation => ({
+        serviceCode: o.serviceMapping.existingService.code,
+        serviceName: o.serviceMapping.existingService.name || o.title,
+        description: o.description || '',
+        priceRange: 'Contact for pricing',
+        priority: o.priority === 'must_address_now' ? 'immediate' : 
+                  o.priority === 'next_12_months' ? 'short-term' : 'medium-term',
+        howItHelps: o.adviserTools?.talkingPoint || o.description,
+        expectedOutcome: o.financialImpact?.amount 
+          ? `Up to £${o.financialImpact.amount.toLocaleString()} potential impact`
+          : 'Improved operational efficiency',
+        timeToValue: '1-3 months',
+      }));
+  }, [data.recommended_services, data.opportunities, data.not_recommended_services]);
   const revPerEmployeeMetric = metrics.find((m) => m.metricCode === 'revenue_per_consultant' || m.metricCode === 'revenue_per_employee');
   const revPerEmployee = revPerEmployeeMetric?.clientValue || clientData.revenuePerEmployee || 0;
   

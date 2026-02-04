@@ -514,23 +514,41 @@ function calculateExitReadinessBreakdown(
   };
 }
 
+// Context preference interface for narrative generation
+interface NarrativePreferences {
+  avoidsInternalHires?: boolean;
+  prefersExternalSupport?: boolean;
+  prefersProjectBasis?: boolean;
+  needsSystemsAudit?: boolean;
+}
+
 function generateTwoPathsNarrative(
   marginOpportunity: number,
   valueGap: number,
   _ownerName: string,
   exitReadinessScore: number,
-  targetExitValue: number
+  targetExitValue: number,
+  preferences?: NarrativePreferences  // NEW: Context-aware preferences
 ): TwoPathsNarrative {
   const marginFormatted = formatEnhancedCurrency(marginOpportunity);
   const valueGapFormatted = formatEnhancedCurrency(valueGap);
   const targetValueFormatted = formatEnhancedCurrency(targetExitValue);
+  
+  // Generate Year 2 action based on client preferences
+  // If they avoid internal hires, suggest external support/project work instead
+  const avoidsInternal = preferences?.avoidsInternalHires || preferences?.prefersExternalSupport;
+  const year2Action = avoidsInternal
+    ? `Engage strategic advisor. Run systems audit. Document key processes.`  // No "Hire COO"
+    : preferences?.needsSystemsAudit
+      ? `Commission systems audit. Document key processes. Build operations playbook.`
+      : `Bring in operational support. Reduce concentration to 70%. Document key processes.`;
   
   return {
     headline: 'Two opportunities. One destination.',
     explanation: `The ${marginFormatted} margin opportunity and ${valueGapFormatted} value gap aren't competing priorities—they're connected. Improving margins funds your diversification. Diversification reduces concentration risk. Reduced risk unlocks trapped value.`,
     ownerJourney: {
       year1: `Capture ${formatEnhancedCurrency(marginOpportunity * 0.5)} of margin improvement. Hire BD lead. Win first 2 new clients.`,
-      year2: `Hire COO. Reduce concentration to 70%. Document key processes.`,
+      year2: year2Action,  // Context-aware action
       year3: `Exit-ready at ${targetValueFormatted}. Option to sell, scale, or step back.`
     },
     bottomLine: exitReadinessScore < 50 
@@ -2690,7 +2708,12 @@ function parseMoneyString(value: any): number | null {
   return isNaN(num) ? null : num;
 }
 
-function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancialData?: any[]): any {
+function enrichBenchmarkData(
+  assessmentData: any, 
+  hvaData: any, 
+  uploadedFinancialData?: any[],
+  narrativePreferences?: NarrativePreferences  // NEW: For context-aware narratives
+): any {
   const enriched = { ...assessmentData };
   const derivedFields: string[] = [];
   
@@ -3013,7 +3036,7 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
           derivedFields.push('surplus_cash_breakdown');
         }
         
-        // Generate two paths narrative
+        // Generate two paths narrative (CONTEXT-AWARE)
         const marginOpportunity = enriched.enhanced_suppressors.reduce(
           (sum: number, s: EnhancedValueSuppressor) => sum + s.recovery.valueRecoverable, 0
         ) * 0.15; // Approximate margin opportunity as 15% of recoverable value
@@ -3023,9 +3046,14 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
           valueAnalysisResult.valueGap.mid,
           'Owner', // Will be replaced with actual owner name in report
           enriched.exit_readiness_breakdown.totalScore,
-          valueAnalysisResult.currentMarketValue.mid + valueAnalysisResult.valueGap.mid * 0.7
+          valueAnalysisResult.currentMarketValue.mid + valueAnalysisResult.valueGap.mid * 0.7,
+          narrativePreferences  // Pass preferences for context-aware Year 2 action
         );
         derivedFields.push('two_paths_narrative');
+        
+        if (narrativePreferences?.avoidsInternalHires || narrativePreferences?.prefersExternalSupport) {
+          console.log('[BM Enrich] Two Paths narrative adjusted for external support preference');
+        }
         
         console.log('[BM Enrich] Enhanced calculations complete:');
         console.log(`  - Enhanced suppressors: ${enriched.enhanced_suppressors.length}`);
@@ -4333,9 +4361,49 @@ serve(async (req) => {
       console.log('[BM Pass 1] No uploaded accounts data (table may not exist yet)');
     }
     
+    // ═══════════════════════════════════════════════════════════════
+    // EXTRACT CLIENT PREFERENCES from context notes for narrative generation
+    // These preferences influence the "Two Paths" narrative and service suggestions
+    // ═══════════════════════════════════════════════════════════════
+    const narrativePreferences: NarrativePreferences = {
+      avoidsInternalHires: false,
+      prefersExternalSupport: false,
+      prefersProjectBasis: false,
+      needsSystemsAudit: false,
+    };
+    
+    if (contextNotes.length > 0) {
+      const allContent = contextNotes.map(n => (n.content || '').toLowerCase()).join(' ');
+      
+      narrativePreferences.avoidsInternalHires = 
+        allContent.includes('not internal') ||
+        allContent.includes('rather than internal') ||
+        allContent.includes('rather than attempting to insert') ||
+        allContent.includes('don\'t want to hire');
+      
+      narrativePreferences.prefersExternalSupport =
+        allContent.includes('external support') ||
+        allContent.includes('external additional support') ||
+        allContent.includes('outside support');
+      
+      narrativePreferences.prefersProjectBasis =
+        allContent.includes('project basis') ||
+        allContent.includes('project-based') ||
+        allContent.includes('ad-hoc') ||
+        allContent.includes('when needed');
+      
+      narrativePreferences.needsSystemsAudit =
+        allContent.includes('loose structure') ||
+        allContent.includes('loose leadership') ||
+        allContent.includes('is loose');
+      
+      console.log('[BM Pass 1] Narrative preferences extracted:', narrativePreferences);
+    }
+    
     // ENRICH DATA: Calculate derived metrics (using uploaded accounts if available)
     // Use effectiveHVAData (which includes inferred values if HVA Part 3 is missing)
-    const assessmentData = enrichBenchmarkData(rawAssessmentData, effectiveHVAData, uploadedFinancialData);
+    // Pass narrative preferences for context-aware narrative generation
+    const assessmentData = enrichBenchmarkData(rawAssessmentData, effectiveHVAData, uploadedFinancialData, narrativePreferences);
     
     console.log('[BM Pass 1] Data enrichment complete:', {
       derived_fields: assessmentData.derived_fields,

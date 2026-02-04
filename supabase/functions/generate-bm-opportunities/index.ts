@@ -85,7 +85,22 @@ serve(async (req) => {
     // 5. Store results
     await storeOpportunities(supabase, engagementId, clientData.clientId, analysis);
     
-    // 6. Update report with assessment (including blocked services and synthesis)
+    // 5b. Generate AUTHORITATIVE recommended services
+    // This is the SINGLE SOURCE OF TRUTH - frontend should ONLY display these
+    const activeServiceCodes = ['BENCHMARKING_DEEP_DIVE']; // They have benchmarking
+    const recommendedServices = generateRecommendedServices(
+      analysis.opportunities || [],
+      services || [],
+      analysis.blockedServices || [],
+      clientData.clientPreferences,
+      activeServiceCodes
+    );
+    
+    console.log(`[Pass 3] Generated ${recommendedServices.length} authoritative service recommendations`);
+    console.log(`[Pass 3] Recommended: ${recommendedServices.map(r => r.code).join(', ')}`);
+    console.log(`[Pass 3] Blocked: ${(analysis.blockedServices || []).map((b: any) => b.serviceCode).join(', ')}`);
+    
+    // 6. Update report with assessment (including blocked services, preferences, and AUTHORITATIVE recommendations)
     await supabase
       .from('bm_reports')
       .update({
@@ -94,6 +109,10 @@ serve(async (req) => {
         opportunities_generated_at: new Date().toISOString(),
         not_recommended_services: analysis.blockedServices || [],
         client_direction_at_generation: clientData.directionContext.businessDirection,
+        // NEW: Context intelligence columns
+        client_preferences: clientData.clientPreferences,
+        recommended_services: recommendedServices,  // AUTHORITATIVE - frontend reads this ONLY
+        active_service_codes: activeServiceCodes,
       })
       .eq('engagement_id', engagementId);
     
@@ -1226,6 +1245,142 @@ function contextSuggestionsToOpportunities(suggestions: ContextSuggestion[]): an
     _contextDriven: true,  // Flag for tracking
     _contextReason: s.reason,
   }));
+}
+
+// ============================================================================
+// AUTHORITATIVE RECOMMENDED SERVICES GENERATOR
+// This is the SINGLE SOURCE OF TRUTH for service recommendations
+// Frontend should ONLY display these - no independent calculation
+// ============================================================================
+
+interface RecommendedService {
+  code: string;
+  name: string;
+  headline: string;
+  priceRange: string;
+  timeframe: string;
+  priority: 'immediate' | 'short-term' | 'medium-term';
+  howItHelps: string;
+  expectedOutcome: string;
+  timeToValue: string;
+  contextReason?: string;
+  alternativeTo?: string;
+}
+
+function generateRecommendedServices(
+  opportunities: any[],
+  services: any[],
+  blockedServices: { serviceCode: string; reason: string }[],
+  clientPreferences: ClientPreferences,
+  activeServiceCodes: string[]
+): RecommendedService[] {
+  const recommendations: RecommendedService[] = [];
+  const blockedCodes = blockedServices.map(b => b.serviceCode);
+  const seenCodes = new Set<string>();
+  
+  // Priority order for severity
+  const severityPriority: Record<string, 'immediate' | 'short-term' | 'medium-term'> = {
+    'critical': 'immediate',
+    'high': 'immediate',
+    'medium': 'short-term',
+    'low': 'medium-term',
+    'opportunity': 'medium-term',
+  };
+  
+  // Process each opportunity that maps to a service
+  for (const opp of opportunities) {
+    const serviceCode = opp.serviceMapping?.existingService?.code;
+    if (!serviceCode) continue;
+    
+    // Skip if blocked or already seen
+    if (blockedCodes.includes(serviceCode)) continue;
+    if (seenCodes.has(serviceCode)) continue;
+    if (activeServiceCodes.includes(serviceCode)) continue;
+    
+    // Find the service details
+    const service = services.find(s => s.code === serviceCode);
+    if (!service) continue;
+    
+    seenCodes.add(serviceCode);
+    
+    recommendations.push({
+      code: serviceCode,
+      name: service.name,
+      headline: service.headline || service.description?.substring(0, 100) || '',
+      priceRange: `£${service.price_from?.toLocaleString() || '?'}-£${service.price_to?.toLocaleString() || '?'}${service.price_unit === 'per_month' ? '/month' : ''}`,
+      timeframe: service.typical_duration || 'Flexible',
+      priority: severityPriority[opp.severity] || 'medium-term',
+      howItHelps: opp.description || opp.dataEvidence || '',
+      expectedOutcome: opp.financialImpact?.amount 
+        ? `Up to £${opp.financialImpact.amount.toLocaleString()} ${opp.financialImpact.type || 'impact'}` 
+        : 'Improved operational efficiency',
+      timeToValue: service.typical_duration || '1-3 months',
+      contextReason: opp._contextDriven ? opp._contextReason : undefined,
+    });
+  }
+  
+  // Add alternatives for blocked services
+  for (const blocked of blockedServices) {
+    const alternative = getAlternativeService(blocked.serviceCode, clientPreferences, services);
+    if (alternative && !seenCodes.has(alternative.code)) {
+      seenCodes.add(alternative.code);
+      recommendations.push({
+        ...alternative,
+        alternativeTo: blocked.serviceCode,
+        contextReason: blocked.reason,
+      });
+    }
+  }
+  
+  // Sort by priority
+  const priorityOrder = { 'immediate': 0, 'short-term': 1, 'medium-term': 2 };
+  recommendations.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+  
+  // Cap at 6 recommendations
+  return recommendations.slice(0, 6);
+}
+
+function getAlternativeService(
+  blockedCode: string,
+  prefs: ClientPreferences,
+  services: any[]
+): RecommendedService | null {
+  // Determine best alternative based on preferences
+  let altCode: string | null = null;
+  let reason = '';
+  
+  if (blockedCode === 'FRACTIONAL_COO') {
+    if (prefs.needsSystemsAudit || prefs.needsDocumentation) {
+      altCode = 'SYSTEMS_AUDIT';
+      reason = 'Address documentation needs through focused project rather than embedded role';
+    } else {
+      altCode = 'STRATEGIC_ADVISORY';
+      reason = 'Project-based strategic support aligned with external support preference';
+    }
+  } else if (blockedCode === 'FRACTIONAL_CFO') {
+    altCode = 'STRATEGIC_ADVISORY';
+    reason = 'Strategic finance input on project basis';
+  } else if (blockedCode === 'BENCHMARKING_DEEP_DIVE') {
+    altCode = 'QUARTERLY_BI_SUPPORT';
+    reason = 'Ongoing insight rather than repeated deep dive';
+  }
+  
+  if (!altCode) return null;
+  
+  const service = services.find(s => s.code === altCode);
+  if (!service) return null;
+  
+  return {
+    code: altCode,
+    name: service.name,
+    headline: service.headline || service.description?.substring(0, 100) || '',
+    priceRange: `£${service.price_from?.toLocaleString() || '?'}-£${service.price_to?.toLocaleString() || '?'}${service.price_unit === 'per_month' ? '/month' : ''}`,
+    timeframe: service.typical_duration || 'Flexible',
+    priority: 'short-term',
+    howItHelps: reason,
+    expectedOutcome: 'Strategic guidance aligned with your preferences',
+    timeToValue: service.typical_duration || '1-3 months',
+  };
 }
 
 // ============================================================================
