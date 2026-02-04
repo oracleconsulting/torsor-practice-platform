@@ -9,133 +9,179 @@
 
 ## Purpose
 
-This folder contains a comprehensive analysis package of the Benchmarking Service for:
-1. **Claude Project setup** - All context needed for AI-assisted development
-2. **Architecture reference** - Understanding how the system works
-3. **Debugging** - Quick access to key code without navigation
+This folder contains a **COMPLETE** analysis package of the Benchmarking Service:
+- ✅ All backend edge functions
+- ✅ All frontend components (admin + client)
+- ✅ Database migrations (table schemas)
+- ✅ Types, config, and lib files
+- ✅ Documentation
 
 ---
 
-## File Index
+## Folder Structure
 
-### 📚 Documentation
-
-| File | Description |
-|------|-------------|
-| `BENCHMARKING_SYSTEM_ARCHITECTURE.md` | **START HERE** - Complete system overview |
-| `COMPONENT_SUMMARIES.md` | Frontend component descriptions |
-| `MIGRATIONS_INDEX.md` | Database schema evolution |
-| `RELATED_DOCUMENTATION.md` | Links to other docs and systems |
-
-### 📋 Documentation Copies
-
-| File | Source |
-|------|--------|
-| `BENCHMARKING_SERVICE_LINE_SUMMARY-COPY.md` | `docs/` |
-| `BENCHMARKING_AND_HVA_QUESTIONNAIRE-COPY.md` | `docs/` |
-| `BENCHMARKING_HIDDEN_VALUE_DISCOVERY-COPY.md` | `docs/` |
-
-### ⚡ Edge Functions (Supabase)
-
-| File | Lines | Purpose |
-|------|-------|---------|
-| `generate-bm-report-pass1-COPY.ts` | 4891 | Data analysis (Sonnet) |
-| `generate-bm-report-pass2-COPY.ts` | 540 | Narrative writing (Opus) |
-| `generate-bm-opportunities-COPY.ts` | 2016 | Opportunity analysis (Opus 4.5) |
-| `fetch-industry-benchmarks-COPY.ts` | 638 | Perplexity benchmark search |
-| `regenerate-bm-report-COPY.ts` | 303 | Re-run analysis |
-| `save-bm-supplementary-data-COPY.ts` | 219 | Save admin-collected data |
-
-### 📦 Types & Config
-
-| File | Purpose |
-|------|---------|
-| `benchmarking-types-COPY.ts` | TypeScript interfaces |
-| `benchmarking-discovery-COPY.ts` | Assessment configuration |
-
-### 🔧 Lib Files
-
-| File | Purpose |
-|------|---------|
-| `founder-risk-calculator-COPY.ts` | Founder risk scoring algorithm |
-| `industry-mapper-COPY.ts` | SIC code → industry code mapping |
-| `scenario-calculator-COPY.ts` | Client-side what-if calculations |
-| `export-benchmarking-data-COPY.ts` | Debug utility |
-
----
-
-## Quick Links to Source Files
-
-### Edge Functions
 ```
-supabase/functions/generate-bm-report-pass1/index.ts
-supabase/functions/generate-bm-report-pass2/index.ts
-supabase/functions/generate-bm-opportunities/index.ts
-supabase/functions/fetch-industry-benchmarks/index.ts
-supabase/functions/regenerate-bm-report/index.ts
-supabase/functions/save-bm-supplementary-data/index.ts
-```
-
-### Components
-```
-src/components/benchmarking/admin/BenchmarkingAdminView.tsx
-src/components/benchmarking/client/BenchmarkingClientReport.tsx
-```
-
-### Types & Config
-```
-src/types/benchmarking.ts
-src/config/assessments/benchmarking-discovery.ts
-```
-
-### Lib Files
-```
-src/lib/services/benchmarking/founder-risk-calculator.ts
-src/lib/services/benchmarking/industry-mapper.ts
-src/lib/scenario-calculator.ts
+benchmarking assessment analysis/
+├── 📚 Documentation
+│   ├── README.md                              (this file)
+│   ├── BENCHMARKING_SYSTEM_ARCHITECTURE.md    ← START HERE
+│   ├── COMPONENT_SUMMARIES.md
+│   ├── MIGRATIONS_INDEX.md
+│   └── RELATED_DOCUMENTATION.md
+│
+├── 📋 Doc Copies
+│   ├── BENCHMARKING_SERVICE_LINE_SUMMARY-COPY.md
+│   ├── BENCHMARKING_AND_HVA_QUESTIONNAIRE-COPY.md
+│   └── BENCHMARKING_HIDDEN_VALUE_DISCOVERY-COPY.md
+│
+├── ⚡ Edge Functions (Backend)
+│   ├── generate-bm-report-pass1-COPY.ts       (4891 lines)
+│   ├── generate-bm-report-pass2-COPY.ts       (540 lines)
+│   ├── generate-bm-opportunities-COPY.ts      (2016 lines)
+│   ├── fetch-industry-benchmarks-COPY.ts
+│   ├── regenerate-bm-report-COPY.ts
+│   └── save-bm-supplementary-data-COPY.ts
+│
+├── 🖥️ components/
+│   ├── admin/                                  ← ADMIN VIEW
+│   │   ├── BenchmarkingAdminView-COPY.tsx     (main admin component)
+│   │   ├── DataCollectionPanel-COPY.tsx
+│   │   ├── OpportunityDashboard-COPY.tsx
+│   │   ├── OpportunityPanel-COPY.tsx
+│   │   ├── ValueAnalysisPanel-COPY.tsx
+│   │   ├── ServicePathwayPanel-COPY.tsx
+│   │   ├── AccountsUploadPanel-COPY.tsx
+│   │   ├── ConversationScript-COPY.tsx
+│   │   └── NextStepsPanel-COPY.tsx
+│   │
+│   ├── client/                                 ← CLIENT REPORT
+│   │   ├── BenchmarkingClientReport-COPY.tsx  (main client component)
+│   │   ├── HeroSection-COPY.tsx
+│   │   ├── MetricComparisonCard-COPY.tsx
+│   │   ├── NarrativeSection-COPY.tsx
+│   │   ├── ValueBridgeSection-COPY.tsx
+│   │   ├── ScenarioPlanningSection-COPY.tsx
+│   │   └── ServiceRecommendationsSection-COPY.tsx
+│   │
+│   └── shared/                                 ← ENHANCED (ROLLS ROYCE)
+│       ├── CalculationBreakdown-COPY.tsx
+│       ├── SurplusCashBreakdown-COPY.tsx
+│       ├── EnhancedSuppressorCard-COPY.tsx
+│       ├── ExitReadinessBreakdown-COPY.tsx
+│       └── TwoPathsSection-COPY.tsx
+│
+├── 📄 pages/
+│   └── ClientServicesPage-COPY.tsx            ← ADMIN HOST PAGE
+│
+├── 🗄️ migrations/                              ← DATABASE SCHEMAS
+│   ├── 20251222_benchmarking_complete-COPY.sql
+│   ├── 20260129_bm_balance_sheet_trends-COPY.sql
+│   ├── 20260130_bm_surplus_cash_founder_risk-COPY.sql
+│   ├── 20260201_add_value_analysis_column-COPY.sql
+│   ├── 20260201_create_client_opportunities_table-COPY.sql
+│   ├── 20260202_value_suppressors_overhaul-COPY.sql
+│   └── 20260203_opportunity_calculations-COPY.sql
+│
+├── 📦 Types & Config
+│   ├── benchmarking-types-COPY.ts
+│   └── benchmarking-discovery-COPY.ts
+│
+└── 🔧 Lib Files
+    ├── founder-risk-calculator-COPY.ts
+    ├── industry-mapper-COPY.ts
+    ├── scenario-calculator-COPY.ts
+    └── export-benchmarking-data-COPY.ts
 ```
 
 ---
 
-## System Summary
+## File Counts
 
-### Data Flow
+| Category | Count |
+|----------|-------|
+| Documentation | 8 |
+| Edge Functions | 6 |
+| Admin Components | 9 |
+| Client Components | 7 |
+| Shared Components | 5 |
+| Pages | 1 |
+| Migrations | 7 |
+| Types/Config | 2 |
+| Lib Files | 4 |
+| **TOTAL** | **49 files** |
+
+---
+
+## Quick Reference
+
+### Admin Flow
 ```
-Assessment → Pass 1 → Pass 2 → Pass 3 → Report
-    ↓           ↓         ↓         ↓
-Responses   Analysis  Narrative  Opportunities
+ClientServicesPage.tsx
+  └── BenchmarkingAdminView.tsx
+        ├── DataCollectionPanel (collect metrics)
+        ├── OpportunityDashboard (view opportunities)
+        ├── ValueAnalysisPanel (value bridge)
+        ├── ServicePathwayPanel (recommendations)
+        └── AccountsUploadPanel (upload PDFs)
 ```
 
-### Key Tables
-- `bm_engagements` - Engagement tracking
-- `bm_assessment_responses` - Client answers
-- `bm_reports` - Generated reports
-- `client_opportunities` - Identified opportunities
-- `services` - Service catalogue
+### Client Flow
+```
+BenchmarkingClientReport.tsx
+  ├── HeroSection (headline, percentile)
+  ├── MetricComparisonCard × N (benchmarks)
+  ├── NarrativeSection (AI narratives)
+  ├── ValueBridgeSection (value analysis)
+  ├── ScenarioPlanningSection (what-if)
+  └── ServiceRecommendationsSection (next steps)
+```
 
-### LLM Usage
-- **Pass 1**: Claude Sonnet - Fast data analysis
-- **Pass 2**: Claude Opus - Narrative writing
-- **Pass 3**: Claude Opus 4.5 - Opportunity identification
+### Backend Flow
+```
+Pass 1 (Sonnet)     → Data analysis, metrics, calculations
+Pass 2 (Opus)       → Narrative writing
+Pass 3 (Opus 4.5)   → Opportunity identification
+```
+
+---
+
+## Key Database Tables
+
+| Table | Purpose |
+|-------|---------|
+| `bm_engagements` | Links client to benchmarking service |
+| `bm_assessment_responses` | Client questionnaire answers |
+| `bm_reports` | Generated report (all data) |
+| `bm_metric_comparisons` | Individual metric benchmarks |
+| `client_opportunities` | AI-identified opportunities |
+| `services` | Service catalogue |
+| `service_concepts` | New service ideas |
+| `client_context_notes` | Admin notes from calls |
 
 ---
 
 ## For Claude Project Setup
 
-Upload these files to your Claude Project:
-1. `BENCHMARKING_SYSTEM_ARCHITECTURE.md` (required)
-2. `COMPONENT_SUMMARIES.md` (required)
-3. `generate-bm-report-pass1-COPY.ts` (main logic)
-4. `generate-bm-opportunities-COPY.ts` (opportunity logic)
-5. `benchmarking-types-COPY.ts` (type definitions)
+### Essential (upload first)
+1. `BENCHMARKING_SYSTEM_ARCHITECTURE.md` - System overview
+2. `benchmarking-types-COPY.ts` - Type definitions
+3. `generate-bm-report-pass1-COPY.ts` - Core analysis
 
-Optional for deep dives:
-- Other edge function copies
-- Documentation copies
-- Lib file copies
+### Frontend Focus
+4. `components/admin/BenchmarkingAdminView-COPY.tsx`
+5. `components/client/BenchmarkingClientReport-COPY.tsx`
+6. `pages/ClientServicesPage-COPY.tsx`
+
+### Backend Focus
+7. `generate-bm-opportunities-COPY.ts`
+8. `generate-bm-report-pass2-COPY.ts`
+
+### Database Focus
+9. `migrations/20251222_benchmarking_complete-COPY.sql`
+10. `migrations/20260201_create_client_opportunities_table-COPY.sql`
 
 ---
 
 *Last updated: 2026-02-04*
-*Total files: 21*
-*Total size: ~550KB*
+*Total files: 49*
+*Total size: ~1.5MB*
