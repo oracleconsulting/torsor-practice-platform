@@ -4832,7 +4832,7 @@ When writing narratives:
       gross_margin: assessmentData.gross_margin || null,
       net_margin: assessmentData.net_margin || null,
       ebitda_margin: assessmentData.ebitda_margin || null,
-      client_concentration_top3: assessmentData.client_concentration_top3 || null,
+      // Note: client_concentration_top3 is stored in pass1_data.client_concentration_top3, not as top-level column
       // ====================================================================
       // ENHANCED TRANSPARENCY DATA (new fields for calculation breakdown)
       // ====================================================================
