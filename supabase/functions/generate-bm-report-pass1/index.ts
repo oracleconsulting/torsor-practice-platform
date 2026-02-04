@@ -4829,11 +4829,11 @@ When writing narratives:
       value_analysis: assessmentData.value_analysis || null,
       // Note: Detailed financial metrics (revenue, margins, etc.) stored in pass1_data only
       // ====================================================================
-      // ENHANCED TRANSPARENCY DATA (new fields for calculation breakdown)
+      // ENHANCED TRANSPARENCY DATA (columns added by 20260203_opportunity_calculations.sql)
       // ====================================================================
       enhanced_suppressors: assessmentData.enhanced_suppressors || null,
       exit_readiness_breakdown: assessmentData.exit_readiness_breakdown || null,
-      surplus_cash_breakdown: assessmentData.surplus_cash_breakdown || null,
+      // Note: surplus_cash_breakdown is stored in pass1_data only (no top-level column)
       two_paths_narrative: assessmentData.two_paths_narrative || null,
     };
     
