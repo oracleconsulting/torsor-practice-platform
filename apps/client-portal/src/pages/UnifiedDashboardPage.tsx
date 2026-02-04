@@ -428,9 +428,10 @@ export default function UnifiedDashboardPage() {
       if (hasBenchmarkingService) {
         console.log('📊 Checking benchmarking status...');
         
+        // Include report_shared_with_client from engagement (clients can read this)
         const { data: bmEngagement, error: bmEngagementError } = await supabase
           .from('bm_engagements')
-          .select('id, status, assessment_completed_at')
+          .select('id, status, assessment_completed_at, report_shared_with_client')
           .eq('client_id', clientSession?.clientId)
           .maybeSingle();
         
@@ -443,16 +444,9 @@ export default function UnifiedDashboardPage() {
             reportShared: false
           });
         } else if (bmEngagement) {
-          // Check if report exists and is shared
-          const { data: bmReport } = await supabase
-            .from('bm_reports')
-            .select('is_shared_with_client, engagement_id')
-            .eq('engagement_id', bmEngagement.id)
-            .eq('is_shared_with_client', true)
-            .maybeSingle();
-          
           const isReportGenerated = ['generated', 'approved', 'published', 'pass1_complete'].includes(bmEngagement.status);
-          const isReportShared = !!bmReport?.is_shared_with_client;
+          // Read share status directly from engagement (avoids RLS issues with bm_reports)
+          const isReportShared = !!bmEngagement.report_shared_with_client;
           
           setBenchmarkingStatus({
             hasEngagement: true,

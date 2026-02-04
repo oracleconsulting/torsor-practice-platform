@@ -10241,19 +10241,36 @@ function BenchmarkingClientModal({
     
     setIsTogglingBenchmarkShare(true);
     try {
-      const { error } = await supabase
+      const timestamp = newSharedStatus ? new Date().toISOString() : null;
+      
+      // Update bm_reports
+      const { error: reportError } = await supabase
         .from('bm_reports')
         .update({
           is_shared_with_client: newSharedStatus,
-          shared_at: newSharedStatus ? new Date().toISOString() : null,
+          shared_at: timestamp,
           shared_by: newSharedStatus ? currentMember?.id : null
         })
         .eq('engagement_id', engagement.id);
       
-      if (error) {
-        console.error('[Benchmarking] Error toggling share:', error);
-        alert(`Failed to ${newSharedStatus ? 'share' : 'unshare'} report: ${error.message}`);
+      if (reportError) {
+        console.error('[Benchmarking] Error toggling share on bm_reports:', reportError);
+        alert(`Failed to ${newSharedStatus ? 'share' : 'unshare'} report: ${reportError.message}`);
         return;
+      }
+      
+      // Also update bm_engagements (so clients can see share status via RLS)
+      const { error: engagementError } = await supabase
+        .from('bm_engagements')
+        .update({
+          report_shared_with_client: newSharedStatus,
+          report_shared_at: timestamp
+        })
+        .eq('id', engagement.id);
+      
+      if (engagementError) {
+        console.error('[Benchmarking] Error syncing share to bm_engagements:', engagementError);
+        // Don't fail - the main update worked
       }
       
       setIsBenchmarkShared(newSharedStatus);
