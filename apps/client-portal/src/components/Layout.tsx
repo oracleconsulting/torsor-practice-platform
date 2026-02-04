@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  FileText,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -23,9 +24,11 @@ interface LayoutProps {
 
 // Navigation items with service requirements
 // Items with requiredServices will only show if client is enrolled in one of those services
+// Note: hidden_value_audit and benchmarking assessments are accessed via dashboard cards, not sidebar
 const allNavigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home, requiredServices: null }, // Always show
-  { name: 'Assessments', href: '/assessments', icon: ClipboardList, requiredServices: ['365_method', '365_alignment', 'hidden_value_audit'] },
+  { name: 'Assessments', href: '/assessments', icon: ClipboardList, requiredServices: ['365_method', '365_alignment'] }, // Only for 365 Method
+  { name: 'Reports', href: '/reports', icon: FileText, requiredServices: ['benchmarking', 'hidden_value_audit', 'discovery'] }, // For report-based services
   { name: 'Roadmap', href: '/roadmap', icon: Map, requiredServices: ['365_method', '365_alignment'] },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare, requiredServices: ['365_method', '365_alignment'] },
   { name: 'Chat', href: '/chat', icon: MessageCircle, requiredServices: ['365_method', '365_alignment'] },

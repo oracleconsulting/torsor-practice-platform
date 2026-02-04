@@ -26,6 +26,7 @@ import MAPresentationPage from './pages/services/MAPresentationPage';
 import SystemInventoryPage from './pages/services/SystemInventoryPage';
 import ProcessDeepDivesPage from './pages/services/ProcessDeepDivesPage';
 import BenchmarkingReportPage from './pages/services/BenchmarkingReportPage';
+import ReportsPage from './pages/ReportsPage';
 import DestinationDiscoveryPage from './pages/discovery/DestinationDiscoveryPage';
 import DiscoveryReportPage from './pages/discovery/DiscoveryReportPage';
 
@@ -58,6 +59,9 @@ function App() {
             <Route path="/assessment/part2" element={<AssessmentPart2Page />} />
             <Route path="/assessment/part3" element={<AssessmentPart3Page />} />
             <Route path="/assessment/review" element={<AssessmentReviewPage />} />
+            
+            {/* Reports */}
+            <Route path="/reports" element={<ReportsPage />} />
             
             {/* Roadmap & Tasks */}
             <Route path="/roadmap" element={<RoadmapPage />} />
