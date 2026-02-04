@@ -93,6 +93,12 @@ export default function UnifiedDashboardPage() {
     engagementId: string | null;
     reportApproved: boolean;
   } | null>(null);
+  const [benchmarkingStatus, setBenchmarkingStatus] = useState<{
+    hasEngagement: boolean;
+    assessmentComplete: boolean;
+    reportGenerated: boolean;
+    reportShared: boolean;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -416,6 +422,63 @@ export default function UnifiedDashboardPage() {
         }
       }
 
+      // ========== Benchmarking Status Check ==========
+      // Check if client has a benchmarking engagement and shared report
+      const hasBenchmarkingService = enrollments?.some((e: any) => e.service_line?.code === 'benchmarking');
+      if (hasBenchmarkingService) {
+        console.log('📊 Checking benchmarking status...');
+        
+        const { data: bmEngagement, error: bmEngagementError } = await supabase
+          .from('bm_engagements')
+          .select('id, status, assessment_completed_at')
+          .eq('client_id', clientSession?.clientId)
+          .maybeSingle();
+        
+        if (bmEngagementError) {
+          console.error('❌ Error fetching benchmarking engagement:', bmEngagementError);
+          setBenchmarkingStatus({
+            hasEngagement: false,
+            assessmentComplete: false,
+            reportGenerated: false,
+            reportShared: false
+          });
+        } else if (bmEngagement) {
+          // Check if report exists and is shared
+          const { data: bmReport } = await supabase
+            .from('bm_reports')
+            .select('is_shared_with_client, engagement_id')
+            .eq('engagement_id', bmEngagement.id)
+            .eq('is_shared_with_client', true)
+            .maybeSingle();
+          
+          const isReportGenerated = ['generated', 'approved', 'published', 'pass1_complete'].includes(bmEngagement.status);
+          const isReportShared = !!bmReport?.is_shared_with_client;
+          
+          setBenchmarkingStatus({
+            hasEngagement: true,
+            assessmentComplete: !!bmEngagement.assessment_completed_at || ['assessment_complete', 'generated', 'approved', 'published', 'pass1_complete'].includes(bmEngagement.status),
+            reportGenerated: isReportGenerated,
+            reportShared: isReportShared
+          });
+          
+          console.log('✅ Benchmarking status:', {
+            hasEngagement: true,
+            assessmentComplete: !!bmEngagement.assessment_completed_at,
+            reportGenerated: isReportGenerated,
+            reportShared: isReportShared,
+            engagementStatus: bmEngagement.status
+          });
+        } else {
+          console.log('⚠️ No benchmarking engagement found');
+          setBenchmarkingStatus({
+            hasEngagement: false,
+            assessmentComplete: false,
+            reportGenerated: false,
+            reportShared: false
+          });
+        }
+      }
+
       let serviceList: ServiceEnrollment[] = (enrollments || [])
         .filter((e: any) => {
           const hasServiceLine = !!e.service_line;
@@ -664,6 +727,14 @@ export default function UnifiedDashboardPage() {
       // Stage 1 not complete, route to Stage 1
       return '/service/systems_audit/assessment';
     }
+    if (code === 'benchmarking') {
+      // If report is shared, show the report
+      if (benchmarkingStatus?.reportShared) {
+        return '/service/benchmarking/report';
+      }
+      // Otherwise, go to assessment
+      return '/service/benchmarking/assessment';
+    }
     return `/service/${code}/assessment`;
   };
 
@@ -792,6 +863,21 @@ export default function UnifiedDashboardPage() {
         return { label: 'Continue to Stage 2', color: 'cyan', icon: ArrowRight };
       } else {
         return { label: 'Start Stage 1', color: 'indigo', icon: Play };
+      }
+    }
+    
+    // Benchmarking handling
+    if (code === 'benchmarking') {
+      if (benchmarkingStatus?.reportShared) {
+        return { label: 'View Report', color: 'emerald', icon: FileText };
+      } else if (benchmarkingStatus?.reportGenerated) {
+        return { label: 'Report Coming Soon', color: 'amber', icon: Clock };
+      } else if (benchmarkingStatus?.assessmentComplete) {
+        return { label: 'Analysis In Progress', color: 'blue', icon: Clock };
+      } else if (benchmarkingStatus?.hasEngagement) {
+        return { label: 'Continue Assessment', color: 'cyan', icon: ArrowRight };
+      } else {
+        return { label: 'Start Assessment', color: 'indigo', icon: Play };
       }
     }
     

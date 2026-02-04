@@ -12,7 +12,7 @@ import { ServicePathwayPanel } from './ServicePathwayPanel';
 import { OpportunityPanel } from './OpportunityPanel';
 import { ValueAnalysisPanel } from './ValueAnalysisPanel';
 import { ExportAnalysisButton } from './ExportAnalysisButton';
-import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target, Sparkles, DollarSign } from 'lucide-react';
+import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target, Sparkles, DollarSign, Share2, EyeOff, Loader2 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import type { ValueAnalysis } from '../../../types/benchmarking';
 import type { DetectedIssue, ServiceRecommendation } from '../../../lib/issue-service-mapping';
@@ -153,6 +153,10 @@ interface BenchmarkingAdminViewProps {
   onRegenerate?: () => Promise<void>;
   onSaveSupplementaryData?: (data: Record<string, number | string>) => Promise<void>;
   isRegenerating?: boolean;
+  // Share with client functionality
+  isSharedWithClient?: boolean;
+  onToggleShare?: (newStatus: boolean) => Promise<void>;
+  isTogglingShare?: boolean;
 }
 
 interface AccountUpload {
@@ -220,7 +224,11 @@ export function BenchmarkingAdminView({
   onSwitchToClient,
   onRegenerate,
   onSaveSupplementaryData,
-  isRegenerating = false
+  isRegenerating = false,
+  // Share with client functionality
+  isSharedWithClient = false,
+  onToggleShare,
+  isTogglingShare = false
 }: BenchmarkingAdminViewProps) {
   const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'services' | 'opportunities' | 'valuation' | 'actions' | 'collect' | 'accounts' | 'sources' | 'raw'>('script');
   
@@ -377,6 +385,30 @@ export function BenchmarkingAdminView({
                   supplementaryData={supplementaryData}
                 />
               )}
+              
+              {/* Share with Client Portal button */}
+              {onToggleShare && (
+                <button 
+                  onClick={() => onToggleShare(!isSharedWithClient)}
+                  disabled={isTogglingShare}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition-colors ${
+                    isSharedWithClient 
+                      ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-300' 
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  title={isSharedWithClient ? 'Click to unshare from client portal' : 'Click to share with client portal'}
+                >
+                  {isTogglingShare ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : isSharedWithClient ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Share2 className="w-4 h-4" />
+                  )}
+                  {isSharedWithClient ? 'Unshare from Portal' : 'Share with Client'}
+                </button>
+              )}
+              
               {onSwitchToClient && (
                 <button 
                   onClick={onSwitchToClient}

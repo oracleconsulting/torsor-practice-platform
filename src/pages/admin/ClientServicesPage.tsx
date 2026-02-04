@@ -10231,6 +10231,46 @@ function BenchmarkingClientModal({
     source: ''
   });
 
+  // Share with client state
+  const [isBenchmarkShared, setIsBenchmarkShared] = useState(false);
+  const [isTogglingBenchmarkShare, setIsTogglingBenchmarkShare] = useState(false);
+
+  // Handler for share toggle
+  const handleToggleBenchmarkShare = async (newSharedStatus: boolean) => {
+    if (!engagement?.id) return;
+    
+    setIsTogglingBenchmarkShare(true);
+    try {
+      const { error } = await supabase
+        .from('bm_reports')
+        .update({
+          is_shared_with_client: newSharedStatus,
+          shared_at: newSharedStatus ? new Date().toISOString() : null,
+          shared_by: newSharedStatus ? currentMember?.id : null
+        })
+        .eq('engagement_id', engagement.id);
+      
+      if (error) {
+        console.error('[Benchmarking] Error toggling share:', error);
+        alert(`Failed to ${newSharedStatus ? 'share' : 'unshare'} report: ${error.message}`);
+        return;
+      }
+      
+      setIsBenchmarkShared(newSharedStatus);
+      
+      if (newSharedStatus) {
+        alert('✅ Report is now visible in the client portal');
+      } else {
+        alert('Report has been hidden from the client portal');
+      }
+    } catch (err) {
+      console.error('[Benchmarking] Share toggle error:', err);
+      alert('An error occurred while updating share status');
+    } finally {
+      setIsTogglingBenchmarkShare(false);
+    }
+  };
+
   useEffect(() => {
     if (currentMember?.practice_id) {
       fetchData();
@@ -10512,6 +10552,9 @@ function BenchmarkingClientModal({
             hasExecutiveSummary: !!reportToUse.executive_summary
           });
           setReport(reportToUse);
+          
+          // Set share status
+          setIsBenchmarkShared(reportToUse.is_shared_with_client || false);
           
           // If report exists with status 'generated', switch to analysis tab
           if (reportToUse.status === 'generated' || reportToUse.status === 'approved' || reportToUse.status === 'published') {
@@ -11416,6 +11459,10 @@ function BenchmarkingClientModal({
                               onSaveSupplementaryData={handleSaveSupplementaryData}
                               onRegenerate={handleRegenerateWithNewData}
                               isRegenerating={generating}
+                              // Share with client functionality
+                              isSharedWithClient={isBenchmarkShared}
+                              onToggleShare={handleToggleBenchmarkShare}
+                              isTogglingShare={isTogglingBenchmarkShare}
                             />
                           );
                         })()

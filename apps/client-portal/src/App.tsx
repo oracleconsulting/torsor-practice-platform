@@ -25,6 +25,7 @@ import MADashboardPage from './pages/services/MADashboardPage';
 import MAPresentationPage from './pages/services/MAPresentationPage';
 import SystemInventoryPage from './pages/services/SystemInventoryPage';
 import ProcessDeepDivesPage from './pages/services/ProcessDeepDivesPage';
+import BenchmarkingReportPage from './pages/services/BenchmarkingReportPage';
 import DestinationDiscoveryPage from './pages/discovery/DestinationDiscoveryPage';
 import DiscoveryReportPage from './pages/discovery/DiscoveryReportPage';
 
@@ -79,6 +80,9 @@ function App() {
             <Route path="/service/business_intelligence/presentation" element={<MAPresentationPage />} />
             <Route path="/service/systems_audit/inventory" element={<SystemInventoryPage />} />
             <Route path="/service/systems_audit/process-deep-dives" element={<ProcessDeepDivesPage />} />
+            
+            {/* Benchmarking Report */}
+            <Route path="/service/benchmarking/report" element={<BenchmarkingReportPage />} />
             
             {/* Destination Discovery Assessment */}
             <Route path="/discovery" element={<DestinationDiscoveryPage />} />
