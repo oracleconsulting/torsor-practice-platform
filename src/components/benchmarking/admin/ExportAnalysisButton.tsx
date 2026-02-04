@@ -384,6 +384,86 @@ ${opp.concept ? `  - Problem it solves: ${opp.concept.problem_it_solves || 'N/A'
       md += `---\n\n`;
 
       // =======================================================================
+      // SECTION 7B: RECOMMENDED SERVICES SUMMARY (Full Details)
+      // =======================================================================
+      const servicesWithDetails = opportunities?.filter((o: any) => o.service) || [];
+      const uniqueServices = new Map<string, any>();
+      servicesWithDetails.forEach((opp: any) => {
+        if (opp.service?.code && !uniqueServices.has(opp.service.code)) {
+          uniqueServices.set(opp.service.code, {
+            service: opp.service,
+            opportunities: [opp]
+          });
+        } else if (opp.service?.code) {
+          uniqueServices.get(opp.service.code)!.opportunities.push(opp);
+        }
+      });
+
+      if (uniqueServices.size > 0) {
+        md += `## 7B. RECOMMENDED SERVICES SUMMARY
+
+Based on the analysis above, we recommend the following services to address the identified issues:
+
+`;
+        let serviceIdx = 1;
+        uniqueServices.forEach((entry: any) => {
+          const svc = entry.service;
+          const opps = entry.opportunities;
+          const totalImpact = opps.reduce((sum: number, o: any) => sum + (o.financial_impact_amount || 0), 0);
+          
+          md += `### ${serviceIdx}. ${svc.name}
+**Code:** ${svc.code}
+**Category:** ${svc.category || 'General'}
+**Price:** ${svc.price_from ? `£${svc.price_from.toLocaleString()}` : 'Contact'} - ${svc.price_to ? `£${svc.price_to.toLocaleString()}` : ''} ${svc.price_unit || ''}
+**Typical Duration:** ${svc.typical_duration || 'Varies by scope'}
+
+**Headline:** ${svc.headline || 'N/A'}
+
+**Description:** ${svc.description || 'Contact for details'}
+
+`;
+          // Deliverables
+          if (svc.deliverables && svc.deliverables.length > 0) {
+            md += `**What You'll Receive:**
+`;
+            svc.deliverables.forEach((d: string) => {
+              md += `- ${d}
+`;
+            });
+            md += `
+`;
+          }
+
+          // Why recommended
+          md += `**Why This Service Is Recommended:**
+This service directly addresses ${opps.length} identified ${opps.length === 1 ? 'issue' : 'issues'}:
+`;
+          opps.forEach((opp: any) => {
+            md += `- **${opp.severity?.toUpperCase() || 'MEDIUM'}:** ${opp.title}${opp.financial_impact_amount ? ` (£${opp.financial_impact_amount.toLocaleString()} impact)` : ''}
+`;
+          });
+          
+          if (opps[0].service_fit_rationale) {
+            md += `
+**Service Fit Rationale:** ${opps[0].service_fit_rationale}
+`;
+          }
+
+          if (totalImpact > 0) {
+            md += `
+**Combined Potential Impact:** £${totalImpact.toLocaleString()}
+`;
+          }
+
+          md += `
+---
+
+`;
+          serviceIdx++;
+        });
+      }
+
+      // =======================================================================
       // SECTION 8: ADMIN CONVERSATION SCRIPT
       // =======================================================================
       md += `## 8. ADMIN CONVERSATION SCRIPT

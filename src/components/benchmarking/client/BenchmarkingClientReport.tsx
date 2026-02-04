@@ -6,6 +6,7 @@ import { RecommendationsSection } from './RecommendationsSection';
 import { ScenarioExplorer } from './ScenarioExplorer';
 import { ScenarioPlanningSection } from './ScenarioPlanningSection';
 import { ServiceRecommendationsSection } from './ServiceRecommendationsSection';
+import { EnhancedServiceRecommendations } from './EnhancedServiceRecommendations';
 import { ValueBridgeSection } from './ValueBridgeSection';
 import { AlertTriangle, Gem, Shield, CheckCircle, Download } from 'lucide-react';
 import { exportToPDF } from '../../../lib/pdf-export';
@@ -828,7 +829,7 @@ export function BenchmarkingClientReport({
           />
         )}
         
-        {/* Service Recommendations - ACT Phase */}
+        {/* Service Recommendations - ACT Phase (Summary) */}
         {detectedIssues.length > 0 && (
           <ServiceRecommendationsSection
             issues={detectedIssues}
@@ -836,6 +837,17 @@ export function BenchmarkingClientReport({
             practitionerName={practitionerName}
             practitionerEmail={practitionerEmail}
             clientName={clientName}
+          />
+        )}
+        
+        {/* Enhanced Service Recommendations - Full Detail with Costs, Outcomes, Deliverables */}
+        {data.opportunities && data.opportunities.length > 0 && (
+          <EnhancedServiceRecommendations
+            opportunities={data.opportunities}
+            clientName={clientName}
+            practitionerName={practitionerName}
+            practitionerEmail={practitionerEmail}
+            valueAnalysis={data.value_analysis}
           />
         )}
         
